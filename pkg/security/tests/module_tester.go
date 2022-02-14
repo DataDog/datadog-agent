@@ -83,7 +83,6 @@ runtime_security_config:
 {{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
   map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
-  enable_runtime_compiled_constants: {{ .EnableRuntimeCompiledConstants }}
 
   policies:
     dir: {{.TestPoliciesDir}}
@@ -123,15 +122,14 @@ const (
 )
 
 type testOpts struct {
-	testDir                        string
-	disableFilters                 bool
-	disableApprovers               bool
-	disableDiscarders              bool
-	eventsCountThreshold           int
-	reuseProbeHandler              bool
-	disableERPCDentryResolution    bool
-	disableMapDentryResolution     bool
-	enableRuntimeCompiledConstants bool
+	testDir                     string
+	disableFilters              bool
+	disableApprovers            bool
+	disableDiscarders           bool
+	eventsCountThreshold        int
+	reuseProbeHandler           bool
+	disableERPCDentryResolution bool
+	disableMapDentryResolution  bool
 }
 
 func (s *stringSlice) String() string {
@@ -151,8 +149,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
 		to.reuseProbeHandler == opts.reuseProbeHandler &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
-		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
-		to.enableRuntimeCompiledConstants == opts.enableRuntimeCompiledConstants
+		to.disableMapDentryResolution == opts.disableMapDentryResolution
 }
 
 type testModule struct {
@@ -366,13 +363,12 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":                dir,
-		"DisableApprovers":               opts.disableApprovers,
-		"EventsCountThreshold":           opts.eventsCountThreshold,
-		"ErpcDentryResolutionEnabled":    erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":     mapDentryResolutionEnabled,
-		"EnableRuntimeCompiledConstants": opts.enableRuntimeCompiledConstants,
-		"LogPatterns":                    logPatterns,
+		"TestPoliciesDir":             dir,
+		"DisableApprovers":            opts.disableApprovers,
+		"EventsCountThreshold":        opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
+		"LogPatterns":                 logPatterns,
 	}); err != nil {
 		return "", err
 	}
