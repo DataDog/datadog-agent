@@ -30,19 +30,6 @@ def os
   )
 end
 
-def read_conf_file
-  conf_path = ""
-  if os == :windows
-    conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-  else
-    conf_path = '/etc/datadog-agent/datadog.yaml'
-  end
-  puts "cp is #{conf_path}"
-  f = File.read(conf_path)
-  confYaml = YAML.load(f)
-  confYaml
-end
-
 def get_runtime_config
   res = Net::HTTP.get('localhost', '/config', 6162)
   YAML.load(res)
