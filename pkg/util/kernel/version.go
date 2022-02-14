@@ -30,18 +30,18 @@ func (v Version) String() string {
 }
 
 // Major returns the major number of the version code
-func (v Version) Major() uint32 {
-	return (uint32)(v >> 16)
+func (v Version) Major() uint8 {
+	return (uint8)(v >> 16)
 }
 
 // Minor returns the minor number of the version code
-func (v Version) Minor() uint32 {
-	return (uint32)((v >> 8) & 0xff)
+func (v Version) Minor() uint8 {
+	return (uint8)((v >> 8) & 0xff)
 }
 
 // Patch returns the patch number of the version code
-func (v Version) Patch() uint32 {
-	return (uint32)(v & 0xff)
+func (v Version) Patch() uint8 {
+	return (uint8)(v & 0xff)
 }
 
 // HostVersion returns the running kernel version of the host
