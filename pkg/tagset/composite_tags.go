@@ -121,7 +121,7 @@ func (t *CompositeTags) UnmarshalJSON(b []byte) error {
 }
 
 // UnsafeToReadOnlySliceString creates a new slice containing all tags.
-// The caller of this method must ensure that the slice is never mutate.
+// The caller of this method must ensure that the slice is never mutated.
 // Should be used only for performance reasons.
 func (t CompositeTags) UnsafeToReadOnlySliceString() []string {
 	if len(t.tags2) == 0 {
