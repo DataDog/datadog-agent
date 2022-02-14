@@ -378,9 +378,9 @@ func (d *AgentDemultiplexer) Run() {
 }
 
 func (d *AgentDemultiplexer) flushLoop() {
-	var flushTicker *time.Ticker
+	var flushTicker <-chan time.Time
 	if d.options.FlushInterval > 0 {
-		flushTicker = time.NewTicker(d.options.FlushInterval)
+		flushTicker = time.NewTicker(d.options.FlushInterval).C
 	} else {
 		log.Debugf("flushInterval set to 0: will never flush automatically")
 	}
@@ -397,7 +397,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 				trigger.blockChan <- struct{}{}
 			}
 		// automatic flush sequence
-		case t := <-flushTicker.C:
+		case t := <-flushTicker:
 			d.flushToSerializer(t, false)
 		}
 	}
