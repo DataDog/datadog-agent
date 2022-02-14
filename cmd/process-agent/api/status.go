@@ -13,23 +13,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func writeError(err error, code int, w http.ResponseWriter) {
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), code)
+}
+
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the status. Making status.")
 
 	agentStatus, err := util.GetStatus()
 	if err != nil {
 		if err != nil {
-			_ = log.Warn("failed to get status from agent:", agentStatus)
-			body, _ := json.Marshal(map[string]string{"error": err.Error()})
-			http.Error(w, string(body), http.StatusInternalServerError)
+			_ = log.Warn("failed to get status from agent:", err)
+			writeError(err, http.StatusInternalServerError, w)
 		}
 	}
 
 	b, err := json.Marshal(agentStatus)
 	if err != nil {
 		_ = log.Warn("failed to serialize status response from agent:", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), http.StatusInternalServerError)
+		writeError(err, http.StatusInternalServerError, w)
 	}
 
 	_, err = w.Write(b)
