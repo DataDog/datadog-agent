@@ -28,7 +28,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     //     if service is present:
     //        (1) this is an upgrade.
     //     if service is not present
-    //        (2) this is new install on this machine
+    //        (2) this is a new install on this machine
     //        dd user has already been created in domain
     //        must have password for registering service
     //   If user is NOT present
