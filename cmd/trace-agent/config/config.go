@@ -291,6 +291,11 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 
+	c.Obfuscation.AppSec = config.AppSecObfuscationConfig{
+		ParameterKeyRegexp:   compileAppSecRegexp(coreconfig.Datadog.GetString(coreconfig.AppSecConfigKeyObfuscationParameterKeyRegexp)),
+		ParameterValueRegexp: compileAppSecRegexp(coreconfig.Datadog.GetString(coreconfig.AppSecConfigKeyObfuscationParameterValueRegexp)),
+	}
+
 	if coreconfig.Datadog.IsSet("apm_config.filter_tags.require") {
 		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags.require")
 		for _, tag := range tags {
@@ -596,4 +601,19 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	}
 	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
+}
+
+// compileAppSecRegexp compiles the given expression into a Go regular expression. It returns nil when the given
+// expression cannot be compiled and logs the compilation error. The empty string expression is considered the special
+// expression value to use in order to disable the regular expression.
+func compileAppSecRegexp(expr string) *regexp.Regexp {
+	if expr == "" {
+		return nil
+	}
+	re, err := regexp.Compile(expr)
+	if err != nil {
+		log.Errorf("Failed to parse the regular expression `%s`: %s", expr, err)
+		return nil
+	}
+	return re
 }

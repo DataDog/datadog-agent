@@ -87,18 +87,9 @@ type ObfuscationConfig struct {
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
-}
 
-// AppSecConfig ...
-type AppSecConfig struct {
-	// Enabled reports whether AppSec is enabled.
-	Enabled bool
-	// MaxPayloadSize ...
-	MaxPayloadSize int64
-	// APIKey ...
-	APIKey string
-	// DDURL ...
-	DDURL string
+	// AppSec holds the obfuscation settings for the AppSec meta value.
+	AppSec AppSecObfuscationConfig
 }
 
 // Export returns an obfuscate.Config matching o.
@@ -135,11 +126,19 @@ func (o *ObfuscationConfig) Export() obfuscate.Config {
 			RemoveQueryString: o.HTTP.RemoveQueryString,
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
 		},
-		Logger: new(debugLogger),
+		AppSec: obfuscate.AppSecConfig{
+			ParameterKeyRegexp:   o.AppSec.ParameterKeyRegexp,
+			ParameterValueRegexp: o.AppSec.ParameterValueRegexp,
+		},
+		Logger: debugLogger{},
 	}
 }
 
 type debugLogger struct{}
+
+func (l debugLogger) Errorf(format string, params ...interface{}) {
+	log.Errorf(format, params...)
+}
 
 func (debugLogger) Debugf(format string, params ...interface{}) {
 	log.Debugf(format, params...)
@@ -253,6 +252,29 @@ type DebuggerProxyConfig struct {
 	APIKey string
 }
 
+// AppSecConfig hold the AppSec reverse proxy settings.
+type AppSecConfig struct {
+	// Enabled reports whether AppSec is enabled.
+	Enabled bool
+	// MaxPayloadSize ...
+	MaxPayloadSize int64
+	// APIKey ...
+	APIKey string
+	// DDURL ...
+	DDURL string
+}
+
+// AppSecObfuscationConfig holds the configuration settings for HTTP obfuscation.
+type AppSecObfuscationConfig struct {
+	// ParameterKeyRegexp is the appsec event parameter key regular expression used to detect sensitive keys in appsec
+	// events.
+	ParameterKeyRegexp *regexp.Regexp
+
+	// ParameterValueRegexp is the appsec event parameter value regular expression used to detect sensitive values in
+	// appsec events.
+	ParameterValueRegexp *regexp.Regexp
+}
+
 // AgentConfig handles the interpretation of the configuration (with default
 // behaviors) in one place. It is also a simple structure to share across all
 // the Agent components, with 100% safe and reliable values.
@@ -346,7 +368,7 @@ type AgentConfig struct {
 	// infrastructure agent binary
 	DDAgentBin string
 
-	// Obfuscation holds sensitive data obufscator's configuration.
+	// Obfuscation holds sensitive data obfuscator's configuration.
 	Obfuscation *ObfuscationConfig
 
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
@@ -446,7 +468,6 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
-		Obfuscation:                 &ObfuscationConfig{},
 
 		GlobalTags: make(map[string]string),
 
