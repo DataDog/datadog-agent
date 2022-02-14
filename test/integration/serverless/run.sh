@@ -255,6 +255,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
+                perl -p -e "s/(,\"_dd.no_p_sr\":\")[0-9\.\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
