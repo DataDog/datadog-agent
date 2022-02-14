@@ -6,57 +6,32 @@
 package checks
 
 import (
-	"sync"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// maxBatchSizeOnce is used to only read the process_config.max_per_message config once and set maxBatchSize
-	maxBatchSizeOnce sync.Once
-	maxBatchSize     int
-
-	// maxCtrProcsBatchSizeOnce is used to only read the process_config.max_ctr_procs_per_message config once and set maxCtrProcsBatchSize
-	maxCtrProcsBatchSizeOnce sync.Once
-	maxCtrProcsBatchSize     int
-)
-
 // getMaxBatchSize returns the maximum number of items (processes, containers, process_discoveries) in a check payload
-func getMaxBatchSize() int {
-	maxBatchSizeOnce.Do(func() {
-		batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-		if batchSize <= 0 {
-			batchSize = ddconfig.DefaultProcessMaxPerMessage
-			log.Warnf("Invalid item count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
-
-		} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
-			batchSize = ddconfig.DefaultProcessMaxPerMessage
-			log.Warnf("Overriding the configured max of item count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
-		}
-
-		maxBatchSize = batchSize
-	})
-
-	return maxBatchSize
+var getMaxBatchSize = func() int {
+	return ensureValidMaxBatchSize(ddconfig.Datadog.GetInt("process_config.max_per_message"))
 }
 
-// getMaxCtrProcsBatchSize returns the maximum number of processes belonging to a container in a check payload
-func getMaxCtrProcsBatchSize() int {
-	maxCtrProcsBatchSizeOnce.Do(func() {
-		ctrProcsBatchSize := ddconfig.Datadog.GetInt("process_config.max_ctr_procs_per_message")
+func ensureValidMaxBatchSize(batchSize int) int {
+	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxPerMessage {
+		log.Warnf("Invalid max item count per message (%d), using default value of %d", batchSize, ddconfig.DefaultProcessMaxPerMessage)
+		return ddconfig.DefaultProcessMaxPerMessage
+	}
+	return batchSize
+}
 
-		if ctrProcsBatchSize <= 0 {
-			ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-			log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxCtrProcsPerMessage)
+// getMaxBatchSize returns the maximum number of bytes in a check payload
+var getMaxBatchBytes = func() int {
+	return ensureValidMaxBatchBytes(ddconfig.Datadog.GetInt("process_config.max_message_bytes"))
+}
 
-		} else if ctrProcsBatchSize > ddconfig.ProcessMaxCtrProcsPerMessageLimit {
-			ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-			log.Warnf("Overriding the configured max of container processes count per message because it exceeds maximum limit of %d", ddconfig.ProcessMaxCtrProcsPerMessageLimit)
-		}
-
-		maxCtrProcsBatchSize = ctrProcsBatchSize
-	})
-
-	return maxCtrProcsBatchSize
+func ensureValidMaxBatchBytes(batchBytes int) int {
+	if batchBytes <= 0 || batchBytes > ddconfig.DefaultProcessMaxMessageBytes {
+		log.Warnf("Invalid max byte size per message (%d), using default value of %d", batchBytes, ddconfig.DefaultProcessMaxMessageBytes)
+		return ddconfig.DefaultProcessMaxMessageBytes
+	}
+	return batchBytes
 }
