@@ -51,6 +51,16 @@ func (d *Dimensions) Host() string {
 	return d.host
 }
 
+// OriginID of the metric (may be empty).
+func (d *Dimensions) OriginID() string {
+	return ""
+}
+
+// K8sOriginID is the Kubernetes Origin ID of the metric (may be empty).
+func (d *Dimensions) K8sOriginID() string {
+	return ""
+}
+
 // getTags maps an attributeMap into a slice of Datadog tags
 func getTags(labels pdata.AttributeMap) []string {
 	tags := make([]string, 0, labels.Len())
