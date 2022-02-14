@@ -23,6 +23,7 @@ func writeError(err error, code int, w http.ResponseWriter) {
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the status. Making status.")
 
+	// Get expVar server address
 	ipcAddr, err := ddconfig.GetIPCAddress()
 	if err != nil {
 		writeError(err, http.StatusInternalServerError, w)
@@ -38,10 +39,8 @@ func statusHandler(w http.ResponseWriter, _ *http.Request) {
 
 	agentStatus, err := util.GetStatus(expvarEndpoint)
 	if err != nil {
-		if err != nil {
-			_ = log.Warn("failed to get status from agent:", err)
-			writeError(err, http.StatusInternalServerError, w)
-		}
+		_ = log.Warn("failed to get status from agent:", err)
+		writeError(err, http.StatusInternalServerError, w)
 	}
 
 	b, err := json.Marshal(agentStatus)
