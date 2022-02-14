@@ -201,11 +201,18 @@ type AppSecObfuscationConfig struct {
 // MarshalJSON returns the JSON encoding of the AppSec obfuscation configuration using the string representation of the
 // underlying regular expressions.
 func (o *AppSecObfuscationConfig) MarshalJSON() ([]byte, error) {
+	var keyRE, valueRE string
+	if re := o.ParameterKeyRegexp; re != nil {
+		keyRE = re.String()
+	}
+	if re := o.ParameterValueRegexp; re != nil {
+		valueRE = re.String()
+	}
 	return json.Marshal(struct {
 		ParameterKeyRegexp, ParameterValueRegexp string
 	}{
-		ParameterKeyRegexp:   o.ParameterKeyRegexp.String(),
-		ParameterValueRegexp: o.ParameterValueRegexp.String(),
+		ParameterKeyRegexp:   keyRE,
+		ParameterValueRegexp: valueRE,
 	})
 }
 
@@ -217,16 +224,8 @@ func (o *AppSecObfuscationConfig) UnmarshalJSON(buf []byte) error {
 	if err := json.Unmarshal(buf, &cfg); err != nil {
 		return err
 	}
-	keyRE, err := regexp.Compile(cfg.ParameterKeyRegexp)
-	if err != nil {
-		return err
-	}
-	valueRE, err := regexp.Compile(cfg.ParameterValueRegexp)
-	if err != nil {
-		return err
-	}
-	o.ParameterKeyRegexp = keyRE
-	o.ParameterValueRegexp = valueRE
+	o.ParameterKeyRegexp = compileAppSecRegexp(cfg.ParameterKeyRegexp)
+	o.ParameterValueRegexp = compileAppSecRegexp(cfg.ParameterValueRegexp)
 	return nil
 }
 
@@ -435,8 +434,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	c.Obfuscation = &ObfuscationConfig{
 		AppSec: AppSecObfuscationConfig{
-			ParameterKeyRegexp:   compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterKeyRegexp)),
-			ParameterValueRegexp: compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterValueRegexp)),
+			ParameterKeyRegexp:   compileAppSecRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterKeyRegexp)),
+			ParameterValueRegexp: compileAppSecRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterValueRegexp)),
 		},
 	}
 	if config.Datadog.IsSet("apm_config.obfuscation") {

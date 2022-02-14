@@ -27,22 +27,22 @@ func TestObfuscateAppSec(t *testing.T) {
 			// The key regexp should take precedence over the value regexp and obfuscate the entire values
 			name:     "sensitive-key",
 			keyRE:    regexp.MustCompile(`k3`),
-			valueRE:  regexp.MustCompile(`^$`),
+			valueRE:  nil,
 			value:    `{"triggers":[{"rule_matches":[{"parameters":[{"key_path":[0,1,"k1",2,"k3"],"highlight":["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],"value":"the entire SENSITIVE value"}]}]}]}`,
 			expected: `{"triggers":[{"rule_matches":[{"parameters":[{"key_path":[0,1,"k1",2,"k3"],"highlight":["?","?","?"],"value":"?"}]}]}]}`,
 		},
 		{
 			// The key regexp doesn't match and the value regexp does and obfuscates accordingly.
 			name:     "sensitive-value",
-			keyRE:    regexp.MustCompile(`^$`),
+			keyRE:    nil,
 			valueRE:  regexp.MustCompile(`SENSITIVE`),
 			value:    `{"triggers":[{"rule_matches":[{"parameters":[{"key_path":[0,1,"k1",2,"k3"],"highlight":["highlighted SENSITIVE value 1","highlighted value 2","highlighted SENSITIVE value 3"],"value":"the entire SENSITIVE value"}]}]}]}`,
 			expected: `{"triggers":[{"rule_matches":[{"parameters":[{"key_path":[0,1,"k1",2,"k3"],"highlight":["highlighted ? value 1","highlighted value 2","highlighted ? value 3"],"value":"the entire ? value"}]}]}]}`,
 		},
 		{
 			name:     "disabled",
-			keyRE:    regexp.MustCompile(`^$`),
-			valueRE:  regexp.MustCompile(`^$`),
+			keyRE:    nil,
+			valueRE:  nil,
 			value:    `{"triggers":[{"rule_matches":[{"parameters":[{"key_path":[0,1,"k1",2,"k3"],"highlight":["highlighted SENSITIVE value 1","highlighted value 2","highlighted SENSITIVE value 3"],"value":"the entire SENSITIVE value"}]}]}]}`,
 			expected: `{"triggers":[{"rule_matches":[{"parameters":[{"key_path":[0,1,"k1",2,"k3"],"highlight":["highlighted SENSITIVE value 1","highlighted value 2","highlighted SENSITIVE value 3"],"value":"the entire SENSITIVE value"}]}]}]}`,
 		},

@@ -7,6 +7,7 @@ package obfuscate
 
 import (
 	"encoding/json"
+	"regexp"
 )
 
 // ObfuscateAppSec obfuscates the given appsec tag value in order to remove sensitive values from the appsec security
@@ -15,6 +16,9 @@ import (
 func (o *Obfuscator) ObfuscateAppSec(val string) string {
 	keyRE := o.opts.AppSec.ParameterKeyRegexp
 	valueRE := o.opts.AppSec.ParameterValueRegexp
+	if keyRE == nil && valueRE == nil {
+		return val
+	}
 
 	var appsecMeta interface{}
 	if err := json.Unmarshal([]byte(val), &appsecMeta); err != nil {
@@ -67,7 +71,7 @@ func (o *Obfuscator) ObfuscateAppSec(val string) string {
 					if !ok {
 						continue
 					}
-					if !keyRE.MatchString(str) {
+					if !matchString(keyRE, str) {
 						continue
 					}
 					sensitiveKeyFound = true
@@ -88,7 +92,7 @@ func (o *Obfuscator) ObfuscateAppSec(val string) string {
 				}
 
 				// Obfuscate the parameter value
-				if hasStrValue && valueRE.MatchString(paramValue) {
+				if hasStrValue && matchString(valueRE, paramValue) {
 					sensitiveDataFound = true
 					param["value"] = valueRE.ReplaceAllString(paramValue, "?")
 				}
@@ -99,7 +103,7 @@ func (o *Obfuscator) ObfuscateAppSec(val string) string {
 					if !ok {
 						continue
 					}
-					if valueRE.MatchString(h) {
+					if matchString(valueRE, h) {
 						sensitiveDataFound = true
 						highlight[i] = valueRE.ReplaceAllString(h, "?")
 					}
@@ -118,4 +122,11 @@ func (o *Obfuscator) ObfuscateAppSec(val string) string {
 		return val
 	}
 	return string(newVal)
+}
+
+func matchString(re *regexp.Regexp, s string) bool {
+	if re == nil {
+		return false
+	}
+	return re.MatchString(s)
 }

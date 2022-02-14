@@ -195,8 +195,8 @@ func New() *AgentConfig {
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation: &ObfuscationConfig{
 			AppSec: AppSecObfuscationConfig{
-				ParameterKeyRegexp:   compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterKeyRegexp)),
-				ParameterValueRegexp: compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterValueRegexp)),
+				ParameterKeyRegexp:   compileAppSecRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterKeyRegexp)),
+				ParameterValueRegexp: compileAppSecRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterValueRegexp)),
 			},
 		},
 
@@ -353,17 +353,17 @@ func prepareConfig(path string) (*AgentConfig, error) {
 	return cfg, nil
 }
 
-// compileRegexp compiles the given expression into a Go regular expression. If the expression is an empty string or
-// if its compilation fails, it returns a noop match-nothing string
-func compileRegexp(expr string) *regexp.Regexp {
-	const noopExpr = "^$"
+// compileAppSecRegexp compiles the given expression into a Go regular expression. It returns nil when the given
+// expression cannot be compiled and logs the compilation error. The empty string expression is considered the special
+// expression value to use in order to disable the regular expression.
+func compileAppSecRegexp(expr string) *regexp.Regexp {
 	if expr == "" {
-		expr = noopExpr
+		return nil
 	}
 	re, err := regexp.Compile(expr)
 	if err != nil {
 		log.Errorf("Failed to parse the regular expression `%s`: %s", expr, err)
-		return regexp.MustCompile(noopExpr)
+		return nil
 	}
 	return re
 }
