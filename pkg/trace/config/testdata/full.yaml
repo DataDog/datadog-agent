@@ -75,8 +75,3 @@ apm_config:
     credit_cards:
       enabled: true
       luhn: true
-
-appsec_config:
-  obfuscation:
-    parameter_key_regexp: "^my key regexp$"
-    parameter_value_regexp: "^my value regexp$"
