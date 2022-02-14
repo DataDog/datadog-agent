@@ -35,7 +35,7 @@ type ServiceAccountCollector struct {
 func NewServiceAccountCollector() *ServiceAccountCollector {
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "serviceaccounts",
 			NodeType: orchestrator.K8sServiceAccount,
 		},
