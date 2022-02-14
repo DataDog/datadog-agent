@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+)(?:.(\d+))?.*$`)
+var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+)(?:\.(\d+))?.*$`)
 
 // Version is a numerical representation of a kernel version
 type Version uint32
