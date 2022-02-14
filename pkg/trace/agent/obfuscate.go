@@ -22,6 +22,7 @@ const (
 	tagElasticBody      = "elasticsearch.body"
 	tagSQLQuery         = "sql.query"
 	tagHTTPURL          = "http.url"
+	tagAppSec           = "_dd.appsec.json"
 )
 
 const (
@@ -80,11 +81,16 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if span.Meta == nil {
 			return
 		}
-		v, ok := span.Meta[tagHTTPURL]
-		if !ok || v == "" {
-			return
+		if u, ok := span.Meta[tagHTTPURL]; ok && u != "" {
+			span.Meta[tagHTTPURL] = o.ObfuscateURLString(u)
 		}
-		span.Meta[tagHTTPURL] = o.ObfuscateURLString(v)
+		if v, ok := span.Meta[tagAppSec]; ok && v != "" {
+			span.Meta[tagAppSec] = o.ObfuscateAppSec(v)
+		}
+	case "rpc":
+		if v, ok := span.Meta[tagAppSec]; ok && v != "" {
+			span.Meta[tagAppSec] = o.ObfuscateAppSec(v)
+		}
 	case "mongodb":
 		v, ok := span.Meta[tagMongoDBQuery]
 		if span.Meta == nil || !ok {

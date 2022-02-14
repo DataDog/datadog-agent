@@ -14,6 +14,7 @@ package obfuscate
 
 import (
 	"bytes"
+	"regexp"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -41,11 +42,14 @@ type Obfuscator struct {
 type Logger interface {
 	// Debugf logs the given message using the given format.
 	Debugf(format string, params ...interface{})
+	// Errorf logs the given message using the given format.
+	Errorf(format string, params ...interface{})
 }
 
 type noopLogger struct{}
 
-func (noopLogger) Debugf(_ string, _ ...interface{}) {}
+func (noopLogger) Debugf(string, ...interface{}) {}
+func (noopLogger) Errorf(string, ...interface{}) {}
 
 // setSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) setSQLLiteralEscapes(ok bool) {
@@ -83,6 +87,9 @@ type Config struct {
 
 	// HTTP holds the obfuscation settings for HTTP URLs.
 	HTTP HTTPConfig
+
+	// AppSec holds the obfuscation settings for the AppSec meta value.
+	AppSec AppSecConfig
 
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
@@ -167,6 +174,15 @@ type JSONConfig struct {
 	// ObfuscateSQLValues will specify a set of keys for which their values
 	// will be passed through SQL obfuscation
 	ObfuscateSQLValues []string
+}
+
+// AppSecConfig holds the configuration settings for AppSec obfuscation.
+type AppSecConfig struct {
+	// ParameterKeyRegexp is the regular expression used on AppSec event parameter keys. Parameters whose keys
+	// match this regular expression are obfuscated regardless of the ParameterValueRegexp regular expression.
+	ParameterKeyRegexp *regexp.Regexp
+	// ParameterValueRegexp is the regular expression used to obfuscate AppSec event parameter values and highlights.
+	ParameterValueRegexp *regexp.Regexp
 }
 
 // NewObfuscator creates a new obfuscator

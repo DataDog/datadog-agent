@@ -82,6 +82,9 @@ type ObfuscationConfig struct {
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+
+	// AppSec holds the configuration for obfuscating appsec security events.
+	AppSec AppSecObfuscationConfig
 }
 
 // Export returns an obfuscate.Config matching o.
@@ -118,7 +121,11 @@ func (o *ObfuscationConfig) Export() obfuscate.Config {
 			RemoveQueryString: o.HTTP.RemoveQueryString,
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
 		},
-		Logger: new(debugLogger),
+		AppSec: obfuscate.AppSecConfig{
+			ParameterKeyRegexp:   o.AppSec.ParameterKeyRegexp,
+			ParameterValueRegexp: o.AppSec.ParameterValueRegexp,
+		},
+		Logger: debugLogger{},
 	}
 }
 
@@ -126,6 +133,10 @@ type debugLogger struct{}
 
 func (debugLogger) Debugf(format string, params ...interface{}) {
 	log.Debugf(format, params...)
+}
+
+func (debugLogger) Errorf(format string, params ...interface{}) {
+	log.Errorf(format, params...)
 }
 
 // CreditCardsConfig holds the configuration for credit card obfuscation in
@@ -173,6 +184,17 @@ type JSONObfuscationConfig struct {
 	// ObfuscateSQLValues will specify a set of keys for which their values
 	// will be passed through SQL obfuscation
 	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
+}
+
+// AppSecObfuscationConfig holds the configuration settings for HTTP obfuscation.
+type AppSecObfuscationConfig struct {
+	// ParameterKeyRegexp is the appsec event parameter key regular expression used to detect sensitive keys in appsec
+	// events.
+	ParameterKeyRegexp *regexp.Regexp
+
+	// ParameterValueRegexp is the appsec event parameter value regular expression used to detect sensitive values in
+	// appsec events.
+	ParameterValueRegexp *regexp.Regexp
 }
 
 // ReplaceRule specifies a replace rule.

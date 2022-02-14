@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -124,7 +125,7 @@ type AgentConfig struct {
 	// infrastructure agent binary
 	DDAgentBin string
 
-	// Obfuscation holds sensitive data obufscator's configuration.
+	// Obfuscation holds sensitive data obfuscator's configuration.
 	Obfuscation *ObfuscationConfig
 
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
@@ -192,7 +193,12 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
-		Obfuscation:                 &ObfuscationConfig{},
+		Obfuscation: &ObfuscationConfig{
+			AppSec: AppSecObfuscationConfig{
+				ParameterKeyRegexp:   compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterKeyRegexp)),
+				ParameterValueRegexp: compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterValueRegexp)),
+			},
+		},
 
 		GlobalTags: make(map[string]string),
 
@@ -345,4 +351,19 @@ func prepareConfig(path string) (*AgentConfig, error) {
 	}
 	cfg.ConfigPath = path
 	return cfg, nil
+}
+
+// compileRegexp compiles the given expression into a Go regular expression. If the expression is an empty string or
+// if its compilation fails, it returns a noop match-nothing string
+func compileRegexp(expr string) *regexp.Regexp {
+	const noopExpr = "^$"
+	if expr == "" {
+		expr = noopExpr
+	}
+	re, err := regexp.Compile(expr)
+	if err != nil {
+		log.Errorf("Failed to parse the regular expression `%s`: %s", expr, err)
+		return regexp.MustCompile(noopExpr)
+	}
+	return re
 }

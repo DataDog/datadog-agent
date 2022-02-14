@@ -7,13 +7,16 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
@@ -102,6 +105,166 @@ func TestObfuscateDefaults(t *testing.T) {
 		agnt.obfuscateSpan(span)
 		assert.Equal(t, query, span.Meta["sql.query"])
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
+	})
+
+	t.Run("appsec", func(t *testing.T) {
+		// AppSec events with testing the default obfuscation settings
+		in := `{
+				 "triggers": [
+				   {
+					 "rule_matches": [
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k1",2,"pwd",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   },
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"DD_API_KEY",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   }
+					 ]
+				   },
+				   {
+					 "rule_matches": [
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"k5"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   },
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"k5"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k2",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   }
+					 ]
+				   }
+				 ]
+			   }`
+		// Expected obfuscated AppSec events with the default configuration
+		out := `{
+				 "triggers": [
+				   {
+					 "rule_matches": [
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+							 "highlight": ["?","?","?"],
+							 "value": "?"
+						   },
+						   {
+							 "key_path": [0,1,"k1",2,"pwd",4],
+							 "highlight": ["?","?","?"],
+							 "value": "?"
+						   }
+						 ]
+					   },
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+							 "highlight": ["?","?","?"],
+							 "value": "?"
+						   },
+						   {
+							 "key_path": [0,1,"DD_API_KEY",2,"k3",4],
+							 "highlight": ["?","?","?"],
+							 "value": "?"
+						   }
+						 ]
+					   }
+					 ]
+				   },
+				   {
+					 "rule_matches": [
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"k5"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   },
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"k5"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k2",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   }
+					 ]
+				   }
+				 ]
+			   }`
+		span := &pb.Span{
+			Type:     "web",
+			Resource: "GET /",
+			Meta:     map[string]string{tagAppSec: in},
+		}
+		agnt, stop := agentWithDefaults()
+		defer stop()
+		agnt.obfuscateSpan(span)
+		// Compare the parsed JSON values for a deterministic deep equal comparison
+		var actual, expected interface{}
+		err := json.Unmarshal([]byte(out), &expected)
+		require.NoError(t, err)
+		err = json.Unmarshal([]byte(span.Meta[tagAppSec]), &actual)
+		require.NoError(t, err)
+		require.Equal(
+			t,
+			expected,
+			actual,
+		)
 	})
 }
 
@@ -220,6 +383,347 @@ func TestObfuscateConfig(t *testing.T) {
 		"set key 0 0 0 noreply\r\nvalue",
 		&config.ObfuscationConfig{},
 	))
+
+	t.Run("appsec", func(t *testing.T) {
+		// Custom testConfig to easily compare the json value results
+		testConfig := func(t *testing.T, typ, val, exp string, ocfg *config.ObfuscationConfig) {
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.Obfuscation = ocfg
+			agnt := NewAgent(ctx, cfg)
+			defer cancelFunc()
+			span := &pb.Span{Type: typ, Meta: map[string]string{tagAppSec: val}}
+			agnt.obfuscateSpan(span)
+			var actual, expected interface{}
+			err := json.Unmarshal([]byte(exp), &expected)
+			require.NoError(t, err)
+			err = json.Unmarshal([]byte(span.Meta[tagAppSec]), &actual)
+			require.NoError(t, err)
+			require.Equal(
+				t,
+				expected,
+				actual,
+			)
+		}
+
+		in := `{
+				 "triggers": [
+				   {
+					 "rule_matches": [
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k1",2,"pwd",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   },
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"DD_API_KEY",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   }
+					 ]
+				   },
+				   {
+					 "rule_matches": [
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"k5"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   },
+					   {
+						 "parameters": [
+						   {
+							 "key_path": [0,1,"k1",2,"k3",4,"k5"],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   },
+						   {
+							 "key_path": [0,1,"k2",2,"k3",4],
+							 "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+							 "value": "the entire SENSITIVE value"
+						   }
+						 ]
+					   }
+					 ]
+				   }
+				 ]
+			   }`
+
+		for _, typ := range []string{"web", "rpc", "http"} {
+			t.Run(fmt.Sprintf("%s-span", typ), func(t *testing.T) {
+				t.Run("disabled", func(t *testing.T) {
+					out := in
+					testConfig(t, typ, in, out, &config.ObfuscationConfig{
+						AppSec: config.AppSecObfuscationConfig{
+							ParameterKeyRegexp:   regexp.MustCompile(`^$`),
+							ParameterValueRegexp: regexp.MustCompile(`^$`),
+						},
+					})
+				})
+
+				t.Run("enabled/value", func(t *testing.T) {
+					out := `{
+					  "triggers": [
+						{
+						  "rule_matches": [
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"k1",2,"pwd",4],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								}
+							  ]
+							},
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"DD_API_KEY",2,"k3",4],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								}
+							  ]
+							}
+						  ]
+						},
+						{
+						  "rule_matches": [
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"k5"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"k1",2,"k3",4],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								}
+							  ]
+							},
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"k5"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"k2",2,"k3",4],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								}
+							  ]
+							}
+						  ]
+						}
+					  ]
+					}`
+
+					testConfig(t, typ, in, out, &config.ObfuscationConfig{
+						AppSec: config.AppSecObfuscationConfig{
+							ParameterKeyRegexp:   regexp.MustCompile(`^$`),
+							ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
+						},
+					})
+				})
+
+				t.Run("enabled/key", func(t *testing.T) {
+					out := `{
+					  "triggers": [
+						{
+						  "rule_matches": [
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+								  "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+								  "value": "the entire SENSITIVE value"
+								},
+								{
+								  "key_path": [0,1,"k1",2,"pwd",4],
+								  "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+								  "value": "the entire SENSITIVE value"
+								}
+							  ]
+							},
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+								  "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+								  "value": "the entire SENSITIVE value"
+								},
+								{
+								  "key_path": [0,1,"DD_API_KEY",2,"k3",4],
+								  "highlight": ["?","?","?"],
+								  "value": "?"
+								}
+							  ]
+							}
+						  ]
+						},
+						{
+						  "rule_matches": [
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"k5"],
+								  "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+								  "value": "the entire SENSITIVE value"
+								},
+								{
+								  "key_path": [0,1,"k1",2,"k3",4],
+								  "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+								  "value": "the entire SENSITIVE value"
+								}
+							  ]
+							},
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"k5"],
+								  "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+								  "value": "the entire SENSITIVE value"
+								},
+								{
+								  "key_path": [0,1,"k2",2,"k3",4],
+								  "highlight": ["highlighted SENSITIVE value 1","highlighted SENSITIVE value 2","highlighted SENSITIVE value 3"],
+								  "value": "the entire SENSITIVE value"
+								}
+							  ]
+							}
+						  ]
+						}
+					  ]
+					}`
+
+					testConfig(t, typ, in, out, &config.ObfuscationConfig{
+						AppSec: config.AppSecObfuscationConfig{
+							ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
+							ParameterValueRegexp: regexp.MustCompile(`^$`),
+						},
+					})
+				})
+
+				t.Run("enabled/key-and-value", func(t *testing.T) {
+					out := `{
+					  "triggers": [
+						{
+						  "rule_matches": [
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"k1",2,"pwd",4],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								}
+							  ]
+							},
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"tOkEn"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"DD_API_KEY",2,"k3",4],
+								  "highlight": ["?","?","?"],
+								  "value": "?"
+								}
+							  ]
+							}
+						  ]
+						},
+						{
+						  "rule_matches": [
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"k5"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"k1",2,"k3",4],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								}
+							  ]
+							},
+							{
+							  "parameters": [
+								{
+								  "key_path": [0,1,"k1",2,"k3",4,"k5"],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								},
+								{
+								  "key_path": [0,1,"k2",2,"k3",4],
+								  "highlight": ["highlighted ? value 1","highlighted ? value 2","highlighted ? value 3"],
+								  "value": "the entire ? value"
+								}
+							  ]
+							}
+						  ]
+						}
+					  ]
+					}`
+
+					testConfig(t, typ, in, out, &config.ObfuscationConfig{
+						AppSec: config.AppSecObfuscationConfig{
+							ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
+							ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
+						},
+					})
+				})
+			})
+		}
+	})
 }
 
 func SQLSpan(query string) *pb.Span {
