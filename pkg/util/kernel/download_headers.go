@@ -126,7 +126,7 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target, reposD
 	case "wsl":
 		backend, err = wsl.NewBackend(target, logger)
 	default:
-		err = fmt.Errorf("Unsupported distribution '%s'", target.Distro.Display)
+		err = fmt.Errorf("unsupported distribution '%s'", target.Distro.Display)
 	}
 	return
 }

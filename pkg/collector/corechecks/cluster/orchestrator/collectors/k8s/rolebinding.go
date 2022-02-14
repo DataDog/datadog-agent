@@ -35,7 +35,7 @@ type RoleBindingCollector struct {
 func NewRoleBindingCollector() *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "rolebindings",
 			NodeType: orchestrator.K8sRoleBinding,
 		},

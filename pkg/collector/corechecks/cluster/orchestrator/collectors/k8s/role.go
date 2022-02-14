@@ -34,7 +34,7 @@ type RoleCollector struct {
 func NewRoleCollector() *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "roles",
 			NodeType: orchestrator.K8sRole,
 		},
