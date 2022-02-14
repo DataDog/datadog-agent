@@ -8,7 +8,7 @@ suites:
     attributes:
       datadog:
         <% dd_agent_config.each do |key, value| %>
-        <%= key %>: <%= value %>
+        <%= key %>: "<%= value %>"
         <% end %>
       dd-agent-install:
         <% if ENV['AGENT_VERSION'] %>
@@ -37,7 +37,7 @@ suites:
           APIKEY=<%= api_key %>
       dd-agent-upgrade:
         <% dd_agent_config.each do |key, value| %>
-        <%= key %>: <%= value %>
+        <%= key %>: "<%= value %>"
         <% end %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
