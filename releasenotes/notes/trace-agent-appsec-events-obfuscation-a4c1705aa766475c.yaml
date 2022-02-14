@@ -9,9 +9,9 @@
 features:
   - |
       AppSec: obfuscate security events. It is enabled by default so that it obfuscates
-      every security event values and highlights whose keys match the regular expression
+      every security event value and highlights those with keys that match the regular expression
       `(?i)(p(ass)?w(((or)?d))|(phrase))|(secret)|(authorization)|(api_?key)|((access_?)?token)`.
-      It can be configured further configured using the environment variables
+      It can be further configured using the environment variables
       `DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP` for the security event parameter key matching,
       and `DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP` for the security event parameter value
       and highlight matching.
