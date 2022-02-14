@@ -34,11 +34,8 @@ const (
 	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxPerMessage = 100
 
-	// DefaultProcessMaxCtrProcsPerMessage is the default maximum number of processes belonging to a container per message. Note: Only change if the defaults are causing issues.
-	DefaultProcessMaxCtrProcsPerMessage = 10000
-
-	// ProcessMaxCtrProcsPerMessageLimit is the maximum allowed value for process_config.max_ctr_procs_per_message.
-	ProcessMaxCtrProcsPerMessageLimit = 30000
+	// DefaultProcessMaxMessageBytes is the default max for size of a message containing processes or container data. Note: Only change if the defaults are causing issues.
+	DefaultProcessMaxMessageBytes = 1000000
 
 	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
 	DefaultProcessExpVarPort = 6062
@@ -103,7 +100,7 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
-	procBindEnvAndSetDefault(config, "process_config.max_ctr_procs_per_message", DefaultProcessMaxCtrProcsPerMessage)
+	procBindEnvAndSetDefault(config, "process_config.max_message_bytes", DefaultProcessMaxMessageBytes)
 	procBindEnvAndSetDefault(config, "process_config.cmd_port", DefaultProcessCmdPort)
 	config.SetKnown("process_config.intervals.process")
 	config.SetKnown("process_config.blacklist_patterns")

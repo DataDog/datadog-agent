@@ -498,6 +498,8 @@ func TestPartial(t *testing.T) {
 		{Expr: `open.filename == "test1" && !process.is_root`, Field: "process.is_root", IsDiscarder: true},
 		{Expr: `open.filename == "test1" && process.is_root`, Field: "process.is_root", IsDiscarder: false},
 		{Expr: `open.filename =~ "*test1*"`, Field: "open.filename", IsDiscarder: true},
+		{Expr: `process.uid & (1 | 1024) == 1`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.uid & (1 | 2) == 1`, Field: "process.uid", IsDiscarder: true},
 	}
 
 	ctx := NewContext(unsafe.Pointer(&event))

@@ -244,7 +244,7 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 	if err != nil {
 		return nil, err
 	}
-	return service.NewService(provider, identifier, s.getCreationTime(config)), nil
+	return service.NewService(provider, identifier), nil
 }
 
 // parseEntity breaks down an entity into a service provider and a service identifier.
@@ -264,17 +264,6 @@ func (s *Scheduler) parseServiceID(serviceID string) (string, string, error) {
 		return "", "", fmt.Errorf("service ID does not have the form `xxx://yyy`: %v", serviceID)
 	}
 	return components[0], components[1], nil
-}
-
-// integrationToServiceCRTime maps an integration creation time to a service creation time.
-var integrationToServiceCRTime = map[integration.CreationTime]service.CreationTime{
-	integration.Before: service.Before,
-	integration.After:  service.After,
-}
-
-// getCreationTime returns the service creation time for the integration configuration.
-func (s *Scheduler) getCreationTime(config integration.Config) service.CreationTime {
-	return integrationToServiceCRTime[config.CreationTime]
 }
 
 // GetScheduler returns the logs-config scheduler if set.

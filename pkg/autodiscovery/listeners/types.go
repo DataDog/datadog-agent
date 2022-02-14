@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +31,6 @@ type Service interface {
 	GetTags() ([]string, string, error)                  // tags and tags hash
 	GetPid(context.Context) (int, error)                 // process identifier
 	GetHostname(context.Context) (string, error)         // hostname.domainname for the entity
-	GetCreationTime() integration.CreationTime           // created before or after the agent start
 	IsReady(context.Context) bool                        // is the service ready
 	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or container labels
 	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config

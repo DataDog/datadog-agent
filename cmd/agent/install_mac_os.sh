@@ -144,7 +144,7 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 # Creating or overriding the install information
 install_info_content="---
 install_method:
-  tool: install_script
+  tool: install_script_mac
   tool_version: install_script_mac
   installer_version: install_script_mac-$install_script_version
 "
