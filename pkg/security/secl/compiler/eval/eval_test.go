@@ -853,10 +853,16 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[_].value !~ "AA*"`, Expected: false},
 		{Expr: `process.list[_].value !~ "ZZ*"`, Expected: true},
 
-		{Expr: `process.list[_].value in [~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", "AAA", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", "AA*", "nnnnn"]`, Expected: false},
+
 		{Expr: `process.list[_].value in [~"ZZ*", "nnnnn"]`, Expected: false},
 		{Expr: `process.list[_].value not in [~"AA*", "nnnnn"]`, Expected: false},
 		{Expr: `process.list[_].value not in [~"ZZ*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value not in [~"ZZ*", "AAA", "nnnnn"]`, Expected: false},
+		{Expr: `process.list[_].value not in [~"ZZ*", ~"AA*", "nnnnn"]`, Expected: false},
 
 		{Expr: `process.list[_].key == 10 && process.list[_].value == "AAA"`, Expected: true},
 		{Expr: `process.list[_].key == 9999 && process.list[_].value == "AAA"`, Expected: false},
@@ -867,12 +873,6 @@ func TestRegister(t *testing.T) {
 
 		{Expr: `process.array[_].key == 1000 && process.array[_].value == "EEEE"`, Expected: true},
 		{Expr: `process.array[_].key == 1002 && process.array[_].value == "EEEE"`, Expected: true},
-
-		//{Expr: `process.list[A].key == 200 && process.list[A].value == "CCC"`, Expected: true},
-		//{Expr: `process.list[A].key == 200 && process.list[B].value == "BBB"`, Expected: true},
-		//{Expr: `process.list[A].key == 200 || process.list[B].value == "AA"`, Expected: true},
-		//{Expr: `process.array[A].key == 1002 && process.array[B].value == "DDDD"`, Expected: true},
-		//{Expr: `process.list[_].key == 10 && process.list[_].value == "AA" && process.array[A].key == 1002 && process.array[A].value == "DDDD"`, Expected: true},
 	}
 
 	for _, test := range tests {
