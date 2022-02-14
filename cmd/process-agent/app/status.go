@@ -63,14 +63,8 @@ func writeError(w io.Writer, e error) {
 		_ = log.Error(err)
 	}
 }
-func fetchStatus() ([]byte, error) {
-	addressPort, err := api.GetAPIAddressPort()
-	if err != nil {
-		return nil, fmt.Errorf("config error: %s", err.Error())
-	}
-
-	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
-	body, err := apiutil.DoGet(httpClient, statusEndpoint)
+func fetchStatus(statusURL string) ([]byte, error) {
+	body, err := apiutil.DoGet(httpClient, statusURL)
 	if err != nil {
 		return nil, util.NewConnectionError(err)
 	}
@@ -79,8 +73,8 @@ func fetchStatus() ([]byte, error) {
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(w io.Writer, options ...util.StatusOption) {
-	body, err := fetchStatus()
+func getAndWriteStatus(statusURL string, w io.Writer, options ...util.StatusOption) {
+	body, err := fetchStatus(statusURL)
 	if err != nil {
 		switch err.(type) {
 		case util.ConnectionError:
@@ -123,6 +117,14 @@ func getAndWriteStatus(w io.Writer, options ...util.StatusOption) {
 	}
 }
 
+func getStatusURL() (string, error) {
+	addressPort, err := api.GetAPIAddressPort()
+	if err != nil {
+		return "", fmt.Errorf("config error: %s", err.Error())
+	}
+	return fmt.Sprintf("http://%s/agent/status", addressPort), nil
+}
+
 // StatusCmd returns a cobra command that prints the current status
 func StatusCmd() *cobra.Command {
 	return &cobra.Command{
@@ -137,6 +139,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	err := config.LoadConfigIfExists(cmd.Flag("config").Value.String())
 	if err != nil {
 		writeError(os.Stdout, err)
+		return err
 	}
 
 	err = ddconfig.SetupLogger(
@@ -150,8 +153,15 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	)
 	if err != nil {
 		writeError(os.Stdout, err)
+		return err
 	}
 
-	getAndWriteStatus(os.Stdout)
+	statusURL, err := getStatusURL()
+	if err != nil {
+		writeError(os.Stdout, err)
+		return err
+	}
+
+	getAndWriteStatus(statusURL, os.Stdout)
 	return nil
 }

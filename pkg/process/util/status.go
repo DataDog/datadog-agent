@@ -3,7 +3,6 @@ package util
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"runtime"
 	"time"
 
@@ -115,21 +114,9 @@ func getCoreStatus() (s CoreStatus) {
 	}
 }
 
-func getExpvars() (s ProcessExpvars, err error) {
-	ipcAddr, err := ddconfig.GetIPCAddress()
-	if err != nil {
-		return ProcessExpvars{}, fmt.Errorf("config error: %s", err.Error())
-	}
-
-	port := ddconfig.Datadog.GetInt("process_config.expvar_port")
-	if port <= 0 {
-		_ = log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d\n", port, ddconfig.DefaultProcessExpVarPort)
-		port = ddconfig.DefaultProcessExpVarPort
-	}
-	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
-
+func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 	httpClient := apiutil.GetClient(false)
-	b, err := apiutil.DoGet(httpClient, expvarEndpoint)
+	b, err := apiutil.DoGet(httpClient, expVarURL)
 	if err != nil {
 		return s, ConnectionError{err}
 	}
@@ -139,9 +126,9 @@ func getExpvars() (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus() (*Status, error) {
+func GetStatus(expVarURL string) (*Status, error) {
 	coreStatus := getCoreStatus()
-	processExpVars, err := getExpvars()
+	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {
 		return nil, err
 	}

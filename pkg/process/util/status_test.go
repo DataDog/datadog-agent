@@ -3,61 +3,32 @@ package util
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"runtime"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-type expVarServer struct {
-	shutdownWg *sync.WaitGroup
-	server     *http.Server
-}
-
-func (s *expVarServer) stop() error {
-	err := s.server.Shutdown(context.Background())
-	if err != nil {
-		return err
-	}
-
-	s.shutdownWg.Wait()
-	return nil
-}
-
-func startTestServer(t *testing.T, cfg config.Config, expectedExpVars ProcessExpvars) expVarServer {
-	var serverWg sync.WaitGroup
-	serverWg.Add(1)
-
-	expVarMux := http.NewServeMux()
-	expVarMux.HandleFunc("/debug/vars", func(w http.ResponseWriter, _ *http.Request) {
-		b, err := json.Marshal(expectedExpVars)
+func fakeExpVarServer(t *testing.T, expVars ProcessExpvars) *httptest.Server {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		b, err := json.Marshal(expVars)
 		require.NoError(t, err)
 
 		_, err = w.Write(b)
 		require.NoError(t, err)
-	})
-	expVarEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.expvar_port"))
-	expVarsServer := http.Server{Addr: expVarEndpoint, Handler: expVarMux}
-	expVarsListener, err := net.Listen("tcp", expVarEndpoint)
-	require.NoError(t, err)
-	go func() {
-		_ = expVarsServer.Serve(expVarsListener)
-		serverWg.Done()
-	}()
+	}
 
-	return expVarServer{server: &expVarsServer, shutdownWg: &serverWg}
+	return httptest.NewServer(http.HandlerFunc(handler))
 }
 
 func TestGetStatus(t *testing.T) {
@@ -89,7 +60,7 @@ func TestGetStatus(t *testing.T) {
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
 	// when the datadog.yaml file is loaded
-	cfg := ddconfig.Mock()
+	ddconfig.Mock()
 	ddconfig.DetectFeatures()
 
 	hostnameData, err := util.GetHostnameData(context.Background())
@@ -114,16 +85,10 @@ func TestGetStatus(t *testing.T) {
 		Expvars: expectedExpVars,
 	}
 
-	// Use different port in case the host is running a real agent
-	cfg.Set("process_config.expvar_port", 8081)
+	expVarSrv := fakeExpVarServer(t, expectedExpVars)
+	defer expVarSrv.Close()
 
-	expVarSrv := startTestServer(t, cfg, expectedExpVars)
-	defer func() {
-		err := expVarSrv.stop()
-		require.NoError(t, err)
-	}()
-
-	stats, err := GetStatus()
+	stats, err := GetStatus(expVarSrv.URL)
 	require.NoError(t, err)
 
 	OverrideTime(testTime)(stats)

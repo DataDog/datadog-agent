@@ -7,8 +7,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,7 +23,20 @@ func writeError(err error, code int, w http.ResponseWriter) {
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the status. Making status.")
 
-	agentStatus, err := util.GetStatus()
+	ipcAddr, err := ddconfig.GetIPCAddress()
+	if err != nil {
+		writeError(err, http.StatusInternalServerError, w)
+		_ = log.Warn("config error:", err)
+	}
+
+	port := ddconfig.Datadog.GetInt("process_config.expvar_port")
+	if port <= 0 {
+		_ = log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d\n", port, ddconfig.DefaultProcessExpVarPort)
+		port = ddconfig.DefaultProcessExpVarPort
+	}
+	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
+
+	agentStatus, err := util.GetStatus(expvarEndpoint)
 	if err != nil {
 		if err != nil {
 			_ = log.Warn("failed to get status from agent:", err)

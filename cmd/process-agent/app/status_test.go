@@ -1,14 +1,11 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"text/template"
 	"time"
@@ -16,49 +13,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 )
 
-type statusServer struct {
-	shutdownWg *sync.WaitGroup
-	server     *http.Server
-}
-
-func (s *statusServer) stop() error {
-	err := s.server.Shutdown(context.Background())
-	if err != nil {
-		return err
-	}
-
-	s.shutdownWg.Wait()
-	return nil
-}
-
-func startTestServer(t *testing.T, cfg config.Config, expectedStatus util.Status) statusServer {
-	var serverWg sync.WaitGroup
-	serverWg.Add(1)
-
-	statusMux := http.NewServeMux()
-	statusMux.HandleFunc("/agent/status", func(w http.ResponseWriter, _ *http.Request) {
-		b, err := json.Marshal(expectedStatus)
+func fakeStatusServer(t *testing.T, stats util.Status) *httptest.Server {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		b, err := json.Marshal(stats)
 		require.NoError(t, err)
 
 		_, err = w.Write(b)
 		require.NoError(t, err)
-	})
+	}
 
-	statusEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.cmd_port"))
-	server := http.Server{Addr: statusEndpoint, Handler: statusMux}
-	statusListener, err := net.Listen("tcp", statusEndpoint)
-	require.NoError(t, err)
-	go func() {
-		_ = server.Serve(statusListener)
-		serverWg.Done()
-	}()
-
-	return statusServer{server: &server, shutdownWg: &serverWg}
+	return httptest.NewServer(http.HandlerFunc(handler))
 }
 
 func TestStatus(t *testing.T) {
@@ -73,27 +45,20 @@ func TestStatus(t *testing.T) {
 		Expvars: util.ProcessExpvars{},
 	}
 
-	// Use different ports in case the host is running a real agent
-	cfg := config.Mock()
-	cfg.Set("process_config.cmd_port", 8082)
-	server := startTestServer(t, cfg, expectedStatus)
-
-	var statusBuilder strings.Builder
-
-	j, err := json.Marshal(expectedStatus)
-	require.NoError(t, err)
+	server := fakeStatusServer(t, expectedStatus)
+	defer server.Close()
 
 	// Build what the expected status should be
+	j, err := json.Marshal(expectedStatus)
+	require.NoError(t, err)
 	expectedOutput, err := ddstatus.FormatProcessAgentStatus(j)
 	require.NoError(t, err)
 
 	// Build the actual status
-	getAndWriteStatus(&statusBuilder, util.OverrideTime(testTime))
+	var statusBuilder strings.Builder
+	getAndWriteStatus(server.URL, &statusBuilder, util.OverrideTime(testTime))
 
 	assert.Equal(t, expectedOutput, statusBuilder.String())
-
-	err = server.stop()
-	require.NoError(t, err)
 }
 
 func TestNotRunning(t *testing.T) {
@@ -101,8 +66,12 @@ func TestNotRunning(t *testing.T) {
 	cfg := config.Mock()
 	cfg.Set("process_config.cmd_port", 8082)
 
+	addressPort, err := api.GetAPIAddressPort()
+	require.NoError(t, err)
+	statusURL := fmt.Sprintf("http://%s/agent/status", addressPort)
+
 	var b strings.Builder
-	getAndWriteStatus(&b)
+	getAndWriteStatus(statusURL, &b)
 
 	assert.Equal(t, notRunning, b.String())
 }
@@ -115,7 +84,9 @@ func TestError(t *testing.T) {
 	_, ipcError := config.GetIPCAddress()
 
 	var errText, expectedErrText strings.Builder
-	getAndWriteStatus(&errText)
+	url, err := getStatusURL()
+	assert.Equal(t, "", url)
+	writeError(&errText, err)
 
 	tpl, err := template.New("").Parse(errorMessage)
 	require.NoError(t, err)
