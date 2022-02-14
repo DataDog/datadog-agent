@@ -9,10 +9,15 @@
 package testutil
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 // SetupDNAT sets up a NAT translation from:
@@ -57,11 +62,13 @@ func getDefaultInterfaceName(t *testing.T) string {
 // SetupDNAT6 sets up a NAT translation from fd00::2 to fd00::1
 func SetupDNAT6(t *testing.T) {
 	ifName := getDefaultInterfaceName(t)
+	cd, err := curDir()
+	require.NoError(t, err)
 	cmds := []string{
 		"ip link add dummy1 type dummy",
 		"ip address add fd00::1 dev dummy1",
 		"ip link set dummy1 up",
-		"testdata/wait_if.sh dummy1",
+		fmt.Sprintf("%s/../testdata/wait_if.sh dummy1", cd),
 		"ip -6 route add fd00::2 dev " + ifName,
 		"ip6tables -t nat -A OUTPUT --dest fd00::2 -j DNAT --to-destination fd00::1",
 	}
@@ -144,6 +151,8 @@ func TeardownCrossNsDNAT(t *testing.T) {
 // fd00::1 and fd00::2 to be used for namespace aware tests.
 // fd00::2 is within the "test" namespace, while fd00::1 is a peer in the root namespace.
 func SetupCrossNsDNAT6(t *testing.T) {
+	curDir, err := curDir()
+	require.NoError(t, err)
 	cmds := []string{
 		"ip netns add test",
 		"ip link add veth1 type veth peer name veth2",
@@ -152,8 +161,8 @@ func SetupCrossNsDNAT6(t *testing.T) {
 		"ip -n test address add fd00::2/64 dev veth2",
 		"ip link set veth1 up",
 		"ip -n test link set veth2 up",
-		"testdata/wait_if.sh veth1 test",
-		"testdata/wait_if.sh veth2 test",
+		fmt.Sprintf("%s/../testdata/wait_if.sh veth1 test", curDir),
+		fmt.Sprintf("%s/../testdata/wait_if.sh veth2 test", curDir),
 		"ip netns exec test ip -6 route add default dev veth2",
 		"ip6tables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT",
 		"ip netns exec test ip6tables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080",
@@ -175,4 +184,45 @@ func TeardownCrossNsDNAT6(t *testing.T) {
 		"conntrack -F",
 	}
 	nettestutil.RunCommands(t, cmds, true)
+}
+
+func curDir() (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("unable to get current file build path")
+	}
+
+	buildDir := filepath.Dir(file)
+
+	// build relative path from base of repo
+	buildRoot := rootDir(buildDir)
+	relPath, err := filepath.Rel(buildRoot, buildDir)
+	if err != nil {
+		return "", err
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	curRoot := rootDir(cwd)
+
+	return filepath.Join(curRoot, relPath), nil
+}
+
+// rootDir returns the base repository directory, just before `pkg`.
+// If `pkg` is not found, the dir provided is returned.
+func rootDir(dir string) string {
+	pkgIndex := -1
+	parts := strings.Split(dir, string(filepath.Separator))
+	for i, d := range parts {
+		if d == "pkg" {
+			pkgIndex = i
+			break
+		}
+	}
+	if pkgIndex == -1 {
+		return dir
+	}
+	return strings.Join(parts[:pkgIndex], string(filepath.Separator))
 }
