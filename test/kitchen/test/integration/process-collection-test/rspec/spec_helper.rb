@@ -46,6 +46,7 @@ end
 def get_runtime_config
   res = Net::HTTP.get('localhost', '/config', 6162)
   YAML.load(res)
+end
 
 def is_process_running?(pname)
   if os == :windows
