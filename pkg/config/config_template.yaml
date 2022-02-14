@@ -332,11 +332,22 @@ api_key:
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
-## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
-## permission. See docs for further details:
+## Requires one of:
+##  - `collect_ec2_tags_use_imds: true` and configuration of the
+##    EC2 instance to allow tags in instance metadata; or
+##  - configuration of the EC2 instance to have an IAM role with
+##    the `EC2:DescribeTags` permission.
+## See docs for further details:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+
+## @param collect_ec2_tags_use_imds - boolean - optional - default: false
+## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
+## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
+## Requires `collect_ec2_tags`.
+#
+# collect_ec2_tags_use_imds: false
 
 ## @param ec2_metadata_timeout - integer - optional - default: 300
 ## @env DD_EC2_METADATA_TIMEOUT - integer - optional - default: 300
