@@ -142,7 +142,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 			continue
 		}
 
-		if !compareKernelVersionsRelaxed(dirv, hv) {
+		if dirv != hv {
 			log.Debugf("error validating %s: header version %s does not match host version %s", d, dirv, hv)
 			continue
 		}
@@ -319,8 +319,4 @@ func unloadKHeadersModule() error {
 		return fmt.Errorf("unable to unload kheaders module: %s", stderr.String())
 	}
 	return nil
-}
-
-func compareKernelVersionsRelaxed(headerVersion, hostVersion Version) bool {
-	return headerVersion.Major() == hostVersion.Major() && headerVersion.Minor() == hostVersion.Minor()
 }
