@@ -105,6 +105,8 @@ PenaltyExcessCharacter: 1000000
 PenaltyReturnTypeOnItsOwnLine: 1000
 PointerAlignment: Right
 ReflowComments:  true
+# SortIncludes true breaks compilation because
+# stdafx.h must always be the first file included
 SortIncludes:    false
 SortUsingDeclarations: true
 SpaceAfterCStyleCast: false
