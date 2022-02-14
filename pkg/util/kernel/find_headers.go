@@ -50,7 +50,7 @@ const (
 	hostVersionErr
 	downloadFailure
 	validationFailure
-	reposDirAccessFailure
+	reposDirAccessFailure //nolint:deadcode,unused
 	headersNotFound
 )
 
