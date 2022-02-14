@@ -169,7 +169,7 @@ func SetupCrossNsDNAT6(t *testing.T) {
 
 }
 
-// TeardownCrossNsDNAT cleans up the resources created by SetupCrossNsDNAT
+// TeardownCrossNsDNAT6 cleans up the resources created by SetupCrossNsDNAT6
 func TeardownCrossNsDNAT6(t *testing.T) {
 	cmds := []string{
 		"ip link del veth1",
