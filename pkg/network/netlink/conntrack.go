@@ -47,12 +47,18 @@ type conntrack struct {
 }
 
 func (c *conntrack) Exists(conn *Con) (bool, error) {
+	var family byte = unix.AF_INET
+	if (conn.Con.Origin != nil && conn.Con.Origin.Src != nil && conn.Con.Origin.Src.To4() == nil) ||
+		(conn.Con.Reply != nil && conn.Con.Reply.Src != nil && conn.Con.Reply.Src.To4() == nil) {
+		family = unix.AF_INET6
+	}
+
 	msg := netlink.Message{
 		Header: netlink.Header{
 			Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
 			Flags: netlink.Request | netlink.Acknowledge,
 		},
-		Data: []byte{unix.AF_INET, unix.NFNETLINK_V0, 0, 0},
+		Data: []byte{family, unix.NFNETLINK_V0, 0, 0},
 	}
 
 	data, err := EncodeConn(conn)
