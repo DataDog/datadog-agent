@@ -332,11 +332,22 @@ api_key:
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
-## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
-## permission. See docs for further details:
+## Requires one of:
+##  - `collect_ec2_tags_use_imds: true` and configuration of the
+##    EC2 instance to allow tags in instance metadata; or
+##  - configuration of the EC2 instance to have an IAM role with
+##    the `EC2:DescribeTags` permission.
+## See docs for further details:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+
+## @param collect_ec2_tags_use_imds - boolean - optional - default: false
+## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
+## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
+## Requires `collect_ec2_tags`.
+#
+# collect_ec2_tags_use_imds: false
 
 ## @param ec2_metadata_timeout - integer - optional - default: 300
 ## @env DD_EC2_METADATA_TIMEOUT - integer - optional - default: 300
@@ -2815,7 +2826,7 @@ api_key:
 ## @param snmp_traps_config - custom object - optional
 ## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
 ## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
-## change in the future. Only SNMPv2 is supported.
+## change in the future.
 #
 # snmp_traps_config:
 
@@ -2825,7 +2836,7 @@ api_key:
   # port: 162
 
   ## @param community_strings - list of strings - required
-  ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
+  ## A list of known SNMP community strings that devices can use to send traps to the Agent.
   ## Traps with an unknown community string are ignored.
   ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
   ## Must be non-empty.
@@ -2833,6 +2844,28 @@ api_key:
   # community_strings:
   #   - '<COMMUNITY_1>'
   #   - '<COMMUNITY_2>'
+
+  ## @param users - list of custom objects - optional
+  ## List of SNMPv3 users that can be used to listen for traps.
+  ## NOTE: Currently the Datadog Agent only supports having a
+  ## single user in this list.
+  ## Each user can contain:
+  ##  * username     - string - The username used by devices when sending Traps to the Agent.
+  ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
+  ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
+  ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
+  ##                            Defaults to MD5 when authKey is set.
+  ##  * privKey      - string - (Optional) The passphrase to use with the given user privacy protocol.
+  ##  * privProtocol - string - (Optional) The privacy protocol to use when listening for traps from this user.
+  ##                            Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C.
+  ##                            Defaults to DES when privKey is set.
+  #
+  # users:
+  # - username: <USERNAME>
+  #   authKey: <AUTHENTICATION_KEY>
+  #   authProtocol: <AUTHENTICATION_PROTOCOL>
+  #   privKey: <PRIVACY_KEY>
+  #   privProtocol: <PRIVACY_PROTOCOL>
 
   ## @param bind_host - string - optional
   ## The hostname to listen on for incoming trap packets.

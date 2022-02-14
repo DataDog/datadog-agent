@@ -526,7 +526,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		event.Exec.Process = event.processCacheEntry.Process
 		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
 	case model.ExitEventType:
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
+		// do nothing
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
@@ -594,6 +594,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		} else {
 			event.ProcessContext = event.processCacheEntry.ProcessContext
 		}
+	} else {
+		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+			return
+		}
+
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
@@ -1064,5 +1070,6 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
+	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
 	return constantFetcher.FinishAndGetResults()
 }

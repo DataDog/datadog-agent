@@ -196,6 +196,8 @@ type DataType string
 const (
 	// Metrics type covers series & sketches
 	Metrics DataType = "metrics"
+	// Logs type covers all outgoing logs
+	Logs DataType = "logs"
 )
 
 // prometheusScrapeChecksTransformer is a trampoline function that delays the
@@ -657,6 +659,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
 	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
+	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -986,6 +989,7 @@ func InitConfig(config Config) {
 
 	// Vector integration
 	bindVectorOptions(config, Metrics)
+	bindVectorOptions(config, Logs)
 
 	setAssetFs(config)
 	setupAPM(config)
