@@ -49,9 +49,10 @@ const (
 	downloadSuccess
 	hostVersionErr
 	downloadFailure
+	validationFailure
+	reposDirAccessFailure //nolint:deadcode,unused
 	headersNotFound
 )
-
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
@@ -111,9 +112,6 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
 	if err := d.downloadHeaders(headerDownloadDir); err != nil {
-		if errors.Is(err, errReposDirInaccessible) {
-			return nil, reposDirAccessFailure, fmt.Errorf("unable to download kernel headers: %w", err)
-		}
 		return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 	}
 	log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
