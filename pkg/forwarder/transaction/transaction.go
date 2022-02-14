@@ -335,6 +335,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		tlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
 	}
 
+	// We want to retry 404s even if that means that the agent would retry
+	// payloads on endpoints that don’t exist at the intake it’s sending data
+	// to (example: a specific DD region, or a http proxy)
 	if resp.StatusCode == 400 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %q, dropping it", resp.Status, logURL, truncateBodyForLog(body))
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
