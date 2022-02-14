@@ -9,4 +9,4 @@
 enhancements:
   - |
     In environments with no hostname (such as Fargate), DD_TAGS
-    are now sent with each dogstatsd metric.
+    are now sent with each DogStatsD metric.
