@@ -15,13 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
-	cardinality string
+	cardinality collectors.TagCardinality
 	series      metrics.Series
 	sketches    metrics.SketchSeriesList
 }
@@ -30,11 +31,24 @@ type serializerConsumer struct {
 // In the OTLP pipeline, 'contexts' are kept within the translator, and,
 // therefore, this works a little differently than for DogStatsD/check metrics.
 func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []string {
-	tb := tagset.NewHashlessTagsAccumulator()
-	// Append to copy slice and avoid modifying dimensions.Tags()
-	tb.Append(dimensions.Tags()...)
-	tagger.EnrichTags(tb, "", dimensions.OriginID(), c.cardinality)
-	return tb.Get()
+	enrichedTags := make([]string, 0, len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, dimensions.Tags()...)
+
+	entityTags, err := tagger.Tag(dimensions.OriginID(), c.cardinality)
+	if err != nil {
+		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
+	} else {
+		enrichedTags = append(enrichedTags, entityTags...)
+	}
+
+	orchestratorTags, err := tagger.OrchestratorScopeTag()
+	if err != nil {
+		log.Error(err.Error())
+	} else {
+		enrichedTags = append(enrichedTags, orchestratorTags...)
+	}
+
+	return enrichedTags
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {

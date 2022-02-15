@@ -62,7 +62,7 @@ type exporter struct {
 	tr          *translator.Translator
 	s           serializer.MetricSerializer
 	hostname    string
-	cardinality string
+	cardinality collectors.TagCardinality
 }
 
 func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.Translator, error) {
@@ -118,11 +118,16 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, err
 	}
 
+	cardinality, err := collectors.StringToTagCardinality(cfg.Metrics.TagCardinality)
+	if err != nil {
+		return nil, err
+	}
+
 	return &exporter{
 		tr:          tr,
 		s:           s,
 		hostname:    hostname,
-		cardinality: cfg.Metrics.TagCardinality,
+		cardinality: cardinality,
 	}, nil
 }
 
