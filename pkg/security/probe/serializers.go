@@ -218,20 +218,19 @@ type BPFEventSerializer struct {
 
 // MMapEventSerializer serializes a mmap event to JSON
 type MMapEventSerializer struct {
-	Address    string          `json:"address" jsonschema_description:"memory segment address"`
-	Offset     uint64          `json:"offset" jsonschema_description:"file offset"`
-	Len        uint32          `json:"length" jsonschema_description:"memory segment length"`
-	Protection string          `json:"protection" jsonschema_description:"memory segment protection"`
-	Flags      string          `json:"flags" jsonschema_description:"memory segment flags"`
-	File       *FileSerializer `json:"file,omitempty" jsonschema_description:"mmaped file"`
+	Address    string `json:"address" jsonschema_description:"memory segment address"`
+	Offset     uint64 `json:"offset" jsonschema_description:"file offset"`
+	Len        uint32 `json:"length" jsonschema_description:"memory segment length"`
+	Protection string `json:"protection" jsonschema_description:"memory segment protection"`
+	Flags      string `json:"flags" jsonschema_description:"memory segment flags"`
 }
 
 // MProtectEventSerializer serializes a mmap event to JSON
 type MProtectEventSerializer struct {
 	VMStart       string `json:"vm_start" jsonschema_description:"memory segment start address"`
 	VMEnd         string `json:"vm_end" jsonschema_description:"memory segment end address"`
-	VMProtection  string `json:"vm_protection" jsonschema_description:"memory segment protection"`
-	ReqProtection string `json:"new_protection" jsonschema_description:"new memory segment protection"`
+	VMProtection  string `json:"vm_protection" jsonschema_description:"initial memory segment protection"`
+	ReqProtection string `json:"req_protection" jsonschema_description:"new memory segment protection"`
 }
 
 // PTraceEventSerializer serializes a mmap event to JSON
@@ -515,18 +514,12 @@ func newBPFEventSerializer(e *Event) *BPFEventSerializer {
 }
 
 func newMMapEventSerializer(e *Event) *MMapEventSerializer {
-	var fileSerializer *FileSerializer
-	if e.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
-		fileSerializer = newFileSerializer(&e.MMap.File, e)
-	}
-
 	return &MMapEventSerializer{
 		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
 		Offset:     e.MMap.Offset,
 		Len:        e.MMap.Len,
 		Protection: model.Protection(e.MMap.Protection).String(),
 		Flags:      model.MMapFlag(e.MMap.Flags).String(),
-		File:       fileSerializer,
 	}
 }
 
@@ -749,6 +742,11 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.BPFEventSerializer = newBPFEventSerializer(event)
 	case model.MMapEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MMap.Retval)
+		if event.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.MMap.File, event),
+			}
+		}
 		s.MMapEventSerializer = newMMapEventSerializer(event)
 	case model.MProtectEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MProtect.Retval)

@@ -144,9 +144,9 @@ type Event struct {
 
 	SELinux  SELinuxEvent  `field:"selinux" event:"selinux"`   // [7.30] [Kernel] An SELinux operation was run
 	BPF      BPFEvent      `field:"bpf" event:"bpf"`           // [7.33] [Kernel] A BPF command was executed
-	PTrace   PTraceEvent   `field:"ptrace" event:"ptrace"`     // [7.34] [Kernel] [Experimental] A ptrace command was executed
-	MMap     MMapEvent     `field:"mmap" event:"mmap"`         // [7.34] [Kernel] [Experimental] A mmap command was executed
-	MProtect MProtectEvent `field:"mprotect" event:"mprotect"` // [7.34] [Kernel] [Experimental] A mprotect command was executed
+	PTrace   PTraceEvent   `field:"ptrace" event:"ptrace"`     // [7.35] [Kernel] A ptrace command was executed
+	MMap     MMapEvent     `field:"mmap" event:"mmap"`         // [7.35] [Kernel] A mmap command was executed
+	MProtect MProtectEvent `field:"mprotect" event:"mprotect"` // [7.35] [Kernel] A mprotect command was executed
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -610,10 +610,10 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request                 uint32             `field:"request"`
+	Request                 uint32             `field:"request"` //  ptrace request
 	PID                     uint32             `field:"-"`
 	Address                 uint64             `field:"-"`
-	Tracee                  ProcessContext     `field:"tracee"`
+	Tracee                  ProcessContext     `field:"tracee"` // process context of the tracee
 	TraceeProcessCacheEntry *ProcessCacheEntry `field:"-"`
 }
 
@@ -625,8 +625,8 @@ type MMapEvent struct {
 	Addr       uint64    `field:"-"`
 	Offset     uint64    `field:"-"`
 	Len        uint32    `field:"-"`
-	Protection int       `field:"protection"`
-	Flags      int       `field:"flags"`
+	Protection int       `field:"protection"` // memory segment protection
+	Flags      int       `field:"flags"`      // memory segment flags
 }
 
 // MProtectEvent represents a mprotect event
@@ -635,6 +635,6 @@ type MProtectEvent struct {
 
 	VMStart       uint64 `field:"-"`
 	VMEnd         uint64 `field:"-"`
-	VMProtection  int    `field:"vm_protection"`
-	ReqProtection int    `field:"req_protection"`
+	VMProtection  int    `field:"vm_protection"`  // initial memory segment protection
+	ReqProtection int    `field:"req_protection"` // new memory segment protection
 }

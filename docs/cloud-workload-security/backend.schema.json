@@ -378,10 +378,6 @@
         "flags": {
           "type": "string",
           "description": "memory segment flags"
-        },
-        "file": {
-          "$ref": "#/definitions/File",
-          "description": "mmaped file"
         }
       },
       "additionalProperties": false,
@@ -392,7 +388,7 @@
         "vm_start",
         "vm_end",
         "vm_protection",
-        "new_protection"
+        "req_protection"
       ],
       "properties": {
         "vm_start": {
@@ -405,9 +401,9 @@
         },
         "vm_protection": {
           "type": "string",
-          "description": "memory segment protection"
+          "description": "initial memory segment protection"
         },
-        "new_protection": {
+        "req_protection": {
           "type": "string",
           "description": "new memory segment protection"
         }
