@@ -38,6 +38,7 @@ type Sender interface {
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
+	OrchestratorManifest(msgs []serializer.ManifestMessage, clusterName string, clusterID string)
 	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
 }
 
@@ -60,7 +61,8 @@ type checkSender struct {
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
 	histogramBucketOut      chan<- senderHistogramBucket
-	orchestratorOut         chan<- senderOrchestratorMetadata
+	orchestratorMetadataOut chan<- senderOrchestratorMetadata
+	orchestratorManifestOut chan<- senderOrchestratorManifest
 	contlcycleOut           chan<- senderContainerLifecycleEvent
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
@@ -94,6 +96,12 @@ type senderContainerLifecycleEvent struct {
 	msgs []serializer.ContainerLifecycleMessage
 }
 
+type senderOrchestratorManifest struct {
+	msgs        []serializer.ManifestMessage
+	clusterName string
+	clusterID   string
+}
+
 type checkSenderPool struct {
 	agg     *BufferedAggregator
 	senders map[check.ID]Sender
@@ -107,22 +115,24 @@ func newCheckSender(
 	serviceCheckOut chan<- metrics.ServiceCheck,
 	eventOut chan<- metrics.Event,
 	bucketOut chan<- senderHistogramBucket,
-	orchestratorOut chan<- senderOrchestratorMetadata,
+	orchestratorMetadataOut chan<- senderOrchestratorMetadata,
+	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
 	contlcycleOut chan<- senderContainerLifecycleEvent,
 ) *checkSender {
 	return &checkSender{
-		id:                 id,
-		defaultHostname:    defaultHostname,
-		smsOut:             smsOut,
-		serviceCheckOut:    serviceCheckOut,
-		eventOut:           eventOut,
-		metricStats:        check.NewSenderStats(),
-		priormetricStats:   check.NewSenderStats(),
-		histogramBucketOut: bucketOut,
-		orchestratorOut:    orchestratorOut,
-		eventPlatformOut:   eventPlatformOut,
-		contlcycleOut:      contlcycleOut,
+		id:                      id,
+		defaultHostname:         defaultHostname,
+		smsOut:                  smsOut,
+		serviceCheckOut:         serviceCheckOut,
+		eventOut:                eventOut,
+		metricStats:             check.NewSenderStats(),
+		priormetricStats:        check.NewSenderStats(),
+		histogramBucketOut:      bucketOut,
+		orchestratorMetadataOut: orchestratorMetadataOut,
+		orchestratorManifestOut: orchestratorManifestOut,
+		eventPlatformOut:        eventPlatformOut,
+		contlcycleOut:           contlcycleOut,
 	}
 }
 
@@ -400,9 +410,17 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 		clusterID:   clusterID,
 		payloadType: nodeType,
 	}
-	s.orchestratorOut <- om
+	s.orchestratorMetadataOut <- om
 }
 
+func (s *checkSender) OrchestratorManifest(msgs []serializer.ManifestMessage, clusterName string, clusterID string) {
+	om := senderOrchestratorManifest{
+		msgs:        msgs,
+		clusterName: clusterName,
+		clusterID:   clusterID,
+	}
+	s.orchestratorManifestOut <- om
+}
 func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
 	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
 }
@@ -443,6 +461,7 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 		sp.agg.eventIn,
 		sp.agg.checkHistogramBucketIn,
 		sp.agg.orchestratorMetadataIn,
+		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
 		sp.agg.contLcycleIn,
 	)

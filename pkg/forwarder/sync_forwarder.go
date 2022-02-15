@@ -114,37 +114,42 @@ func (f *SyncForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.H
 
 // SubmitProcessChecks sends process checks
 func (f *SyncForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
+	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true, true)
 }
 
 // SubmitProcessDiscoveryChecks sends process discovery checks
 func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
+	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
 func (f *SyncForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
+	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false, true)
 }
 
 // SubmitContainerChecks sends container checks
 func (f *SyncForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
+	return f.defaultForwarder.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
 func (f *SyncForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
+	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false, true)
 }
 
 // SubmitConnectionChecks sends connection checks
 func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
+	return f.defaultForwarder.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
+}
+
+// SubmitOrchestratorManifests sends orchestrator manifests
+func (f *SyncForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events

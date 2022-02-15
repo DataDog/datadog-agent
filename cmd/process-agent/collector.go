@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -28,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/zstd_0"
+	"github.com/gogo/protobuf/proto"
 )
 
 type checkResult struct {
@@ -210,7 +213,10 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 	if len(messages) == 0 {
 		return
 	}
-
+	if name == config.PodCheckName {
+		manifestMessagesToResults(l, start, name, messages[len(messages)/2:], results)
+		messages = messages[:len(messages)/2]
+	}
 	payloads := make([]checkPayload, 0, len(messages))
 	sizeInBytes := 0
 
@@ -247,8 +253,63 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		sizeInBytes: int64(sizeInBytes),
 	}
 	results.Add(result)
+
 	// update proc and container count for info
 	updateProcContainerCount(messages)
+}
+
+// manifestMessagesToResults processes manifest from messages
+func manifestMessagesToResults(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
+
+	manifestPayloads := make([]checkPayload, 0, len(messages))
+	manifestSizeInBytes := 0
+
+	for _, m := range messages {
+		extraHeaders := make(http.Header)
+
+		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
+			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+				extraHeaders.Set(headers.ClusterIDHeader, cid)
+			}
+		}
+
+		b := new(bytes.Buffer)
+		var p []byte
+
+		pb, err := proto.Marshal(m)
+		if err != nil {
+			log.Warnf("unable to marshal manifest message")
+			continue
+		}
+
+		p, err = zstd_0.Compress(nil, pb)
+		if err != nil {
+			log.Warnf("unable to compress manifest message")
+			continue
+		}
+
+		_, err = b.Write(p)
+		if err != nil {
+			log.Warnf("unable to write manifest message into bytes")
+			continue
+		}
+
+		body := b.Bytes()
+
+		extraHeaders.Set("Content-Type", "application/x-protobuf")
+		manifestPayloads = append(manifestPayloads, checkPayload{
+			body:    body,
+			headers: extraHeaders,
+		})
+		manifestSizeInBytes += len(body)
+	}
+
+	result := &checkResult{
+		name:        name,
+		payloads:    manifestPayloads,
+		sizeInBytes: int64(manifestSizeInBytes),
+	}
+	results.Add(result)
 }
 
 func (l *Collector) run(exit chan struct{}) error {
@@ -491,7 +552,11 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Pod.Name():
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				if payload.headers.Get(headers.ContainerCountHeader) == "" {
+					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
+				} else {
+					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				}
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false

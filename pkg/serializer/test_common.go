@@ -78,3 +78,8 @@ func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hos
 func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
 	return s.Called(msgs, hostname).Error(0)
 }
+
+// SendOrchestratorManifests serializes & send orchestrator manifest payloads
+func (s *MockSerializer) SendOrchestratorManifests(msgs []ManifestMessage, hostName, clusterID string) error {
+	return s.Called(msgs, hostName, clusterID).Error(0)
+}

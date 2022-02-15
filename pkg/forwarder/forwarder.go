@@ -73,6 +73,7 @@ type Forwarder interface {
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
+	SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error
 }
 
@@ -521,39 +522,44 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 
 // SubmitProcessChecks sends process checks
 func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true, true)
 }
 
 // SubmitProcessDiscoveryChecks sends process discovery checks
 func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
+	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false, true)
 }
 
 // SubmitContainerChecks sends container checks
 func (f *DefaultForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
 func (f *DefaultForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
+	return f.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false, true)
 }
 
 // SubmitConnectionChecks sends connection checks
 func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	bumpOrchestratorPayload(payloadType)
 
-	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true, true)
+}
+
+// SubmitOrchestratorManifests sends orchestrator manifests
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true, false)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events
@@ -562,7 +568,7 @@ func (f *DefaultForwarder) SubmitContainerLifecycleEvents(payload Payloads, extr
 	return f.sendHTTPTransactions(transactions)
 }
 
-func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
+func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload Payloads, extra http.Header, retryable bool, attempts bool) (chan Response, error) {
 	transactions := f.createHTTPTransactions(ep, payload, false, extra)
 	results := make(chan Response, len(transactions))
 	internalResults := make(chan Response, len(transactions))
@@ -570,12 +576,14 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 
 	for _, txn := range transactions {
 		txn.Retryable = retryable
-		txn.AttemptHandler = func(transaction *transaction.HTTPTransaction) {
-			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
-				transaction.Headers.Set("X-DD-Agent-Attempts", "1")
-			} else {
-				attempts, _ := strconv.ParseInt(v, 10, 0)
-				transaction.Headers.Set("X-DD-Agent-Attempts", strconv.Itoa(int(attempts+1)))
+		if attempts {
+			txn.AttemptHandler = func(transaction *transaction.HTTPTransaction) {
+				if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
+					transaction.Headers.Set("X-DD-Agent-Attempts", "1")
+				} else {
+					attempts, _ := strconv.ParseInt(v, 10, 0)
+					transaction.Headers.Set("X-DD-Agent-Attempts", strconv.Itoa(int(attempts+1)))
+				}
 			}
 		}
 

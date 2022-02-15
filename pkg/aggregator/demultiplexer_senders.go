@@ -81,6 +81,7 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 			s.agg.eventIn,
 			s.agg.checkHistogramBucketIn,
 			s.agg.orchestratorMetadataIn,
+			s.agg.orchestratorManifestIn,
 			s.agg.eventPlatformIn,
 			s.agg.contLcycleIn,
 		)

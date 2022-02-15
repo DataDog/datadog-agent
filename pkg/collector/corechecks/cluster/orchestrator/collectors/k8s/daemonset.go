@@ -74,14 +74,15 @@ func (c *DaemonSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.processor.Process(ctx, list)
+	metadataMessages, manifestMessages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Messages:           metadataMessages,
+		Manifests:          manifestMessages,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

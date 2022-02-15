@@ -17,6 +17,12 @@ type NodeType int
 // CheckName is the cluster check name of the orchestrator check
 var CheckName = "orchestrator"
 
+// ManifestContentType is orchestrator manifest content type
+var ManifestContentType = "json"
+
+// ManifestPayloadVersion is orchestrator manifest payload version
+var ManifestPayloadVersion = "v1"
+
 const (
 	// K8sDeployment represents a Kubernetes Deployment
 	K8sDeployment NodeType = iota

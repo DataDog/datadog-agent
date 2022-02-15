@@ -9,6 +9,7 @@
 package processors
 
 import (
+	"github.com/DataDog/agent-payload/v5/manifest"
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -90,7 +91,7 @@ func NewProcessor(h Handlers) *Processor {
 }
 
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages []model.MessageBody, processed int) {
+func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (metadataMessages []model.MessageBody, manifestMessages []manifest.ManifestPayload, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -99,6 +100,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 
 	resourceList := p.h.ResourceList(ctx, list)
 	resourceModels := make([]interface{}, 0, len(resourceList))
+	resourceManifests := make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
 		// Scrub before extraction.
@@ -141,18 +143,30 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 		}
 
 		resourceModels = append(resourceModels, resourceModel)
-	}
 
+		// Add resource manifest
+		resourceManifests = append(resourceManifests, buildManifest(ctx, string(resourceUID), yaml))
+	}
 	// Split messages in chunks
 	chunkCount := orchestrator.GroupSize(len(resourceModels), ctx.Cfg.MaxPerMessage)
-	chunks := chunkResources(resourceModels, chunkCount, ctx.Cfg.MaxPerMessage)
 
-	messages = make([]model.MessageBody, 0, chunkCount)
+	// chunk orchestrator metadata
+	metadataChunks := chunkResources(resourceModels, chunkCount, ctx.Cfg.MaxPerMessage)
+
+	metadataMessages = make([]model.MessageBody, 0, chunkCount)
 	for i := 0; i < chunkCount; i++ {
-		messages = append(messages, p.h.BuildMessageBody(ctx, chunks[i], chunkCount))
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunks[i], chunkCount))
 	}
 
-	return messages, len(resourceModels)
+	// chunk orchestrator manifest
+	manifestChunks := chunkResources(resourceManifests, chunkCount, ctx.Cfg.MaxPerMessage)
+
+	manifestMessages = make([]manifest.ManifestPayload, 0, chunkCount)
+	for i := 0; i < chunkCount; i++ {
+		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx, manifestChunks[i]))
+	}
+
+	return metadataMessages, manifestMessages, len(resourceModels)
 }
 
 // chunkResources splits messages into groups of messages called chunks, knowing
@@ -166,4 +180,30 @@ func chunkResources(resources []interface{}, chunkCount, chunkSize int) [][]inte
 	}
 
 	return chunks
+}
+
+// build orchestrator resource manifest
+func buildManifest(ctx *ProcessorContext, uid string, yaml []byte) *manifest.Manifest {
+	return &manifest.Manifest{
+		Type:        int64(ctx.NodeType),
+		Uid:         uid,
+		Content:     yaml,
+		ContentType: orchestrator.ManifestContentType,
+	}
+}
+
+// build orchestrator resource manifest
+func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}) manifest.ManifestPayload {
+	manifests := make([]*manifest.Manifest, 0, len(resourceManifests))
+
+	for _, m := range resourceManifests {
+		manifests = append(manifests, m.(*manifest.Manifest))
+	}
+
+	return manifest.ManifestPayload{
+		Version:     orchestrator.ManifestPayloadVersion,
+		ClusterName: ctx.Cfg.KubeClusterName,
+		ClusterId:   ctx.ClusterID,
+		Manifests:   manifests,
+	}
 }

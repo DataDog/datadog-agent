@@ -143,5 +143,6 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Messages), collector.Metadata().NodeType)
 		sender.OrchestratorMetadata(result.Messages, cb.check.clusterID, int(collector.Metadata().NodeType))
+		sender.OrchestratorManifest(result.Manifests, cb.check.orchestratorConfig.KubeClusterName, cb.check.clusterID)
 	}
 }
