@@ -51,13 +51,14 @@ func TestNewServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	demux := mockDemultiplexer()
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
-	defer s.Stop()
 	assert.NotNil(t, s)
 	assert.True(t, s.Started)
+
+	s.Stop()
 }
 
 func TestStopServer(t *testing.T) {
@@ -65,7 +66,7 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	demux := mockDemultiplexer()
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")

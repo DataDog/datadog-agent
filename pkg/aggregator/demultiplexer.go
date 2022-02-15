@@ -52,7 +52,7 @@ type Demultiplexer interface {
 	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
 	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AddCheckSample(sample metrics.MetricSample)
-	// ForceFlushToSerializer flushes all the aggregated data from the samplers to
+	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to
 	// the serialization/forwarding parts.
 	ForceFlushToSerializer(start time.Time, waitForSerializer bool)
 	// GetMetricSamplePool returns a shared resource used in the whole DogStatsD
@@ -92,6 +92,14 @@ type Demultiplexer interface {
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent
 type AgentDemultiplexer struct {
 	m sync.Mutex
+
+	// stopChan completely stops the flushLoop of the Demultiplexer when receiving
+	// a message, not doing anything else.
+	stopChan chan struct{}
+	// flushChan receives a trigger to run an internal flush of all
+	// samplers (TimeSampler, BufferedAggregator (CheckSampler, Events, ServiceChecks))
+	// to the shared serializer.
+	flushChan chan trigger
 
 	// options are the options with which the demultiplexer has been created
 	options    DemultiplexerOptions
@@ -136,6 +144,31 @@ type forwarders struct {
 type dataOutputs struct {
 	forwarders       forwarders
 	sharedSerializer serializer.MetricSerializer
+}
+
+// trigger be used to trigger something in the TimeSampler or the BufferedAggregator.
+// If `blockChan` is not nil, a message is expected on this chan when the action is done.
+// See `flushTrigger` to see the usage in a flush trigger.
+type trigger struct {
+	time time.Time
+
+	// if not nil, the flusher will send a message in this chan when the flush is complete.
+	blockChan chan struct{}
+
+	// used by the BufferedAggregator to know if serialization of events,
+	// service checks and such have to be waited for before returning
+	// from Flush()
+	waitForSerializer bool
+}
+
+// flushTrigger is a trigger used to flush data, results is expected to be written
+// in flushedSeries (or seriesSink depending on the implementation) and flushedSketches.
+type flushTrigger struct {
+	trigger
+
+	flushedSeries   *[]metrics.Series
+	flushedSketches *[]metrics.SketchSeriesList
+	seriesSink      metrics.SerieSink
 }
 
 // DefaultDemultiplexerOptions returns the default options to initialize a Demultiplexer.
@@ -229,19 +262,16 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 
 		// its worker (process loop + flush/serialization mechanism)
 
-		// NOTE(remy): we can consider that the orchestrator forwarder and the
-		// container lifecycle fwder aren't useful here and having them nil
-		// could probably be considered
-		serializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder,
-			containerLifecycleForwarder)
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, serializer, agg.flushAndSerializeInParallel)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel)
 	}
 
 	// --
 
 	demux := &AgentDemultiplexer{
-		options: options,
+		options:   options,
+		stopChan:  make(chan struct{}),
+		flushChan: make(chan trigger),
 
 		// Input
 		aggregator: agg,
@@ -342,26 +372,71 @@ func (d *AgentDemultiplexer) Run() {
 	for _, w := range d.statsd.workers {
 		go w.run()
 	}
-	d.aggregator.run() // this is the blocking call
+
+	go d.aggregator.run()
+	d.flushLoop() // this is the blocking call
+}
+
+func (d *AgentDemultiplexer) flushLoop() {
+	var flushTicker <-chan time.Time
+	if d.options.FlushInterval > 0 {
+		flushTicker = time.NewTicker(d.options.FlushInterval).C
+	} else {
+		log.Debugf("flushInterval set to 0: will never flush automatically")
+	}
+
+	for {
+		select {
+		// stop sequence
+		case <-d.stopChan:
+			return
+		// manual flush sequence
+		case trigger := <-d.flushChan:
+			d.flushToSerializer(trigger.time, trigger.waitForSerializer)
+			if trigger.blockChan != nil {
+				trigger.blockChan <- struct{}{}
+			}
+		// automatic flush sequence
+		case t := <-flushTicker:
+			d.flushToSerializer(t, false)
+		}
+	}
 }
 
 // Stop stops the demultiplexer.
 // Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
+	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
+
+	// do a manual complete flush then stop
+	// stop all automatic flush & the mainloop,
+	if flush {
+		trigger := trigger{
+			time:              time.Now(),
+			blockChan:         make(chan struct{}),
+			waitForSerializer: flush,
+		}
+
+		d.flushChan <- trigger
+		select {
+		case <-trigger.blockChan:
+		case <-time.After(timeout):
+			log.Errorf("flushing data on Stop() timed out")
+		}
+	}
+
+	// stops the flushloop and makes sure no automatic flushes will happen anymore
+	d.stopChan <- struct{}{}
+
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	if flush {
-		d.forceFlushToSerializer(time.Now(), true)
-	}
-
 	// aggregated data
-
 	for _, worker := range d.statsd.workers {
 		worker.stop()
 	}
 	if d.aggregator != nil {
-		d.aggregator.Stop(false)
+		d.aggregator.Stop()
 	}
 	d.aggregator = nil
 
@@ -393,50 +468,164 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	demultiplexerInstance = nil
 }
 
-// ForceFlushToSerializer flushes all data from the aggregator and time samplers
-// to the serializer.
+// ForceFlushToSerializer triggers the execution of a flush from all data of samplers
+// and the BufferedAggregator to the serializer.
 // Safe to call from multiple threads.
 func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
-	d.m.Lock()
-	defer d.m.Unlock()
-	d.forceFlushToSerializer(start, waitForSerializer)
+	trigger := trigger{
+		time:              start,
+		waitForSerializer: waitForSerializer,
+		blockChan:         make(chan struct{}),
+	}
+	d.flushChan <- trigger
+	<-trigger.blockChan
 }
 
-// ForceFlushToSerializer flushes all data from the aggregator and time samplers
+// flushToSerializer flushes all data from the aggregator and time samplers
 // to the serializer.
-// Not safe to call from multiple threads, consider using ForceFlushToSerializer instead.
-func (d *AgentDemultiplexer) forceFlushToSerializer(start time.Time, waitForSerializer bool) {
+//
+// Best practice is that this method is *only* called by the flushLoop routine.
+// It technically works if called from outside of this routine, but beware of
+// deadlocks with the parallel stream series implementation.
+//
+// This implementation is not flushing the TimeSampler and the BufferedAggregator
+// concurrently because the IterableSeries is not thread safe / supporting concurrent usage.
+// If one day a better (faster?) solution is needed, we could either consider:
+// - to have an implementation of SendIterableSeries listening on multiple sinks in parallel, or,
+// - to have a thread-safe implementation of the underlying `util.BufferedChan`.
+func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool) {
+	d.m.Lock()
+	defer d.m.Unlock()
 
-	// flush the time samplers
-	// ----------------------
+	if d.aggregator == nil {
+		// NOTE(remy): we could consider flushing only the time samplers
+		return
+	}
 
-	if waitForSerializer {
-		wg := sync.WaitGroup{}
-		for _, tsWorker := range d.statsd.workers {
-			wg.Add(1)
-			// order the flush to the time sampler, and wait, in a different routine
-			go func(worker *timeSamplerWorker, wg *sync.WaitGroup) {
-				worker.flush(start, true)
-				wg.Done()
-			}(tsWorker, &wg)
+	logPayloads := config.Datadog.GetBool("log_payloads")
+	flushedSeries := make([]metrics.Series, 0)
+	flushedSketches := make([]metrics.SketchSeriesList, 0)
+
+	// only used when we're using flush/serialize in parallel feature
+	var seriesSink *metrics.IterableSeries
+	var done chan struct{}
+
+	if d.aggregator.flushAndSerializeInParallel.enabled {
+		seriesSink = metrics.NewIterableSeries(func(se *metrics.Serie) {
+			if logPayloads {
+				log.Debugf("Flushing serie: %s", se)
+			}
+			tagsetTlm.updateHugeSerieTelemetry(se)
+		}, d.aggregator.flushAndSerializeInParallel.bufferSize, d.aggregator.flushAndSerializeInParallel.channelSize)
+		done = make(chan struct{})
+		go d.sendIterableSeries(start, seriesSink, done)
+	}
+
+	// flush DogStatsD pipelines (statsd/time samplers)
+	// ------------------------------------------------
+
+	for _, worker := range d.statsd.workers {
+		// order the flush to the time sampler, and wait, in a different routine
+		t := flushTrigger{
+			trigger: trigger{
+				time:      start,
+				blockChan: make(chan struct{}),
+			},
+			flushedSeries:   &flushedSeries,
+			flushedSketches: &flushedSketches,
+			seriesSink:      seriesSink,
 		}
-		// wait for all samplers to have finished their flush
-		wg.Wait()
-	} else {
-		for _, tsWorker := range d.statsd.workers {
-			tsWorker.flush(start, false)
-		}
+
+		worker.flushChan <- t
+		<-t.trigger.blockChan
 	}
 
 	// flush the aggregator (check samplers)
 	// -------------------------------------
 
 	if d.aggregator != nil {
-		d.aggregator.Flush(start, waitForSerializer)
+		t := flushTrigger{
+			trigger: trigger{
+				time:              start,
+				blockChan:         make(chan struct{}),
+				waitForSerializer: waitForSerializer,
+			},
+			flushedSeries:   &flushedSeries,
+			flushedSketches: &flushedSketches,
+			seriesSink:      seriesSink,
+		}
+
+		d.aggregator.flushChan <- t
+		<-t.trigger.blockChan
+	}
+
+	if d.aggregator.flushAndSerializeInParallel.enabled {
+		seriesSink.SenderStopped()
+		<-done
+	}
+
+	// collect the series and sketches that the multiple samplers may have reported
+	// ------------------------------------------------------
+
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+
+	for _, s := range flushedSeries {
+		series = append(series, s...)
+	}
+	for _, s := range flushedSketches {
+		sketches = append(sketches, s...)
+	}
+
+	// debug flag to log payloads
+	// --------------------------
+
+	if logPayloads {
+		log.Debug("Flushing the following Series:")
+		for _, s := range series {
+			log.Debugf("%s", s)
+		}
+
+		log.Debug("Flushing the following Sketches:")
+		for _, s := range sketches {
+			log.Debugf("%s", s)
+		}
+	}
+
+	// send these to the serializer
+	// ----------------------------
+
+	addFlushCount("Series", int64(len(series)))
+	if len(series) > 0 {
+		err := d.sharedSerializer.SendSeries(series)
+		updateSerieTelemetry(start, uint64(len(series)), err)
+		tagsetTlm.updateHugeSeriesTelemetry(&series)
+	}
+
+	addFlushCount("Sketches", int64(len(sketches)))
+	if len(sketches) > 0 {
+		err := d.sharedSerializer.SendSketch(sketches)
+		updateSketchTelemetry(start, uint64(len(sketches)), err)
+		tagsetTlm.updateHugeSketchesTelemetry(&sketches)
 	}
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
+}
+
+// sendIterableSeries is continuously sending series to the serializer, until another routine calls SenderStopped on the
+// series sink.
+// Mainly meant to be executed in its own routine, sendIterableSeries is closing the `done` channel once it has returned
+// from SendIterableSeries (because the SenderStopped methods has been called on the sink).
+func (d *AgentDemultiplexer) sendIterableSeries(start time.Time, series *metrics.IterableSeries, done chan<- struct{}) {
+	log.Debug("Demultiplexer: sendIterableSeries: start sending iterable series to the serializer")
+	err := d.sharedSerializer.SendIterableSeries(series)
+	// if err == nil, SenderStopped was called and it is safe to read the number of series.
+	count := series.SeriesCount()
+	addFlushCount("Series", int64(count))
+	updateSerieTelemetry(start, count, err)
+	close(done)
+	log.Debug("Demultiplexer: sendIterableSeries: stop routine")
 }
 
 // AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.
@@ -523,14 +712,14 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, serializer, flushAndSerializeInParallel{enabled: false})
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel{enabled: false})
 
 	demux := &ServerlessDemultiplexer{
 		aggregator:       aggregator,
-		serializer:       serializer,
 		forwarder:        forwarder,
 		statsdSampler:    statsdSampler,
 		statsdWorker:     statsdWorker,
+		serializer:       serializer,
 		metricSamplePool: metricSamplePool,
 		senders:          newSenders(aggregator),
 		flushLock:        &sync.Mutex{},
@@ -562,11 +751,15 @@ func (d *ServerlessDemultiplexer) Run() {
 
 // Stop stops the wrapped aggregator and the forwarder.
 func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	d.statsdWorker.flush(time.Now(), flush)
+	if flush {
+		d.ForceFlushToSerializer(time.Now(), true)
+	}
+
+	d.statsdWorker.stop()
 
 	// no need to flush the aggregator, it doesn't contain any data
 	// for the serverless agent
-	d.aggregator.Stop(false)
+	d.aggregator.Stop()
 
 	if d.forwarder != nil {
 		d.forwarder.Stop()
@@ -577,7 +770,36 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
-	d.statsdWorker.flush(start, waitForSerializer)
+
+	flushedSeries := make([]metrics.Series, 0)
+	flushedSketches := make([]metrics.SketchSeriesList, 0)
+
+	trigger := flushTrigger{
+		trigger: trigger{
+			time:              start,
+			blockChan:         make(chan struct{}),
+			waitForSerializer: waitForSerializer,
+		},
+		flushedSeries:   &flushedSeries,
+		flushedSketches: &flushedSketches,
+	}
+
+	d.statsdWorker.flushChan <- trigger
+	<-trigger.blockChan
+
+	var series metrics.Series
+	for _, s := range flushedSeries {
+		series = append(series, s...)
+	}
+	var sketches metrics.SketchSeriesList
+	for _, s := range flushedSketches {
+		sketches = append(sketches, s...)
+	}
+
+	d.serializer.SendSeries(series) //nolint:errcheck
+	if len(sketches) > 0 {
+		d.serializer.SendSketch(sketches) //nolint:errcheck
+	}
 }
 
 // AddTimeSample send a MetricSample to the TimeSampler.
