@@ -47,13 +47,6 @@ func TestObfuscateAppSec(t *testing.T) {
 			expected: `{"triggers":[{"rule_matches":[{"parameters":[{"key_path":[0,1,"k1",2,"k3"],"highlight":["highlighted SENSITIVE value 1","highlighted value 2","highlighted SENSITIVE value 3"],"value":"the entire SENSITIVE value"}]}]}]}`,
 		},
 		{
-			name:     "unexpected-json-empty-string",
-			keyRE:    regexp.MustCompile(`SENSITIVE`),
-			valueRE:  regexp.MustCompile(`SENSITIVE`),
-			value:    ``,
-			expected: ``,
-		},
-		{
 			name:     "unexpected-json-empty-value",
 			keyRE:    regexp.MustCompile(`SENSITIVE`),
 			valueRE:  regexp.MustCompile(`SENSITIVE`),
