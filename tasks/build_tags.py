@@ -99,7 +99,7 @@ PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orche
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
-    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "podman", "systemd"}
+    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "orchestrator", "podman", "systemd"}
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
