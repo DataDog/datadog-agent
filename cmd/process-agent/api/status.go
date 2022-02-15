@@ -28,6 +28,7 @@ func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	if err != nil {
 		writeError(err, http.StatusInternalServerError, w)
 		_ = log.Warn("config error:", err)
+		return
 	}
 
 	port := ddconfig.Datadog.GetInt("process_config.expvar_port")
@@ -41,12 +42,14 @@ func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	if err != nil {
 		_ = log.Warn("failed to get status from agent:", err)
 		writeError(err, http.StatusInternalServerError, w)
+		return
 	}
 
 	b, err := json.Marshal(agentStatus)
 	if err != nil {
 		_ = log.Warn("failed to serialize status response from agent:", err)
 		writeError(err, http.StatusInternalServerError, w)
+		return
 	}
 
 	_, err = w.Write(b)
