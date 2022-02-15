@@ -40,6 +40,9 @@ type MacroDefinition struct {
 func (m *MacroDefinition) MergeWith(m2 *MacroDefinition) error {
 	switch m2.Combine {
 	case MergePolicy:
+		if m.Expression != "" || m2.Expression != "" {
+			return &ErrMacroLoad{Definition: m2, Err: ErrCannotMergeExpression}
+		}
 		m.Values = append(m.Values, m2.Values...)
 	case OverridePolicy:
 		m.Values = m2.Values
