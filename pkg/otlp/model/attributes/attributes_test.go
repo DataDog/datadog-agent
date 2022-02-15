@@ -84,10 +84,9 @@ func TestContainerTagFromAttributesEmpty(t *testing.T) {
 
 func TestOriginIDFromAttributes(t *testing.T) {
 	tests := []struct {
-		name        string
-		attrs       pdata.AttributeMap
-		originID    string
-		k8sOriginID string
+		name     string
+		attrs    pdata.AttributeMap
+		originID string
 	}{
 		{
 			name: "pod UID and container ID",
@@ -95,21 +94,21 @@ func TestOriginIDFromAttributes(t *testing.T) {
 				conventions.AttributeContainerID: pdata.NewAttributeValueString("container_id_goes_here"),
 				conventions.AttributeK8SPodUID:   pdata.NewAttributeValueString("k8s_pod_uid_goes_here"),
 			}),
-			k8sOriginID: "container_id://container_id_goes_here",
+			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only container ID",
 			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
 				conventions.AttributeContainerID: pdata.NewAttributeValueString("container_id_goes_here"),
 			}),
-			k8sOriginID: "container_id://container_id_goes_here",
+			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only pod UID",
 			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
 				conventions.AttributeK8SPodUID: pdata.NewAttributeValueString("k8s_pod_uid_goes_here"),
 			}),
-			k8sOriginID: "kubernetes_pod_uid://k8s_pod_uid_goes_here",
+			originID: "kubernetes_pod_uid://k8s_pod_uid_goes_here",
 		},
 		{
 			name:  "none",
@@ -119,9 +118,8 @@ func TestOriginIDFromAttributes(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			originID, k8sOriginID := OriginIDFromAttributes(testInstance.attrs)
+			originID := OriginIDFromAttributes(testInstance.attrs)
 			assert.Equal(t, testInstance.originID, originID)
-			assert.Equal(t, testInstance.k8sOriginID, k8sOriginID)
 		})
 	}
 }

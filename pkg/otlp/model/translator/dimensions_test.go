@@ -101,11 +101,10 @@ func TestAddTags(t *testing.T) {
 
 func TestAllFieldsAreCopied(t *testing.T) {
 	dims := &Dimensions{
-		name:        "example.name",
-		host:        "hostname",
-		tags:        []string{"tagOne:a", "tagTwo:b"},
-		originID:    "origin_id",
-		k8sOriginID: "k8s_origin_id",
+		name:     "example.name",
+		host:     "hostname",
+		tags:     []string{"tagOne:a", "tagTwo:b"},
+		originID: "origin_id",
 	}
 
 	newDims := dims.
@@ -119,5 +118,4 @@ func TestAllFieldsAreCopied(t *testing.T) {
 	assert.Equal(t, "hostname", newDims.Host())
 	assert.ElementsMatch(t, []string{"tagOne:a", "tagTwo:b", "tagThree:c", "tagFour:d"}, newDims.Tags())
 	assert.Equal(t, "origin_id", newDims.OriginID())
-	assert.Equal(t, "k8s_origin_id", newDims.K8sOriginID())
 }
