@@ -597,6 +597,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	addFlushCount("Series", int64(len(series)))
 	if len(series) > 0 {
+		log.Debugf("Flushing %d series to the serializer", len(series))
 		err := d.sharedSerializer.SendSeries(series)
 		updateSerieTelemetry(start, uint64(len(series)), err)
 		tagsetTlm.updateHugeSeriesTelemetry(&series)
@@ -604,6 +605,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	addFlushCount("Sketches", int64(len(sketches)))
 	if len(sketches) > 0 {
+		log.Debugf("Flushing %d sketches to the serializer", len(sketches))
 		err := d.sharedSerializer.SendSketch(sketches)
 		updateSketchTelemetry(start, uint64(len(sketches)), err)
 		tagsetTlm.updateHugeSketchesTelemetry(&sketches)
@@ -797,6 +799,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	}
 
 	d.serializer.SendSeries(series) //nolint:errcheck
+	log.DebugfServerless("Sending sketches payload : %+v", sketches)
 	if len(sketches) > 0 {
 		d.serializer.SendSketch(sketches) //nolint:errcheck
 	}
