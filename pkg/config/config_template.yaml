@@ -106,12 +106,28 @@ api_key:
 ## @env DD_TAGS - space separated list of strings - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
-## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
+## This configuration value is merged with DD_EXTRA_TAGS.  This allows some
+## tags to be set in a configuration file (tags), with additional tags added
+## via an environment variable (DD_EXTRA_TAGS).
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:
 #   - team:infra
+#   - <TAG_KEY>:<TAG_VALUE>
+
+## @param extra_tags  - list of key:value elements - optional
+## @env DD_EXTRA_TAGS - space separated list of strings - optional
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## This configuration value is merged with DD_TAGS.  This allows some
+## tags to be set in a configuration file (tags), with additional tags added
+## via an environment variable (DD_EXTRA_TAGS).
+##
+## Learn more about tagging: https://docs.datadoghq.com/tagging/
+#
+# extra_tags:
+#   - region:northerly
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
