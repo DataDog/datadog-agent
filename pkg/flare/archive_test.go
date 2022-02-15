@@ -7,12 +7,10 @@ package flare
 
 import (
 	"archive/zip"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -520,14 +518,14 @@ func TestZipProcessAgentFullConfig(t *testing.T) {
 		DDurl      string        `yaml:"dd_url"`
 		ProcessCfg ProcessConfig `yaml:"process_config"`
 	}{
-		"*****1234",
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"https://my-url.com",
 		ProcessConfig{
 			"true",
 		},
 	}
 
-	exp := `api_key: '*****1234'
+	exp := `api_key: ***************************aaaaa
 dd_url: https://my-url.com
 process_config:
   enabled: "true"`
@@ -549,32 +547,22 @@ process_config:
 
 	t.Run("with process-agent running", func(t *testing.T) {
 		// Create a server to mock process-agent /config/all endpoint
-		cfgMux := http.NewServeMux()
-		cfgMux.HandleFunc("/config/all", func(w http.ResponseWriter, _ *http.Request) {
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
 			b, err := yaml.Marshal(globalCfg)
 			require.NoError(t, err)
 
 			_, err = w.Write(b)
 			require.NoError(t, err)
-		})
-
-		cfgEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.cmd_port"))
-		cfgSrv := http.Server{Addr: cfgEndpoint, Handler: cfgMux}
-		cfgListener, err := net.Listen("tcp", cfgEndpoint)
-		require.NoError(t, err)
-
-		go func() {
-			_ = cfgSrv.Serve(cfgListener)
-		}()
-		defer func() {
-			err := cfgSrv.Shutdown(context.Background())
-			require.NoError(t, err)
-		}()
+		}
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
 
 		dir, err := ioutil.TempDir("", "TestZipProcessAgentFullConfig")
 		require.NoError(t, err)
 		defer os.RemoveAll(dir)
 
+		procStatusURL = srv.URL
 		zipProcessAgentFullConfig(dir, "")
 		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
 		require.NoError(t, err)

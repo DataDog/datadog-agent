@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -52,6 +53,7 @@ var (
 		config.Datadog.GetString("expvar_port"))
 	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
 		config.Datadog.GetString("expvar_port"))
+	procStatusURL string
 
 	// Match .yaml and .yml to ship configuration files in the flare.
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
@@ -527,7 +529,17 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 
 // zipProcessAgentFullConfig fetches process-agent runtime config as YAML and writes it to process_agent_runtime_config_dump.yaml
 func zipProcessAgentFullConfig(tempDir, hostname string) error {
-	cfgB := status.GetProcessAgentRuntimeConfig()
+	// procStatusURL can be manually set for test purposes
+	if procStatusURL == "" {
+		addressPort, err := api.GetAPIAddressPort()
+		if err != nil {
+			return fmt.Errorf("wrong configuration to connect to process-agent")
+		}
+
+		procStatusURL = fmt.Sprintf("http://%s/config/all", addressPort)
+	}
+
+	cfgB := status.GetProcessAgentRuntimeConfig(procStatusURL)
 	f := filepath.Join(tempDir, hostname, "process_agent_runtime_config_dump.yaml")
 
 	return writeScrubbedFile(f, cfgB)

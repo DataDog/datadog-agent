@@ -61,16 +61,10 @@ func marshalError(err error) []byte {
 // The API server in process-agent already scrubs and marshals the runtime settings as YAML.
 // Since the api_key has been obfuscated with *, we're not able to unmarshal the response as YAML because *
 // is not a valid YAML character
-func GetProcessAgentRuntimeConfig() []byte {
+func GetProcessAgentRuntimeConfig(statusURL string) []byte {
 	httpClient := apiutil.GetClient(false)
 
-	addressPort, err := api.GetAPIAddressPort()
-	if err != nil {
-		return marshalError(fmt.Errorf("wrong configuration to connect to process-agent"))
-	}
-
-	statusEndpoint := fmt.Sprintf("http://%s/config/all", addressPort)
-	b, err := apiutil.DoGet(httpClient, statusEndpoint)
+	b, err := apiutil.DoGet(httpClient, statusURL)
 	if err != nil {
 		return marshalError(fmt.Errorf("process-agent is not running or is unreachable"))
 	}
