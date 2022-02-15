@@ -7,7 +7,6 @@ package aggregator
 
 import (
 	"fmt"
-	"runtime"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -676,7 +676,7 @@ func (d *AgentDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePool {
 // GetRoutinesDistribution returns how many routines should be spawned for the
 // DogStatsD pipeline and how many DogStatsD workers should be running.
 func GetRoutinesDistribution() (int, int) {
-	return getRoutinesDistribution(runtime.GOMAXPROCS(-1))
+	return getRoutinesDistribution(ddruntime.NumVCPU())
 }
 
 func getRoutinesDistribution(vCPUs int) (int, int) {
