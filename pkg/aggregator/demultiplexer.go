@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -245,7 +245,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
 
-	_, statsdPipelinesCount := GetRoutinesDistribution()
+	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
@@ -673,13 +673,13 @@ func (d *AgentDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePool {
 	return d.statsd.metricSamplePool
 }
 
-// GetRoutinesDistribution returns how many routines should be spawned for the
-// DogStatsD pipeline and how many DogStatsD workers should be running.
-func GetRoutinesDistribution() (int, int) {
-	return getRoutinesDistribution(ddruntime.NumVCPU())
+// GetDogStatsDWorkerAndPipelineCount returns how many routines should be spawned
+// for the DogStatsD workers and how many DogStatsD pipeline should be running.
+func GetDogStatsDWorkerAndPipelineCount() (int, int) {
+	return getDogStatsDWorkerAndPipelineCount(agentruntime.NumVCPU())
 }
 
-func getRoutinesDistribution(vCPUs int) (int, int) {
+func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	var dsdWorkerCount int
 	var pipelineCount int
 	autoAdjust := config.Datadog.GetBool("dogstatsd_pipeline_autoadjust")
@@ -728,7 +728,7 @@ func getRoutinesDistribution(vCPUs int) (int, int) {
 	pipelineCount = dsdWorkerCount - 1
 
 	if config.Datadog.GetInt("dogstatsd_pipeline_count") > 1 {
-		log.Warn("DogStatsD pipeline count value ignored since auto-adjust is enabled.")
+		log.Warn("DogStatsD pipeline count value ignored since 'dogstatsd_pipeline_autoadjust' is enabled.")
 	}
 
 	return dsdWorkerCount, pipelineCount

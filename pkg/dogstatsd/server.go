@@ -402,7 +402,7 @@ func (s *Server) handleMessages() {
 		go l.Listen()
 	}
 
-	workersCount, _ := aggregator.GetRoutinesDistribution()
+	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
 	// undocumented configuration field to force the amount of dogstatsd workers
 	// mainly used for benchmarks or some very specific use-case.

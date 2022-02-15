@@ -188,7 +188,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	require.Len(sketches, 0)
 }
 
-func TestGetRoutinesDistribution(t *testing.T) {
+func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
 	aa := config.Datadog.GetInt("dogstatsd_pipeline_autoadjust")
 	defer func() {
@@ -202,19 +202,19 @@ func TestGetRoutinesDistribution(t *testing.T) {
 
 	config.Datadog.Set("dogstatsd_pipeline_autoadjust", true)
 
-	dsdWorkers, pipelines := getRoutinesDistribution(16)
+	dsdWorkers, pipelines := getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(8, dsdWorkers)
 	assert.Equal(7, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(11)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(11)
 	assert.Equal(5, dsdWorkers)
 	assert.Equal(4, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(8)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(8)
 	assert.Equal(4, dsdWorkers)
 	assert.Equal(3, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(4)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(4)
 	assert.Equal(2, dsdWorkers)
 	assert.Equal(1, pipelines)
 
@@ -223,19 +223,19 @@ func TestGetRoutinesDistribution(t *testing.T) {
 	config.Datadog.Set("dogstatsd_pipeline_autoadjust", false)
 	config.Datadog.Set("dogstatsd_pipeline_count", pc) // default value
 
-	dsdWorkers, pipelines = getRoutinesDistribution(16)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(14, dsdWorkers)
 	assert.Equal(1, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(11)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(11)
 	assert.Equal(9, dsdWorkers)
 	assert.Equal(1, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(8)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(8)
 	assert.Equal(6, dsdWorkers)
 	assert.Equal(1, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(4)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(4)
 	assert.Equal(2, dsdWorkers)
 	assert.Equal(1, pipelines)
 
@@ -244,15 +244,15 @@ func TestGetRoutinesDistribution(t *testing.T) {
 	config.Datadog.Set("dogstatsd_pipeline_autoadjust", false)
 	config.Datadog.Set("dogstatsd_pipeline_count", 4)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(16)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(11, dsdWorkers)
 	assert.Equal(4, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(11)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(11)
 	assert.Equal(6, dsdWorkers)
 	assert.Equal(4, pipelines)
 
-	dsdWorkers, pipelines = getRoutinesDistribution(4)
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(4)
 	assert.Equal(2, dsdWorkers)
 	assert.Equal(4, pipelines)
 }
