@@ -19,6 +19,7 @@ import (
 // GetProcessAgentStatus fetches the process-agent status from the process-agent API server
 func GetProcessAgentStatus() map[string]interface{} {
 	httpClient := apiutil.GetClient(false)
+
 	s := make(map[string]interface{})
 	addressPort, err := api.GetAPIAddressPort()
 	if err != nil {

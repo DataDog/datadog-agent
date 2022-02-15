@@ -63,6 +63,7 @@ func writeError(w io.Writer, e error) {
 		_ = log.Error(err)
 	}
 }
+
 func fetchStatus(statusURL string) ([]byte, error) {
 	body, err := apiutil.DoGet(httpClient, statusURL)
 	if err != nil {
