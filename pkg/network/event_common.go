@@ -118,11 +118,35 @@ type BufferedData struct {
 type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]string
-	ConnTelemetry               map[string]int64
+	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
+
+type ConnTelemetryType string
+
+const (
+	MonotonicKprobesTriggered          ConnTelemetryType = "MonotonicKprobesTriggered"
+	KprobesTriggered                                     = "KprobesTriggered"
+	MonotonicKprobesMissed                               = "MonotonicKprobesMissed"
+	KprobesMissed                                        = "KprobesMissed"
+	MonotonicConnsClosed                                 = "MonotonicConnsClosed"
+	ConnsClosed                                          = "ConnsClosed"
+	MonotonicConntrackRegisters                          = "MonotonicConntrackRegisters"
+	ConntrackRegisters                                   = "ConntrackRegisters"
+	MonotonicConntrackRegistersDropped                   = "MonotonicConntrackRegistersDropped"
+	ConntrackRegistersDropped                            = "ConntrackRegistersDropped"
+	MonotonicDNSPacketsProcessed                         = "MonotonicDNSPacketsProcessed"
+	DnsPacketsProcessed                                  = "DnsPacketsProcessed"
+	MonotonicUDPSendsProcessed                           = "MonotonicUDPSendsProcessed"
+	UdpSendsProcessed                                    = "UdpSendsProcessed"
+	MonotonicUDPSendsMissed                              = "MonotonicUDPSendsMissed"
+	UdpSendsMissed                                       = "UdpSendsMissed"
+	DNSStatsDropped                                      = "DNSStatsDropped"
+	ConnsBpfMapSize                                      = "ConnsBpfMapSize"
+	ConntrackSamplingPercent                             = "ConntrackSamplingPercent"
+)
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
 type RuntimeCompilationTelemetry struct {
