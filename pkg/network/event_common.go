@@ -140,6 +140,8 @@ const (
 	DNSStatsDropped                                      = "DNSStatsDropped"
 	ConnsBpfMapSize                                      = "ConnsBpfMapSize"
 	ConntrackSamplingPercent                             = "ConntrackSamplingPercent"
+	NPMDriverFlowsMissedMaxExceeded                      = "NPMDriverFlowsMissedMaxExceeded"
+	MonotonicDNSPacketsDropped                           = "MonotonicDNSPacketsDropped"
 )
 
 //revive:enable
