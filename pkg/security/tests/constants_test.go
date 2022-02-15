@@ -22,6 +22,10 @@ func TestFallbackConstants(t *testing.T) {
 		t.Skip("SUSE kernel: skipping chown32 tests")
 	}
 
+	if isOracleKernel() {
+		t.Skip("SUSE kernel: skipping chown32 tests")
+	}
+
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{})
 	if err != nil {
 		t.Fatal(err)

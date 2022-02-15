@@ -1212,3 +1212,11 @@ func isSuseKernel() bool {
 	}
 	return kv.IsSuseKernel()
 }
+
+func isOracleKernel() bool {
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		return false
+	}
+	return kv.IsOracleUEKKernel()
+}
