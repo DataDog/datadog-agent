@@ -91,11 +91,6 @@ func TestBuildCollectorEvent(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	eventWithoutID, err := proto.Marshal(&events.ContainerCreate{
-		ID: "",
-	})
-	assert.NoError(t, err)
-
 	tests := []struct {
 		name          string
 		event         containerdevents.Envelope
@@ -166,17 +161,6 @@ func TestBuildCollectorEvent(t *testing.T) {
 				Event: &types.Any{
 					// Uses delete, but could be any other event in this test
 					TypeUrl: "containerd.events.ContainerDelete", Value: containerDeleteEvent,
-				},
-			},
-			expectsError: true,
-		},
-		{
-			name: "event without ID",
-			event: containerdevents.Envelope{
-				Namespace: namespace,
-				Topic:     containerCreationTopic,
-				Event: &types.Any{
-					TypeUrl: "containerd.events.ContainerCreate", Value: eventWithoutID,
 				},
 			},
 			expectsError: true,
@@ -280,7 +264,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 				c.contToExitInfo[containerID] = test.exitInfo
 			}
 
-			workloadMetaEvent, err := c.buildCollectorEvent(context.TODO(), &test.event)
+			workloadMetaEvent, err := c.buildCollectorEvent(context.TODO(), &test.event, container.ID(), &container)
 
 			if test.expectsError {
 				assert.Error(t, err)
