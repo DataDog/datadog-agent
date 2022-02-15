@@ -598,7 +598,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	responses, err := f.submitProcessLikePayload(endpoints.SeriesEndpoint, payload, headers, true)
+	responses, err := f.submitProcessLikePayload(endpoints.SeriesEndpoint, payload, headers, true, true)
 	require.NoError(t, err)
 
 	_, ok := <-responses
