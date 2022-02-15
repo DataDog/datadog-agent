@@ -62,6 +62,7 @@ func TestStaticTagsSlice(t *testing.T) {
 		defer mockConfig.Set("tags", []string{})
 		staticTags := GetStaticTagsSlice(context.Background())
 		assert.ElementsMatch(t, []string{
+			"nocolon",
 			"some:tag",
 			"another:tag",
 			"eks_fargate_node:eksnode",
@@ -75,6 +76,8 @@ func TestStaticTagsSlice(t *testing.T) {
 		defer mockConfig.Set("extra_tags", []string{})
 		staticTags := GetStaticTagsSlice(context.Background())
 		assert.ElementsMatch(t, []string{
+			"nocolon",
+			"missingcolon",
 			"some:tag",
 			"extra:tag",
 			"eks_fargate_node:eksnode",
