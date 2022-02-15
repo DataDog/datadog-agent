@@ -652,13 +652,13 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushMutex.Lock()
 	defer agg.flushMutex.Unlock()
 	agg.flushSeriesAndSketches(trigger)
-	agg.flushServiceChecks(trigger.time, trigger.waitForSerializer)
-	agg.flushEvents(trigger.time, trigger.waitForSerializer)
-	agg.updateChecksTelemetry()
-	// notify the triggerer that we're done
+	// notify the triggerer that we're done flushing the series and sketches
 	if trigger.blockChan != nil {
 		trigger.blockChan <- struct{}{}
 	}
+	agg.flushServiceChecks(trigger.time, trigger.waitForSerializer)
+	agg.flushEvents(trigger.time, trigger.waitForSerializer)
+	agg.updateChecksTelemetry()
 }
 
 // Stop stops the aggregator.
