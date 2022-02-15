@@ -289,6 +289,14 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
 	}
 
+	// if the server is running in a context where static tags are required, add those
+	// to extraTags.
+	if staticTags := util.GetStaticTagsSlice(context.TODO()); staticTags != nil {
+		extraTags = append([]string{}, extraTags...)
+		extraTags = append(extraTags, staticTags...)
+	}
+	util.SortUniqInPlace(extraTags)
+
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
 	eolTerminationUDP := false
