@@ -381,6 +381,8 @@ func (t *Translator) MapMetrics(ctx context.Context, md pdata.Metrics, consumer 
 			}
 		}
 
+		originID, k8sOriginID := attributes.OriginIDFromAttributes(rm.Resource().Attributes())
+
 		// Track hosts if the consumer is a HostConsumer.
 		if c, ok := consumer.(HostConsumer); ok {
 			c.ConsumeHost(host)
@@ -401,9 +403,11 @@ func (t *Translator) MapMetrics(ctx context.Context, md pdata.Metrics, consumer 
 			for k := 0; k < metricsArray.Len(); k++ {
 				md := metricsArray.At(k)
 				baseDims := &Dimensions{
-					name: md.Name(),
-					tags: additionalTags,
-					host: host,
+					name:        md.Name(),
+					tags:        additionalTags,
+					host:        host,
+					originID:    originID,
+					k8sOriginID: k8sOriginID,
 				}
 				switch md.DataType() {
 				case pdata.MetricDataTypeGauge:

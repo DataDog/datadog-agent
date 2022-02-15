@@ -31,9 +31,11 @@ const (
 // Dimensions of a metric that identify a timeseries uniquely.
 // This is similar to the concept of 'context' in DogStatsD/check metrics.
 type Dimensions struct {
-	name string
-	tags []string
-	host string
+	name        string
+	tags        []string
+	host        string
+	originID    string
+	k8sOriginID string
 }
 
 // Name of the metric.
@@ -53,12 +55,12 @@ func (d *Dimensions) Host() string {
 
 // OriginID of the metric (may be empty).
 func (d *Dimensions) OriginID() string {
-	return ""
+	return d.originID
 }
 
 // K8sOriginID is the Kubernetes Origin ID of the metric (may be empty).
 func (d *Dimensions) K8sOriginID() string {
-	return ""
+	return d.k8sOriginID
 }
 
 // getTags maps an attributeMap into a slice of Datadog tags
@@ -79,9 +81,11 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 	newTags = append(newTags, tags...)
 	newTags = append(newTags, d.tags...)
 	return &Dimensions{
-		name: d.name,
-		tags: newTags,
-		host: d.host,
+		name:        d.name,
+		tags:        newTags,
+		host:        d.host,
+		originID:    d.originID,
+		k8sOriginID: d.k8sOriginID,
 	}
 }
 
@@ -93,9 +97,11 @@ func (d *Dimensions) WithAttributeMap(labels pdata.AttributeMap) *Dimensions {
 // WithSuffix creates a new dimensions struct with an extra name suffix.
 func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 	return &Dimensions{
-		name: fmt.Sprintf("%s.%s", d.name, suffix),
-		host: d.host,
-		tags: d.tags,
+		name:        fmt.Sprintf("%s.%s", d.name, suffix),
+		host:        d.host,
+		tags:        d.tags,
+		originID:    d.originID,
+		k8sOriginID: d.k8sOriginID,
 	}
 }
 
@@ -117,6 +123,8 @@ func (d *Dimensions) String() string {
 
 	dimensions = append(dimensions, fmt.Sprintf("name:%s", d.name))
 	dimensions = append(dimensions, fmt.Sprintf("host:%s", d.host))
+	dimensions = append(dimensions, fmt.Sprintf("originID:%s", d.originID))
+	dimensions = append(dimensions, fmt.Sprintf("k8sOriginID:%s", d.k8sOriginID))
 	sort.Strings(dimensions)
 
 	for _, dim := range dimensions {
