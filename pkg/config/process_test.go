@@ -46,6 +46,54 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.process_discovery.interval",
 			defaultValue: 4 * time.Hour,
 		},
+		{
+			key:          "process_config.process_collection.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.container_collection.enabled",
+			defaultValue: true,
+		},
+		{
+			key:          "process_config.queue_size",
+			defaultValue: DefaultProcessQueueSize,
+		},
+		{
+			key:          "process_config.rt_queue_size",
+			defaultValue: DefaultProcessRTQueueSize,
+		},
+		{
+			key:          "process_config.process_queue_bytes",
+			defaultValue: DefaultProcessQueueBytes,
+		},
+		{
+			key:          "process_config.windows.use_perf_counters",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
+		{
+			key:          "process_config.internal_profiling.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.max_per_message",
+			defaultValue: DefaultProcessMaxPerMessage,
+		},
+		{
+			key:          "process_config.expvar_port",
+			defaultValue: DefaultProcessExpVarPort,
+		},
+		{
+			key:          "process_config.max_message_bytes",
+			defaultValue: DefaultProcessMaxMessageBytes,
+		},
+		{
+			key:          "process_config.cmd_port",
+			defaultValue: DefaultProcessCmdPort,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -102,6 +150,7 @@ func TestEnvVarOverride(t *testing.T) {
 
 	for _, tc := range []struct {
 		key, env, value string
+		expType         string
 		expected        interface{}
 	}{
 		{
@@ -158,10 +207,157 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "true",
 			expected: true,
 		},
+		{
+			key:      "process_config.enabled",
+			env:      "DD_PROCESS_CONFIG_ENABLED",
+			value:    "true",
+			expected: "true",
+		},
+		{
+			key:      "process_config.process_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.container_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.enabled",
+			env:      "DD_PROCESS_CONFIG_ENABLED",
+			value:    "false",
+			expected: "disabled",
+		},
+		{
+			key:      "process_config.queue_size",
+			env:      "DD_PROCESS_CONFIG_QUEUE_SIZE",
+			value:    "42",
+			expected: 42,
+		},
+		{
+			key:      "process_config.rt_queue_size",
+			env:      "DD_PROCESS_CONFIG_RT_QUEUE_SIZE",
+			value:    "10",
+			expected: 10,
+		},
+		{
+			key:      "process_config.process_queue_bytes",
+			env:      "DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES",
+			value:    "20000",
+			expected: 20000,
+		},
+		{
+			key:      "process_config.windows.use_perf_counters",
+			env:      "DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.process_dd_url",
+			env:      "DD_PROCESS_AGENT_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
+		{
+			key:      "process_config.internal_profiling.enabled",
+			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.max_per_message",
+			env:      "DD_PROCESS_CONFIG_MAX_PER_MESSAGE",
+			value:    "10",
+			expected: 10,
+		},
+		{
+			key:      "process_config.max_message_bytes",
+			env:      "DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES",
+			value:    "100000",
+			expected: 100000,
+		},
+		{
+			key:      "process_config.expvar_port",
+			env:      "DD_PROCESS_CONFIG_EXPVAR_PORT",
+			value:    "1234",
+			expected: 1234,
+		},
+		{
+			key:      "process_config.cmd_port",
+			env:      "DD_PROCESS_CONFIG_CMD_PORT",
+			value:    "1235",
+			expected: 1235,
+		},
+		{
+			key:      "process_config.container_source",
+			env:      "DD_PROCESS_CONFIG_CONTAINER_SOURCE",
+			value:    `["docker","kubernetes"]`,
+			expType:  "stringSlice",
+			expected: []string{"docker", "kubernetes"},
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.scrub_args has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.strip_proc_arguments has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)
-			assert.Equal(t, tc.expected, cfg.Get(tc.key))
+			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 			reset()
 		})
 
@@ -170,7 +366,62 @@ func TestEnvVarOverride(t *testing.T) {
 			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 			t.Run(env, func(t *testing.T) {
 				reset := setEnvForTest(env, tc.value)
-				assert.Equal(t, tc.expected, cfg.Get(tc.key))
+				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
+				reset()
+			})
+		}
+	}
+
+	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
+	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
+		reset := setEnvForTest("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
+		assert.Equal(t, map[string][]string{
+			"https://process.datadoghq.com": {
+				"fakeAPIKey",
+			},
+		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
+		reset()
+	})
+}
+
+func readCfgWithType(cfg Config, key, expType string) interface{} {
+	switch expType {
+	case "stringSlice":
+		return cfg.GetStringSlice(key)
+	case "boolean":
+		return cfg.GetBool(key)
+	default:
+		return cfg.Get(key)
+	}
+}
+
+func TestEnvVarCustomSensitiveWords(t *testing.T) {
+	cfg := setupConf()
+	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
+
+	for i, tc := range []struct {
+		words    string
+		expected []string
+	}{
+		{
+			words:    "pass*,word,secret",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[\"pass*\", \"word\",\"secret\"]",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[pass],word,user",
+			expected: []string{"[pass]", "word", "user"},
+		},
+	} {
+		for _, envPrefix := range expectedPrefixes {
+			e := envPrefix + "CUSTOM_SENSITIVE_WORDS"
+			t.Run(fmt.Sprintf("scrub sensitive words/%d/%s", i, e), func(t *testing.T) {
+				reset := setEnvForTest(e, tc.words)
+				args := cfg.GetStringSlice("process_config.custom_sensitive_words")
+				assert.Equal(t, tc.expected, args)
 				reset()
 			})
 		}
@@ -194,4 +445,62 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 
 	// Make sure the default is set properly
 	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
+}
+
+func TestProcBindEnv(t *testing.T) {
+	cfg := setupConf()
+	procBindEnv(cfg, "process_config.foo.bar")
+
+	envs := map[string]struct{}{}
+	for _, env := range cfg.GetEnvVars() {
+		envs[env] = struct{}{}
+	}
+
+	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
+	assert.True(t, ok)
+
+	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
+	assert.True(t, ok)
+
+	// Make sure that DD_PROCESS_CONFIG_FOO_BAR shows up as unset by default
+	assert.False(t, cfg.IsSet("process_config.foo.bar"))
+
+	// Try and set DD_PROCESS_CONFIG_FOO_BAR and make sure it shows up in the config
+	reset := setEnvForTest("DD_PROCESS_CONFIG_FOO_BAR", "baz")
+	assert.True(t, cfg.IsSet("process_config.foo.bar"))
+	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
+	reset()
+}
+
+func TestProcConfigEnabledTransform(t *testing.T) {
+	for _, tc := range []struct {
+		procConfigEnabled                                      string
+		expectedContainerCollection, expectedProcessCollection bool
+	}{
+		{
+			procConfigEnabled:           "true",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   true,
+		},
+		{
+			procConfigEnabled:           "false",
+			expectedContainerCollection: true,
+			expectedProcessCollection:   false,
+		},
+		{
+			procConfigEnabled:           "disabled",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   false,
+		},
+	} {
+		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
+			cfg := setupConf()
+			cfg.Set("process_config.enabled", tc.procConfigEnabled)
+			loadProcessTransforms(cfg)
+
+			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))
+			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
+		})
+	}
+
 }

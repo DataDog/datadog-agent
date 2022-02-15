@@ -161,6 +161,10 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.MapDentryResolutionEnabled = true
 	}
 
+	if !c.Config.EnableRuntimeCompiler {
+		c.EnableRuntimeCompiledConstants = false
+	}
+
 	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)

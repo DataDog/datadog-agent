@@ -13,6 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// Approvers are just filter values indexed by field
+type Approvers map[eval.Field]FilterValues
+
 // RuleBucket groups rules with the same event type
 type RuleBucket struct {
 	rules  []*Rule
@@ -72,6 +75,18 @@ func fieldCombinations(fields []eval.Field) FieldCombinations {
 	return result
 }
 
+func getFilterValuesWeight(filterValues FilterValues, fieldCaps FieldCapabilities) int {
+	var maxWeight int
+	for _, filterValue := range filterValues {
+		for _, fc := range fieldCaps {
+			if filterValue.Field == fc.Field && fc.FilterWeight > maxWeight {
+				maxWeight = fc.FilterWeight
+			}
+		}
+	}
+	return maxWeight
+}
+
 // GetApprovers returns the approvers for an event
 func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	fcs := fieldCombinations(fieldCaps.GetFields())
@@ -83,39 +98,32 @@ func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities
 			return nil, err
 		}
 
-		var ruleApprovers map[eval.Field]FilterValues
-		for _, fields := range fcs {
-			ruleApprovers = truthTable.getApprovers(fields...)
+		var filterValues FilterValues
+		var maxWeight int
 
-			// only one approver is currently required to ensure that the rule will be applied
-			// this could be improve by adding weight to use the most valuable one
-			if len(ruleApprovers) > 0 && fieldCaps.Validate(ruleApprovers) {
-				break
+		for _, fields := range fcs {
+			candidates := truthTable.getApprovers(fields...)
+
+			// only one combination of the approvers is required, keep the best one meaning
+			// the one with the highest weight
+			if len(candidates) > 0 && fieldCaps.Validate(candidates) {
+				// as fieldCombinations return all the combinations in the less fields order
+				// we keep the highest weight with a minimal set of fields.
+				if weight := getFilterValuesWeight(candidates, fieldCaps); filterValues == nil || weight > maxWeight {
+					filterValues = candidates
+					maxWeight = weight
+				}
 			}
 		}
 
-		if len(ruleApprovers) == 0 || !fieldCaps.Validate(ruleApprovers) {
+		if len(filterValues) == 0 {
 			return nil, &ErrNoApprover{Fields: fieldCaps.GetFields()}
 		}
 
-		// keep the best approver field
-		var approverField eval.Field
-		var approverWeight int
-		for field := range ruleApprovers {
-			for _, fc := range fieldCaps {
-				if field != fc.Field {
-					continue
-				}
-
-				if fc.FilterWeight >= approverWeight {
-					approverField = field
-					approverWeight = fc.FilterWeight
-				}
-			}
+		// dispatch per field
+		for _, filterValue := range filterValues {
+			approvers[filterValue.Field] = approvers[filterValue.Field].Merge(filterValue)
 		}
-
-		values := ruleApprovers[approverField]
-		approvers[approverField] = approvers[approverField].Merge(values)
 	}
 
 	return approvers, nil

@@ -24,7 +24,7 @@ jobs:
           node-version: 14
       
       - name: Install Serverless Framework
-        run: sudo yarn global add serverless --prefix /usr/local
+        run: sudo yarn global add serverless@^2.72.2 --prefix /usr/local
 
       - name: Checkout the datadog-lambda-extension repository
         uses: actions/checkout@v2
@@ -36,5 +36,5 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }} 
-        run: BUILD_EXTENSION=true ./test/integration/serverless/run.sh
+        run: ./test/integration/serverless/run.sh
         working-directory: go/src/github.com/DataDog/datadog-agent

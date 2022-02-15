@@ -14,8 +14,13 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"path"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -36,7 +41,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
@@ -51,9 +58,10 @@ var (
 	}
 
 	checkPoliciesCmd = &cobra.Command{
-		Use:   "check-policies",
-		Short: "Check policies and return a report",
-		RunE:  checkPolicies,
+		Use:        "check-policies",
+		Short:      "Check policies and return a report",
+		RunE:       checkPolicies,
+		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
 
 	checkPoliciesArgs = struct {
@@ -64,6 +72,10 @@ var (
 		Use:   "dump",
 		Short: "Dump security module information",
 	}
+
+	dumpProcessArgs = struct {
+		withArgs bool
+	}{}
 
 	dumpProcessCacheCmd = &cobra.Command{
 		Use:   "process-cache",
@@ -78,13 +90,43 @@ var (
 	}
 
 	reloadPoliciesCmd = &cobra.Command{
+		Use:        "reload",
+		Short:      "Reload policies",
+		RunE:       reloadRuntimePolicies,
+		Deprecated: "please use `security-agent runtime policy reload` instead",
+	}
+
+	commonReloadPoliciesCmd = &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE:  reloadRuntimePolicies,
 	}
+
+	commonCheckPoliciesCmd = &cobra.Command{
+		Use:   "check",
+		Short: "Check policies and return a report",
+		RunE:  checkPolicies,
+	}
+
+	downloadPolicyCmd = &cobra.Command{
+		Use:   "download",
+		Short: "Download policies",
+		RunE:  downloadPolicy,
+	}
+
+	downloadPolicyArgs = struct {
+		check      bool
+		outputPath string
+	}{}
+
+	commonPolicyCmd = &cobra.Command{
+		Use:   "policy",
+		Short: "Policy related commands",
+	}
 )
 
 func init() {
+	dumpProcessCacheCmd.Flags().BoolVar(&dumpProcessArgs.withArgs, "with-args", false, "add process arguments to the dump")
 	dumpCmd.AddCommand(dumpProcessCacheCmd)
 	runtimeCmd.AddCommand(dumpCmd)
 
@@ -93,6 +135,17 @@ func init() {
 
 	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
+
+	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
+	commonPolicyCmd.AddCommand(downloadPolicyCmd)
+
+	commonCheckPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonPolicyCmd.AddCommand(commonCheckPoliciesCmd)
+
+	commonPolicyCmd.AddCommand(commonReloadPoliciesCmd)
+
+	runtimeCmd.AddCommand(commonPolicyCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -102,7 +155,7 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	filename, err := client.DumpProcessCache()
+	filename, err := client.DumpProcessCache(dumpProcessArgs.withArgs)
 	if err != nil {
 		return errors.Wrap(err, "unable to get a process cache dump")
 	}
@@ -112,9 +165,9 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func checkPolicies(cmd *cobra.Command, args []string) error {
+func checkPoliciesInner(dir string) error {
 	cfg := &secconfig.Config{
-		PoliciesDir:         checkPoliciesArgs.dir,
+		PoliciesDir:         dir,
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
 		EnableDiscarders:    true,
@@ -127,7 +180,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(sprobe.SECLVariables).
+		WithVariables(model.SECLVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
@@ -157,6 +210,10 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s\n", string(content))
 
 	return nil
+}
+
+func checkPolicies(cmd *cobra.Command, args []string) error {
+	return checkPoliciesInner(checkPoliciesArgs.dir)
 }
 
 func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
@@ -252,4 +309,74 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 	log.Info("Datadog runtime security agent is now running")
 
 	return agent, nil
+}
+
+func downloadPolicy(cmd *cobra.Command, args []string) error {
+	apiKey := coreconfig.Datadog.GetString("api_key")
+	appKey := coreconfig.Datadog.GetString("app_key")
+
+	if apiKey == "" {
+		return errors.New("API key is empty")
+	}
+
+	if appKey == "" {
+		return errors.New("application key is empty")
+	}
+
+	site := coreconfig.Datadog.GetString("site")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+
+	var outputWriter io.Writer
+	if downloadPolicyArgs.outputPath == "" || downloadPolicyArgs.outputPath == "-" {
+		outputWriter = os.Stdout
+	} else {
+		f, err := os.Create(downloadPolicyArgs.outputPath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		outputWriter = f
+	}
+
+	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
+	fmt.Fprintf(os.Stderr, "Policy download url: %s\n", downloadURL)
+
+	headers := map[string]string{
+		"Content-Type":       "application/json",
+		"DD-API-KEY":         apiKey,
+		"DD-APPLICATION-KEY": appKey,
+	}
+
+	if av, err := version.Agent(); err == nil {
+		headers["DD-AGENT-VERSION"] = av.GetNumberAndPre()
+	}
+
+	ctx := context.Background()
+	res, err := httputils.Get(ctx, downloadURL, headers, 10*time.Second)
+	if err != nil {
+		return err
+	}
+	resBytes := []byte(res)
+
+	tempDir, err := os.MkdirTemp("", "policy_check")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+
+	tempOutputPath := path.Join(tempDir, "check.policy")
+	if err := os.WriteFile(tempOutputPath, resBytes, 0644); err != nil {
+		return err
+	}
+
+	if downloadPolicyArgs.check {
+		if err := checkPoliciesInner(tempDir); err != nil {
+			return err
+		}
+	}
+
+	_, err = outputWriter.Write(resBytes)
+	return err
 }

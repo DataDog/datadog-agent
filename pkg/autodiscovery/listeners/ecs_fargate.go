@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -30,7 +30,7 @@ func NewECSFargateListener(Config) (ServiceListener, error) {
 	l := &ECSFargateListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindECSTask},
-		[]workloadmeta.Source{workloadmeta.SourceECSFargate},
+		workloadmeta.SourceRuntime,
 	)
 
 	var err error
@@ -42,10 +42,7 @@ func NewECSFargateListener(Config) (ServiceListener, error) {
 	return l, nil
 }
 
-func (l *ECSFargateListener) processFargateTask(
-	entity workloadmeta.Entity,
-	creationTime integration.CreationTime,
-) {
+func (l *ECSFargateListener) processFargateTask(entity workloadmeta.Entity) {
 	task := entity.(*workloadmeta.ECSTask)
 
 	for _, taskContainer := range task.Containers {
@@ -55,14 +52,13 @@ func (l *ECSFargateListener) processFargateTask(
 			continue
 		}
 
-		l.createContainerService(task, container, creationTime)
+		l.createContainerService(task, container)
 	}
 }
 
 func (l *ECSFargateListener) createContainerService(
 	task *workloadmeta.ECSTask,
 	container *workloadmeta.Container,
-	creationTime integration.CreationTime,
 ) {
 	if !container.State.Running {
 		return
@@ -91,8 +87,7 @@ func (l *ECSFargateListener) createContainerService(
 			containerImg.RawName,
 			container.Labels,
 		),
-		creationTime: creationTime,
-		hosts:        hosts,
+		hosts: hosts,
 		metricsExcluded: l.IsExcluded(
 			containers.MetricsFilter,
 			container.Name,

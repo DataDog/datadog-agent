@@ -13,7 +13,7 @@ import (
 
 func TestAddService(t *testing.T) {
 	services := NewServices()
-	service := NewService("foo", "1234", Before)
+	service := NewService("foo", "1234")
 
 	services.AddService(service)
 
@@ -35,7 +35,7 @@ func TestAddService(t *testing.T) {
 
 func TestRemoveService(t *testing.T) {
 	services := NewServices()
-	service := NewService("foo", "1234", Before)
+	service := NewService("foo", "1234")
 
 	services.RemoveService(service)
 

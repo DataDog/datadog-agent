@@ -136,38 +136,36 @@ type mockTimeSeriesConsumer struct {
 
 func (m *mockTimeSeriesConsumer) ConsumeTimeSeries(
 	_ context.Context,
-	name string,
+	dimensions *Dimensions,
 	typ MetricDataType,
 	ts uint64,
 	val float64,
-	tags []string,
-	host string,
 ) {
 	m.metrics = append(m.metrics,
 		metric{
-			name:      name,
+			name:      dimensions.Name(),
 			typ:       typ,
 			timestamp: ts,
 			value:     val,
-			tags:      tags,
-			host:      host,
+			tags:      dimensions.Tags(),
+			host:      dimensions.Host(),
 		},
 	)
 }
 
-func newDims(name string) metricsDimensions {
-	return metricsDimensions{name: name, tags: []string{}}
+func newDims(name string) *Dimensions {
+	return &Dimensions{name: name, tags: []string{}}
 }
 
-func newGauge(dims metricsDimensions, ts uint64, val float64) metric {
+func newGauge(dims *Dimensions, ts uint64, val float64) metric {
 	return metric{name: dims.name, typ: Gauge, timestamp: ts, value: val, tags: dims.tags}
 }
 
-func newCount(dims metricsDimensions, ts uint64, val float64) metric {
+func newCount(dims *Dimensions, ts uint64, val float64) metric {
 	return metric{name: dims.name, typ: Count, timestamp: ts, value: val, tags: dims.tags}
 }
 
-func newSketch(dims metricsDimensions, ts uint64, s summary.Summary) sketch {
+func newSketch(dims *Dimensions, ts uint64, s summary.Summary) sketch {
 	return sketch{name: dims.name, basic: s, timestamp: ts, tags: dims.tags}
 }
 
@@ -198,7 +196,7 @@ func TestMapIntMetrics(t *testing.T) {
 
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
-	dims = metricsDimensions{name: "int64.test", tags: []string{"attribute_tag:attribute_value"}}
+	dims = &Dimensions{name: "int64.test", tags: []string{"attribute_tag:attribute_value"}}
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -233,7 +231,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
-	dims = metricsDimensions{name: "float64.test", tags: []string{"attribute_tag:attribute_value"}}
+	dims = &Dimensions{name: "float64.test", tags: []string{"attribute_tag:attribute_value"}}
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -502,24 +500,26 @@ func TestMapDoubleMonotonicOutOfOrder(t *testing.T) {
 	)
 }
 
+var _ SketchConsumer = (*mockFullConsumer)(nil)
+
 type mockFullConsumer struct {
 	mockTimeSeriesConsumer
 	sketches []sketch
 }
 
-func (c *mockFullConsumer) ConsumeSketch(_ context.Context, name string, ts uint64, sk *quantile.Sketch, tags []string, host string) {
+func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensions, ts uint64, sk *quantile.Sketch) {
 	c.sketches = append(c.sketches,
 		sketch{
-			name:      name,
+			name:      dimensions.Name(),
 			basic:     sk.Basic,
 			timestamp: ts,
-			tags:      tags,
-			host:      host,
+			tags:      dimensions.Tags(),
+			host:      dimensions.Host(),
 		},
 	)
 }
 
-func dimsWithBucket(dims metricsDimensions, lowerBound string, upperBound string) metricsDimensions {
+func dimsWithBucket(dims *Dimensions, lowerBound string, upperBound string) *Dimensions {
 	dims = dims.WithSuffix("bucket")
 	return dims.AddTags(
 		fmt.Sprintf("lower_bound:%s", lowerBound),
@@ -677,7 +677,7 @@ func TestMapDeltaHistogramMetrics(t *testing.T) {
 			tr.cfg.HistMode = testInstance.histogramMode
 			tr.cfg.SendCountSum = testInstance.sendCountSum
 			consumer := &mockFullConsumer{}
-			dims := metricsDimensions{name: "doubleHist.test", tags: testInstance.tags}
+			dims := &Dimensions{name: "doubleHist.test", tags: testInstance.tags}
 			tr.mapHistogramMetrics(ctx, consumer, dims, slice, delta)
 			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
 			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
@@ -795,7 +795,7 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointOne.SetExplicitBounds([]float64{0})
 	pointOne.SetTimestamp(seconds(0))
 	consumer := &mockTimeSeriesConsumer{}
-	dims := metricsDimensions{name: "test.histogram.one", tags: tags}
+	dims := &Dimensions{name: "test.histogram.one", tags: tags}
 	tr.getLegacyBuckets(ctx, consumer, dims, pointOne, true)
 	seriesOne := consumer.metrics
 
@@ -804,7 +804,7 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointTwo.SetExplicitBounds([]float64{1})
 	pointTwo.SetTimestamp(seconds(0))
 	consumer = &mockTimeSeriesConsumer{}
-	dims = metricsDimensions{name: "test.histogram.two", tags: tags}
+	dims = &Dimensions{name: "test.histogram.two", tags: tags}
 	tr.getLegacyBuckets(ctx, consumer, dims, pointTwo, true)
 	seriesTwo := consumer.metrics
 
@@ -868,8 +868,8 @@ func TestMapSummaryMetrics(t *testing.T) {
 
 	newTranslator := func(tags []string, quantiles bool) *Translator {
 		c := newTestCache()
-		c.cache.Set((&metricsDimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		c.cache.Set((&metricsDimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
+		c.cache.Set((&Dimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
+		c.cache.Set((&Dimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
 		options := []Option{WithFallbackHostnameProvider(testProvider("fallbackHostname"))}
 		if quantiles {
 			options = append(options, WithQuantiles())
@@ -1135,12 +1135,12 @@ func TestMapMetrics(t *testing.T) {
 		conventions.AttributeDeploymentEnvironment: "dev",
 		"custom_attribute":                         "custom_value",
 	}
-	// When ResourceAttributesAsTags is true, attributes are
-	// converted into labels by the resourcetotelemetry helper,
-	// so MapMetrics doesn't do any conversion.
-	// When ResourceAttributesAsTags is false, attributes
-	// defined in internal/attributes get converted to tags.
-	// Other tags do not get converted.
+
+	// Attributes defined in internal/attributes get converted to tags.
+	// Other tags do not get converted if ResourceAttributesAsTags is false,
+	// or are converted into datapoint-level attributes (which are then converted to tags) by
+	// the resourcetotelemetry helper if ResourceAttributesAsTags is true
+	// (outside of the MapMetrics function's scope).
 	attrTags := []string{
 		"env:dev",
 	}
@@ -1196,18 +1196,18 @@ func TestMapMetrics(t *testing.T) {
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: false,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, []string{}),
-				newGaugeWithHostname("double.gauge", math.Pi, []string{}),
-				newCountWithHostname("int.delta.sum", 2, 0, []string{}),
-				newCountWithHostname("double.delta.sum", math.E, 0, []string{}),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, []string{}),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, []string{}),
-				newCountWithHostname("summary.sum", 10_000, 2, []string{}),
-				newCountWithHostname("summary.count", 100, 2, []string{}),
-				newGaugeWithHostname("int.cumulative.sum", 4, []string{}),
-				newGaugeWithHostname("double.cumulative.sum", 4, []string{}),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, []string{}),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, []string{}),
+				newGaugeWithHostname("int.gauge", 1, attrTags),
+				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
+				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
+				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
+				newCountWithHostname("int.delta.monotonic.sum", 2, 0, attrTags),
+				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
+				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
+				newCountWithHostname("summary.count", 100, 2, attrTags),
+				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
+				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
+				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
+				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, attrTags),
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.histogram", summary.Summary{
@@ -1216,7 +1216,7 @@ func TestMapMetrics(t *testing.T) {
 					Sum: 0,
 					Avg: 0,
 					Cnt: 20,
-				}, []string{}),
+				}, attrTags),
 			},
 			expectedUnknownMetricType:                 1,
 			expectedUnsupportedAggregationTemporality: 2,
@@ -1256,18 +1256,18 @@ func TestMapMetrics(t *testing.T) {
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: true,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, ilTags),
-				newGaugeWithHostname("double.gauge", math.Pi, ilTags),
-				newCountWithHostname("int.delta.sum", 2, 0, ilTags),
-				newCountWithHostname("double.delta.sum", math.E, 0, ilTags),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, ilTags),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, ilTags),
-				newCountWithHostname("summary.sum", 10_000, 2, ilTags),
-				newCountWithHostname("summary.count", 100, 2, ilTags),
-				newGaugeWithHostname("int.cumulative.sum", 4, ilTags),
-				newGaugeWithHostname("double.cumulative.sum", 4, ilTags),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, ilTags),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, ilTags),
+				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
+				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
+				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
+				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
+				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
+				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.histogram", summary.Summary{
@@ -1276,7 +1276,7 @@ func TestMapMetrics(t *testing.T) {
 					Sum: 0,
 					Avg: 0,
 					Cnt: 20,
-				}, ilTags),
+				}, append(attrTags, ilTags...)),
 			},
 			expectedUnknownMetricType:                 1,
 			expectedUnsupportedAggregationTemporality: 2,

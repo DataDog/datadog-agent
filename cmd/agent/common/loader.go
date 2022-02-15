@@ -26,9 +26,9 @@ import (
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(confdPath string) {
+func LoadComponents(ctx context.Context, confdPath string) {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
-		workloadmeta.GetGlobalStore().Start(context.Background())
+		workloadmeta.GetGlobalStore().Start(ctx)
 
 		// start the tagger. must be done before autodiscovery, as it needs to
 		// be the first subscribed to metadata store to avoid race conditions.

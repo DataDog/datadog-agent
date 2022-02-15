@@ -82,7 +82,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			if entityType != containers.ContainerEntityName {
 				continue
 			}
-			log.Infof("Received a new service: %v", config.Entity)
+			log.Infof("Received a new service: %v", config.ServiceID)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -104,9 +104,9 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		}
 		switch {
 		case s.newSources(config):
-			log.Infof("New source to remove: entity: %v", config.Entity)
+			log.Infof("New source to remove: entity: %v", config.ServiceID)
 
-			_, identifier, err := s.parseEntity(config.Entity)
+			_, identifier, err := s.parseServiceID(config.ServiceID)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -127,7 +127,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			if entityType != containers.ContainerEntityName {
 				continue
 			}
-			log.Infof("New service to remove: entity: %v", config.Entity)
+			log.Infof("New service to remove: entity: %v", config.ServiceID)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -148,7 +148,7 @@ func (s *Scheduler) newSources(config integration.Config) bool {
 
 // newService returns true if the config can be mapped to a service.
 func (s *Scheduler) newService(config integration.Config) bool {
-	return config.Provider == "" && config.Entity != ""
+	return config.Provider == "" && config.ServiceID != ""
 }
 
 // configName returns the name of the configuration.
@@ -194,7 +194,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 	globalServiceDefined := commonGlobalOptions.Service != ""
 
-	if config.Entity != "" {
+	if config.ServiceID != "" {
 		// all configs attached to a docker label or a pod annotation contains an entity;
 		// this entity is used later on by an input to match a service with a source
 		// to start collecting logs.
@@ -240,11 +240,11 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 // toService creates a new service for an integrationConfig.
 func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
-	provider, identifier, err := s.parseEntity(config.Entity)
+	provider, identifier, err := s.parseServiceID(config.ServiceID)
 	if err != nil {
 		return nil, err
 	}
-	return service.NewService(provider, identifier, s.getCreationTime(config)), nil
+	return service.NewService(provider, identifier), nil
 }
 
 // parseEntity breaks down an entity into a service provider and a service identifier.
@@ -256,15 +256,14 @@ func (s *Scheduler) parseEntity(entity string) (string, string, error) {
 	return components[0], components[1], nil
 }
 
-// integrationToServiceCRTime maps an integration creation time to a service creation time.
-var integrationToServiceCRTime = map[integration.CreationTime]service.CreationTime{
-	integration.Before: service.Before,
-	integration.After:  service.After,
-}
-
-// getCreationTime returns the service creation time for the integration configuration.
-func (s *Scheduler) getCreationTime(config integration.Config) service.CreationTime {
-	return integrationToServiceCRTime[config.CreationTime]
+// parseServiceID breaks down an AD service ID, assuming it is formatted
+// as `something://something-else`, into its consituent parts.
+func (s *Scheduler) parseServiceID(serviceID string) (string, string, error) {
+	components := strings.Split(serviceID, containers.EntitySeparator)
+	if len(components) != 2 {
+		return "", "", fmt.Errorf("service ID does not have the form `xxx://yyy`: %v", serviceID)
+	}
+	return components[0], components[1], nil
 }
 
 // GetScheduler returns the logs-config scheduler if set.

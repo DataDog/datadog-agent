@@ -437,7 +437,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	tagger.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
+	tagger.EnrichTags(tb, sc.OriginFromUDS, sc.OriginFromClient, sc.Cardinality)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -451,7 +451,7 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	tagger.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
+	tagger.EnrichTags(tb, e.OriginFromUDS, e.OriginFromClient, e.Cardinality)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -493,6 +493,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 
 func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
+	log.DebugfServerless("Sending sketches payload : %+v", sketches)
 	err := agg.serializer.SendSketch(sketches)
 	state := stateOk
 	if err != nil {

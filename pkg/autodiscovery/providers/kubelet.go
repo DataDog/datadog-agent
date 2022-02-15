@@ -70,16 +70,26 @@ func (k *KubeletConfigProvider) listen() {
 	k.Lock()
 	k.streaming = true
 	health := health.RegisterLiveness(name)
+	defer func() {
+		err := health.Deregister()
+		if err != nil {
+			log.Warnf("error de-registering health check: %s", err)
+		}
+	}()
 	k.Unlock()
 
 	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		[]workloadmeta.Source{workloadmeta.SourceKubelet},
+		workloadmeta.SourceNodeOrchestrator,
 	))
 
 	for {
 		select {
-		case evBundle := <-ch:
+		case evBundle, ok := <-ch:
+			if !ok {
+				return
+			}
+
 			k.processEvents(evBundle)
 
 		case <-health.C:

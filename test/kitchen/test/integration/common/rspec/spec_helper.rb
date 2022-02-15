@@ -244,6 +244,7 @@ def json_info
 end
 
 def windows_service_status(service)
+  raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
   return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
 end

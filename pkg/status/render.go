@@ -52,6 +52,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
+	processAgentStatus := stats["processAgentStatus"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
@@ -69,6 +70,7 @@ func FormatStatus(data []byte) (string, error) {
 			renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
 		}
 	}
+	processAgentFunc := func() { renderStatusTemplate(b, "/process-agent.tmpl", processAgentStatus) }
 	traceAgentFunc := func() { renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"]) }
 	aggregatorFunc := func() { renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
 	dogstatsdFunc := func() { renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats) }
@@ -92,7 +94,7 @@ func FormatStatus(data []byte) (string, error) {
 	renderFuncsByType := map[string][]func(){
 		"clc": {headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc, autodiscoveryFunc},
 		"agent": {headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc, logsAgentFunc, systemProbeFunc,
-			traceAgentFunc, aggregatorFunc, dogstatsdFunc, clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}}
+			processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc, clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}}
 
 	if config.IsCLCRunner() {
 		renderAgentSections("clc", renderFuncsByType)
@@ -157,6 +159,17 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
 	renderComplianceChecksStats(b, runnerStats, complianceChecks, complianceStatus)
+
+	return b.String(), nil
+}
+
+// FormatProcessAgentStatus takes a json bytestring and prints out the formatted status for process-agent
+func FormatProcessAgentStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats) //nolint:errcheck
+	renderStatusTemplate(b, "/process-agent.tmpl", stats)
 
 	return b.String(), nil
 }

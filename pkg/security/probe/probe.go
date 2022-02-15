@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -104,6 +105,14 @@ func (p *Probe) detectKernelVersion() error {
 	}
 	p.kernelVersion = kernelVersion
 	return nil
+}
+
+// GetKernelVersion computes and returns the running kernel version
+func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
+	if err := p.detectKernelVersion(); err != nil {
+		return nil, err
+	}
+	return p.kernelVersion, nil
 }
 
 // VerifyOSVersion returns an error if the current kernel version is not supported
@@ -483,6 +492,10 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
+		if IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
+			return
+		}
+
 		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
@@ -492,6 +505,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
 		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
 
@@ -512,7 +526,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		event.Exec.Process = event.processCacheEntry.Process
 		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
 	case model.ExitEventType:
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
+		// do nothing
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
@@ -580,6 +594,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		} else {
 			event.ProcessContext = event.processCacheEntry.ProcessContext
 		}
+	} else {
+		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+			return
+		}
+
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
@@ -893,6 +913,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
+	p.ensureConfigDefaults()
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
@@ -917,7 +939,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	constants, err := getOffsetConstants(config, p)
+	constants, err := GetOffsetConstants(config, p)
 	if err != nil {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
@@ -1029,12 +1051,25 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
-func getOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+func (p *Probe) ensureConfigDefaults() {
+	// enable runtime compiled constants on COS by default
+	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
+		p.config.EnableRuntimeCompiledConstants = true
+	}
+}
 
+// GetOffsetConstants returns the offsets and struct sizes constants
+func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+	return GetOffsetConstantsFromFetcher(constantFetcher)
+}
+
+// GetOffsetConstantsFromFetcher returns the offsets and struct sizes constants, from a constant fetcher
+func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher) (map[string]uint64, error) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
+	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
 	return constantFetcher.FinishAndGetResults()
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -185,10 +186,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, func(event *probe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode

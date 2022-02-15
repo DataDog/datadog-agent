@@ -49,122 +49,157 @@ const (
 	downloadSuccess
 	hostVersionErr
 	downloadFailure
+	validationFailure
+	reposDirAccessFailure
+	headersNotFound
 )
 
-var errLinuxTypesHMissing = errors.New("correctly versioned kernel headers found, but linux/types.h missing")
+var errReposDirInaccessible = errors.New("unable to access repos directory")
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
-func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
+func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
 	hv, hvErr := HostVersion()
 	if hvErr != nil {
 		return nil, hostVersionErr, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
 	}
 
-	var err error
-	var dirs []string
 	if len(headerDirs) > 0 {
-		if err = validateHeaderDirs(hv, headerDirs); err == nil {
+		if dirs := validateHeaderDirs(hv, headerDirs, true); len(dirs) > 0 {
 			return headerDirs, customHeadersFound, nil
 		}
-		log.Debugf("unable to find configured kernel headers: %s", err)
+		log.Debugf("unable to find configured kernel headers: no valid headers found")
 	} else {
-		dirs = getDefaultHeaderDirs()
-		if err = validateHeaderDirs(hv, dirs); err == nil {
+		if dirs := validateHeaderDirs(hv, getDefaultHeaderDirs(), true); len(dirs) > 0 {
 			return dirs, defaultHeadersFound, nil
 		}
-		log.Debugf("unable to find default kernel headers: %s", err)
+		log.Debugf("unable to find default kernel headers: no valid headers found")
 
 		// If no valid directories are found, attempt a fallback to extracting from `/sys/kernel/kheaders.tar.xz`
 		// which is enabled via the `kheaders` kernel module and the `CONFIG_KHEADERS` kernel config option.
 		// The `kheaders` module will be automatically added and removed if present and needed.
+		var err error
+		var dirs []string
 		if dirs, err = getSysfsHeaderDirs(hv); err == nil {
 			return dirs, sysfsHeadersFound, nil
 		}
-		log.Debugf("unable to find system kernel headers: %s", err)
+		log.Debugf("unable to find system kernel headers: %w", err)
 	}
 
-	dirs = getDownloadedHeaderDirs(headerDownloadDir)
-	if err = validateHeaderDirs(hv, dirs); err == nil {
-		return dirs, downloadedHeadersFound, nil
-	}
-	log.Debugf("unable to find downloaded kernel headers: %s", err)
-
-	if errors.Is(err, errLinuxTypesHMissing) {
+	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
+	if !containsCriticalHeaders(downloadedDirs) {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
 		log.Infof("deleting previously downloaded kernel headers")
-		files, err := ioutil.ReadDir(headerDownloadDir)
-		if err != nil {
-			log.Warnf("error deleting kernel headers: %v", err)
+		for _, d := range downloadedDirs {
+			deleteKernelHeaderDirectory(d)
 		}
-		for _, fi := range files {
-			path := filepath.Join(headerDownloadDir, fi.Name())
-			err = os.RemoveAll(path)
-			if err != nil {
-				log.Warnf("error deleting %s: %s", path, err)
-			}
-		}
+		downloadedDirs = nil
+	}
+	if len(downloadedDirs) > 0 {
+		return downloadedDirs, downloadedHeadersFound, nil
+	}
+	log.Debugf("unable to find downloaded kernel headers: no valid headers found")
+
+	if !downloadEnabled {
+		return nil, headersNotFound, fmt.Errorf("no valid matching kernel header directories found")
 	}
 
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
-	if err = d.downloadHeaders(headerDownloadDir); err == nil {
-		log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
-		if err = validateHeaderDirs(hv, dirs); err == nil {
-			return dirs, downloadSuccess, nil
+	if err := d.downloadHeaders(headerDownloadDir); err != nil {
+		if errors.Is(err, errReposDirInaccessible) {
+			return nil, reposDirAccessFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 		}
-		return nil, downloadFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
+		return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 	}
-	return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
+
+	log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
+	if dirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), true); len(dirs) > 0 {
+		return dirs, downloadSuccess, nil
+	}
+	return nil, validationFailure, fmt.Errorf("downloaded headers are not valid")
 }
 
-// validateHeaderDirs verifies that the kernel headers in at least 1 directory matches the kernel version of the running host
-// and contains the linux/types.h file
-func validateHeaderDirs(hv Version, dirs []string) error {
-	versionMatches, linuxTypesHFound := false, false
+// validateHeaderDirs checks all the given directories and returns the directories containing kernel
+// headers matching the kernel version of the running host
+func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool) []string {
+	var valid []string
 	for _, d := range dirs {
-		if containsLinuxTypesHFile(d) {
-			linuxTypesHFound = true
+		if _, err := os.Stat(d); errors.Is(err, fs.ErrNotExist) {
+			continue
 		}
 
 		dirv, err := getHeaderVersion(d)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
-				// if version.h is not found in this directory, keep going
+				// version.h is not found in this directory; we'll consider it valid, in case
+				// it contains necessary files
+				log.Debugf("found non-versioned kernel headers at %s", d)
+				valid = append(valid, d)
 				continue
 			}
-			return fmt.Errorf("error validating headers version: %w", err)
+			log.Debugf("error validating %s: error validating headers version: %w", d, err)
+			continue
 		}
+
 		if dirv != hv {
-			return fmt.Errorf("header version %s does not match host version %s", dirv, hv)
+			log.Debugf("error validating %s: header version %s does not match host version %s", d, dirv, hv)
+			continue
 		}
-
-		// as long as one directory passes, validate the entire set
-		versionMatches = true
+		log.Debugf("found valid kernel headers at %s", d)
+		valid = append(valid, d)
 	}
 
-	if !versionMatches {
-		return fmt.Errorf("no valid kernel headers found")
+	if checkForCriticalHeaders && len(valid) != 0 && !containsCriticalHeaders(valid) {
+		log.Debugf("error validating %s: missing critical headers", valid)
+		return nil
 	}
 
-	if !linuxTypesHFound {
-		return errLinuxTypesHMissing
-	}
-
-	log.Debugf("valid kernel headers found in %v", dirs)
-	return nil
+	return valid
 }
 
-func containsLinuxTypesHFile(dir string) bool {
-	path := filepath.Join(dir, "include/linux/types.h")
-	f, err := os.Open(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
+func containsCriticalHeaders(dirs []string) bool {
+	criticalPaths := []string{
+		"include/linux/types.h",
+		"include/linux/kconfig.h",
 	}
-	if f != nil {
-		defer f.Close()
+
+	searchResult := make(map[string]bool)
+	for _, path := range criticalPaths {
+		searchResult[path] = false
 	}
+
+	for _, criticalPath := range criticalPaths {
+		for _, dir := range dirs {
+			path := filepath.Join(dir, criticalPath)
+			_, err := os.Stat(path)
+			if !errors.Is(err, fs.ErrNotExist) {
+				searchResult[criticalPath] = true
+			}
+		}
+	}
+
+	for _, found := range searchResult {
+		if !found {
+			return false
+		}
+	}
+
 	return true
+}
+
+func deleteKernelHeaderDirectory(dir string) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		log.Warnf("error deleting kernel headers: %v", err)
+	}
+	for _, fi := range files {
+		path := filepath.Join(dir, fi.Name())
+		err = os.RemoveAll(path)
+		if err != nil {
+			log.Warnf("error deleting %s: %s", path, err)
+		}
+	}
 }
 
 func getHeaderVersion(path string) (Version, error) {

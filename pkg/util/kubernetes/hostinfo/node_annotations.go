@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package hostinfo
@@ -34,5 +35,5 @@ func GetNodeAnnotations(ctx context.Context) (map[string]string, error) {
 		}
 		return cl.GetNodeAnnotations(nodeName)
 	}
-	return apiserverNodeAnnotations(nodeName)
+	return apiserverNodeAnnotations(ctx, nodeName)
 }

@@ -27,7 +27,7 @@ $ objdump -p bin/system-probe/system-probe
 $ nm bin/system-probe/system-probe | grep GLIBC_X.XX
 */
 
-#ifdef __GLIBC__
+#if defined(__GLIBC__) && !defined(SKIP_GLIBC_WRAPPER)
 
 #ifdef __x86_64__
 #define GLIBC_VERS "GLIBC_2.2.5"

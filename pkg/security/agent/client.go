@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"net"
 
 	"google.golang.org/grpc"
 
@@ -17,14 +18,13 @@ import (
 
 // RuntimeSecurityClient is used to send request to security module
 type RuntimeSecurityClient struct {
-	conn *grpc.ClientConn
+	apiClient api.SecurityModuleClient
+	conn      *grpc.ClientConn
 }
 
 // DumpProcessCache send a dump request
-func (c *RuntimeSecurityClient) DumpProcessCache() (string, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{})
+func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
+	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})
 	if err != nil {
 		return "", err
 	}
@@ -34,9 +34,7 @@ func (c *RuntimeSecurityClient) DumpProcessCache() (string, error) {
 
 // GetConfig retrieves the config of the runtime security module
 func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.GetConfig(context.Background(), &api.GetConfigParams{})
+	response, err := c.apiClient.GetConfig(context.Background(), &api.GetConfigParams{})
 	if err != nil {
 		return nil, err
 	}
@@ -45,9 +43,7 @@ func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) 
 
 // RunSelfTest instructs the system probe to run a self test
 func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.RunSelfTest(context.Background(), &api.RunSelfTestParams{})
+	response, err := c.apiClient.RunSelfTest(context.Background(), &api.RunSelfTestParams{})
 	if err != nil {
 		return nil, err
 	}
@@ -56,13 +52,20 @@ func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessag
 
 // ReloadPolicies instructs the system probe to reload its policies
 func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.ReloadPolicies(context.Background(), &api.ReloadPoliciesParams{})
+	response, err := c.apiClient.ReloadPolicies(context.Background(), &api.ReloadPoliciesParams{})
 	if err != nil {
 		return nil, err
 	}
 	return response, nil
+}
+
+// GetEvents returns a stream of events
+func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
+	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
 }
 
 // Close closes the connection
@@ -77,13 +80,15 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	path := "unix://" + socketPath
-	conn, err := grpc.Dial(path, grpc.WithInsecure())
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		return net.Dial("unix", url)
+	}))
 	if err != nil {
 		return nil, err
 	}
 
 	return &RuntimeSecurityClient{
-		conn: conn,
+		conn:      conn,
+		apiClient: api.NewSecurityModuleClient(conn),
 	}, nil
 }

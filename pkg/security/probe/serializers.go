@@ -6,6 +6,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -32,8 +33,8 @@ type FileSerializer struct {
 	InUpperLayer        *bool      `json:"in_upper_layer,omitempty" jsonschema_description:"Indicator of file OverlayFS layer"`
 	MountID             *uint32    `json:"mount_id,omitempty" jsonschema_description:"File mount ID"`
 	Filesystem          string     `json:"filesystem,omitempty" jsonschema_description:"File filesystem name"`
-	UID                 uint32     `json:"uid" jsonschema_description:"File User ID"`
-	GID                 uint32     `json:"gid" jsonschema_description:"File Group ID"`
+	UID                 int64      `json:"uid" jsonschema_description:"File User ID"`
+	GID                 int64      `json:"gid" jsonschema_description:"File Group ID"`
 	User                string     `json:"user,omitempty" jsonschema_description:"File user"`
 	Group               string     `json:"group,omitempty" jsonschema_description:"File group"`
 	XAttrName           string     `json:"attribute_name,omitempty" jsonschema_description:"File extended attribute name"`
@@ -125,6 +126,7 @@ type ProcessCacheEntrySerializer struct {
 	Credentials         *ProcessCredentialsSerializer `json:"credentials,omitempty" jsonschema_description:"Credentials associated with the process"`
 	Executable          *FileSerializer               `json:"executable,omitempty" jsonschema_description:"File information of the executable"`
 	Container           *ContainerContextSerializer   `json:"container,omitempty" jsonschema_description:"Container context"`
+	Argv0               string                        `json:"argv0,omitempty" jsonschema_description:"First command line argument"`
 	Args                []string                      `json:"args,omitempty" jsonschema_description:"Command line arguments"`
 	ArgsTruncated       bool                          `json:"args_truncated,omitempty" jsonschema_description:"Indicator of arguments truncation"`
 	Envs                []string                      `json:"envs,omitempty" jsonschema_description:"Environment variables of the process"`
@@ -287,8 +289,8 @@ func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *Fil
 		MountID:             getUint32Pointer(&fe.MountID),
 		Filesystem:          e.ResolveFileFilesystem(fe),
 		Mode:                getUint32Pointer(&mode), // only used by open events
-		UID:                 fe.UID,
-		GID:                 fe.GID,
+		UID:                 int64(fe.UID),
+		GID:                 int64(fe.GID),
 		User:                e.ResolveFileFieldsUser(&fe.FileFields),
 		Group:               e.ResolveFileFieldsGroup(&fe.FileFields),
 		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
@@ -308,8 +310,8 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		Filesystem:          process.Filesystem,
 		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
-		UID:                 process.FileFields.UID,
-		GID:                 process.FileFields.GID,
+		UID:                 int64(process.FileFields.UID),
+		GID:                 int64(process.FileFields.GID),
 		User:                r.ResolveFileFieldsUser(&process.FileFields),
 		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
 		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.MTime))),
@@ -357,27 +359,10 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
-	return e.resolvers.ProcessResolver.GetScrubbedProcessArgv(pr)
-}
-
-func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {
-	envs, truncated := e.resolvers.ProcessResolver.GetProcessEnvs(pr)
-	if envs == nil {
-		return nil, false
-	}
-
-	result := make([]string, 0, len(envs))
-	for key := range envs {
-		result = append(result, key)
-	}
-
-	return result, truncated
-}
-
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	argv, argvTruncated := scrubArgs(&pce.Process, e)
-	envs, EnvsTruncated := scrubEnvs(&pce.Process, e)
+	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(&pce.Process)
+	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(&pce.Process)
+	argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(&pce.Process)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		ForkTime: getTimeIfNotZero(pce.ForkTime),
@@ -390,6 +375,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
+		Argv0:         argv0,
 		Args:          argv,
 		ArgsTruncated: argvTruncated,
 		Envs:          envs,

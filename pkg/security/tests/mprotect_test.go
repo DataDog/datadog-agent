@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -24,7 +25,7 @@ func TestMProtectEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mprotect",
-			Expression: `(mprotect.vm_protection & VM_WRITE > 0) && (mprotect.req_protection & VM_EXEC > 0)`,
+			Expression: `(mprotect.vm_protection & VM_WRITE > 0) && (mprotect.req_protection & VM_EXEC > 0) && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -39,11 +40,11 @@ func TestMProtectEvent(t *testing.T) {
 			var data []byte
 			data, err = unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
 			if err != nil {
-				return fmt.Errorf("couldn't memory segment: %v", err)
+				return fmt.Errorf("couldn't memory segment: %w", err)
 			}
 
 			if err = unix.Mprotect(data, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC); err != nil {
-				return fmt.Errorf("couldn't mprotect segment: %v", err)
+				return fmt.Errorf("couldn't mprotect segment: %w", err)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {

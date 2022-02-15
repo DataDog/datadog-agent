@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package hostinfo
@@ -34,7 +35,7 @@ func GetNodeLabels(ctx context.Context) (map[string]string, error) {
 		}
 		return cl.GetNodeLabels(nodeName)
 	}
-	return apiserverNodeLabels(nodeName)
+	return apiserverNodeLabels(ctx, nodeName)
 }
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label

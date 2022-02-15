@@ -9,6 +9,8 @@
 # -------------
 
 .kitchen_os_windows:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019,win2019cn,win2022"
@@ -27,6 +29,8 @@
 # --------------
 
 .kitchen_test_windows_installer:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2012r2"
@@ -40,6 +44,8 @@
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_driver:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2012r2,win2016,win2019,win2019cn,win1903,win1909,win2004,win20h2,win2022"
@@ -55,6 +61,8 @@
     - bash -l tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_installer:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2016"

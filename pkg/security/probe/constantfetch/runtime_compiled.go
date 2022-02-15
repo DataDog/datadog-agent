@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
 // +build linux,linux_bpf
 
 package constantfetch
@@ -11,6 +12,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"debug/elf"
+	"encoding/base32"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -71,7 +73,6 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 }
 
 const runtimeCompilationTemplate = `
-#include <linux/compiler.h>
 #include <linux/kconfig.h>
 {{ range .headers }}
 #include <{{ . }}>
@@ -107,9 +108,11 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 	runtimeCompiler := runtime.NewRuntimeCompiler()
 	reader, err := runtimeCompiler.CompileObjectFile(config, additionalFlags, "constant_fetcher.c", provider)
 
-	telemetry := runtimeCompiler.GetRCTelemetry()
-	if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
-		log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+	if cf.statsdClient != nil {
+		telemetry := runtimeCompiler.GetRCTelemetry()
+		if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
+			log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+		}
 	}
 
 	return reader, err
@@ -184,8 +187,10 @@ func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kerne
 		return "", err
 	}
 	cCodeHash := hasher.Sum(nil)
+	// base32 is only [A-V0-9]+
+	cCodeHashB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash)
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHash, flagHash)), nil
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHashB32, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {

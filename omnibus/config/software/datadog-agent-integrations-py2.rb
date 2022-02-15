@@ -121,20 +121,34 @@ build do
 
   # Install the checks along with their dependencies
   block do
+    if windows?
+      wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
+      build_deps_dir = "#{windows_safe_path(project_dir)}\\.build_deps"
+    else
+      wheel_build_dir = "#{project_dir}/.wheels"
+      build_deps_dir = "#{project_dir}/.build_deps"
+    end
+
     #
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.11.2"
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools2.rb
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
     command "#{pip} install pip-tools==5.4.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
+      "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+    }
+    win_build_env = {
+      "PIP_FIND_LINKS" => "#{build_deps_dir}",
     }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
@@ -191,14 +205,12 @@ build do
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
-      wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
       command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}", :env => win_build_env
     else
-      wheel_build_dir = "#{project_dir}/.wheels"
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
@@ -206,20 +218,11 @@ build do
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
     end
 
-    # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
-    uninstall_buildtime_deps.each do |dep|
-      if windows?
-        command "#{python} -m pip uninstall -y #{dep}"
-      else
-        command "#{pip} uninstall -y #{dep}"
-      end
-    end
-
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
     if windows?
-      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
+      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
     else
       command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
@@ -257,10 +260,9 @@ build do
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
 
-      setup_file_path = "#{check_dir}/setup.py"
-      File.file?(setup_file_path) || next
+      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 2.
-      support = `inv agent.check-supports-python-version #{setup_file_path} 2`
+      support = `inv agent.check-supports-python-version #{check_dir} 2`
       if support == "False"
         log.info(log_key) { "Skipping '#{check}' since it does not support Python 2." }
         next
@@ -369,7 +371,7 @@ build do
         end
 
         if windows?
-          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
           command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         else
           command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
@@ -386,6 +388,15 @@ build do
             :cwd => tasks_dir_in
         end
       end
+
+      # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
+      uninstall_buildtime_deps.each do |dep|
+        if windows?
+          command "#{python} -m pip uninstall -y #{dep}"
+        else
+          command "#{pip} uninstall -y #{dep}"
+        end
+      end
     end
 
     block do
@@ -399,10 +410,6 @@ build do
       else
         patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
         patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/tuf/client/updater.py"
-      end
-
-      if linux?
-        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/_pslinux.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

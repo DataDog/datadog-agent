@@ -12,8 +12,6 @@ support_email=support@datadoghq.com
 
 LEGACY_ETCDIR="/etc/dd-agent"
 LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
-ETCDIR="/etc/datadog-agent"
-CONF="$ETCDIR/datadog.yaml"
 
 # DATADOG_APT_KEY_CURRENT.public always contains key used to sign current
 # repodata and newly released packages
@@ -87,9 +85,9 @@ function get_email() {
 
 function on_error() {
     printf "\033[31m$ERROR_MESSAGE
-It looks like you hit an issue when trying to install the Agent.
+It looks like you hit an issue when trying to install the $nice_flavor.
 
-Troubleshooting and basic usage information for the Agent are available at:
+Troubleshooting and basic usage information for the $nice_flavor are available at:
 
     https://docs.datadoghq.com/agent/basic_agent_usage/\n\033[0m\n"
 
@@ -206,6 +204,44 @@ if [ -n "$DD_UPGRADE" ]; then
   upgrade=$DD_UPGRADE
 fi
 
+agent_flavor="datadog-agent"
+if [ -n "$DD_AGENT_FLAVOR" ]; then
+    agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
+fi
+
+declare -A flavor_to_readable
+flavor_to_readable=(
+    ["datadog-agent"]="Datadog Agent"
+    ["datadog-iot-agent"]="Datadog IoT Agent"
+    ["datadog-dogstatsd"]="Datadog Dogstatsd"
+    ["datadog-heroku-agent"]="Datadog Heroku Agent"
+)
+nice_flavor=${flavor_to_readable[$agent_flavor]}
+
+if [ -z "$nice_flavor" ]; then
+    echo -e "\033[33mUnknown DD_AGENT_FLAVOR \"$agent_flavor\"\033[0m"
+    fallback_msg
+    exit 1;
+fi
+
+declare -A flavor_to_system_service
+flavor_to_system_service=(
+    ["datadog-dogstatsd"]="datadog-dogstatsd"
+)
+system_service=${flavor_to_system_service[$agent_flavor]:-datadog-agent}
+
+declare -A flavor_to_etcdir
+flavor_to_etcdir=(
+    ["datadog-dogstatsd"]="/etc/datadog-dogstatsd"
+)
+etcdir=${flavor_to_etcdir[$agent_flavor]:-/etc/datadog-agent}
+
+declare -A flavor_to_config
+flavor_to_config=(
+    ["datadog-dogstatsd"]="$etcdir/dogstatsd.yaml"
+)
+config_file=${flavor_to_config[$agent_flavor]:-$etcdir/datadog.yaml}
+
 agent_major_version=6
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
@@ -214,7 +250,12 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
-  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+  if [ "$agent_flavor" == "datadog-agent" ] ; then
+    echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing $nice_flavor version 6 by default.\033[0m"
+  else
+    echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing $nice_flavor version 7 by default.\033[0m"
+    agent_major_version=7
+  fi
 fi
 
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
@@ -223,11 +264,6 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   #  - 20.0 = sets explicit patch version x.20.0
   # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=$DD_AGENT_MINOR_VERSION
-fi
-
-agent_flavor="datadog-agent"
-if [ -n "$DD_AGENT_FLAVOR" ]; then
-    agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
 fi
 
 agent_dist_channel=stable
@@ -268,7 +304,7 @@ if [ ! "$apikey" ]; then
 fi
 
 if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
-    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot-agent'.\033[0m\n"
+    printf "\033[31mThe full $nice_flavor isn't available for your architecture (armv7l).\nInstall the ${flavor_to_readable[datadog-iot-agent]} by setting DD_AGENT_FLAVOR='datadog-iot-agent'.\033[0m\n"
     exit 1;
 fi
 
@@ -298,6 +334,17 @@ elif [ -f /etc/SuSE-release ] || [ "$DISTRIBUTION" == "SUSE" ] || [ "$DISTRIBUTI
     OS="SUSE"
 fi
 
+if [[ "$agent_flavor" == "datadog-dogstatsd" ]]; then
+    if [[ `uname -m` == "armv7l" ]] || { [[ `uname -m` != "x86_64" ]] && [[ "$OS" != "Debian" ]]; }; then
+        printf "\033[31mThe $nice_flavor isn't available for your architecture.\033[0m\n"
+        exit 1;
+    fi
+    if  [[ "$OS" == "Debian" ]] && [[ `uname -m` == "aarch64" ]] && { [[ -n "$agent_minor_version" ]] && [[ "$agent_minor_version" -lt 35 ]]; }; then
+        printf "\033[31mThe $nice_flavor is only available since version 7.35.0 for your architecture.\033[0m\n"
+        exit 1;
+    fi
+fi
+
 # Root user detection
 if [ "$(echo "$UID")" = "0" ]; then
     sudo_cmd=''
@@ -308,7 +355,7 @@ fi
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
     if { [ "$DISTRIBUTION" == "Rocky" ] || [ "$DISTRIBUTION" == "AlmaLinux" ]; } && { [ -n "$agent_minor_version" ] && [ "$agent_minor_version" -lt 33 ]; } && ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-        echo -e "\033[33mA future version of Agent will support $DISTRIBUTION\n\033[0m"
+        echo -e "\033[33mA future version of $nice_flavor will support $DISTRIBUTION\n\033[0m"
         exit;
     fi
     echo -e "\033[34m\n* Installing YUM sources for Datadog\n\033[0m"
@@ -351,7 +398,7 @@ if [ "$OS" = "RedHat" ]; then
 
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
-    printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
+    printf "\033[34m* Installing the $nice_flavor package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
 
     dnf_flag=""
@@ -410,7 +457,7 @@ elif [ "$OS" = "Debian" ]; then
         $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
     fi
 
-    printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
+    printf "\033[34m\n* Installing the $nice_flavor package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
 Failed to update the sources after adding the Datadog repository.
 This may be due to any of the configured APT sources failing -
@@ -420,7 +467,7 @@ If the failing repository is Datadog, please contact Datadog support.
 "
     $sudo_cmd apt-get update -o Dir::Etc::sourcelist="sources.list.d/datadog.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
     ERROR_MESSAGE="ERROR
-Failed to install the Datadog package, sometimes it may be
+Failed to install the $agent_flavor package, sometimes it may be
 due to another APT source failing. See the logs above to
 determine the cause.
 If the cause is unclear, please contact Datadog support.
@@ -507,7 +554,7 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
   
-  echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
+  echo -e "\033[34m\n* Installing the $nice_flavor package\n\033[0m"
 
   # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
   agent_minor_version_without_patch="${agent_minor_version%.*}"
@@ -516,12 +563,12 @@ elif [ "$OS" = "SUSE" ]; then
   if [ "$DISTRIBUTION" == "openSUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 15 ]; }; then
       if [ -n "$agent_minor_version_without_patch" ]; then
           if [ "$agent_minor_version_without_patch" -ge "33" ]; then
-              printf "\033[31mopenSUSE < 15 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              printf "\033[31mopenSUSE < 15 only supports $nice_flavor %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
               exit;
           fi
       else
           if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              echo -e "  \033[33m$nice_flavor $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
               agent_minor_version=32
           fi
       fi
@@ -529,12 +576,12 @@ elif [ "$OS" = "SUSE" ]; then
   if [ "$DISTRIBUTION" == "SUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 12 ]; }; then
       if [ -n "$agent_minor_version_without_patch" ]; then
           if [ "$agent_minor_version_without_patch" -ge "33" ]; then
-              printf "\033[31mSLES < 12 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              printf "\033[31mSLES < 12 only supports $nice_flavor %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
               exit;
           fi
       else
           if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              echo -e "  \033[33m$nice_flavor $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
               agent_minor_version=32
           fi
       fi
@@ -562,58 +609,58 @@ Please follow the instructions on the Agent setup page:
     exit;
 fi
 
-if [ "$upgrade" ]; then
+if [ "$upgrade" ] && [ "$agent_flavor" != "datadog-dogstatsd" ]; then
   if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version
-    icmd="datadog-agent import $LEGACY_ETCDIR $ETCDIR"
+    icmd="datadog-agent import $LEGACY_ETCDIR $etcdir"
     # shellcheck disable=SC2086
     $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
     # fix file owner and permissions since the script moves around some files
-    $sudo_cmd chown -R dd-agent:dd-agent $ETCDIR
-    $sudo_cmd find $ETCDIR/ -type f -exec chmod 640 {} \;
+    $sudo_cmd chown -R dd-agent:dd-agent "$etcdir"
+    $sudo_cmd find "$etcdir/" -type f -exec chmod 640 {} \;
   else
     printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
   fi
 fi
 
 # Set the configuration
-if [ -e $CONF ] && [ -z "$upgrade" ]; then
-  printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
+if [ -e "$config_file" ] && [ -z "$upgrade" ]; then
+  printf "\033[34m\n* Keeping old $config_file configuration file\n\033[0m\n"
 else
-  if [ ! -e $CONF ]; then
-    $sudo_cmd cp $CONF.example $CONF
+  if [ ! -e "$config_file" ]; then
+    $sudo_cmd cp "$config_file.example" "$config_file"
   fi
   if [ "$apikey" ]; then
-    printf "\033[34m\n* Adding your API key to the Agent configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $CONF"
+    printf "\033[34m\n* Adding your API key to the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $config_file"
   else
     # If the import script failed for any reason, we might end here also in case
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
-    if ! $sudo_cmd grep -q -E '^api_key: .+' $CONF; then
-      printf "\033[31mThe Agent won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the agent manually.\n\033[0m\n"
+    if ! $sudo_cmd grep -q -E '^api_key: .+' "$config_file"; then
+      printf "\033[31mThe $nice_flavor won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the $nice_flavor manually.\n\033[0m\n"
       no_start=true
     fi
   fi
   if [ "$site" ]; then
-    printf "\033[34m\n* Setting SITE in the Agent configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $CONF"
+    printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
   fi
   if [ -n "$DD_URL" ]; then
-    printf "\033[34m\n* Setting DD_URL in the Agent configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $CONF"
+    printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
   fi
   if [ "$hostname" ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $CONF"
+    printf "\033[34m\n* Adding your HOSTNAME to the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $config_file"
   fi
   if [ "$host_tags" ]; then
-      printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: $CONF\n\033[0m\n"
+      printf "\033[34m\n* Adding your HOST TAGS to the $nice_flavor configuration: $config_file\n\033[0m\n"
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
-      $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $CONF"
+      $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $config_file"
   fi
-  $sudo_cmd chown dd-agent:dd-agent $CONF
-  $sudo_cmd chmod 640 $CONF
+  $sudo_cmd chown dd-agent:dd-agent "$config_file"
+  $sudo_cmd chmod 640 "$config_file"
 fi
 
 # Creating or overriding the install information
@@ -623,7 +670,7 @@ install_method:
   tool_version: install_script
   installer_version: install_script-$install_script_version
 "
-$sudo_cmd sh -c "echo '$install_info_content' > $ETCDIR/install_info"
+$sudo_cmd sh -c "echo '$install_info_content' > $etcdir/install_info"
 
 # On SUSE 11, sudo service datadog-agent start fails (because /sbin is not in a base user's path)
 # However, sudo /sbin/service datadog-agent does work.
@@ -636,27 +683,27 @@ fi
 
 # Use /usr/sbin/service by default.
 # Some distros usually include compatibility scripts with Upstart or Systemd. Check with: `command -v service | xargs grep -E "(upstart|systemd)"`
-restart_cmd="$sudo_cmd $service_cmd datadog-agent restart"
-stop_instructions="$sudo_cmd $service_cmd datadog-agent stop"
-start_instructions="$sudo_cmd $service_cmd datadog-agent start"
+restart_cmd="$sudo_cmd $service_cmd $system_service restart"
+stop_instructions="$sudo_cmd $service_cmd $system_service stop"
+start_instructions="$sudo_cmd $service_cmd $system_service start"
 
 if [[ `$sudo_cmd ps --no-headers -o comm 1 2>&1` == "systemd" ]] && command -v systemctl 2>&1; then
   # Use systemd if systemctl binary exists and systemd is the init process
-  restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
-  stop_instructions="$sudo_cmd systemctl stop datadog-agent"
-  start_instructions="$sudo_cmd systemctl start datadog-agent"
+  restart_cmd="$sudo_cmd systemctl restart ${system_service}.service"
+  stop_instructions="$sudo_cmd systemctl stop $system_service"
+  start_instructions="$sudo_cmd systemctl start $system_service"
 elif /sbin/init --version 2>&1 | grep -q upstart; then
   # Try to detect Upstart, this works most of the times but still a best effort
-  restart_cmd="$sudo_cmd stop datadog-agent || true ; sleep 2s ; $sudo_cmd start datadog-agent"
-  stop_instructions="$sudo_cmd stop datadog-agent"
-  start_instructions="$sudo_cmd start datadog-agent"
+  restart_cmd="$sudo_cmd stop $system_service || true ; sleep 2s ; $sudo_cmd start $system_service"
+  stop_instructions="$sudo_cmd stop $system_service"
+  start_instructions="$sudo_cmd start $system_service"
 fi
 
 if [ $no_start ]; then
     printf "\033[34m
-* DD_INSTALL_ONLY environment variable set: the newly installed version of the agent
-will not be started. You will have to do it manually using the following
-command:
+* DD_INSTALL_ONLY environment variable set: the newly installed version of the
+$nice_flavor will not be started. You will have to do it manually using the
+following command:
 
     $start_instructions
 
@@ -664,17 +711,17 @@ command:
     exit
 fi
 
-printf "\033[34m* Starting the Agent...\n\033[0m\n"
+printf "\033[34m* Starting the $nice_flavor...\n\033[0m\n"
 eval "$restart_cmd"
 
 
 # Metrics are submitted, echo some instructions and exit
 printf "\033[32m
 
-Your Agent is running and functioning properly. It will continue to run in the
-background and submit metrics to Datadog.
+Your $nice_flavor is running and functioning properly. It will continue
+to run in the background and submit metrics to Datadog.
 
-If you ever want to stop the Agent, run:
+If you ever want to stop the $nice_flavor, run:
 
     $stop_instructions
 

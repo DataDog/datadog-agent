@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -67,7 +68,7 @@ func TestSELinux(t *testing.T) {
 	t.Run("setenforce", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setEnforceStatus("permissive"); err != nil {
-				return fmt.Errorf("failed to run setenforce: %v", err)
+				return fmt.Errorf("failed to run setenforce: %w", err)
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
@@ -84,7 +85,7 @@ func TestSELinux(t *testing.T) {
 	t.Run("sel_disable", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
-				return fmt.Errorf("failed to write to selinuxfs: %v", err)
+				return fmt.Errorf("failed to write to selinuxfs: %w", err)
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
@@ -100,7 +101,7 @@ func TestSELinux(t *testing.T) {
 	t.Run("setsebool_true_value", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
-				return fmt.Errorf("failed to run setsebool: %v", err)
+				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
@@ -118,7 +119,7 @@ func TestSELinux(t *testing.T) {
 	t.Run("setsebool_false_value", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, false); err != nil {
-				return fmt.Errorf("failed to run setsebool: %v", err)
+				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
@@ -136,7 +137,7 @@ func TestSELinux(t *testing.T) {
 	t.Run("setsebool_error_value", func(t *testing.T) {
 		err = test.GetSignal(t, func() error {
 			if err := rawSudoWrite("/sys/fs/selinux/booleans/httpd_enable_cgi", "test_error", true); err != nil {
-				return fmt.Errorf("failed to write to selinuxfs: %v", err)
+				return fmt.Errorf("failed to write to selinuxfs: %w", err)
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
@@ -178,7 +179,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 	t.Run("sel_commit_bools", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
-				return fmt.Errorf("failed to run setsebool: %v", err)
+				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
@@ -273,8 +274,5 @@ func setEnforceStatus(status string) error {
 
 	cmd := exec.Command("sudo", "-n", "setenforce", strconv.Itoa(enforceNumber))
 	_, err := cmd.Output()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

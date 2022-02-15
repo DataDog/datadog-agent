@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -12,10 +13,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNamespacesToWatch(t *testing.T) {
@@ -57,12 +58,13 @@ func TestNamespacesToWatch(t *testing.T) {
 		},
 	}
 
-	originalContainerdNamespaceOpt := config.Datadog.GetString("containerd_namespace")
-	defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config.Datadog.Set("containerd_namespace", test.containerdNamespaceVal)
+			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceVal)
+			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+
 			namespaces, err := NamespacesToWatch(context.TODO(), test.client)
 
 			if test.expectsError {
@@ -122,12 +124,13 @@ func TestFiltersWithNamespaces(t *testing.T) {
 		},
 	}
 
-	originalContainerdNamespaceOpt := config.Datadog.GetString("containerd_namespace")
-	defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config.Datadog.Set("containerd_namespace", test.containerdNamespaceConfigOpt)
+			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceConfigOpt)
+			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+
 			result := FiltersWithNamespaces(test.inputFilters)
 			assert.ElementsMatch(t, test.expectedFilters, result)
 		})

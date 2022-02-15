@@ -76,6 +76,8 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	}
 
+	stats["processAgentStatus"] = GetProcessAgentStatus()
+
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		httputils.NoProxyMapMutex.Lock()
 		stats["TransportWarnings"] = len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0
@@ -177,7 +179,11 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
 	}
 
-	stats["externalmetrics"] = externalmetrics.GetStatus()
+	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		stats["externalmetrics"] = externalmetrics.GetStatus()
+	} else {
+		stats["externalmetrics"] = apiserver.GetStatus()
+	}
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		cchecks, err := clusterchecks.GetStats()

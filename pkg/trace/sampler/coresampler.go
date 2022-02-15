@@ -23,21 +23,6 @@ const (
 	initialSignatureScoreOffset float64 = 1
 	minSignatureScoreOffset     float64 = 0.01
 	defaultSignatureScoreSlope  float64 = 3
-	// defaultSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
-	// If this is surpassed, the rate is set to 1.
-	defaultSamplingRateThresholdTo1 float64 = 1
-)
-
-// EngineType represents the type of a sampler engine.
-type EngineType int
-
-const (
-	// NormalScoreEngineType is the type of the ScoreEngine sampling non-error traces.
-	NormalScoreEngineType EngineType = iota
-	// ErrorsScoreEngineType is the type of the ScoreEngine sampling error traces.
-	ErrorsScoreEngineType
-	// PriorityEngineType is type of the priority sampler engine type.
-	PriorityEngineType
 )
 
 // Sampler is the main component of the sampling logic
@@ -49,8 +34,6 @@ type Sampler struct {
 	extraRate float64
 	// Maximum limit to the total number of traces per second to sample
 	targetTPS *atomic.Float64
-	// rateThresholdTo1 is the value above which all computed sampling rates will be set to 1
-	rateThresholdTo1 float64
 
 	// Sample any signature with a score lower than scoreSamplingOffset
 	// It is basically the number of similar traces per second after which we start sampling
@@ -71,7 +54,6 @@ func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 		Backend:              NewMemoryBackend(decayPeriod, defaultDecayFactor),
 		extraRate:            extraRate,
 		targetTPS:            atomic.NewFloat(targetTPS),
-		rateThresholdTo1:     defaultSamplingRateThresholdTo1,
 		signatureScoreOffset: atomic.NewFloat(0),
 		signatureScoreSlope:  atomic.NewFloat(0),
 		signatureScoreFactor: atomic.NewFloat(0),
@@ -91,11 +73,6 @@ func (s *Sampler) SetSignatureCoefficients(offset float64, slope float64) {
 	s.signatureScoreOffset.Store(offset)
 	s.signatureScoreSlope.Store(slope)
 	s.signatureScoreFactor.Store(math.Pow(slope, math.Log10(offset)))
-}
-
-// UpdateExtraRate updates the extra sample rate
-func (s *Sampler) UpdateExtraRate(extraRate float64) {
-	s.extraRate = extraRate
 }
 
 // UpdateTargetTPS updates the max TPS limit
@@ -145,7 +122,7 @@ func (s *Sampler) Stop() {
 
 // GetSampleRate returns the sample rate to apply to a trace.
 func (s *Sampler) GetSampleRate(trace pb.Trace, root *pb.Span, signature Signature) float64 {
-	return s.loadRate(s.GetSignatureSampleRate(signature) * s.extraRate)
+	return s.GetSignatureSampleRate(signature) * s.extraRate
 }
 
 // GetTargetTPSSampleRate returns an extra sample rate to apply if we are above targetTPS.
@@ -161,8 +138,4 @@ func (s *Sampler) GetTargetTPSSampleRate() float64 {
 	}
 
 	return targetTPSrate
-}
-
-func (s *Sampler) setRateThresholdTo1(r float64) {
-	s.rateThresholdTo1 = r
 }

@@ -1,7 +1,12 @@
 """
 Utilities to manage build tags
 """
+# TODO: check if we really need the typing import.
+# Recent versions of Python should be able to use dict and list directly in type hints,
+# so we only need to check that we don't run this code with old Python versions.
+
 import sys
+from typing import List
 
 from invoke import task
 
@@ -88,7 +93,9 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "secrets", "zlib"
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"}).difference({"otlp"})
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"}).difference(
+    {"otlp", "python"}
+)
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
@@ -99,7 +106,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference("python")
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman", "secrets"}
@@ -115,8 +122,9 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     }
 )
 
-# TEST_TAGS lists the tags that have to be added to run tests
-TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
+# AGENT_TEST_TAGS lists the tags that have to be added to run tests
+AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
+
 
 ### Tag exclusion lists
 
@@ -143,18 +151,47 @@ build_tags = {
         "system-probe": SYSTEM_PROBE_TAGS,
         "trace-agent": TRACE_AGENT_TAGS,
         # Test setups
-        "test": TEST_TAGS,
-        "test-with-process-tags": TEST_TAGS.union(PROCESS_AGENT_TAGS),
+        "test": AGENT_TEST_TAGS,
+        "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
         "trace-agent": TRACE_AGENT_HEROKU_TAGS,
+        "unit-tests": AGENT_HEROKU_TAGS,
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
+        "unit-tests": IOT_AGENT_TAGS,
+    },
+    AgentFlavor.dogstatsd: {
+        "dogstatsd": DOGSTATSD_TAGS,
+        "system-tests": AGENT_TAGS,
+        "unit-tests": DOGSTATSD_TAGS,
     },
 }
+
+
+def compute_build_tags_for_flavor(
+    build: str, arch: str, build_include: List[str], build_exclude: List[str], flavor: AgentFlavor = AgentFlavor.base
+):
+    """
+    Given a flavor, an architecture, a list of tags to include and exclude, get the final list
+    of tags that should be applied.
+
+    If the list of build tags to include is empty, take the default list of build tags for
+    the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
+    for the given architecture.
+
+    Then, remove from these the provided list of tags to exclude.
+    """
+    build_include = (
+        get_default_build_tags(build=build, arch=arch, flavor=flavor)
+        if build_include is None
+        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    )
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
+    return get_build_tags(build_include, build_exclude)
 
 
 def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):

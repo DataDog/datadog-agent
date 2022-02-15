@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package host
@@ -188,11 +189,11 @@ func TestGetProxyMeta(t *testing.T) {
 }
 
 func TestGetOtlpMeta(t *testing.T) {
-	config.Datadog.Set("experimental.otlp.receiver.protocols.grpc.endpoint", "localhost:9999")
+	config.Datadog.Set(config.OTLPReceiverSection+".protocols.grpc.endpoint", "localhost:9999")
 	meta := getOtlpMeta()
 	assert.Equal(t, meta.Enabled, true)
 
-	config.Datadog.Set("experimental", nil)
+	config.Datadog.Set(config.OTLPSection, nil)
 	meta = getOtlpMeta()
 	assert.Equal(t, meta.Enabled, false)
 }

@@ -258,11 +258,7 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 //
 // On UDP side, no similar function exists in all kernel versions, though we may be able to use something like
 // skb_consume_udp (v4.10+, https://elixir.bootlin.com/linux/v4.10/source/net/ipv4/udp.c#L1500)
-SEC("kprobe/udp_recvmsg")
-int kprobe__udp_recvmsg(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    struct msghdr* msg = (struct msghdr*)PT_REGS_PARM2(ctx);
-    int flags = (int)PT_REGS_PARM5(ctx);
+static __always_inline int handle_udp_recvmsg(struct sock* sk, struct msghdr* msg, int flags, struct bpf_map_def *udp_sock_map) {
     log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
     if (flags & MSG_PEEK) {
         return 0;
@@ -277,8 +273,24 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
         bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
     }
 
-    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
+    bpf_map_update_elem(udp_sock_map, &pid_tgid, &t, BPF_ANY);
     return 0;
+}
+
+SEC("kprobe/udp_recvmsg")
+int kprobe__udp_recvmsg(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    struct msghdr* msg = (struct msghdr*)PT_REGS_PARM2(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
+    return handle_udp_recvmsg(sk, msg, flags, &udp_recv_sock);
+}
+
+SEC("kprobe/udpv6_recvmsg")
+int kprobe__udpv6_recvmsg(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    struct msghdr* msg = (struct msghdr*)PT_REGS_PARM2(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
+    return handle_udp_recvmsg(sk, msg, flags, &udpv6_recv_sock);
 }
 
 SEC("kprobe/udp_recvmsg/pre_4_1_0")
@@ -286,38 +298,29 @@ int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     struct msghdr* msg = (struct msghdr*)PT_REGS_PARM3(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
-    log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
-    if (flags & MSG_PEEK) {
-        return 0;
-    }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
-    if (sk) {
-        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
-    }
-    if (msg) {
-        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
-    }
-
-    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
-    return 0;
+    return handle_udp_recvmsg(sk, msg, flags, &udp_recv_sock);
 }
 
-SEC("kretprobe/udp_recvmsg")
-int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
+SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
+int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
+    struct msghdr* msg = (struct msghdr*)PT_REGS_PARM3(ctx);
+    int flags = (int)PT_REGS_PARM6(ctx);
+    return handle_udp_recvmsg(sk, msg, flags, &udpv6_recv_sock);
+}
+
+static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def *udp_sock_map) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kretprobe/udp_recvmsg: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     // Retrieve socket pointer from kprobe via pid/tgid
-    udp_recv_sock_t* st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+    udp_recv_sock_t* st = bpf_map_lookup_elem(udp_sock_map, &pid_tgid);
     if (!st) { // Missed entry
         return 0;
     }
 
     // Make sure we clean up the key
-    bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
-
-    int copied = (int)PT_REGS_RC(ctx);
+    bpf_map_delete_elem(udp_sock_map, &pid_tgid);
     if (copied < 0) { // Non-zero values are errors (or a peek) (e.g -EINVAL)
         log_debug("kretprobe/udp_recvmsg: ret=%d < 0, pid_tgid=%d\n", copied, pid_tgid);
         return 0;
@@ -325,14 +328,13 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 
     log_debug("kretprobe/udp_recvmsg: ret=%d\n", copied);
 
-    struct sockaddr * sa = NULL;
-    if (st->msg) {
-        bpf_probe_read(&sa, sizeof(sa), &(st->msg->msg_name));
-    }
-
     conn_tuple_t t = {};
     __builtin_memset(&t, 0, sizeof(conn_tuple_t));
-    sockaddr_to_addr(sa, &t.daddr_h, &t.daddr_l, &t.dport);
+    if (st->msg) {
+        struct sockaddr *sap = NULL;
+        bpf_probe_read(&sap, sizeof(sap), &(st->msg->msg_name));
+        sockaddr_to_addr(sap, &t.daddr_h, &t.daddr_l, &t.dport, &t.metadata);
+    }
 
     if (!read_conn_tuple_partial(&t, st->sk, pid_tgid, CONN_TYPE_UDP)) {
         log_debug("ERR(kretprobe/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
@@ -345,6 +347,18 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_NONE);
 
     return 0;
+}
+
+SEC("kretprobe/udp_recvmsg")
+int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
+    int copied = (int)PT_REGS_RC(ctx);
+    return handle_ret_udp_recvmsg(copied, &udp_recv_sock);
+}
+
+SEC("kretprobe/udpv6_recvmsg")
+int kretprobe__udpv6_recvmsg(struct pt_regs* ctx) {
+    int copied = (int)PT_REGS_RC(ctx);
+    return handle_ret_udp_recvmsg(copied, &udpv6_recv_sock);
 }
 
 SEC("kprobe/tcp_retransmit_skb")

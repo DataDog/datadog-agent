@@ -1,17 +1,20 @@
 import datetime
+import errno
 import os
 import shutil
 import sys
 import tempfile
+from subprocess import check_output
 
 from invoke import task
 
 from .build_tags import get_default_build_tags
 from .go import golangci_lint, staticcheck, vet
+from .system_probe import CLANG_CMD as CLANG_BPF_CMD
+from .system_probe import get_ebpf_build_flags
 from .utils import (
     REPO_PATH,
     bin_name,
-    bundle_files,
     generate_config,
     get_build_flags,
     get_git_branch_name,
@@ -128,6 +131,8 @@ def build(
     if not skip_assets:
         dist_folder = os.path.join(BIN_DIR, "agent", "dist")
         generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
+        if not os.path.exists(dist_folder):
+            os.makedirs(dist_folder)
         shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
@@ -174,6 +179,21 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     ctx.run(cmd.format(**args))
 
 
+def build_ebpf_probe_syscall_tester(ctx, build_dir):
+    c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
+    c_file = os.path.join(c_dir, "ebpf_probe.c")
+    o_file = os.path.join(build_dir, "ebpf_probe.o")
+
+    flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
+    flags.append(f"-D__{uname_m}__")
+    flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
+
+    return ctx.run(
+        CLANG_BPF_CMD.format(flags=" ".join(flags), bc_file=o_file, c_file=c_file),
+    )
+
+
 def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
@@ -181,47 +201,56 @@ def build_go_syscall_tester(ctx, build_dir):
     return syscall_tester_exe_file
 
 
-def build_syscall_x86_tester(ctx, build_dir, static=True):
-    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
-    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_x86_tester")
+def build_c_syscall_tester_common(ctx, file_name, build_dir, flags=None, libs=None, static=True):
+    if flags is None:
+        flags = []
+    if libs is None:
+        libs = []
 
-    flags = '-m32'
+    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
+    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
+    syscall_tester_exe_file = os.path.join(build_dir, file_name)
+
     if static:
-        flags += ' -static'
-    ctx.run(CLANG_EXE_CMD.format(flags=flags, libs='', c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
+        flags.append("-static")
+
+    flags_arg = " ".join(flags)
+    libs_arg = " ".join(libs)
+    ctx.run(
+        CLANG_EXE_CMD.format(
+            flags=flags_arg, libs=libs_arg, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file
+        )
+    )
     return syscall_tester_exe_file
+
+
+def build_syscall_x86_tester(ctx, build_dir, static=True):
+    return build_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
 
 
 def build_syscall_tester(ctx, build_dir, static=True):
-    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
-    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_tester.c")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_tester")
+    return build_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static)
 
-    flags = ''
-    if static:
-        flags += ' -static'
-    libs = '-lpthread'
-    ctx.run(
-        CLANG_EXE_CMD.format(flags=flags, libs=libs, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file)
-    )
-    return syscall_tester_exe_file
+
+def create_dir_if_needed(dir):
+    try:
+        os.makedirs(dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
 
 
 @task
-def build_embed_syscall_tester(ctx, static=True):
-    syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
-    syscall_x86_tester_bin = build_syscall_x86_tester(ctx, os.path.join(".", "bin"), static=static)
-    syscall_go_tester_bin = build_go_syscall_tester(ctx, os.path.join(".", "bin"))
-    bundle_files(
-        ctx,
-        [syscall_tester_bin, syscall_x86_tester_bin, syscall_go_tester_bin],
-        "bin",
-        "pkg/security/tests/syscall_tester/bindata.go",
-        "syscall_tester",
-        "functionaltests",
-        False,
-    )
+def build_embed_syscall_tester(ctx, arch="x64", static=True):
+    build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
+    go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
+    create_dir_if_needed(build_dir)
+
+    build_syscall_tester(ctx, build_dir, static=static)
+    if arch == "x64":
+        build_syscall_x86_tester(ctx, build_dir, static=static)
+    build_ebpf_probe_syscall_tester(ctx, go_dir)
+    build_go_syscall_tester(ctx, build_dir)
 
 
 @task
@@ -238,13 +267,9 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
 ):
-    if not skip_linters:
-        targets = ['./pkg/security/tests']
-        vet(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-
-    ldflags, _, env = get_build_flags(ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path)
+    ldflags, _, env = get_build_flags(
+        ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
+    )
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
@@ -253,17 +278,28 @@ def build_functional_tests(
     if arch == "x86":
         env["GOARCH"] = "386"
 
-    build_tags = "linux_bpf," + build_tags
+    build_tags = build_tags.split(",")
+    build_tags.append("linux_bpf")
     if bundle_ebpf:
-        build_tags = "ebpf_bindata," + build_tags
+        build_tags.append("ebpf_bindata")
 
     if static:
-        ldflags += '-extldflags "-static"'
-        build_tags += ',osusergo,netgo'
+        build_tags.extend(["osusergo", "netgo"])
+        if "CGO_CPPFLAGS" not in env:
+            env["CGO_CPPFLAGS"] = ""
+        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
+    if not skip_linters:
+        targets = ['./pkg/security/tests']
+        vet(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        staticcheck(ctx, targets=targets, build_tags=build_tags, arch=arch)
+
+    # linters have a hard time with dnf, so we add the build tag after running them
     if nikos_embedded_path:
-        build_tags += ",dnf"
+        build_tags.append("dnf")
 
+    build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
@@ -445,7 +481,7 @@ RUN apt-get update -y \
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
+    cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /:/host/root -e HOST_ROOT=/host/root '

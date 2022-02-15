@@ -68,10 +68,11 @@ type collectorFactory func() (Collector, error)
 
 // CollectorMetadata contains the characteristics of a collector to be registered with RegisterCollector
 type CollectorMetadata struct {
-	ID       string
-	Priority int // lowest gets higher priority (0 more prioritary than 1)
-	Runtimes []string
-	Factory  collectorFactory
+	ID            string
+	Priority      int // lowest gets higher priority (0 more prioritary than 1)
+	Runtimes      []string
+	Factory       collectorFactory
+	DelegateCache bool
 }
 
 type collectorReference struct {
@@ -150,6 +151,10 @@ func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
 	for _, collectorEntry := range mp.collectors {
 		collector, err := collectorEntry.Factory()
 		if err == nil {
+			if collectorEntry.DelegateCache {
+				collector = NewCollectorCache(collector)
+			}
+
 			mp.updateEffectiveCollectors(collector, collectorEntry)
 			delete(mp.collectors, collectorEntry.ID)
 		} else {

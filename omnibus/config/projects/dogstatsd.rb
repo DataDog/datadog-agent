@@ -21,6 +21,24 @@ else
   install_dir '/opt/datadog-dogstatsd'
   if redhat? || suse?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
+
+    # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
+    # because these would be used in a kickstart during package installation phase.
+    # All of the packages that we depend on in prerm/postrm scripts always have to be
+    # installed on all distros that we support, so we don't have to depend on them
+    # explicitly.
+
+    # postinst and posttrans scripts use a subset of preinst script deps, so we don't
+    # have to list them, because they'll already be there because of preinst
+    runtime_script_dependency :pre, "coreutils"
+    runtime_script_dependency :pre, "grep"
+    if redhat?
+      runtime_script_dependency :pre, "glibc-common"
+      runtime_script_dependency :pre, "shadow-utils"
+    else
+      runtime_script_dependency :pre, "glibc"
+      runtime_script_dependency :pre, "shadow"
+    end
   else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
