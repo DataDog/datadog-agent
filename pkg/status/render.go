@@ -55,38 +55,51 @@ func FormatStatus(data []byte) (string, error) {
 	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
-	// return pared down version of status if cluster checks runner
-	if config.IsCLCRunner() {
-		renderStatusTemplate(b, "/header.tmpl", stats)
-		renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
-		renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
-		renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
-		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
-		renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
 
+	headerFunc := func() { renderStatusTemplate(b, "/header.tmpl", stats) }
+	checkStatsFunc := func() {
+		renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
+	}
+	jmxFetchFunc := func() { renderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
+	forwarderFunc := func() { renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats) }
+	endpointsFunc := func() { renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos) }
+	logsAgentFunc := func() { renderStatusTemplate(b, "/logsagent.tmpl", logsStats) }
+	systemProbeFunc := func() {
+		if config.Datadog.GetBool("system_probe_config.enabled") {
+			renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
+		}
+	}
+	traceAgentFunc := func() { renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"]) }
+	aggregatorFunc := func() { renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
+	dogstatsdFunc := func() { renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats) }
+	clusterAgentFunc := func() {
+		if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
+			renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+		}
+	}
+	snmpTrapFunc := func() {
+		if traps.IsEnabled() {
+			renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+		}
+	}
+	autodiscoveryFunc := func() {
+		if config.IsContainerized() {
+			renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
+		}
+	}
+
+	// Sections of the status output that should be present in either the CLC or regular agent
+	renderFuncsByType := map[string][]func(){
+		"clc": {headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc, autodiscoveryFunc},
+		"agent": {headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc, logsAgentFunc, systemProbeFunc,
+			traceAgentFunc, aggregatorFunc, dogstatsdFunc, clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}}
+
+	if config.IsCLCRunner() {
+		renderAgentSections("clc", renderFuncsByType)
 		return b.String(), nil
 	}
-	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
-	renderStatusTemplate(b, "/jmxfetch.tmpl", stats)
-	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
-	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
-	renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
-	if config.Datadog.GetBool("system_probe_config.enabled") {
-		renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
-	}
-	renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"])
-	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
-	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
-	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
-		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
-	}
-	if traps.IsEnabled() {
-		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
-	}
-	if config.IsContainerized() {
-		renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
-	}
+
+	renderAgentSections("agent", renderFuncsByType)
 
 	return b.String(), nil
 }
@@ -224,5 +237,11 @@ func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
 	err := t.Execute(w, stats)
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+func renderAgentSections(agentType string, renderFuncsByType map[string][]func()) {
+	for _, f := range renderFuncsByType[agentType] {
+		f()
 	}
 }
