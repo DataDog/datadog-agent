@@ -125,7 +125,7 @@ func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes i
 			Available: 10000,
 			Total:     10000,
 		}}
-	diskUsageLimit := newDiskUsageLimit("", disk, maxSizeInBytes, 1)
+	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 1)
 	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry)
 	a.NoError(err)
 	return storage

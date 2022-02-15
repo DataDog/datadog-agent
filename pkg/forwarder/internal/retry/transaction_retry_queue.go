@@ -9,10 +9,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
@@ -46,18 +44,15 @@ func BuildTransactionRetryQueue(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
-	storageMaxSize int64,
+	optionalDiskUsageLimit *DiskUsageLimit,
 	dropPrioritySorter TransactionPrioritySorter,
 	resolver resolver.DomainResolver) *TransactionRetryQueue {
 	var storage TransactionSerializer
 	var err error
 
-	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
+	if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
 		serializer := NewHTTPTransactionsSerializer(resolver)
-		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
-
-		diskUsageLimit := newDiskUsageLimit(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
-		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, diskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()))
+		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()))
 
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.

@@ -25,7 +25,7 @@ const retryFileFormat = "2006_01_02__15_04_05_"
 type onDiskRetryQueue struct {
 	serializer         *HTTPTransactionsSerializer
 	storagePath        string
-	diskUsageLimit     *diskUsageLimit
+	diskUsageLimit     *DiskUsageLimit
 	filenames          []string
 	currentSizeInBytes int64
 	telemetry          onDiskRetryQueueTelemetry
@@ -34,7 +34,7 @@ type onDiskRetryQueue struct {
 func newOnDiskRetryQueue(
 	serializer *HTTPTransactionsSerializer,
 	storagePath string,
-	diskUsageLimit *diskUsageLimit,
+	diskUsageLimit *DiskUsageLimit,
 	telemetry onDiskRetryQueueTelemetry) (*onDiskRetryQueue, error) {
 
 	if err := os.MkdirAll(storagePath, 0700); err != nil {

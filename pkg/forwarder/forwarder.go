@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -219,6 +220,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	var diskUsageLimit *retry.DiskUsageLimit
 
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
@@ -242,6 +244,10 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			}
 			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
+
+		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
+		diskUsageLimit = retry.NewDiskUsageLimit(storagePath, filesystem.NewDisk(), storageMaxSize, diskRatio)
+
 	} else {
 		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
@@ -269,7 +275,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
-				storageMaxSize,
+				diskUsageLimit,
 				transactionContainerSort,
 				resolver)
 			f.domainResolvers[domain] = resolver
