@@ -1,41 +1,35 @@
-#include <linux/kconfig.h>
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "http.h"
+#include "http-buffer.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
 #include "tags-types.h"
 #include "port_range.h"
-#include "http.h"
-#include "https.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
-#error "http runtime compilation is only supported for kernel >= 4.6"
-#endif
-
+// TODO: Replace those by injected constants based on system configuration
+// once we have port range detection merged into the codebase.
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
 
-static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
-    u64 offset = (u64)info->data_off;
+static __always_inline void read_skb_data(struct __sk_buff* skb, u32 offset, char *buffer) {
+    if (skb->len - offset < HTTP_BUFFER_SIZE) {
+        return;
+    }
 
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (offset < skb->len) {
-            bpf_skb_load_bytes(skb, offset, &buffer[i], 1);
-        }
-        offset++;
+        buffer[i] = load_byte(skb, offset + i);
     }
 }
 
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
-    http_transaction_t http;
-    __builtin_memset(&http, 0, sizeof(http));
 
-    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
+    if (!read_conn_tuple_skb(skb, &skb_info)) {
         return 0;
     }
 
@@ -43,20 +37,23 @@ int socket__http_filter(struct __sk_buff* skb) {
     // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
     // Otherwise, don't bother to inspect packet contents
     // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
-    if (!(http.tup.metadata&CONN_TYPE_TCP)) {
+    if (!(skb_info.tup.metadata&CONN_TYPE_TCP)) {
         return 0;
     }
-    if ((http.tup.sport == HTTPS_PORT || http.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
+    if ((skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
         return 0;
     }
 
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http.owned_by_src_port = http.tup.sport;
-    normalize_tuple(&http.tup);
+    u16 src_port = skb_info.tup.sport;
 
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info);
+    normalize_tuple(&skb_info.tup);
+
+    char buffer[HTTP_BUFFER_SIZE];
+    __builtin_memset(buffer, 0, sizeof(buffer));
+    read_skb_data(skb, skb_info.data_off, buffer);
+    http_process(buffer, &skb_info, src_port, NO_TAGS);
     return 0;
 }
 
@@ -66,6 +63,56 @@ SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     http_notify_batch(ctx);
     return 0;
+}
+
+static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
+    ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    if (ssl_sock == NULL) {
+        return NULL;
+    }
+
+    if (ssl_sock->tup.sport != 0 && ssl_sock->tup.dport != 0) {
+        return &ssl_sock->tup;
+    }
+
+    // the code path below should be executed only once during the lifecycle of a SSL session
+    pid_fd_t pid_fd = {
+        .pid = pid_tgid >> 32,
+        .fd = ssl_sock->fd,
+    };
+
+    struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
+    if (sock == NULL)  {
+        return NULL;
+    }
+
+    conn_tuple_t t;
+    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
+        return NULL;
+    }
+
+    // Set the `.netns` and `.pid` values to always be 0.
+    // They can't be sourced from inside `read_conn_tuple_skb`,
+    // which is used elsewhere to produce the same `conn_tuple_t` value from a `struct __sk_buff*` value,
+    // so we ensure it is always 0 here so that both paths produce the same `conn_tuple_t` value.
+    // `netns` is not used in the userspace program part that binds http information to `ConnectionStats`,
+    // so this is isn't a problem.
+    t.netns = 0;
+    t.pid = 0;
+
+    __builtin_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
+
+    if (!is_ephemeral_port(ssl_sock->tup.sport)) {
+        flip_tuple(&ssl_sock->tup);
+    }
+
+    return &ssl_sock->tup;
+}
+
+static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
+    ssl_sock_t ssl_sock = { 0 };
+    ssl_sock.fd = socket_fd;
+    bpf_map_update_elem(&ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 
 // this uprobe is essentially creating an index mapping a SSL context to a conn_tuple_t
@@ -142,7 +189,12 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     }
 
     u32 len = (u32)PT_REGS_RC(ctx);
-    https_process(t, args->buf, len, LIBSSL);
+    char buffer[HTTP_BUFFER_SIZE];
+    read_into_buffer(buffer, args->buf, len);
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBSSL);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -159,7 +211,12 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
 
     void *ssl_buffer = (void *)PT_REGS_PARM2(ctx);
     size_t len = (size_t)PT_REGS_PARM3(ctx);
-    https_process(t, ssl_buffer, len, LIBSSL);
+    char buffer[HTTP_BUFFER_SIZE];
+    read_into_buffer(buffer, ssl_buffer, len);
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBSSL);
     return 0;
 }
 
@@ -172,7 +229,15 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
         return 0;
     }
 
-    https_finish(t);
+    char buffer[HTTP_BUFFER_SIZE];
+    __builtin_memset(buffer, 0, sizeof(buffer));
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+
+    // TODO: this is just a hack. Let's get rid of this skb_info argument altogether
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBSSL);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     return 0;
 }
@@ -253,7 +318,12 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    https_process(t, args->buf, read_len, LIBGNUTLS);
+    char buffer[HTTP_BUFFER_SIZE];
+    read_into_buffer(buffer, args->buf, read_len);
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBGNUTLS);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -272,7 +342,12 @@ int uprobe__gnutls_record_send(struct pt_regs* ctx) {
         return 0;
     }
 
-    https_process(t, data, data_size, LIBGNUTLS);
+    char buffer[HTTP_BUFFER_SIZE];
+    read_into_buffer(buffer, data, data_size);
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBGNUTLS);
     return 0;
 }
 
@@ -283,7 +358,15 @@ static __always_inline void gnutls_goodbye(void *ssl_session) {
         return;
     }
 
-    https_finish(t);
+    char buffer[HTTP_BUFFER_SIZE];
+    __builtin_memset(buffer, 0, sizeof(buffer));
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+
+    // TODO: this is just a hack. Let's get rid of this skb_info argument altogether
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBGNUTLS);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
 }
 
