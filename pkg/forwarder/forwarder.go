@@ -202,10 +202,15 @@ type DefaultForwarder struct {
 	m                sync.Mutex // To control Start/Stop races
 
 	completionHandler transaction.HTTPCompletionHandler
+
+	agentName                       string
+	queueDurationCapacity           *retry.QueueDurationCapacity
+	retryQueueDurationCapacityMutex sync.Mutex
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(options *Options) *DefaultForwarder {
+	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
@@ -217,6 +222,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			validationInterval:    options.APIKeyValidationInterval,
 		},
 		completionHandler: options.CompletionHandler,
+		agentName:         agentName,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
@@ -225,7 +231,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
-	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
+	} else if agentName != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		if storagePath == "" {
 			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
@@ -233,7 +239,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
-		storagePath = path.Join(storagePath, agentFolder)
+		storagePath = path.Join(storagePath, agentName)
 		optionalRemovalPolicy, err = retry.NewFileRemovalPolicy(storagePath, outdatedFileInDays, retry.FileRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
@@ -293,6 +299,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		}
 	}
 
+	timeInterval := config.Datadog.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
+	f.queueDurationCapacity = retry.NewQueueDurationCapacity(
+		time.Duration(timeInterval)*time.Second,
+		10*time.Second,
+		options.RetryQueuePayloadsTotalMaxSize,
+		diskUsageLimit)
+
 	if optionalRemovalPolicy != nil {
 		filesRemoved, err := optionalRemovalPolicy.RemoveUnknownDomains()
 		if err != nil {
@@ -304,10 +317,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	return f
 }
 
-func getAgentFolder(options *Options) string {
+func getAgentName(options *Options) string {
 	if HasFeature(options.EnabledFeatures, CoreFeatures) {
 		return "core"
 	}
+	// If a new Agent is supported by this function, the implementation of
+	// QueueDurationCapacity.ComputeCapacity must be updated.
+	// More specifically, `totalBytesPerSec` should takes into account other Agent processes.
 	return ""
 }
 
@@ -448,9 +464,29 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 		return fmt.Errorf("the forwarder is not started")
 	}
 
+	f.retryQueueDurationCapacityMutex.Lock()
+	defer f.retryQueueDurationCapacityMutex.Unlock()
+
+	now := time.Now()
 	for _, t := range transactions {
-		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
+		forwarder := f.domainForwarders[t.Domain]
+		forwarder.sendHTTPTransactions(t)
+
+		if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+			log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+		}
 	}
+
+	if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+		log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+	} else {
+		for domain, t := range capacities {
+			tlmRetryQueueDurationCapacity.Set(t.Capacity.Seconds(), f.agentName, domain)
+			tlmRetryQueueDurationBytesPerSec.Set(t.BytesPerSec, f.agentName, domain)
+			tlmRetryQueueDurationCapacityBytes.Set(float64(t.AvailableSpace), f.agentName, domain)
+		}
+	}
+
 	return nil
 }
 
