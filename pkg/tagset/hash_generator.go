@@ -144,6 +144,15 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumulator) {
 	ntags := l.Len() + r.Len()
 
+	// This implementation has been designed to remove all heap
+	// allocations from the intake in order to reduce GC pressure on high volumes.
+	//
+	// There are three implementations used here to deduplicate the tags
+	// depending on how many tags we have to process:
+	//  - 16 < n < hashSetSize: // we use a hashset of `hashSetSize` values.
+	//  - n < 16: we use a simple for loop, which is faster than the hashset when there is
+	//    less than 16 tags
+	//  - n > hashSetSize: sort
 	if ntags > hashSetSize {
 		l.AppendHashingAccumulator(r)
 		l.SortUniq()
@@ -192,7 +201,7 @@ func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumula
 			ibase = int16(ntags)
 			tb.Truncate(ntags)
 		}
-	} else {
+	} else { // ntags <= bruteforceSize
 		ldata := l.data
 		lhash := l.hash
 		lsize := len(ldata)
