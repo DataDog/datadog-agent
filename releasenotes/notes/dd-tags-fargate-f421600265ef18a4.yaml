@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Tags configured via `DD_TAGS` or `DD_EXTRA_TAGS` in an EKS Fargate environment will now be attaached to Dogstatsd metrics.
+    Tags configured with `DD_TAGS` or `DD_EXTRA_TAGS` in an EKS Fargate environment are now attached to Dogstatsd metrics.
