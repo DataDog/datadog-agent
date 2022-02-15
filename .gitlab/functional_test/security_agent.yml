@@ -36,7 +36,7 @@ kitchen_test_security_agent_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-77,rhel-81"
+        KITCHEN_OSVERS: "centos-77,rhel-81,rhel-85"
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-18-04-3"
       - KITCHEN_PLATFORM: "ubuntu"
