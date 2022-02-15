@@ -81,7 +81,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		return
 	}
 
-	stats.AddRequest(tx.StatusClass(), tx.RequestLatency(), tx.Tags())
+	stats.AddRequest(tx.StatusClass(), tx.RequestLatency())
 	h.stats[key] = stats
 }
 
