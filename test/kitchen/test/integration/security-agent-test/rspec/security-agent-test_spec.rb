@@ -2,9 +2,6 @@ require 'spec_helper'
 
 print `cat /etc/os-release`
 print `uname -a`
-print `cat /etc/yum.repos.d/* || true`
-print `ls /etc/pki/rpm-gpg/ || true`
-print `rpm -qa || true`
 
 describe 'successfully run functional test' do
   it 'displays PASS and returns 0' do
