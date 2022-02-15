@@ -138,12 +138,10 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				stats := m.statkeeper.GetAndResetAllStats()
-
 				delta := m.telemetry.reset()
 				delta.report()
 
-				reply <- stats
+				reply <- m.statkeeper.GetAndResetAllStats()
 			case <-report.C:
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)

@@ -31,17 +31,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
-
-	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: true,
-		})
-	})
-	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: false,
-		})
-	})
+	testHTTPMonitor(t, targetAddr, serverAddr, 100)
 }
 
 func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
@@ -57,16 +47,7 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
-	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: true,
-		})
-	})
-	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: false,
-		})
-	})
+	testHTTPMonitor(t, targetAddr, serverAddr, 10)
 }
 
 func TestUnknownMethodRegression(t *testing.T) {
@@ -109,8 +90,12 @@ func TestUnknownMethodRegression(t *testing.T) {
 	}
 }
 
-func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
+func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableTLS:        false,
+		EnableKeepAlives: false,
+	})
+	defer srvDoneFn()
 
 	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
@@ -124,7 +109,6 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o
 	for i := 0; i < numReqs; i++ {
 		requests = append(requests, requestFn())
 	}
-	srvDoneFn()
 
 	// Ensure all captured transactions get sent to user-space
 	time.Sleep(10 * time.Millisecond)
