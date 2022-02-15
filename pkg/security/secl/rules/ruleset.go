@@ -154,7 +154,6 @@ type RuleSet struct {
 	loadedPolicies   map[string]string
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
-	macros           map[eval.RuleID]*Macro
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
