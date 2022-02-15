@@ -63,7 +63,12 @@ func (m MetricType) String() string {
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
-	GetTags(*tagset.HashingTagsAccumulator, *tagset.HashingTagsAccumulator)
+	// GetTags extracts metric tags for context tracking.
+	//
+	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
+	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
+	// should be appended to the metricBuffer.
+	GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator)
 }
 
 // MetricSample represents a raw metric sample
