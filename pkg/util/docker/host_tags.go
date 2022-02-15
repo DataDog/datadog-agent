@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -18,12 +19,12 @@ import (
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
-func GetTags() ([]string, error) {
+func GetTags(ctx context.Context) ([]string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 	return getTags(ctx, du.cli)
 }

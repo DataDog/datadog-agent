@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "exec.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "/schemas/container_event.json"
+        },
+        {
+            "$ref": "/schemas/host_event.json"
+        }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "flags"
+                    ]
+                }
+            },
+            "required": [
+                "file"
+            ]
+        }
+    ]
+}

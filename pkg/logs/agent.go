@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package logs
 
 import (
+	"context"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -16,12 +17,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/traps"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
+	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/traps"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -29,17 +34,18 @@ import (
 
 // Agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend
-// + ------------------------------------------------------ +
-// |                                                        |
-// | Collector -> Decoder -> Processor -> Sender -> Auditor |
-// |                                                        |
-// + ------------------------------------------------------ +
+// + --------------------------------------------------------------------------------- +
+// |                                                                                   |
+// | Collector -> Decoder -> Processor -> Strategy -> Sender -> Destination -> Auditor |
+// |                                                                                   |
+// + --------------------------------------------------------------------------------- +
 type Agent struct {
-	auditor          *auditor.Auditor
-	destinationsCtx  *client.DestinationsContext
-	pipelineProvider pipeline.Provider
-	inputs           []restart.Restartable
-	health           *health.Handle
+	auditor                   auditor.Auditor
+	destinationsCtx           *client.DestinationsContext
+	pipelineProvider          pipeline.Provider
+	inputs                    []restart.Restartable
+	health                    *health.Handle
+	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 }
 
 // NewAgent returns a new Logs Agent
@@ -52,41 +58,108 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
+
+	containerLaunchables := []container.Launchable{
+		{
+			IsAvailable: docker.IsAvailable,
+			Launcher: func() restart.Restartable {
+				return docker.NewLauncher(
+					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
+					sources,
+					services,
+					pipelineProvider,
+					auditor,
+					coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
+					coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file"))
+			},
+		},
+		{
+			IsAvailable: kubernetes.IsAvailable,
+			Launcher: func() restart.Restartable {
+				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
+			},
+		},
+	}
+
+	// when k8s_container_use_file is true, always attempt to use the kubernetes launcher first
+	if coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file") {
+		containerLaunchables[0], containerLaunchables[1] = containerLaunchables[1], containerLaunchables[0]
+	}
+
+	validatePodContainerID := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		container.NewLauncher(
-			coreConfig.Datadog.GetBool("logs_config.container_collect_all"),
-			coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file"),
-			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
-			sources, services, pipelineProvider, auditor),
+		filelauncher.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
+			filelauncher.DefaultSleepDuration, validatePodContainerID, time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
 		traps.NewLauncher(sources, pipelineProvider),
 	}
 
+	// Only try to start the container launchers if Docker or Kubernetes is available
+	if coreConfig.IsFeaturePresent(coreConfig.Docker) || coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
+		inputs = append(inputs, container.NewLauncher(containerLaunchables))
+	}
+
 	return &Agent{
-		auditor:          auditor,
-		destinationsCtx:  destinationsCtx,
-		pipelineProvider: pipelineProvider,
-		inputs:           inputs,
-		health:           health,
+		auditor:                   auditor,
+		destinationsCtx:           destinationsCtx,
+		pipelineProvider:          pipelineProvider,
+		inputs:                    inputs,
+		health:                    health,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
+	}
+}
+
+// NewServerless returns a Logs Agent instance to run in a serverless environment.
+// The Serverless Logs Agent has only one input being the channel to receive the logs to process.
+// It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
+func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+	health := health.RegisterLiveness("logs-agent")
+
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+
+	// setup the a null auditor, not tracking data in any registry
+	auditor := auditor.NewNullAuditor()
+	destinationsCtx := client.NewDestinationsContext()
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+
+	// setup the inputs
+	inputs := []restart.Restartable{
+		channel.NewLauncher(sources, pipelineProvider),
+	}
+
+	return &Agent{
+		auditor:                   auditor,
+		destinationsCtx:           destinationsCtx,
+		pipelineProvider:          pipelineProvider,
+		inputs:                    inputs,
+		health:                    health,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }
 
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	starter := restart.NewStarter(a.destinationsCtx, a.auditor, a.pipelineProvider)
+	starter := restart.NewStarter(a.destinationsCtx, a.auditor, a.pipelineProvider, a.diagnosticMessageReceiver)
 	for _, input := range a.inputs {
 		starter.Add(input)
 	}
 	starter.Start()
+}
+
+// Flush flushes synchronously the pipelines managed by the Logs Agent.
+func (a *Agent) Flush(ctx context.Context) {
+	a.pipelineProvider.Flush(ctx)
 }
 
 // Stop stops all the elements of the data pipeline
@@ -101,6 +174,7 @@ func (a *Agent) Stop() {
 		a.pipelineProvider,
 		a.auditor,
 		a.destinationsCtx,
+		a.diagnosticMessageReceiver,
 	)
 
 	// This will try to stop everything in order, including the potentially blocking

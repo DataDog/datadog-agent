@@ -1,44 +1,49 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
+// +build linux
+
 package modules
 
 import (
+	"fmt"
 	"net/http"
+	"sync/atomic"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 // TCPQueueLength Factory
-var TCPQueueLength = api.Factory{
-	Name: "tcp_queue_length_tracer",
-	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled("TCP queue length") {
-			log.Infof("TCP queue length tracer disabled")
-			return nil, api.ErrNotEnabled
-		}
-
-		t, err := probe.NewTCPQueueLengthTracer(ebpf.SysProbeConfigFromConfig(cfg))
+var TCPQueueLength = module.Factory{
+	Name: config.TCPQueueLengthTracerModule,
+	Fn: func(cfg *config.Config) (module.Module, error) {
+		t, err := probe.NewTCPQueueLengthTracer(ebpf.NewConfig())
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to start the TCP queue length tracer")
+			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
 		}
 
-		return &tcpQueueLengthModule{t}, nil
+		return &tcpQueueLengthModule{TCPQueueLengthTracer: t}, nil
 	},
 }
 
-var _ api.Module = &tcpQueueLengthModule{}
+var _ module.Module = &tcpQueueLengthModule{}
 
 type tcpQueueLengthModule struct {
 	*probe.TCPQueueLengthTracer
+	lastCheck int64
 }
 
-func (t *tcpQueueLengthModule) Register(httpMux *http.ServeMux) error {
+func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
+		atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 		stats := t.TCPQueueLengthTracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	})
@@ -47,5 +52,7 @@ func (t *tcpQueueLengthModule) Register(httpMux *http.ServeMux) error {
 }
 
 func (t *tcpQueueLengthModule) GetStats() map[string]interface{} {
-	return nil
+	return map[string]interface{}{
+		"last_check": atomic.LoadInt64(&t.lastCheck),
+	}
 }

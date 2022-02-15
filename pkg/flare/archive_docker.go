@@ -1,17 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package flare
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -31,7 +32,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		return err
 	}
 
-	co, err := du.InspectSelf()
+	co, err := du.InspectSelf(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -55,24 +56,17 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	json.Indent(&out, jsonStats, "", "\t") //nolint:errcheck
 	serialized := out.Bytes()
 
-	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
+	// replace all Image: sha256:xxx with a resolved image name
+	imgRx := regexp.MustCompile(`\"Image\": \"sha256:\w+"`)
+	replFunc := func(s []byte) []byte {
+		m := string(s[10 : len(s)-1])
+		shaResolvedInspect, _ := du.ResolveImageName(context.TODO(), m)
+		return []byte(shaResolvedInspect)
 	}
-	defer w.Close()
+	serialized = imgRx.ReplaceAllFunc(serialized, replFunc)
 
-	w.RegisterReplacer(log.Replacer{
-		Regex: regexp.MustCompile(`\"Image\": \"sha256:\w+"`),
-		ReplFunc: func(s []byte) []byte {
-			m := string(s[10 : len(s)-1])
-			shaResolvedInspect, _ := du.ResolveImageName(m)
-			return []byte(shaResolvedInspect)
-		},
-	})
-
-	_, err = w.Write(serialized)
-	return err
+	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
+	return writeScrubbedFile(f, serialized)
 }
 
 func zipDockerPs(tempDir, hostname string) error {
@@ -83,7 +77,7 @@ func zipDockerPs(tempDir, hostname string) error {
 		return nil
 	}
 	options := types.ContainerListOptions{All: true, Limit: 500}
-	containerList, err := du.RawContainerList(options)
+	containerList, err := du.RawContainerList(context.TODO(), options)
 	if err != nil {
 		return err
 	}
@@ -104,17 +98,7 @@ func zipDockerPs(tempDir, hostname string) error {
 
 	// Write to file
 	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	file, err := NewRedactingWriter(f, os.ModePerm, false)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	_, err = file.Write(output.Bytes())
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeScrubbedFile(f, output.Bytes())
 }
 
 // trimCommand removes arguments from command string

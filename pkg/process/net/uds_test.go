@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package net
@@ -11,8 +17,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
@@ -23,7 +27,7 @@ func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	assert.NoError(t, err)
 
 	// Create a new socket using UDSListener
-	l, err := NewListener(&config.AgentConfig{SystemProbeAddress: socketPath})
+	l, err := NewListener(socketPath)
 	require.NoError(t, err)
 
 	l.Stop()
@@ -36,12 +40,12 @@ func testSocketExistsAsRegularFileNewUDSListener(t *testing.T, socketPath string
 	defer f.Close()
 
 	// Create a new socket using UDSListener
-	_, err = NewListener(&config.AgentConfig{SystemProbeAddress: socketPath})
+	_, err = NewListener(socketPath)
 	require.Error(t, err)
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewListener(&config.AgentConfig{SystemProbeAddress: socketPath})
+	s, err := NewListener(socketPath)
 	require.NoError(t, err)
 	defer s.Stop()
 
@@ -50,7 +54,7 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 	time.Sleep(1 * time.Second)
 	fi, err := os.Stat(socketPath)
 	require.NoError(t, err)
-	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
+	assert.Equal(t, "Srwx-w----", fi.Mode().String())
 }
 
 func TestNewUDSListener(t *testing.T) {

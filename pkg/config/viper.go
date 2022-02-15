@@ -1,21 +1,23 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
+	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // safeConfig implements Config:
@@ -24,8 +26,12 @@ import (
 type safeConfig struct {
 	*viper.Viper
 	sync.RWMutex
-	envPrefix     string
-	configEnvVars []string
+	envPrefix      string
+	envKeyReplacer *strings.Replacer
+
+	// configEnvVars is the set of env vars that are consulted for
+	// configuration values.
+	configEnvVars map[string]struct{}
 }
 
 // Set wraps Viper for concurrent access
@@ -54,6 +60,9 @@ func (c *safeConfig) SetKnown(key string) {
 func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
+
+	// GetKnownKeys returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
 }
 
@@ -123,6 +132,17 @@ func (c *safeConfig) GetInt(key string) int {
 	return val
 }
 
+// GetInt32 wraps Viper for concurrent access
+func (c *safeConfig) GetInt32(key string) int32 {
+	c.RLock()
+	defer c.RUnlock()
+	val, err := c.Viper.GetInt32E(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
+}
+
 // GetInt64 wraps Viper for concurrent access
 func (c *safeConfig) GetInt64(key string) int64 {
 	c.RLock()
@@ -178,6 +198,28 @@ func (c *safeConfig) GetStringSlice(key string) []string {
 	return val
 }
 
+// GetFloat64SliceE loads a key as a []float64
+func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	// We're using GetStringSlice because viper can only parse list of string from env variables
+	list, err := c.Viper.GetStringSliceE(key)
+	if err != nil {
+		return nil, fmt.Errorf("'%v' is not a list", key)
+	}
+
+	res := []float64{}
+	for _, item := range list {
+		nb, err := strconv.ParseFloat(item, 64)
+		if err != nil {
+			return nil, fmt.Errorf("value '%v' from '%v' is not a float64", item, key)
+		}
+		res = append(res, nb)
+	}
+	return res, nil
+}
+
 // GetStringMap wraps Viper for concurrent access
 func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
@@ -231,18 +273,34 @@ func (c *safeConfig) SetEnvPrefix(in string) {
 	c.envPrefix = in
 }
 
+// mergeWithEnvPrefix derives the environment variable that Viper will use for a given key.
+func (c *safeConfig) mergeWithEnvPrefix(key string) string {
+	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
+}
+
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(input ...string) error {
+func (c *safeConfig) BindEnv(input ...string) {
 	c.Lock()
 	defer c.Unlock()
+	var envKeys []string
+
+	// If one input is given, viper derives an env key from it; otherwise, all inputs after
+	// the first are literal env vars.
 	if len(input) == 1 {
-		// FIXME: for the purposes of GetEnvVars implementation, we only track env var keys
-		// that are interpolated by viper from the config option key name
-		key := input[0]
-		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-		c.configEnvVars = append(c.configEnvVars, envVarName)
+		envKeys = []string{c.mergeWithEnvPrefix(input[0])}
+	} else {
+		envKeys = input[1:]
 	}
-	return c.Viper.BindEnv(input...)
+
+	for _, key := range envKeys {
+		// apply EnvKeyReplacer to each key
+		if c.envKeyReplacer != nil {
+			key = c.envKeyReplacer.Replace(key)
+		}
+		c.configEnvVars[key] = struct{}{}
+	}
+
+	_ = c.Viper.BindEnv(input...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -250,6 +308,7 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.RLock()
 	defer c.RUnlock()
 	c.Viper.SetEnvKeyReplacer(r)
+	c.envKeyReplacer = r
 }
 
 // UnmarshalKey wraps Viper for concurrent access
@@ -276,8 +335,10 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 // ReadInConfig wraps Viper for concurrent access
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
-	defer c.Unlock()
-	return c.Viper.ReadInConfig()
+	err := c.Viper.ReadInConfig()
+	c.Unlock()
+	promoteExperimentalOTLP(c) // TODO(gbbr): remove after 7.35.0 is released
+	return err
 }
 
 // ReadConfig wraps Viper for concurrent access
@@ -305,6 +366,9 @@ func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
 func (c *safeConfig) AllSettings() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
+
+	// AllSettings returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
 	return c.Viper.AllSettings()
 }
 
@@ -352,7 +416,11 @@ func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
 
 // GetEnvVars implements the Config interface
 func (c *safeConfig) GetEnvVars() []string {
-	return c.configEnvVars
+	vars := make([]string, 0, len(c.configEnvVars))
+	for v := range c.configEnvVars {
+		vars = append(vars, v)
+	}
+	return vars
 }
 
 // BindEnvAndSetDefault implements the Config interface
@@ -364,7 +432,8 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...st
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
 	config := safeConfig{
-		Viper: viper.New(),
+		Viper:         viper.New(),
+		configEnvVars: map[string]struct{}{},
 	}
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)

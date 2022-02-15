@@ -1,7 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
 	"net"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,22 +49,24 @@ func TestNetIPToAddress(t *testing.T) {
 }
 
 func TestNetIPFromAddress(t *testing.T) {
+	buf := make([]byte, 16)
+
 	// v4
 	addr := V4Address(889192575)
 	ip := net.ParseIP("127.0.0.53").To4()
-	ipFromAddr := NetIPFromAddress(addr)
+	ipFromAddr := NetIPFromAddress(addr, buf)
 	assert.Equal(t, ip, ipFromAddr)
 
 	// v6
 	addr = V6Address(889192575, 0)
 	ip = net.ParseIP("::7f00:35:0:0")
-	ipFromAddr = NetIPFromAddress(addr)
+	ipFromAddr = NetIPFromAddress(addr, buf)
 	assert.Equal(t, ip, ipFromAddr)
 
 	// v4 + v6 mismatched
 	addr = V4Address(889192575)
 	ip = net.ParseIP("::7f00:35:0:0")
-	ipFromAddr = NetIPFromAddress(addr)
+	ipFromAddr = NetIPFromAddress(addr, buf)
 	assert.NotEqual(t, ip, ipFromAddr)
 }
 
@@ -136,4 +144,19 @@ func TestAddressV6(t *testing.T) {
 	assert.Equal(t, addr, AddressFromString("2001:db8::2:1"))
 	assert.Equal(t, "2001:db8::2:1", addr.String())
 	assert.False(t, addr.IsLoopback())
+}
+
+func BenchmarkNetIPFromAddress(b *testing.B) {
+	var (
+		buf  = make([]byte, 16)
+		addr = AddressFromString("8.8.8.8")
+		ip   net.IP
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ip = NetIPFromAddress(addr, buf)
+	}
+	runtime.KeepAlive(ip)
 }

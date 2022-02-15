@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    APM: Automatically activate non-local trafic (i.e. listening on 0.0.0.0) for APM in containerized environment if no explicit setting is set (bind_host or apm_non_local_traffic)

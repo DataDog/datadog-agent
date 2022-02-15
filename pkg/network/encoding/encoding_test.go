@@ -1,60 +1,76 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
 	"encoding/json"
+	"fmt"
+	"runtime"
+	"strings"
+	"syscall"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go4.org/intern"
 )
 
-func TestSerialization(t *testing.T) {
-	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source:               util.AddressFromString("10.1.1.1"),
-				Dest:                 util.AddressFromString("10.2.2.2"),
-				MonotonicSentBytes:   1,
-				LastSentBytes:        2,
-				MonotonicRecvBytes:   100,
-				LastRecvBytes:        101,
-				LastUpdateEpoch:      50,
-				LastTCPEstablished:   1,
-				LastTCPClosed:        1,
-				MonotonicRetransmits: 201,
-				LastRetransmits:      201,
-				Pid:                  6000,
-				NetNS:                7,
-				SPort:                1000,
-				DPort:                9000,
-				IPTranslation: &network.IPTranslation{
-					ReplSrcIP:   util.AddressFromString("20.1.1.1"),
-					ReplDstIP:   util.AddressFromString("20.1.1.1"),
-					ReplSrcPort: 40,
-					ReplDstPort: 70,
-				},
+type connTag = uint64
 
-				Type:      network.UDP,
-				Family:    network.AFINET6,
-				Direction: network.LOCAL,
+// ConnTag constant must be the same for all platform
+const (
+	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
+	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+)
 
-				DNSCountByRcode: map[uint32]uint32{0: 1},
-				DNSStatsByDomain: map[string]network.DNSStats{
-					"foo.com": {
-						DNSTimeouts:          0,
-						DNSSuccessLatencySum: 0,
-						DNSFailureLatencySum: 0,
-						DNSCountByRcode:      map[uint32]uint32{0: 1},
+var originalConfig = config.Datadog
+
+func restoreGlobalConfig() {
+	config.Datadog = originalConfig
+}
+
+func newConfig() {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.InitConfig(config.Datadog)
+}
+func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *model.Connections {
+	var dnsByDomain map[int32]*model.DNSStats
+	var dnsByDomainByQuerytype map[int32]*model.DNSStatsByQueryType
+
+	if encodedWithQueryType {
+		dnsByDomainByQuerytype = map[int32]*model.DNSStatsByQueryType{
+			0: {
+				DnsStatsByQueryType: map[int32]*model.DNSStats{
+					int32(dns.TypeA): {
+						DnsTimeouts:          0,
+						DnsSuccessLatencySum: 0,
+						DnsFailureLatencySum: 0,
+						DnsCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
 			},
-		},
-		DNS: map[util.Address][]string{
-			util.AddressFromString("172.217.12.145"): {"golang.org"},
-		},
+		}
+	} else {
+		dnsByDomain = map[int32]*model.DNSStats{
+			0: {
+				DnsTimeouts:          0,
+				DnsSuccessLatencySum: 0,
+				DnsFailureLatencySum: 0,
+				DnsCountByRcode:      map[uint32]uint32{0: 1},
+			},
+		}
 	}
 
 	out := &model.Connections{
@@ -73,31 +89,174 @@ func TestSerialization(t *testing.T) {
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
 					ReplSrcPort: int32(40),
-					ReplDstPort: int32(70),
+					ReplDstPort: int32(80),
 				},
 
 				Type:      model.ConnectionType_udp,
 				Family:    model.ConnectionFamily_v6,
 				Direction: model.ConnectionDirection_local,
 
-				DnsCountByRcode: map[uint32]uint32{0: 1},
-				DnsStatsByDomain: map[int32]*model.DNSStats{
-					0: {
-						DnsTimeouts:          0,
-						DnsSuccessLatencySum: 0,
-						DnsFailureLatencySum: 0,
-						DnsCountByRcode:      map[uint32]uint32{0: 1},
-					},
-				},
+				RouteIdx:         0,
+				HttpAggregations: httpOutBlob,
+			},
+			{
+				Laddr: &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr: &model.Addr{Ip: "8.8.8.8", Port: int32(53)},
+
+				Type:      model.ConnectionType_udp,
+				Family:    model.ConnectionFamily_v6,
+				Direction: model.ConnectionDirection_local,
+
+				DnsCountByRcode:             map[uint32]uint32{0: 1},
+				DnsStatsByDomain:            dnsByDomain,
+				DnsStatsByDomainByQueryType: dnsByDomainByQuerytype,
+				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
+
+				RouteIdx: -1,
 			},
 		},
 		Dns: map[string]*model.DNSEntry{
 			"172.217.12.145": {Names: []string{"golang.org"}},
 		},
 		Domains: []string{"foo.com"},
+		Routes: []*model.Route{
+			{
+				Subnet: &model.Subnet{
+					Alias: "subnet-foo",
+				},
+			},
+		},
+		AgentConfiguration: &model.AgentConfiguration{
+			NpmEnabled: false,
+			TsmEnabled: false,
+		},
+		Tags: network.GetStaticTags(1),
+	}
+	if runtime.GOOS == "linux" {
+		out.Conns[1].Tags = []uint32{0}
+	}
+	return out
+}
+func TestSerialization(t *testing.T) {
+	var httpReqStats http.RequestStats
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source:               util.AddressFromString("10.1.1.1"),
+					Dest:                 util.AddressFromString("10.2.2.2"),
+					MonotonicSentBytes:   1,
+					LastSentBytes:        2,
+					MonotonicRecvBytes:   100,
+					LastRecvBytes:        101,
+					LastUpdateEpoch:      50,
+					LastTCPEstablished:   1,
+					LastTCPClosed:        1,
+					MonotonicRetransmits: 201,
+					LastRetransmits:      201,
+					Pid:                  6000,
+					NetNS:                7,
+					SPort:                1000,
+					DPort:                9000,
+					IPTranslation: &network.IPTranslation{
+						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
+						ReplDstIP:   util.AddressFromString("20.1.1.1"),
+						ReplSrcPort: 40,
+						ReplDstPort: 80,
+					},
+
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
+					Via: &network.Via{
+						Subnet: network.Subnet{
+							Alias: "subnet-foo",
+						},
+					},
+				},
+				{
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("8.8.8.8"),
+					SPort:     1000,
+					DPort:     53,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
+					Tags:      uint64(1),
+				},
+			},
+		},
+		DNS: map[util.Address][]string{
+			util.AddressFromString("172.217.12.145"): {"golang.org"},
+		},
+		DNSStats: dns.StatsByKeyByNameByType{
+			dns.Key{
+				ClientIP:   util.AddressFromString("10.1.1.1"),
+				ServerIP:   util.AddressFromString("8.8.8.8"),
+				ClientPort: uint16(1000),
+				Protocol:   syscall.IPPROTO_UDP,
+			}: map[*intern.Value]map[dns.QueryType]dns.Stats{
+				intern.GetByString("foo.com"): {
+					dns.TypeA: {
+						Timeouts:          0,
+						SuccessLatencySum: 0,
+						FailureLatencySum: 0,
+						CountByRcode:      map[uint32]uint32{0: 1},
+					},
+				},
+			},
+		},
+		HTTP: map[http.Key]http.RequestStats{
+			http.NewKey(
+				util.AddressFromString("20.1.1.1"),
+				util.AddressFromString("20.1.1.1"),
+				40,
+				80,
+				"/testpath",
+				http.MethodGet,
+			): httpReqStats,
+		},
 	}
 
-	t.Run("requesting application/json serialization", func(t *testing.T) {
+	httpOut := &model.HTTPAggregations{
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:   "/testpath",
+				Method: model.HTTPMethod_Get,
+				StatsByResponseStatus: []*model.HTTPStats_Data{
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+				},
+			},
+		},
+	}
+
+	httpOutBlob, err := proto.Marshal(httpOut)
+	require.NoError(t, err)
+
+	t.Run("requesting application/json serialization (no query types)", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
 		assert.Equal("application/json", marshaler.ContentType())
@@ -108,10 +267,46 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
+		assert.Equal(out, result)
+	})
+	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		out := getExpectedConnections(true, httpOutBlob)
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/json")
+		assert.Equal("application/json", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/json")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("")
 		// in case we request empty serialization type, default to application/json
@@ -123,24 +318,22 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.Equal(out, result)
-	})
 
-	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
-		assert := assert.New(t)
-		marshaler := GetMarshaler("application/protobuf")
-		assert.Equal("application/protobuf", marshaler.ContentType())
-
-		blob, err := marshaler.Marshal(in)
-		require.NoError(t, err)
-
-		unmarshaler := GetUnmarshaler("application/protobuf")
-		result, err := unmarshaler.Unmarshal(blob)
-		require.NoError(t, err)
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		out := getExpectedConnections(false, httpOutBlob)
+
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/whatever")
 
@@ -153,6 +346,13 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
@@ -162,7 +362,11 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		// Empty connection batch
-		blob, err := marshaler.Marshal(&network.Connections{Conns: []network.ConnectionStats{{}}})
+		blob, err := marshaler.Marshal(&network.Connections{
+			BufferedData: network.BufferedData{
+				Conns: []network.ConnectionStats{{}},
+			},
+		})
 		require.NoError(t, err)
 
 		res := struct {
@@ -179,4 +383,275 @@ func TestSerialization(t *testing.T) {
 			assert.Contains(res.Conns[0], field)
 		}
 	})
+
+	t.Run("requesting application/protobuf serialization (no query types)", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		out := getExpectedConnections(false, httpOutBlob)
+
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/protobuf")
+		assert.Equal("application/protobuf", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		assert.Equal(out, result)
+	})
+	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		out := getExpectedConnections(true, httpOutBlob)
+
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/protobuf")
+		assert.Equal("application/protobuf", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		assert.Equal(out, result)
+	})
+}
+
+func TestFormatHTTPStatsByPath(t *testing.T) {
+	var httpReqStats http.RequestStats
+	httpReqStats.AddRequest(100, 12.5, 0)
+	httpReqStats.AddRequest(100, 12.5, tagGnuTLS)
+	httpReqStats.AddRequest(405, 3.5, tagOpenSSL)
+	httpReqStats.AddRequest(405, 3.5, 0)
+
+	// Verify the latency data is correct prior to serialization
+	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
+	assert.Equal(t, 2.0, latencies.GetCount())
+	verifyQuantile(t, latencies, 0.5, 12.5)
+
+	latencies = httpReqStats[model.HTTPResponseStatus_ClientErr].Latencies
+	assert.Equal(t, 2.0, latencies.GetCount())
+	verifyQuantile(t, latencies, 0.5, 3.5)
+
+	key := http.NewKey(
+		util.AddressFromString("10.1.1.1"),
+		util.AddressFromString("10.2.2.2"),
+		1000,
+		9000,
+		"/testpath",
+		http.MethodGet,
+	)
+	statsByKey := map[http.Key]http.RequestStats{
+		key: httpReqStats,
+	}
+	formattedStats, formattedTags := FormatHTTPStats(statsByKey)
+
+	// Now path will be nested in the map
+	key.Path = ""
+	key.Method = http.MethodUnknown
+
+	endpointAggregations := formattedStats[key].EndpointAggregations
+	require.Len(t, endpointAggregations, 1)
+	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
+	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
+
+	// Deserialize the encoded latency information & confirm it is correct
+	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus
+	assert.Len(t, statsByResponseStatus, 5)
+
+	tags := formattedTags[key]
+	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
+
+	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
+	sketch := unmarshalSketch(t, serializedLatencies)
+	assert.Equal(t, 2.0, sketch.GetCount())
+	verifyQuantile(t, sketch, 0.5, 12.5)
+
+	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_ClientErr].Latencies
+	sketch = unmarshalSketch(t, serializedLatencies)
+	assert.Equal(t, 2.0, sketch.GetCount())
+	verifyQuantile(t, sketch, 0.5, 3.5)
+
+	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
+	assert.Nil(t, serializedLatencies)
+}
+
+func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
+	var (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		localhost  = util.AddressFromString("127.0.0.1")
+	)
+
+	var httpReqStats http.RequestStats
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  clientPort,
+					DPort:  serverPort,
+				},
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  serverPort,
+					DPort:  clientPort,
+				},
+			},
+		},
+		HTTP: map[http.Key]http.RequestStats{
+			http.NewKey(
+				localhost,
+				localhost,
+				clientPort,
+				serverPort,
+				"/testpath",
+				http.MethodGet,
+			): httpReqStats,
+		},
+	}
+
+	httpOut := &model.HTTPAggregations{
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:   "/testpath",
+				Method: model.HTTPMethod_Get,
+				StatsByResponseStatus: []*model.HTTPStats_Data{
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+				},
+			},
+		},
+	}
+
+	httpOutBlob, err := proto.Marshal(httpOut)
+	require.NoError(t, err)
+
+	out := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+			},
+			{
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+			},
+		},
+		AgentConfiguration: &model.AgentConfiguration{
+			NpmEnabled: false,
+			TsmEnabled: false,
+		},
+	}
+
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	assert.Equal(t, out, result)
+}
+
+func TestPooledObjectGarbageRegression(t *testing.T) {
+	// This test ensures that no garbage data is accidentally
+	// left on pooled Connection objects used during serialization
+	httpKey := http.NewKey(
+		util.AddressFromString("10.0.15.1"),
+		util.AddressFromString("172.217.10.45"),
+		60000,
+		8080,
+		"",
+		http.MethodGet,
+	)
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: util.AddressFromString("10.0.15.1"),
+					SPort:  uint16(60000),
+					Dest:   util.AddressFromString("172.217.10.45"),
+					DPort:  uint16(8080),
+				},
+			},
+		},
+	}
+
+	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
+		marshaler := GetMarshaler("application/protobuf")
+		blob, err := marshaler.Marshal(c)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		httpBlob := result.Conns[0].HttpAggregations
+		if httpBlob == nil {
+			return nil
+		}
+
+		httpOut := new(model.HTTPAggregations)
+		err = proto.Unmarshal(httpBlob, httpOut)
+		require.NoError(t, err)
+		return httpOut
+	}
+
+	// Let's alternate between payloads with and without HTTP data
+	for i := 0; i < 1000; i++ {
+		if (i % 2) == 0 {
+			httpKey.Path = fmt.Sprintf("/path-%d", i)
+			in.HTTP = map[http.Key]http.RequestStats{httpKey: {}}
+			out := encodeAndDecodeHTTP(in)
+
+			require.NotNil(t, out)
+			require.Len(t, out.EndpointAggregations, 1)
+			require.Equal(t, httpKey.Path, out.EndpointAggregations[0].Path)
+		} else {
+			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
+			in.HTTP = nil
+			out := encodeAndDecodeHTTP(in)
+			require.Nil(t, out, "expected a nil object, but got garbage")
+		}
+	}
+}
+
+func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
+	var sketchPb sketchpb.DDSketch
+	err := proto.Unmarshal(bytes, &sketchPb)
+	assert.Nil(t, err)
+
+	ret, err := ddsketch.FromProto(&sketchPb)
+	assert.Nil(t, err)
+
+	return ret
+}
+
+func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expectedValue float64) {
+	val, err := sketch.GetValueAtQuantile(q)
+	assert.Nil(t, err)
+
+	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
+	assert.True(t, val >= expectedValue-acceptableError)
+	assert.True(t, val <= expectedValue+acceptableError)
 }

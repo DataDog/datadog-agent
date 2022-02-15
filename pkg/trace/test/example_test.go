@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package test
 
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
@@ -45,9 +44,9 @@ func Example() {
 
 	// Assert the results.
 	switch v := (<-runner.Out()).(type) {
-	case pb.TracePayload:
-		fmt.Println("OK traces: ", len(v.Traces))
-	case stats.Payload:
+	case pb.AgentPayload:
+		fmt.Println("OK tracer payloads: ", len(v.TracerPayloads))
+	case pb.StatsPayload:
 		fmt.Println("OK stats: ", len(v.Stats))
 	}
 }

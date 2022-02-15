@@ -1,0 +1,138 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "selinux.json",
+    "definitions": {
+        "bool": {
+            "type": "object",
+            "properties": {
+                "bool": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "state": {
+                            "enum": [
+                                "on",
+                                "off"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "state"
+                    ]
+                }
+            },
+            "required": [
+                "bool"
+            ]
+        },
+        "enforce": {
+            "type": "object",
+            "properties": {
+                "enforce": {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "enforcing",
+                                "permissive",
+                                "disabled"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "status"
+                    ]
+                }
+            },
+            "required": [
+                "enforce"
+            ]
+        },
+        "bool_commit": {
+            "type": "object",
+            "properties": {
+                "bool_commit": {
+                    "type": "object",
+                    "properties": {
+                        "state": {
+                            "type": "boolean"
+                        }
+                    },
+                    "required": [
+                        "state"
+                    ]
+                }
+            },
+            "required": [
+                "bool_commit"
+            ]
+        }
+    },
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "/schemas/container_event.json"
+        },
+        {
+            "$ref": "/schemas/host_event.json"
+        }
+    ],
+    "properties": {
+        "selinux": {
+            "type": "object",
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/bool"
+                },
+                {
+                    "$ref": "#/definitions/enforce"
+                },
+                {
+                    "$ref": "#/definitions/bool_commit"
+                }
+            ]
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "required": [
+                            "container_path"
+                        ]
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "container"
+                ]
+            }
+        },
+        {
+            "if": {
+                "required": [
+                    "container"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "required": [
+                            "container_path"
+                        ]
+                    }
+                }
+            }
+        }
+    ],
+    "required": [
+        "selinux"
+    ]
+}

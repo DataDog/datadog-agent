@@ -2,7 +2,7 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
+set +x
 
 test "$1" || {
     echo "Must provide a ssh IP or DNS as \$1"
@@ -16,7 +16,7 @@ test "${COMMIT_ID}" || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}")
+SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master} ARGO_WORKFLOW=${ARGO_WORKFLOW:-''} DATADOG_AGENT_SITE=${DATADOG_AGENT_SITE:-''} DATADOG_AGENT_API_KEY=${DATADOG_AGENT_API_KEY:-''} DATADOG_AGENT_APP_KEY=${DATADOG_AGENT_APP_KEY:-''}")
 
 function _ssh() {
     ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" "$@"
@@ -50,15 +50,18 @@ _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-a
 }
 _ssh git -C /home/core/datadog-agent checkout "${COMMIT_ID}"
 
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-wait.sh
-_ssh timeout 120 /home/core/datadog-agent/test/e2e/scripts/run-instance/11-pupernetes-ready.sh
 if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
     oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
-    _ssh_logged \"sudo docker login --username \\\"${DOCKER_REGISTRY_LOGIN}\\\" --password \\\"${DOCKER_REGISTRY_PWD}\\\" \\\"${DOCKER_REGISTRY_URL}\\\"\"
+    _ssh_logged \"sudo docker login --username \\\""${DOCKER_REGISTRY_LOGIN}"\\\" --password \\\""${DOCKER_REGISTRY_PWD}"\\\" \\\""${DOCKER_REGISTRY_URL}"\\\"\"
     eval "$oldstate"
-    _ssh_logged \"sudo cp /root/.docker/config.json /var/lib/p8s-kubelet\"
+else
+    _ssh_logged \"sudo mkdir -p /root/.docker \&\& sudo touch /root/.docker/config.json\"
 fi
 
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-setup-kind.sh
+# Force reconnection to take into account the addition of the `docker` group to the `core` user
+_ssh -O exit ||:
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/11-setup-kind-cluster.sh
 
 # Use a logged bash
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh

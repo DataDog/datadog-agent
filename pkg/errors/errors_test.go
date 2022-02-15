@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package errors
 
@@ -32,7 +32,7 @@ func TestRetriable(t *testing.T) {
 	require.Equal(t, `couldn't fetch "foo": bar`, err.Error())
 
 	// Is
-	var errFunc func() error = func() error { return NewRetriable("foo", errors.New("bar")) }
+	var errFunc = func() error { return NewRetriable("foo", errors.New("bar")) }
 	require.True(t, IsRetriable(errFunc()))
 	require.False(t, IsRetriable(fmt.Errorf("fake")))
 	require.False(t, IsRetriable(fmt.Errorf(`couldn't fetch "foo": bar`)))

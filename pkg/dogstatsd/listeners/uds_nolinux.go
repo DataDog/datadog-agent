@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build !linux
 // +build !linux
 
 package listeners
@@ -10,6 +11,8 @@ package listeners
 import (
 	"errors"
 	"net"
+
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
 // ErrLinuxOnly is emitted on non-linux platforms
@@ -26,6 +29,6 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
-func processUDSOrigin(oob []byte) (string, error) {
-	return NoOrigin, ErrLinuxOnly
+func processUDSOrigin(oob []byte) (int, string, error) {
+	return 0, packets.NoOrigin, ErrLinuxOnly
 }

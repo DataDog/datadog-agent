@@ -1,7 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package gui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -19,6 +25,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -74,7 +81,6 @@ func runCheck(w http.ResponseWriter, r *http.Request) {
 		common.Coll.RunCheck(ch) //nolint:errcheck
 	}
 	log.Infof("Scheduled new check: " + name)
-	w.Write([]byte("Scheduled new check:" + name))
 }
 
 // Runs a specified check once
@@ -105,8 +111,8 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 		t0 := time.Now()
 		err := ch.Run()
 		warnings := ch.GetWarnings()
-		mStats, _ := ch.GetMetricStats()
-		s.Add(time.Since(t0), err, warnings, mStats)
+		sStats, _ := ch.GetSenderStats()
+		s.Add(time.Since(t0), err, warnings, sStats)
 
 		// Without a small delay some of the metrics will not show up
 		time.Sleep(100 * time.Millisecond)
@@ -150,13 +156,37 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
-	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)))
+	fmt.Fprintf(w, "Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
+}
+
+func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {
+	val := vars[name]
+
+	if (val == "" && allowEmpty) || (val != "" && !strings.Contains(val, "\\") && !strings.Contains(val, "/") && !strings.HasPrefix(val, ".")) {
+		return val, nil
+	}
+
+	return "", errors.New("invalid path component")
+}
+
+func getFileNameAndFolder(vars map[string]string) (fileName, checkFolder string, err error) {
+	if fileName, err = getPathComponentFromRequest(vars, "fileName", false); err != nil {
+		return "", "", err
+	}
+	if checkFolder, err = getPathComponentFromRequest(vars, "checkFolder", true); err != nil {
+		return "", "", err
+	}
+	return fileName, checkFolder, nil
 }
 
 // Sends the specified config (.yaml) file
 func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
-	fileName := mux.Vars(r)["fileName"]
-	checkFolder := mux.Vars(r)["checkFolder"]
+	fileName, checkFolder, err := getFileNameAndFolder(mux.Vars(r))
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
+
 	if checkFolder != "" {
 		fileName = filepath.Join(checkFolder, fileName)
 	}
@@ -164,7 +194,12 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	var file []byte
 	var e error
 	for _, path := range configPaths {
-		file, e = ioutil.ReadFile(filepath.Join(path, fileName))
+		filePath, err := securejoin.SecureJoin(path, fileName)
+		if err != nil {
+			log.Errorf("Error: Unable to join config path with the file name: %s", fileName)
+			continue
+		}
+		file, e = ioutil.ReadFile(filePath)
 		if e == nil {
 			break
 		}
@@ -189,8 +224,11 @@ type configFormat struct {
 // Overwrites a specific check's configuration (yaml) file with new data
 // or makes a new config file for that check, if there isn't one yet
 func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
-	fileName := mux.Vars(r)["fileName"]
-	checkFolder := mux.Vars(r)["checkFolder"]
+	fileName, checkFolder, err := getFileNameAndFolder(mux.Vars(r))
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
 
 	var checkConfFolderPath, defaultCheckConfFolderPath string
 
@@ -222,13 +260,21 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Attempt to write new configs to custom checks directory
-		path := filepath.Join(checkConfFolderPath, fileName)
+		path, err := securejoin.SecureJoin(checkConfFolderPath, fileName)
+		if err != nil {
+			log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+			return
+		}
 		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 		e = ioutil.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-			path = filepath.Join(defaultCheckConfFolderPath, fileName)
+			path, err = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			if err != nil {
+				log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+				return
+			}
 			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 			e = ioutil.WriteFile(path, data, 0600)
 		}
@@ -243,12 +289,20 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Success"))
 	} else if r.Method == "DELETE" {
 		// Attempt to write new configs to custom checks directory
-		path := filepath.Join(checkConfFolderPath, fileName)
+		path, err := securejoin.SecureJoin(checkConfFolderPath, fileName)
+		if err != nil {
+			log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+			return
+		}
 		e := os.Rename(path, path+".disabled")
 
 		// If the move didn't work, try writing to the dev checks directory
 		if e != nil {
-			path = filepath.Join(defaultCheckConfFolderPath, fileName)
+			path, err = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			if err != nil {
+				log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+				return
+			}
 			e = os.Rename(path, path+".disabled")
 		}
 

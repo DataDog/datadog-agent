@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet && orchestrator
 // +build kubelet,orchestrator
 
 package kubelet
 
 import (
+	"context"
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
@@ -43,6 +45,7 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 }
 
 func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -61,7 +64,7 @@ func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 	require.NotNil(suite.T(), kubeutil)
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.GetRawLocalPodList()
+	pods, err := kubeutil.GetRawLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), pods, 7)
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -38,13 +38,14 @@ func TestNewCustomCheck(t *testing.T) {
 		checkFactory      checkFactoryFunc
 		expectError       error
 		expectCheckReport *compliance.Report
-		expectCheckError  error
 	}{
 		{
 			name: "wrong resource kind",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/bitsy/spider",
+				ResourceCommon: compliance.ResourceCommon{
+					File: &compliance.File{
+						Path: "/etc/bitsy/spider",
+					},
 				},
 			},
 			expectError: errors.New("expecting custom resource in custom check"),
@@ -52,15 +53,19 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "missing check name",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{},
+				ResourceCommon: compliance.ResourceCommon{
+					Custom: &compliance.Custom{},
+				},
 			},
 			expectError: errors.New("missing check name in custom check"),
 		},
 		{
 			name: "allowed empty condition",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				ResourceCommon: compliance.ResourceCommon{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 			},
 			checkFactory: func(_ string) custom.CheckFunc {
@@ -71,20 +76,27 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "custom check error",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				ResourceCommon: compliance.ResourceCommon{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 			},
 			checkFactory: func(_ string) custom.CheckFunc {
 				return customCheckFunc(nil, expectCheckError)
 			},
-			expectCheckError: expectCheckError,
+			expectCheckReport: &compliance.Report{
+				Passed: false,
+				Error:  expectCheckError,
+			},
 		},
 		{
 			name: "condition expression failure",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				ResourceCommon: compliance.ResourceCommon{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 				Condition: "~",
 			},
@@ -93,8 +105,10 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "cannot find check by name",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				ResourceCommon: compliance.ResourceCommon{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 			},
 			checkFactory: func(_ string) custom.CheckFunc {
@@ -115,12 +129,12 @@ func TestNewCustomCheck(t *testing.T) {
 			} else {
 				assert.NotNil(check)
 				env := &mocks.Env{}
-				report, err := check.check(env)
-				if test.expectCheckError != nil {
-					assert.EqualError(err, test.expectCheckError.Error())
-
+				reports := check.check(env)
+				if test.expectCheckReport.Error != nil {
+					assert.EqualError(reports[0].Error, test.expectCheckReport.Error.Error())
 				}
-				assert.Equal(test.expectCheckReport, report)
+				assert.Equal(test.expectCheckReport.Passed, reports[0].Passed)
+				assert.Equal(test.expectCheckReport.Data, reports[0].Data)
 			}
 		})
 	}

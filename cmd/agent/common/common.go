@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package common provides a set of common symbols needed by different packages,
 // to avoid circular dependencies.
@@ -10,14 +10,17 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -35,9 +38,6 @@ var (
 
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler
-
-	// Forwarder is the global forwarder instance
-	Forwarder forwarder.Forwarder
 
 	// MainCtx is the main agent context passed to components
 	MainCtx context.Context
@@ -67,4 +67,14 @@ func GetVersion(w http.ResponseWriter, r *http.Request) {
 	av, _ := version.Agent()
 	j, _ := json.Marshal(av)
 	w.Write(j)
+}
+
+// NewSettingsClient returns a configured runtime settings client.
+func NewSettingsClient() (settings.Client, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+	hc := util.GetClient(false)
+	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "agent"), nil
 }

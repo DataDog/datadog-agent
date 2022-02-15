@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
@@ -114,6 +114,12 @@ public:
       \return A C-string with the check result.
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
+
+    //! Pure virtual cancelCheck member.
+    /*!
+      \param check The python object pointer to the check we wish to cancel.
+    */
+    virtual void cancelCheck(RtLoaderPyObject *check) = 0;
 
     //! Pure virtual getCheckWarnings member.
     /*!
@@ -257,6 +263,14 @@ public:
       Actual histogram buckets are submitted from go-land, this allows us to set the CGO callback.
     */
     virtual void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t) = 0;
+
+    //! setSubmitEventPlatformEventCb member.
+    /*!
+      \param A cb_submit_event_platform_event_t function pointer to the CGO callback.
+
+      Actual events are submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t) = 0;
 
     // datadog_agent API
 
@@ -427,6 +441,15 @@ public:
     */
     virtual void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t) = 0;
 
+    //! setGetProcessStartTimeCb member.
+    /*!
+      \param A cb_get_process_start_time_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow retrieving value for
+      specific check instances.
+    */
+    virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
+
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */
@@ -436,9 +459,10 @@ private:
   \typedef create_t defines the factory function prototype to create RtLoader instances for
   the underlying python runtimes.
   \param python_home A C-string path to the python home for the target python runtime.
+  \param python_exe A C-string path to the python interpreter.
   \return A pointer to the RtLoader instance created by the implementing function.
 */
-typedef RtLoader *(create_t)(const char *python_home, cb_memory_tracker_t memtrack_cb);
+typedef RtLoader *(create_t)(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb);
 
 /*! destroy_t function prototype
   \typedef destroy_t defines the destructor function prototype to destroy existing RtLoader instances.

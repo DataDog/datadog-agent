@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package healthprobe
 
@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -70,6 +71,9 @@ func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.Re
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Infof("Healthcheck failed on: %v", health.Unhealthy)
+		if config.Datadog.GetBool("log_all_goroutines_when_unhealthy") {
+			log.Infof("Goroutines stack: \n%s\n", allStack())
+		}
 	}
 
 	jsonHealth, err := json.Marshal(health)

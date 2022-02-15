@@ -1,13 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker && !darwin
 // +build docker,!darwin
 
 package collectors
 
 import (
+	"context"
+	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -25,6 +30,10 @@ type DockerCollector struct {
 
 // Detect tries to connect to the docker socket and returns success
 func (c *DockerCollector) Detect() error {
+	if !config.IsFeaturePresent(config.Docker) {
+		return errors.New("Docker feature is deactivated")
+	}
+
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return err
@@ -40,7 +49,7 @@ func (c *DockerCollector) Detect() error {
 
 // List gets all running containers
 func (c *DockerCollector) List() ([]*containers.Container, error) {
-	return c.dockerUtil.ListContainers(c.listConfig)
+	return c.dockerUtil.ListContainers(context.TODO(), c.listConfig)
 }
 
 // UpdateMetrics updates metrics on an existing list of containers

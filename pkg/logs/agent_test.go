@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package logs
 
@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 
@@ -84,12 +85,9 @@ func createAgent(endpoints *config.Endpoints) (*Agent, *config.LogSources, *serv
 	return agent, sources, services
 }
 
-func (suite *AgentTestSuite) TestAgent() {
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-
-	endpoint := tcp.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil, true, false, 0)
+func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
+	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -118,51 +116,55 @@ func (suite *AgentTestSuite) TestAgent() {
 	agent.Stop()
 }
 
-func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
-	endpoint := config.Endpoint{Host: "fake:", Port: 0}
-	endpoints := config.NewEndpoints(endpoint, nil, true, false, 0)
+func (suite *AgentTestSuite) TestAgentTcp() {
+
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	suite.testAgent(endpoints)
+}
+
+func (suite *AgentTestSuite) TestAgentHttp() {
+
+	server := http.NewTestServer(200)
+	defer server.Stop()
+	server.Endpoint.IsReliable = true
+	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
+
+	suite.testAgent(endpoints)
+}
+
+func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
+	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
+
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
+	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 
 	agent, sources, _ := createAgent(endpoints)
 
 	agent.Start()
 	sources.AddSource(suite.source)
 	// Give the agent at most one second to process the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsProcessed.Value()
 	})
 	agent.Stop()
 
+	// The context gets canceled when the agent stops. At this point the additional sender is stuck
+	// trying to establish a connection. `agent.Stop()` will cancel it and the error telemetry will be updated
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return int64(2) == metrics.DestinationErrors.Value()
+	})
+
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
-	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
+	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("fake:").String())
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
-}
-
-func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-
-	endpoint := tcp.AddrToEndPoint(l.Addr())
-	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
-
-	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{additionalEndpoint}, true, false, 0)
-
-	agent, sources, _ := createAgent(endpoints)
-
-	agent.Start()
-	sources.AddSource(suite.source)
-	// Give the agent at most one second to send the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
-		return int64(2) == metrics.LogsSent.Value()
-	})
-	agent.Stop()
-
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-	assert.Equal(suite.T(), int64(2), metrics.LogsSent.Value())
-	assert.Equal(suite.T(), int64(0), metrics.DestinationErrors.Value())
-	assert.Equal(suite.T(), "{\"still_fake\": 0}", metrics.DestinationLogsDropped.String())
 }
 
 func TestAgentTestSuite(t *testing.T) {

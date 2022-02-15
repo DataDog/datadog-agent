@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package auditor
 
@@ -39,9 +39,10 @@ type Registry interface {
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {
-	LastUpdated time.Time
-	Offset      string
-	TailingMode string
+	LastUpdated        time.Time
+	Offset             string
+	TailingMode        string
+	IngestionTimestamp int64
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -51,10 +52,19 @@ type JSONRegistry struct {
 }
 
 // An Auditor handles messages successfully submitted to the intake
-type Auditor struct {
+type Auditor interface {
+	Registry
+	Start()
+	Stop()
+	// Channel returns the channel to which successful payloads should be sent.
+	Channel() chan *message.Payload
+}
+
+// A RegistryAuditor is storing the Auditor information using a registry.
+type RegistryAuditor struct {
 	health        *health.Handle
 	chansMutex    sync.Mutex
-	inputChan     chan *message.Message
+	inputChan     chan *message.Payload
 	registry      map[string]*RegistryEntry
 	registryPath  string
 	registryMutex sync.Mutex
@@ -63,8 +73,8 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(runPath string, filename string, ttl time.Duration, health *health.Handle) *Auditor {
-	return &Auditor{
+func New(runPath string, filename string, ttl time.Duration, health *health.Handle) *RegistryAuditor {
+	return &RegistryAuditor{
 		health:       health,
 		registryPath: filepath.Join(runPath, filename),
 		entryTTL:     ttl,
@@ -72,7 +82,7 @@ func New(runPath string, filename string, ttl time.Duration, health *health.Hand
 }
 
 // Start starts the Auditor
-func (a *Auditor) Start() {
+func (a *RegistryAuditor) Start() {
 	a.createChannels()
 	a.registry = a.recoverRegistry()
 	a.cleanupRegistry()
@@ -80,7 +90,7 @@ func (a *Auditor) Start() {
 }
 
 // Stop stops the Auditor
-func (a *Auditor) Stop() {
+func (a *RegistryAuditor) Stop() {
 	a.closeChannels()
 	a.cleanupRegistry()
 	if err := a.flushRegistry(); err != nil {
@@ -88,14 +98,14 @@ func (a *Auditor) Stop() {
 	}
 }
 
-func (a *Auditor) createChannels() {
+func (a *RegistryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
-	a.inputChan = make(chan *message.Message, config.ChanSize)
+	a.inputChan = make(chan *message.Payload, config.ChanSize)
 	a.done = make(chan struct{})
 }
 
-func (a *Auditor) closeChannels() {
+func (a *RegistryAuditor) closeChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
 	if a.inputChan != nil {
@@ -111,13 +121,15 @@ func (a *Auditor) closeChannels() {
 
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
-func (a *Auditor) Channel() chan *message.Message {
+func (a *RegistryAuditor) Channel() chan *message.Payload {
+	a.chansMutex.Lock()
+	defer a.chansMutex.Unlock()
 	return a.inputChan
 }
 
 // GetOffset returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
-func (a *Auditor) GetOffset(identifier string) string {
+func (a *RegistryAuditor) GetOffset(identifier string) string {
 	r := a.readOnlyRegistryCopy()
 	entry, exists := r[identifier]
 	if !exists {
@@ -128,7 +140,7 @@ func (a *Auditor) GetOffset(identifier string) string {
 
 // GetTailingMode returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
-func (a *Auditor) GetTailingMode(identifier string) string {
+func (a *RegistryAuditor) GetTailingMode(identifier string) string {
 	r := a.readOnlyRegistryCopy()
 	entry, exists := r[identifier]
 	if !exists {
@@ -138,7 +150,7 @@ func (a *Auditor) GetTailingMode(identifier string) string {
 }
 
 // run keeps up to date the registry depending on different events
-func (a *Auditor) run() {
+func (a *RegistryAuditor) run() {
 	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
 	flushTicker := time.NewTicker(defaultFlushPeriod)
 	defer func() {
@@ -152,13 +164,15 @@ func (a *Auditor) run() {
 	for {
 		select {
 		case <-a.health.C:
-		case msg, isOpen := <-a.inputChan:
+		case payload, isOpen := <-a.inputChan:
 			if !isOpen {
 				// inputChan has been closed, no need to update the registry anymore
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode)
+			for _, msg := range payload.Messages {
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
+			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()
@@ -179,7 +193,7 @@ func (a *Auditor) run() {
 }
 
 // recoverRegistry rebuilds the registry from the state file found at path
-func (a *Auditor) recoverRegistry() map[string]*RegistryEntry {
+func (a *RegistryAuditor) recoverRegistry() map[string]*RegistryEntry {
 	mr, err := ioutil.ReadFile(a.registryPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -198,7 +212,7 @@ func (a *Auditor) recoverRegistry() map[string]*RegistryEntry {
 }
 
 // cleanupRegistry removes expired entries from the registry
-func (a *Auditor) cleanupRegistry() {
+func (a *RegistryAuditor) cleanupRegistry() {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	expireBefore := time.Now().UTC().Add(-a.entryTTL)
@@ -210,7 +224,7 @@ func (a *Auditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
-func (a *Auditor) updateRegistry(identifier string, offset string, tailingMode string) {
+func (a *RegistryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -219,15 +233,25 @@ func (a *Auditor) updateRegistry(identifier string, offset string, tailingMode s
 		// specially want to avoid storing the offset
 		return
 	}
+
+	// Don't update the registry with a value older than the current one
+	// This can happen when dual shipping and 2 destinations are sending the same payload successfully
+	if v, ok := a.registry[identifier]; ok {
+		if v.IngestionTimestamp > ingestionTimestamp {
+			return
+		}
+	}
+
 	a.registry[identifier] = &RegistryEntry{
-		LastUpdated: time.Now().UTC(),
-		Offset:      offset,
-		TailingMode: tailingMode,
+		LastUpdated:        time.Now().UTC(),
+		Offset:             offset,
+		TailingMode:        tailingMode,
+		IngestionTimestamp: ingestionTimestamp,
 	}
 }
 
 // readOnlyRegistryCopy returns a read only copy of the registry
-func (a *Auditor) readOnlyRegistryCopy() map[string]RegistryEntry {
+func (a *RegistryAuditor) readOnlyRegistryCopy() map[string]RegistryEntry {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	r := make(map[string]RegistryEntry)
@@ -238,7 +262,7 @@ func (a *Auditor) readOnlyRegistryCopy() map[string]RegistryEntry {
 }
 
 // flushRegistry writes on disk the registry at the given path
-func (a *Auditor) flushRegistry() error {
+func (a *RegistryAuditor) flushRegistry() error {
 	r := a.readOnlyRegistryCopy()
 	mr, err := a.marshalRegistry(r)
 	if err != nil {
@@ -248,7 +272,7 @@ func (a *Auditor) flushRegistry() error {
 }
 
 // marshalRegistry marshals a registry
-func (a *Auditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
+func (a *RegistryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
 	r := JSONRegistry{
 		Version:  registryAPIVersion,
 		Registry: registry,
@@ -257,7 +281,7 @@ func (a *Auditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, er
 }
 
 // unmarshalRegistry unmarshals a registry
-func (a *Auditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error) {
+func (a *RegistryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error) {
 	var r map[string]interface{}
 	err := json.Unmarshal(b, &r)
 	if err != nil {

@@ -4,7 +4,7 @@ start on started datadog-agent
 stop on (runlevel [!2345] or stopping datadog-agent)
 
 respawn
-respawn limit 10 5
+respawn limit 4 25
 normal exit 0
 
 # Logging to console from the agent is disabled since the agent already logs using file or

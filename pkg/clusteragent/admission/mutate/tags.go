@@ -1,27 +1,28 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package mutate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -50,8 +51,8 @@ func (o *ownerInfo) buildID(ns string) string {
 
 // InjectTags adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
-func InjectTags(req *admiv1beta1.AdmissionRequest, dc dynamic.Interface) (*admiv1beta1.AdmissionResponse, error) {
-	return mutate(req, injectTags, dc)
+func InjectTags(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) {
+	return mutate(rawPod, ns, injectTags, dc)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
@@ -108,7 +109,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 
 // shouldInjectConf returns whether we should try to inject standard tags
 func shouldInjectTags(pod *corev1.Pod) bool {
-	if val := pod.GetLabels()[admission.EnabledLabelKey]; val == "false" {
+	if val := pod.GetLabels()[common.EnabledLabelKey]; val == "false" {
 		return false
 	}
 	return true
@@ -190,7 +191,7 @@ func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*unstru
 
 	log.Tracef("Cache miss while getting owner '%s'", infoID)
 	metrics.GetOwnerCacheMiss.Inc(info.gvr.Resource)
-	ownerObj, err := dc.Resource(info.gvr).Namespace(ns).Get(info.name, metav1.GetOptions{})
+	ownerObj, err := dc.Resource(info.gvr).Namespace(ns).Get(context.TODO(), info.name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

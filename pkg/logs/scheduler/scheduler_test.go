@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package scheduler
 
@@ -28,9 +28,8 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configSource})
@@ -57,9 +56,8 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configSource})
@@ -86,9 +84,8 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configSource})
@@ -112,22 +109,20 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configService})
 	svc := <-servicesStream
-	assert.Equal(t, configService.Entity, svc.GetEntityID())
+	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
 
 	// shouldn't consider pods
 	configService = integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 	go adScheduler.Schedule([]integration.Config{configService})
 	select {
@@ -149,9 +144,8 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	// We need to have a source to remove
@@ -178,22 +172,20 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 
 	go adScheduler.Unschedule([]integration.Config{configService})
 	svc := <-servicesStream
-	assert.Equal(t, configService.Entity, svc.GetEntityID())
+	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
 
 	// shouldn't consider pods
 	configService = integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 
 	go adScheduler.Unschedule([]integration.Config{configService})
@@ -215,9 +207,8 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
-		CreationTime: 0,
 		LogsExcluded: true,
 	}
 

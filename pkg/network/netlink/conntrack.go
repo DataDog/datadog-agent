@@ -1,5 +1,10 @@
-// +build linux
-// +build !android
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && !android
+// +build linux,!android
 
 package netlink
 
@@ -59,7 +64,7 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 
 	replies, err := c.conn.Execute(msg)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) {
 			return false, nil
 		}
 

@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package service
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
@@ -26,13 +28,9 @@ type agentWindowsService struct{}
 
 // Execute sets up the configuration and runs the Agent as a Windows service
 func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
-	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
+	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
 	changes <- svc.Status{State: svc.StartPending}
-	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
-	if err := common.ImportRegistryConfig(); err != nil {
-		elog.Warning(0x80000001, err.Error())
-		// continue running agent with existing config
-	}
+
 	if err := common.CheckAndUpgradeConfig(); err != nil {
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
@@ -45,7 +43,7 @@ func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest,
 		return
 	}
 	elog.Info(0x40000003, config.ServiceName)
-
+	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 loop:
 	for {
 		select {
@@ -60,13 +58,17 @@ loop:
 				log.Info("Received stop message from service control manager")
 				elog.Info(0x4000000c, config.ServiceName)
 				break loop
+			case svc.PreShutdown:
+				log.Info("Received pre shutdown message from service control manager")
+				elog.Info(0x40000010, config.ServiceName)
+				break loop
 			case svc.Shutdown:
 				log.Info("Received shutdown message from service control manager")
 				elog.Info(0x4000000d, config.ServiceName)
 				break loop
 			default:
 				log.Warnf("unexpected control request #%d", c)
-				elog.Error(0xc0000009, string(c.Cmd))
+				elog.Error(0xc0000009, fmt.Sprint(c.Cmd))
 			}
 		case <-signals.Stopper:
 			elog.Info(0x4000000a, config.ServiceName)

@@ -1,11 +1,10 @@
 #pragma once
-#include <memory>
 #include <heapapi.h>
+#include <memory>
 
-template <class P>
-struct heap_deleter
+template <class P> struct heap_deleter
 {
-    typedef P* pointer;
+    typedef P *pointer;
 
     void operator()(pointer ptr) const
     {

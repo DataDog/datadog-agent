@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -12,23 +13,19 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // NanoToUserHZDivisor holds the divisor to convert cpu.usage to the
 // same unit as cpu.system (USER_HZ = 1/100)
 // TODO: get USER_HZ from gopsutil? Needs to patch it
 const NanoToUserHZDivisor float64 = 1e9 / 100
-
-var (
-	numCPU = float64(runtime.NumCPU())
-)
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not
 // available then we return an empty stats file.
@@ -193,6 +190,10 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", statfile)
+		ret.User = -1
+		ret.System = -1
+		ret.Shares = -1
+		ret.UsageTotal = -1
 		return ret, nil
 	} else if err != nil {
 		return nil, err
@@ -204,13 +205,13 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 		if fields[0] == "user" {
 			user, err := strconv.ParseUint(fields[1], 10, 64)
 			if err == nil {
-				ret.User = user
+				ret.User = float64(user)
 			}
 		}
 		if fields[0] == "system" {
 			system, err := strconv.ParseUint(fields[1], 10, 64)
 			if err == nil {
-				ret.System = system
+				ret.System = float64(system)
 			}
 		}
 	}
@@ -223,13 +224,15 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	if err == nil {
 		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
+		ret.UsageTotal = -1
 		log.Debugf("Missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
 	}
 
 	shares, err := c.ParseSingleStat("cpu", "cpu.shares")
 	if err == nil {
-		ret.Shares = shares
+		ret.Shares = float64(shares)
 	} else {
+		// Shares cannot be 0, so not required to set to -1
 		log.Debugf("Missing cpu shares stat for %s: %s", c.ContainerID, err.Error())
 	}
 
@@ -270,7 +273,8 @@ func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64
 
 // CPULimit would show CPU limit for this cgroup.
 // It does so by checking the cpu period and cpu quota config
-// if a user does this:
+// or cpuset if CPUs are pinned.
+// If a user does this:
 //
 //	docker run --cpus='0.5' ubuntu:latest
 //
@@ -278,28 +282,53 @@ func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64
 //
 // However cfs_period_us is per CPU, which means that
 //
-// docker run --cpu='2' ubuntu:latest
+// docker run --cpus='2' ubuntu:latest
 //
 // Will yield 200% (cfs_period_us = 100000, cfs_quota_us = 200000)
+//
+// If a user does:
+//
+// docker run --cpuset-cpus='1,3' ubuntu:latest
+//
+// we should return 200%
+//
+// In the case that both CFS quota and CPU sets are defined, we take the minimum.
 //
 // If the limits files aren't available (on older version) then
 // we'll return the default value of numCPU * 100.
 func (c ContainerCgroup) CPULimit() (float64, error) {
-	limit := numCPU * 100.0
+	defaultLimit := float64(system.HostCPUCount()) * 100.0
+	limitFromCPUSet := float64(-1)
+	limitFromQuota := float64(-1)
+
+	cpusetFile := c.cgroupFilePath("cpuset", "cpuset.cpus")
+	cpuLines, err := readLines(cpusetFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("Missing cgroup file: %s", cpusetFile)
+		} else {
+			return 0, err
+		}
+	} else {
+		numCPUs := parseCPUSetFile(cpuLines)
+		if numCPUs > 0 {
+			limitFromCPUSet = float64(numCPUs) * 100.0
+		}
+	}
 
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
 	plines, err := readLines(periodFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", periodFile)
-		return limit, nil
+		return defaultLimit, nil
 	} else if err != nil {
 		return 0, err
 	}
 	qlines, err := readLines(quotaFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", quotaFile)
-		return limit, nil
+		return defaultLimit, nil
 	} else if err != nil {
 		return 0, err
 	}
@@ -338,9 +367,23 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 
 	// default cpu limit is 100%
 	if (period > 0) && (quota > 0) {
-		limit = quota / period * 100.0
+		limitFromQuota = quota / period * 100.0
 	}
-	return limit, nil
+
+	// Return min of limitFromCPUSet and limitFromQuota. If they are both -1, return default
+	if limitFromCPUSet == -1 && limitFromQuota == -1 {
+		return defaultLimit, nil
+	}
+
+	if limitFromCPUSet == -1 {
+		return limitFromQuota, nil
+	}
+
+	if limitFromQuota == -1 {
+		return limitFromCPUSet, nil
+	}
+
+	return math.Min(limitFromQuota, limitFromCPUSet), nil
 }
 
 // IO returns the disk read and write bytes stats for this cgroup.

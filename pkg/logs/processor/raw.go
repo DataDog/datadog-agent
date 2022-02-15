@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package processor
 
@@ -38,7 +38,7 @@ func (r *rawEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, e
 		extraContent = time.Now().UTC().AppendFormat(extraContent, config.DateFormat)
 		extraContent = append(extraContent, ' ')
 
-		extraContent = append(extraContent, []byte(getHostname())...)
+		extraContent = append(extraContent, []byte(msg.GetHostname())...)
 		extraContent = append(extraContent, ' ')
 
 		// Service

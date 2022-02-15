@@ -1,14 +1,48 @@
 syntax = "proto3";
 
+option go_package = "pkg/security/api";
+
 package api;
 
-message GetParams{}
+message GetEventParams{}
 
 message SecurityEventMessage {
     string RuleID = 1;
     bytes Data = 2;
+    repeated string Tags = 3;
+    string Service = 4;
+}
+
+message DumpProcessCacheParams{
+    bool WithArgs = 1;
+}
+
+message SecurityDumpProcessCacheMessage {
+    string Filename = 1;
+}
+
+message GetConfigParams{}
+
+message SecurityConfigMessage {
+    bool RuntimeEnabled = 1;
+    bool FIMEnabled = 2;
+}
+
+message RunSelfTestParams{}
+
+message ReloadPoliciesParams{}
+
+message ReloadPoliciesResultMessage{}
+
+message SecuritySelfTestResultMessage {
+    bool Ok = 1;
+    string Error = 2;
 }
 
 service SecurityModule {
-    rpc GetEvents(GetParams) returns (stream SecurityEventMessage) {}
+    rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
+    rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
+    rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
+    rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
+    rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
 }

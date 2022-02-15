@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package service
 
@@ -13,7 +13,7 @@ import (
 
 func TestAddService(t *testing.T) {
 	services := NewServices()
-	service := NewService("foo", "1234", Before)
+	service := NewService("foo", "1234")
 
 	services.AddService(service)
 
@@ -35,7 +35,7 @@ func TestAddService(t *testing.T) {
 
 func TestRemoveService(t *testing.T) {
 	services := NewServices()
-	service := NewService("foo", "1234", Before)
+	service := NewService("foo", "1234")
 
 	services.RemoveService(service)
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -75,30 +75,38 @@ var taggerListCommand = &cobra.Command{
 		for entity, tagItem := range tr.Entities {
 			fmt.Fprintln(color.Output, fmt.Sprintf("\n=== Entity %s ===", color.GreenString(entity)))
 
-			fmt.Fprint(color.Output, "Tags: [")
-			// sort tags for easy comparison
-			sort.Slice(tagItem.Tags, func(i, j int) bool {
-				return tagItem.Tags[i] < tagItem.Tags[j]
-			})
-			for i, tag := range tagItem.Tags {
-				tagInfo := strings.Split(tag, ":")
-				fmt.Fprintf(color.Output, fmt.Sprintf("%s:%s", color.BlueString(tagInfo[0]), color.CyanString(strings.Join(tagInfo[1:], ":"))))
-				if i != len(tagItem.Tags)-1 {
-					fmt.Fprintf(color.Output, " ")
-				}
+			sources := make([]string, 0, len(tagItem.Tags))
+			for source := range tagItem.Tags {
+				sources = append(sources, source)
 			}
-			fmt.Fprintln(color.Output, "]")
-			fmt.Fprint(color.Output, "Sources: [")
-			sort.Slice(tagItem.Sources, func(i, j int) bool {
-				return tagItem.Sources[i] < tagItem.Sources[j]
+
+			// sort sources for deterministic output
+			sort.Slice(sources, func(i, j int) bool {
+				return sources[i] < sources[j]
 			})
-			for i, source := range tagItem.Sources {
-				fmt.Fprintf(color.Output, fmt.Sprintf("%s", color.BlueString(source)))
-				if i != len(tagItem.Sources)-1 {
-					fmt.Fprintf(color.Output, " ")
+
+			for _, source := range sources {
+				fmt.Fprintln(color.Output, fmt.Sprintf("== Source %s ==", source))
+
+				fmt.Fprint(color.Output, "Tags: [")
+
+				// sort tags for easy comparison
+				tags := tagItem.Tags[source]
+				sort.Slice(tags, func(i, j int) bool {
+					return tags[i] < tags[j]
+				})
+
+				for i, tag := range tags {
+					tagInfo := strings.Split(tag, ":")
+					fmt.Fprintf(color.Output, fmt.Sprintf("%s:%s", color.BlueString(tagInfo[0]), color.CyanString(strings.Join(tagInfo[1:], ":"))))
+					if i != len(tags)-1 {
+						fmt.Fprintf(color.Output, " ")
+					}
 				}
+
+				fmt.Fprintln(color.Output, "]")
 			}
-			fmt.Fprintln(color.Output, "]")
+
 			fmt.Fprintln(color.Output, "===")
 		}
 

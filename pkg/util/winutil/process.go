@@ -1,20 +1,30 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
 // +build windows
 
 package winutil
 
 import (
 	"fmt"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	modntdll                      = windows.NewLazyDLL("ntdll.dll")
-	modkernel                     = windows.NewLazyDLL("kernel32.dll")
-	procNtQueryInformationProcess = modntdll.NewProc("NtQueryInformationProcess")
-	procReadProcessMemory         = modkernel.NewProc("ReadProcessMemory")
-	procIsWow64Process            = modkernel.NewProc("IsWow64Process")
+	modntdll                       = windows.NewLazyDLL("ntdll.dll")
+	modkernel                      = windows.NewLazyDLL("kernel32.dll")
+	procNtQueryInformationProcess  = modntdll.NewProc("NtQueryInformationProcess")
+	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
+	procIsWow64Process             = modkernel.NewProc("IsWow64Process")
+	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
 )
 
 // C definition from winternl.h
@@ -88,9 +98,12 @@ func ReadProcessMemory(h windows.Handle, from, to uintptr, count uint32) (bytesR
 		uintptr(unsafe.Pointer(&bytes)))
 
 	if r == 0 {
-		err = windows.GetLastError()
-		fmt.Printf("Error %v %v\n", err, e)
-		return
+		if e == windows.ERROR_ACCESS_DENIED {
+			log.Debugf("Access denied error getting process memory")
+		} else {
+			log.Warnf("Unexpected error getting process memory for handle (h) %v (err) %v", h, e)
+		}
+		return 0, e
 	}
 	bytesRead = bytes
 	return
@@ -122,15 +135,21 @@ type procParams32 struct {
 	env                    uint32
 }
 
-func getCommandLineForProcess32(h windows.Handle) (cmdline string, err error) {
+// ProcessCommandParams defines process command params
+type ProcessCommandParams struct {
+	CmdLine   string
+	ImagePath string
+}
+
+func getCommandParamsForProcess32(h windows.Handle, includeImagePath bool) (*ProcessCommandParams, error) {
 	// get the pointer to the PEB
 	var procmem uintptr
 	size := unsafe.Sizeof(procmem)
-	err = NtQueryInformationProcess(h, ProcessWow64Information, uintptr(unsafe.Pointer(&procmem)), size)
+	err := NtQueryInformationProcess(h, ProcessWow64Information, uintptr(unsafe.Pointer(&procmem)), size)
 	if err != nil {
 		// this shouldn't happen because we already know we're asking about
 		// a 32 bit process.
-		return
+		return nil, err
 	}
 	var peb peb32
 	var read uint64
@@ -139,11 +158,11 @@ func getCommandLineForProcess32(h windows.Handle) (cmdline string, err error) {
 
 	read, err = ReadProcessMemory(h, procmem, uintptr(unsafe.Pointer(&peb)), toRead)
 	if err != nil {
-		return
+		return nil, err
 	}
 	if read != uint64(toRead) {
 		err = fmt.Errorf("Wrong amount of bytes read %v != %v", read, toRead)
-		return
+		return nil, err
 	}
 
 	// now go get the actual parameters
@@ -152,29 +171,44 @@ func getCommandLineForProcess32(h windows.Handle) (cmdline string, err error) {
 
 	read, err = ReadProcessMemory(h, uintptr(peb.ProcessParameters), uintptr(unsafe.Pointer(&pparams)), uint32(pparamsSize))
 	if err != nil {
-		return
+		return nil, err
 	}
 	if read != uint64(pparamsSize) {
 		err = fmt.Errorf("Wrong amount of bytes read %v != %v", read, pparamsSize)
-		return
+		return nil, err
 	}
-	cmdlinebuffer := pparams.commandLine.buffer
-	cmdlinelen := pparams.commandLine.length
-	//cmdlinelen := 1024
 
-	finalbuf := make([]uint8, cmdlinelen+2)
-
-	read, err = ReadProcessMemory(h, uintptr(cmdlinebuffer), uintptr(unsafe.Pointer(&finalbuf[0])), uint32(cmdlinelen+2))
+	cmdline, err := readUnicodeString32(h, pparams.commandLine)
 	if err != nil {
-		return
+		return nil, err
 	}
-	if read != uint64(cmdlinelen+2) {
-		err = fmt.Errorf("Wrong amount of bytes read %v != %v", read, cmdlinelen+2)
-		return
-	}
-	cmdline = ConvertWindowsString(finalbuf)
-	return
 
+	var imagepath string
+	if includeImagePath {
+		imagepath, err = readUnicodeString32(h, pparams.ImagePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	procCommandParams := &ProcessCommandParams{
+		CmdLine:   cmdline,
+		ImagePath: imagepath,
+	}
+
+	return procCommandParams, nil
+}
+
+func readUnicodeString32(h windows.Handle, u unicodeString32) (string, error) {
+	buf := make([]uint8, u.length+2)
+	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
+	if err != nil {
+		return "", err
+	}
+	if read != uint64(u.length+2) {
+		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString32) %v != %v", read, u.length+2)
+	}
+	return ConvertWindowsString(buf), nil
 }
 
 // this definition taken from Winternl.h
@@ -209,70 +243,109 @@ type processBasicInformationStruct struct {
 	Reserved3       uintptr
 }
 
-func getCommandLineForProcess64(h windows.Handle) (cmdline string, err error) {
+func getCommandParamsForProcess64(h windows.Handle, includeImagePath bool) (*ProcessCommandParams, error) {
 	var pbi processBasicInformationStruct
 	pbisize := unsafe.Sizeof(pbi)
-	err = NtQueryInformationProcess(h, ProcessBasicInformation, uintptr(unsafe.Pointer(&pbi)), pbisize)
+	err := NtQueryInformationProcess(h, ProcessBasicInformation, uintptr(unsafe.Pointer(&pbi)), pbisize)
 	if err != nil {
-		return
+		return nil, err
 	}
 	// read the peb
 	var peb _peb
 	pebsize := unsafe.Sizeof(peb)
 	readsize, err := ReadProcessMemory(h, pbi.PebBaseAddress, uintptr(unsafe.Pointer(&peb)), uint32(pebsize))
 	if err != nil {
-		return
+		return nil, err
 	}
 	if readsize != uint64(pebsize) {
 		err = fmt.Errorf("Incorrect read size %v %v", readsize, pebsize)
-		return
+		return nil, err
 	}
+
 	// go get the parameters
 	var pparams _rtlUserProcessParameters
 	paramsize := unsafe.Sizeof(pparams)
 	readsize, err = ReadProcessMemory(h, peb.ProcessParameters, uintptr(unsafe.Pointer(&pparams)), uint32(paramsize))
-	if readsize != uint64(paramsize) {
-		err = fmt.Errorf("Incorrect read size %v %v", readsize, paramsize)
-		return
-	}
-	cmdlinebuffer := make([]uint8, pparams.commandLine.length+2)
-	readsize, err = ReadProcessMemory(h, pparams.commandLine.buffer, uintptr(unsafe.Pointer(&cmdlinebuffer[0])), uint32(pparams.commandLine.length+2))
 	if err != nil {
-		return
+		return nil, err
 	}
-	if readsize != uint64(pparams.commandLine.length+2) {
-		err = fmt.Errorf("Wrong amount of bytes read %v != %v", readsize, pparams.commandLine.length+2)
-		return
+	if readsize != uint64(paramsize) {
+		return nil, fmt.Errorf("Incorrect read size %v %v", readsize, paramsize)
 	}
-	cmdline = ConvertWindowsString(cmdlinebuffer)
-	return
+
+	cmdline, err := readUnicodeString(h, pparams.commandLine)
+	if err != nil {
+		return nil, err
+	}
+
+	var imagepath string
+	if includeImagePath {
+		imagepath, err = readUnicodeString(h, pparams.imagePathName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	procCommandParams := &ProcessCommandParams{
+		CmdLine:   cmdline,
+		ImagePath: imagepath,
+	}
+
+	return procCommandParams, nil
 }
 
-// GetCommandLineForProcess returns the command line for the given process.
-func GetCommandLineForProcess(h windows.Handle) (cmdline string, err error) {
+func readUnicodeString(h windows.Handle, u unicodeString) (string, error) {
+	buf := make([]uint8, u.length+2)
+	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
+	if err != nil {
+		return "", err
+	}
+	if read != uint64(u.length+2) {
+		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString) %v != %v", read, u.length+2)
+	}
+	return ConvertWindowsString(buf), nil
+}
+
+// GetCommandParamsForProcess returns the command line (and optionally image path) for the given process
+func GetCommandParamsForProcess(h windows.Handle, includeImagePath bool) (*ProcessCommandParams, error) {
 	// first need to check if this is a 32 bit process running on win64
 
 	// for now, assumes we are win64
-
-	is32bit, err := IsWow64Process(h)
+	is32bit, _ := IsWow64Process(h)
 	if is32bit {
-		return getCommandLineForProcess32(h)
+		return getCommandParamsForProcess32(h, includeImagePath)
 	}
-	return getCommandLineForProcess64(h)
+	return getCommandParamsForProcess64(h, includeImagePath)
 }
 
-// GetCommandLineForPid returns the command line for the given PID
-func GetCommandLineForPid(pid uint32) (cmdline string, err error) {
+// GetCommandParamsForPid returns the command line (and optionally image path) for the given PID
+func GetCommandParamsForPid(pid uint32, includeImagePath bool) (*ProcessCommandParams, error) {
 	h, err := windows.OpenProcess(0x1010, false, uint32(pid))
 	if err != nil {
 		err = fmt.Errorf("Failed to open process %v", err)
-		return
+		return nil, err
 	}
 	defer windows.CloseHandle(h)
-	cmdline, err = GetCommandLineForProcess(h)
-	if err != nil {
-		err = fmt.Errorf("Failed to get command line %v", err)
-		return
+	return GetCommandParamsForProcess(h, includeImagePath)
+}
+
+// GetImagePathForProcess returns executable path name in the win32 format
+func GetImagePathForProcess(h windows.Handle) (string, error) {
+	const maxPath = 260
+	// Note that this isn't entirely accurate in all cases, the max can actually be 32K
+	// (requires a registry setting change)
+	// https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=cmd
+	// In this particular case we are opting for MAX_PATH because 32k is a lot to allocate
+	// in most cases where this API will be used (process enumeration loop)
+	var buf [maxPath + 1]uint16
+	n := uint32(len(buf))
+	_, _, lastErr := procQueryFullProcessImageNameW.Call(
+		uintptr(h),
+		uintptr(0),
+		uintptr(unsafe.Pointer(&buf)),
+		uintptr(unsafe.Pointer(&n)))
+	if lastErr.(syscall.Errno) == 0 {
+		return syscall.UTF16ToString(buf[:n]), nil
 	}
-	return GetCommandLineForProcess(h)
+	return "", lastErr
 }

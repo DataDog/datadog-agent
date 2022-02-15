@@ -1,22 +1,24 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package clustername
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,7 +45,7 @@ type clusterNameData struct {
 }
 
 // Provider is a generic function to grab the clustername and return it
-type Provider func() (string, error)
+type Provider func(context.Context) (string, error)
 
 // ProviderCatalog holds all the various kinds of clustername providers
 var ProviderCatalog map[string]Provider
@@ -63,7 +65,7 @@ func init() {
 	}
 }
 
-func getClusterName(data *clusterNameData, hostname string) string {
+func getClusterName(ctx context.Context, data *clusterNameData, hostname string) string {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
@@ -87,14 +89,19 @@ func getClusterName(data *clusterNameData, hostname string) string {
 		if data.clusterName == "" {
 			for cloudProvider, getClusterNameFunc := range ProviderCatalog {
 				log.Debugf("Trying to auto discover the cluster name from the %s API...", cloudProvider)
-				clusterName, err := getClusterNameFunc()
+				clusterName, err := getClusterNameFunc(ctx)
 				if err != nil {
 					log.Debugf("Unable to auto discover the cluster name from the %s API: %s", cloudProvider, err)
 					// try the next cloud provider
 					continue
 				}
+				// if the clustername is valid but contains a "_" in the middle of it, we will replace it later such that
+				// to make it valid to RFC1123.
 				if clusterName != "" {
 					log.Infof("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
+					if strings.HasSuffix(clusterName, "-") || strings.HasSuffix(clusterName, "_") {
+						log.Errorf("Registering an invalid clusterName as they are not allowed to end with `_` or `-`")
+					}
 					data.clusterName = clusterName
 					break
 				}
@@ -102,21 +109,30 @@ func getClusterName(data *clusterNameData, hostname string) string {
 		}
 
 		if data.clusterName == "" {
-			clusterName, err := hostinfo.GetNodeClusterNameLabel()
+			clusterName, err := hostinfo.GetNodeClusterNameLabel(ctx)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
 			} else {
 				data.clusterName = clusterName
 			}
 		}
+
+		if data.clusterName != "" {
+			if lower := strings.ToLower(data.clusterName); lower != data.clusterName {
+				log.Infof("Putting cluster name %q in lowercase, became: %q", data.clusterName, lower)
+				data.clusterName = lower
+			}
+		}
+
 		data.initDone = true
 	}
+
 	return data.clusterName
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
-func GetClusterName(hostname string) string {
-	return getClusterName(defaultClusterNameData, hostname)
+func GetClusterName(ctx context.Context, hostname string) string {
+	return getClusterName(ctx, defaultClusterNameData, hostname)
 }
 
 func resetClusterName(data *clusterNameData) {
@@ -162,4 +178,9 @@ func GetClusterID() (string, error) {
 
 	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 	return clusterID, nil
+}
+
+// setProviderCatalog should only be used for testing.
+func setProviderCatalog(catalog map[string]Provider) {
+	ProviderCatalog = catalog
 }

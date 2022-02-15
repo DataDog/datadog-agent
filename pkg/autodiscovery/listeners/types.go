@@ -1,20 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package listeners
 
 import (
+	"context"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// ID is the representation of the unique ID of a Service
-type ID string
 
 // ContainerPort represents a network port in a Service.
 type ContainerPort struct {
@@ -26,19 +23,18 @@ type ContainerPort struct {
 // It should be matched with a check template by the ConfigResolver using the
 // ADIdentifiers field.
 type Service interface {
-	GetEntity() string                         // unique entity name
-	GetTaggerEntity() string                   // tagger entity name
-	GetADIdentifiers() ([]string, error)       // identifiers on which templates will be matched
-	GetHosts() (map[string]string, error)      // network --> IP address
-	GetPorts() ([]ContainerPort, error)        // network ports
-	GetTags() ([]string, string, error)        // tags and tags hash
-	GetPid() (int, error)                      // process identifier
-	GetHostname() (string, error)              // hostname.domainname for the entity
-	GetCreationTime() integration.CreationTime // created before or after the agent start
-	IsReady() bool                             // is the service ready
-	GetCheckNames() []string                   // slice of check names defined in kubernetes annotations or docker labels
-	HasFilter(containers.FilterType) bool      // whether the service is excluded by metrics or logs exclusion config
-	GetExtraConfig([]byte) ([]byte, error)     // Extra configuration values
+	GetServiceID() string                                // unique service name
+	GetTaggerEntity() string                             // tagger entity name
+	GetADIdentifiers(context.Context) ([]string, error)  // identifiers on which templates will be matched
+	GetHosts(context.Context) (map[string]string, error) // network --> IP address
+	GetPorts(context.Context) ([]ContainerPort, error)   // network ports
+	GetTags() ([]string, string, error)                  // tags and tags hash
+	GetPid(context.Context) (int, error)                 // process identifier
+	GetHostname(context.Context) (string, error)         // hostname.domainname for the entity
+	IsReady(context.Context) bool                        // is the service ready
+	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or container labels
+	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config
+	GetExtraConfig([]byte) ([]byte, error)               // Extra configuration values
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling
@@ -50,8 +46,13 @@ type ServiceListener interface {
 	Stop()
 }
 
+// Config represents autodiscovery listener config
+type Config interface {
+	IsProviderEnabled(string) bool
+}
+
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func() (ServiceListener, error)
+type ServiceListenerFactory func(Config) (ServiceListener, error)
 
 // ServiceListenerFactories holds the registered factories
 var ServiceListenerFactories = make(map[string]ServiceListenerFactory)
@@ -60,10 +61,12 @@ var ServiceListenerFactories = make(map[string]ServiceListenerFactory)
 func Register(name string, factory ServiceListenerFactory) {
 	if factory == nil {
 		log.Warnf("Service listener factory %s does not exist.", name)
+		return
 	}
 	_, registered := ServiceListenerFactories[name]
 	if registered {
 		log.Errorf("Service listener factory %s already registered. Ignoring.", name)
+		return
 	}
 	ServiceListenerFactories[name] = factory
 }

@@ -1,15 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package runner
 
 import (
-	"errors"
 	"fmt"
-	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,162 +16,436 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// FIXTURE
-type TestCheck struct {
+// Fixtures
+
+type testCheck struct {
+	// We have to align the atomics to 64-bit boundaries so these are put down first
+	runCount uint64
+	stopped  uint64
+
 	check.StubCheck
-	sync.Mutex
-	doErr  bool
-	hasRun bool
-	id     string
-	done   chan interface{}
+	RunLock   sync.Mutex
+	StartLock sync.Mutex
+	StopLock  sync.Mutex
+
+	doErr       bool
+	doWarn      bool
+	id          string
+	t           *testing.T
+	runFunc     func(id check.ID)
+	startedChan chan struct{}
 }
 
-func newTestCheck(doErr bool, id string) *TestCheck {
-	return &TestCheck{
-		doErr: doErr,
-		id:    id,
-		done:  make(chan interface{}, 1),
+func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
+func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
+func (c *testCheck) RunCount() int  { return int(atomic.LoadUint64(&c.runCount)) }
+func (c *testCheck) Stop() {
+	c.StopLock.Lock()
+	defer c.StopLock.Unlock()
+
+	atomic.StoreUint64(&c.stopped, 1)
+}
+func (c *testCheck) IsStopped() bool { return atomic.LoadUint64(&c.stopped) != 0 }
+func (c *testCheck) StartedChan() chan struct{} {
+	c.StartLock.Lock()
+	defer c.StartLock.Unlock()
+
+	if c.startedChan == nil {
+		c.startedChan = make(chan struct{}, 1)
 	}
+
+	return c.startedChan
 }
 
-func (c *TestCheck) Run() error {
-	c.Lock()
-	defer c.Unlock()
-	defer func() { close(c.done) }()
+func (c *testCheck) GetWarnings() []error {
+	if c.doWarn {
+		return []error{fmt.Errorf("Warning")}
+	}
+
+	return []error{}
+}
+
+func (c *testCheck) Run() error {
+	c.StartedChan() <- struct{}{}
+
+	// Block if we have a lock set (for testing delayed processing)
+	c.RunLock.Lock()
+	defer c.RunLock.Unlock()
+
+	if c.runFunc != nil {
+		c.runFunc(c.ID())
+	}
+
+	atomic.AddUint64(&c.runCount, 1)
+
 	if c.doErr {
-		msg := "A tremendous error occurred."
-		return errors.New(msg)
+		return fmt.Errorf("myerror")
 	}
 
-	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) String() string {
-	return "TestCheck"
+
+// Helpers
+
+func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *testCheck {
+	return &testCheck{
+		doErr:   doErr,
+		t:       t,
+		id:      id,
+		runFunc: runFunc,
+	}
 }
-func (c *TestCheck) ID() check.ID {
-	c.Lock()
-	defer c.Unlock()
-	return check.ID(fmt.Sprintf("%s:%s", c.String(), c.id))
+
+func newScheduler() *scheduler.Scheduler {
+	return scheduler.NewScheduler(nil)
 }
-func (c *TestCheck) GetWarnings() []error                      { return nil }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
-func (c *TestCheck) HasRun() bool {
-	c.Lock()
-	defer c.Unlock()
-	return c.hasRun
+
+func assertAsyncWorkerCount(t *testing.T, count int) {
+	for idx := 0; idx < 75; idx++ {
+		workers := expvars.GetWorkerCount()
+		if workers == count {
+			// This may seem superfluous but we want to ensure that at least one
+			// assertion runs in all cases
+			require.Equal(t, count, workers)
+			return
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	require.Equal(t, count, expvars.GetWorkerCount())
 }
+
+func assertAsyncBool(t *testing.T, actualValueFunc func() bool, expectedValue bool) {
+	for idx := 0; idx < 20; idx++ {
+		actualValue := actualValueFunc()
+		if actualValue == expectedValue {
+			// This may seem superfluous but we want to ensure that at least one
+			// assertion runs in all cases
+			require.Equal(t, expectedValue, actualValue)
+			return
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	require.Equal(t, expectedValue, actualValueFunc())
+}
+
+func testSetUp(t *testing.T) {
+	assertAsyncWorkerCount(t, 0)
+	expvars.Reset()
+	config.Datadog.Set("hostname", "myhost")
+}
+
+// Tests
 
 func TestNewRunner(t *testing.T) {
+	testSetUp(t)
+	config.Datadog.Set("check_runners", "3")
+
 	r := NewRunner()
-	assert.NotNil(t, r.pending)
-	assert.NotNil(t, r.runningChecks)
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	assertAsyncWorkerCount(t, 3)
+
+	assert.NotNil(t, r.GetChan())
+	r.GetChan() <- newCheck(t, "mycheck:123", false, nil)
 }
 
-func TestStop(t *testing.T) {
+func TestRunnerAddWorker(t *testing.T) {
+	testSetUp(t)
+	config.Datadog.Set("check_runners", "1")
+
 	r := NewRunner()
-	r.Stop()
-	_, ok := <-r.pending
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	r.AddWorker()
+	r.AddWorker()
+	r.AddWorker()
+
+	assertAsyncWorkerCount(t, 4)
+}
+
+func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
+	testSetUp(t)
+	config.Datadog.Set("check_runners", "2")
+
+	r := NewRunner()
+	require.NotNil(t, r)
+	defer func() {
+		r.Stop()
+		assertAsyncWorkerCount(t, 0)
+	}()
+
+	// Static check runner count should not change anything
+	for checks := 0; checks < 30; checks++ {
+		r.UpdateNumWorkers(int64(checks))
+	}
+
+	assertAsyncWorkerCount(t, 2)
+}
+
+func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
+	testSetUp(t)
+	config.Datadog.Set("check_runners", "0")
+
+	testCases := [][]int{
+		{0, 10, 4},
+		{11, 15, 10},
+		{16, 20, 15},
+		{21, 25, 20},
+		{26, 35, config.MaxNumWorkers},
+	}
+
+	for _, testCase := range testCases {
+		assertAsyncWorkerCount(t, 0)
+		min, max, expectedWorkers := testCase[0], testCase[1], testCase[2]
+
+		r := NewRunner()
+		require.NotNil(t, r)
+
+		for checks := min; checks <= max; checks++ {
+			r.UpdateNumWorkers(int64(checks))
+			require.True(t, expvars.GetWorkerCount() <= expectedWorkers)
+		}
+
+		assertAsyncWorkerCount(t, expectedWorkers)
+		r.Stop()
+	}
+}
+
+func TestRunner(t *testing.T) {
+	testSetUp(t)
+	numChecks := 10
+
+	checks := make([]*testCheck, numChecks)
+	for idx := 0; idx < numChecks; idx++ {
+		checks[idx] = newCheck(t, fmt.Sprintf("mycheck_%d:123", idx), false, nil)
+	}
+
+	r := NewRunner()
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	for idx := 0; idx < numChecks; idx++ {
+		r.GetChan() <- checks[idx]
+	}
+
+	time.Sleep(150 * time.Millisecond)
+	for idx := 0; idx < numChecks; idx++ {
+		require.Equal(t, 1, checks[idx].RunCount())
+	}
+}
+
+func TestRunnerStop(t *testing.T) {
+	testSetUp(t)
+
+	config.Datadog.Set("check_runners", "10")
+	numChecks := 8
+
+	checks := make([]*testCheck, numChecks)
+	for idx := 0; idx < numChecks; idx++ {
+		checks[idx] = newCheck(t, fmt.Sprintf("mycheck_%d:123", idx), false, nil)
+
+		// Make sure they aren't cleared from the running list
+		checks[idx].RunLock.Lock()
+	}
+
+	r := NewRunner()
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	assertAsyncWorkerCount(t, 10)
+
+	// Queue the checks up
+	for idx := 0; idx < numChecks; idx++ {
+		r.GetChan() <- checks[idx]
+	}
+
+	// Wait until all are "running"
+	for idx := 0; idx < numChecks; idx++ {
+		<-checks[idx].StartedChan()
+	}
+
+	go r.Stop()
+
+	for _, c := range checks {
+		assertAsyncBool(t, c.IsStopped, true)
+		c.RunLock.Unlock()
+	}
+
+	_, ok := <-r.pendingChecksChan
 	assert.False(t, ok)
 
-	// calling Stop on a stopped runner should be a noop
-	r.Stop()
-}
-
-func TestGetChan(t *testing.T) {
-	r := NewRunner()
-	assert.NotNil(t, r.GetChan())
-}
-
-func TestWork(t *testing.T) {
-	r := NewRunner()
-	c1 := newTestCheck(false, "1")
-	c2 := newTestCheck(true, "2")
-
-	r.pending <- c1
-	r.pending <- c2
-
-	select {
-	case <-c1.done:
-	case <-time.After(1 * time.Second):
-		require.Fail(t, "Check hasn't run 1 second after being scheduled")
-	}
-	assert.True(t, c1.HasRun())
+	// Calling Stop on a stopped runner should be a noop
 	r.Stop()
 
-	// fake a check is already running
-	r = NewRunner()
-	c3 := newTestCheck(false, "3")
-	r.runningChecks[c3.ID()] = c3
-	r.pending <- c3
-	// wait to be sure the worker tried to run the check
-	time.Sleep(100 * time.Millisecond)
-	assert.False(t, c3.HasRun())
+	// Ensure that the channel can't be written to anymore
+	defer func() {
+		require.NotNil(t, recover())
+	}()
+	r.GetChan() <- newCheck(t, "mycheck:123", false, nil)
+
+	// Ensure that the worker counts are updated
+	assertAsyncWorkerCount(t, 0)
 }
 
-func TestLogging(t *testing.T) {
-	defaultFrequency := config.Datadog.GetInt64("logging_frequency")
-	config.Datadog.SetDefault("logging_frequency", int64(20))
-	defer config.Datadog.SetDefault("logging_frequency", defaultFrequency)
+func TestRunnerStopWithStuckCheck(t *testing.T) {
+	testSetUp(t)
+
+	config.Datadog.Set("check_runners", "10")
+	numChecks := 8
+
+	checks := make([]*testCheck, numChecks)
+	for idx := 0; idx < numChecks; idx++ {
+		checks[idx] = newCheck(t, fmt.Sprintf("mycheck_%d:123", idx), false, nil)
+
+		// Make sure they aren't cleared from the running list
+		checks[idx].RunLock.Lock()
+	}
+
+	// Create a check that will block stopping
+	blockedCheck := newCheck(t, "blockedcheck:123", false, nil)
+	blockedCheck.RunLock.Lock()
+	blockedCheck.StopLock.Lock()
 
 	r := NewRunner()
-	c := newTestCheck(false, "1")
-	s := &check.Stats{
-		CheckID:   c.ID(),
-		CheckName: c.String(),
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	assertAsyncWorkerCount(t, 10)
+
+	// Queue the checks up
+	for idx := 0; idx < numChecks; idx++ {
+		r.GetChan() <- checks[idx]
 	}
-	s.TotalRuns = 0
-	checkStats.Stats[c.String()] = make(map[check.ID]*check.Stats)
-	checkStats.Stats[c.String()][c.ID()] = s
+	r.GetChan() <- blockedCheck
 
-	doLog, lastLog := shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.False(t, lastLog)
-
-	s.TotalRuns = 5
-	doLog, lastLog = shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.True(t, lastLog)
-
-	s.TotalRuns = 6
-	doLog, lastLog = shouldLog(c.ID())
-	assert.False(t, doLog)
-	assert.False(t, lastLog)
-
-	s.TotalRuns = 20
-	doLog, lastLog = shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.False(t, lastLog)
+	// Wait until all are "running"
+	for idx := 0; idx < numChecks; idx++ {
+		<-checks[idx].StartedChan()
+	}
+	<-blockedCheck.StartedChan()
 
 	r.Stop()
-}
 
-type TimingoutCheck struct {
-	TestCheck
-}
-
-func (tc *TimingoutCheck) Stop() {
-	for {
-		runtime.Gosched()
+	for _, c := range checks {
+		assertAsyncBool(t, c.IsStopped, true)
+		c.RunLock.Unlock()
 	}
+
+	assertAsyncBool(t, blockedCheck.IsStopped, false)
+
+	// Calling Stop on a stopped runner should be a noop
+	r.Stop()
+
+	assertAsyncWorkerCount(t, 1)
+
+	// Release the last worker by letting the blocked check stop
+	blockedCheck.StopLock.Unlock()
+	blockedCheck.RunLock.Unlock()
+	assertAsyncWorkerCount(t, 0)
 }
-func (tc *TimingoutCheck) String() string { return "TimeoutTestCheck" }
 
-func TestStopCheck(t *testing.T) {
+func TestRunnerStopCheck(t *testing.T) {
+	testSetUp(t)
+	config.Datadog.Set("check_runners", "3")
+
+	testCheck := newCheck(t, "mycheck:123", false, nil)
+	blockedCheck := newCheck(t, "mycheck2:123", false, nil)
+
+	testCheck.RunLock.Lock()
+	blockedCheck.RunLock.Lock()
+	blockedCheck.StopLock.Lock()
+
 	r := NewRunner()
-	err := r.StopCheck("foo")
-	assert.Nil(t, err)
+	require.NotNil(t, r)
+	defer func() {
+		r.Stop()
+		assertAsyncWorkerCount(t, 0)
+	}()
 
-	c1 := newTestCheck(false, "1")
-	r.runningChecks[c1.ID()] = c1
-	err = r.StopCheck(c1.ID())
-	assert.Nil(t, err)
+	r.GetChan() <- testCheck
+	r.GetChan() <- blockedCheck
 
-	c2 := &TimingoutCheck{TestCheck: *newTestCheck(false, "2")}
-	r.runningChecks[c2.ID()] = c2
-	err = r.StopCheck(c2.ID())
-	assert.Equal(t, "timeout during stop operation on check id TestCheck:2", err.Error())
+	<-testCheck.StartedChan()
+	<-blockedCheck.StartedChan()
+
+	require.False(t, testCheck.IsStopped())
+	require.False(t, blockedCheck.IsStopped())
+
+	err := r.StopCheck(check.ID("missingid"))
+	require.Nil(t, err)
+
+	err = r.StopCheck(testCheck.ID())
+	require.Nil(t, err)
+	testCheck.RunLock.Unlock()
+	assertAsyncBool(t, testCheck.IsStopped, true)
+
+	err = r.StopCheck(blockedCheck.ID())
+	require.NotNil(t, err)
+	assertAsyncBool(t, blockedCheck.IsStopped, false)
+
+	blockedCheck.RunLock.Unlock()
+	blockedCheck.StopLock.Unlock()
+	assertAsyncBool(t, blockedCheck.IsStopped, true)
+
+	// Implicit check. Ensure that we can try to stop a stopped check again
+	err = r.StopCheck(testCheck.ID())
+	require.Nil(t, err)
+}
+
+func TestRunnerScheduler(t *testing.T) {
+	testSetUp(t)
+	config.Datadog.Set("check_runners", "3")
+
+	sched1 := newScheduler()
+	sched2 := newScheduler()
+
+	r := NewRunner()
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	require.Nil(t, r.getScheduler())
+
+	r.SetScheduler(sched1)
+	require.Equal(t, sched1, r.getScheduler())
+
+	r.SetScheduler(sched2)
+	require.Equal(t, sched2, r.getScheduler())
+}
+
+func TestRunnerShouldAddCheckStats(t *testing.T) {
+	testSetUp(t)
+	config.Datadog.Set("check_runners", "3")
+
+	testCheck := newCheck(t, "test", false, nil)
+	sched := newScheduler()
+
+	r := NewRunner()
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	require.Nil(t, r.getScheduler())
+
+	// Unconditionally, if there's no scheduler, we should add the stats
+	require.True(t, r.ShouldAddCheckStats(testCheck.ID()))
+
+	r.SetScheduler(sched)
+	require.Equal(t, sched, r.getScheduler())
+
+	// If there's a scheduler but the check isn't scheduled, don't add the stats
+	require.False(t, r.ShouldAddCheckStats(testCheck.ID()))
+
+	sched.Enter(testCheck)
+	// If there's a scheduler with scheduled check, add the stats
+	require.True(t, r.ShouldAddCheckStats(testCheck.ID()))
 }

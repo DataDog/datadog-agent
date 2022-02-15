@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The `agent flare` command will now include an error message in the
+    resulting "local" flare if it cannot contact a running agent.

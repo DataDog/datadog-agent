@@ -61,17 +61,24 @@ Logs Agent
         {{ $message }}
       {{- end }}
       {{- if .inputs }}
-      Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+      Inputs:
+      {{- range $input := .inputs }}
+        {{$input}}
+      {{- end }}
       {{- end }}
       BytesRead: {{ .bytes_read }}
       Average Latency (ms): {{ .all_time_avg_latency }}
       24h Average Latency (ms): {{ .recent_avg_latency }}
       Peak Latency (ms): {{ .all_time_peak_latency }}
       24h Peak Latency (ms): {{ .recent_peak_latency }}
-      {{- if .info }}
-      Container Info:
-      {{- range $inf := .info }}
+      {{- if .info }} 
+      {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
+      {{$key}}: {{index $value 0}} {{ else }}
+      {{$key}}:
+      {{- range $inf := $value }}
         {{ $inf }}
+      {{- end }}
+      {{- end }}
       {{- end }}
       {{- end }}
   {{- end }}

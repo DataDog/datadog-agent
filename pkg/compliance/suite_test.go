@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package compliance
 
@@ -31,15 +31,19 @@ func TestParseSuite(t *testing.T) {
 					Version:   "1.2.0",
 					Source:    "./testdata/cis-docker.yaml",
 				},
-				Rules: []Rule{
+				Rules: []ConditionFallbackRule{
 					{
-						ID:           "cis-docker-1",
-						Scope:        RuleScopeList{DockerScope},
-						HostSelector: `"foo" in node.labels`,
+						RuleCommon: RuleCommon{
+							ID:           "cis-docker-1",
+							Scope:        RuleScopeList{DockerScope},
+							HostSelector: `"foo" in node.labels`,
+						},
 						Resources: []Resource{
 							{
-								File: &File{
-									Path: "/etc/docker/daemon.json",
+								ResourceCommon: ResourceCommon{
+									File: &File{
+										Path: "/etc/docker/daemon.json",
+									},
 								},
 								Condition: `file.permissions == 0644`,
 							},

@@ -1,0 +1,5 @@
+---
+upgrade:
+enhancements:
+  - |
+    Network Performance Monitoring for windows now collects DNS stats, connections will be shows in the networks -> DNS page.

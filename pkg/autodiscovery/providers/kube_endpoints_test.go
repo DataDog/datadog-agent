@@ -1,14 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -148,7 +149,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
 					InitConfig:    integration.Data("{}"),
@@ -156,7 +157,7 @@ func TestGenerateConfigs(t *testing.T) {
 					ClusterCheck:  true,
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
 					InitConfig:    integration.Data("{}"),
@@ -203,7 +204,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1", "kubernetes_pod://pod-uid-1"},
 					InitConfig:    integration.Data("{}"),
@@ -212,7 +213,7 @@ func TestGenerateConfigs(t *testing.T) {
 					NodeName:      "node1",
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2", "kubernetes_pod://pod-uid-2"},
 					InitConfig:    integration.Data("{}"),
@@ -260,7 +261,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
 					InitConfig:    integration.Data("{}"),
@@ -269,7 +270,7 @@ func TestGenerateConfigs(t *testing.T) {
 					NodeName:      "",
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
 					InitConfig:    integration.Data("{}"),
@@ -369,10 +370,11 @@ func TestInvalidateIfChangedService(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			ctx := context.Background()
 			provider := &kubeEndpointsConfigProvider{upToDate: true}
 			provider.invalidateIfChangedService(tc.old, tc.obj)
 
-			upToDate, err := provider.IsUpToDate()
+			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
 		})
@@ -689,6 +691,7 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
 			provider := &kubeEndpointsConfigProvider{
 				upToDate: true,
 				monitoredEndpoints: map[string]bool{
@@ -697,7 +700,7 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 			}
 			provider.invalidateIfChangedEndpoints(tc.first, tc.second)
 
-			upToDate, err := provider.IsUpToDate()
+			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.upToDate, upToDate)
 		})

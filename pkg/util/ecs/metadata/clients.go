@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -22,11 +24,17 @@ import (
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
+const (
+	initialRetryDelay = 1 * time.Second
+	maxRetryDelay     = 5 * time.Minute
+)
+
 var globalUtil util
 
 type util struct {
 	// used to setup the ECSUtil
 	initRetryV1 retry.Retrier
+	initRetryV2 retry.Retrier
 	initRetryV3 retry.Retrier
 	initV1      sync.Once
 	initV2      sync.Once
@@ -49,8 +57,8 @@ func V1() (*v1.Client, error) {
 			Name:              "ecsutil-meta-v1",
 			AttemptMethod:     initV1,
 			Strategy:          retry.Backoff,
-			InitialRetryDelay: 1 * time.Second,
-			MaxRetryDelay:     5 * time.Minute,
+			InitialRetryDelay: initialRetryDelay,
+			MaxRetryDelay:     maxRetryDelay,
 		})
 	})
 	if err := globalUtil.initRetryV1.TriggerRetry(); err != nil {
@@ -68,21 +76,20 @@ func V2() (*v2.Client, error) {
 	}
 
 	globalUtil.initV2.Do(func() {
-		globalUtil.v2 = v2.NewDefaultClient()
+		_ = globalUtil.initRetryV2.SetupRetrier(&retry.Config{
+			Name:              "ecsutil-meta-v2",
+			AttemptMethod:     initV2,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: initialRetryDelay,
+			MaxRetryDelay:     maxRetryDelay,
+		})
 	})
-
-	return globalUtil.v2, nil
-}
-
-// V3 returns a client for the ECS metadata API v3 by detecting the endpoint
-// address for the specified container. Returns an error if it was not possible
-// to detect the endpoint address.
-func V3(containerID string) (*v3.Client, error) {
-	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
-		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
+	if err := globalUtil.initRetryV2.TriggerRetry(); err != nil {
+		log.Debugf("ECS metadata v2 client init error: %w", err)
+		return nil, err
 	}
 
-	return newClientV3ForContainer(containerID)
+	return globalUtil.v2, nil
 }
 
 // V3FromCurrentTask returns a client for the ECS metadata API v3 by detecting
@@ -98,8 +105,8 @@ func V3FromCurrentTask() (*v3.Client, error) {
 			Name:              "ecsutil-meta-v3",
 			AttemptMethod:     initV3,
 			Strategy:          retry.Backoff,
-			InitialRetryDelay: 1 * time.Second,
-			MaxRetryDelay:     5 * time.Minute,
+			InitialRetryDelay: initialRetryDelay,
+			MaxRetryDelay:     maxRetryDelay,
 		})
 	})
 	if err := globalUtil.initRetryV3.TriggerRetry(); err != nil {
@@ -119,16 +126,6 @@ func newAutodetectedClientV1() (*v1.Client, error) {
 	return v1.NewClient(agentURL), nil
 }
 
-// newClientV3ForContainer detects the metadata API v3 endpoint for the specified
-// container and creates a new client for it.
-func newClientV3ForContainer(id string) (*v3.Client, error) {
-	agentURL, err := getAgentV3URLFromDocker(id)
-	if err != nil {
-		return nil, err
-	}
-	return v3.NewClient(agentURL), nil
-}
-
 // newClientV3ForCurrentTask detects the metadata API v3 endpoint from the current
 // task and creates a new client for it.
 func newClientV3ForCurrentTask() (*v3.Client, error) {
@@ -145,6 +142,16 @@ func initV1() error {
 		return err
 	}
 	globalUtil.v1 = client
+	return nil
+}
+
+func initV2() error {
+	client := v2.NewDefaultClient()
+	if _, err := client.GetTask(context.TODO()); err != nil {
+		return err
+	}
+
+	globalUtil.v2 = client
 	return nil
 }
 

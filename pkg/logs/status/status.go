@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package status
 
@@ -44,7 +44,7 @@ type Source struct {
 	Status             string                 `json:"status"`
 	Inputs             []string               `json:"inputs"`
 	Messages           []string               `json:"messages"`
-	Info               []string               `json:"info"`
+	Info               map[string][]string    `json:"info"`
 }
 
 // Integration provides some information about a logs integration.

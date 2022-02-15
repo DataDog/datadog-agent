@@ -1,21 +1,23 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
+	"context"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,7 +36,7 @@ type OrchestratorConfig struct {
 	KubeClusterName                string
 	IsScrubbingEnabled             bool
 	Scrubber                       *redact.DataScrubber
-	OrchestratorEndpoints          []api.Endpoint
+	OrchestratorEndpoints          []apicfg.Endpoint
 	MaxPerMessage                  int
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
@@ -51,7 +53,7 @@ func NewDefaultOrchestratorConfig() *OrchestratorConfig {
 	oc := OrchestratorConfig{
 		Scrubber:              redact.NewDefaultDataScrubber(),
 		MaxPerMessage:         100,
-		OrchestratorEndpoints: []api.Endpoint{{Endpoint: orchestratorEndpoint}},
+		OrchestratorEndpoints: []apicfg.Endpoint{{Endpoint: orchestratorEndpoint}},
 		PodQueueBytes:         15 * 1000 * 1000,
 	}
 	return &oc
@@ -61,14 +63,9 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// LoadYamlConfig load orchestrator-specific configuration
-func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
-	loadEnvVariables()
-	// Resolve any secrets
-	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
-		return err
-	}
-
+// Load load orchestrator-specific configuration
+// at this point secrets should already be resolved by the core/process/cluster agent
+func (oc *OrchestratorConfig) Load() error {
 	URL, err := extractOrchestratorDDUrl()
 	if err != nil {
 		return err
@@ -76,7 +73,7 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		oc.OrchestratorEndpoints[0].APIKey = config.Datadog.GetString(key)
+		oc.OrchestratorEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -106,27 +103,21 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 	}
 
 	// Orchestrator Explorer
-	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		oc.OrchestrationCollectionEnabled = true
 		// Set clustername
-		hostname, _ := coreutil.GetHostname()
-		if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
+		hostname, _ := coreutil.GetHostname(context.TODO())
+		if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
 			oc.KubeClusterName = clusterName
 		}
 	}
-	oc.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
-	oc.ExtraTags = config.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
+	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
+	oc.ExtraTags = config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags"))
 
 	return nil
 }
 
-func loadEnvVariables() {
-	if v := os.Getenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS"); v != "" {
-		config.Datadog.Set(key(orchestratorNS, "custom_sensitive_words"), strings.Split(v, ","))
-	}
-}
-
-func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
+func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]apicfg.Endpoint) error {
 	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
@@ -139,15 +130,15 @@ func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints 
 	return nil
 }
 
-func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
+func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) error {
 	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
 		u, err := URL.Parse(endpointURL)
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 		}
 		for _, k := range apiKeys {
-			*endpoints = append(*endpoints, api.Endpoint{
-				APIKey:   k,
+			*endpoints = append(*endpoints, apicfg.Endpoint{
+				APIKey:   config.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}
@@ -164,4 +155,24 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
 	}
 	return URL, nil
+}
+
+// NewOrchestratorForwarder returns an orchestratorForwarder
+// if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
+func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
+	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
+		return nil
+	}
+	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
+		return nil
+	}
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	if err := orchestratorCfg.Load(); err != nil {
+		log.Errorf("Error loading the orchestrator config: %s", err)
+	}
+	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
+	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	orchestratorForwarderOpts.DisableAPIKeyChecking = true
+
+	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
 }

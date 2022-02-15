@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
 	"fmt"
 	"net"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -26,7 +32,7 @@ var (
 )
 
 func TestBeautifyKey(t *testing.T) {
-	var buf [ConnectionByteKeyMaxLen]byte
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	for _, c := range []ConnectionStats{
 		testConn,
 		{
@@ -57,7 +63,7 @@ func TestBeautifyKey(t *testing.T) {
 }
 
 func TestConnStatsByteKey(t *testing.T) {
-	var buf [ConnectionByteKeyMaxLen]byte
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	addrA := util.AddressFromString("127.0.0.1")
 	addrB := util.AddressFromString("127.0.0.2")
 
@@ -115,4 +121,46 @@ func TestConnStatsByteKey(t *testing.T) {
 		}
 		assert.NotEqual(t, keyA, keyB)
 	}
+}
+
+func TestIsExpired(t *testing.T) {
+	// 10mn
+	var timeout uint64 = 600000000000
+	for _, tc := range []struct {
+		stats      ConnectionStats
+		latestTime uint64
+		expected   bool
+	}{
+		{
+			ConnectionStats{LastUpdateEpoch: 101},
+			100,
+			false,
+		},
+		{
+			ConnectionStats{LastUpdateEpoch: 100},
+			101,
+			false,
+		},
+		{
+			ConnectionStats{LastUpdateEpoch: 100},
+			101 + timeout,
+			true,
+		},
+	} {
+		assert.Equal(t, tc.expected, tc.stats.IsExpired(tc.latestTime, timeout))
+	}
+}
+
+func BenchmarkByteKey(b *testing.B) {
+	buf := make([]byte, ConnectionByteKeyMaxLen)
+	addrA := util.AddressFromString("127.0.0.1")
+	addrB := util.AddressFromString("127.0.0.2")
+	c := ConnectionStats{Pid: 1, Dest: addrB, Family: 0, Type: 1, Source: addrA}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = c.ByteKey(buf)
+	}
+	runtime.KeepAlive(buf)
 }

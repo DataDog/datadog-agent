@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -19,8 +21,8 @@ import (
 )
 
 // ListContainers lists all non-excluded running containers, and retrieves their performance metrics
-func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
-	pods, err := ku.GetLocalPodList()
+func (ku *KubeUtil) ListContainers(ctx context.Context) ([]*containers.Container, error) {
+	pods, err := ku.GetLocalPodList(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get pod list: %s", err)
 	}

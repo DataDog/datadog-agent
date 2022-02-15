@@ -2,7 +2,7 @@
 */}}=====================
 Orchestrator Explorer
 =====================
-
+  Collection Status: {{ .CollectionWorking }}
 {{- if .Error }}
   Error: {{ .Error }}
 {{- end }}
@@ -12,7 +12,9 @@ Orchestrator Explorer
 {{- if .ClusterIDError }}
   Cluster ID error: {{.ClusterIDError}}
 {{- end }}
-
+{{- if .ClusterName }}
+  Cluster Name: {{.ClusterName}}
+{{- end }}
 {{- if .ClusterID }}
   Cluster ID: {{.ClusterID}}
 {{- end }}
@@ -20,9 +22,6 @@ Orchestrator Explorer
   Cluster ID error: {{.ClusterNameError}}
 {{- end }}
 
-{{- if .ClusterName }}
-  Cluster name: {{.ClusterName}}
-{{- end }}
 {{- if .ContainerScrubbing }}
   {{.ContainerScrubbing}}
 {{- end}}
@@ -31,8 +30,15 @@ Orchestrator Explorer
   ======================
   Orchestrator Endpoints
   ======================
-  {{- range $key, $value := .OrchestratorEndpoints}}
-  {{$key}} - API Key ending with: {{$value}}
+  {{- range $key, $values := .OrchestratorEndpoints}}
+  {{- if gt (len $values) 1}}
+    {{$key}} - API Keys ending with:
+  {{- range $values }}
+      - {{ . }}
+  {{- end}}
+  {{- else}}
+    {{$key}} - API Key ending with: {{index $values 0}}
+  {{- end}}
   {{- end}}
 
 {{- if .LeaderError }}
@@ -44,16 +50,16 @@ Orchestrator Explorer
   Cache Stats
   ===========
     Elements in the cache: {{.CacheNumber}}
-    Pods:
-      Last Run: (Hits: {{.PodsStats.CacheHits}} Miss: {{.PodsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Pods}} Miss: {{.CacheMiss.Pods}})
-    Deployments:
-      Last Run: (Hits: {{.DeploymentsStats.CacheHits}} Miss: {{.DeploymentsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Deployments}} Miss: {{.CacheMiss.Deployments}})
-    ReplicaSets:
-      Last Run: (Hits: {{.ReplicaSetsStats.CacheHits}} Miss: {{.ReplicaSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.ReplicaSets}} Miss: {{.CacheMiss.ReplicaSets}})
-    Services:
-      Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
-    Nodes:
-      Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+{{range $index, $element := .CacheInformation}}
+    {{ $element.NodeType }}
+      Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
+{{end}}
+{{- if .CLCEnabled }}
+  ===========
+  Dispatched Configurations on Cluster Check Runners
+  ===========
+    To print orchestrator check details run agent clusterchecks --check orchestrator
+{{end}}
 {{else}}
 {{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}

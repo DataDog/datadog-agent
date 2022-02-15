@@ -1,10 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build kubeapiserver
-// +build !kubelet
+//go:build kubeapiserver && !kubelet
+// +build kubeapiserver,!kubelet
 
 // This provider is only useful for the cluster-agent, that does
 // not have kubelet compiled it. Disable it for the node-agent

@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Adds email validation before sending a report.

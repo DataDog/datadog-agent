@@ -1,37 +1,43 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/pkg/errors"
 
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type eventCounterLRUKey struct {
-	Pid   uint32
-	Event EventType
+	Pid    uint32
+	Cookie uint32
 }
 
 // LoadController is used to monitor and control the pressure put on the host
 type LoadController struct {
 	sync.RWMutex
 	probe        *Probe
-	total        int64
-	counters     *simplelru.LRU
 	statsdClient *statsd.Client
+
+	eventsTotal        int64
+	eventsCounters     *simplelru.LRU
+	pidDiscardersCount int64
 
 	EventsCountThreshold int64
 	DiscarderTimeout     time.Duration
@@ -46,9 +52,11 @@ func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadControll
 	}
 
 	lc := &LoadController{
-		probe:                probe,
-		counters:             lru,
-		statsdClient:         statsdClient,
+		probe:        probe,
+		statsdClient: statsdClient,
+
+		eventsCounters: lru,
+
 		EventsCountThreshold: probe.config.LoadControllerEventsCountThreshold,
 		DiscarderTimeout:     probe.config.LoadControllerDiscarderTimeout,
 		ControllerPeriod:     probe.config.LoadControllerControlPeriod,
@@ -56,20 +64,42 @@ func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadControll
 	return lc, nil
 }
 
-// Count increments the event counter of the provided event type and pid
-func (lc *LoadController) Count(eventType EventType, pid uint32) {
+// SendStats sends load controller stats
+func (lc *LoadController) SendStats() error {
+	// send load_controller.pids_discarder metric
+	if count := atomic.SwapInt64(&lc.pidDiscardersCount, 0); count > 0 {
+		if err := lc.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
+			return errors.Wrap(err, "couldn't send load_controller.pids_discarder metric")
+		}
+	}
+	return nil
+}
+
+// Count processes the provided events and ensures the load of the provided event type is within the configured limits
+func (lc *LoadController) Count(event *Event) {
+	switch event.GetEventType() {
+	case model.ExecEventType, model.InvalidateDentryEventType, model.ForkEventType:
+	case model.ExitEventType:
+		lc.cleanupCounter(event.ProcessContext.Pid, event.ProcessContext.Cookie)
+	default:
+		lc.GenericCount(event)
+	}
+}
+
+// GenericCount increments the event counter of the provided event type and pid
+func (lc *LoadController) GenericCount(event *Event) {
 	lc.Lock()
 	defer lc.Unlock()
 
-	entry, ok := lc.counters.Get(eventCounterLRUKey{Pid: pid, Event: eventType})
+	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie})
 	if ok {
 		counter := entry.(*uint64)
 		atomic.AddUint64(counter, 1)
 	} else {
-		count := uint64(1)
-		lc.counters.Add(eventCounterLRUKey{Pid: pid, Event: eventType}, &count)
+		counter := uint64(1)
+		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie}, &counter)
 	}
-	newTotal := atomic.AddInt64(&lc.total, 1)
+	newTotal := atomic.AddInt64(&lc.eventsTotal, 1)
 
 	if newTotal >= lc.EventsCountThreshold {
 		lc.discardNoisiestProcess()
@@ -81,8 +111,8 @@ func (lc *LoadController) discardNoisiestProcess() {
 	// iterate over the LRU map to retrieve the noisiest process & event_type tuple
 	var maxKey eventCounterLRUKey
 	var maxCount *uint64
-	for _, key := range lc.counters.Keys() {
-		entry, ok := lc.counters.Peek(key)
+	for _, key := range lc.eventsCounters.Keys() {
+		entry, ok := lc.eventsCounters.Peek(key)
 		if !ok || entry == nil {
 			continue
 		}
@@ -101,46 +131,69 @@ func (lc *LoadController) discardNoisiestProcess() {
 	}
 
 	// push a temporary discarder on the noisiest process & event type tuple
-	log.Tracef("discarding %s events from pid %d for %s seconds", maxKey.Event, maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.discardPIDWithTimeout(maxKey.Event, maxKey.Pid, lc.DiscarderTimeout); err != nil {
+	seclog.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)
+	if err := lc.probe.pidDiscarders.discardWithTimeout(allEventTypes, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
 
 	// update current total and remove biggest entry from cache
-	atomic.AddInt64(&lc.total, -int64(atomic.SwapUint64(maxCount, 0)))
+	oldMaxCount := atomic.SwapUint64(maxCount, 0)
+	atomic.AddInt64(&lc.eventsTotal, -int64(oldMaxCount))
 
 	if lc.statsdClient != nil {
-		// send load_controller.pids_discarder metric
-		tags := []string{
-			fmt.Sprintf("event_type:%s", maxKey.Event),
-		}
-		if err := lc.statsdClient.Count(MetricPrefix+".load_controller.pids_discarder", 1, tags, 1.0); err != nil {
-			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
+		atomic.AddInt64(&lc.pidDiscardersCount, 1)
+
+		// fetch noisy process metadata
+		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
+		if process == nil {
+			log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
 			return
 		}
+
+		ts := time.Now()
+		lc.probe.DispatchCustomEvent(
+			NewNoisyProcessEvent(
+				oldMaxCount,
+				lc.EventsCountThreshold,
+				lc.ControllerPeriod,
+				ts.Add(lc.DiscarderTimeout),
+				process,
+				lc.probe.GetResolvers(),
+				ts,
+			),
+		)
+	}
+}
+
+// cleanupCounter resets the internal counter of the provided pid
+func (lc *LoadController) cleanupCounter(pid uint32, cookie uint32) {
+	lc.Lock()
+	defer lc.Unlock()
+
+	key := eventCounterLRUKey{Pid: pid, Cookie: cookie}
+	entry, ok := lc.eventsCounters.Get(key)
+	if ok {
+		counter := int64(*entry.(*uint64))
+		atomic.AddInt64(&lc.eventsTotal, -counter)
+		lc.eventsCounters.Remove(key)
 	}
 }
 
 // cleanup resets the internal counters
 func (lc *LoadController) cleanup() {
-	lc.RLock()
-	defer lc.RUnlock()
+	lc.Lock()
+	defer lc.Unlock()
 
-	// reset counts
-	for _, key := range lc.counters.Keys() {
-		val, ok := lc.counters.Peek(key)
-		if !ok || val == nil {
-			continue
-		}
-		counter := val.(*uint64)
-		atomic.SwapUint64(counter, 0)
-	}
-	atomic.SwapInt64(&lc.total, 0)
+	// purge counters
+	lc.eventsCounters.Purge()
+	atomic.SwapInt64(&lc.eventsTotal, 0)
 }
 
 // Start resets the internal counters periodically
-func (lc *LoadController) Start(ctx context.Context) {
+func (lc *LoadController) Start(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

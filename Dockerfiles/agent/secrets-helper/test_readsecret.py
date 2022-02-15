@@ -49,7 +49,8 @@ class TestReadFile(unittest.TestCase):
         with open(os.path.join(sensitive_path, "target"), "w") as f:
             f.write("sensitive")
         os.symlink(
-            os.path.join(sensitive_path, "target"), os.path.join(allowed_path, "target"),
+            os.path.join(sensitive_path, "target"),
+            os.path.join(allowed_path, "target"),
         )
 
         with self.assertRaisesRegex(ValueError, "outside of the specified folder"):

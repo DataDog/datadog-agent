@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "two.h"
 
 #include "constants.h"
@@ -23,9 +23,10 @@
 #include <cstdlib>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe,
+                                                       cb_memory_tracker_t memtrack_cb)
 {
-    return new Two(pythonHome, memtrack_cb);
+    return new Two(python_home, python_exe, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -33,13 +34,19 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Two::Two(const char *python_home, cb_memory_tracker_t memtrack_cb)
+Two::Two(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
+    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
 {
     initPythonHome(python_home);
+
+    // If not empty, set our Python interpreter path
+    if (python_exe && strlen(python_exe) > 0) {
+        initPythonExe(python_exe);
+    }
 }
 
 Two::~Two()
@@ -52,16 +59,33 @@ Two::~Two()
 
 void Two::initPythonHome(const char *pythonHome)
 {
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     char *oldPythonHome = _pythonHome;
+
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = strdupe(_defaultPythonHome);
     } else {
         _pythonHome = strdupe(pythonHome);
     }
 
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
-    _free(oldPythonHome);
+    if (oldPythonHome) {
+        _free(oldPythonHome);
+    }
+}
+
+void Two::initPythonExe(const char *python_exe)
+{
+    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
+    char *oldPythonExe = _pythonExe;
+
+    _pythonExe = strdupe(python_exe);
+
+    Py_SetProgramName(_pythonExe);
+
+    if (oldPythonExe) {
+        _free(oldPythonExe);
+    }
 }
 
 bool Two::init()
@@ -430,6 +454,25 @@ char *Two::runCheck(RtLoaderPyObject *check)
 done:
     Py_XDECREF(result);
     return ret_copy;
+}
+
+void Two::cancelCheck(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    char cancel[] = "cancel";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, cancel, NULL);
+    // at least None should be returned
+    if (result == NULL) {
+        setError("error invoking 'cancel' method: " + _fetchPythonError());
+    }
+    Py_XDECREF(result);
 }
 
 char **Two::getCheckWarnings(RtLoaderPyObject *check)
@@ -803,6 +846,11 @@ void Two::setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t cb)
     _set_submit_histogram_bucket_cb(cb);
 }
 
+void Two::setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t cb)
+{
+    _set_submit_event_platform_event_cb(cb);
+}
+
 void Two::setGetVersionCb(cb_get_version_t cb)
 {
     _set_get_version_cb(cb);
@@ -891,6 +939,11 @@ void Two::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
 void Two::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
 {
     _set_obfuscate_sql_exec_plan_cb(cb);
+}
+
+void Two::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
+{
+    _set_get_process_start_time_cb(cb);
 }
 
 // Python Helpers

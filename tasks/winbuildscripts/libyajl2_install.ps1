@@ -8,8 +8,13 @@ cd libyajl2
 
 # Remove existing rake install, we don't need it and its version is too high
 gem uninstall -x rake
+
+# We don't need the development_extras group, we're not running tests
+bundle config set --local without 'development_extras'
+
 # Install dev dependencies - maybe --path should be used to do a local install, but unsure how this will affect the next commands
 bundle install
+
 # Prepare the repo
 rake prep
 # Install the gem

@@ -5,8 +5,8 @@ NOTE: Changes made to this template should be reflected on the following templat
 {{.title}}
 {{printDashes .title "="}}
 
-  Status date: {{.time}}
-  Agent start: {{.agent_start}}
+  Status date: {{ formatUnixTime .time_nano }}
+  Agent start: {{ formatUnixTime .agent_start_nano }}
   Pid: {{.pid}}
   Go Version: {{.go_version}}
   {{- if .python_version }}
@@ -14,8 +14,8 @@ NOTE: Changes made to this template should be reflected on the following templat
   {{- end }}
   Build arch: {{.build_arch}}
   Agent flavor: {{.flavor}}
-  {{- if .runnerStats.Workers}}
-  Check Runners: {{.runnerStats.Workers}}
+  {{- if and (.runnerStats.Workers) (.runnerStats.Workers.Count) }}
+  Check Runners: {{.runnerStats.Workers.Count}}
   {{- end }}
   {{- if .config.log_file}}
   Log File: {{.config.log_file}}
@@ -38,7 +38,7 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{yellowText "NTP offset is high. Datadog may ignore metrics sent by this Agent."}}
     {{- end }}
     {{- end }}
-    System UTC time: {{.time}}
+    System time: {{ formatUnixTime .time_nano }}
 
 {{- if .hostinfo }}
 
@@ -85,17 +85,34 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{ $key }}: {{ $value }}
   {{- end }}
 
-  {{- if .TransportWarnings }}
+{{- if .TransportWarnings }}
 
   Transport Proxy Warnings
   ========================
-    The following URLs used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting. 
+  {{- if .NoProxyIgnoredWarningMap }}
+    The requests to the following hosts use a proxy - but will ignore the proxy in future Agent versions based on the no_proxy setting.
     Enable the new behavior now with no_proxy_nonexact_match: true
-    {{- range $key, $value := .TransportWarnings }}
+    {{- range $key, $value := .NoProxyIgnoredWarningMap }}
+      {{ $key }}
+    {{- end }}
+
+  {{- end }}
+  {{- if .NoProxyUsedInFuture }}
+    The following hosts did not use a proxy - but will use the proxy in future Agent versions with the no_proxy setting.
+    Enable the new behavior now with no_proxy_nonexact_match: true
+    {{- range $key, $value := .NoProxyUsedInFuture }}
+      {{ $key }}
+    {{- end }}
+
+  {{- end }}
+  {{- if .NoProxyChanged }}
+    The following hosts proxy behavior will change in a future Agent version.
+    Enable the new behavior now with no_proxy_nonexact_match: true
+    {{- range $key, $value := .NoProxyChanged }}
       {{ $key }}
     {{- end }}
   {{- end }}
-
+{{- end }}
 
 {{- if .leaderelection}}
 
@@ -118,11 +135,25 @@ Custom Metrics Server
 =====================
   {{- if .custommetrics.Error }}
   Error: {{ .custommetrics.Error }}
-  {{ else }}
-  {{- if .custommetrics.Disabled }}
+  {{- else if .custommetrics.Disabled }}
   Disabled: {{ .custommetrics.Disabled }}
-  {{ else }}
-  {{- if .custommetrics.NoStatus }}
+  {{-  else }}
+
+  Data sources
+  ------------
+  {{- if .externalmetrics }}
+  {{- if .externalmetrics.client }}
+  URL: {{ .externalmetrics.client.url }}
+  {{- else if .externalmetrics.clients }}
+  {{- range $client := .externalmetrics.clients }}
+  - URL: {{ $client.url }}  [{{ $client.status }}]
+    Last failure: {{ $client.lastFailure }}
+    Last Success: {{ $client.lastSuccess }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+
+  {{ if .custommetrics.NoStatus }}
   {{ .custommetrics.NoStatus }}
   {{ else }}
   ConfigMap name: {{ .custommetrics.Cmname }}
@@ -151,7 +182,6 @@ Custom Metrics Server
   {{- end }}
   {{- end }}
   {{- end }}
-  {{- end }}
 {{- end }}
 
 {{- if .clusterchecks }}
@@ -161,7 +191,7 @@ Cluster Checks Dispatching
 {{- if .clusterchecks.Leader }}
   {{- if .clusterchecks.Active }}
   Status: Leader, serving requests
-  Active nodes: {{ .clusterchecks.NodeCount }}
+  Active agents: {{ .clusterchecks.NodeCount }}
   Check Configurations: {{ .clusterchecks.TotalConfigs }}
     - Dispatched: {{ .clusterchecks.ActiveConfigs }}
     - Unassigned: {{ .clusterchecks.DanglingConfigs }}

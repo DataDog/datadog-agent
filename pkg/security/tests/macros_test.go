@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -11,7 +12,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/stretchr/testify/assert"
+
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestMacros(t *testing.T) {
@@ -26,14 +30,14 @@ func TestMacros(t *testing.T) {
 		},
 	}
 
-	rules := []*rules.RuleDefinition{
+	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
-			Expression: `testmacro in testmacro2 && mkdir.filename in testmacro2`,
+			Expression: `testmacro in testmacro2 && mkdir.file.path in testmacro2`,
 		},
 	}
 
-	test, err := newTestModule(macros, rules, testOpts{})
+	test, err := newTestModule(t, macros, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,17 +48,12 @@ func TestMacros(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.Mkdir(testFile, 0777); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mkdir" {
-			t.Errorf("expected mkdir event, got %s", event.GetType())
+	test.WaitSignal(t, func() error {
+		if err = os.Mkdir(testFile, 0777); err != nil {
+			return err
 		}
-	}
+		return os.Remove(testFile)
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "mkdir", event.GetType(), "wrong event type")
+	})
 }

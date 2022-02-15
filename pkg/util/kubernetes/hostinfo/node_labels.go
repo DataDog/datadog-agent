@@ -1,26 +1,29 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package hostinfo
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // GetNodeLabels returns node labels for this host
-func GetNodeLabels() (map[string]string, error) {
+func GetNodeLabels(ctx context.Context) (map[string]string, error) {
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
 	}
 
-	nodeName, err := ku.GetNodename()
+	nodeName, err := ku.GetNodename(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -32,12 +35,12 @@ func GetNodeLabels() (map[string]string, error) {
 		}
 		return cl.GetNodeLabels(nodeName)
 	}
-	return apiserverNodeLabels(nodeName)
+	return apiserverNodeLabels(ctx, nodeName)
 }
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label
-func GetNodeClusterNameLabel() (string, error) {
-	nodeLabels, err := GetNodeLabels()
+func GetNodeClusterNameLabel(ctx context.Context) (string, error) {
+	nodeLabels, err := GetNodeLabels(ctx)
 	if err != nil {
 		return "", err
 	}

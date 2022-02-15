@@ -1,18 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
 import (
+	"context"
 	"sort"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -21,6 +20,8 @@ import (
 )
 
 func TestProcessEndpoints(t *testing.T) {
+	ctx := context.Background()
+
 	kep := &v1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -42,7 +43,7 @@ func TestProcessEndpoints(t *testing.T) {
 		},
 	}
 
-	eps := processEndpoints(kep, true, []string{"foo:bar"})
+	eps := processEndpoints(kep, []string{"foo:bar"})
 
 	// Sort eps to impose the order
 	sort.Slice(eps, func(i, j int) bool {
@@ -58,18 +59,17 @@ func TestProcessEndpoints(t *testing.T) {
 		return keyi < keyj
 	})
 
-	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetEntity())
-	assert.Equal(t, integration.Before, eps[0].GetCreationTime())
+	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetServiceID())
 
-	adID, err := eps[0].GetADIdentifiers()
+	adID, err := eps[0].GetADIdentifiers(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1"}, adID)
 
-	hosts, err := eps[0].GetHosts()
+	hosts, err := eps[0].GetHosts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.1"}, hosts)
 
-	ports, err := eps[0].GetPorts()
+	ports, err := eps[0].GetPorts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
@@ -77,28 +77,23 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.1", "foo:bar"}, tags)
 
-	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetEntity())
-	assert.Equal(t, integration.Before, eps[1].GetCreationTime())
+	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetServiceID())
 
-	adID, err = eps[1].GetADIdentifiers()
+	adID, err = eps[1].GetADIdentifiers(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2"}, adID)
 
-	hosts, err = eps[1].GetHosts()
+	hosts, err = eps[1].GetHosts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.2"}, hosts)
 
-	ports, err = eps[1].GetPorts()
+	ports, err = eps[1].GetPorts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
 	tags, _, err = eps[1].GetTags()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.2", "foo:bar"}, tags)
-
-	eps = processEndpoints(kep, false, []string{"foo:bar"})
-	assert.Equal(t, integration.After, eps[0].GetCreationTime())
-	assert.Equal(t, integration.After, eps[1].GetCreationTime())
 }
 
 func TestSubsetsDiffer(t *testing.T) {

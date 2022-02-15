@@ -1,7 +1,7 @@
 # Cookbook Name:: dd-agent-imprt-conf
 # Recipe:: default
 #
-# Copyright (C) 2013 Datadog
+# Copyright (C) 2013-present Datadog
 #
 # All rights reserved - Do Not Redistribute
 #

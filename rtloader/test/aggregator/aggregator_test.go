@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testaggregator
 
 import (
@@ -445,6 +450,46 @@ func TestSubmitHistogramBucket(t *testing.T) {
 	}
 	if tags[0] != "foo" || tags[1] != "bar" {
 		t.Fatalf("Unexpected tags: %v", tags)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitEventPlatformEvent(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	cases := []struct {
+		args        string
+		expectedOut string
+	}{
+		{
+			"None, 'id', 'raw-event', 'dbm-sample'",
+			"",
+		},
+		{
+			"None, 'id', '', ''",
+			"",
+		},
+		{
+			"None, 'id', 'raw-event', 1",
+			"TypeError: argument 4 must be (str|string), not int",
+		},
+	}
+
+	for _, testCase := range cases {
+		out, err := run(fmt.Sprintf("aggregator.submit_event_platform_event(%s)", testCase.args))
+		if err != nil {
+			t.Fatal(err)
+		}
+		matched, err := regexp.Match(testCase.expectedOut, []byte(out))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !matched {
+			t.Fatalf("wrong output. expected='%s', found='%s'", testCase.expectedOut, out)
+		}
 	}
 
 	// Check for leaks

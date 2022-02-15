@@ -1,16 +1,18 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testsuite
 
 import (
-	"os"
-	"reflect"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testsuite/testdata"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestClientStats(t *testing.T) {
@@ -24,51 +26,50 @@ func TestClientStats(t *testing.T) {
 		}
 	}()
 
-	os.Setenv("DD_APM_FEATURES", "client_stats")
 	for _, tt := range testdata.ClientStatsTests {
 		t.Run("", func(t *testing.T) {
-			if err := r.RunAgent(nil); err != nil {
+			if err := r.RunAgent([]byte("hostname: agent-hostname\r\napm_config:\r\n  env: agent-env")); err != nil {
 				t.Fatal(err)
 			}
 			defer r.KillAgent()
 
-			if err := r.PostMsgpack("/v0.5/stats", &tt.In); err != nil {
+			if err := r.PostMsgpack("/v0.6/stats", &tt.In); err != nil {
 				t.Fatal(err)
 			}
 			timeout := time.After(3 * time.Second)
 			out := r.Out()
+			res := make([]pb.StatsPayload, 0, len(tt.Out))
 			for {
 				select {
 				case p := <-out:
-					got, ok := p.(stats.Payload)
+					got, ok := p.(pb.StatsPayload)
 					if !ok {
 						continue
 					}
-					if reflect.DeepEqual(got, tt.Out) {
-						return
+					got = normalizeTimeFields(t, got)
+					res = append(res, got)
+					if len(res) < len(tt.Out) {
+						continue
 					}
-					t.Logf("%#v", got)
-					t.Fatal("did not match")
+					assert.ElementsMatch(t, res, tt.Out)
+					return
 				case <-timeout:
 					t.Fatalf("timed out, log was:\n%s", r.AgentLog())
 				}
 			}
 		})
 	}
+}
 
-	os.Unsetenv("DD_APM_FEATURES")
-	t.Run("off", func(t *testing.T) {
-		if err := r.RunAgent(nil); err != nil {
-			t.Fatal(err)
+func normalizeTimeFields(t *testing.T, p pb.StatsPayload) pb.StatsPayload {
+	now := time.Now().UnixNano()
+	for _, s := range p.Stats {
+		for i := range s.Stats {
+			assert.True(t, s.Stats[i].AgentTimeShift > now-100*1e9)
+			s.Stats[i].AgentTimeShift = 0
+			assert.True(t, s.Stats[i].Start >= uint64(now-40*1e9))
+			s.Stats[i].Start = 0
 		}
-		defer r.KillAgent()
-
-		err := r.PostMsgpack("/v0.5/stats", &pb.ClientStatsPayload{})
-		if err == nil {
-			t.Fatal()
-		}
-		if !strings.Contains(err.Error(), "404") {
-			t.Fatal()
-		}
-	})
+	}
+	return p
 }

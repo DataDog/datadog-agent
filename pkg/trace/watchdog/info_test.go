@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package watchdog
 
@@ -24,10 +24,10 @@ func TestCPULow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
 
-	c := CPU(time.Now())
+	_ = CPU(time.Now())
 	globalCurrentInfo.cacheDelay = testDuration
 	time.Sleep(testDuration)
-	c = CPU(time.Now())
+	c := CPU(time.Now())
 	t.Logf("CPU (sleep): %v", c)
 
 	// checking that CPU is low enough, this is theorically flaky,

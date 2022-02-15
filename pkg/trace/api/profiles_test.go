@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
@@ -10,10 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func mockConfig(k string, v interface{}) func() {
@@ -94,30 +98,31 @@ func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
 
 func TestProfilingEndpoints(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
-		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
+		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/api/v2/profile")()
 		urls, keys, err := profilingEndpoints("test_api_key")
 		assert.NoError(t, err)
-		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/v1/input"))
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
+
 	t.Run("site", func(t *testing.T) {
 		defer mockConfig("site", "datadoghq.eu")()
 		urls, keys, err := profilingEndpoints("test_api_key")
 		assert.NoError(t, err)
-		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/v1/input"))
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("default", func(t *testing.T) {
 		urls, keys, err := profilingEndpoints("test_api_key")
 		assert.NoError(t, err)
-		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/v1/input"))
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("multiple", func(t *testing.T) {
 		defer mockConfigMap(map[string]interface{}{
-			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/v1/input",
+			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/api/v2/profile",
 			"apm_config.profiling_additional_endpoints": map[string][]string{
 				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
 				"https://dd.datad0g.com":          {"api_key_3"},
@@ -126,7 +131,7 @@ func TestProfilingEndpoints(t *testing.T) {
 		urls, keys, err := profilingEndpoints("api_key_0")
 		assert.NoError(t, err)
 		expectedURLs := makeURLs(t,
-			"https://intake.profile.datadoghq.jp/v1/input",
+			"https://intake.profile.datadoghq.jp/api/v2/profile",
 			"https://ddstaging.datadoghq.com",
 			"https://ddstaging.datadoghq.com",
 			"https://dd.datad0g.com",
@@ -156,8 +161,20 @@ func TestProfileProxyHandler(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if v := req.Header.Get("X-Datadog-Additional-Tags"); v != "host:myhost,default_env:none" {
-				t.Fatalf("invalid X-Datadog-Additional-Tags header: %q", v)
+			v := req.Header.Get("X-Datadog-Additional-Tags")
+			tags := strings.Split(v, ",")
+			m := make(map[string]string)
+			for _, tag := range tags {
+				kv := strings.Split(tag, ":")
+				if strings.Contains(kv[0], "orchestrator") {
+					t.Fatalf("non-fargate environment shouldn't contain '%s' tag : %q", kv[0], v)
+				}
+				m[kv[0]] = kv[1]
+			}
+			for _, tag := range []string{"host", "default_env", "agent_version"} {
+				if _, ok := m[tag]; !ok {
+					t.Fatalf("invalid X-Datadog-Additional-Tags header, should contain '%s': %q", tag, v)
+				}
 			}
 			called = true
 		}))
@@ -168,6 +185,43 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 		conf := newTestReceiverConfig()
 		conf.Hostname = "myhost"
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		if !called {
+			t.Fatal("request not proxied")
+		}
+	})
+
+	t.Run("proxy_code", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
+		req, _ := http.NewRequest("POST", "/some/path", nil)
+		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		rec := httptest.NewRecorder()
+		receiver.profileProxyHandler().ServeHTTP(rec, req)
+		resp := rec.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("ok_fargate", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			v := req.Header.Get("X-Datadog-Additional-Tags")
+			if !strings.Contains(v, "orchestrator:fargate_orchestrator") {
+				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
+			}
+			called = true
+		}))
+		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conf := newTestReceiverConfig()
+		conf.Hostname = "myhost"
+		conf.FargateOrchestrator = "orchestrator"
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		if !called {

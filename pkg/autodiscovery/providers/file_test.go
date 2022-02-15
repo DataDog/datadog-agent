@@ -1,82 +1,29 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package providers
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetIntegrationConfig(t *testing.T) {
-	// file does not exist
-	config, err := GetIntegrationConfigFromFile("foo", "")
-	assert.NotNil(t, err)
-
-	// file contains invalid Yaml
-	config, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
-	assert.NotNil(t, err)
-
-	// valid yaml, invalid configuration file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
-	assert.NotNil(t, err)
-	assert.Equal(t, len(config.Instances), 0)
-
-	// valid metric file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/metrics.yaml")
-	assert.Nil(t, err)
-	assert.NotNil(t, config.MetricConfig)
-
-	// valid logs-agent file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/logs-agent_only.yaml")
-	assert.Nil(t, err)
-	assert.NotNil(t, config.LogsConfig)
-
-	// valid configuration file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
-	require.Nil(t, err)
-	assert.Equal(t, config.Name, "foo")
-	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
-	assert.Equal(t, config.Source, "file:tests/testcheck.yaml")
-	assert.Equal(t, len(config.Instances), 1)
-	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
-	assert.Len(t, config.ADIdentifiers, 0)
-	assert.Nil(t, config.MetricConfig)
-	assert.Nil(t, config.LogsConfig)
-
-	// autodiscovery
-	config, err = GetIntegrationConfigFromFile("foo", "tests/ad.yaml")
-	require.Nil(t, err)
-	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
-
-	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
-	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
-	assert.NotNil(t, err)
-}
-
-func TestNewYamlConfigProvider(t *testing.T) {
-	paths := []string{"foo", "bar", "foo/bar"}
-	provider := NewFileConfigProvider(paths)
-	assert.Equal(t, len(provider.paths), len(paths))
-
-	for i, p := range provider.paths {
-		assert.Equal(t, p, paths[i])
-	}
-	assert.Zero(t, len(provider.Errors))
-}
-
 func TestCollect(t *testing.T) {
+	ctx := context.Background()
 	config.Datadog.Set("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
-	provider := NewFileConfigProvider(paths)
-	configs, err := provider.Collect()
+	ResetReader(paths)
+	provider := NewFileConfigProvider()
+	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)
 
@@ -134,14 +81,16 @@ func TestCollect(t *testing.T) {
 }
 
 func TestEnvVarReplacement(t *testing.T) {
+	ctx := context.Background()
 	err := os.Setenv("test_envvar_key", "test_value")
 	require.NoError(t, err)
 	os.Unsetenv("test_envvar_not_set")
 	defer os.Unsetenv("test_envvar_key")
 
 	paths := []string{"tests"}
-	provider := NewFileConfigProvider(paths)
-	configs, err := provider.Collect()
+	ResetReader(paths)
+	provider := NewFileConfigProvider()
+	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)
 

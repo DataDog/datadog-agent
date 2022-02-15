@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -35,15 +36,15 @@ type ContainerListConfig struct {
 	FlagExcluded  bool
 }
 
-// Containers gets a list of all containers on the current node using a mix of
+// ListContainers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
-func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Container, error) {
+func (d *DockerUtil) ListContainers(ctx context.Context, cfg *ContainerListConfig) ([]*containers.Container, error) {
 	err := providers.ContainerImpl().Prefetch()
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch container metrics: %s", err)
 	}
 
-	cList, err := d.dockerContainers(cfg)
+	cList, err := d.dockerContainers(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("could not get docker containers: %s", err)
 	}
@@ -63,12 +64,12 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 			// in both cases we can't get the IP address in parseContainerNetworkAddresses
 		} else if len(container.AddressList) == 0 {
 			// the inspect should be in the cache already so this is not a problem
-			inspect, err := d.Inspect(container.ID, false)
+			inspect, err := d.Inspect(ctx, container.ID, false)
 			if err != nil {
 				log.Debugf("Error inspecting container %s: %s", container.ID, err)
 				continue
 			}
-			networkMode, err := GetContainerNetworkMode(container.ID)
+			networkMode, err := GetContainerNetworkMode(ctx, container.ID)
 			log.Tracef("container %s network mode: %s", container.Name, networkMode)
 			if err != nil {
 				log.Debugf("Failed to get network mode for container %s. Network info will be missing. Error: %s", container.ID, err)
@@ -85,7 +86,7 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 			// in awsvpc networking mode so we try getting IP address from the
 			// ECS container metadata endpoint and port from inspect.Config.ExposedPorts
 			if networkMode == containers.AwsvpcNetworkMode {
-				ecsContainerMetadataURL, err := d.getECSMetadataURL(container.ID)
+				ecsContainerMetadataURL, err := d.getECSMetadataURL(ctx, container.ID)
 				if err != nil {
 					log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
@@ -195,11 +196,11 @@ func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, option
 }
 
 // dockerContainers returns the running container list from the docker API
-func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.Container, error) {
+func (d *DockerUtil) dockerContainers(ctx context.Context, cfg *ContainerListConfig) ([]*containers.Container, error) {
 	if cfg == nil {
 		return nil, errors.New("configuration is nil")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	cList, err := d.cli.ContainerList(ctx, types.ContainerListOptions{All: cfg.IncludeExited})
 	if err != nil {
@@ -211,7 +212,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			// FIXME: We might need to invalidate this cache if a containers networks are changed live.
 			d.Lock()
 			if _, ok := d.networkMappings[c.ID]; !ok {
-				i, err := d.Inspect(c.ID, false)
+				i, err := d.Inspect(ctx, c.ID, false)
 				if err != nil {
 					d.Unlock()
 					log.Debugf("Error inspecting container %s: %s", c.ID, err)
@@ -222,13 +223,21 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			d.Unlock()
 		}
 
-		image, err := d.ResolveImageName(c.Image)
+		image, err := d.ResolveImageName(ctx, c.Image)
 		if err != nil {
 			log.Warnf("Can't resolve image name %s: %s", c.Image, err)
 		}
 
 		pauseContainerExcluded := config.Datadog.GetBool("exclude_pause_container") && containers.IsPauseContainer(c.Labels)
-		excluded := pauseContainerExcluded || d.cfg.filter.IsExcluded(c.Names[0], image, c.Labels["io.kubernetes.pod.namespace"])
+
+		// Containers don't have a name when they're stuck in the "Removal in progress" state.
+		// Ref: https://github.com/DataDog/datadog-agent/issues/9516
+		containerName := ""
+		if len(c.Names) > 0 {
+			containerName = c.Names[0]
+		}
+
+		excluded := pauseContainerExcluded || d.cfg.filter.IsExcluded(containerName, image, c.Labels["io.kubernetes.pod.namespace"])
 		if excluded && !cfg.FlagExcluded {
 			continue
 		}
@@ -238,14 +247,14 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			Type:        "Docker",
 			ID:          c.ID,
 			EntityID:    entityID,
-			Name:        c.Names[0],
+			Name:        containerName,
 			Image:       image,
 			ImageID:     c.ImageID,
 			Created:     c.Created,
 			State:       c.State,
 			Excluded:    excluded,
 			Health:      parseContainerHealth(c.Status),
-			AddressList: d.parseContainerNetworkAddresses(c.ID, c.Ports, c.NetworkSettings, c.Names[0]),
+			AddressList: d.parseContainerNetworkAddresses(c.ID, c.Ports, c.NetworkSettings, containerName),
 		}
 
 		ret = append(ret, container)
@@ -259,7 +268,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 		d.Unlock()
 	}
 
-	if d.lastInvalidate.Add(invalidationInterval).After(time.Now()) {
+	if time.Now().Sub(d.lastInvalidate) > invalidationInterval {
 		d.cleanupCaches(cList)
 	}
 
@@ -343,8 +352,8 @@ func isExposed(port types.Port) bool {
 
 // getECSMetadataURL inspects a given container ID and returns its ECS container metadata URI
 // if found in its environment. It returns an empty string and an error on failure.
-func (d *DockerUtil) getECSMetadataURL(cID string) (string, error) {
-	i, err := d.Inspect(cID, false)
+func (d *DockerUtil) getECSMetadataURL(ctx context.Context, cID string) (string, error) {
+	i, err := d.Inspect(ctx, cID, false)
 	if err != nil {
 		return "", err
 	}
@@ -375,6 +384,7 @@ func (d *DockerUtil) cleanupCaches(containers []types.Container) {
 			delete(d.imageNameBySha, image)
 		}
 	}
+	d.lastInvalidate = time.Now()
 	d.Unlock()
 }
 

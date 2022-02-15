@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -253,6 +253,30 @@ func TestLoadEnv(t *testing.T) {
 		assert.Contains(cfg.ReplaceTags, rule2)
 	})
 
+	env = "DD_APM_FILTER_TAGS_REQUIRE"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `important1 important2:value1`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RequireTags, []*Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
+	})
+
+	env = "DD_APM_FILTER_TAGS_REJECT"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `bad1:value1`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RejectTags, []*Tag{{K: "bad1", V: "value1"}})
+	})
+
 	for _, envKey := range []string{
 		"DD_CONNECTION_LIMIT", // deprecated
 		"DD_APM_CONNECTION_LIMIT",
@@ -281,7 +305,37 @@ func TestLoadEnv(t *testing.T) {
 			defer os.Unsetenv(envKey)
 			cfg, err := Load("./testdata/full.yaml")
 			assert.NoError(err)
-			assert.Equal(6., cfg.MaxTPS)
+			assert.Equal(6., cfg.TargetTPS)
+		})
+	}
+
+	for _, envKey := range []string{
+		"DD_APM_ERROR_TPS",
+	} {
+		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
+			assert := assert.New(t)
+			err := os.Setenv(envKey, "12")
+			assert.NoError(err)
+			defer os.Unsetenv(envKey)
+			cfg, err := Load("./testdata/full.yaml")
+			assert.NoError(err)
+			assert.Equal(12., cfg.ErrorTPS)
+		})
+	}
+
+	for _, envKey := range []string{
+		"DD_APM_DISABLE_RARE_SAMPLER",
+	} {
+		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
+			assert := assert.New(t)
+			err := os.Setenv(envKey, "true")
+			assert.NoError(err)
+			defer os.Unsetenv(envKey)
+			cfg, err := Load("./testdata/full.yaml")
+			assert.NoError(err)
+			assert.Equal(true, cfg.DisableRareSampler)
 		})
 	}
 
@@ -300,6 +354,18 @@ func TestLoadEnv(t *testing.T) {
 			assert.Equal(7., cfg.MaxEPS)
 		})
 	}
+
+	env = "DD_APM_MAX_REMOTE_TPS"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "337.41")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(337.41, cfg.MaxRemoteTPS)
+	})
 
 	env = "DD_APM_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
@@ -325,6 +391,54 @@ func TestLoadEnv(t *testing.T) {
 		_, err = Load("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.profiling_dd_url"))
+	})
+
+	env = "DD_APM_DEBUGGER_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "my-site.com")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.debugger_dd_url"))
+	})
+
+	env = "DD_APM_DEBUGGER_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "my-key")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-key", config.Datadog.GetString("apm_config.debugger_api_key"))
+	})
+
+	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "false")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(config.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
+	})
+
+	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "false")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(config.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

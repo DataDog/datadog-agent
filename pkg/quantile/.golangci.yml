@@ -1,0 +1,7 @@
+run:
+  skip-files:
+    # TODO metrics-aggregation
+    - key.go
+    - print.go
+    - sparse.go
+    - sparse_test.go 

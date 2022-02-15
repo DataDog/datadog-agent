@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package clusteragent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -48,13 +49,15 @@ type DCAClientInterface interface {
 
 	GetVersion() (version.Version, error)
 	GetNodeLabels(nodeName string) (map[string]string, error)
+	GetNodeAnnotations(nodeName string) (map[string]string, error)
+	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
 
-	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
-	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
-	GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error)
+	PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error)
+	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
+	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
 }
 
@@ -239,13 +242,14 @@ func (c *DCAClient) GetVersion() (version.Version, error) {
 }
 
 // GetNodeLabels returns the node labels from the Cluster Agent.
-func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
-	const dcaNodeMeta = "api/v1/tags/node"
+func (c *DCAClient) getMapStringString(queryPath, objectName string) (map[string]string, error) {
 	var err error
-	var labels map[string]string
+	var result map[string]string
 
 	// https://host:port/api/v1/tags/node/{nodeName}
-	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
+	// https://host:port/api/v1/tags/namespace/{nsName}
+	// https://host:port/api/v1/annotations/node/{nodeName}
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, queryPath, objectName)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
@@ -267,8 +271,23 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(body, &labels)
-	return labels, err
+	err = json.Unmarshal(body, &result)
+	return result, err
+}
+
+// GetNodeLabels returns the node labels from the Cluster Agent.
+func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
+	return c.getMapStringString("api/v1/tags/node", nodeName)
+}
+
+// GetNamespaceLabels returns the namespace labels from the Cluster Agent.
+func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+	return c.getMapStringString("api/v1/tags/namespace", nsName)
+}
+
+// GetNodeAnnotations returns the node annotations from the Cluster Agent.
+func (c *DCAClient) GetNodeAnnotations(nodeName string) (map[string]string, error) {
+	return c.getMapStringString("api/v1/annotations/node", nodeName)
 }
 
 // GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.

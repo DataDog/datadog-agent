@@ -1,8 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package ebpf
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"strings"
+
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+)
+
+const (
+	spNS = "system_probe_config"
 )
 
 // Config stores all common flags used by system-probe
@@ -13,33 +24,67 @@ type Config struct {
 	// BPFDir is the directory to load the eBPF program from
 	BPFDir string
 
+	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
+	ExcludedBPFLinuxVersions []string
+
 	// ProcRoot is the root path to the proc filesystem
 	ProcRoot string
 
-	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
-	DebugPort int
-
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
+
+	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
+	EnableRuntimeCompiler bool
+
+	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
+	EnableKernelHeaderDownload bool
+
+	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
+	KernelHeadersDirs []string
+
+	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
+	KernelHeadersDownloadDir string
+
+	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
+	RuntimeCompilerOutputDir string
+
+	// AptConfigDir is the path to the apt config directory
+	AptConfigDir string
+
+	// YumReposDir is the path to the yum repository directory
+	YumReposDir string
+
+	// ZypperReposDir is the path to the zypper repository directory
+	ZypperReposDir string
+
+	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
+	AllowPrecompiledFallback bool
 }
 
-// NewDefaultConfig creates a instance of Config with sane default values
-func NewDefaultConfig() *Config {
+func key(pieces ...string) string {
+	return strings.Join(pieces, ".")
+}
+
+// NewConfig creates a config with ebpf-related settings
+func NewConfig() *Config {
+	cfg := aconfig.Datadog
+	aconfig.InitSystemProbeConfig(cfg)
+
 	return &Config{
-		BPFDir:   "build",
-		BPFDebug: false,
-		ProcRoot: "/proc",
+		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
+		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
+		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
+		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
+		ProcRoot:                 util.GetProcRoot(),
+
+		EnableRuntimeCompiler:      cfg.GetBool(key(spNS, "enable_runtime_compiler")),
+		RuntimeCompilerOutputDir:   cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
+		EnableKernelHeaderDownload: cfg.GetBool(key(spNS, "enable_kernel_header_download")),
+		KernelHeadersDirs:          cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir:   cfg.GetString(key(spNS, "kernel_header_download_dir")),
+		AptConfigDir:               cfg.GetString(key(spNS, "apt_config_dir")),
+		YumReposDir:                cfg.GetString(key(spNS, "yum_repos_dir")),
+		ZypperReposDir:             cfg.GetString(key(spNS, "zypper_repos_dir")),
+		AllowPrecompiledFallback:   true,
 	}
-}
-
-// SysProbeConfigFromConfig creates a Config from values provided by config.AgentConfig
-func SysProbeConfigFromConfig(cfg *config.AgentConfig) *Config {
-	ebpfConfig := NewDefaultConfig()
-
-	ebpfConfig.ProcRoot = util.GetProcRoot()
-	ebpfConfig.BPFDebug = cfg.SysProbeBPFDebug
-	ebpfConfig.BPFDir = cfg.SystemProbeBPFDir
-	ebpfConfig.EnableTracepoints = cfg.EnableTracepoints
-
-	return ebpfConfig
 }

@@ -18,7 +18,7 @@ COMMIT_USER=$(git log -1 --pretty=format:'%ae' | tr -d '[:space:]')
 REGION="${REGION:-us-east-1}"
 
 SPOT_REQUEST_ID=$(aws ec2 request-spot-instances \
-                      --spot-price "0.015" \
+                      --spot-price "0.340" \
                       --instance-count 1 \
                       --type "one-time" \
                       --valid-until $(($(date +%s) + 3300)) \
@@ -39,10 +39,10 @@ done
 aws ec2 create-tags --resources "${SPOT_REQUEST_ID}" "${INSTANCE_ID}" \
     --region "${REGION}" \
     --tags \
-    Key=repository,Value=github.com/DataDog/datadog-agent \
-    Key=branch,Value="${BRANCH}" \
-    Key=commit,Value="${COMMIT_ID:0:8}" \
-    Key=user,Value="${COMMIT_USER}"
+    "Key=repository,Value=github.com/DataDog/datadog-agent" \
+    "Key=branch,Value='${BRANCH}'" \
+    "Key=commit,Value='${COMMIT_ID:0:8}'" \
+    "Key=user,Value='${COMMIT_USER}'"
 
 until [[ -n ${INSTANCE_ENDPOINT:+x} ]]; do
     sleep 5

@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -10,98 +11,96 @@ package tests
 import (
 	"os"
 	"runtime"
+	"sync"
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/stretchr/testify/assert"
+
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestMkdir(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdir",
-			Expression: `mkdir.filename == "{{.Root}}/test-mkdir"`,
+			Expression: `mkdir.file.path == "{{.Root}}/test-mkdir" && mkdir.file.uid == 0 && mkdir.file.gid == 0`,
 		},
 		{
 			ID:         "test_rule_mkdirat",
-			Expression: `mkdir.filename == "{{.Root}}/testat-mkdir"`,
-		},
-		{
-			ID:         "test_rule_mkdirat_error",
-			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
+			Expression: `mkdir.file.path == "{{.Root}}/testat-mkdir" && mkdir.file.uid == 0 && mkdir.file.gid == 0`,
 		},
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-mkdir")
-	if err != nil {
-		t.Fatal(err)
-	}
+	mkdirMode := uint16(0o707)
+	expectedMode := uint16(applyUmask(int(mkdirMode)))
 
-	t.Run("mkdir", func(t *testing.T) {
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
+	t.Run("mkdir", ifSyscallSupported("SYS_MKDIR", func(t *testing.T, syscallNB uintptr) {
+		testFile, testFilePtr, err := test.Path("test-mkdir")
+		if err != nil {
 			t.Fatal(err)
 		}
 		defer syscall.Rmdir(testFile)
 
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if rule.ID != "test_rule_mkdir" {
-				t.Errorf("expected triggered rule 'test_rule_mkdir', got '%s'", rule.ID)
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
+				return error(errno)
 			}
-
-			if mode := event.Mkdir.Mode; mode != 0707 {
-				t.Errorf("expected mkdir mode 0707, got %#o (%+v)", mode, event)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.Inode, inode)
-			}
-
-			testContainerPath(t, event, "mkdir.container_path")
-		}
-	})
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_mkdir")
+			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
+			assert.Equal(t, getInode(t, testFile), event.Mkdir.File.Inode, "wrong inode")
+			assertRights(t, event.Mkdir.File.Mode, expectedMode)
+			assertNearTime(t, event.Mkdir.File.MTime)
+			assertNearTime(t, event.Mkdir.File.CTime)
+		})
+	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
 		testatFile, testatFilePtr, err := test.Path("testat-mkdir")
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer syscall.Rmdir(testatFile)
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
-			t.Fatal(error(errno))
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if rule.ID != "test_rule_mkdirat" {
-				t.Errorf("expected triggered rule 'test_rule_mkdirat', got '%s'", rule.ID)
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
+				return error(errno)
 			}
-
-			if mode := event.Mkdir.Mode; mode != 0777 {
-				t.Errorf("expected mkdir mode 0777, got %#o", mode)
-			}
-
-			if inode := getInode(t, testatFile); inode != event.Mkdir.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.Inode, inode)
-			}
-
-			testContainerPath(t, event, "mkdir.container_path")
-		}
-
-		if err := syscall.Rmdir(testatFile); err != nil {
-			t.Fatal(err)
-		}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_mkdirat")
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
+			assertRights(t, uint16(event.Mkdir.Mode), 0777)
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
+			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
+			assertNearTime(t, event.Mkdir.File.MTime)
+			assertNearTime(t, event.Mkdir.File.CTime)
+		})
 	})
+}
+
+func TestMkdirError(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_mkdirat_error",
+			Expression: `process.file.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
 
 	t.Run("mkdirat-error", func(t *testing.T) {
 		_, testatFilePtr, err := test.Path("testat2-mkdir")
@@ -113,34 +112,46 @@ func TestMkdir(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		go func() {
-			runtime.LockOSThread()
-			// do not unlock, we want the thread to be killed when exiting the goroutine
+		test.WaitSignal(t, func() error {
+			var wg sync.WaitGroup
+			wg.Add(1)
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
-				t.Fatal(err)
+			errChan := make(chan error, 1)
+
+			go func() {
+				defer wg.Done()
+
+				runtime.LockOSThread()
+				// do not unlock, we want the thread to be killed when exiting the goroutine
+
+				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1, 1, 0); errno != 0 {
+					errChan <- error(errno)
+					return
+				}
+
+				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1, 1, 0); errno != 0 {
+					errChan <- error(errno)
+					return
+				}
+
+				if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+					errChan <- error(errno)
+					return
+				}
+			}()
+
+			wg.Wait()
+
+			select {
+			case err = <-errChan:
+				return err
+			default:
 			}
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
-				t.Fatal(err)
-			}
-
-			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
-				t.Fatal(error(errno))
-			}
-		}()
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if rule.ID != "test_rule_mkdirat_error" {
-				t.Errorf("expected triggered rule 'test_rule_mkdirat_error', got '%s'", rule.ID)
-			}
-
-			if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {
-				t.Errorf("expected retval != EACCES, got %d", retval)
-			}
-		}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
+			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
+		})
 	})
 }

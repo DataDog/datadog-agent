@@ -1,13 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package collectors
 
 import (
+	"context"
+	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -24,6 +29,10 @@ type KubeletCollector struct {
 
 // Detect tries to connect to the kubelet
 func (c *KubeletCollector) Detect() error {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return errors.New("Kubernetes feature is deactivated")
+	}
+
 	util, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return err
@@ -34,7 +43,7 @@ func (c *KubeletCollector) Detect() error {
 
 // List gets all running containers
 func (c *KubeletCollector) List() ([]*containers.Container, error) {
-	return c.kubeUtil.ListContainers()
+	return c.kubeUtil.ListContainers(context.TODO())
 }
 
 // UpdateMetrics updates metrics on an existing list of containers

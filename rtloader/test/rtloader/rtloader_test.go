@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testrtloader
 
 import (
@@ -63,6 +68,28 @@ with open(r'%s', 'w') as f:
 
 	if output != "Hello, World!" {
 		t.Errorf("Unexpected printed value: '%s'", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSysExecutableValue(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+import sys
+with open(r'%s', 'w') as f:
+ f.write(sys.executable)`, tmpfile.Name())
+
+	output, err := runString(code)
+	if err != nil {
+		t.Fatalf("`test_sys_executable` error: %v", err)
+	}
+
+	if output != "/folder/mock_python_interpeter_bin_path" {
+		t.Errorf("Unexpected sys.executable value: '%s'", output)
 	}
 
 	// Check for leaks
@@ -190,6 +217,41 @@ with open(r'%s', 'w') as f:
 	}
 
 	if output != "hello" {
+		t.Errorf("Unexpected printed value: '%s'", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestCancelCheck(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := `import fake_check
+fake_check.was_canceled = False`
+
+	if _, err := runString(code); err != nil {
+		t.Fatalf("`TestCancelCheck` error resetting was_canceled: %v", err)
+	}
+
+	if err := cancelFakeCheck(); err != nil {
+		t.Fatal(err)
+	}
+
+	code = fmt.Sprintf(`
+import sys
+import fake_check
+with open(r'%s', 'w') as f:
+	f.write(str(fake_check.was_canceled))`, tmpfile.Name())
+
+	output, err := runString(code)
+
+	if err != nil {
+		t.Fatalf("`cancel_check` error: %v", err)
+	}
+
+	if output != "True" {
 		t.Errorf("Unexpected printed value: '%s'", output)
 	}
 

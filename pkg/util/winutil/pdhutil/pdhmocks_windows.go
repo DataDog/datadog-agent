@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
 // +build windows
 
 package pdhutil
@@ -43,6 +49,21 @@ func mockPdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQU
 
 	openQueries[openQueriesIndex] = mq
 	*phQuery = PDH_HQUERY(uintptr(openQueriesIndex))
+	return 0
+}
+
+func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
+	ndx := int(hQuery)
+	var thisQuery mockQuery
+	var ok bool
+	if thisQuery, ok = openQueries[ndx]; ok == false {
+		return uint32(PDH_INVALID_PATH)
+	}
+	counterIndex++
+
+	thisQuery.counters[counterIndex] = mockCounter{name: szFullCounterPath}
+	*phCounter = PDH_HCOUNTER(uintptr(counterIndex))
+
 	return 0
 }
 
@@ -143,6 +164,7 @@ func SetupTesting(counterstringsfile, countersfile string) {
 	pfnMakeCounterSetInstances = mockmakeCounterSetIndexes
 	pfnPdhOpenQuery = mockPdhOpenQuery
 	pfnPdhAddCounter = mockPdhAddCounter
+	pfnPdhAddEnglishCounter = mockPdhAddEnglishCounter
 	pfnPdhCollectQueryData = mockPdhCollectQueryData
 	pfnPdhEnumObjectItems = mockpdhEnumObjectItems
 	pfnPdhRemoveCounter = mockPdhRemoveCounter

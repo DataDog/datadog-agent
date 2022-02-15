@@ -1,7 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+//go:build test
+// +build test
 
 package metrics
 
@@ -16,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -140,7 +144,7 @@ func makesketch(n int) *quantile.Sketch {
 
 // Makeseries creates a SketchSeries with i+5 Sketch Points
 func Makeseries(i int) SketchSeries {
-	// makeseries is deterministic so that we can test for mutation.
+	// Makeseries is deterministic so that we can test for mutation.
 	ss := SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
 		Tags: []string{
@@ -160,7 +164,7 @@ func Makeseries(i int) SketchSeries {
 	}
 
 	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, ss.Tags)
+	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(ss.Tags))
 
 	return ss
 }

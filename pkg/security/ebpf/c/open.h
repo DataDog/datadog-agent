@@ -1,19 +1,10 @@
 #ifndef _OPEN_H_
 #define _OPEN_H_
+
 #include "defs.h"
 #include "filters.h"
 #include "syscalls.h"
 #include "process.h"
-#include "open_filter.h"
-
-struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = BASENAME_FILTER_SIZE,
-    .value_size = sizeof(u8),
-    .max_entries = 255,
-    .pinning = 0,
-    .namespace = "",
-};
 
 struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .type = BPF_MAP_TYPE_ARRAY,
@@ -27,6 +18,7 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -35,20 +27,21 @@ struct open_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
+    struct policy_t policy = fetch_policy(EVENT_OPEN);
+    if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_OPEN,
-        .policy = {.mode = ACCEPT},
+        .type = EVENT_OPEN,
+        .policy = policy,
         .open = {
             .flags = flags,
-            .mode = mode,
+            .mode = mode & S_IALLUGO,
         }
     };
 
-    cache_syscall(&syscall, EVENT_OPEN);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_OPEN)) {
-        pop_syscall(SYSCALL_OPEN);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -77,18 +70,16 @@ SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, um
     return trace__sys_openat(flags, mode);
 }
 
-int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *syscall) {
-    struct open_basename_t basename = {};
-    get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
+struct openat2_open_how {
+    u64 flags;
+    u64 mode;
+    u64 resolve;
+};
 
-    struct u8 *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
-    if (filter) {
-#ifdef DEBUG
-        bpf_printk("open basename %s approved\n", basename.value);
-#endif
-        return 1;
-    }
-    return 0;
+SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+    struct openat2_open_how how;
+    bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
+    return trace__sys_openat(how.flags, how.mode);
 }
 
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
@@ -103,50 +94,42 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     return 0;
 }
 
-int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) {
-    if (syscall->policy.mode == NO_FILTER)
-        return 0;
+int __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
+    int pass_to_userspace = 0;
 
-    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
-
-    if (syscall->policy.mode == DENY) {
-        if ((syscall->policy.flags & BASENAME) > 0) {
-            pass_to_userspace = approve_by_basename(syscall);
-        }
-
-        if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
-           pass_to_userspace = approve_by_flags(syscall);
-        }
+    if ((syscall->policy.flags & BASENAME) > 0) {
+        pass_to_userspace = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
     }
 
-    if (!pass_to_userspace) {
-        pop_syscall(SYSCALL_OPEN);
+    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+        pass_to_userspace = approve_by_flags(syscall);
+    }
+
+    return pass_to_userspace;
+}
+
+int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
+    if (syscall->open.dentry) {
+        return 0;
+    }
+
+    struct dentry *dentry = get_path_dentry(path);
+
+    syscall->open.dentry = dentry;
+    syscall->open.file.path_key = get_inode_key_path(inode, path);
+
+    set_file_inode(dentry, &syscall->open.file, 0);
+
+    if (filter_syscall(syscall, open_approvers)) {
+        return mark_as_discarded(syscall);
     }
 
     return 0;
 }
 
-int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    if (syscall->open.path_key.ino) {
-        return 0;
-    }
-
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
-    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
-
-    struct dentry *dentry = get_file_dentry(file);
-
-    syscall->open.dentry = dentry;
-    syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
-
-    set_path_key_inode(dentry, &syscall->open.path_key, 0);
-
-    return filter_open(syscall);
-}
-
 SEC("kprobe/vfs_truncate")
-int kprobe__vfs_truncate(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+int kprobe_vfs_truncate(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall)
         return 0;
 
@@ -155,85 +138,224 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     }
 
     struct path *path = (struct path *)PT_REGS_PARM1(ctx);
-
     struct dentry *dentry = get_path_dentry(path);
 
     syscall->open.dentry = dentry;
-    syscall->open.path_key = get_dentry_key_path(syscall->open.dentry, path);
+    syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
-    set_path_key_inode(dentry, &syscall->open.path_key, 0);
+    set_file_inode(dentry, &syscall->open.file, 0);
 
-    return filter_open(syscall);
-}
-
-SEC("kprobe/do_dentry_open")
-int kprobe__do_dentry_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
-    if (!syscall)
-        return 0;
-
-    switch(syscall->type) {
-        case SYSCALL_OPEN:
-            return handle_open_event(ctx, syscall);
-        case SYSCALL_EXEC:
-            return handle_exec_event(ctx, syscall);
+    if (filter_syscall(syscall, open_approvers)) {
+        return mark_as_discarded(syscall);
     }
 
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_OPEN);
+SEC("kprobe/vfs_open")
+int kprobe_vfs_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall)
         return 0;
 
+    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+    struct file *file = (struct file *)PT_REGS_PARM2(ctx);
+    struct dentry *dentry = get_path_dentry(path);
+    struct inode *inode = get_dentry_inode(dentry);
+
+    return handle_open_event(syscall, file, path, inode);
+}
+
+SEC("kprobe/do_dentry_open")
+int kprobe_do_dentry_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall)
+        return 0;
+
+    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
+
+    return handle_exec_event(ctx, syscall, file, &file->f_path, inode);
+}
+
+struct open_flags {
+    int open_flag;
+    umode_t mode;
+};
+
+struct io_open {
+    struct file *file;
+    int dfd;
+    bool ignore_nonblock;
+    struct filename *filename;
+    struct openat2_open_how how;
+};
+
+SEC("kprobe/io_openat2")
+int kprobe_io_openat2(struct pt_regs *ctx) {
+    struct io_open req;
+    if (bpf_probe_read(&req, sizeof(req), (void*) PT_REGS_PARM1(ctx))) {
+        return 0;
+    }
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
+    if (!syscall) {
+        unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
+        umode_t mode = req.how.mode & S_IALLUGO;
+        return trace__sys_openat(flags, mode);
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
+    if (!syscall)
+        return 0;
+
+    // increase mount ref
+    inc_mount_ref(syscall->open.file.path_key.mount_id);
+    if (syscall->discarded)
+        return 0;
+
+    syscall->resolver.key = syscall->open.file.path_key;
+    syscall->resolver.dentry = syscall->open.dentry;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0;
+    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_OPEN_CALLBACK_KPROBE_KEY : DR_OPEN_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    // tail call
+    resolve_dentry(ctx, dr_type);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_OPEN);
+    return 0;
+}
+
+int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE);
+}
+
+SEC("tracepoint/syscalls/sys_exit_creat")
+int tracepoint_syscalls_sys_exit_creat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(creat) {
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_open_by_handle_at")
+int tracepoint_syscalls_sys_exit_open_by_handle_at(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_truncate")
+int tracepoint_syscalls_sys_exit_truncate(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_COMPAT_KRETPROBE(truncate) {
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_open")
+int tracepoint_syscalls_sys_exit_open(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_COMPAT_KRETPROBE(open) {
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_openat")
+int tracepoint_syscalls_sys_exit_openat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_COMPAT_KRETPROBE(openat) {
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_openat2")
+int tracepoint_syscalls_sys_exit_openat2(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(openat2) {
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_open_exit")
+int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SEC("kretprobe/io_openat2")
+int kretprobe_io_openat2(struct pt_regs *ctx) {
+    struct file *f = (struct file *) PT_REGS_RC(ctx);
+    if (IS_ERR(f))
+        return 0;
+
+    return sys_open_ret(ctx, 0, DR_KPROBE);
+}
+
+SEC("kprobe/filp_close")
+int kprobe_filp_close(struct pt_regs *ctx) {
+    struct file *file = (struct file *) PT_REGS_PARM1(ctx);
+    u32 mount_id = get_file_mount_id(file);
+    if (mount_id) {
+        dec_mount_ref(ctx, mount_id);
+    }
+
+    return 0;
+}
+
+int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID) {
+       return 0;
+    }
+
     struct open_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .inode = syscall->open.path_key.ino,
-            .mount_id = syscall->open.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
-            .path_id = syscall->open.path_key.path_id,
-        },
+        .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
     };
 
-    int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
-    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
-       return 0;
-    }
-
+    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_OPEN, event);
-
     return 0;
 }
 
-SYSCALL_KRETPROBE(creat) {
-    return trace__sys_open_ret(ctx);
+SEC("kprobe/dr_open_callback")
+int __attribute__((always_inline)) kprobe_dr_open_callback(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return dr_open_callback(ctx, retval);
 }
 
-SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
-    return trace__sys_open_ret(ctx);
-}
-
-SYSCALL_COMPAT_KRETPROBE(truncate) {
-    return trace__sys_open_ret(ctx);
-}
-
-SYSCALL_COMPAT_KRETPROBE(open) {
-    return trace__sys_open_ret(ctx);
-}
-
-SYSCALL_COMPAT_KRETPROBE(openat) {
-    return trace__sys_open_ret(ctx);
+SEC("tracepoint/dr_open_callback")
+int __attribute__((always_inline)) tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_open_callback(args, args->ret);
 }
 
 #endif

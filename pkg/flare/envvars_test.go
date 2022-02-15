@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -91,14 +91,12 @@ func TestEnvvarFiltering(t *testing.T) {
 			in: map[string]string{
 				"DOCKER_HOST":                                   "tcp://10.0.0.10:8888",
 				"DD_EXTERNAL_METRICS_PROVIDER_MAX_AGE":          "500",  // external_metrics_provider.max_age
-				"DD_EXTERNAL_METRICS_PROVIDER.MAX_AGE":          "500",  // external_metrics_provider.max_age
 				"DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENABLED": "true", // admission_controller.inject_config.enabled
 				"GOGC": "120",
 			},
 			out: []string{
 				"DOCKER_HOST=tcp://10.0.0.10:8888",
 				"DD_EXTERNAL_METRICS_PROVIDER_MAX_AGE=500",
-				"DD_EXTERNAL_METRICS_PROVIDER.MAX_AGE=500",
 				"DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENABLED=true",
 				"GOGC=120",
 			},

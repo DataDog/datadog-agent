@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package providers
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -29,10 +31,10 @@ type EndpointsChecksConfigProvider struct {
 // NewEndpointsChecksConfigProvider returns a new ConfigProvider collecting
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
+func NewEndpointsChecksConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	c := &EndpointsChecksConfigProvider{}
 	var err error
-	c.nodeName, err = getNodename()
+	c.nodeName, err = getNodename(context.TODO())
 	if err != nil {
 		log.Errorf("Cannot get node name: %s", err)
 		return nil, err
@@ -50,19 +52,19 @@ func (c *EndpointsChecksConfigProvider) String() string {
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.
-func (c *EndpointsChecksConfigProvider) IsUpToDate() (bool, error) {
+func (c *EndpointsChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
 // Collect retrieves endpoints checks configurations the cluster-agent dispatched to this agent
-func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) {
+func (c *EndpointsChecksConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	if c.dcaClient == nil {
 		err := c.initClient()
 		if err != nil {
 			return nil, err
 		}
 	}
-	reply, err := c.dcaClient.GetEndpointsCheckConfigs(c.nodeName)
+	reply, err := c.dcaClient.GetEndpointsCheckConfigs(ctx, c.nodeName)
 	if err != nil {
 		if !c.flushedConfigs {
 			// On first error after grace period, mask the error once
@@ -78,7 +80,7 @@ func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) 
 
 // getNodename retrieves current node name from kubelet (if running on Kubernetes)
 // or bosh ID of current node (if running on Cloud Foundry).
-func getNodename() (string, error) {
+func getNodename(ctx context.Context) (string, error) {
 	if config.Datadog.GetBool("cloud_foundry") {
 		boshID := config.Datadog.GetString("bosh_id")
 		if boshID == "" {
@@ -91,7 +93,7 @@ func getNodename() (string, error) {
 		log.Errorf("Cannot get kubeUtil object: %s", err)
 		return "", err
 	}
-	return ku.GetNodename()
+	return ku.GetNodename(ctx)
 }
 
 // initClient initializes a cluster agent client.
@@ -104,5 +106,10 @@ func (c *EndpointsChecksConfigProvider) initClient() error {
 }
 
 func init() {
-	RegisterProvider("endpointschecks", NewEndpointsChecksConfigProvider)
+	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the EndpointsChecksConfigProvider
+func (c *EndpointsChecksConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

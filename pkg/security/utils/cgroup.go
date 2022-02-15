@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package utils
@@ -11,15 +12,12 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"fmt"
-	"io/ioutil"
-	"regexp"
+	"os"
 	"strconv"
 	"strings"
-)
 
-// containerIDPattern is the pattern of a container ID
-var containerIDPattern = regexp.MustCompile(fmt.Sprintf(`([[:xdigit:]]{%v})`, sha256.Size*2))
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
 
 // ContainerID is the type holding the container ID
 type ContainerID string
@@ -36,11 +34,6 @@ func (c ContainerID) Bytes() []byte {
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
 const ContainerIDLen = sha256.Size * 2
 
-// FindContainerID extracts the first sub string that matches the pattern of a container ID
-func FindContainerID(s string) string {
-	return containerIDPattern.FindString(s)
-}
-
 // ControlGroup describes the cgroup membership of a process
 type ControlGroup struct {
 	// ID unique hierarchy ID
@@ -56,12 +49,12 @@ type ControlGroup struct {
 
 // GetContainerID returns the container id extracted from the path of the control group
 func (cg ControlGroup) GetContainerID() ContainerID {
-	return ContainerID(FindContainerID(cg.Path))
+	return ContainerID(model.FindContainerID(cg.Path))
 }
 
 // GetProcControlGroups returns the cgroup membership of the specified task.
 func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
-	data, err := ioutil.ReadFile(CgroupTaskPath(tgid, pid))
+	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +83,7 @@ func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 func GetProcContainerID(tgid, pid uint32) (ContainerID, error) {
 	cgroups, err := GetProcControlGroups(tgid, pid)
 	if err != nil {
-		return ContainerID(""), err
+		return "", err
 	}
 
 	for _, cgroup := range cgroups {
@@ -98,5 +91,5 @@ func GetProcContainerID(tgid, pid uint32) (ContainerID, error) {
 			return containerID, nil
 		}
 	}
-	return ContainerID(""), nil
+	return "", nil
 }

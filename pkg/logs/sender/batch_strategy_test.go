@@ -1,42 +1,26 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sender
 
 import (
-	"context"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// newBatchStrategyWithLimits returns a new batchStrategy.
-func newBatchStrategyWithLimits(serializer Serializer, batchSize int, contentSize int, batchWait time.Duration) Strategy {
-	return &batchStrategy{
-		buffer:     NewMessageBuffer(batchSize, contentSize),
-		serializer: serializer,
-		batchWait:  batchWait,
-	}
-}
-
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		assert.Equal(t, content, payload)
-		return nil
-	}
-
-	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
-
-	content = []byte("a\nb")
+	s := NewBatchStrategy(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- message1
@@ -44,108 +28,118 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	message2 := message.NewMessage([]byte("b"), nil, "", 0)
 	input <- message2
 
+	expectedPayload := &message.Payload{
+		Messages:      []*message.Message{message1, message2},
+		Encoded:       []byte("a\nb"),
+		Encoding:      "identity",
+		UnencodedSize: 3,
+	}
+
 	// expect payload to be sent because buffer is full
-	assert.Equal(t, message1, <-output)
-	assert.Equal(t, message2, <-output)
+	assert.Equal(t, expectedPayload, <-output)
+	s.Stop()
 }
 
-// func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
-// 	input := make(chan *message.Message)
-// 	output := make(chan *message.Message)
+func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
+	input := make(chan *message.Message)
+	output := make(chan *message.Payload)
+	timerInterval := 100 * time.Millisecond
 
-// 	var content []byte
-// 	success := func(payload []byte) error {
-// 		assert.Equal(t, content, payload)
-// 		return nil
-// 	}
+	clk := clock.NewMock()
+	s := newBatchStrategyWithClock(input, output, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{})
+	s.Start()
 
-// 	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	for round := 0; round < 3; round++ {
+		m := message.NewMessage([]byte("a"), nil, "", 0)
+		input <- m
 
-// 	content = []byte("a")
+		// it should have flushed in this time
+		clk.Add(2 * timerInterval)
 
-// 	message1 := message.NewMessage([]byte(content), nil, "")
-// 	input <- message1
-
-// 	// expect payload to be sent after timer
-// 	start := time.Now()
-// 	assert.Equal(t, message1, <-output)
-// 	end := start.Add(100 * time.Millisecond)
-// 	now := time.Now()
-// 	assert.True(t, now.After(end) || now.Equal(end))
-
-// 	content = []byte("b\nc")
-
-// 	message2 := message.NewMessage([]byte("b"), nil, "")
-// 	input <- message2
-
-// 	message3 := message.NewMessage([]byte("c"), nil, "")
-// 	input <- message3
-
-// 	// expect payload to be sent because buffer is full
-// 	assert.Equal(t, message2, <-output)
-// 	assert.Equal(t, message3, <-output)
-// }
+		select {
+		case payload := <-output:
+			assert.EqualValues(t, m, payload.Messages[0])
+		default:
+			assert.Fail(t, "the output channel should not be empty")
+		}
+	}
+	s.Stop()
+}
 
 func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		assert.Equal(t, content, payload)
-		return nil
-	}
+	clk := clock.NewMock()
+	s := newBatchStrategyWithClock(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
+	s.Start()
 
-	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
-
-	content = []byte("a")
-
-	message := message.NewMessage(content, nil, "", 0)
+	message := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- message
 
-	start := time.Now()
-	close(input)
-
-	// expect payload to be sent before timer
-	assert.Equal(t, message, <-output)
-	end := start.Add(100 * time.Millisecond)
-	now := time.Now()
-	assert.True(t, now.Before(end) || now.Equal(end))
-}
-
-func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Message)
-
-	var content []byte
-	success := func(payload []byte) error {
-		return context.Canceled
-	}
-
-	message := message.NewMessage(content, nil, "", 0)
 	go func() {
-		input <- message
-		close(input)
+		s.Stop()
 	}()
 
-	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	// expect payload to be sent before timer, so we never advance the clock; if this
+	// doesn't work, the test will hang
+	payload := <-output
+	assert.Equal(t, message, payload.Messages[0])
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		return nil
+	s := NewBatchStrategy(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s.Start()
+	message := message.NewMessage([]byte{}, nil, "", 0)
+
+	input <- message
+
+	go func() {
+		s.Stop()
+	}()
+	assert.Equal(t, message, (<-output).Messages[0])
+}
+
+func TestBatchStrategySynchronousFlush(t *testing.T) {
+	input := make(chan *message.Message)
+	// output needs to be buffered so the flush has somewhere to write to without blocking
+	output := make(chan *message.Payload)
+
+	// batch size is large so it will not flush until we trigger it manually
+	// flush time is large so it won't automatically trigger during this test
+	strategy := NewBatchStrategy(input, output, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
+	strategy.Start()
+
+	// all of these messages will get buffered
+	messages := []*message.Message{
+		message.NewMessage([]byte("a"), nil, "", 0),
+		message.NewMessage([]byte("b"), nil, "", 0),
+		message.NewMessage([]byte("c"), nil, "", 0),
+	}
+	for _, m := range messages {
+		input <- m
 	}
 
-	message := message.NewMessage(content, nil, "", 0)
+	// since the batch size is large there should be nothing on the output yet
+	select {
+	case <-output:
+		assert.Fail(t, "there should be nothing on the output channel yet")
+	default:
+	}
+
 	go func() {
-		input <- message
-		close(input)
-		assert.Equal(t, message, <-output)
+		// Stop triggers the flush and make sure we can read the messages out now
+		strategy.Stop()
 	}()
 
-	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	assert.ElementsMatch(t, messages, (<-output).Messages)
+
+	select {
+	case <-output:
+		assert.Fail(t, "the output channel should still be empty")
+	default:
+	}
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -86,7 +86,7 @@ func TestTruncateMetaKeyTooLong(t *testing.T) {
 
 func TestTruncateMetaValueTooLong(t *testing.T) {
 	s := testSpan()
-	val := strings.Repeat("TOOLONG", 5000)
+	val := strings.Repeat("TOOLONG", 25000)
 	s.Meta["foo"] = val
 	Truncate(s)
 	for _, v := range s.Meta {

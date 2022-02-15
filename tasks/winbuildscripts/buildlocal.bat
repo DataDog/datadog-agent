@@ -12,5 +12,5 @@ if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES="3"
 if NOT DEFINED CI_JOB_ID set CI_JOB_ID=1
 if NOT DEFINED TARGET_ARCH set TARGET_ARCH=x64
 
-call %~dp0dobuild.bat || @echo "Build failed %ERRORLEVEL%"
-
+call %~dp0dobuild.bat
+if not %ERRORLEVEL% == 0 @echo "Build failed %ERRORLEVEL%"

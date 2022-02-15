@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 # Datadog Agent install script for macOS.
 set -e
@@ -144,7 +144,7 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 # Creating or overriding the install information
 install_info_content="---
 install_method:
-  tool: install_script
+  tool: install_script_mac
   tool_version: install_script_mac
   installer_version: install_script_mac-$install_script_version
 "
@@ -164,12 +164,12 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
 
     # Wait for the agent to fully stop
     retry=0
-    until [ $retry -ge 5 ]; do
+    until [ "$retry" -ge 5 ]; do
         curl -m 5 -o /dev/null -s -I http://127.0.0.1:5002 || break
         retry=$[$retry+1]
         sleep 5
     done
-    if [ $retry -ge 5 ]; then
+    if [ "$retry" -ge 5 ]; then
         printf "\n\033[33mCould not restart the agent.
 You may have to restart it manually using the systray app or the
 \"launchctl start com.datadoghq.agent\" command.\n\033[0m\n"

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -28,8 +28,10 @@ func TestGroupCheck(t *testing.T) {
 			name:         "docker group user found",
 			etcGroupFile: "./testdata/group/etc-group",
 			resource: compliance.Resource{
-				Group: &compliance.Group{
-					Name: "docker",
+				ResourceCommon: compliance.ResourceCommon{
+					Group: &compliance.Group{
+						Name: "docker",
+					},
 				},
 				Condition: `"carlos" in group.users`,
 			},
@@ -41,14 +43,20 @@ func TestGroupCheck(t *testing.T) {
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "docker",
+					Type: "group",
+				},
 			},
 		},
 		{
 			name:         "docker group user not found",
 			etcGroupFile: "./testdata/group/etc-group",
 			resource: compliance.Resource{
-				Group: &compliance.Group{
-					Name: "docker",
+				ResourceCommon: compliance.ResourceCommon{
+					Group: &compliance.Group{
+						Name: "docker",
+					},
 				},
 				Condition: `"carol" in group.users`,
 			},
@@ -59,6 +67,10 @@ func TestGroupCheck(t *testing.T) {
 					"group.name":  "docker",
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
+				},
+				Resource: compliance.ReportResource{
+					ID:   "docker",
+					Type: "group",
 				},
 			},
 		},
@@ -74,9 +86,9 @@ func TestGroupCheck(t *testing.T) {
 			groupCheck, err := newResourceCheck(env, "rule-id", test.resource)
 			assert.NoError(err)
 
-			result, err := groupCheck.check(env)
-			assert.Equal(test.expectReport, result)
-			assert.Equal(test.expectError, err)
+			reports := groupCheck.check(env)
+			assert.Equal(test.expectReport, reports[0])
+			assert.Equal(test.expectError, reports[0].Error)
 		})
 	}
 }

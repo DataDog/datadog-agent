@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package main
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -50,13 +52,13 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					// Testing deadlock from https://code.google.com/p/winsvc/issues/detail?id=4
 					time.Sleep(100 * time.Millisecond)
 					changes <- c.CurrentStatus
-				case svc.Stop, svc.Shutdown:
+				case svc.Stop, svc.PreShutdown, svc.Shutdown:
 					elog.Info(0x40000006, ServiceName)
 					changes <- svc.Status{State: svc.StopPending}
 					cancelFunc()
 					return
 				default:
-					elog.Warning(0xc000000A, string(c.Cmd))
+					elog.Warning(0xc000000A, fmt.Sprint(c.Cmd))
 				}
 			}
 		}
@@ -150,6 +152,9 @@ func main() {
 			return
 		}
 	}
+
+	// prepare go runtime
+	runtime.SetMaxProcs()
 
 	// if we are an interactive session, then just invoke the agent on the command line.
 	ctx, cancelFunc := context.WithCancel(context.Background())

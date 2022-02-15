@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    In some cases, compliance checks using YAML file with JQ expressions were failing due to discrepencies between YAML parsing and gojq handling.

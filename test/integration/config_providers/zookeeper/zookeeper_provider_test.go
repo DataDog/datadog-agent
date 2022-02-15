@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package zookeeper
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -132,10 +133,11 @@ func (suite *ZkTestSuite) populate() error {
 }
 
 func (suite *ZkTestSuite) TestCollect() {
-	zk, err := providers.NewZookeeperConfigProvider(suite.providerConfig)
+	ctx := context.Background()
+	zk, err := providers.NewZookeeperConfigProvider(&suite.providerConfig)
 	require.Nil(suite.T(), err)
 
-	templates, err := zk.Collect()
+	templates, err := zk.Collect(ctx)
 
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), templates, 3)

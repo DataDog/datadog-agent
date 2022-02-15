@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 # This software definition doesn"t build anything, it"s the place where we create
 # files outside the omnibus installation directory, so that we can add them to
@@ -11,9 +11,12 @@ require './lib/ostools.rb'
 name "datadog-agent-finalize"
 description "steps required to finalize the build"
 default_version "1.0.0"
+
 skip_transitive_dependency_licensing true
 
 build do
+    license :project_license
+
     # TODO too many things done here, should be split
     block do
         # Conf files
@@ -52,6 +55,15 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
+
+            # On Windows, zip up the python directory. x=5 means normal compression, s=on makes a solid archive
+            command "7z a -mx=5 -ms=on #{install_dir}/embedded3.7z #{windows_safe_path(python_3_embedded)}"
+            delete windows_safe_path(python_3_embedded)
+            if with_python_runtime? "2"
+                command "7z a -mx=5 -ms=on #{install_dir}/embedded2.7z #{windows_safe_path(python_2_embedded)}"
+                delete windows_safe_path(python_2_embedded)
+            end
+
         end
 
         if linux? || osx?
@@ -82,7 +94,7 @@ build do
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
               unless arm?
-                rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+                rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
                 # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
                 command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
                 # replace paths with expected target toolchain location
@@ -109,13 +121,6 @@ build do
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
             end
-            if suse?
-                mkdir "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
-            end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
@@ -130,6 +135,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
             move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
             move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
 
             # Move SELinux policy
@@ -188,10 +194,16 @@ build do
             strip_exclude("*psycopg2*")
             strip_exclude("*cffi_backend*")
 
+            # We get the following error when the aerospike lib is stripped:
+            # The `aerospike` client is not installed: /opt/datadog-agent/embedded/lib/python2.7/site-packages/aerospike.so: ELF load command address/offset not properly aligned
+            strip_exclude("*aerospike*")
+
             # Do not strip eBPF programs
             strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
+            strip_exclude("*http*")
             strip_exclude("*runtime-security*")
+            strip_exclude("*dns*")
         end
 
         if osx?
@@ -200,6 +212,9 @@ build do
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
+
+            # remove docker configuration
+            delete "#{install_dir}/etc/conf.d/docker.d"
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "

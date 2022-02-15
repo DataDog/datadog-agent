@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
@@ -17,6 +22,7 @@ var (
 
 // SetContainerSources allows config to force one or multiple container sources
 func SetContainerSources(names []string) {
+	log.Debug("Setting container sources to:", names)
 	detectors = []*collectors.Detector{}
 	for _, name := range names {
 		detectors = append(detectors, collectors.NewDetector(name))

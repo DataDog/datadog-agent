@@ -1,9 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-//+build zlib
+//go:build zlib
+// +build zlib
 
 package metrics
 
@@ -17,47 +18,13 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
-	"github.com/gogo/protobuf/proto"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMarshalSeries(t *testing.T) {
-	series := Series{{
-		Points: []Point{
-			{Ts: 12345.0, Value: float64(21.21)},
-			{Ts: 67890.0, Value: float64(12.12)},
-		},
-		MType: APIGaugeType,
-		Name:  "test.metrics",
-		Host:  "localHost",
-		Tags:  []string{"tag1", "tag2:yes"},
-	}}
-
-	payload, err := series.Marshal()
-	assert.Nil(t, err)
-	assert.NotNil(t, payload)
-
-	newPayload := &agentpayload.MetricsPayload{}
-	err = proto.Unmarshal(payload, newPayload)
-	assert.Nil(t, err)
-
-	require.Len(t, newPayload.Samples, 1)
-	assert.Equal(t, newPayload.Samples[0].Metric, "test.metrics")
-	assert.Equal(t, newPayload.Samples[0].Type, "gauge")
-	assert.Equal(t, newPayload.Samples[0].Host, "localHost")
-	require.Len(t, newPayload.Samples[0].Tags, 2)
-	assert.Equal(t, newPayload.Samples[0].Tags[0], "tag1")
-	assert.Equal(t, newPayload.Samples[0].Tags[1], "tag2:yes")
-	require.Len(t, newPayload.Samples[0].Points, 2)
-	assert.Equal(t, newPayload.Samples[0].Points[0].Ts, int64(12345))
-	assert.Equal(t, newPayload.Samples[0].Points[0].Value, float64(21.21))
-	assert.Equal(t, newPayload.Samples[0].Points[1].Ts, int64(67890))
-	assert.Equal(t, newPayload.Samples[0].Points[1].Value, float64(12.12))
-}
 
 func TestPopulateDeviceField(t *testing.T) {
 	for _, tc := range []struct {
@@ -384,6 +351,68 @@ func TestDescribeItem(t *testing.T) {
 	assert.Equal(t, "out of range", desc2)
 }
 
+func makeSeries(numItems, numPoints int) Series {
+	series := make([]*Serie, 0, numItems)
+	for i := 0; i < numItems; i++ {
+		series = append(series, &Serie{
+			Points: func() []Point {
+				ps := make([]Point, numPoints)
+				for p := 0; p < numPoints; p++ {
+					ps[p] = Point{Ts: float64(p * i), Value: float64(p + i)}
+				}
+				return ps
+			}(),
+			MType:    APIGaugeType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes"},
+		})
+	}
+	return series
+}
+
+func TestMarshalSplitCompress(t *testing.T) {
+	series := makeSeries(10000, 50)
+
+	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	require.NoError(t, err)
+	// check that we got multiple payloads, so splitting occurred
+	require.Greater(t, len(payloads), 1)
+	for _, compressedPayload := range payloads {
+		_, err := decompressPayload(*compressedPayload)
+		require.NoError(t, err)
+
+		// TODO: unmarshal these when agent-payload has support
+	}
+}
+
+func TestMarshalSplitCompressPointsLimit(t *testing.T) {
+	mockConfig := config.Mock()
+	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
+	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
+	mockConfig.Set("serializer_max_series_points_per_payload", 100)
+
+	// ten series, each with 50 points, so two should fit in each payload
+	series := makeSeries(10, 50)
+
+	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	require.NoError(t, err)
+	require.Equal(t, 5, len(payloads))
+}
+
+func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
+	mockConfig := config.Mock()
+	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
+	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
+	mockConfig.Set("serializer_max_series_points_per_payload", 1)
+
+	series := makeSeries(1, 2)
+	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	require.NoError(t, err)
+	require.Len(t, payloads, 0)
+}
+
 // test taken from the spliter
 func TestPayloadsSeries(t *testing.T) {
 	testSeries := Series{}
@@ -412,7 +441,7 @@ func TestPayloadsSeries(t *testing.T) {
 	}
 
 	originalLength := len(testSeries)
-	builder := jsonstream.NewPayloadBuilder()
+	builder := stream.NewJSONPayloadBuilder(true)
 	payloads, err := builder.Build(testSeries)
 	require.Nil(t, err)
 	var splitSeries = []Series{}
@@ -456,7 +485,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	}
 
 	var r forwarder.Payloads
-	builder := jsonstream.NewPayloadBuilder()
+	builder := stream.NewJSONPayloadBuilder(true)
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

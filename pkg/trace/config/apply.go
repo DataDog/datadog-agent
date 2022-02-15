@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -16,12 +16,38 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
-const apiEndpointPrefix = "https://trace.agent."
+const (
+	apiEndpointPrefix       = "https://trace.agent."
+	telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+)
+
+// OTLP holds the configuration for the OpenTelemetry receiver.
+type OTLP struct {
+	// BindHost specifies the host to bind the receiver to.
+	BindHost string `mapstructure:"-"`
+
+	// HTTPPort specifies the port to use for the plain HTTP receiver.
+	// If unset (or 0), the receiver will be off.
+	HTTPPort int `mapstructure:"http_port"`
+
+	// GRPCPort specifies the port to use for the plain HTTP receiver.
+	// If unset (or 0), the receiver will be off.
+	GRPCPort int `mapstructure:"grpc_port"`
+
+	// MaxRequestBytes specifies the maximum number of bytes that will be read
+	// from an incoming HTTP request.
+	MaxRequestBytes int64 `mapstructure:"-"`
+}
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
 // for various span types.
@@ -53,20 +79,85 @@ type ObfuscationConfig struct {
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached Enablable `mapstructure:"memcached"`
+
+	// CreditCards holds the configuration for obfuscating credit cards.
+	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+}
+
+// Export returns an obfuscate.Config matching o.
+func (o *ObfuscationConfig) Export() obfuscate.Config {
+	return obfuscate.Config{
+		SQL: obfuscate.SQLConfig{
+			TableNames:       features.Has("table_names"),
+			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
+			KeepSQLAlias:     features.Has("keep_sql_alias"),
+			DollarQuotedFunc: features.Has("dollar_quoted_func"),
+			Cache:            features.Has("sql_cache"),
+		},
+		ES: obfuscate.JSONConfig{
+			Enabled:            o.ES.Enabled,
+			KeepValues:         o.ES.KeepValues,
+			ObfuscateSQLValues: o.ES.ObfuscateSQLValues,
+		},
+		Mongo: obfuscate.JSONConfig{
+			Enabled:            o.Mongo.Enabled,
+			KeepValues:         o.Mongo.KeepValues,
+			ObfuscateSQLValues: o.Mongo.ObfuscateSQLValues,
+		},
+		SQLExecPlan: obfuscate.JSONConfig{
+			Enabled:            o.SQLExecPlan.Enabled,
+			KeepValues:         o.SQLExecPlan.KeepValues,
+			ObfuscateSQLValues: o.SQLExecPlan.ObfuscateSQLValues,
+		},
+		SQLExecPlanNormalize: obfuscate.JSONConfig{
+			Enabled:            o.SQLExecPlanNormalize.Enabled,
+			KeepValues:         o.SQLExecPlanNormalize.KeepValues,
+			ObfuscateSQLValues: o.SQLExecPlanNormalize.ObfuscateSQLValues,
+		},
+		HTTP: obfuscate.HTTPConfig{
+			RemoveQueryString: o.HTTP.RemoveQueryString,
+			RemovePathDigits:  o.HTTP.RemovePathDigits,
+		},
+		Logger: new(debugLogger),
+	}
+}
+
+type debugLogger struct{}
+
+func (debugLogger) Debugf(format string, params ...interface{}) {
+	log.Debugf(format, params...)
+}
+
+// CreditCardsConfig holds the configuration for credit card obfuscation in
+// (Meta) tags.
+type CreditCardsConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// Luhn specifies whether Luhn checksum validation should be enabled.
+	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
+	// It reduces false positives, but increases the CPU time X3.
+	Luhn bool `mapstructure:"luhn"`
 }
 
 // HTTPObfuscationConfig holds the configuration settings for HTTP obfuscation.
 type HTTPObfuscationConfig struct {
 	// RemoveQueryStrings determines query strings to be removed from HTTP URLs.
-	RemoveQueryString bool `mapstructure:"remove_query_string"`
+	RemoveQueryString bool `mapstructure:"remove_query_string" json:"remove_query_string"`
 
 	// RemovePathDigits determines digits in path segments to be obfuscated.
-	RemovePathDigits bool `mapstructure:"remove_paths_with_digits"`
+	RemovePathDigits bool `mapstructure:"remove_paths_with_digits" json:"remove_path_digits"`
 }
 
 // Enablable can represent any option that has an "enabled" boolean sub-field.
 type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
+}
+
+// TelemetryConfig holds Instrumentation telemetry Endpoints information
+type TelemetryConfig struct {
+	Enabled   bool `mapstructure:"enabled"`
+	Endpoints []*Endpoint
 }
 
 // JSONObfuscationConfig holds the obfuscation configuration for sensitive
@@ -117,12 +208,31 @@ type WriterConfig struct {
 	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
+// appendEndpoints appends any endpoint configuration found at the given cfgKey.
+// The format for cfgKey should be a map which has the URL as a key and one or
+// more API keys as an array value.
+func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
+	if !config.Datadog.IsSet(cfgKey) {
+		return endpoints
+	}
+	for url, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
+		if len(keys) == 0 {
+			log.Errorf("'%s' entries must have at least one API key present", cfgKey)
+			continue
+		}
+		for _, key := range keys {
+			endpoints = append(endpoints, &Endpoint{Host: url, APIKey: config.SanitizeAPIKey(key)})
+		}
+	}
+	return endpoints
+}
+
 func (c *AgentConfig) applyDatadogConfig() error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*Endpoint{{}}
 	}
 	if config.Datadog.IsSet("api_key") {
-		c.Endpoints[0].APIKey = config.Datadog.GetString("api_key")
+		c.Endpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	}
 	if config.Datadog.IsSet("hostname") {
 		c.Hostname = config.Datadog.GetString("hostname")
@@ -134,28 +244,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
 	}
 
-	site := config.Datadog.GetString("site")
-	if site != "" {
-		c.Endpoints[0].Host = apiEndpointPrefix + site
-	}
-	if host := config.Datadog.GetString("apm_config.apm_dd_url"); host != "" {
-		c.Endpoints[0].Host = host
-		if site != "" {
-			log.Infof("'site' and 'apm_dd_url' are both set, using endpoint: %q", host)
-		}
-	}
-	if config.Datadog.IsSet("apm_config.additional_endpoints") {
-		for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
-			if len(keys) == 0 {
-				log.Errorf("'additional_endpoints' entries must have at least one API key present")
-				continue
-			}
-			for _, key := range keys {
-				key = config.SanitizeAPIKey(key)
-				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
-			}
-		}
-	}
+	c.Endpoints[0].Host = config.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if config.Datadog.IsSet("proxy.no_proxy") {
 		proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
@@ -192,14 +282,19 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	} else if config.Datadog.IsSet("env") {
 		c.DefaultEnv = config.Datadog.GetString("env")
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
-	} else if config.Datadog.IsSet("tags") {
-		for _, tag := range config.Datadog.GetStringSlice("tags") {
+	} else {
+		for _, tag := range config.GetConfiguredTags(false) {
 			if strings.HasPrefix(tag, "env:") {
 				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
 				break
 			}
 		}
+	}
+	prevEnv := c.DefaultEnv
+	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
+	if c.DefaultEnv != prevEnv {
+		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
@@ -217,8 +312,19 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.MaxEPS = config.Datadog.GetFloat64("apm_config.max_events_per_second")
 	}
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
-		c.MaxTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
+		c.TargetTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
+	if config.Datadog.IsSet("apm_config.errors_per_second") {
+		c.ErrorTPS = config.Datadog.GetFloat64("apm_config.errors_per_second")
+	}
+	if config.Datadog.IsSet("apm_config.disable_rare_sampler") {
+		c.DisableRareSampler = config.Datadog.GetBool("apm_config.disable_rare_sampler")
+	}
+
+	if config.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
+		c.MaxRemoteTPS = config.Datadog.GetFloat64("apm_config.max_remote_traces_per_second")
+	}
+
 	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
 	}
@@ -238,25 +344,73 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 
-	if config.Datadog.IsSet("bind_host") {
-		host := config.Datadog.GetString("bind_host")
-		c.StatsdHost = host
-		c.ReceiverHost = host
-	}
-	if config.Datadog.IsSet("apm_config.apm_non_local_traffic") {
-		if config.Datadog.GetBool("apm_config.apm_non_local_traffic") {
+	if config.Datadog.IsSet("bind_host") || config.Datadog.IsSet("apm_config.apm_non_local_traffic") {
+		if config.Datadog.IsSet("bind_host") {
+			host := config.Datadog.GetString("bind_host")
+			c.StatsdHost = host
+			c.ReceiverHost = host
+		}
+
+		if config.Datadog.IsSet("apm_config.apm_non_local_traffic") && config.Datadog.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
+	} else if config.IsContainerized() {
+		// Automatically activate non local traffic in containerized environment if no explicit config set
+		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
+		c.ReceiverHost = "0.0.0.0"
 	}
 
+	var grpcPort int
+	if otlp.IsEnabled(config.Datadog) {
+		grpcPort = config.Datadog.GetInt(config.OTLPTracePort)
+	}
+	c.OTLPReceiver = &OTLP{
+		BindHost:        c.ReceiverHost,
+		GRPCPort:        grpcPort,
+		MaxRequestBytes: c.MaxRequestBytes,
+	}
+
+	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
+		c.TelemetryConfig.Enabled = true
+		c.TelemetryConfig.Endpoints = []*Endpoint{{
+			Host:   config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
+			APIKey: c.Endpoints[0].APIKey,
+		}}
+		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
+	}
+	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
 		err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &o)
 		if err == nil {
 			c.Obfuscation = &o
-			if c.Obfuscation.RemoveStackTraces {
+			if o.RemoveStackTraces {
 				c.addReplaceRule("error.stack", `(?s).*`, "?")
 			}
+		}
+	}
+	{
+		// TODO(x): There is an issue with config.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
+		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
+		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.enabled") {
+			c.Obfuscation.CreditCards.Enabled = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled")
+		}
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.luhn") {
+			c.Obfuscation.CreditCards.Luhn = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
+		}
+	}
+
+	if config.Datadog.IsSet("apm_config.filter_tags.require") {
+		tags := config.Datadog.GetStringSlice("apm_config.filter_tags.require")
+		for _, tag := range tags {
+			c.RequireTags = append(c.RequireTags, splitTag(tag))
+		}
+	}
+	if config.Datadog.IsSet("apm_config.filter_tags.reject") {
+		tags := config.Datadog.GetStringSlice("apm_config.filter_tags.reject")
+		for _, tag := range tags {
+			c.RejectTags = append(c.RejectTags, splitTag(tag))
 		}
 	}
 
@@ -279,6 +433,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(config.Datadog.GetInt("apm_config.connection_reset_interval"))
+	}
+	if config.Datadog.IsSet("apm_config.sync_flushing") {
+		c.SynchronousFlushing = config.Datadog.GetBool("apm_config.sync_flushing")
 	}
 
 	// undocumented deprecated
@@ -326,6 +483,32 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.LogThrottling = false
 	}
 
+	if config.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		endpoint := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if endpoint == "" {
+			s := config.Datadog.GetString("site")
+			if s == "" {
+				s = config.DefaultSite
+			}
+			endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
+		}
+
+		c.ProfilingSettings = &profiling.Settings{
+			ProfilingURL: endpoint,
+
+			// remaining configuration parameters use the top-level `internal_profiling` config
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+
+			// NOTE: Tags cannot be set here, because it is based on
+			// info.Version and leads to a package reference loop. It is set
+			// from Run, instead.
+		}
+	}
+
 	return nil
 }
 
@@ -335,7 +518,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 func (c *AgentConfig) loadDeprecatedValues() error {
 	cfg := config.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = config.Datadog.GetString("apm_config.api_key")
+		c.Endpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.log_level") {
 		c.LogLevel = config.Datadog.GetString("apm_config.log_level")
@@ -440,4 +623,18 @@ func toFloat64(val interface{}) (float64, error) {
 	default:
 		return 0, fmt.Errorf("%v can not be converted to float64", val)
 	}
+}
+
+// splitTag splits a "k:v" formatted string and returns a Tag.
+func splitTag(tag string) *Tag {
+	parts := strings.SplitN(tag, ":", 2)
+	kv := &Tag{
+		K: strings.TrimSpace(parts[0]),
+	}
+	if len(parts) > 1 {
+		if v := strings.TrimSpace(parts[1]); v != "" {
+			kv.V = v
+		}
+	}
+	return kv
 }

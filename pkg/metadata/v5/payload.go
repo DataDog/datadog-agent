@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows || darwin
 // +build linux windows darwin
 
 package v5
@@ -37,7 +38,7 @@ type MarshalledGohaiPayload struct {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Metadata payloads are analyzed as a whole, so they cannot be split
 	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
 }
@@ -68,4 +69,9 @@ func (m *MarshalledGohaiPayload) UnmarshalJSON(bytes []byte) error {
 
 	err = json.Unmarshal([]byte(firstUnmarshall), &(m.gohai.Gohai))
 	return err
+}
+
+// MarshalSplitCompress not implemented
+func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("V5 Payload MarshalSplitCompress is not implemented")
 }

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -6,7 +7,6 @@ from os import path
 
 import monitoring
 import pymongo
-import ujson as json
 from flask import Flask, Response, jsonify, request
 
 app = application = Flask("datadoghq")
@@ -15,7 +15,7 @@ handler = logging.StreamHandler(sys.stderr)
 app.logger.addHandler(handler)
 app.logger.setLevel("INFO")
 
-record_dir = path.join(path.dirname(path.dirname(path.abspath(__file__))), "recorded")
+record_dir = path.join(path.dirname(path.abspath(__file__)), "recorded")
 
 
 def get_collection(name: str):
@@ -62,7 +62,7 @@ def record_and_loads(filename: str, content_type: str, content_encoding: str, co
         content = zlib.decompress(content)
 
     content = content.decode()
-    content = "%s\n" % content if content[-1] != "\n" else content
+    content = f"{content}\n" if content[-1] != "\n" else content
     with open(path.join(record_dir, filename), "a") as f:
         f.write(content)
 

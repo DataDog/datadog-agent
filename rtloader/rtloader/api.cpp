@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifdef _WIN32
 #    include <Windows.h>
 #else
@@ -100,7 +100,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
     return create;
 }
 
-rtloader_t *make2(const char *python_home, char **error)
+rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
 {
 
     if (rtloader_backend != NULL) {
@@ -112,10 +112,10 @@ rtloader_t *make2(const char *python_home, char **error)
     if (!create) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
-rtloader_t *make3(const char *python_home, char **error)
+rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 {
     if (rtloader_backend != NULL) {
         *error = strdupe("RtLoader already initialized!");
@@ -126,7 +126,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (!create_three) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -150,7 +150,7 @@ void destroy(rtloader_t *rtloader)
 }
 
 #else
-rtloader_t *make2(const char *python_home, char **error)
+rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
@@ -179,10 +179,10 @@ rtloader_t *make2(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
-rtloader_t *make3(const char *python_home, char **error)
+rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
@@ -212,7 +212,7 @@ rtloader_t *make3(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
 void destroy(rtloader_t *rtloader)
@@ -313,6 +313,11 @@ int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, co
 char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
+}
+
+void cancel_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
+{
+    AS_TYPE(RtLoader, rtloader)->cancelCheck(AS_TYPE(RtLoaderPyObject, check));
 }
 
 char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
@@ -467,6 +472,11 @@ void set_submit_histogram_bucket_cb(rtloader_t *rtloader, cb_submit_histogram_bu
     AS_TYPE(RtLoader, rtloader)->setSubmitHistogramBucketCb(cb);
 }
 
+void set_submit_event_platform_event_cb(rtloader_t *rtloader, cb_submit_event_platform_event_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitEventPlatformEventCb(cb);
+}
+
 /*
  * datadog_agent API
  */
@@ -544,6 +554,11 @@ void set_obfuscate_sql_cb(rtloader_t *rtloader, cb_obfuscate_sql_t cb)
 void set_obfuscate_sql_exec_plan_cb(rtloader_t *rtloader, cb_obfuscate_sql_exec_plan_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setObfuscateSqlExecPlanCb(cb);
+}
+
+void set_get_process_start_time_cb(rtloader_t *rtloader, cb_get_process_start_time_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetProcessStartTimeCb(cb);
 }
 
 /*

@@ -1,18 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build !kubelet
 // +build !kubelet
 
 package hostinfo
 
+import "context"
+
 // GetNodeLabels returns node labels for this host
-func GetNodeLabels() (map[string]string, error) {
+func GetNodeLabels(ctx context.Context) (map[string]string, error) {
 	return nil, nil
 }
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label
-func GetNodeClusterNameLabel() (string, error) {
+func GetNodeClusterNameLabel(ctx context.Context) (string, error) {
 	return "", nil
 }

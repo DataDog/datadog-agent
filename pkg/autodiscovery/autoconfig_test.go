@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package autodiscovery
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,7 +31,7 @@ type MockProvider struct {
 	collectCounter int
 }
 
-func (p *MockProvider) Collect() ([]integration.Config, error) {
+func (p *MockProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
 }
@@ -38,8 +40,12 @@ func (p *MockProvider) String() string {
 	return "mocked"
 }
 
-func (p *MockProvider) IsUpToDate() (bool, error) {
+func (p *MockProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return true, nil
+}
+
+func (p *MockProvider) GetConfigErrors() map[string]providers.ErrorMsgSet {
+	return make(map[string]providers.ErrorMsgSet)
 }
 
 type MockProvider2 struct {
@@ -57,7 +63,7 @@ func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
 func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
-func (l *MockListener) fakeFactory() (listeners.ServiceListener, error) {
+func (l *MockListener) fakeFactory(listeners.Config) (listeners.ServiceListener, error) {
 	return l, nil
 }
 
@@ -73,7 +79,7 @@ type factoryMock struct {
 	returnError error
 }
 
-func (o *factoryMock) make() (listeners.ServiceListener, error) {
+func (o *factoryMock) make(listeners.Config) (listeners.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {
@@ -296,6 +302,8 @@ func TestAutoConfigTestSuite(t *testing.T) {
 }
 
 func TestResolveTemplate(t *testing.T) {
+	ctx := context.Background()
+
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	tpl := integration.Config{
 		Name:          "cpu",
@@ -310,14 +318,24 @@ func TestResolveTemplate(t *testing.T) {
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
-	ac.processNewService(&service)
+	ac.processNewService(ctx, &service)
 
 	// there are no template vars but it's ok
 	res = ac.resolveTemplate(tpl)
 	assert.Len(t, res, 1)
 }
 
+func countLoadedConfigs(ac *AutoConfig) int {
+	count := -1 // -1 would indicate f was not called
+	ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+		count = len(loadedConfigs)
+	})
+	return count
+}
+
 func TestRemoveTemplate(t *testing.T) {
+	ctx := context.Background()
+
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 
 	// Add static config
@@ -325,14 +343,14 @@ func TestRemoveTemplate(t *testing.T) {
 		Name: "memory",
 	}
 	ac.processNewConfig(c)
-	assert.Len(t, ac.GetLoadedConfigs(), 1)
+	assert.Equal(t, countLoadedConfigs(ac), 1)
 
 	// Add new service
 	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
-	ac.processNewService(&service)
+	ac.processNewService(ctx, &service)
 
 	// Add matching template
 	tpl := integration.Config{
@@ -341,20 +359,21 @@ func TestRemoveTemplate(t *testing.T) {
 	}
 	configs := ac.processNewConfig(tpl)
 	assert.Len(t, configs, 1)
-	assert.Len(t, ac.GetLoadedConfigs(), 2)
+	assert.Equal(t, countLoadedConfigs(ac), 2)
 
 	// Remove the template, config should be removed too
 	ac.removeConfigTemplates([]integration.Config{tpl})
-	assert.Len(t, ac.GetLoadedConfigs(), 1)
+	assert.Equal(t, countLoadedConfigs(ac), 1)
 }
 
 func TestGetLoadedConfigNotInitialized(t *testing.T) {
 	ac := AutoConfig{}
-	cfgs := ac.GetLoadedConfigs()
-	require.Len(t, cfgs, 0)
+	assert.Equal(t, countLoadedConfigs(&ac), 0)
 }
 
 func TestCheckOverride(t *testing.T) {
+	ctx := context.Background()
+
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	tpl := integration.Config{
 		Name:          "redis",
@@ -363,7 +382,7 @@ func TestCheckOverride(t *testing.T) {
 	}
 
 	// check must be overridden (same check)
-	ac.processNewService(&dummyService{
+	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"redis"},
@@ -371,7 +390,7 @@ func TestCheckOverride(t *testing.T) {
 	assert.Len(t, ac.resolveTemplate(tpl), 0)
 
 	// check must be overridden (empty config)
-	ac.processNewService(&dummyService{
+	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{""},
@@ -379,7 +398,7 @@ func TestCheckOverride(t *testing.T) {
 	assert.Len(t, ac.resolveTemplate(tpl), 0)
 
 	// check must be scheduled (different checks)
-	ac.processNewService(&dummyService{
+	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"tcp_check"},
@@ -420,19 +439,17 @@ func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
 	return true
 }
 
-func TestSecretDecrypt(t *testing.T) {
-	/// resolveTemplate
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	tpl := integration.Config{
-		Name:          "cpu",
-		ADIdentifiers: []string{"redis"},
-		InitConfig:    []byte("param1: ENC[foo]"),
-		Instances: []integration.Data{
-			[]byte("param2: ENC[bar]"),
-		},
+func (m *MockSecretDecrypt) haveAllScenariosNotCalled() bool {
+	for _, scenario := range m.scenarios {
+		if scenario.called != 0 {
+			return false
+		}
 	}
+	return true
+}
 
-	mockDecrypt := MockSecretDecrypt{
+func mockDecrypt(t *testing.T) MockSecretDecrypt {
+	return MockSecretDecrypt{
 		t: t,
 		scenarios: []struct {
 			expectedData   []byte
@@ -461,24 +478,68 @@ func TestSecretDecrypt(t *testing.T) {
 			},
 		},
 	}
+}
 
+var sharedTpl = integration.Config{
+	Name:          "cpu",
+	ADIdentifiers: []string{"redis"},
+	InitConfig:    []byte("param1: ENC[foo]"),
+	Instances: []integration.Data{
+		[]byte("param2: ENC[bar]"),
+	},
+}
+
+var sharedService = dummyService{
+	ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+	ADIdentifiers: []string{"redis"},
+}
+
+func TestSecretDecrypt(t *testing.T) {
+	ctx := context.Background()
+
+	/// resolveTemplate
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+
+	mockDecrypt := mockDecrypt(t)
 	originalSecretsDecrypt := secretsDecrypt
 	secretsDecrypt = mockDecrypt.getDecryptFunc()
 	defer func() { secretsDecrypt = originalSecretsDecrypt }()
 
 	// no services
-	res := ac.resolveTemplate(tpl)
+	res := ac.resolveTemplate(sharedTpl)
 	assert.Len(t, res, 0)
 
-	service := dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-	}
-	ac.processNewService(&service)
+	service := sharedService
+	ac.processNewService(ctx, &service)
 
 	// there are no template vars but it's ok
-	res = ac.resolveTemplate(tpl)
+	res = ac.resolveTemplate(sharedTpl)
 	assert.Len(t, res, 1)
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
+}
+
+func TestSkipSecretDecrypt(t *testing.T) {
+	ctx := context.Background()
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+
+	mockDecrypt := mockDecrypt(t)
+	originalSecretsDecrypt := secretsDecrypt
+	secretsDecrypt = mockDecrypt.getDecryptFunc()
+	defer func() { secretsDecrypt = originalSecretsDecrypt }()
+
+	cfg := config.Mock()
+	cfg.Set("secret_backend_skip_checks", true)
+	defer cfg.Set("secret_backend_skip_checks", false)
+
+	service := sharedService
+	ac.processNewService(ctx, &service)
+
+	res := ac.resolveTemplate(sharedTpl)
+	assert.Len(t, res, 1)
+
+	assert.Equal(t, sharedTpl.Instances, res[0].Instances)
+	assert.Equal(t, sharedTpl.InitConfig, res[0].InitConfig)
+
+	assert.True(t, mockDecrypt.haveAllScenariosNotCalled())
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package traceutil
 
 import (
@@ -37,14 +42,16 @@ func NormalizeName(name string) (string, error) {
 	if name == "" {
 		return DefaultSpanName, ErrEmpty
 	}
+	var err error
 	if len(name) > MaxNameLen {
-		return TruncateUTF8(name, MaxNameLen), ErrTooLong
+		name = TruncateUTF8(name, MaxNameLen)
+		err = ErrTooLong
 	}
 	name, ok := normMetricNameParse(name)
 	if !ok {
 		return DefaultSpanName, ErrInvalid
 	}
-	return name, nil
+	return name, err
 }
 
 // NormalizeService normalizes a span service and returns an error describing the reason
@@ -53,14 +60,16 @@ func NormalizeService(svc string, lang string) (string, error) {
 	if svc == "" {
 		return fallbackService(lang), ErrEmpty
 	}
+	var err error
 	if len(svc) > MaxServiceLen {
-		return TruncateUTF8(svc, MaxServiceLen), ErrTooLong
+		svc = TruncateUTF8(svc, MaxServiceLen)
+		err = ErrTooLong
 	}
 	s := NormalizeTag(svc)
 	if s == "" {
 		return fallbackService(lang), ErrInvalid
 	}
-	return s, nil
+	return s, err
 }
 
 // fallbackServiceNames is a cache of default service names to use

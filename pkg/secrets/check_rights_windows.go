@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018-2020 Datadog, Inc.
+// Copyright 2018-present Datadog, Inc.
 
+//go:build secrets && windows
 // +build secrets,windows
 
 package secrets
@@ -10,7 +11,6 @@ package secrets
 import (
 	"fmt"
 	"os"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -80,51 +80,11 @@ func checkRights(filename string, allowGroupExec bool) error {
 	}
 	defer windows.FreeSid(administrators)
 
-	//
-	// when getting the SID for the secret user, unlike above, we provide
-	// the buffer. So this SID should *not* be passed to FreeSid() (the
-	// way the other ones are. So much for API consistency
-	//
-	// also, *must* provide adequate buffer for the domain name, or the
-	// function will fail (even though we aren't going to use it for anything)
-	//
-	var secretusersyscall *syscall.SID
-	var cchRefDomain uint32
-	var sidUse uint32
-	var sidlen uint32
-	var domainptr uint16
-
-	// first call to get the sidbuf and domainbuf length
-	err = syscall.LookupAccountName(nil, // local system lookup
-		windows.StringToUTF16Ptr(username),
-		secretusersyscall,
-		&sidlen,
-		&domainptr,
-		&cchRefDomain,
-		&sidUse)
-	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
-		// should never happen
-		return fmt.Errorf("could not query %s SID : %v", username, err)
-	}
-
-	sidbuf := make([]uint8, sidlen+1)
-	domainbuf := make([]uint16, cchRefDomain+1)
-	secretusersyscall = (*syscall.SID)(unsafe.Pointer(&sidbuf[0]))
-
-	// second call to actually fetch the SID for username
-	err = syscall.LookupAccountName(nil, // local system lookup
-		windows.StringToUTF16Ptr(username),
-		secretusersyscall,
-		&sidlen,
-		&domainbuf[0],
-		&cchRefDomain,
-		&sidUse)
+	secretuser, err := winutil.GetSidFromUser()
 	if err != nil {
-		// should never happen
-		return fmt.Errorf("could not query %s SID: %s", username, err)
+		return fmt.Errorf("could not get SID for current user: %s", err)
 	}
 
-	secretuser := (*windows.SID)(unsafe.Pointer(secretusersyscall))
 	bSecretUserExplicitlyAllowed := false
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
 		var pAce *winutil.AccessAllowedAce
@@ -141,22 +101,23 @@ func checkRights(filename string, allowGroupExec bool) error {
 			// if we're denying access to local system or administrators,
 			// it's wrong. Otherwise, any explicit access denied is OK
 			if compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser {
-				return fmt.Errorf("Invalid executable '%s': Can't deny access LOCAL_SYSTEM, Administrators or %s", filename, username)
+				return fmt.Errorf("Invalid executable '%s': Can't deny access LOCAL_SYSTEM, Administrators or %s", filename, secretuser)
 			}
 			// otherwise, it's fine; deny access to whomever
 		}
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
 			if !(compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser) {
-				return fmt.Errorf("Invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, username)
+				return fmt.Errorf("Invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretuser)
 			}
 			if compareIsSecretUser {
 				bSecretUserExplicitlyAllowed = true
 			}
 		}
 	}
+
 	if !bSecretUserExplicitlyAllowed {
 		// there was never an ACE explicitly allowing the secret user, so we can't use it
-		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", username, filename)
+		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", secretuser, filename)
 	}
 	return nil
 }

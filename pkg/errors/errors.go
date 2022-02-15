@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package errors
 
@@ -12,7 +12,9 @@ type errorReason int
 const (
 	notFoundError errorReason = iota
 	retriableError
+	partialError
 	unknownError
+	disabledError
 )
 
 // AgentError is an error intended for consumption by a datadog pkg; it can also be
@@ -52,6 +54,32 @@ func NewRetriable(retriableObj interface{}, err error) *AgentError {
 // IsRetriable returns true if the specified error was created by NewRetriable.
 func IsRetriable(err error) bool {
 	return reasonForError(err) == retriableError
+}
+
+// NewPartial returns a new error which indicates that the object passed in parameter couldn't be fetched completely and that the query should be retried.
+func NewPartial(partialObj interface{}) *AgentError {
+	return &AgentError{
+		message:     fmt.Sprintf("partially fetched %q, please retry", partialObj),
+		errorReason: partialError,
+	}
+}
+
+// IsPartial returns true if the specified error was created by NewPartial.
+func IsPartial(err error) bool {
+	return reasonForError(err) == partialError
+}
+
+// NewDisabled returns a new error which indicates that a particular Agent component is disabled.
+func NewDisabled(component, reason string) *AgentError {
+	return &AgentError{
+		message:     fmt.Sprintf("component %s is disabled: %s", component, reason),
+		errorReason: disabledError,
+	}
+}
+
+// IsDisabled returns true if the specified error was created by NewDisabled.
+func IsDisabled(err error) bool {
+	return reasonForError(err) == disabledError
 }
 
 func reasonForError(err error) errorReason {

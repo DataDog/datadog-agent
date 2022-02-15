@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -170,22 +171,36 @@ func scrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 		}
 		cgPath := hostProc(dirName, "cgroup")
 		containerID, paths, err := readCgroupsForPath(cgPath, prefix)
+
+		// Checking if it's a container cgroup. With CRIO and systemd cgroup manager
+		// we can encounter hierarchies like:
+		// /usr/libexec/crio/conmon -b /var/run/containers/storage/overlay-containers/abbfba09988 -> dedicated cgroup containing containerID
+		//   \_ /pause -> real container cgroup
+		// However a real container should always have a 'freezer' cgroup
 		if containerID == "" {
 			continue
 		}
+
+		mP, mFound := paths["memory"]
+		fP, fFound := paths["freezer"]
+		if !fFound || !mFound || mP != fP && !strings.Contains(mP, "garden.service") {
+			log.Tracef("skipping cgroup from pid: %d - does not appear to be a container: memory path: %s, freezer path: %s", pid, mP, fP)
+			continue
+		}
+
 		if err != nil {
 			log.Debugf("error reading cgroup paths %s: %s", cgPath, err)
 			continue
 		}
 		if cg, ok := cgs[containerID]; ok {
-			// Assumes that the paths will always be the same for a container id.
 			cg.Pids = append(cg.Pids, int32(pid))
 		} else {
 			cgs[containerID] = &ContainerCgroup{
 				ContainerID: containerID,
 				Pids:        []int32{int32(pid)},
 				Paths:       paths,
-				Mounts:      mountPoints}
+				Mounts:      mountPoints,
+			}
 		}
 	}
 	return cgs, nil

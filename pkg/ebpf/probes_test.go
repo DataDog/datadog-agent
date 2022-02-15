@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package ebpf
@@ -7,13 +13,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChooseSyscall(t *testing.T) {
-	c := NewDefaultConfig()
+	c := NewConfig()
 
 	_, err := c.ChooseSyscallProbe("wrongformat", "", "")
 	assert.Error(t, err)
@@ -31,16 +37,25 @@ func TestChooseSyscall(t *testing.T) {
 	tp, err := c.ChooseSyscallProbe("tracepoint/syscalls/sys_enter_bind", "kprobe/sys_bind/x64", "kprobe/sys_bind")
 	require.NoError(t, err)
 
-	if runtime.GOARCH == "386" {
-		assert.Equal(t, "kprobe/sys_bind", tp)
-	} else {
-		fnName, err := manager.GetSyscallFnName("sys_bind")
-		require.NoError(t, err)
-		if strings.HasPrefix(fnName, x64SyscallPrefix) {
+	fnName, err := manager.GetSyscallFnName("sys_bind")
+	require.NoError(t, err)
+
+	// intentionally leaving amd64/arm64 explicit to ensure they are included in the prefix map
+	switch runtime.GOARCH {
+	case "amd64":
+		if strings.HasPrefix(fnName, indirectSyscallPrefixes[runtime.GOARCH]) {
 			assert.Equal(t, "kprobe/sys_bind/x64", tp)
 		} else {
 			assert.Equal(t, "kprobe/sys_bind", tp)
 		}
+	case "arm64":
+		if strings.HasPrefix(fnName, indirectSyscallPrefixes[runtime.GOARCH]) {
+			assert.Equal(t, "kprobe/sys_bind/x64", tp)
+		} else {
+			assert.Equal(t, "kprobe/sys_bind", tp)
+		}
+	default:
+		assert.Equal(t, "kprobe/sys_bind", tp)
 	}
 
 	c.EnableTracepoints = true

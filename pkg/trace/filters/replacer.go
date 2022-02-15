@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package filters
 
@@ -61,7 +61,7 @@ func (f Replacer) ReplaceStatsGroup(b *pb.ClientGroupedStats) {
 			fallthrough
 		case "http.status_code":
 			strcode := re.ReplaceAllString(strconv.Itoa(int(b.HTTPStatusCode)), str)
-			if code, err := strconv.Atoi(strcode); err == nil {
+			if code, err := strconv.ParseUint(strcode, 10, 32); err == nil {
 				b.HTTPStatusCode = uint32(code)
 			}
 		}

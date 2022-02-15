@@ -1,6 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -22,7 +29,8 @@ type batcher struct {
 	metricSamplePool *metrics.MetricSamplePool
 }
 
-func newBatcher(agg *aggregator.BufferedAggregator) *batcher {
+func newBatcher(demux aggregator.Demultiplexer) *batcher {
+	agg := demux.Aggregator()
 	s, e, sc := agg.GetBufferedChannels()
 	return &batcher{
 		samples:            agg.MetricSamplePool.GetBatch(),
@@ -51,7 +59,11 @@ func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
 
 func (b *batcher) flushSamples() {
 	if b.samplesCount > 0 {
+		t1 := time.Now()
 		b.choutSamples <- b.samples[:b.samplesCount]
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
+
 		b.samplesCount = 0
 		b.samples = b.metricSamplePool.GetBatch()
 	}
@@ -61,11 +73,19 @@ func (b *batcher) flushSamples() {
 func (b *batcher) flush() {
 	b.flushSamples()
 	if len(b.events) > 0 {
+		t1 := time.Now()
 		b.choutEvents <- b.events
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "events")
+
 		b.events = []*metrics.Event{}
 	}
 	if len(b.serviceChecks) > 0 {
+		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "service_checks")
+
 		b.serviceChecks = []*metrics.ServiceCheck{}
 	}
 }

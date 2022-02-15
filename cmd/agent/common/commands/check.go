@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package commands
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,37 +32,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
-	checkRate            bool
-	checkTimes           int
-	checkPause           int
-	checkName            string
-	checkDelay           int
-	logLevel             string
-	formatJSON           bool
-	formatTable          bool
-	breakPoint           string
-	fullSketches         bool
-	saveFlare            bool
-	profileMemory        bool
-	profileMemoryDir     string
-	profileMemoryFrames  string
-	profileMemoryGC      string
-	profileMemoryCombine string
-	profileMemorySort    string
-	profileMemoryLimit   string
-	profileMemoryDiff    string
-	profileMemoryFilters string
-	profileMemoryUnit    string
-	profileMemoryVerbose string
+	checkRate              bool
+	checkTimes             int
+	checkPause             int
+	checkName              string
+	checkDelay             int
+	logLevel               string
+	formatJSON             bool
+	formatTable            bool
+	breakPoint             string
+	fullSketches           bool
+	saveFlare              bool
+	profileMemory          bool
+	profileMemoryDir       string
+	profileMemoryFrames    string
+	profileMemoryGC        string
+	profileMemoryCombine   string
+	profileMemorySort      string
+	profileMemoryLimit     string
+	profileMemoryDiff      string
+	profileMemoryFilters   string
+	profileMemoryUnit      string
+	profileMemoryVerbose   string
+	discoveryTimeout       uint
+	discoveryRetryInterval uint
+	discoveryMinInstances  uint
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -76,6 +80,9 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
+	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -105,7 +112,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				// we'll search for a config file named `datadog-cluster.yaml`
 				configName = "datadog-cluster"
 			}
-			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, logLevel, "off")
+			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, "", logLevel, "off")
 			if err != nil {
 				fmt.Printf("Cannot initialize command: %v\n", err)
 				return err
@@ -122,22 +129,33 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return nil
 			}
 
-			hostname, err := util.GetHostname()
+			hostname, err := util.GetHostname(context.TODO())
 			if err != nil {
 				fmt.Printf("Cannot get hostname, exiting: %v\n", err)
 				return err
 			}
 
-			s := serializer.NewSerializer(common.Forwarder)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-			agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
-			common.LoadComponents(config.Datadog.GetString("confd_path"))
+			opts := aggregator.DefaultDemultiplexerOptions(nil)
+			opts.FlushInterval = 0
+			opts.UseNoopEventPlatformForwarder = true
+			opts.UseOrchestratorForwarder = false
+			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+
+			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
 			}
 
-			allConfigs := common.AC.GetAllConfigs()
+			if discoveryRetryInterval > discoveryTimeout {
+				fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
+				fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
+				discoveryRetryInterval = discoveryTimeout
+			}
+
+			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
+				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -152,11 +170,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 					fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 					selectedChecks := []string{checkName}
 					if checkRate {
-						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					} else {
-						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					}
@@ -292,13 +310,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
 			for _, c := range cs {
-				s := runCheck(c, agg)
+				s := runCheck(c, demux)
 
 				// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 				time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
 				if formatJSON {
-					aggregatorData := getMetricsData(agg)
+					aggregatorData := getMetricsData(demux)
 					var collectorData map[string]interface{}
 
 					collectorJSON, _ := status.GetCheckStatusJSON(c, s)
@@ -376,7 +394,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(agg, &checkFileOutput)
+					printMetrics(demux, &checkFileOutput)
 					checkStatus, _ := status.GetCheckStatus(c, s)
 					statusString := string(checkStatus)
 					fmt.Println(statusString)
@@ -420,7 +438,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 	return cmd
 }
 
-func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
+func runCheck(c check.Check, demux aggregator.Demultiplexer) *check.Stats {
 	s := check.NewStats(c)
 	times := checkTimes
 	pause := checkPause
@@ -438,8 +456,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 		t0 := time.Now()
 		err := c.Run()
 		warnings := c.GetWarnings()
-		mStats, _ := c.GetMetricStats()
-		s.Add(time.Since(t0), err, warnings, mStats)
+		sStats, _ := c.GetSenderStats()
+		s.Add(time.Since(t0), err, warnings, sStats)
 		if pause > 0 && i < times-1 {
 			time.Sleep(time.Duration(pause) * time.Millisecond)
 		}
@@ -448,7 +466,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buffer) {
+func printMetrics(demux aggregator.Demultiplexer, checkFileOutput *bytes.Buffer) {
+	agg := demux.Aggregator()
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
@@ -529,23 +548,33 @@ func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buf
 		fmt.Println(string(j))
 		checkFileOutput.WriteString(string(j) + "\n")
 	}
+
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
+		if len(v) > 0 {
+			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
+				k = translated
+			}
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString(k)))
+			checkFileOutput.WriteString(fmt.Sprintf("=== %s ===\n", k))
+			j, _ := json.MarshalIndent(v, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
+	}
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
-	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_")
+	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
-	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)
+	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {
-		fmt.Println("Error while writing the check file:", err)
-		return
+		fmt.Println("Error while scrubbing the check file:", err)
 	}
-	defer w.Close()
-
-	_, err = w.Write(checkFileOutput.Bytes())
+	err = ioutil.WriteFile(flarePath, scrubbed, os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
@@ -554,8 +583,34 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	}
 }
 
-func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
+type eventPlatformDebugEvent struct {
+	RawEvent          string `json:",omitempty"`
+	EventType         string
+	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
+}
+
+// toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
+func toDebugEpEvents(events map[string][]*message.Message) map[string][]eventPlatformDebugEvent {
+	result := make(map[string][]eventPlatformDebugEvent)
+	for eventType, messages := range events {
+		var events []eventPlatformDebugEvent
+		for _, m := range messages {
+			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
+			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
+			if err == nil {
+				e.RawEvent = ""
+			}
+			events = append(events, e)
+		}
+		result[eventType] = events
+	}
+	return result
+}
+
+func getMetricsData(demux aggregator.Demultiplexer) map[string]interface{} {
 	aggData := make(map[string]interface{})
+
+	agg := demux.Aggregator()
 
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
@@ -579,6 +634,10 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		aggData["events"] = events
+	}
+
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
+		aggData[k] = v
 	}
 
 	return aggData

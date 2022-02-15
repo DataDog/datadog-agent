@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package kubernetes
 
@@ -54,6 +54,8 @@ const (
 	CronJobKind = "CronJob"
 	// ServiceKind represents the ServiceKind object kind
 	ServiceKind = "Service"
+	// NamespaceKind represents the NamespaceKind object kind
+	NamespaceKind = "Namespace"
 
 	// PodTagName represents the pods tag name
 	PodTagName = "pod_name"
@@ -71,8 +73,22 @@ const (
 	JobTagName = "kube_job"
 	// CronJobTagName represents the CronJob tag name
 	CronJobTagName = "kube_cronjob"
-	// ServiceTagName represents the CronJob tag name
+	// ServiceTagName represents the ServiceTagName tag name
 	ServiceTagName = "kube_service"
+	// NamespaceTagName represents the Namespace tag name
+	NamespaceTagName = "kube_namespace"
+	// PersistentVolumeClaimTagName represents the PersistentVolumeClaim tag name
+	PersistentVolumeClaimTagName = "persistentvolumeclaim"
+
+	// ResourceNameTagName represents any resource tag name
+	ResourceNameTagName = "kube_resource_name"
+	// ResourceKindTagName represents any resource kind
+	ResourceKindTagName = "kube_resource_kind"
+
+	// OwnerRefNameTagName represents any owner ref tag name
+	OwnerRefNameTagName = "kube_ownerref_name"
+	// OwnerRefKindTagName represents any owner ref kind
+	OwnerRefKindTagName = "kube_ownerref_kind"
 )
 
 // KindToTagName returns the tag name for a given kubernetes object name
@@ -86,4 +102,5 @@ var KindToTagName = map[string]string{
 	JobKind:                   JobTagName,
 	CronJobKind:               CronJobTagName,
 	ServiceKind:               ServiceTagName,
+	NamespaceKind:             NamespaceTagName,
 }

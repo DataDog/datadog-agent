@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
@@ -63,8 +68,11 @@ func TestEventError(t *testing.T) {
 	_, err = parseEvent([]byte("_e{10,10}:title|text"))
 	assert.Error(t, err)
 
-	// zero length
+	// zero length title
 	_, err = parseEvent([]byte("_e{0,0}:a|a"))
+	assert.Error(t, err)
+
+	_, err = parseEvent([]byte("_e{0,4}:text"))
 	assert.Error(t, err)
 
 	// missing title or text length
@@ -96,6 +104,18 @@ func TestEventError(t *testing.T) {
 	assert.Error(t, err)
 
 	_, err = parseEvent([]byte("_e:|text"))
+	assert.Error(t, err)
+
+	// invalid title length
+	_, err = parseEvent([]byte("_e{-123,-987}:"))
+	assert.Error(t, err)
+
+	// invalid text length
+	_, err = parseEvent([]byte("_e{5,-987}:title"))
+	assert.Error(t, err)
+
+	// malformed message
+	_, err = parseEvent([]byte("_e{0001,-9876"))
 	assert.Error(t, err)
 
 	// invalid timestamp

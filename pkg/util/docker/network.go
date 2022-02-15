@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -143,15 +145,15 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 // GetAgentContainerNetworkMode provides the network mode of the Agent container
 // To get this info in an optimal way, consider calling util.GetAgentNetworkMode	func GetContainerNetworkMode(cid string) (string, error) {
 // instead to benefit from the cache
-func GetAgentContainerNetworkMode() (string, error) {
+func GetAgentContainerNetworkMode(ctx context.Context) (string, error) {
 	agentCID, _ := providers.ContainerImpl().GetAgentCID()
-	return GetContainerNetworkMode(agentCID)
+	return GetContainerNetworkMode(ctx, agentCID)
 }
 
 // GetContainerNetworkAddresses returns internal container network address
 // representations from the container metadata retrieved at the given URL.
 func GetContainerNetworkAddresses(agentURL string) ([]containers.NetworkAddress, error) {
-	container, err := v3.NewClient(agentURL).GetContainer()
+	container, err := v3.NewClient(agentURL).GetContainer(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task from metadata v3 API: %s", err)
 	}
@@ -159,12 +161,12 @@ func GetContainerNetworkAddresses(agentURL string) ([]containers.NetworkAddress,
 }
 
 // GetContainerNetworkMode returns the network mode of a container
-func GetContainerNetworkMode(cid string) (string, error) {
+func GetContainerNetworkMode(ctx context.Context, cid string) (string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return "", err
 	}
-	container, err := du.Inspect(cid, false)
+	container, err := du.Inspect(ctx, cid, false)
 	if err != nil {
 		return "", err
 	}
@@ -176,7 +178,7 @@ func GetContainerNetworkMode(cid string) (string, error) {
 	// Try to discover awsvpc mode
 	if strings.HasPrefix(mode, containerModePrefix) {
 		// Inspect the attached container
-		co, err := du.Inspect(mode[len(containerModePrefix):], false)
+		co, err := du.Inspect(ctx, mode[len(containerModePrefix):], false)
 		if err != nil {
 			return "", fmt.Errorf("cannot inspect attached container %s: %v", mode, err)
 		}

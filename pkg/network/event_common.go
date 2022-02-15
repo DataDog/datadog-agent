@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -6,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
 )
@@ -76,14 +83,48 @@ func (d ConnectionDirection) String() string {
 	}
 }
 
-// Connections wraps a collection of ConnectionStats
-type Connections struct {
-	DNS       map[util.Address][]string
-	Conns     []ConnectionStats
-	Telemetry *ConnectionsTelemetry
+// EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
+type EphemeralPortType uint8
+
+const (
+	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
+	EphemeralUnknown EphemeralPortType = 0
+
+	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
+	EphemeralTrue EphemeralPortType = 1
+
+	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
+	EphemeralFalse EphemeralPortType = 2
+)
+
+func (e EphemeralPortType) String() string {
+	switch e {
+	case EphemeralTrue:
+		return "ephemeral"
+	case EphemeralFalse:
+		return "not ephemeral"
+	default:
+		return "unspecified"
+	}
 }
 
-// ConnectionsTelemetry stores telemetry from the system probe
+// BufferedData encapsulates data whose underlying memory can be recycled
+type BufferedData struct {
+	Conns  []ConnectionStats
+	buffer *clientBuffer
+}
+
+// Connections wraps a collection of ConnectionStats
+type Connections struct {
+	BufferedData
+	DNS                         map[util.Address][]string
+	ConnTelemetry               *ConnectionsTelemetry
+	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	HTTP                        map[http.Key]http.RequestStats
+	DNSStats                    dns.StatsByKeyByNameByType
+}
+
+// ConnectionsTelemetry stores telemetry from the system probe related to connections collection
 type ConnectionsTelemetry struct {
 	MonotonicKprobesTriggered          int64
 	MonotonicKprobesMissed             int64
@@ -95,6 +136,15 @@ type ConnectionsTelemetry struct {
 	MonotonicUDPSendsProcessed         int64
 	MonotonicUDPSendsMissed            int64
 	ConntrackSamplingPercent           int64
+	DNSStatsDropped                    int64
+}
+
+// RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
+type RuntimeCompilationTelemetry struct {
+	RuntimeCompilationEnabled  bool
+	RuntimeCompilationResult   int32
+	KernelHeaderFetchResult    int32
+	RuntimeCompilationDuration int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -107,6 +157,12 @@ type ConnectionStats struct {
 
 	MonotonicRecvBytes uint64
 	LastRecvBytes      uint64
+
+	MonotonicSentPackets uint64
+	LastSentPackets      uint64
+
+	MonotonicRecvPackets uint64
+	LastRecvPackets      uint64
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -132,20 +188,28 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                  uint16
-	DPort                  uint16
-	Type                   ConnectionType
-	Family                 ConnectionFamily
-	Direction              ConnectionDirection
-	IPTranslation          *IPTranslation
-	IntraHost              bool
-	DNSSuccessfulResponses uint32
-	DNSFailedResponses     uint32
-	DNSTimeouts            uint32
-	DNSSuccessLatencySum   uint64
-	DNSFailureLatencySum   uint64
-	DNSCountByRcode        map[uint32]uint32
-	DNSStatsByDomain       map[string]DNSStats
+	SPort            uint16
+	DPort            uint16
+	Type             ConnectionType
+	Family           ConnectionFamily
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
+	IPTranslation    *IPTranslation
+	IntraHost        bool
+	Via              *Via
+	Tags             uint64
+
+	IsAssured bool
+}
+
+// Via has info about the routing decision for a flow
+type Via struct {
+	Subnet Subnet
+}
+
+// Subnet stores info about a subnet
+type Subnet struct {
+	Alias string
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -160,13 +224,18 @@ func (c ConnectionStats) String() string {
 	return ConnectionSummary(&c, nil)
 }
 
+// IsExpired returns whether the connection is expired according to the provided time and timeout.
+func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
+	return c.LastUpdateEpoch+timeout <= now
+}
+
 // ByteKey returns a unique key for this connection represented as a byte array
 // It's as following:
 //
 //     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, error) {
+func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	n := 0
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
@@ -178,9 +247,15 @@ func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, err
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += copy(buf[n:], c.Source.Bytes()) // 4 or 16 bytes
-	n += copy(buf[n:], c.Dest.Bytes())   // 4 or 16 bytes
+	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
 	return buf[:n], nil
+}
+
+// IsShortLived returns true when a connection went through its whole lifecycle
+// between two connection checks
+func (c ConnectionStats) IsShortLived() bool {
+	return c.LastTCPEstablished >= 1 && c.LastTCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
@@ -223,13 +298,26 @@ func BeautifyKey(key string) string {
 // ConnectionSummary returns a string summarizing a connection
 func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
 	str := fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
+		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
+		c.Family,
 		c.Pid,
 		printAddress(c.Source, names[c.Source]),
 		c.SPort,
 		printAddress(c.Dest, names[c.Dest]),
 		c.DPort,
+	)
+	if c.IPTranslation != nil {
+		str += fmt.Sprintf(
+			"xlated [%v:%d ⇄ %v:%d] ",
+			c.IPTranslation.ReplSrcIP,
+			c.IPTranslation.ReplSrcPort,
+			c.IPTranslation.ReplDstIP,
+			c.IPTranslation.ReplDstPort,
+		)
+	}
+
+	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
 		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
 		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
@@ -253,12 +341,4 @@ func printAddress(address util.Address, names []string) string {
 	}
 
 	return strings.Join(names, ",")
-}
-
-// DNSStats holds statistics corresponding to a particular domain
-type DNSStats struct {
-	DNSTimeouts          uint32
-	DNSSuccessLatencySum uint64
-	DNSFailureLatencySum uint64
-	DNSCountByRcode      map[uint32]uint32
 }

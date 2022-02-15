@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 # This software definition doesn"t build anything, it"s the place where we create
 # files outside the omnibus installation directory, so that we can add them to
@@ -11,9 +11,12 @@ require './lib/ostools.rb'
 name "datadog-buildpack-finalize"
 description "steps required to finalize the CF build"
 default_version "1.0.0"
+
 skip_transitive_dependency_licensing true
 
 build do
+    license :project_license
+
     # TODO too many things done here, should be split
     block do
         # Conf files

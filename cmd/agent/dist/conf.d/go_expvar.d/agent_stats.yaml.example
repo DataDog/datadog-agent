@@ -96,6 +96,7 @@ instances:
       - path: aggregator/FlushCount/Series/LastFlush
       - path: aggregator/FlushCount/Events/LastFlush
       - path: aggregator/FlushCount/Sketches/LastFlush
+      - path: aggregator/DogstatsdContexts
       - path: aggregator/SeriesFlushed
         type: rate
       - path: aggregator/ServiceCheckFlushed
@@ -148,3 +149,44 @@ instances:
         type: rate
       - path: logs-agent/EncodedBytesSent
         type: rate
+      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:0
+      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:0
+      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:1
+      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:1
+      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:2
+      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:2
+      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:3
+      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:3
+

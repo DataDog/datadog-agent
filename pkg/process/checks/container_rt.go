@@ -1,15 +1,20 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
-	"runtime"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // RTContainer is a singleton RTContainerCheck.
@@ -20,15 +25,19 @@ type RTContainerCheck struct {
 	sysInfo   *model.SystemInfo
 	lastRates map[string]util.ContainerRateMetrics
 	lastRun   time.Time
+
+	maxBatchSize int
 }
 
 // Init initializes a RTContainerCheck instance.
 func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
 	r.sysInfo = sysInfo
+
+	r.maxBatchSize = getMaxBatchSize()
 }
 
 // Name returns the name of the RTContainerCheck.
-func (r *RTContainerCheck) Name() string { return "rtcontainer" }
+func (r *RTContainerCheck) Name() string { return config.RTContainerCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }
@@ -58,8 +67,8 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, nil
 	}
 
-	groupSize := len(ctrList) / cfg.MaxPerMessage
-	if len(ctrList)%cfg.MaxPerMessage != 0 {
+	groupSize := len(ctrList) / r.maxBatchSize
+	if len(ctrList)%r.maxBatchSize != 0 {
 		groupSize++
 	}
 	chunked := fmtContainerStats(ctrList, r.lastRates, r.lastRun, groupSize)
@@ -68,7 +77,7 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		messages = append(messages, &model.CollectorContainerRealTime{
 			HostName:          cfg.HostName,
 			Stats:             chunked[i],
-			NumCpus:           int32(runtime.NumCPU()),
+			NumCpus:           int32(system.HostCPUCount()),
 			TotalMemory:       r.sysInfo.TotalMemory,
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
@@ -90,6 +99,7 @@ func fmtContainerStats(
 	lastRun time.Time,
 	chunks int,
 ) [][]*model.ContainerStat {
+	currentTime := time.Now()
 	perChunk := (len(ctrList) / chunks) + 1
 	chunked := make([][]*model.ContainerStat, chunks)
 	chunk := make([]*model.ContainerStat, 0, perChunk)
@@ -101,18 +111,29 @@ func fmtContainerStats(
 			lastCtr = util.NullContainerRates
 		}
 
-		// Just in case the container is found, but refs are nil
+		// Just in case the container is found, but refs are nil.
+		// Note some CPU values are set to -1, to be skipped on the backend, because they are reported cumulatively
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
 
 		ifStats := ctr.Network.SumInterfaces()
-		cpus := runtime.NumCPU()
+		cpus := system.HostCPUCount()
 		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
+
+		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, currentTime, lastRun)
+		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
+		var totalPct float32
+		if userPct == -1 || systemPct == -1 {
+			totalPct = -1
+		} else {
+			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
+		}
+
 		chunk = append(chunk, &model.ContainerStat{
 			Id:          ctr.ID,
-			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
-			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			UserPct:     userPct,
+			SystemPct:   systemPct,
+			TotalPct:    totalPct,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,

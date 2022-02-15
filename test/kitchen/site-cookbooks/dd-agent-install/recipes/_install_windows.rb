@@ -2,10 +2,23 @@
 # Cookbook Name:: dd-agent-install
 # Recipe:: _install_windows
 #
-# Copyright (C) 2019-2020 Datadog
+# Copyright (C) 2019-present Datadog
 #
 # All rights reserved - Do Not Redistribute
 #
+
+if node['dd-agent-install']['enable_testsigning']
+  reboot 'enable_testsigning' do
+    action :nothing
+    reason 'Cannot continue Chef run without a reboot.'
+  end
+
+  execute 'enable unsigned drivers' do
+    command "bcdedit.exe /set testsigning on"
+    notifies :reboot_now, 'reboot[enable_testsigning]', :immediately
+    not_if 'bcdedit.exe | findstr "testsigning" | findstr "Yes"'
+  end
+end
 
 include_recipe 'dd-agent-install::_install_windows_base'
 

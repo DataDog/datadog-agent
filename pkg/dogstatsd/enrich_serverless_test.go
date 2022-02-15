@@ -1,8 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build serverless
 // +build serverless
 
 package dogstatsd
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -11,7 +18,7 @@ import (
 )
 
 func TestConvertParseDistributionServerless(t *testing.T) {
-	defaultHostname, err := util.GetHostname()
+	defaultHostname, err := util.GetHostname(context.Background())
 
 	assert.Equal(t, "", defaultHostname, "In serverless mode, the hostname returned should be an empty string")
 	assert.NoError(t, err)

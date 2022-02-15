@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -134,7 +139,7 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 
 				i := 0
 				for range ticker.C {
-					i += 1
+					i++
 					i = i % p
 					select {
 					case <-quitGenerator:
@@ -144,17 +149,17 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 						for _, m := range metrics {
 							for _, generated := range m {
 								rawSender.SendRawMetricSample(generated[i])
-								sent += 1
+								sent++
 							}
 						}
 
 						// Submit ServiceCheck
 						rawSender.SendRawServiceCheck(scs[i])
-						sent += 1
+						sent++
 
 						// Submit Event
 						rawSender.Event(*events[i])
-						sent += 1
+						sent++
 					}
 				}
 			}()
@@ -200,7 +205,7 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 						quitGenerator <- true
 						return
 					}
-					secs += 1
+					secs++
 				}
 			}()
 

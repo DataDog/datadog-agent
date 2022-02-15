@@ -2,7 +2,7 @@
 # Preparation stage: layout and chmods #
 ########################################
 
-FROM debian:bullseye-slim as builder
+FROM ubuntu:21.10 as builder
 
 WORKDIR /output
 
@@ -11,11 +11,11 @@ COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
 COPY entrypoint.sh .
-COPY readsecret.sh .
+COPY readsecret.sh readsecret_multiple_providers.sh ./
 
 RUN chmod 755 entrypoint.sh \
-    && chown root:root readsecret.sh \
-    && chmod 550 readsecret.sh \
+    && chown root:root readsecret.sh readsecret_multiple_providers.sh \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh\
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
@@ -24,14 +24,14 @@ RUN chmod 755 entrypoint.sh \
 # Actual docker image construction #
 ####################################
 
-FROM debian:bullseye-slim
+FROM ubuntu:21.10
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
-ENV PATH="/opt/datadog-agent/bin/:$PATH"
-
-# Allow User Group to exec the secret backend script.
-ENV DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+ENV PATH="/opt/datadog-agent/bin/:$PATH" \
+    DOCKER_DD_AGENT="true" \
+    # Allow User Group to exec the secret backend script.
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 RUN apt-get update \
     && apt full-upgrade -y \

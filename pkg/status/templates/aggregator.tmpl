@@ -46,7 +46,11 @@ Aggregator
 {{- if .ChecksHistogramBucketMetricSample }}
   Checks Histogram Bucket Metric Sample: {{humanize .ChecksHistogramBucketMetricSample}}
 {{- end }}
+{{- if .EventPlatformEvents }}
+{{- range $k, $v := .EventPlatformEvents }}
+  {{ $k }}: {{humanize $v}}
+{{- end }}
+{{- end }}
 {{- if .HostnameUpdate}}
   Hostname Update: {{humanize .HostnameUpdate}}
 {{- end }}
-

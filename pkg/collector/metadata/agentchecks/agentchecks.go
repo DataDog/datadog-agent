@@ -1,16 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agentchecks
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -20,11 +21,11 @@ import (
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
-func GetPayload() *Payload {
+func GetPayload(ctx context.Context) *Payload {
 	agentChecksPayload := ACPayload{}
-	hostnameData, _ := util.GetHostnameData()
+	hostnameData, _ := util.GetHostnameData(ctx)
 	hostname := hostnameData.Hostname
-	checkStats := runner.GetCheckStats()
+	checkStats := expvars.GetCheckStats()
 	jmxStartupError := status.GetJMXStartupError()
 
 	for _, stats := range checkStats {
@@ -79,7 +80,7 @@ func GetPayload() *Payload {
 	}
 
 	// Grab the non agent checks information
-	metaPayload := host.GetMeta(hostnameData)
+	metaPayload := host.GetMeta(ctx, hostnameData)
 	metaPayload.Hostname = hostname
 	cp := common.GetPayload(hostname)
 	ehp := externalhost.GetPayload()

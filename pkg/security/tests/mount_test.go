@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -14,25 +15,33 @@ import (
 	"syscall"
 	"testing"
 	"time"
-	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
+
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestMount(t *testing.T) {
 	dstMntBasename := "test-dest-mount"
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: fmt.Sprintf(`utimes.filename == "{{.Root}}/%s/test-mount"`, dstMntBasename),
-	}
 
-	testDrive, err := newTestDrive("ext4", []string{})
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule",
+		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/%s/test-mount"`, dstMntBasename),
+	}, {
+		ID:         "test_rule_pending",
+		Expression: fmt.Sprintf(`chown.file.path == "{{.Root}}/%s/test-release"`, dstMntBasename),
+	}}
+
+	testDrive, err := newTestDrive("xfs", []string{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,87 +63,92 @@ func TestMount(t *testing.T) {
 
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
-		// Test mount
-		if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
-			t.Fatalf("could not create bind mount: %s", err)
-		}
-
-		event, err := test.GetProbeEvent(3*time.Second, "mount")
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "mount" {
-				t.Errorf("expected mount event, got %s", event.GetType())
+		err = test.GetProbeEvent(func() error {
+			// Test mount
+			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
+				return fmt.Errorf("could not create bind mount: %w", err)
 			}
-
-			if event.Mount.MountPointStr != "/"+dstMntBasename {
-				t.Errorf("expected %v for ParentPathStr, got %v", dstMntPath, event.Mount.MountPointStr)
-			}
-
-			// use accessor to parse properly the mount type
-			if fs := event.Mount.GetFSType(); fs != "bind" {
-				t.Errorf("expected a bind mount, got %v", fs)
-			}
+			return nil
+		}, func(event *sprobe.Event) bool {
 			mntID = event.Mount.MountID
+
+			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
+				return true
+			}
+
+			// filter by pid
+			if pce := event.ResolveProcessCacheEntry(); pce.Pid != testSuitePid {
+				return false
+			}
+
+			return assert.Equal(t, "/"+dstMntBasename, event.Mount.MountPointStr, "wrong mount point") &&
+				assert.Equal(t, "xfs", event.Mount.GetFSType(), "wrong mount fs type")
+		}, 3*time.Second, model.FileMountEventType)
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
-		utimFile, utimFilePtr, err := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
+		file, _, err := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		f, err := os.Create(utimFile)
+		f, err := os.Create(file)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if err := f.Close(); err != nil {
+		if err = f.Close(); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Remove(utimFile)
+		defer os.Remove(file)
 
-		utimbuf := &syscall.Utimbuf{
-			Actime:  123,
-			Modtime: 456,
-		}
+		test.WaitSignal(t, func() error {
+			return os.Chmod(file, 0707)
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
+			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
+		})
+	})
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(utimFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-			t.Fatal(errno)
-		}
+	releaseFile, err := os.Create(path.Join(dstMntPath, "test-release"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseFile.Close()
 
-		event, _, err := test.GetEvent()
+	t.Run("umount", func(t *testing.T) {
+		err = test.GetProbeEvent(func() error {
+			// Test umount
+			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
+				return fmt.Errorf("could not unmount test-mount: %w", err)
+			}
+			return nil
+		}, func(event *sprobe.Event) bool {
+			if !assert.Equal(t, "umount", event.GetType(), "wrong event type") {
+				return true
+			}
+
+			// filter by process
+			if pce := event.ResolveProcessCacheEntry(); pce.Pid != testSuitePid {
+				return false
+			}
+
+			return assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
+		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
 			t.Error(err)
-		} else {
-			if event.GetType() != "utimes" {
-				t.Errorf("expected utimes event, got %s", event.GetType())
-			}
-
-			if event.Utimes.PathnameStr != utimFile {
-				t.Errorf("expected %v for PathnameStr, got %v", utimFile, event.Utimes.PathnameStr)
-			}
 		}
 	})
 
-	t.Run("umount", func(t *testing.T) {
-		// Test umount
-		if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
-			t.Fatalf("could not unmount test-mount: %s", err)
-		}
-
-		event, err := test.GetProbeEvent(3*time.Second, "umount")
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "umount" {
-				t.Errorf("expected umount event, got %s", event.GetType())
-			}
-
-			if uMntID := event.Umount.MountID; uMntID != mntID {
-				t.Errorf("expected mount_id %v, got %v", mntID, uMntID)
-			}
-		}
+	t.Run("release-mount", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assertTriggeredRule(t, rule, "test_rule_pending")
+		})
 	})
 }

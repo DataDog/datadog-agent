@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package common
 
@@ -18,6 +18,10 @@ const (
 	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
 	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
 	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
+	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
+	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
+	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
+	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 )
 
 var (

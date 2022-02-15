@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 /*
 Package api implements the agent IPC api. Using HTTP
@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/gorilla/mux"
@@ -35,14 +36,14 @@ type Server struct {
 }
 
 // NewServer creates a new Server instance
-func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent) (*Server, error) {
+func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compagent.Agent) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
 		listener: listener,
-		agent:    agent.NewAgent(runtimeAgent),
+		agent:    agent.NewAgent(runtimeAgent, complianceAgent),
 	}, nil
 }
 

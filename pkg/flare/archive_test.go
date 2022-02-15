@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -19,12 +19,49 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+func createTestDirStructure(
+	srcPrefix string,
+	filename string,
+) (string, string, error) {
+
+	srcDir, err := ioutil.TempDir("", srcPrefix)
+	if err != nil {
+		return "", "", err
+	}
+
+	dstDir, err := ioutil.TempDir("", "ArchiveTest")
+	if err != nil {
+		return "", "", err
+	}
+
+	// create non-empty file in the source directory
+	file, err := os.Create(filepath.Join(srcDir, filename))
+	if err != nil {
+		return "", "", err
+	}
+
+	_, err = file.WriteString("mockfilecontent")
+	if err != nil {
+		return "", "", err
+	}
+
+	err = file.Close()
+	if err != nil {
+		return "", "", err
+	}
+
+	return srcDir, dstDir, nil
+}
 
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
@@ -32,10 +69,10 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.Nil(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
 		assert.Fail(t, "The Zip File was not created")
@@ -56,10 +93,10 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	pprofURL = ts.URL
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.Nil(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	// Open a zip archive for reading.
 	z, err := zip.OpenReader(zipFilePath)
@@ -100,10 +137,10 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.Nil(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
 		assert.Fail(t, "The Zip File was not created")
@@ -154,7 +191,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil, nil)
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -182,7 +219,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil, nil)
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
@@ -247,11 +284,62 @@ func TestCleanDirectoryName(t *testing.T) {
 	assert.True(t, !directoryNameFilter.MatchString(cleanedHostname))
 }
 
+func TestZipLogFiles(t *testing.T) {
+	srcDir, err := ioutil.TempDir("", "logs")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	dstDir, err := ioutil.TempDir("", "TestZipLogFiles")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	_, err = os.Create(filepath.Join(srcDir, "agent.log"))
+	require.NoError(t, err)
+	_, err = os.Create(filepath.Join(srcDir, "trace-agent.log"))
+	require.NoError(t, err)
+	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0700)
+	require.NoError(t, err)
+	_, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
+	require.NoError(t, err)
+
+	permsInfos := make(permissionsInfos)
+
+	err = zipLogFiles(dstDir, "test", filepath.Join(srcDir, "agent.log"), permsInfos)
+	require.NoError(t, err)
+
+	// Check all the log files are in the destination path, at the right subdirectories
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "agent.log"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "trace-agent.log"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "archive", "agent.log"))
+	assert.NoError(t, err)
+}
+
+func TestZipRegistryJSON(t *testing.T) {
+	srcDir, dstDir, err := createTestDirStructure("run", "registry.json")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	defer os.RemoveAll(dstDir)
+
+	tempRunPath := config.Datadog.GetString("logs_config.run_path")
+	config.Datadog.Set("logs_config.run_path", srcDir)
+	defer config.Datadog.Set("logs_config.run_path", tempRunPath)
+
+	err = zipRegistryJSON(dstDir, "test")
+	require.NoError(t, err)
+
+	targetPath := filepath.Join(dstDir, "test", "registry.json")
+	actualContent, err := ioutil.ReadFile(targetPath)
+	require.NoError(t, err)
+	require.Equal(t, "mockfilecontent", string(actualContent))
+}
+
 func TestZipTaggerList(t *testing.T) {
 	tagMap := make(map[string]response.TaggerListEntity)
 	tagMap["random_entity_name"] = response.TaggerListEntity{
-		Sources: []string{"docker_source_name"},
-		Tags:    []string{"docker_image:custom-agent:latest", "image_name:custom-agent"},
+		Tags: map[string][]string{
+			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
+		},
 	}
 	resp := response.TaggerListResponse{
 		Entities: tagMap,
@@ -282,6 +370,44 @@ func TestZipTaggerList(t *testing.T) {
 	assert.Contains(t, string(content), "image_name:custom-agent")
 }
 
+func TestZipWorkloadList(t *testing.T) {
+	workloadMap := make(map[string]workloadmeta.WorkloadEntity)
+	workloadMap["kind_id"] = workloadmeta.WorkloadEntity{
+		Infos: map[string]string{
+			"container_id_1": "Name: init-volume ID: e19e1ba787",
+			"container_id_2": "Name: init-config ID: 4e0ffee5d6",
+		},
+	}
+	resp := workloadmeta.WorkloadDumpResponse{
+		Entities: workloadMap,
+	}
+
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		out, _ := json.Marshal(resp)
+		w.Write(out)
+	}))
+	defer s.Close()
+
+	dir, err := ioutil.TempDir("", "TestZipWorkloadList")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	workloadListURL = s.URL
+	zipWorkloadList(dir, "")
+	content, err := ioutil.ReadFile(filepath.Join(dir, "workload-list.log"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	assert.Contains(t, string(content), "kind_id")
+	assert.Contains(t, string(content), "container_id_1")
+	assert.Contains(t, string(content), "Name: init-volume ID: e19e1ba787")
+	assert.Contains(t, string(content), "container_id_2")
+	assert.Contains(t, string(content), "Name: init-config ID: 4e0ffee5d6")
+}
+
 func TestPerformanceProfile(t *testing.T) {
 	testProfile := ProfileData{
 		"first":  []byte{},
@@ -289,10 +415,10 @@ func TestPerformanceProfile(t *testing.T) {
 		"third":  []byte{},
 	}
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, testProfile)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, testProfile, nil)
 
-	assert.NoError(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.NoError(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	// Open a zip archive for reading.
 	z, err := zip.OpenReader(zipFilePath)
@@ -317,4 +443,66 @@ func TestPerformanceProfile(t *testing.T) {
 	assert.True(t, firstHeap, "first-heap.profile should've been included")
 	assert.True(t, secondHeap, "second-heap.profile should've been included")
 	assert.True(t, cpu, "cpu.profile should've been included")
+}
+
+// Test that writeScrubbedFile actually scrubs third-party API keys.
+func TestRedactingOtherServicesApiKey(t *testing.T) {
+	dir := t.TempDir()
+	filename := path.Join(dir, "test.config")
+
+	clear := `init_config:
+instances:
+- host: 127.0.0.1
+  api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  port: 8082
+  api_key: dGhpc2++lzM+XBhc3N3b3JkW113aXRo/c29tZWN]oYXJzMTIzCg==
+  version: 4 # omit this line if you're running pdns_recursor version 3.x`
+	redacted := `init_config:
+instances:
+- host: 127.0.0.1
+  api_key: ***************************aaaaa
+  port: 8082
+  api_key: ********
+  version: 4 # omit this line if you're running pdns_recursor version 3.x`
+
+	err := writeScrubbedFile(filename, []byte(clear))
+	require.NoError(t, err)
+
+	got, err := ioutil.ReadFile(filename)
+	require.NoError(t, err)
+	assert.Equal(t, redacted, string(got))
+}
+
+func TestZipFile(t *testing.T) {
+	srcDir, dstDir, err := createTestDirStructure("source", "test.json")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	defer os.RemoveAll(dstDir)
+
+	err = zipFile(srcDir, dstDir, "test.json")
+	require.NoError(t, err)
+
+	targetPath := filepath.Join(dstDir, "test.json")
+	actualContent, err := ioutil.ReadFile(targetPath)
+	require.NoError(t, err)
+	require.Equal(t, "mockfilecontent", string(actualContent))
+}
+
+func TestZipVersionHistory(t *testing.T) {
+	srcDir, dstDir, err := createTestDirStructure("run", "version-history.json")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	defer os.RemoveAll(dstDir)
+
+	tempRunPath := config.Datadog.GetString("run_path")
+	config.Datadog.Set("run_path", srcDir)
+	defer config.Datadog.Set("run_path", tempRunPath)
+
+	err = zipVersionHistory(dstDir, "test")
+	require.NoError(t, err)
+
+	targetPath := filepath.Join(dstDir, "test", "version-history.json")
+	actualContent, err := ioutil.ReadFile(targetPath)
+	require.NoError(t, err)
+	require.Equal(t, "mockfilecontent", string(actualContent))
 }

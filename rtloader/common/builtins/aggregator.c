@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "aggregator.h"
 #include "rtloader_mem.h"
 #include "stringutils.h"
@@ -11,18 +11,21 @@ static cb_submit_metric_t cb_submit_metric = NULL;
 static cb_submit_service_check_t cb_submit_service_check = NULL;
 static cb_submit_event_t cb_submit_event = NULL;
 static cb_submit_histogram_bucket_t cb_submit_histogram_bucket = NULL;
+static cb_submit_event_platform_event_t cb_submit_event_platform_event = NULL;
 
 // forward declarations
 static PyObject *submit_metric(PyObject *self, PyObject *args);
 static PyObject *submit_service_check(PyObject *self, PyObject *args);
 static PyObject *submit_event(PyObject *self, PyObject *args);
 static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args);
+static PyObject *submit_event_platform_event(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics." },
     { "submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks." },
     { "submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events." },
     { "submit_histogram_bucket", (PyCFunction)submit_histogram_bucket, METH_VARARGS, "Submit histogram bucket." },
+    { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS, "Submit event platform event." },
     { NULL, NULL } // guards
 };
 
@@ -84,6 +87,12 @@ void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb)
 {
     cb_submit_histogram_bucket = cb;
 }
+
+void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
+{
+    cb_submit_event_platform_event = cb;
+}
+
 
 /*! \fn py_tag_to_c(PyObject *py_tags)
     \brief A function to convert a list of python strings (tags) into an
@@ -192,7 +201,7 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     bool flush_first_value = false;
 
     // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname, flush_first_value)
-    if (!PyArg_ParseTuple(args, "OsisdOs|i", &check, &check_id, &mt, &name, &value, &py_tags, &hostname, &flush_first_value)) {
+    if (!PyArg_ParseTuple(args, "OsisdOs|b", &check, &check_id, &mt, &name, &value, &py_tags, &hostname, &flush_first_value)) {
         goto error;
     }
 
@@ -384,16 +393,17 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     int monotonic;
     char *hostname = NULL;
     char **tags = NULL;
+    bool flush_first_value = false;
 
-    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags)
-    if (!PyArg_ParseTuple(args, "OssLffisO", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags)) {
+    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags, flush_first_value)
+    if (!PyArg_ParseTuple(args, "OssLffisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags, &flush_first_value)) {
         goto error;
     }
 
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
-    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags);
+    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
 
     free_tags(tags);
 
@@ -403,4 +413,27 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
 error:
     PyGILState_Release(gstate);
     return NULL;
+}
+
+static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)
+{
+    if (cb_submit_event_platform_event == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    PyObject *check = NULL;
+    char *check_id = NULL;
+    char *raw_event = NULL;
+    char *event_type = NULL;
+
+    if (!PyArg_ParseTuple(args, "Osss", &check, &check_id, &raw_event, &event_type)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    cb_submit_event_platform_event(check_id, raw_event, event_type);
+    PyGILState_Release(gstate);
+    Py_RETURN_NONE;
 }

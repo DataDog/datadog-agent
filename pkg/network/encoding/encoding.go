@@ -1,10 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
 	"strings"
+	"sync"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -15,6 +24,9 @@ var (
 			EmitDefaults: true,
 		},
 	}
+
+	cfgOnce  = sync.Once{}
+	agentCfg *model.AgentConfiguration
 )
 
 // Marshaler is an interface implemented by all Connections serializers
@@ -44,4 +56,56 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	}
 
 	return jSerializer
+}
+
+func modelConnections(conns *network.Connections) *model.Connections {
+	cfgOnce.Do(func() {
+		agentCfg = &model.AgentConfiguration{
+			NpmEnabled: config.Datadog.GetBool("network_config.enabled"),
+			TsmEnabled: config.Datadog.GetBool("service_monitoring_config.enabled"),
+		}
+	})
+
+	agentConns := make([]*model.Connection, len(conns.Conns))
+	routeIndex := make(map[string]RouteIdx)
+	httpIndex, tagsIndex := FormatHTTPStats(conns.HTTP)
+	httpMatches := make(map[http.Key]struct{}, len(httpIndex))
+	ipc := make(ipCache, len(conns.Conns)/2)
+	dnsFormatter := newDNSFormatter(conns, ipc)
+	tagsSet := network.NewTagsSet()
+
+	for i, conn := range conns.Conns {
+		httpKey := httpKeyFromConn(conn)
+		httpAggregations := httpIndex[httpKey]
+		if httpAggregations != nil {
+			httpMatches[httpKey] = struct{}{}
+			conn.Tags |= tagsIndex[httpKey]
+		}
+
+		agentConns[i] = FormatConnection(conn, routeIndex, httpAggregations, dnsFormatter, ipc, tagsSet)
+	}
+
+	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
+		log.Debugf(
+			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			orphans,
+		)
+	}
+
+	routes := make([]*model.Route, len(routeIndex))
+	for _, v := range routeIndex {
+		routes[v.Idx] = &v.Route
+	}
+
+	payload := new(model.Connections)
+	payload.AgentConfiguration = agentCfg
+	payload.Conns = agentConns
+	payload.Domains = dnsFormatter.Domains()
+	payload.Dns = dnsFormatter.DNS()
+	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
+	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
+	payload.Routes = routes
+	payload.Tags = tagsSet.GetStrings()
+
+	return payload
 }

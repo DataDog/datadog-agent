@@ -1,7 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
+
+//go:build !serverless
+// +build !serverless
 
 package listeners
 
@@ -11,17 +14,20 @@ import (
 	"hash/fnv"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/api/core/v1"
 )
 
 const (
-	// Label keys of Docker Autodiscovery
-	newIdentifierLabel         = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
-	dockerADTemplateCheckNames = "com.datadoghq.ad.check_names"
+	// Label keys of Container Autodiscovery
+	newIdentifierLabel            = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel         = "com.datadoghq.sd.check.id"
+	containerADTemplateCheckNames = "com.datadoghq.ad.check_names"
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -65,9 +71,9 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 }
 
 // getCheckNamesFromLabels unmarshals the json string of check names
-// defined in docker labels and returns a slice of check names
+// defined in container labels and returns a slice of check names
 func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
-	if checkLabels, found := labels[dockerADTemplateCheckNames]; found {
+	if checkLabels, found := labels[containerADTemplateCheckNames]; found {
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(checkLabels), &checkNames)
 		if err != nil {
@@ -103,9 +109,10 @@ func standardTagsDigest(labels map[string]string) string {
 		return ""
 	}
 	h := fnv.New64()
-	h.Write([]byte(labels[kubernetes.EnvTagLabelKey]))     //nolint:errcheck
-	h.Write([]byte(labels[kubernetes.VersionTagLabelKey])) //nolint:errcheck
-	h.Write([]byte(labels[kubernetes.ServiceTagLabelKey])) //nolint:errcheck
+	// the implementation of h.Write never returns a non-nil error
+	_, _ = h.Write([]byte(labels[kubernetes.EnvTagLabelKey]))
+	_, _ = h.Write([]byte(labels[kubernetes.VersionTagLabelKey]))
+	_, _ = h.Write([]byte(labels[kubernetes.ServiceTagLabelKey]))
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
@@ -150,4 +157,31 @@ func (f *containerFilters) IsExcluded(filter containers.FilterType, name, image,
 		return f.logs.IsExcluded(name, image, ns)
 	}
 	return false
+}
+
+// getPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
+func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
+	annotations := types.PrometheusAnnotations{}
+	checks := []*types.PrometheusCheck{}
+	err := config.Datadog.UnmarshalKey("prometheus_scrape.checks", &checks)
+	if err != nil {
+		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
+		return annotations
+	}
+
+	if len(checks) == 0 {
+		annotations[types.PrometheusScrapeAnnotation] = "true"
+		return annotations
+	}
+
+	for _, check := range checks {
+		if err := check.Init(); err != nil {
+			log.Errorf("Couldn't init check configuration: %v", err)
+			continue
+		}
+		for k, v := range check.AD.GetIncludeAnnotations() {
+			annotations[k] = v
+		}
+	}
+	return annotations
 }

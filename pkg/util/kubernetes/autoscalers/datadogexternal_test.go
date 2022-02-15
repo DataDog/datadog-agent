@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package autoscalers
@@ -41,7 +42,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 			},
 			[]string{"mymetric{foo:bar}"},
 			map[string]Point{"mymetric{foo:bar}": {Value: 0, Valid: false}},
-			fmt.Errorf("Returned series slice empty"),
+			fmt.Errorf("none of the queries mymetric{foo:bar} returned any point, there might be an issue with them"),
 		},
 		{
 			"metricName yields rate limiting error response from Datadog",

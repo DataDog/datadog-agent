@@ -1,32 +1,34 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sampler
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
-const defaultEnv = "none"
+const defaultEnv = "testEnv"
 
-func getTestScoreEngine() *ScoreEngine {
+func getTestErrorsSampler(tps float64) *ErrorsSampler {
 	// Disable debug logs in these tests
 	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
-	extraRate := 1.0
-	maxTPS := 0.0
-
-	return NewErrorsEngine(extraRate, maxTPS)
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1,
+		ErrorTPS:        tps,
+	}
+	return NewErrorsSampler(conf)
 }
 
 func getTestTrace() (pb.Trace, *pb.Span) {
@@ -41,85 +43,70 @@ func getTestTrace() (pb.Trace, *pb.Span) {
 func TestExtraSampleRate(t *testing.T) {
 	assert := assert.New(t)
 
-	s := getTestScoreEngine()
+	s := getTestErrorsSampler(10)
 	trace, root := getTestTrace()
-	signature := testComputeSignature(trace)
+	signature := testComputeSignature(trace, "")
 
 	// Feed the s with a signature so that it has a < 1 sample rate
 	for i := 0; i < int(1e6); i++ {
 		s.Sample(trace, root, defaultEnv)
 	}
 
-	sRate := s.Sampler.GetSampleRate(trace, root, signature)
+	sRate := s.GetSampleRate(trace, root, signature)
 
 	// Then turn on the extra sample rate, then ensure it affects both existing and new signatures
-	s.Sampler.extraRate = 0.33
+	s.extraRate = 0.33
 
-	assert.Equal(s.Sampler.GetSampleRate(trace, root, signature), s.Sampler.extraRate*sRate)
+	assert.Equal(s.GetSampleRate(trace, root, signature), s.extraRate*sRate)
 }
 
-func TestErrorSampleThresholdTo1(t *testing.T) {
+func TestTargetTPS(t *testing.T) {
+	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
-	env := defaultEnv
+	targetTPS := 10.0
+	s := getTestErrorsSampler(targetTPS)
 
-	s := getTestScoreEngine()
-	for i := 0; i < 1e2; i++ {
-		trace, root := getTestTrace()
-		_, rate := s.Sample(trace, root, env)
-		assert.Equal(1.0, rate)
-	}
-	for i := 0; i < 1e3; i++ {
-		trace, root := getTestTrace()
-		_, rate := s.Sample(trace, root, env)
-		if rate < 1 {
-			assert.True(rate < errorSamplingRateThresholdTo1)
-		}
-	}
-}
-
-func TestMaxTPS(t *testing.T) {
-	// Test the "effectiveness" of the maxTPS option.
-	assert := assert.New(t)
-	s := getTestScoreEngine()
-
-	maxTPS := 5.0
-	tps := 100.0
+	generatedTPS := 200.0
 	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
-	initPeriods := 20
-	periods := 50
+	initPeriods := 10
+	periods := 300
 
-	s.Sampler.maxTPS = maxTPS
-	periodSeconds := defaultDecayPeriod.Seconds()
-	tracesPerPeriod := tps * periodSeconds
-	// Set signature score offset high enough not to kick in during the test.
-	s.Sampler.signatureScoreOffset.Store(2 * tps)
-	s.Sampler.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
+	s.targetTPS = atomic.NewFloat(targetTPS)
+	periodSeconds := decayPeriod.Seconds()
+	tracesPerPeriod := generatedTPS * periodSeconds
 
 	sampledCount := 0
 
 	for period := 0; period < initPeriods+periods; period++ {
-		s.Sampler.Backend.(*MemoryBackend).decayScore()
+		s.update()
 		for i := 0; i < int(tracesPerPeriod); i++ {
 			trace, root := getTestTrace()
-			sampled, _ := s.Sample(trace, root, defaultEnv)
+			sampled := s.Sample(trace, root, defaultEnv)
 			// Once we got into the "supposed-to-be" stable "regime", count the samples
 			if period > initPeriods && sampled {
 				sampledCount++
 			}
 		}
 	}
+	assert.InEpsilon(targetTPS, s.Backend.GetSampledScore(), 0.2)
 
-	// Check that the sampled score pre-maxTPS is equals to the incoming number of traces per second
-	assert.InEpsilon(tps, s.Sampler.Backend.GetSampledScore(), 0.01)
+	// We should keep the right percentage of traces
+	assert.InEpsilon(targetTPS/generatedTPS, float64(sampledCount)/(tracesPerPeriod*float64(initPeriods+periods)), 0.1)
 
-	// We should have kept less traces per second than maxTPS
-	assert.True(s.Sampler.maxTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
-
-	// We should have a throughput of sampled traces around maxTPS
+	// We should have a throughput of sampled traces around targetTPS
 	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(s.Sampler.maxTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
-		0.01+defaultDecayFactor-1)
+	assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods+initPeriods)*decayPeriod.Seconds()), 0.1)
+}
+
+func TestDisable(t *testing.T) {
+	assert := assert.New(t)
+
+	s := getTestErrorsSampler(0)
+	trace, root := getTestTrace()
+	for i := 0; i < int(1e2); i++ {
+		assert.False(s.Sample(trace, root, defaultEnv))
+	}
 }
 
 func BenchmarkSampler(b *testing.B) {
@@ -128,7 +115,7 @@ func BenchmarkSampler(b *testing.B) {
 	// Up to signatureCount different signatures
 	signatureCount := 20
 
-	s := getTestScoreEngine()
+	s := getTestErrorsSampler(10)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -144,6 +131,3 @@ func BenchmarkSampler(b *testing.B) {
 		s.Sample(trace, trace[0], defaultEnv)
 	}
 }
-
-// Ensure ScoreEngine implements engine.
-var testScoreEngine Engine = &ScoreEngine{}

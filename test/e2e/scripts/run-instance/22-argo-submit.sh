@@ -10,24 +10,61 @@ if [[ -z ${DATADOG_AGENT_IMAGE:+x} ]] || [[ -z ${DATADOG_CLUSTER_AGENT_IMAGE:+x}
     exit 2
 fi
 
+ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
+
 echo "DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 echo "DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE}"
+echo "ARGO_WORKFLOW=${ARGO_WORKFLOW}"
 
 cd "$(dirname "$0")"
 
 if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
     oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
-    /opt/bin/kubectl create secret docker-registry docker-registry --docker-server="$DOCKER_REGISTRY_URL" --docker-username="$DOCKER_REGISTRY_LOGIN" --docker-password="$DOCKER_REGISTRY_PWD"
+    kubectl create secret docker-registry docker-registry --docker-server="$DOCKER_REGISTRY_URL" --docker-username="$DOCKER_REGISTRY_LOGIN" --docker-password="$DOCKER_REGISTRY_PWD"
     eval "$oldstate"
 fi
 
-# TODO run all workflows ?
+argo_submit_cws_cspm() {
+    DATADOG_AGENT_SITE=${DATADOG_AGENT_SITE:-""}
 
-./argo template create ../../argo-workflows/templates/*.yaml
-./argo submit ../../argo-workflows/workflow.yaml --wait \
-       --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
-       --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
-       --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
-       --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" || :
+    oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
+
+    if [[ -z ${DATADOG_AGENT_API_KEY:+x} ]] || [[ -z ${DATADOG_AGENT_APP_KEY:+x} ]]; then
+        echo "DATADOG_AGENT_API_KEY and DATADOG_AGENT_APP_KEY environment variables need to be set" >&2
+        exit 2
+    fi
+
+    kubectl create secret generic dd-keys --from-literal=DD_API_KEY="${DATADOG_AGENT_API_KEY}" --from-literal=DD_APP_KEY="${DATADOG_AGENT_APP_KEY}"
+
+    eval "$oldstate"
+
+    ./argo template create ../../argo-workflows/templates/*.yaml
+    ./argo submit ../../argo-workflows/$1 --wait \
+        --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
+        --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
+        --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
+        --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" \
+        --parameter datadog-agent-site="${DATADOG_AGENT_SITE#*:}" || :
+}
+
+case "$ARGO_WORKFLOW" in
+    "cws")
+        argo_submit_cws_cspm cws-workflow.yaml
+        ;;
+    "cspm")
+        argo_submit_cws_cspm cspm-workflow.yaml
+        ;;
+    *)
+        kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1
+
+        ./argo template create ../../argo-workflows/templates/*.yaml
+        ./argo submit "../../argo-workflows/${ARGO_WORKFLOW}-workflow.yaml" --wait \
+            --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
+            --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
+            --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
+            --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" || :
+        ;;
+esac
+
 # we are waiting for the end of the workflow but we don't care about its return code
 exit 0

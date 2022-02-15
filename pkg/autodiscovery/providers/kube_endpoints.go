@@ -1,14 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -18,7 +19,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -55,7 +56,8 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -97,7 +99,7 @@ func (k *kubeEndpointsConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-func (k *kubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
+func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.serviceLister.List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -122,7 +124,7 @@ func (k *kubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (k *kubeEndpointsConfigProvider) IsUpToDate() (bool, error) {
+func (k *kubeEndpointsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }
 
@@ -257,7 +259,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 	case "":
 		fallthrough
 	case kubeEndpointResolveAuto:
-		resolveFunc = common.ResolveEndpointConfigAuto
+		resolveFunc = utils.ResolveEndpointConfigAuto
 	}
 
 	for i := range kep.Subsets {
@@ -265,7 +267,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 			// Set a new entity containing the endpoint's IP
 			entity := apiserver.EntityForEndpoints(namespace, name, kep.Subsets[i].Addresses[j].IP)
 			newConfig := integration.Config{
-				Entity:                  entity,
+				ServiceID:               entity,
 				Name:                    tpl.Name,
 				Instances:               tpl.Instances,
 				InitConfig:              tpl.InitConfig,
@@ -289,5 +291,10 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 }
 
 func init() {
-	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
+	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the kubeEndpointsConfigProvider
+func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

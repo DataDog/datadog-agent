@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build etcd
 // +build etcd
 
 package providers
@@ -12,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.etcd.io/etcd/client"
+	"go.etcd.io/etcd/client/v2"
 	"golang.org/x/net/context"
 )
 
@@ -63,6 +64,7 @@ func TestHasTemplateFields(t *testing.T) {
 }
 
 func TestGetIdentifiers(t *testing.T) {
+	ctx := context.Background()
 	backend := &etcdTest{}
 	resp := new(client.Response)
 	configPath := new(client.Node)
@@ -82,7 +84,7 @@ func TestGetIdentifiers(t *testing.T) {
 
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
 	etcd := EtcdConfigProvider{Client: backend, templateDir: "/datadog/check_configs"}
-	array := etcd.getIdentifiers("/datadog/check_configs")
+	array := etcd.getIdentifiers(ctx, "/datadog/check_configs")
 
 	assert.Len(t, array, 1)
 	assert.Equal(t, array, []string{"nginx"})
@@ -100,7 +102,7 @@ func TestGetIdentifiers(t *testing.T) {
 	resp.Node = badConf
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil)
 
-	errArray := etcd.getIdentifiers("/datadog/check_configs")
+	errArray := etcd.getIdentifiers(ctx, "/datadog/check_configs")
 
 	assert.Len(t, errArray, 0)
 	assert.Equal(t, errArray, []string{})
@@ -111,10 +113,11 @@ func TestGetIdentifiers(t *testing.T) {
 func TestETCDIsUpToDate(t *testing.T) {
 	// We want to check:
 	// The cache is properly initialized
-	// LatestTemplateIdx and NumAdTemplates are properly set
+	// mostRecentMod and count are properly set
 	// If the number of ADTemplate is modified we update
 	// If nothing changed we don't update
 
+	ctx := context.Background()
 	backend := &etcdTest{}
 	resp := new(client.Response)
 
@@ -134,13 +137,13 @@ func TestETCDIsUpToDate(t *testing.T) {
 	resp.Node = configPath
 
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
-	cache := NewCPCache()
+	cache := newProviderCache()
 	etcd := EtcdConfigProvider{Client: backend, templateDir: "/datadog/check_configs", cache: cache}
-	update, _ := etcd.IsUpToDate()
+	update, _ := etcd.IsUpToDate(ctx)
 
 	assert.False(t, update)
-	assert.Equal(t, float64(123456), etcd.cache.LatestTemplateIdx)
-	assert.Equal(t, 1, etcd.cache.NumAdTemplates)
+	assert.Equal(t, float64(123456), etcd.cache.mostRecentMod)
+	assert.Equal(t, 1, etcd.cache.count)
 
 	node4 := &client.Node{
 		Key:           "instances",
@@ -159,17 +162,17 @@ func TestETCDIsUpToDate(t *testing.T) {
 	configPath.Nodes = adTemplate
 	resp.Node = configPath
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
-	update, _ = etcd.IsUpToDate()
+	update, _ = etcd.IsUpToDate(ctx)
 
 	assert.False(t, update)
-	assert.Equal(t, float64(9000000), etcd.cache.LatestTemplateIdx)
-	assert.Equal(t, 2, etcd.cache.NumAdTemplates)
+	assert.Equal(t, float64(9000000), etcd.cache.mostRecentMod)
+	assert.Equal(t, 2, etcd.cache.count)
 
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
-	update, _ = etcd.IsUpToDate()
+	update, _ = etcd.IsUpToDate(ctx)
 
 	assert.True(t, update)
-	assert.Equal(t, float64(9000000), etcd.cache.LatestTemplateIdx)
-	assert.Equal(t, 2, etcd.cache.NumAdTemplates)
+	assert.Equal(t, float64(9000000), etcd.cache.mostRecentMod)
+	assert.Equal(t, 2, etcd.cache.count)
 	backend.AssertExpectations(t)
 }

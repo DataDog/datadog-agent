@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package dogstatsd
 
@@ -13,20 +13,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
-func mockAggregator() *aggregator.BufferedAggregator {
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
-		"hostname",
-		time.Millisecond*10,
-	)
-	return agg
+func mockDemultiplexerWithFlushInterval(interval time.Duration) aggregator.Demultiplexer {
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = interval
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	return demux
+}
+
+func mockDemultiplexer() aggregator.Demultiplexer {
+	return mockDemultiplexerWithFlushInterval(time.Second)
 }
 
 func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
@@ -46,13 +48,13 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	demux := mockDemultiplexer()
+	s, _ := NewServer(demux, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
-		s, _, _ := agg.GetBufferedChannels()
+		s, _, _ := demux.Aggregator().GetBufferedChannels()
 		for {
 			select {
 			case <-s:
@@ -64,14 +66,14 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	defer close(done)
 
 	b.RunParallel(func(pb *testing.PB) {
-		batcher := newBatcher(agg)
+		batcher := newBatcher(demux)
 		parser := newParser(newFloat64ListPool())
-		packet := listeners.Packet{
+		packet := packets.Packet{
 			Contents: rawPacket,
-			Origin:   listeners.NoOrigin,
+			Origin:   packets.NoOrigin,
 		}
 
-		packets := listeners.Packets{&packet}
+		packets := packets.Packets{&packet}
 		samples := make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
 			packet.Contents = rawPacket
@@ -96,13 +98,13 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	demux := mockDemultiplexer()
+	s, _ := NewServer(demux, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
-		s, _, _ := agg.GetBufferedChannels()
+		s, _, _ := demux.Aggregator().GetBufferedChannels()
 		for {
 			select {
 			case <-s:
@@ -119,7 +121,7 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		samplesBench = make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
-			s.parseMetricMessage(samplesBench, parser, message, "")
+			s.parseMetricMessage(samplesBench, parser, message, "", false)
 			samplesBench = samplesBench[0:0]
 		}
 	})
@@ -157,13 +159,13 @@ func BenchmarkMapperControl(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	demux := mockDemultiplexer()
+	s, _ := NewServer(demux, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
-		s, _, _ := agg.GetBufferedChannels()
+		s, _, _ := demux.Aggregator().GetBufferedChannels()
 		for {
 			select {
 			case <-s:
@@ -174,16 +176,16 @@ func BenchmarkMapperControl(b *testing.B) {
 	}()
 	defer close(done)
 
-	batcher := newBatcher(agg)
+	batcher := newBatcher(demux)
 	parser := newParser(newFloat64ListPool())
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {
-		packet := listeners.Packet{
+		packet := packets.Packet{
 			Contents: []byte("airflow.job.duration.my_job_type.my_job_name:666|g"),
-			Origin:   listeners.NoOrigin,
+			Origin:   packets.NoOrigin,
 		}
-		packets := listeners.Packets{&packet}
+		packets := packets.Packets{&packet}
 		samples = s.parsePackets(batcher, parser, packets, samples)
 	}
 

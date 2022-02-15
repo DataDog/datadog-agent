@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package builder
@@ -15,14 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 
 	"github.com/prometheus/client_golang/prometheus"
+	corev1 "k8s.io/api/core/v1"
 	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	ksmbuild "k8s.io/kube-state-metrics/pkg/builder"
-	ksmtypes "k8s.io/kube-state-metrics/pkg/builder/types"
-	"k8s.io/kube-state-metrics/pkg/metric_generator"
-	"k8s.io/kube-state-metrics/pkg/options"
-	"k8s.io/kube-state-metrics/pkg/watch"
+	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
+	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
+	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
+	"k8s.io/kube-state-metrics/v2/pkg/watch"
 )
 
 // Builder struct represents the metric store generator
@@ -82,7 +85,7 @@ func (b *Builder) WithVPAClient(c vpaclientset.Interface) {
 }
 
 // WithMetrics sets the metrics property of a Builder.
-func (b *Builder) WithMetrics(r *prometheus.Registry) {
+func (b *Builder) WithMetrics(r prometheus.Registerer) {
 	b.ksmBuilder.WithMetrics(r)
 	b.metrics = watch.NewListWatchMetrics(r)
 }
@@ -99,18 +102,30 @@ func (b *Builder) WithContext(ctx context.Context) {
 }
 
 // DefaultGenerateStoreFunc returns default buildStore function
-func (b *Builder) DefaultGenerateStoreFunc() ksmtypes.BuildStoreFunc {
-	return b.GenerateStore
+func (b *Builder) DefaultGenerateStoresFunc() ksmtypes.BuildStoresFunc {
+	return b.GenerateStores
 }
 
-// WithCustomGenerateStoreFunc configures a constom generate store function
-func (b *Builder) WithGenerateStoreFunc(f ksmtypes.BuildStoreFunc) {
-	b.ksmBuilder.WithGenerateStoreFunc(f)
+// WithGenerateStoreFunc configures a constom generate store function
+func (b *Builder) WithGenerateStoresFunc(f ksmtypes.BuildStoresFunc) {
+	b.ksmBuilder.WithGenerateStoresFunc(f)
+}
+
+// WithAllowLabels configures which labels can be returned for metrics
+func (b *Builder) WithAllowLabels(l map[string][]string) {
+	b.ksmBuilder.WithAllowLabels(l)
 }
 
 // Build initializes and registers all enabled stores.
-func (b *Builder) Build() []cache.Store {
+// Returns metric writers.
+func (b *Builder) Build() []metricsstore.MetricsWriter {
 	return b.ksmBuilder.Build()
+}
+
+// BuildStores initializes and registers all enabled stores.
+// It returns metric cache stores.
+func (b *Builder) BuildStores() [][]cache.Store {
+	return b.ksmBuilder.BuildStores()
 }
 
 // WithResync is used if a resync period is configured
@@ -118,32 +133,40 @@ func (b *Builder) WithResync(r time.Duration) {
 	b.resync = r
 }
 
-// GenerateStore use to generate new Metrics Store for Metrics Families
-func (b *Builder) GenerateStore(metricFamilies []generator.FamilyGenerator,
+// GenerateStores use to generate new Metrics Store for Metrics Families
+func (b *Builder) GenerateStores(metricFamilies []generator.FamilyGenerator,
 	expectedType interface{},
 	listWatchFunc func(kubeClient clientset.Interface, ns string) cache.ListerWatcher,
-) cache.Store {
+) []cache.Store {
 	filteredMetricFamilies := generator.FilterMetricFamilies(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
-	store := store.NewMetricsStore(
-		composedMetricGenFuncs,
-		// Used later on to identify the Type of resource.
-		reflect.TypeOf(expectedType).String(),
-	)
-	b.reflectorPerNamespace(expectedType, store, listWatchFunc)
-	return store
+
+	if b.namespaces.IsAllNamespaces() {
+		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		listWatcher := listWatchFunc(b.kubeClient, corev1.NamespaceAll)
+		b.startReflector(expectedType, store, listWatcher)
+		return []cache.Store{store}
+
+	}
+
+	stores := make([]cache.Store, 0, len(b.namespaces))
+	for _, ns := range b.namespaces {
+		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		listWatcher := listWatchFunc(b.kubeClient, ns)
+		b.startReflector(expectedType, store, listWatcher)
+		stores = append(stores, store)
+	}
+
+	return stores
 }
 
-// reflectorPerNamespace creates a Kubernetes client-go reflector with the given
-// listWatchFunc for each given namespace and registers it with the given store.
-func (b *Builder) reflectorPerNamespace(
+// startReflector creates a Kubernetes client-go reflector with the given
+// listWatcher for each given namespace and registers it with the given store.
+func (b *Builder) startReflector(
 	expectedType interface{},
 	store cache.Store,
-	listWatchFunc func(kubeClient clientset.Interface, ns string) cache.ListerWatcher,
+	listWatcher cache.ListerWatcher,
 ) {
-	for _, ns := range b.namespaces {
-		lw := listWatchFunc(b.kubeClient, ns) //instrumentedListWatch := watch.NewInstrumentedListerWatcher(lw, g.metrics, reflect.TypeOf(expectedType).String())
-		reflector := cache.NewReflector(lw, expectedType, store, b.resync*time.Second)
-		go reflector.Run(b.ctx.Done())
-	}
+	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync*time.Second)
+	go reflector.Run(b.ctx.Done())
 }

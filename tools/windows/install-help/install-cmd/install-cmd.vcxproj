@@ -183,6 +183,7 @@
     <ClCompile Include="..\cal\Error.cpp" />
     <ClCompile Include="..\cal\FinalizeInstall.cpp" />
     <ClCompile Include="..\cal\stopservices.cpp" />
+    <ClCompile Include="..\cal\PropertyReplacer.cpp" />
     <ClCompile Include="..\cal\strings.cpp" />
     <ClCompile Include="..\cal\TargetMachine.cpp" />
     <ClCompile Include="..\cal\usercreate.cpp" />

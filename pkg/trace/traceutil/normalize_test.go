@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package traceutil
 
 import (
@@ -84,4 +89,72 @@ func BenchmarkNormalizeTag(b *testing.B) {
 	b.Run("trim-both", benchNormalizeTag("___trim_right@@#!"))
 	b.Run("plenty", benchNormalizeTag("fun:ky_ta@#g/1"))
 	b.Run("more", benchNormalizeTag("fun:k####y_ta@#g/1_@@#"))
+}
+
+func TestNormalizeName(t *testing.T) {
+	testCases := []struct {
+		name       string
+		normalized string
+		err        error
+	}{
+		{
+			name:       "",
+			normalized: DefaultSpanName,
+			err:        ErrEmpty,
+		},
+		{
+			name:       "good",
+			normalized: "good",
+			err:        nil,
+		},
+		{
+			name:       "Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.",
+			normalized: "Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.",
+			err:        ErrTooLong,
+		},
+		{
+			name:       "bad-name",
+			normalized: "bad_name",
+			err:        nil,
+		},
+	}
+	for _, testCase := range testCases {
+		out, err := NormalizeName(testCase.name)
+		assert.Equal(t, testCase.normalized, out)
+		assert.Equal(t, testCase.err, err)
+	}
+}
+func TestNormalizeService(t *testing.T) {
+	testCases := []struct {
+		service    string
+		lang       string
+		normalized string
+		err        error
+	}{
+		{
+			service:    "",
+			normalized: DefaultServiceName,
+			err:        ErrEmpty,
+		},
+		{
+			service:    "good",
+			normalized: "good",
+			err:        nil,
+		},
+		{
+			service:    "Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.",
+			normalized: "too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.",
+			err:        ErrTooLong,
+		},
+		{
+			service:    "bad$service",
+			normalized: "bad_service",
+			err:        nil,
+		},
+	}
+	for _, testCase := range testCases {
+		out, err := NormalizeService(testCase.service, testCase.lang)
+		assert.Equal(t, testCase.normalized, out)
+		assert.Equal(t, testCase.err, err)
+	}
 }

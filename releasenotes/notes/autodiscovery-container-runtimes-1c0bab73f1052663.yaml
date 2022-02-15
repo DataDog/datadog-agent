@@ -9,4 +9,4 @@ features:
     and/or Docker - activating relevant configuration depending on node
     configuration).
     This feature is activated by default and can be de-activated by setting
-    `autoconf_from_environment: false`.
+    environment variable `AUTCONFIG_FROM_ENVIRONMENT=false`.

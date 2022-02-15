@@ -1,13 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import (
+	"math"
+
+	manager "github.com/DataDog/ebpf-manager"
+)
 
 // allProbes contain the list of all the probes of the runtime security module
 var allProbes []*manager.Probe
@@ -29,25 +34,43 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, sharedProbes...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
+	allProbes = append(allProbes, getIoctlProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes()...)
+	allProbes = append(allProbes, getBPFProbes()...)
+	allProbes = append(allProbes, getPTraceProbes()...)
+	allProbes = append(allProbes, getMMapProbes()...)
+	allProbes = append(allProbes, getMProtectProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "tracepoint/raw_syscalls/sys_enter",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "tracepoint/raw_syscalls/sys_enter",
+				EBPFFuncName: "sys_enter",
+			},
 		},
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "tracepoint/raw_syscalls/sys_exit",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
+				EBPFFuncName: "sys_exit",
+			},
 		},
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "tracepoint/sched/sched_process_exec",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "tracepoint/sched/sched_process_exec",
+				EBPFFuncName: "sched_process_exec",
+			},
 		},
 		// Snapshot probe
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "kretprobe/get_task_exe_file",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "kprobe/security_inode_getattr",
+				EBPFFuncName: "kprobe_security_inode_getattr",
+			},
 		},
 	)
 
@@ -62,16 +85,20 @@ func AllMaps() []*manager.Map {
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
 		{Name: "discarder_revisions"},
+		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
-		{Name: "inode_info_cache"},
+		{Name: "exec_file_cache"},
 		// Open tables
-		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
+		{Name: "str_array_buffers"},
+		// SELinux tables
+		{Name: "selinux_write_buffer"},
+		{Name: "selinux_enforce_status"},
 		// Syscall monitor tables
 		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},
@@ -83,11 +110,56 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+// AllMapSpecEditors returns the list of map editors
+func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
+	return map[string]manager.MapSpecEditor{
+		"proc_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"pid_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"pathnames": {
+			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~27 MB
+			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 96000)),
+		},
+	}
+}
+
 // AllPerfMaps returns the list of perf maps of the runtime security module
 func AllPerfMaps() []*manager.PerfMap {
 	return []*manager.PerfMap{
 		{
 			Map: manager.Map{Name: "events"},
 		},
+	}
+}
+
+// AllTailRoutes returns the list of all the tail call routes
+func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+	var routes []manager.TailCallRoute
+
+	routes = append(routes, getExecTailCallRoutes()...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
+	routes = append(routes, getSysExitTailCallRoutes()...)
+
+	return routes
+}
+
+// AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
+func AllBPFProbeWriteUserProgramFunctions() []string {
+	return []string{
+		"kprobe_dentry_resolver_erpc",
+		"kprobe_dentry_resolver_parent_erpc",
+		"kprobe_dentry_resolver_segment_erpc",
+	}
+}
+
+// GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
+func GetPerfBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_stats",
 	}
 }

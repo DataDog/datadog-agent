@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build (netbsd || openbsd || solaris || dragonfly || linux) && !android
 // +build netbsd openbsd solaris dragonfly linux
 // +build !android
 
@@ -26,6 +27,8 @@ const (
 	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
 	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
+	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
+	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 )
 
 var (

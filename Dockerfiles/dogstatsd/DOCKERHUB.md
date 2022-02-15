@@ -13,8 +13,8 @@ datadog Agent major version.
 Please refer to:
 
 - [https://docs.datadoghq.com/](https://docs.datadoghq.com/)
-- [usage instructions](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/dogstatsd/alpine) for this image
-- [general agent documentation](https://github.com/DataDog/datadog-agent/tree/master/docs) in our repo
+- [usage instructions](https://github.com/DataDog/datadog-agent/tree/main/Dockerfiles/dogstatsd/alpine) for this image
+- [general agent documentation](https://github.com/DataDog/datadog-agent/tree/main/docs) in our repo
 
 ## Support
 

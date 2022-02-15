@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package legacy
 
@@ -267,7 +267,8 @@ func TestConverter(t *testing.T) {
 	for k, v := range map[string]bool{
 		"hostname_fqdn":                    true,
 		"apm_config.enabled":               false,
-		"apm_config.apm_non_local_traffic": false,
+		"apm_config.apm_non_local_traffic": true,
+		"dogstatsd_non_local_traffic":      true,
 		"skip_ssl_validation":              false,
 		"apm_config.log_throttling":        true, // trace.config.log_throttling
 	} {

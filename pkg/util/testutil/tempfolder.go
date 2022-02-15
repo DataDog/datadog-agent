@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package testutil
 
@@ -48,7 +48,8 @@ func (f *TempFolder) Add(fileName string, contents string) error {
 	return err
 }
 
-func (f *TempFolder) delete(fileName string) error {
+// Delete removes a specific file
+func (f *TempFolder) Delete(fileName string) error {
 	return os.Remove(filepath.Join(f.RootPath, fileName))
 }
 

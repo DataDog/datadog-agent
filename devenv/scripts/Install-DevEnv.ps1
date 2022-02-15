@@ -2,7 +2,7 @@
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog
 # (https://www.datadoghq.com/).
-# Copyright 2019-2020 Datadog, Inc.
+# Copyright 2019-present Datadog, Inc.
 
 Write-Host
 '=======================================================
@@ -27,22 +27,6 @@ cinst -y git
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Getting 7zip'
 cinst -y 7zip
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Visual Studio build tools'
-cinst -y visualstudio2017buildtools --params "--add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
-
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Visual C++ Workload'
-cinst -y visualstudio2017-workload-vctools
-
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installinc VC Tools for Python 2.7'l
-cinst -y vcpython27
-
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Wix'
-cinst -y wixtoolset --version 3.11
-[Environment]::SetEnvironmentVariable(
-    "Path",
-    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";${env:ProgramFiles}\WiX Toolset v3.11\bin",
-    [System.EnvironmentVariableTarget]::Machine)
-
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing CMake'
 cinst -y cmake
 [Environment]::SetEnvironmentVariable(
@@ -53,18 +37,19 @@ cinst -y cmake
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Golang'
 
 # TODO: Enable this when we can use Chocolatey again
-#cinst -y golang --version 1.14.12
+#cinst -y golang --version 1.15.13
 
-# Workaround for go 1.14.12 since it does not exist in Chocolatey
+# Workaround for go 1.15.13 since it does not exist in Chocolatey
 # taken from https://github.com/DataDog/datadog-agent-buildimages/blob/master/windows/install_go.ps1
+# (workaround kept for later versions)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-Write-Host -ForegroundColor Green "Installing go 1.14.12"
+Write-Host -ForegroundColor Green "Installing go 1.17.6"
 
-$gozip = "https://dl.google.com/go/go1.14.12.windows-amd64.zip"
+$gozip = "https://dl.google.com/go/go1.17.6.windows-amd64.zip"
 if ($Env:TARGET_ARCH -eq "x86") {
-    $gozip = "https://dl.google.com/go/go1.14.12.windows-386.zip"
+    $gozip = "https://dl.google.com/go/go1.17.6.windows-386.zip"
 }
 
 $out = 'c:\go.zip'
@@ -75,30 +60,34 @@ Start-Process "7z" -ArgumentList 'x -oc:\ c:\go.zip' -Wait
 Write-Host -ForegroundColor Green "Removing temporary file $out"
 Remove-Item 'c:\go.zip'
 
-setx GOROOT c:\go
-$Env:GOROOT="c:\go"
-setx PATH "$Env:Path;c:\go\bin;"
-$Env:Path="$Env:Path;c:\go\bin;"
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";C:\go\bin",
+    [System.EnvironmentVariableTarget]::Machine)
+
+setx /m GOROOT c:\go
 # End Go workaround
 
 Write-Host -ForegroundColor Green "Installed go $ENV:GO_VERSION"
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 2'
-cinst -y python2
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 3'
+cinst -y python3
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Ruby'
-cinst -y ruby --version 2.4.3.1
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MINGW'
+cinst -y mingw
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MSYS'
-cinst -y msys2 --params "/NoUpdate" # install msys2 without system update
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Make'
+cinst -y make
 
-# Reload environment to get ruby in path
-Update-SessionEnvironment
+$GoPath="C:\gopath"
+$AgentPath="$GoPath\src\github.com\datadog\datadog-agent"
+mkdir -Force $AgentPath
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Toolchain'
-ridk install 2 3 # use ruby's ridk to update the system and install development toolchain
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";$GoPath\bin;$AgentPath\rtloader\bin",
+    [System.EnvironmentVariableTarget]::Machine)
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Bundler'
-gem install bundler
+setx /m GOPATH "$GoPath"
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen ' * DONE *'

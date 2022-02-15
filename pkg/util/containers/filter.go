@@ -1,16 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package containers
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -58,6 +60,11 @@ const (
 	pauseContainerUpstream = `image:upstream/pause.*`
 	// - cdk/pause-amd64
 	pauseContainerCDK = `image:cdk/pause.*`
+
+	// filter prefixes for inclusion/exclusion
+	imageFilterPrefix         = `image:`
+	nameFilterPrefix          = `name:`
+	kubeNamespaceFilterPrefix = `kube_namespace:`
 )
 
 // Filter holds the state for the container filtering logic
@@ -69,37 +76,58 @@ type Filter struct {
 	ImageExcludeList     []*regexp.Regexp
 	NameExcludeList      []*regexp.Regexp
 	NamespaceExcludeList []*regexp.Regexp
+	Errors               map[string]struct{}
 }
 
 var sharedFilter *Filter
 
-func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, err error) {
+func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, filterErrs []string, err error) {
+	var filterWarnings []string
 	for _, filter := range filters {
 		switch {
-		case strings.HasPrefix(filter, "image:"):
-			pat := strings.TrimPrefix(filter, "image:")
-			r, err := regexp.Compile(strings.TrimPrefix(pat, "image:"))
+		case strings.HasPrefix(filter, imageFilterPrefix):
+			r, err := filterToRegex(filter, imageFilterPrefix)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("invalid regex '%s': %s", pat, err)
+				filterErrs = append(filterErrs, err.Error())
+				continue
 			}
 			imageFilters = append(imageFilters, r)
-		case strings.HasPrefix(filter, "name:"):
-			pat := strings.TrimPrefix(filter, "name:")
-			r, err := regexp.Compile(pat)
+		case strings.HasPrefix(filter, nameFilterPrefix):
+			r, err := filterToRegex(filter, nameFilterPrefix)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("invalid regex '%s': %s", pat, err)
+				filterErrs = append(filterErrs, err.Error())
+				continue
 			}
 			nameFilters = append(nameFilters, r)
-		case strings.HasPrefix(filter, "kube_namespace:"):
-			pat := strings.TrimPrefix(filter, "kube_namespace:")
-			r, err := regexp.Compile(pat)
+		case strings.HasPrefix(filter, kubeNamespaceFilterPrefix):
+			r, err := filterToRegex(filter, kubeNamespaceFilterPrefix)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("invalid regex '%s': %s", pat, err)
+				filterErrs = append(filterErrs, err.Error())
+				continue
 			}
 			namespaceFilters = append(namespaceFilters, r)
+		default:
+			warnmsg := fmt.Sprintf("Container filter %q is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'", filter)
+			log.Warnf(warnmsg)
+			filterWarnings = append(filterWarnings, warnmsg)
+
 		}
 	}
-	return imageFilters, nameFilters, namespaceFilters, nil
+	if len(filterErrs) > 0 {
+		return nil, nil, nil, append(filterErrs, filterWarnings...), errors.New(filterErrs[0])
+	}
+	return imageFilters, nameFilters, namespaceFilters, filterWarnings, nil
+}
+
+// filterToRegex checks a filter's regex
+func filterToRegex(filter string, filterPrefix string) (*regexp.Regexp, error) {
+	pat := strings.TrimPrefix(filter, filterPrefix)
+	r, err := regexp.Compile(pat)
+	if err != nil {
+		errormsg := fmt.Errorf("invalid regex '%s': %s", pat, err)
+		return nil, errormsg
+	}
+	return r, nil
 }
 
 // GetSharedMetricFilter allows to share the result of NewFilterFromConfig
@@ -116,24 +144,69 @@ func GetSharedMetricFilter() (*Filter, error) {
 	return f, nil
 }
 
+// GetPauseContainerFilter returns a filter only excluding pause containers
+func GetPauseContainerFilter() (*Filter, error) {
+	var excludeList []string
+	if config.Datadog.GetBool("exclude_pause_container") {
+		excludeList = append(excludeList,
+			pauseContainerGCR,
+			pauseContainerOpenshift,
+			pauseContainerOpenshift3,
+			pauseContainerKubernetes,
+			pauseContainerGoogle,
+			pauseContainerAzure,
+			pauseContainerECS,
+			pauseContainerEKS,
+			pauseContainerRancher,
+			pauseContainerMCR,
+			pauseContainerWin,
+			pauseContainerAKS,
+			pauseContainerECR,
+			pauseContainerUpstream,
+			pauseContainerCDK,
+		)
+	}
+
+	return NewFilter(nil, excludeList)
+}
+
 // ResetSharedFilter is only to be used in unit tests: it resets the global
 // filter instance to force re-parsing of the configuration.
 func ResetSharedFilter() {
 	sharedFilter = nil
 }
 
+// GetFilterErrors retrieves a list of errors and warnings resulting from parseFilters
+func GetFilterErrors() map[string]struct{} {
+	filter, _ := newMetricFilterFromConfig()
+	logFilter, _ := NewAutodiscoveryFilter(LogsFilter)
+	for err := range logFilter.Errors {
+		filter.Errors[err] = struct{}{}
+	}
+	return filter.Errors
+}
+
 // NewFilter creates a new container filter from a two slices of
 // regexp patterns for a include list and exclude list. Each pattern should have
-// the following format: "field:pattern" where field can be: [image, name].
+// the following format: "field:pattern" where field can be: [image, name, kube_namespace].
 // An error is returned if any of the expression don't compile.
 func NewFilter(includeList, excludeList []string) (*Filter, error) {
-	imgIncl, nameIncl, nsIncl, err := parseFilters(includeList)
-	if err != nil {
-		return nil, err
+	imgIncl, nameIncl, nsIncl, filterErrsIncl, errIncl := parseFilters(includeList)
+	imgExcl, nameExcl, nsExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
+
+	errors := append(filterErrsIncl, filterErrsExcl...)
+	errorsMap := make(map[string]struct{})
+	if len(errors) > 0 {
+		for _, err := range errors {
+			errorsMap[err] = struct{}{}
+		}
 	}
-	imgExcl, nameExcl, nsExcl, err := parseFilters(excludeList)
-	if err != nil {
-		return nil, err
+
+	if errIncl != nil {
+		return &Filter{Errors: errorsMap}, errIncl
+	}
+	if errExcl != nil {
+		return &Filter{Errors: errorsMap}, errExcl
 	}
 
 	return &Filter{
@@ -144,6 +217,7 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 		ImageExcludeList:     imgExcl,
 		NameExcludeList:      nameExcl,
 		NamespaceExcludeList: nsExcl,
+		Errors:               errorsMap,
 	}, nil
 }
 

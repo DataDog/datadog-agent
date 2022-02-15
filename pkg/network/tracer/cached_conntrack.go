@@ -1,12 +1,20 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"sync"
-	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -14,16 +22,6 @@ import (
 	"github.com/golang/groupcache/lru"
 	"golang.org/x/sys/unix"
 )
-
-type refCounted interface {
-	Incr()
-	Decr()
-}
-
-type refCountedConntrack struct {
-	ctrk  netlink.Conntrack
-	count *uint32
-}
 
 type cachedConntrack struct {
 	sync.Mutex
@@ -56,20 +54,38 @@ func (cache *cachedConntrack) Close() error {
 	return nil
 }
 
-func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
-	ctrk, err := cache.ensureConntrack(c.NetNS(), int(c.Pid()))
+func (cache *cachedConntrack) ExistsInRootNS(c *network.ConnectionStats) (bool, error) {
+	return cache.exists(c, 0, 1)
+}
+
+func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
+	return cache.exists(c, c.NetNS, int(c.Pid))
+}
+
+func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
+	ctrk, err := cache.ensureConntrack(uint64(netns), pid)
 	if err != nil {
 		return false, err
 	}
-	defer ctrk.Close()
+
+	if ctrk == nil {
+		return false, nil
+	}
 
 	var protoNumber uint8 = unix.IPPROTO_UDP
-	if c.isTCP() {
+	if c.Type == network.TCP {
 		protoNumber = unix.IPPROTO_TCP
 	}
 
-	srcAddr, dstAddr := util.NetIPFromAddress(c.SourceAddress()), util.NetIPFromAddress(c.DestAddress())
-	srcPort, dstPort := c.SourcePort(), c.DestPort()
+	srcBuf := util.IPBufferPool.Get().(*[]byte)
+	dstBuf := util.IPBufferPool.Get().(*[]byte)
+	defer func() {
+		util.IPBufferPool.Put(srcBuf)
+		util.IPBufferPool.Put(dstBuf)
+	}()
+
+	srcAddr, dstAddr := util.NetIPFromAddress(c.Source, *srcBuf), util.NetIPFromAddress(c.Dest, *dstBuf)
+	srcPort, dstPort := c.SPort, c.DPort
 
 	conn := netlink.Con{
 		Con: ct.Con{
@@ -88,7 +104,7 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 	ok, err := ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
-		cache.removeConntrack(c.NetNS())
+		cache.removeConntrack(uint64(netns))
 		return false, err
 	}
 
@@ -101,7 +117,7 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 	ok, err = ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
-		cache.removeConntrack(c.NetNS())
+		cache.removeConntrack(uint64(netns))
 		return false, err
 	}
 
@@ -125,12 +141,15 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 
 	v, ok := cache.cache.Get(ino)
 	if ok {
-		v.(refCounted).Incr()
 		return v.(netlink.Conntrack), nil
 	}
 
 	ns, err := util.GetNetNamespaceFromPid(cache.procRoot, pid)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+
 		log.Errorf("could not get net ns for pid %d: %s", pid, err)
 		return nil, err
 	}
@@ -142,56 +161,6 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 		return nil, err
 	}
 
-	r := wrapConntrack(ctrk)
-	r.(refCounted).Incr() // for the caller
-	cache.cache.Add(ino, r)
-	return r, nil
-}
-
-func wrapConntrack(ctrk netlink.Conntrack) netlink.Conntrack {
-	r := refCountedConntrack{
-		ctrk:  ctrk,
-		count: new(uint32),
-	}
-	*r.count = 1
-	return r
-}
-
-func (r refCountedConntrack) Incr() {
-	atomic.AddUint32(r.count, 1)
-}
-
-func (r refCountedConntrack) Decr() {
-	r.decr()
-}
-
-// Exists checks if a connection exists in the conntrack
-// table based on matches to `conn.Origin` or `conn.Reply`.
-func (r refCountedConntrack) Exists(conn *netlink.Con) (bool, error) {
-	return r.ctrk.Exists(conn)
-}
-
-// Dump dumps the conntrack table.
-func (r refCountedConntrack) Dump() ([]netlink.Con, error) {
-	return r.ctrk.Dump()
-}
-
-// Get gets the conntrack record for a connection. Similar to
-// Exists, but returns the full connection information.
-func (r refCountedConntrack) Get(conn *netlink.Con) (netlink.Con, error) {
-	return r.ctrk.Get(conn)
-}
-
-// Close closes the conntrack object
-func (r refCountedConntrack) Close() error {
-	return r.decr()
-}
-
-func (r refCountedConntrack) decr() error {
-	var err error
-	if atomic.AddUint32(r.count, ^uint32(0)) == 0 {
-		err = r.ctrk.Close()
-	}
-
-	return err
+	cache.cache.Add(ino, ctrk)
+	return ctrk, nil
 }

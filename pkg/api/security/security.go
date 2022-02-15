@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package security
 
@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -229,5 +230,25 @@ func validateAuthToken(authToken string) error {
 	if len(authToken) < authTokenMinimalLen {
 		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
 	}
+	return nil
+}
+
+// writes auth token(s) to a file with the same permissions as datadog.yaml
+func saveAuthToken(token, tokenPath string) error {
+	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+		return err
+	}
+
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return err
+	}
+
+	if err := perms.RestrictAccessToUser(tokenPath); err != nil {
+		log.Errorf("Failed to write auth token acl %s", err)
+		return err
+	}
+	log.Infof("Wrote auth token acl")
+
 	return nil
 }

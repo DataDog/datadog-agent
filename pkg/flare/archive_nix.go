@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package flare
@@ -32,6 +33,9 @@ func zipLodctrOutput(tempDir, hostname string) error {
 func zipWindowsEventLogs(tempDir, hostname string) error {
 	return nil
 }
+func zipServiceStatus(tempDir, hostname string) error {
+	return nil
+}
 
 // Add puts the given filepath in the map
 // of files to process later during the commit phase.
@@ -45,10 +49,7 @@ func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) err
 	if err := p.statFiles(); err != nil {
 		return err
 	}
-	if err := p.write(tempDir, hostname, mode); err != nil {
-		return err
-	}
-	return nil
+	return p.write(tempDir, hostname, mode)
 }
 
 func (p permissionsInfos) statFiles() error {
@@ -64,25 +65,32 @@ func (p permissionsInfos) statFiles() error {
 			return fmt.Errorf("can't retrieve file %s uid/gid infos: %s", filePath, err)
 		}
 
-		u, err := user.LookupId(strconv.Itoa(int(sys.Uid)))
+		var uname string
+		var uid = strconv.Itoa(int(sys.Uid))
+		u, err := user.LookupId(uid)
 		if err != nil {
-			return fmt.Errorf("can't lookup for uid info: %v", err)
-		}
-		g, err := user.LookupGroupId(strconv.Itoa(int(sys.Gid)))
-		if err != nil {
-			return fmt.Errorf("can't lookup for gid info: %v", err)
+			// User not found, eg: it was deleted from the system
+			uname = uid
+		} else if len(u.Name) > 0 {
+			uname = u.Name
+		} else {
+			uname = u.Username
 		}
 
-		uname := u.Name
-		if len(uname) == 0 {
-			// full name could be empty, use the login name instead
-			uname = u.Username
+		var gname string
+		var gid = strconv.Itoa(int(sys.Gid))
+		g, err := user.LookupGroupId(gid)
+		if err != nil {
+			// Group not found, eg: it was deleted from the system
+			gname = gid
+		} else {
+			gname = g.Name
 		}
 
 		p[filePath] = filePermsInfo{
 			mode:  fi.Mode(),
 			owner: uname,
-			group: g.Name,
+			group: gname,
 		}
 	}
 	return nil

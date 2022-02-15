@@ -1,9 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
 // +build windows
 
 package net
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"net"
 )
 
@@ -14,8 +19,8 @@ type WindowsPipeListener struct {
 }
 
 // NewListener sets up a TCP listener for now, will eventually be a named pipe
-func NewListener(cfg *config.AgentConfig) (*WindowsPipeListener, error) {
-	l, err := net.Listen("tcp", "localhost:3333")
+func NewListener(socketAddr string) (*WindowsPipeListener, error) {
+	l, err := net.Listen("tcp", socketAddr)
 	return &WindowsPipeListener{l, "path"}, err
 }
 

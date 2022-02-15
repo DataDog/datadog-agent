@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metrics
 
@@ -59,6 +59,9 @@ func (a *APIMetricType) UnmarshalText(buf []byte) error {
 type Metric interface {
 	addSample(sample *MetricSample, timestamp float64)
 	flush(timestamp float64) ([]*Serie, error)
+	// isStateful() indicates that metric preserves information between flushes, which is
+	// required for correct operation (e.g. monotonic count keeps previous value).
+	isStateful() bool
 }
 
 // NoSerieError is the error returned by a metric when not enough samples have been

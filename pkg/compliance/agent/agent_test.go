@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package agent
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/stretchr/testify/assert"
@@ -61,6 +63,7 @@ func enterTempEnv(t *testing.T) *tempEnv {
 
 type eventMatch struct {
 	ruleID       string
+	frameworkID  string
 	resourceID   string
 	resourceType string
 	result       string
@@ -73,7 +76,8 @@ func eventMatcher(m eventMatch) interface{} {
 		if e.AgentRuleID != m.ruleID ||
 			e.Result != m.result ||
 			e.ResourceID != m.resourceID ||
-			e.ResourceType != m.resourceType {
+			e.ResourceType != m.resourceType ||
+			e.AgentFrameworkID != m.frameworkID {
 			return false
 		}
 
@@ -89,7 +93,9 @@ func eventMatcher(m eventMatch) interface{} {
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
 
-	aggregator.InitAggregator(nil, "foo")
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()
@@ -102,8 +108,9 @@ func TestRun(t *testing.T) {
 			eventMatcher(
 				eventMatch{
 					ruleID:       "cis-docker-1",
-					resourceID:   "the-host",
-					resourceType: "docker",
+					frameworkID:  "cis-docker",
+					resourceID:   "the-host_daemon",
+					resourceType: "docker_daemon",
 					result:       "passed",
 					path:         "/files/daemon.json",
 					permissions:  0644,
@@ -118,8 +125,9 @@ func TestRun(t *testing.T) {
 			eventMatcher(
 				eventMatch{
 					ruleID:       "cis-kubernetes-1",
-					resourceID:   "the-host",
-					resourceType: "kubernetesNode",
+					frameworkID:  "cis-kubernetes",
+					resourceID:   "kube_system_uuid_kubernetes_node",
+					resourceType: "kubernetes_node",
 					result:       "failed",
 					path:         "/files/kube-apiserver.yaml",
 					permissions:  0644,
@@ -145,6 +153,9 @@ func TestRun(t *testing.T) {
 	dockerClient.On("Close").Return(nil).Once()
 	defer dockerClient.AssertExpectations(t)
 
+	kubeClient := &mocks.KubeClient{}
+	kubeClient.On("Resource", mock.Anything).Return(nil)
+
 	nodeLabels := map[string]string{
 		"node-role.kubernetes.io/worker": "",
 	}
@@ -153,10 +164,12 @@ func TestRun(t *testing.T) {
 		reporter,
 		scheduler,
 		e.dir,
+		&config.Endpoints{},
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
 		checks.WithNodeLabels(nodeLabels),
+		checks.WithKubernetesClient(kubeClient, "kube_system_uuid"),
 	)
 	assert.NoError(err)
 
@@ -182,7 +195,9 @@ func TestRun(t *testing.T) {
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
 
-	aggregator.InitAggregator(nil, "foo")
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()
@@ -195,8 +210,9 @@ func TestRunChecks(t *testing.T) {
 			eventMatcher(
 				eventMatch{
 					ruleID:       "cis-docker-1",
-					resourceID:   "the-host",
-					resourceType: "docker",
+					frameworkID:  "cis-docker",
+					resourceID:   "the-host_daemon",
+					resourceType: "docker_daemon",
 					result:       "passed",
 					path:         "/files/daemon.json",
 					permissions:  0644,
@@ -236,8 +252,9 @@ func TestRunChecksFromFile(t *testing.T) {
 			eventMatcher(
 				eventMatch{
 					ruleID:       "cis-kubernetes-1",
-					resourceID:   "the-host",
-					resourceType: "kubernetesNode",
+					frameworkID:  "cis-kubernetes",
+					resourceID:   "kube_system_uuid_kubernetes_node",
+					resourceType: "kubernetes_node",
 					result:       "failed",
 					path:         "/files/kube-apiserver.yaml",
 					permissions:  0644,
@@ -252,6 +269,8 @@ func TestRunChecksFromFile(t *testing.T) {
 	dockerClient.On("Close").Return(nil).Once()
 	defer dockerClient.AssertExpectations(t)
 
+	kubeClient := &mocks.KubeClient{}
+
 	nodeLabels := map[string]string{
 		"node-role.kubernetes.io/worker": "",
 	}
@@ -263,6 +282,7 @@ func TestRunChecksFromFile(t *testing.T) {
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
 		checks.WithNodeLabels(nodeLabels),
+		checks.WithKubernetesClient(kubeClient, "kube_system_uuid"),
 	)
 	assert.NoError(err)
 }

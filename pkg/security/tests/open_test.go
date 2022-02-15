@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -17,21 +18,24 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"unsafe"
 
+	"github.com/iceber/iouring-go"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestOpen(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,139 +46,131 @@ func TestOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("open", func(t *testing.T) {
-		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
+	t.Run("open", ifSyscallSupported("SYS_OPEN", func(t *testing.T, syscallNB uintptr) {
 		defer os.Remove(testFile)
-		defer syscall.Close(int(fd))
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
+		test.WaitSignal(t, func() error {
+			fd, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), syscall.O_CREAT, 0755)
+			if errno != 0 {
+				return error(errno)
 			}
+			return syscall.Close(int(fd))
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0755)
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			if flags := event.Open.Flags; flags != syscall.O_CREAT {
-				t.Errorf("expected open flag O_CREAT, got %d", flags)
+			if !validateOpenSchema(t, event) {
+				t.Error(event.String())
 			}
-
-			if mode := event.Open.Mode; mode != 0755 {
-				t.Errorf("expected open mode 0755, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
-			}
-
-			testContainerPath(t, event, "open.container_path")
-		}
-	})
+		})
+	}))
 
 	t.Run("openat", func(t *testing.T) {
-		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
-		defer os.Remove(testFile)
-		defer syscall.Close(int(fd))
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT {
-				t.Errorf("expected open mode O_CREAT, got %d", flags)
-			}
-
-			if mode := event.Open.Mode; mode != 0711 {
-				t.Errorf("expected open mode 0711, got %#o", mode)
-			}
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
-			}
-
-			testContainerPath(t, event, "open.container_path")
-		}
-	})
-
-	t.Run("creat", func(t *testing.T) {
-		fd, _, errno := syscall.Syscall(syscall.SYS_CREAT, uintptr(testFilePtr), 0, 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
-		defer syscall.Close(int(fd))
 		defer os.Remove(testFile)
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
+		test.WaitSignal(t, func() error {
+			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+			if errno != 0 {
+				return error(errno)
 			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
-			}
-
-			testContainerPath(t, event, "open.container_path")
-		}
+			return syscall.Close(int(fd))
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+		})
 	})
+
+	openHow := unix.OpenHow{
+		Flags: unix.O_CREAT,
+		Mode:  0711,
+	}
+
+	t.Run("openat2", func(t *testing.T) {
+		defer os.Remove(testFile)
+
+		test.WaitSignal(t, func() error {
+			fd, _, errno := syscall.Syscall6(unix.SYS_OPENAT2, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&openHow)), unix.SizeofOpenHow, 0, 0)
+			if errno != 0 {
+				if errno == unix.ENOSYS {
+					return ErrSkipTest{"openat2 is not supported"}
+				}
+				return error(errno)
+			}
+			return syscall.Close(int(fd))
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+		})
+	})
+
+	t.Run("creat", ifSyscallSupported("SYS_CREAT", func(t *testing.T, syscallNB uintptr) {
+		defer os.Remove(testFile)
+
+		test.WaitSignal(t, func() error {
+			fd, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0711, 0)
+			if errno != 0 {
+				return error(errno)
+			}
+			return syscall.Close(int(fd))
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+		})
+	}))
 
 	t.Run("truncate", func(t *testing.T) {
-		f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
+		defer os.Remove(testFile)
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		}
-
-		syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))
-
-		// truncate
-		fd, _, errno := syscall.Syscall(syscall.SYS_TRUNCATE, uintptr(testFilePtr), 4, 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
-		defer syscall.Close(int(fd))
-
-		event, _, err = test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, get %s", event.GetType())
+		test.WaitSignal(t, func() error {
+			f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
+			if err != nil {
+				return err
 			}
 
-			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %s", probe.OpenFlags(flags))
+			_, err = syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))
+			if err != nil {
+				return err
 			}
 
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
-			}
+			return f.Close()
+		}, func(event *sprobe.Event, r *rules.Rule) {})
 
-			testContainerPath(t, event, "open.container_path")
-		}
+		test.WaitSignal(t, func() error {
+			// truncate
+			_, _, errno := syscall.Syscall(syscall.SYS_TRUNCATE, uintptr(testFilePtr), 4, 0)
+			if errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+		})
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
+		defer os.Remove(testFile)
+
+		// wait for this first event
+		test.WaitSignal(t, func() error {
+			f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+		})
+
 		h, mountID, err := unix.NameToHandleAt(unix.AT_FDCWD, testFile, 0)
 		if err != nil {
 			if err == unix.ENOTSUP {
@@ -188,35 +184,157 @@ func TestOpen(t *testing.T) {
 		}
 		defer mount.Close()
 
-		fdInt, err := unix.OpenByHandleAt(int(mount.Fd()), h, unix.O_CREAT)
-		if err != nil {
-			if err == unix.EINVAL {
-				t.Skip("open_by_handle_at not supported")
+		test.WaitSignal(t, func() error {
+			fdInt, err := unix.OpenByHandleAt(int(mount.Fd()), h, unix.O_CREAT)
+			if err != nil {
+				if err == unix.EINVAL {
+					return ErrSkipTest{"open_by_handle_at not supported"}
+				}
+				return fmt.Errorf("OpenByHandleAt: %w", err)
 			}
-			t.Fatalf("OpenByHandleAt: %v", err)
-		}
-		defer unix.Close(fdInt)
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT {
-				t.Errorf("expected open mode O_RDWR, got %d", flags)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
-			}
-
-			testContainerPath(t, event, "open.container_path")
-		}
+			return unix.Close(fdInt)
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+		})
 	})
 
+	t.Run("io_uring", func(t *testing.T) {
+		defer os.Remove(testFile)
+
+		err = test.GetSignal(t, func() error {
+			f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+		})
+		if err != nil {
+			// if the file was not created, we can't open it with io_uring
+			t.Fatal(err)
+		}
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest, err := iouring.Openat(unix.AT_FDCWD, testFile, syscall.O_CREAT, 0747)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			fd, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF {
+					return ErrSkipTest{"openat not supported by io_uring"}
+				}
+				return err
+			}
+
+			if fd < 0 {
+				return fmt.Errorf("failed to open file with io_uring: %d", fd)
+			}
+
+			return unix.Close(fd)
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			// O_LARGEFILE is added by io_uring during __io_openat_prep
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0747)
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+		})
+
+		prepRequest, err = iouring.Openat2(unix.AT_FDCWD, testFile, &openHow)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// same with openat2
+		test.WaitSignal(t, func() error {
+			if _, err := iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			fd, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF {
+					return ErrSkipTest{"openat2 not supported by io_uring"}
+				}
+				return err
+			}
+
+			if fd < 0 {
+				return fmt.Errorf("failed to open file with io_uring: %d", fd)
+			}
+
+			return unix.Close(fd)
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			// O_LARGEFILE is added by io_uring during __io_openat_prep
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+		})
+	})
+
+	_ = os.Remove(testFile)
+}
+
+func TestOpenMetadata(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path == "{{.Root}}/test-open" && open.file.uid == 98 && open.file.gid == 99`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fileMode := 0o447
+	expectedMode := uint16(applyUmask(fileMode))
+	testFile, _, err := test.CreateWithOptions("test-open", 98, 99, fileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("metadata", func(t *testing.T) {
+		defer os.Remove(testFile)
+
+		test.WaitSignal(t, func() error {
+			// CreateWithOptions creates the file and then chmod the user / group. When the file was created it didn't
+			// have the right uid / gid, thus didn't match the rule. Open the file again to trigger the rule.
+			f, err := os.Open(testFile)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assertRights(t, event.Open.File.Mode, expectedMode)
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assertNearTime(t, event.Open.File.MTime)
+			assertNearTime(t, event.Open.File.CTime)
+		})
+	})
 }
 
 func openMountByID(mountID int) (f *os.File, err error) {
@@ -242,7 +360,7 @@ func openMountByID(mountID int) (f *os.File, err error) {
 }
 
 func benchmarkOpenSameFile(b *testing.B, disableFilters bool, rules ...*rules.RuleDefinition) {
-	test, err := newTestModule(nil, rules, testOpts{disableFilters: disableFilters})
+	test, err := newTestModule(b, nil, rules, testOpts{disableFilters: disableFilters})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -312,7 +430,7 @@ func createFolder(current string, filesPerFolder, maxDepth int) error {
 }
 
 func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*rules.RuleDefinition) {
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(b, nil, rules, testOpts{})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -335,7 +453,7 @@ func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*rules.R
 func BenchmarkFind(b *testing.B) {
 	benchmarkFind(b, 128, 8, &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/donotmatch"`,
+		Expression: `open.file.path == "{{.Root}}/donotmatch"`,
 	})
 }
 

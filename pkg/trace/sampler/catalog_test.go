@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sampler
 
 import (
+	"math"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -33,10 +35,10 @@ func TestCatalogRegression(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < n; i++ {
-			cat.ratesByService(map[Signature]float64{
+			cat.ratesByService("", map[Signature]float64{
 				ServiceSignature{}.Hash():                 0.3,
 				ServiceSignature{"web", "staging"}.Hash(): 0.4,
-			}, 0.2)
+			}, nil, 0.2)
 		}
 	}()
 
@@ -52,45 +54,137 @@ func TestServiceSignatureString(t *testing.T) {
 
 func TestNewServiceLookup(t *testing.T) {
 	cat := newServiceLookup()
-	assert.NotNil(t, cat.lookup)
+	assert.NotNil(t, cat.items)
+	assert.NotNil(t, cat.ll)
 }
 
 func TestServiceKeyCatalogRegister(t *testing.T) {
-	assert := assert.New(t)
-
 	cat := newServiceLookup()
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
-	assert.Equal(
-		map[ServiceSignature]Signature{
-			{"service1", "none"}: sig1,
-		},
-		cat.lookup,
-	)
+	catalogContains(t, cat, map[ServiceSignature]Signature{
+		{"service1", "testEnv"}: sig1,
+	})
 
 	_, root2 := getTestTraceWithService(t, "service2", s)
 	sig2 := cat.register(ServiceSignature{root2.Service, defaultEnv})
-	assert.Equal(
-		map[ServiceSignature]Signature{
-			{"service1", "none"}: sig1,
-			{"service2", "none"}: sig2,
-		},
-		cat.lookup,
-	)
+	catalogContains(t, cat, map[ServiceSignature]Signature{
+		{"service1", "testEnv"}: sig1,
+		{"service2", "testEnv"}: sig2,
+	})
+}
+
+func TestServiceKeyCatalogLRU(t *testing.T) {
+	t.Run("size", func(t *testing.T) {
+		cat := newServiceLookup()
+		cat.maxEntries = 3
+		_ = cat.register(ServiceSignature{"service1", "env1"})
+		sig2 := cat.register(ServiceSignature{"service2", "env2"})
+		sig3 := cat.register(ServiceSignature{"service3", "env3"})
+		sig4 := cat.register(ServiceSignature{"service4", "env4"})
+		catalogContains(t, cat, map[ServiceSignature]Signature{
+			{"service2", "env2"}: sig2,
+			{"service3", "env3"}: sig3,
+			{"service4", "env4"}: sig4,
+		})
+		sig5 := cat.register(ServiceSignature{"service5", "env5"})
+		catalogContains(t, cat, map[ServiceSignature]Signature{
+			{"service3", "env3"}: sig3,
+			{"service4", "env4"}: sig4,
+			{"service5", "env5"}: sig5,
+		})
+	})
+
+	t.Run("move", func(t *testing.T) {
+		cat := newServiceLookup()
+		cat.maxEntries = 3
+		sig1 := cat.register(ServiceSignature{"service1", "env1"})
+		_ = cat.register(ServiceSignature{"service2", "env2"})
+		sig3 := cat.register(ServiceSignature{"service3", "env3"})
+		cat.register(ServiceSignature{"service1", "env1"}) // sig1 is moved, so 2 will be out
+		sig4 := cat.register(ServiceSignature{"service4", "env4"})
+		catalogContains(t, cat, map[ServiceSignature]Signature{
+			{"service1", "env1"}: sig1,
+			{"service3", "env3"}: sig3,
+			{"service4", "env4"}: sig4,
+		})
+	})
+}
+
+func catalogContains(t *testing.T, cat *serviceKeyCatalog, has map[ServiceSignature]Signature) {
+	assert := assert.New(t)
+	assert.Len(cat.items, len(has), "too many items in map")
+	assert.Equal(len(has), cat.ll.Len(), "too many elements in list")
+	for el := cat.ll.Back(); el != nil; el = el.Prev() {
+		key := el.Value.(catalogEntry).key
+		if le, ok := cat.items[key]; !ok {
+			t.Fatalf("Foreign item in map: %s", key)
+			return
+		} else if le != el {
+			t.Fatalf("List element in map incorrect for key %v", key)
+			return
+		}
+		val := el.Value.(catalogEntry).sig
+		want, ok := has[key]
+		if !ok {
+			t.Fatalf("Foreign item in list: %s", key)
+			return
+		}
+		if val != want {
+			t.Fatalf("Invalid value %v (!=%v) in list at key %v", val, want, key)
+			return
+		}
+	}
+}
+
+func TestCatalogEnvMatchAgent(t *testing.T) {
+	assert := assert.New(t)
+	cat := newServiceLookup()
+
+	sig1 := ServiceSignature{"service1", defaultEnv}
+	cat.register(sig1)
+	sig2 := ServiceSignature{"service2", defaultEnv}
+	cat.register(sig2)
+	sig3 := ServiceSignature{"service3", defaultEnv}
+	cat.register(sig3)
+
+	rates := map[Signature]float64{
+		sig1.Hash(): 0.3,
+		sig2.Hash(): 0.7,
+	}
+	const totalRate = 0.2
+
+	remoteRates := map[Signature]rm{
+		sig2.Hash(): {0.5555, 2},
+		sig3.Hash(): {0.19, 2},
+	}
+
+	rateByService := cat.ratesByService(defaultEnv, rates, remoteRates, totalRate)
+	assert.Equal(map[ServiceSignature]rm{
+		{"service1", defaultEnv}: {0.3, 0},
+		{"service1", ""}:         {0.3, 0},
+		{"service2", defaultEnv}: {0.5555, 2},
+		{"service2", ""}:         {0.5555, 2},
+		{"service3", defaultEnv}: {0.19, 2},
+		{"service3", ""}:         {0.19, 2},
+		{}:                       {0.2, 0},
+	}, rateByService)
 }
 
 func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert := assert.New(t)
 
 	cat := newServiceLookup()
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
 	_, root2 := getTestTraceWithService(t, "service2", s)
 	sig2 := cat.register(ServiceSignature{root2.Service, defaultEnv})
+	_, root3 := getTestTraceWithService(t, "service3", s)
+	sig3 := cat.register(ServiceSignature{root3.Service, defaultEnv})
 
 	rates := map[Signature]float64{
 		sig1: 0.3,
@@ -98,25 +192,57 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	rateByService := cat.ratesByService(rates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{"service1", "none"}: 0.3,
-		{"service2", "none"}: 0.7,
-		{}:                   0.2,
+	remoteRates := map[Signature]rm{
+		sig2: {0.5555, 2},
+		sig3: {0.19, 2},
+	}
+
+	rateByService := cat.ratesByService("", rates, remoteRates, totalRate)
+	assert.Equal(map[ServiceSignature]rm{
+		{"service1", "testEnv"}: {0.3, 0},
+		{"service2", "testEnv"}: {0.5555, 2},
+		{"service3", "testEnv"}: {0.19, 2},
+		{}:                      {0.2, 0},
 	}, rateByService)
 
 	delete(rates, sig1)
 
-	rateByService = cat.ratesByService(rates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{"service2", "none"}: 0.7,
-		{}:                   0.2,
+	rateByService = cat.ratesByService("", rates, nil, totalRate)
+	assert.Equal(map[ServiceSignature]rm{
+		{"service2", "testEnv"}: {0.7, 0},
+		{}:                      {0.2, 0},
 	}, rateByService)
 
 	delete(rates, sig2)
 
-	rateByService = cat.ratesByService(rates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{}: 0.2,
+	rateByService = cat.ratesByService("", rates, nil, totalRate)
+	assert.Equal(map[ServiceSignature]rm{
+		{}: {0.2, 0},
 	}, rateByService)
+}
+
+func BenchmarkServiceKeyCatalog(b *testing.B) {
+	b.ReportAllocs()
+
+	b.Run("new", func(b *testing.B) {
+		x := 1
+		cat := newServiceLookup()
+		cat.maxEntries = math.MaxInt16
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			x *= 2
+			ss := ServiceSignature{Name: strconv.Itoa(x), Env: strconv.Itoa(x)}
+			cat.register(ss)
+		}
+	})
+
+	b.Run("same", func(b *testing.B) {
+		cat := newServiceLookup()
+		cat.maxEntries = math.MaxInt16
+		ss := ServiceSignature{Name: "sql-db", Env: "staging"}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			cat.register(ss)
+		}
+	})
 }

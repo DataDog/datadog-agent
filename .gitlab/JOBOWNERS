@@ -1,0 +1,53 @@
+*                                    @DataDog/agent-platform
+
+# Deps build
+build_clang*                         @DataDog/agent-network
+
+# Source test
+# Notifications are handled separately for more fine-grained control on go tests
+tests_*                              @DataDog/multiple
+tests_ebpf                           @DataDog/agent-network
+security_go_generate_check           @DataDog/agent-security
+
+# Golang dependency list generation
+golang_deps_generate                 @DataDog/agent-core
+
+# Binary build
+build_system-probe*                  @DataDog/agent-network
+cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
+cluster_agent-build*                 @DataDog/container-integrations
+build_serverless*                    @DataDog/serverless
+
+# Image build
+docker_build*                        @DataDog/container-integrations
+
+# Image scan
+scan_*_docker_hub*                   @DataDog/container-integrations
+dca_scan_*_docker_hub*               @DataDog/container-integrations
+
+# Check deploy
+# Do not notify on these jobs, they're expected to fail on duplicate
+# deploy pipelines
+check_already_deployed_version_*     @DataDog/do-not-notify
+
+# Image deploy
+dev_*_docker_hub*                    @DataDog/container-integrations
+dev_*_google_container_repository*   @DataDog/container-integrations
+docker_trigger_internal*             @DataDog/container-integrations
+
+# Deploy
+deploy_*docker_hub*                  @DataDog/container-integrations
+deploy_*google_container_repository* @DataDog/container-integrations
+
+# Functional test
+kitchen_*_system_probe*                        @DataDog/agent-network
+kitchen_*_security_agent*                      @DataDog/agent-security
+cleanup_kitchen_functional_test                @DataDog/agent-network @DataDog/agent-security
+serverless_cold_start_performance-deb_x64      @DataDog/serverless
+
+
+# E2E
+k8s-e2e-*                         @DataDog/container-integrations
+k8s-e2e-otlp-*                    @DataDog/agent-platform
+k8s-e2e-cws-*                     @DataDog/agent-security
+k8s-e2e-cspm-*                    @DataDog/agent-security

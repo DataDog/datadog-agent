@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -10,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConnectionFilter holds a user-defined blacklisted IP/CIDR, and ports
+// ConnectionFilter holds a user-defined excluded IP/CIDR, and ports
 type ConnectionFilter struct {
 	IP       *net.IPNet // If nil, then all IPs will be considered matching.
 	AllPorts ConnTypeFilter
@@ -24,8 +29,8 @@ type ConnTypeFilter struct {
 	UDP bool
 }
 
-// ParseConnectionFilters takes the user defined blacklist and returns a slice of ConnectionFilters
-func ParseConnectionFilters(filters map[string][]string) (blacklist []*ConnectionFilter) {
+// ParseConnectionFilters takes the user defined excludelist and returns a slice of ConnectionFilters
+func ParseConnectionFilters(filters map[string][]string) (excludelist []*ConnectionFilter) {
 	for ip, portFilters := range filters {
 		filter := &ConnectionFilter{Ports: map[uint16]ConnTypeFilter{}}
 		var subnet *net.IPNet
@@ -83,10 +88,10 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 
 		// If there were any errors in parsing the port filters above, we'll skip this entry.
 		if err == nil {
-			blacklist = append(blacklist, filter)
+			excludelist = append(excludelist, filter)
 		}
 	}
-	return blacklist
+	return excludelist
 }
 
 // parsePortFilter checks for valid port(s) and protocol filters
@@ -156,13 +161,16 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 		return false
 	}
 
+	buf := util.IPBufferPool.Get().(*[]byte)
+	defer util.IPBufferPool.Put(buf)
+
 	if len(scf) > 0 && conn.Source != nil {
-		if findMatchingFilter(scf, util.NetIPFromAddress(conn.Source), conn.SPort, conn.Type) {
+		if findMatchingFilter(scf, util.NetIPFromAddress(conn.Source, *buf), conn.SPort, conn.Type) {
 			return true
 		}
 	}
 	if len(dcf) > 0 && conn.Dest != nil {
-		if findMatchingFilter(dcf, util.NetIPFromAddress(conn.Dest), conn.DPort, conn.Type) {
+		if findMatchingFilter(dcf, util.NetIPFromAddress(conn.Dest, *buf), conn.DPort, conn.Type) {
 			return true
 		}
 	}

@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package ebpf
@@ -10,10 +11,9 @@ package ebpf
 import (
 	"math"
 	"os"
-	"time"
 
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -26,11 +26,9 @@ func NewDefaultOptions() manager.Options {
 		DefaultKProbeMaxActive: 512,
 
 		// DefaultPerfRingBufferSize is the default buffer size of the perf buffers
-		DefaultPerfRingBufferSize: 4096 * os.Getpagesize(),
-
-		// DefaultProbeAttach is the default number of attach / detach retries on error
-		DefaultProbeRetry:      1,
-		DefaultProbeRetryDelay: time.Second,
+		// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
+		// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
+		DefaultPerfRingBufferSize: 4097 * os.Getpagesize(),
 
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{

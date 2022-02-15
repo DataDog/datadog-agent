@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package test
 
@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -42,6 +43,10 @@ type Runner struct {
 // Start initializes the runner and starts the fake backend.
 func (s *Runner) Start() error {
 	s.backend = newFakeBackend(s.ChannelSize)
+	if !s.Verbose {
+		// respect whatever the testing framework says
+		s.Verbose = testing.Verbose()
+	}
 	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose)
 	if err != nil {
 		return err
@@ -89,7 +94,7 @@ func (s *Runner) KillAgent() {
 }
 
 // Out returns a channel which will provide payloads received by the fake backend.
-// They can be of type pb.TracePayload or agent.StatsPayload.
+// They can be of type pb.AgentPayload or agent.StatsPayload.
 func (s *Runner) Out() <-chan interface{} {
 	if s.backend == nil {
 		closedCh := make(chan interface{})
@@ -103,24 +108,27 @@ func (s *Runner) Out() <-chan interface{} {
 // must be started using RunAgent.
 //
 // Example: r.PostMsgpack("/v0.5/stats", pb.ClientStatsPayload{})
-func (s *Runner) PostMsgpack(path string, data msgp.Encodable) error {
+func (s *Runner) PostMsgpack(path string, data msgp.Marshaler) (err error) {
 	if s.agent == nil {
 		return ErrNotStarted
 	}
 	if s.agent.PID() == 0 {
 		return errors.New("post: trace-agent not running")
 	}
-	var buf bytes.Buffer
-	if err := msgp.Encode(&buf, data); err != nil {
+	var b []byte
+	if b, err = data.MarshalMsg(nil); err != nil {
 		return err
 	}
+	buf := bytes.NewBuffer(b)
 	addr := fmt.Sprintf("http://%s%s", s.agent.Addr(), path)
-	req, err := http.NewRequest("POST", addr, &buf)
+	req, err := http.NewRequest("POST", addr, buf)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+	req.Header.Set("Datadog-Meta-Tracer-Version", "0.2.0")
+	req.Header.Set("Datadog-Meta-Lang", "go")
 
 	return s.doRequest(req)
 }

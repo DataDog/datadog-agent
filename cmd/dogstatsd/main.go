@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
@@ -28,9 +28,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 var (
@@ -152,6 +158,10 @@ func runAgent(ctx context.Context) (err error) {
 		return
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
@@ -168,24 +178,28 @@ func runAgent(ctx context.Context) (err error) {
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// setup the forwarder
+	// setup the demultiplexer
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f)
 
-	hname, err := util.GetHostname()
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseOrchestratorForwarder = false
+	opts.UseEventPlatformForwarder = false
+	opts.UseContainerLifecycleForwarder = false
+	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
-	metaScheduler = metadata.NewScheduler(s)
+	metaScheduler = metadata.NewScheduler(demux)
 	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return
@@ -199,19 +213,20 @@ func runAgent(ctx context.Context) (err error) {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		tagger.Init()
+		// Start workload metadata store before tagger
+		workloadmeta.GetGlobalStore().Start(context.Background())
+
+		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+		if err := tagger.Init(); err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname)
-
-	statsd, err = dogstatsd.NewServer(aggregatorInstance)
+	statsd, err = dogstatsd.NewServer(demux, nil)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
 	}
-
-	// send a starting metric and event
-	aggregatorInstance.AddAgentStartupTelemetry(version.AgentVersion)
 	return
 }
 

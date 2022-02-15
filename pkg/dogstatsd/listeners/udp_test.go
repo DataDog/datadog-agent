@@ -1,7 +1,8 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package listeners
@@ -17,12 +18,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
-var packetPoolUDP = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+var (
+	packetPoolUDP        = packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	packetPoolManagerUDP = packets.NewPoolManager(packetPoolUDP)
+)
 
 func TestNewUDPListener(t *testing.T) {
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -34,7 +39,7 @@ func TestStartStopUDPListener(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
 	require.NotNil(t, s)
 
 	assert.Nil(t, err)
@@ -65,7 +70,7 @@ func TestUDPNonLocal(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", true)
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -89,7 +94,7 @@ func TestUDPLocalOnly(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -116,8 +121,8 @@ func TestUDPReceive(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	packetChannel := make(chan Packets)
-	s, err := NewUDPListener(packetChannel, packetPoolUDP)
+	packetChannel := make(chan packets.Packets)
+	s, err := NewUDPListener(packetChannel, packetPoolManagerUDP, nil)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -130,15 +135,33 @@ func TestUDPReceive(t *testing.T) {
 	conn.Write(contents)
 
 	select {
-	case packets := <-packetChannel:
-		packet := packets[0]
+	case pkts := <-packetChannel:
+		packet := pkts[0]
 		assert.NotNil(t, packet)
-		assert.Equal(t, 1, len(packets))
+		assert.Equal(t, 1, len(pkts))
 		assert.Equal(t, contents, packet.Contents)
 		assert.Equal(t, "", packet.Origin)
+		assert.Equal(t, packet.Source, packets.UDP)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+}
+
+// Reproducer for https://github.com/DataDog/datadog-agent/issues/6803
+func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	assert.Nil(t, err)
+	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	conn, err := net.ListenUDP("udp", address)
+	assert.NotNil(t, conn)
+	assert.Nil(t, err)
+	defer conn.Close()
+	config.Datadog.SetDefault("dogstatsd_so_rcvbuf", 1)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
+	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
+	assert.Nil(t, s)
+	assert.NotNil(t, err)
 }
 
 // getAvailableUDPPort requests a random port number and makes sure it is available

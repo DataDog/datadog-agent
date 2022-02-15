@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
@@ -24,7 +29,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _ = extractTagsMetadata(baseTags, "hostname", "", false)
+				tags, _, _, _, _ = extractTagsMetadata(baseTags, "hostname", "", []byte{}, false)
 			}
 		})
 	}

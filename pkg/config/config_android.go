@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -28,6 +28,14 @@ const (
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
+	// DefaultProcessAgentLogFile is the default process-agent log file
+	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
+
+	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
+	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
+	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
+	// DefaultDDAgentBin the process agent's binary
+	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 )
 
 func setAssetFs(config Config) {
@@ -117,6 +125,10 @@ func (AssetFs) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return fi, true, err
 }
 
+func (AssetFs) Chown(name string, uid, gid int) error {
+	return errors.New("Invalid Operation: Can't chown in asset")
+}
+
 func (f AssetFile) Name() string {
 	return f.FileName
 }
@@ -136,6 +148,10 @@ func (f AssetFile) Readdir(count int) ([]os.FileInfo, error) {
 
 func (f AssetFile) Readdirnames(n int) ([]string, error) {
 	return nil, errors.New("Invalid Operation: Can't readat asset")
+}
+
+func (AssetFile) Chown(name string, uid, gid int) error {
+	return errors.New("Invalid Operation: Can't chown asset")
 }
 
 func (f AssetFile) Stat() (os.FileInfo, error) {

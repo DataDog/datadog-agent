@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package flare
@@ -10,6 +11,7 @@ package flare
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -28,7 +30,7 @@ var (
 
 	eventLogChannelsToExport = map[string]string{
 		"System":      "Event/System/Provider[@Name=\"Service Control Manager\"]",
-		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\"]",
+		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\" or @Name=\"DatadogAgent\"]",
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
 	execTimeout = 30 * time.Second
@@ -61,6 +63,10 @@ func zipCounterStrings(tempDir, hostname string) error {
 			bufferSize += bufferIncrement
 			continue
 		}
+		// must set the length of the slice to the actual amount of data
+		// sz is in bytes, but it's a slice of uint16s, so divide the returned
+		// buffer size by two.
+		counterlist = counterlist[:(sz / 2)]
 		break
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)
@@ -203,5 +209,53 @@ func exportWindowsEventLog(eventLogChannel, eventLogQuery, destFileName, tempDir
 
 func (p permissionsInfos) add(filePath string) {}
 func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) error {
+	return nil
+}
+
+func zipServiceStatus(tempDir, hostname string) error {
+	f := filepath.Join(tempDir, hostname, "servicestatus.txt")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return fmt.Errorf("Error in ensureParentDirsExist %v", err)
+	}
+
+	fh, err := os.Create(f)
+	if err != nil {
+		return fmt.Errorf("Error creating temp file %s %v", f, err)
+	}
+	defer fh.Close()
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+
+	cmd := exec.CommandContext(cancelctx, "powershell", "-c", "get-service", "data*,ddnpm", "|", "fl")
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err != nil {
+		log.Warnf("Error running powershell command %v", err)
+		// for some reason the lodctr command returns error 259 even when
+		// it succeeds.  Log the error in case it's some other error,
+		// but continue on.
+	}
+
+	_, err = fh.Write(out.Bytes())
+	if err != nil {
+		log.Warnf("Error writing file %v", err)
+		return err
+	}
+	// compute the location of the driver
+	ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
+	if err == nil {
+		pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
+		fi, err := os.Stat(pathtodriver)
+		if err != nil {
+			fh.WriteString(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))
+		} else {
+			fh.WriteString(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))
+		}
+	} else {
+		return fmt.Errorf("Error getting path to datadog agent binaries %v", err)
+	}
 	return nil
 }

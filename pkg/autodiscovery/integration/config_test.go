@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package integration
 
@@ -213,14 +213,14 @@ func TestDigest(t *testing.T) {
 	configWithEntity := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Entity:     "docker://f556178a47cf65fb70cd5772a9e80e661f71e021da49d3dc99565b861707041c",
+		ServiceID:  "docker://f556178a47cf65fb70cd5772a9e80e661f71e021da49d3dc99565b861707041c",
 	}
 	assert.Equal(t, "6f0d4b04bfbf4321", configWithEntity.Digest())
 
 	configWithAnotherEntity := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Entity:     "docker://ddcd8a64616772f7ad4524f09fd75c9e3a265144050fc077563e63ea2eb46db0",
+		ServiceID:  "docker://ddcd8a64616772f7ad4524f09fd75c9e3a265144050fc077563e63ea2eb46db0",
 	}
 	assert.Equal(t, "22e040015f8c50b1", configWithAnotherEntity.Digest())
 
@@ -260,6 +260,19 @@ func TestGetNameForInstance(t *testing.T) {
 	config.InitConfig = Data("fooBarBaz")
 	config.Instances = []Data{Data("foo: bar")}
 	assert.Equal(t, config.Instances[0].GetNameForInstance(), "")
+}
+
+func TestSetNameForInstance(t *testing.T) {
+	config := &Config{}
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("name: foobar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	err := config.Instances[0].SetNameForInstance("new-name")
+	assert.NoError(t, err)
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "new-name")
 }
 
 // this is here to prevent compiler optimization on the benchmarking code

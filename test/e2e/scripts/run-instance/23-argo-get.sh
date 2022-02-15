@@ -4,68 +4,53 @@ set -euo pipefail
 printf '=%.0s' {0..79} ; echo
 set -x
 
+ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
+
 cd "$(dirname "$0")"
 
 # Wait for any Running workflow
-until [[ -z $(./argo list -l workflows.argoproj.io/phase=Running -o name) ]]; do
+until [[ "$(./argo list --running -o name)" == "No workflows found" ]]; do
     sleep 10
 done
 
-if [[ -z $(./argo list -o name) ]]; then
+if [[ "$(./argo list -o name)" == "No workflows found" ]]; then
     echo "No workflow found"
     exit 1
 fi
 
 set +x
 
-# `argo get` command outputs some utf-8 characters that are breaking GitLab
-# The below hack can be removed once the following PR is merged and released:
-# https://github.com/argoproj/argo/pull/4449
-function filter_argo_output() {
-    if locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
-        cat
-    else
-        oldstate=$(set +o)
-        set +x
-        sed 's/◷/Pending  /g;
-             s/●/Running  /g;
-             s/✔/Succeeded/g;
-             s/○/Skipped  /g;
-             s/✖/Failed   /g;
-             s/⚠/Error    /g;
-             s/ǁ/Suspend  /g;
-             s/·/+/g;
-             s/└/`/g;
-             s/├/|/g;'
-        eval "$oldstate"
-    fi
-}
+if ! locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
+    no_utf8_opt='--no-utf8'
+fi
 
-for workflow in $(./argo list -l workflows.argoproj.io/phase=Succeeded -o name); do
-    ./argo get "$workflow" | filter_argo_output
+for workflow in $(./argo list --status Succeeded -o name | grep -v 'No workflows found'); do
+    ./argo get ${no_utf8_opt:-} "$workflow"
 done
 
 EXIT_CODE=0
-for workflow in $(./argo list -l workflows.argoproj.io/phase=Failed -o name); do
-    ./argo get "$workflow" | filter_argo_output
+for workflow in $(./argo list --status Failed -o name | grep -v 'No workflows found'); do
+    ./argo get "$workflow" -o json | jq -r '.status.nodes | to_entries | map(.value) | sort_by(.phase) | .[] | select(.phase == "Failed" or (.name | contains("onExit[0].diagnose[0]."))) | .displayName + " " + .id' | while read -r displayName podName; do
+        printf '\033[1m===> Logs of %s\t%s <===\033[0m\n' "$displayName" "$podName"
+        ./argo logs "$workflow" "$podName"
+    done
+    ./argo get ${no_utf8_opt:-} "$workflow"
     EXIT_CODE=2
 done
 
-# Make the Argo UI available from the user
-/opt/bin/kubectl --namespace argo patch service/argo-server --type json --patch $'[{"op": "replace", "path": "/spec/type", "value": "NodePort"}]'
+# CWS & CSPM e2e output
+for workflow in $(./argo list -o name); do
+    if [ "$ARGO_WORKFLOW" = "cws" ]; then
+        kubectl logs $(./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.displayName=="test-cws-e2e").id') -c main
+    fi
 
-# The goal of the following iptables magic is to make the `argo-server` NodePort service available on port 80.
-# We cannot do it with Kube since 80 isn’t in the NodePort service range and yet, 80 is a convenient port for an HTTP UI.
-# It basically copies the iptables rules that are injected by Kuberntes for a NodePort service.
-until [[ -n ${KUBE_SVC:+x} ]]; do
-    sleep 1
-    KUBE_SVC="$(sudo iptables -w -t nat -L KUBE-NODEPORTS -n -v | awk '/argo\/argo-server:web/ && $3 ~ /^KUBE-SVC-/ {print $3}')"
+    if [ "$ARGO_WORKFLOW" = "cspm" ]; then
+        kubectl logs $(./argo get $workflow -o json | jq -r '.status.nodes[] | select(.displayName=="test-cspm-e2e").id') -c main
+    fi
 done
-sudo iptables -w -t nat -N HACK
-sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j KUBE-MARK-MASQ
-sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j "${KUBE_SVC}"
-sudo iptables -w -t nat -A PREROUTING -m addrtype --dst-type LOCAL -j HACK
-sudo iptables -w -t nat -A OUTPUT     -m addrtype --dst-type LOCAL -j HACK
+
+# Make the Argo UI available from the user
+kubectl --namespace argo patch service/argo-server --type json --patch $'[{"op": "replace", "path": "/spec/type", "value": "NodePort"}, {"op": "replace", "path": "/spec/ports", "value": [{"port": 2746, "nodePort": 30001, "targetPort": 2746}]}]'
 
 # In case of failure, let's keep the VM for 1 day instead of 2 hours for investigation
 if [[ $EXIT_CODE != 0 ]]; then
@@ -77,6 +62,6 @@ fi
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
 LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
 
-printf "\033[1mThe Argo UI will remain available at \033[1;34mhttp://%s\033[0m until \033[1;33m%s\033[0m.\n" "$LOCAL_IP" "$TIME_LEFT"
+printf "\033[1mThe Argo UI will remain available at \033[1;34mhttps://%s\033[0m until \033[1;33m%s\033[0m.\n" "$LOCAL_IP" "$TIME_LEFT"
 
 exit ${EXIT_CODE}

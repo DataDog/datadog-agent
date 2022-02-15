@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package info
 
@@ -118,6 +118,7 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "key1"
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
+	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
@@ -362,5 +363,10 @@ func TestInfoConfig(t *testing.T) {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
 	}
+	for i, e := range confCopy.TelemetryConfig.Endpoints {
+		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
+		conf.TelemetryConfig.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
+	}
+
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }

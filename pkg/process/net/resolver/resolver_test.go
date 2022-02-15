@@ -1,10 +1,18 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !linux
+// +build !linux
+
 package resolver
 
 import (
 	"net"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 )
@@ -99,7 +107,6 @@ func TestLocalResolver(t *testing.T) {
 }
 
 func TestResolveLoopbackConnections(t *testing.T) {
-
 	tests := []struct {
 		name            string
 		conn            *model.Connection
@@ -119,12 +126,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Port: 1234,
 				},
 				IpTranslation: &model.IPTranslation{
-					ReplDstIP:   "10.1.1.1",
+					ReplDstIP:   "127.0.0.1",
 					ReplDstPort: 1234,
 					ReplSrcIP:   "10.1.1.2",
 					ReplSrcPort: 1234,
 				},
-				NetNS: 1,
+				NetNS:     1,
+				Direction: model.ConnectionDirection_incoming,
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo1",
 			expectedRaddrID: "foo2",
@@ -133,7 +142,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			name: "raddr resolution with nat to localhost",
 			conn: &model.Connection{
 				Pid:   2,
-				NetNS: 2,
+				NetNS: 1,
 				Laddr: &model.Addr{
 					Ip:   "10.1.1.2",
 					Port: 1234,
@@ -148,6 +157,8 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					ReplSrcIP:   "127.0.0.1",
 					ReplSrcPort: 1234,
 				},
+				Direction: model.ConnectionDirection_outgoing,
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo2",
 			expectedRaddrID: "foo1",
@@ -165,6 +176,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1234,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo3",
 			expectedRaddrID: "",
@@ -182,6 +194,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1235,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo5",
 			expectedRaddrID: "foo3",
@@ -199,6 +212,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1235,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo5",
 			expectedRaddrID: "",
@@ -216,6 +230,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "10.1.1.1",
 					Port: 1235,
 				},
+				IntraHost: false,
 			},
 			expectedLaddrID: "",
 			expectedRaddrID: "",
@@ -233,6 +248,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1240,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "",
 			expectedRaddrID: "",
@@ -250,6 +266,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1250,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo6",
 			expectedRaddrID: "foo7",
@@ -267,6 +284,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1260,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo7",
 			expectedRaddrID: "foo6",
@@ -308,6 +326,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 				ID:   "bar",
 				Pids: []int32{20},
 			},
+			{
+				ID:   "foo20",
+				Pids: []int32{20},
+			},
+			{
+				ID:   "foo21",
+				Pids: []int32{21},
+			},
 		},
 	)
 
@@ -318,9 +344,9 @@ func TestResolveLoopbackConnections(t *testing.T) {
 	resolver.Resolve(conns)
 
 	for _, te := range tests {
-		t.Run(te.name, func(_t *testing.T) {
-			assert.Equal(_t, te.expectedLaddrID, te.conn.Laddr.ContainerId, "laddr container id does not match expected value")
-			assert.Equal(_t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
+		t.Run(te.name, func(t *testing.T) {
+			assert.Equal(t, te.expectedLaddrID, te.conn.Laddr.ContainerId, "laddr container id does not match expected value")
+			assert.Equal(t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
 		})
 	}
 }

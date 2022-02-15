@@ -1,26 +1,22 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package runner
 
 import (
-	"expvar"
 	"fmt"
-	"strings"
 
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,43 +25,29 @@ const (
 	stopCheckTimeout time.Duration = 500 * time.Millisecond
 	// Time to wait for all checks to stop
 	stopAllChecksTimeout time.Duration = 2 * time.Second
-	// How long is the first series of check runs we want to log
-	firstRunSeries uint64 = 5
 )
 
 var (
-	// TestWg is used for testing the number of check workers
-	TestWg      sync.WaitGroup
-	runnerStats *expvar.Map
-	checkStats  *runnerCheckStats
+	// Atomic incrementing variables for generating globally unique runner and worker object IDs
+	runnerIDGenerator uint64
+	workerIDGenerator uint64
 )
 
-func init() {
-	runnerStats = expvar.NewMap("runner")
-	runnerStats.Set("Checks", expvar.Func(expCheckStats))
-	checkStats = &runnerCheckStats{
-		Stats: make(map[string]map[check.ID]*check.Stats),
-	}
-}
-
-// checkStats holds the stats from the running checks
-type runnerCheckStats struct {
-	Stats map[string]map[check.ID]*check.Stats
-	M     sync.RWMutex
-}
-
-// Runner ...
+// Runner is the object in charge of running all the checks
 type Runner struct {
 	// keep members that are used in atomic functions at the top of the structure
 	// important for 32 bit compiles.
 	// see https://github.com/golang/go/issues/599#issuecomment-419909701 for more information
-	running          uint32                   // Flag to see if the Runner is, well, running
-	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
-	pending          chan check.Check         // The channel where checks come from
-	runningChecks    map[check.ID]check.Check // The list of checks running
-	scheduler        *scheduler.Scheduler     // Scheduler runner operates on
-	m                sync.Mutex               // To control races on runningChecks
+	isRunning uint32 // Flag to see if the Runner is, well, running
 
+	id                  int                           // Globally unique identifier for the Runner
+	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
+	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
+	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
+	pendingChecksChan   chan check.Check              // The channel where checks come from
+	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
+	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
+	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
@@ -73,38 +55,97 @@ func NewRunner() *Runner {
 	numWorkers := config.Datadog.GetInt("check_runners")
 
 	r := &Runner{
-		// initialize the channel
-		pending:          make(chan check.Check),
-		runningChecks:    make(map[check.ID]check.Check),
-		running:          1,
-		staticNumWorkers: numWorkers != 0,
+		id:                  int(atomic.AddUint64(&runnerIDGenerator, 1)),
+		isRunning:           1,
+		workers:             make(map[int]*worker.Worker),
+		isStaticWorkerCount: numWorkers != 0,
+		pendingChecksChan:   make(chan check.Check),
+		checksTracker:       tracker.NewRunningChecksTracker(),
 	}
 
-	if !r.staticNumWorkers {
+	if !r.isStaticWorkerCount {
 		numWorkers = config.DefaultNumWorkers
 	}
 
-	// start the workers
-	for i := 0; i < numWorkers; i++ {
-		r.AddWorker()
-	}
+	r.ensureMinWorkers(numWorkers)
 
-	log.Infof("Runner started with %d workers.", numWorkers)
 	return r
 }
 
-// AddWorker adds a new worker to the worker pull
-func (r *Runner) AddWorker() {
-	runnerStats.Add("Workers", 1)
-	TestWg.Add(1)
-	go r.work()
+// EnsureMinWorkers increases the number of workers to match the
+// `desiredNumWorkers` parameter
+func (r *Runner) ensureMinWorkers(desiredNumWorkers int) {
+	r.workersLock.Lock()
+	defer r.workersLock.Unlock()
+
+	currentWorkers := len(r.workers)
+
+	if desiredNumWorkers <= currentWorkers {
+		return
+	}
+
+	workersToAdd := desiredNumWorkers - currentWorkers
+	for idx := 0; idx < workersToAdd; idx++ {
+		worker, err := r.newWorker()
+		if err == nil {
+			r.workers[worker.ID] = worker
+		}
+	}
+
+	log.Infof(
+		"Runner %d added %d workers (total: %d)",
+		r.id,
+		workersToAdd,
+		len(r.workers),
+	)
 }
 
-// UpdateNumWorkers checks if the current number of workers is reasonable, and adds more if needed
-func (r *Runner) UpdateNumWorkers(numChecks int64) {
-	numWorkers, _ := strconv.Atoi(runnerStats.Get("Workers").String())
+// AddWorker adds a single worker to the runner.
+func (r *Runner) AddWorker() {
+	r.workersLock.Lock()
+	defer r.workersLock.Unlock()
 
-	if r.staticNumWorkers {
+	worker, err := r.newWorker()
+	if err == nil {
+		r.workers[worker.ID] = worker
+	}
+}
+
+// addWorker adds a new worker running in a separate goroutine
+func (r *Runner) newWorker() (*worker.Worker, error) {
+	worker, err := worker.NewWorker(
+		r.id,
+		int(atomic.AddUint64(&workerIDGenerator, 1)),
+		r.pendingChecksChan,
+		r.checksTracker,
+		r.ShouldAddCheckStats,
+	)
+	if err != nil {
+		log.Errorf("Runner %d was unable to instantiate a worker: %s", err)
+		return nil, err
+	}
+
+	go func() {
+		defer r.removeWorker(worker.ID)
+
+		worker.Run()
+	}()
+
+	return worker, nil
+}
+
+func (r *Runner) removeWorker(id int) {
+	r.workersLock.Lock()
+	defer r.workersLock.Unlock()
+
+	delete(r.workers, id)
+}
+
+// UpdateNumWorkers checks if the current number of workers is reasonable,
+// and adds more if needed
+func (r *Runner) UpdateNumWorkers(numChecks int64) {
+	// We don't want to update the worker count when we have a static number defined
+	if r.isStaticWorkerCount {
 		return
 	}
 
@@ -123,89 +164,92 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 		desiredNumWorkers = config.MaxNumWorkers
 	}
 
-	// Add workers if we don't have enough for this range
-	added := 0
-	for {
-		if numWorkers >= desiredNumWorkers {
-			break
-		}
-		r.AddWorker()
-		numWorkers++
-		added++
-	}
-	if added > 0 {
-		log.Infof("Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
-	}
+	r.ensureMinWorkers(desiredNumWorkers)
 }
 
 // Stop closes the pending channel so all workers will exit their loop and terminate
 // All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
-	if atomic.LoadUint32(&r.running) == 0 {
-		log.Debug("Runner already stopped, nothing to do here...")
+	if !atomic.CompareAndSwapUint32(&r.isRunning, 1, 0) {
+		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}
 
-	log.Info("Runner is shutting down...")
+	log.Infof("Runner %d is shutting down...", r.id)
+	close(r.pendingChecksChan)
 
-	close(r.pending)
-	atomic.StoreUint32(&r.running, 0)
-
-	// stop checks that are still running
-	r.m.Lock()
-	globalDone := make(chan struct{})
 	wg := sync.WaitGroup{}
 
-	// stop all python subprocesses
-	terminateChecksRunningProcesses()
+	// Stop running checks
+	r.checksTracker.WithRunningChecks(func(runningChecks map[check.ID]check.Check) {
+		// Stop all python subprocesses
+		terminateChecksRunningProcesses()
 
-	// stop running checks
-	for _, c := range r.runningChecks {
-		wg.Add(1)
-		go func(c check.Check) {
-			log.Infof("Stopping Check %v that is still running...", c)
-			done := make(chan struct{})
-			go func() {
-				c.Stop()
-				close(done)
+		for _, c := range runningChecks {
+			wg.Add(1)
+			go func(ch check.Check) {
+				err := r.StopCheck(ch.ID())
+				if err != nil {
+					log.Warnf("Check %v not responding after %v: %s", ch, stopCheckTimeout, err)
+				}
+
 				wg.Done()
-			}()
+			}(c)
+		}
+	})
 
-			select {
-			case <-done:
-				// all good
-			case <-time.After(stopCheckTimeout):
-				// check is not responding
-				log.Warnf("Check %v not responding after %v", c, stopCheckTimeout)
-			}
-		}(c)
-	}
-	r.m.Unlock()
-
+	globalDone := make(chan struct{})
 	go func() {
+		log.Debugf("Runner %d waiting for all the workers to exit...", r.id)
 		wg.Wait()
+
+		log.Debugf("All runner %d workers have been shut down", r.id)
 		close(globalDone)
 	}()
+
 	select {
 	case <-globalDone:
-		// all good
+		log.Infof("Runner %d shut down", r.id)
 	case <-time.After(stopAllChecksTimeout):
-		// some checks are not responding
-		log.Errorf("Some checks not responding after %v, timing out...", stopAllChecksTimeout)
+		log.Errorf(
+			"Some checks on runner %d not responding after %v, timing out...",
+			r.id,
+			stopAllChecksTimeout,
+		)
 	}
 }
 
 // GetChan returns a write-only version of the pending channel
 func (r *Runner) GetChan() chan<- check.Check {
-	return r.pending
+	return r.pendingChecksChan
 }
 
 // SetScheduler sets the scheduler for the runner
 func (r *Runner) SetScheduler(s *scheduler.Scheduler) {
-	r.m.Lock()
-	defer r.m.Unlock()
-
+	r.schedulerLock.Lock()
 	r.scheduler = s
+	r.schedulerLock.Unlock()
+}
+
+// getScheduler gets the scheduler set on the runner
+func (r *Runner) getScheduler() *scheduler.Scheduler {
+	r.schedulerLock.RLock()
+	defer r.schedulerLock.RUnlock()
+
+	return r.scheduler
+}
+
+// ShouldAddCheckStats returns true if check stats should be preserved or not
+func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
+	r.schedulerLock.RLock()
+	defer r.schedulerLock.RUnlock()
+
+	sc := r.getScheduler()
+	if sc == nil || sc.IsCheckScheduled(id) {
+		return true
+	}
+
+	return false
 }
 
 // StopCheck invokes the `Stop` method on a check if it's running. If the check
@@ -213,17 +257,16 @@ func (r *Runner) SetScheduler(s *scheduler.Scheduler) {
 func (r *Runner) StopCheck(id check.ID) error {
 	done := make(chan bool)
 
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Debugf("Stopping check %s", c.ID())
+	stopFunc := func(c check.Check) {
+		log.Debugf("Stopping running check %s...", c.ID())
 		go func() {
 			// Remember that the check was stopped so that even if it runs we can discard its stats
 			c.Stop()
 			close(done)
 		}()
-	} else {
+	}
+
+	if !r.checksTracker.WithCheck(id, stopFunc) {
 		log.Debugf("Check %s is not running, not stopping it", id)
 		return nil
 	}
@@ -234,191 +277,4 @@ func (r *Runner) StopCheck(id check.ID) error {
 	case <-time.After(stopCheckTimeout):
 		return fmt.Errorf("timeout during stop operation on check id %s", id)
 	}
-}
-
-// work waits for checks and run them as long as they arrive on the channel
-func (r *Runner) work() {
-	log.Debug("Ready to process checks...")
-	defer TestWg.Done()
-	defer runnerStats.Add("Workers", -1)
-
-	for check := range r.pending {
-		// see if the check is already running
-		r.m.Lock()
-		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
-			log.Debugf("Check %s is already running, skip execution...", check)
-			r.m.Unlock()
-			continue
-		} else {
-			r.runningChecks[check.ID()] = check
-			runnerStats.Add("RunningChecks", 1)
-		}
-		r.m.Unlock()
-
-		doLog, lastLog := shouldLog(check.ID())
-
-		if doLog {
-			log.Infoc("Running check", "check", check)
-		} else {
-			log.Debugc("Running check", "check", check)
-		}
-
-		// run the check
-		var err error
-		t0 := time.Now()
-
-		err = check.Run()
-		longRunning := check.Interval() == 0
-
-		warnings := check.GetWarnings()
-
-		// use the default sender for the service checks
-		sender, e := aggregator.GetDefaultSender()
-		if e != nil {
-			log.Errorf("Error getting default sender: %v. Not sending status check for %s", e, check)
-		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
-		serviceCheckStatus := metrics.ServiceCheckOK
-
-		hostname := getHostname()
-
-		if len(warnings) != 0 {
-			// len returns int, and this expect int64, so it has to be converted
-			runnerStats.Add("Warnings", int64(len(warnings)))
-			serviceCheckStatus = metrics.ServiceCheckWarning
-		}
-
-		if err != nil {
-			log.Errorf("Error running check %s: %s", check, err)
-			runnerStats.Add("Errors", 1)
-			serviceCheckStatus = metrics.ServiceCheckCritical
-		}
-
-		if sender != nil && !longRunning {
-			sender.ServiceCheck("datadog.agent.check_status", serviceCheckStatus, hostname, serviceCheckTags, "")
-			sender.Commit()
-		}
-
-		// remove the check from the running list
-		r.m.Lock()
-		delete(r.runningChecks, check.ID())
-		r.m.Unlock()
-
-		// publish statistics about this run
-		runnerStats.Add("RunningChecks", -1)
-		runnerStats.Add("Runs", 1)
-
-		r.m.Lock()
-		if !longRunning || len(warnings) != 0 || err != nil {
-			// If the scheduler isn't assigned (it should), just add stats
-			// otherwise only do so if the check is in the scheduler
-			if r.scheduler == nil || r.scheduler.IsCheckScheduled(check.ID()) {
-				mStats, _ := check.GetMetricStats()
-				addWorkStats(check, time.Since(t0), err, warnings, mStats)
-			}
-		}
-		r.m.Unlock()
-
-		l := "Done running check"
-		if doLog {
-			if lastLog {
-				l = l + fmt.Sprintf(", next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
-			}
-			log.Infoc(l, "check", check.String())
-		} else {
-			log.Debugc(l, "check", check.String())
-		}
-
-		if check.Interval() == 0 {
-			log.Infof("Check %v one-time's execution has finished", check)
-			return
-		}
-	}
-
-	log.Debug("Finished processing checks.")
-}
-
-func shouldLog(id check.ID) (doLog bool, lastLog bool) {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
-
-	var nameFound, idFound bool
-	var s *check.Stats
-
-	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
-	name := strings.Split(string(id), ":")[0]
-
-	stats, nameFound := checkStats.Stats[name]
-	if nameFound {
-		s, idFound = stats[id]
-	}
-	// this is the first time we see the check, log it
-	if !idFound {
-		doLog = true
-		lastLog = false
-		return
-	}
-
-	// we log the first firstRunSeries times, then every loggingFrequency times
-	doLog = s.TotalRuns <= firstRunSeries || s.TotalRuns%loggingFrequency == 0
-	// we print a special message when we change logging frequency
-	lastLog = s.TotalRuns == firstRunSeries
-	return
-}
-
-func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats map[string]int64) {
-	var s *check.Stats
-	var found bool
-
-	checkStats.M.Lock()
-	log.Tracef("Add stats for %s", string(c.ID()))
-	stats, found := checkStats.Stats[c.String()]
-	if !found {
-		stats = make(map[check.ID]*check.Stats)
-		checkStats.Stats[c.String()] = stats
-	}
-	s, found = stats[c.ID()]
-	if !found {
-		s = check.NewStats(c)
-		stats[c.ID()] = s
-	}
-	checkStats.M.Unlock()
-
-	s.Add(execTime, err, warnings, mStats)
-}
-
-func expCheckStats() interface{} {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
-
-	return checkStats.Stats
-}
-
-// GetCheckStats returns the check stats map
-func GetCheckStats() map[string]map[check.ID]*check.Stats {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
-
-	return checkStats.Stats
-}
-
-// RemoveCheckStats removes a check from the check stats map
-func RemoveCheckStats(checkID check.ID) {
-	checkStats.M.Lock()
-	defer checkStats.M.Unlock()
-	log.Debugf("Remove stats for %s", string(checkID))
-
-	checkName := strings.Split(string(checkID), ":")[0]
-	stats, found := checkStats.Stats[checkName]
-	if found {
-		delete(stats, checkID)
-		if len(stats) == 0 {
-			delete(checkStats.Stats, checkName)
-		}
-	}
-}
-
-func getHostname() string {
-	hostname, _ := util.GetHostname()
-	return hostname
 }

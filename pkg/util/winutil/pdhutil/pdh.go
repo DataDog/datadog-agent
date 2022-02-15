@@ -1,7 +1,8 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package pdhutil
@@ -132,6 +133,55 @@ const (
 	ERROR_SUCCESS = 0
 )
 
+const (
+	CounterAllProcessPctProcessorTime   = `\Process(*)\% Processor Time`
+	CounterAllProcessPctUserTime        = `\Process(*)\% User Time`
+	CounterAllProcessPctPrivilegedTime  = `\Process(*)\% Privileged Time`
+	CounterAllProcessVirtualBytesPeak   = `\Process(*)\Virtual Bytes Peak`
+	CounterAllProcessVirtualBytes       = `\Process(*)\Virtual Bytes`
+	CounterAllProcessPageFaultsPerSec   = `\Process(*)\Page Faults/sec`
+	CounterAllProcessWorkingSetPeak     = `\Process(*)\Working Set Peak`
+	CounterAllProcessWorkingSet         = `\Process(*)\Working Set`
+	CounterAllProcessPageFileBytesPeak  = `\Process(*)\Page File Bytes Peak`
+	CounterAllProcessPageFileBytes      = `\Process(*)\Page File Bytes`
+	CounterAllProcessPrivateBytes       = `\Process(*)\Private Bytes`
+	CounterAllProcessThreadCount        = `\Process(*)\Thread Count`
+	CounterAllProcessPriorityBase       = `\Process(*)\Priority Base`
+	CounterAllProcessElapsedTime        = `\Process(*)\Elapsed Time`
+	CounterAllProcessPID                = `\Process(*)\ID Process`
+	CounterAllProcessParentPID          = `\Process(*)\Creating Process ID`
+	CounterAllProcessPoolPagedBytes     = `\Process(*)\Pool Paged Bytes`
+	CounterAllProcessPoolNonpagedBytes  = `\Process(*)\Pool Nonpaged Bytes`
+	CounterAllProcessHandleCount        = `\Process(*)\Handle Count`
+	CounterAllProcessIOReadOpsPerSec    = `\Process(*)\IO Read Operations/sec`
+	CounterAllProcessIOWriteOpsPerSec   = `\Process(*)\IO Write Operations/sec`
+	CounterAllProcessIODataOpsPerSec    = `\Process(*)\IO Data Operations/sec`
+	CounterAllProcessIOOtherOpsPerSec   = `\Process(*)\IO Other Operations/sec`
+	CounterAllProcessIOReadBytesPerSec  = `\Process(*)\IO Read Bytes/sec`
+	CounterAllProcessIOWriteBytesPerSec = `\Process(*)\IO Write Bytes/sec`
+	CounterAllProcessIODataBytesPerSec  = `\Process(*)\IO Data Bytes/sec`
+	CounterAllProcessIOOtherBytesPerSec = `\Process(*)\IO Other Bytes/sec`
+	CounterAllProcessWorkingSetPrivate  = `\Process(*)\Working Set - Private`
+)
+
+// PDH_FMT_COUNTERVALUE_ITEM_LONG structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_LONG counter.
+type PDH_FMT_COUNTERVALUE_ITEM_LONG struct {
+	szName *uint8
+	value  PDH_FMT_COUNTERVALUE_LONG
+}
+
+// PDH_FMT_COUNTERVALUE_ITEM_LARGE structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_LARGE counter.
+type PDH_FMT_COUNTERVALUE_ITEM_LARGE struct {
+	szName *uint8
+	value  PDH_FMT_COUNTERVALUE_LARGE
+}
+
+// PDH_FMT_COUNTERVALUE_ITEM_DOUBLE structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_DOUBLE counter.
+type PDH_FMT_COUNTERVALUE_ITEM_DOUBLE struct {
+	szName *uint8
+	value  PDH_FMT_COUNTERVALUE_DOUBLE
+}
+
 // PdhOpenQuery Creates a new query that is used to manage the collection of performance data.
 /*
 Parameters
@@ -171,6 +221,29 @@ Handle to the counter that was added to the query. You may need to reference thi
 func PdhAddCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
 	ptxt, _ := windows.UTF16PtrFromString(szFullCounterPath)
 	ret, _, _ := procPdhAddCounterW.Call(
+		uintptr(hQuery),
+		uintptr(unsafe.Pointer(ptxt)),
+		dwUserData,
+		uintptr(unsafe.Pointer(phCounter)))
+
+	return uint32(ret)
+}
+
+// PdhAddEnglishCounter adds the specified counter to the query
+/*
+Parameters
+hQuery [in]
+Handle to the query to which you want to add the counter. This handle is returned by the PdhOpenQuery function.
+szFullCounterPath [in]
+Null-terminated string that contains the counter path. For details on the format of a counter path, see Specifying a Counter Path. The maximum length of a counter path is PDH_MAX_COUNTER_PATH.
+dwUserData [in]
+User-defined value. This value becomes part of the counter information. To retrieve this value later, call the PdhGetCounterInfo function and access the dwUserData member of the PDH_COUNTER_INFO structure.
+phCounter [out]
+Handle to the counter that was added to the query. You may need to reference this handle in subsequent calls.
+*/
+func PdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
+	ptxt, _ := windows.UTF16PtrFromString(szFullCounterPath)
+	ret, _, _ := procPdhAddEnglishCounterW.Call(
 		uintptr(hQuery),
 		uintptr(unsafe.Pointer(ptxt)),
 		dwUserData,

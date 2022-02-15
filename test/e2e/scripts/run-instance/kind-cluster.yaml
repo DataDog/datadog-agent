@@ -1,0 +1,12 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraMounts:
+  - containerPath: /var/lib/kubelet/config.json
+    hostPath: /root/.docker/config.json
+  - containerPath: /host/datadog-agent
+    hostPath: /home/core/datadog-agent
+  extraPortMappings:
+  - containerPort: 30001
+    hostPort: 443

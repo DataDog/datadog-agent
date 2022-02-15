@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package net
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
 
 var (
@@ -336,6 +338,10 @@ hosts:
 }
 
 func TestDefaultHostConfig(t *testing.T) {
+	// for this test, do not check the cloud providers
+	getCloudProviderNTPHosts = func(_ context.Context) []string { return nil }
+	defer func() { getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts }()
+
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
 	config.Datadog.Set("cloud_provider_metadata", []string{})

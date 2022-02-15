@@ -1,15 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package config
 
 import (
+	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,4 +51,32 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		err := config.Validate()
 		assert.NotNil(t, err)
 	}
+}
+
+func TestAutoMultilineEnabled(t *testing.T) {
+	mockConfig := config.Mock()
+	decode := func(cfg string) *LogsConfig {
+		lc := LogsConfig{}
+		json.Unmarshal([]byte(cfg), &lc)
+		return &lc
+	}
+
+	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled())
+
+	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled())
+
+	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	assert.True(t, decode(`{}`).AutoMultiLineEnabled())
+
+	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled())
+
+	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled())
+
+	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	assert.False(t, decode(`{}`).AutoMultiLineEnabled())
+
 }

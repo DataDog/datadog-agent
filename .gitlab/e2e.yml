@@ -2,25 +2,13 @@
 # e2e stage
 # Contains jobs which runs e2e tests on our Docker images.
 
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
-.if_tagged_commit: &if_tagged_commit
-  if: $CI_COMMIT_TAG != null
-
-.if_deploy_on_tag_6: &if_deploy_on_tag_6
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
-
-.if_deploy_on_tag_7: &if_deploy_on_tag_7
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
-
-.pupernetes_template:
+.k8s_e2e_template:
   stage: e2e
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: []
+  variables:
+    LANG: C.UTF-8
   before_script:
     - cd $SRC_PATH
     - python3.6 -m pip install --user -r requirements.txt
@@ -28,15 +16,10 @@
     - export DOCKER_REGISTRY_PWD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
 
-pupernetes-dev:
-  extends: .pupernetes_template
+k8s-e2e-dev:
+  extends: .k8s_e2e_template
   rules:
-    - <<: *if_master_branch
-      when: never
-    - <<: *if_tagged_commit
-      when: never
-    - when: manual
-      allow_failure: true
+    !reference [.on_dev_branch_manual]
   # Note: pupernetes-dev requires the below jobs to work. However,
   # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
   # Adding the following lines would result in pipelines remaining in a "Running" state forever,
@@ -49,41 +32,97 @@ pupernetes-dev:
   # engineers trigger the correct sequence of jobs when needed.
   needs: []
   script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
 
-pupernetes-master:
-  extends: .pupernetes_template
+k8s-e2e-main:
+  extends: .k8s_e2e_template
+  allow_failure: true # temporary while investigating
   rules:
-    # The job is currently failing with timeouts. In order to not have all pipelines
-    # automatically fail, this job is therefore temporarily allowed to fail.
-    # TODO: Remove "allow_failure: true" once the job is fixed.
-    - <<: *if_master_branch
-      when: on_success
-      allow_failure: true
-  needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
+    !reference [.on_main]
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
   script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
 
-pupernetes-tags-6:
-  extends: .pupernetes_template
+k8s-e2e-tags-6:
+  extends: .k8s_e2e_template
   rules:
-    - <<: *if_deploy_on_tag_6
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_stable_or_beta_repo_branch_a6_manual]
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 6)
     - DCA_VERSION=$(inv -e cluster-agent.version)
-    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
+    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
 
-pupernetes-tags-7:
-  extends: .pupernetes_template
+k8s-e2e-tags-7:
+  extends: .k8s_e2e_template
   rules:
-    - <<: *if_deploy_on_tag_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 7)
     - DCA_VERSION=$(inv -e cluster-agent.version)
-    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
+    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
+
+.k8s-e2e-cws-cspm-init:
+  - set +x
+  - export DATADOG_AGENT_SITE=datadoghq.com
+  - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
+  - export DATADOG_AGENT_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_app_key --with-decryption --query "Parameter.Value" --out text)
+
+k8s-e2e-cws-dev:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_dev_branch_manual]
+  needs: []
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cws
+
+k8s-e2e-cws-main:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_main]
+  needs: []
+  retry: 1
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=cws
+
+k8s-e2e-cspm-dev:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_dev_branch_manual]
+  needs: []
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cspm
+
+k8s-e2e-cspm-main:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_main]
+  needs: []
+  retry: 1
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=cspm
+
+k8s-e2e-otlp-dev:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_dev_branch_manual]
+  needs: [] # See note on k8s-e2e-dev above
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=otlp
+
+k8s-e2e-otlp-main:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_main]
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=otlp

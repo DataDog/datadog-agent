@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package test
 
@@ -18,7 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/viper"
+	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/viper"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -161,9 +162,16 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	if err := v.ReadConfig(bytes.NewReader(conf)); err != nil {
 		return "", err
 	}
-	s.port = 8126
 	if v.IsSet("apm_config.receiver_port") {
 		s.port = v.GetInt("apm_config.receiver_port")
+	} else {
+		if p, err := testutil.FindTCPPort(); err != nil {
+			fmt.Printf("There was an error finding a free port: %v. Trying 8126.\n", err)
+			s.port = 8126
+		} else {
+			s.port = p
+		}
+		v.Set("apm_config.receiver_port", s.port)
 	}
 	v.Set("apm_config.apm_dd_url", "http://"+s.ddAddr)
 	if !v.IsSet("api_key") {
@@ -173,6 +181,10 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1)
 	}
 	v.Set("log_level", "debug")
+
+	// disable remote tagger to avoid running a core agent for testing
+	v.Set("apm_config.remote_tagger", false)
+
 	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {
 		return "", err

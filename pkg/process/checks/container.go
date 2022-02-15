@@ -1,21 +1,27 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
-	"runtime"
+	"context"
 	"sync"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	agentutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // Container is a singleton ContainerCheck.
@@ -32,23 +38,26 @@ type ContainerCheck struct {
 	networkID       string
 
 	containerFailedLogLimit *util.LogLimit
+
+	maxBatchSize int
 }
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
 
-	networkID, err := agentutil.GetNetworkID()
+	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
+	c.maxBatchSize = getMaxBatchSize()
 }
 
 // Name returns the name of the ProcessCheck.
-func (c *ContainerCheck) Name() string { return "container" }
+func (c *ContainerCheck) Name() string { return config.ContainerCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ContainerCheck) RealTime() bool { return false }
@@ -89,11 +98,11 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, nil
 	}
 
-	groupSize := len(ctrList) / cfg.MaxPerMessage
-	if len(ctrList)%cfg.MaxPerMessage != 0 {
+	groupSize := len(ctrList) / c.maxBatchSize
+	if len(ctrList)%c.maxBatchSize != 0 {
 		groupSize++
 	}
-	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, cfg.MaxPerMessage)
+	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, c.maxBatchSize)
 	messages := make([]model.MessageBody, 0, groupSize)
 	totalContainers := float64(0)
 	for i := 0; i < groupSize; i++ {
@@ -120,6 +129,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 
 // fmtContainers loops through container list and converts them to a list of container objects
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {
+	currentTime := time.Now()
 	containersList := make([]*model.Container, 0, len(ctrList))
 	for _, ctr := range ctrList {
 		lastCtr, ok := lastRates[ctr.ID]
@@ -128,13 +138,10 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			lastCtr = util.NullContainerRates
 		}
 
-		// Just in case the container is found, but refs are nil
+		// Just in case the container is found, but refs are nil.
+		// Note some CPU values are set to -1, to be skipped on the backend, because they are reported cumulatively
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
-
-		ifStats := ctr.Network.SumInterfaces()
-		cpus := runtime.NumCPU()
-		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 
 		// Retrieves metadata tags
 		tags, err := tagger.Tag(ctr.EntityID, collectors.HighCardinality)
@@ -150,13 +157,26 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			continue
 		}
 
+		ifStats := ctr.Network.SumInterfaces()
+		cpus := system.HostCPUCount()
+		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
+
+		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, currentTime, lastRun)
+		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
+		var totalPct float32
+		if userPct == -1 || systemPct == -1 {
+			totalPct = -1
+		} else {
+			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
+		}
+
 		containersList = append(containersList, &model.Container{
 			Id:          ctr.ID,
 			Type:        ctr.Type,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
-			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
-			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			UserPct:     userPct,
+			SystemPct:   systemPct,
+			TotalPct:    totalPct,
 			MemoryLimit: ctr.Limits.MemLimit,
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
@@ -204,7 +224,7 @@ func convertAddressList(ctr *containers.Container) []*model.ContainerAddr {
 	addrs := make([]*model.ContainerAddr, 0, len(ctr.AddressList))
 	for _, a := range ctr.AddressList {
 		protocol := model.ConnectionType_tcp
-		if a.Protocol == "UDP" {
+		if a.Protocol == "udp" {
 			protocol = model.ConnectionType_udp
 		}
 		addrs = append(addrs, &model.ContainerAddr{

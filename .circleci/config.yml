@@ -10,12 +10,12 @@ experimental:
   notify:
     branches:
       only:
-        - master
+        - main
 
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11412
+      - image: datadog/datadog-agent-runner-circle:go1176
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -24,16 +24,16 @@ templates:
     - restore_cache: &restore_deps
         keys:
           # The first match will be used. Doing that so new branches
-          # use master's cache but don't pollute it back.
+          # use the default branch's cache but don't pollute it back.
           #
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen16-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen16-godeps-{{ .Branch }}-
-          - gen16-godeps-master-
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-main-
     - save_cache: &save_deps
-        key: gen16-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -63,11 +63,11 @@ jobs:
           command: |
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
-            python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 black~=19.10b0 isort~=5.2.2
+            python3 -m pip install -r .circleci/requirements.txt
       - run:
           name: grab go deps
           command: |
-            inv deps --verbose
+            inv -e deps
       - run:
           name: build rtloader
           command: |
@@ -82,15 +82,15 @@ jobs:
           command: |
             inv rtloader.test
       - run:
-          name: pre-compile go deps
-          command: inv -e agent.build --exclude-rtloader --race --precompile-only
+          name: install go tooling
+          command: |
+            inv -e install-tools
       - save_cache:
           <<: *save_deps
           paths:
-            - /go/src/github.com/DataDog/datadog-agent/vendor
-            - /go/src/github.com/DataDog/datadog-agent/dev
-            - /go/pkg
+            - /go/pkg/mod
             - /go/bin
+            - /go/src/github.com/DataDog/datadog-agent/dev
             - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
@@ -102,11 +102,11 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
+          command: codecov -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
@@ -145,6 +145,15 @@ jobs:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
 
+  licenses_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run license linting
+          command: inv -e lint-licenses
+
   filename_linting:
     <<: *job_template
     steps:
@@ -177,6 +186,11 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run:
+          name: setting env vars for click
+          command: |
+              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
       - run:
           name: lint python files
           command: inv -e lint-python
@@ -213,7 +227,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: build iot agent
-          command: inv -e agent.build --iot
+          command: inv -e agent.build --flavor iot
       - run:
           name: test iot agent
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
@@ -227,56 +241,11 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
-  macos_tests:
-    macos:
-      xcode: 11.7.0
-    environment:
-      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
-    working_directory: ~/go/src/github.com/DataDog/datadog-agent
-    steps:
-      - checkout
-      - run:
-          name: Setup runner
-          command: |
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
-      - run:
-          name: Install python deps & clang-format
-          command: |
-            brew install clang-format
-            python3 -m pip install -r requirements.txt
-      - run:
-          name: Compile rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.make --install-prefix=$GOPATH/src/github.com/DataDog/datadog-agent/dev
-            inv rtloader.install
-      - run:
-          name: Lint rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.format --raise-if-changed
-      - run:
-          name: Test rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.test
-      - run:
-          name: Run tests
-          command: |
-            source ~/.build_setup
-
-            inv -e deps
-            inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
-
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
-      - macos_tests
       - dependencies:
           requires:
             - checkout_code
@@ -287,12 +256,27 @@ workflows:
           requires:
             - dependencies
       - release_note:
+          filters:
+            branches:
+              ignore:
+                - main
           requires:
             - dependencies
       - team_label:
+          filters:
+            branches:
+              ignore:
+                - main
           requires:
             - dependencies
       - milestone:
+          filters:
+            branches:
+              ignore:
+                - main
+          requires:
+            - dependencies
+      - licenses_linting:
           requires:
             - dependencies
       - filename_linting:

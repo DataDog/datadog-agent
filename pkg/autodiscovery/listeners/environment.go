@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 package listeners
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +31,7 @@ func init() {
 }
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener() (ServiceListener, error) {
+func NewEnvironmentListener(Config) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
@@ -49,12 +50,13 @@ func (l *EnvironmentListener) Stop() {
 
 func (l *EnvironmentListener) createServices() {
 	features := map[string]config.Feature{
-		"docker":      config.Docker,
-		"kubelet":     config.Kubernetes,
-		"ecs_fargate": config.ECSFargate,
-		"eks_fargate": config.EKSFargate,
-		"cri":         config.Cri,
-		"containerd":  config.Containerd,
+		"docker":            config.Docker,
+		"kubelet":           config.Kubernetes,
+		"ecs_fargate":       config.ECSFargate,
+		"eks_fargate":       config.EKSFargate,
+		"cri":               config.Cri,
+		"containerd":        config.Containerd,
+		"kube_orchestrator": config.KubeOrchestratorExplorer,
 	}
 
 	for name, feature := range features {
@@ -63,10 +65,24 @@ func (l *EnvironmentListener) createServices() {
 			l.newService <- &EnvironmentService{adIdentifier: "_" + name}
 		}
 	}
+
+	// Handle generic container check auto-activation.
+	containerFeatures := []config.Feature{config.Docker, config.Containerd, config.Cri, config.ECSFargate, config.Podman}
+	if !config.IsFeaturePresent(config.EKSFargate) {
+		containerFeatures = append(containerFeatures, config.Kubernetes)
+	}
+
+	for _, f := range containerFeatures {
+		if config.IsFeaturePresent(f) {
+			log.Infof("Listener created container service from environment")
+			l.newService <- &EnvironmentService{adIdentifier: "_container"}
+			break
+		}
+	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *EnvironmentService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *EnvironmentService) GetServiceID() string {
 	return s.adIdentifier
 }
 
@@ -76,17 +92,17 @@ func (s *EnvironmentService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for an environment service
-func (s *EnvironmentService) GetADIdentifiers() ([]string, error) {
+func (s *EnvironmentService) GetADIdentifiers(context.Context) ([]string, error) {
 	return []string{s.adIdentifier}, nil
 }
 
 // GetHosts is not supported
-func (s *EnvironmentService) GetHosts() (map[string]string, error) {
+func (s *EnvironmentService) GetHosts(context.Context) (map[string]string, error) {
 	return nil, ErrNotSupported
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetPorts() ([]ContainerPort, error) {
+func (s *EnvironmentService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
@@ -97,27 +113,22 @@ func (s *EnvironmentService) GetTags() ([]string, string, error) {
 
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
-func (s *EnvironmentService) GetPid() (int, error) {
+func (s *EnvironmentService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetHostname() (string, error) {
+func (s *EnvironmentService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
-// GetCreationTime is always before for environment service
-func (s *EnvironmentService) GetCreationTime() integration.CreationTime {
-	return integration.Before
-}
-
 // IsReady is always true
-func (s *EnvironmentService) IsReady() bool {
+func (s *EnvironmentService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames is not supported
-func (s *EnvironmentService) GetCheckNames() []string {
+func (s *EnvironmentService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

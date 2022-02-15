@@ -1,7 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+//go:build test
+// +build test
 
 package split
 
@@ -67,7 +70,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		testSeries = append(testSeries, &point)
 	}
 
-	payloads, err := Payloads(testSeries, compress, MarshalJSON)
+	payloads, err := Payloads(testSeries, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
 	originalLength := len(testSeries)
@@ -117,7 +120,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries, true, MarshalJSON)
+		r, _ = Payloads(testSeries, true, JSONMarshalFct)
 
 	}
 	// ensure we actually had to split
@@ -179,7 +182,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		testEvent = append(testEvent, &event)
 	}
 
-	payloads, err := Payloads(testEvent, compress, MarshalJSON)
+	payloads, err := Payloads(testEvent, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
 	originalLength := len(testEvent)
@@ -244,7 +247,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 		testServiceChecks = append(testServiceChecks, &sc)
 	}
 
-	payloads, err := Payloads(testServiceChecks, compress, MarshalJSON)
+	payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
 	originalLength := len(testServiceChecks)
@@ -299,7 +302,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 		testSketchSeries[i] = metrics.Makeseries(i)
 	}
 
-	payloads, err := Payloads(testSketchSeries, compress, MarshalJSON)
+	payloads, err := Payloads(testSketchSeries, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
 	var splitSketches = []metrics.SketchSeriesList{}
@@ -318,7 +321,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 	}
 
 	originalLength := len(testSketchSeries)
-	unrolledSketches := []metrics.SketchSeries{}
+	unrolledSketches := metrics.SketchSeriesList{}
 	for _, sketches := range splitSketches {
 		for _, s := range sketches {
 			unrolledSketches = append(unrolledSketches, s)

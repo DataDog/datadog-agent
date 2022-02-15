@@ -1,14 +1,38 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
+	"strings"
 	"time"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	spNS  = "system_probe_config"
+	netNS = "network_config"
+	smNS  = "service_monitoring_config"
+
+	defaultUDPTimeoutSeconds       = 30
+	defaultUDPStreamTimeoutSeconds = 120
+
+	defaultOffsetThreshold = 400
+	maxOffsetThreshold     = 3000
 )
 
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
 	ebpf.Config
+
+	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
+	ServiceMonitoringEnabled bool
 
 	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
 	CollectTCPConns bool
@@ -37,14 +61,27 @@ type Config struct {
 	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
 	DNSTimeout time.Duration
 
+	// MaxDNSStats determines the number of separate DNS Stats objects DNSStatkeeper can have at any given time
+	// These stats objects get flushed on every client request (default 30s check interval)
+	MaxDNSStats int
+
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
-	// connection as inactive.
-	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
-	//       between a source and destination IP and port.
+	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
+	// Supported libraries: OpenSSL
+	EnableHTTPSMonitoring bool
+
+	// UDPConnTimeout determines the length of traffic inactivity between two
+	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
+	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
+	// default.
 	UDPConnTimeout time.Duration
+
+	// UDPStreamTimeout is the timeout for udp streams. This is set to
+	// /proc/sys/net/netfilter/nf_conntrack_udp_timeout_stream on Linux by
+	// default.
+	UDPStreamTimeout time.Duration
 
 	// TCPConnTimeout is like UDPConnTimeout, but for TCP connections. TCP connections are cleared when
 	// the BPF module receives a tcp_close call, but TCP connections also age out to catch cases where
@@ -62,9 +99,13 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered int
 
-	// MaxDNSStatsBufferred represents the maximum number of DNS stats we'll buffer in memory. These stats
+	// MaxDNSStatsBuffered represents the maximum number of DNS stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
-	MaxDNSStatsBufferred int
+	MaxDNSStatsBuffered int
+
+	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxHTTPStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -73,8 +114,12 @@ type Config struct {
 	// ClientStateExpiry specifies the max time a client (e.g. process-agent)'s state will be stored in memory before being evicted.
 	ClientStateExpiry time.Duration
 
-	// EnableConntrack enables probing conntrack for network address translation via netlink
+	// EnableConntrack enables probing conntrack for network address translation
 	EnableConntrack bool
+
+	// IgnoreConntrackInitFailure will ignore any conntrack initialization failiures during system-probe load. If this is set to false, system-probe
+	// will fail to start if there is a conntrack initialization failure.
+	IgnoreConntrackInitFailure bool
 
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
@@ -82,6 +127,9 @@ type Config struct {
 	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
+
+	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
+	ConntrackInitTimeout time.Duration
 
 	// EnableConntrackAllNamespaces enables network address translation via netlink for all namespaces that are peers of the root namespace.
 	// default is true
@@ -104,37 +152,115 @@ type Config struct {
 
 	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
+
+	// EnableGatewayLookup enables looking up gateway information for connection destinations
+	EnableGatewayLookup bool
+
+	// RecordedQueryTypes enables specific DNS query types to be recorded
+	RecordedQueryTypes []string
+
+	// HTTP replace rules
+	HTTPReplaceRules []*ReplaceRule
 }
 
-// NewDefaultConfig enables traffic collection for all connection types
-func NewDefaultConfig() *Config {
-	return &Config{
-		Config:                       *ebpf.NewDefaultConfig(),
-		CollectTCPConns:              true,
-		CollectUDPConns:              true,
-		CollectIPv6Conns:             true,
-		CollectLocalDNS:              false,
-		DNSInspection:                true,
-		EnableHTTPMonitoring:         false,
-		UDPConnTimeout:               30 * time.Second,
-		TCPConnTimeout:               2 * time.Minute,
-		TCPClosedTimeout:             time.Second,
-		MaxTrackedConnections:        65536,
-		ConntrackMaxStateSize:        65536,
-		ConntrackRateLimit:           500,
-		EnableConntrackAllNamespaces: true,
-		EnableConntrack:              true,
-		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
-		MaxClosedConnectionsBuffered: 50000,
-		MaxConnectionsStateBuffered:  75000,
-		MaxDNSStatsBufferred:         75000,
+func join(pieces ...string) string {
+	return strings.Join(pieces, ".")
+}
+
+// New creates a config for the network tracer
+func New() *Config {
+	cfg := ddconfig.Datadog
+	ddconfig.InitSystemProbeConfig(cfg)
+
+	c := &Config{
+		Config: *ebpf.NewConfig(),
+
+		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+
+		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
+		TCPConnTimeout:   2 * time.Minute,
+		TCPClosedTimeout: 1 * time.Second,
+
+		CollectUDPConns:  !cfg.GetBool(join(spNS, "disable_udp")),
+		UDPConnTimeout:   defaultUDPTimeoutSeconds * time.Second,
+		UDPStreamTimeout: defaultUDPStreamTimeoutSeconds * time.Second,
+
+		CollectIPv6Conns:               !cfg.GetBool(join(spNS, "disable_ipv6")),
+		OffsetGuessThreshold:           uint64(cfg.GetInt64(join(spNS, "offset_guess_threshold"))),
+		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
+		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
+
+		MaxTrackedConnections:        uint(cfg.GetInt(join(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered: cfg.GetInt(join(spNS, "max_closed_connections_buffered")),
+		ClosedChannelSize:            cfg.GetInt(join(spNS, "closed_channel_size")),
+		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:            2 * time.Minute,
-		ClosedChannelSize:            500,
-		// DNS Stats related configurations
-		CollectDNSStats:      true,
-		CollectDNSDomains:    false,
-		DNSTimeout:           15 * time.Second,
-		OffsetGuessThreshold: 400,
-		EnableMonotonicCount: false,
+
+		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
+		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
+		CollectLocalDNS:     cfg.GetBool(join(spNS, "collect_local_dns")),
+		CollectDNSDomains:   cfg.GetBool(join(spNS, "collect_dns_domains")),
+		MaxDNSStats:         cfg.GetInt(join(spNS, "max_dns_stats")),
+		MaxDNSStatsBuffered: 75000,
+		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
+
+		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		MaxHTTPStatsBuffered:  100000,
+
+		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
+		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
+		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
+
+		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
+
+		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
+		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
+
+		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 	}
+
+	httpRRKey := join(netNS, "http_replace_rules")
+	rr, err := parseReplaceRules(cfg, httpRRKey)
+	if err != nil {
+		log.Errorf("error parsing %q: %v", httpRRKey, err)
+	} else {
+		c.HTTPReplaceRules = rr
+	}
+
+	if c.OffsetGuessThreshold > maxOffsetThreshold {
+		log.Warn("offset_guess_threshold exceeds maximum of 3000. Setting it to the default of 400")
+		c.OffsetGuessThreshold = defaultOffsetThreshold
+	}
+
+	if !kernel.IsIPv6Enabled() {
+		c.CollectIPv6Conns = false
+		log.Info("network tracer IPv6 tracing disabled by system")
+	} else if !c.CollectIPv6Conns {
+		log.Info("network tracer IPv6 tracing disabled by configuration")
+	}
+
+	if !c.CollectUDPConns {
+		log.Info("network tracer UDP tracing disabled by configuration")
+	}
+	if !c.CollectTCPConns {
+		log.Info("network tracer TCP tracing disabled by configuration")
+	}
+	if !c.DNSInspection {
+		log.Info("network tracer DNS inspection disabled by configuration")
+	}
+
+	if c.ServiceMonitoringEnabled {
+		cfg.Set(join(netNS, "enable_http_monitoring"), true)
+		c.EnableHTTPMonitoring = true
+		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
+			cfg.Set(join(netNS, "enable_https_monitoring"), true)
+			c.EnableHTTPSMonitoring = true
+		}
+	}
+
+	return c
 }

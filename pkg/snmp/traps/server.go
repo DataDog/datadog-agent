@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
 package traps
 
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 )
 
 // SnmpPacket is the type of packets yielded by server listeners.
@@ -22,7 +22,7 @@ type SnmpPacket struct {
 // PacketsChannel is the type of channels of trap packets.
 type PacketsChannel = chan *SnmpPacket
 
-// TrapServer manages an SNMPv2 trap listener.
+// TrapServer manages an SNMP trap listener.
 type TrapServer struct {
 	Addr     string
 	config   *Config
@@ -36,8 +36,8 @@ var (
 )
 
 // StartServer starts the global trap server.
-func StartServer() error {
-	server, err := NewTrapServer()
+func StartServer(agentHostname string) error {
+	server, err := NewTrapServer(agentHostname)
 	serverInstance = server
 	startError = err
 	return err
@@ -63,15 +63,15 @@ func GetPacketsChannel() PacketsChannel {
 }
 
 // NewTrapServer configures and returns a running SNMP traps server.
-func NewTrapServer() (*TrapServer, error) {
-	config, err := ReadConfig()
+func NewTrapServer(agentHostname string) (*TrapServer, error) {
+	config, err := ReadConfig(agentHostname)
 	if err != nil {
 		return nil, err
 	}
 
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPv2Listener(config, packets)
+	listener, err := startSNMPTrapListener(config, packets)
 	if err != nil {
 		return nil, err
 	}
@@ -85,12 +85,16 @@ func NewTrapServer() (*TrapServer, error) {
 	return server, nil
 }
 
-func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
+func startSNMPTrapListener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
+	var err error
 	listener := gosnmp.NewTrapListener()
-	listener.Params = c.BuildV2Params()
+	listener.Params, err = c.BuildSNMPParams()
+	if err != nil {
+		return nil, err
+	}
 
 	listener.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		if err := validateCredentials(p, c); err != nil {
+		if err := validatePacket(p, c); err != nil {
 			log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
 			trapsPacketsAuthErrors.Add(1)
 			return
@@ -113,7 +117,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListene
 
 	select {
 	// Wait for listener to be started and listening to traps.
-	// See: https://godoc.org/github.com/soniah/gosnmp#TrapListener.Listening
+	// See: https://godoc.org/github.com/gosnmp/gosnmp#TrapListener.Listening
 	case <-listener.Listening():
 		break
 	// If the listener failed to start (eg because it couldn't bind to a socket),

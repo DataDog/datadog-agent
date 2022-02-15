@@ -1,7 +1,7 @@
 """
 systray tasks
 """
-from __future__ import print_function
+
 
 import os
 import sys
@@ -16,18 +16,7 @@ AGENT_TAG = "datadog/agent:master"
 
 
 @task
-def build(
-    ctx,
-    rebuild=False,
-    race=False,
-    iot=False,
-    development=True,
-    precompile_only=False,
-    skip_assets=False,
-    major_version='7',
-    arch="x64",
-    go_mod="vendor",
-):
+def build(ctx, rebuild=False, race=False, major_version='7', arch="x64", go_mod="mod"):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -43,7 +32,7 @@ def build(
     # This generates the manifest resource. The manifest resource is necessary for
     # being able to load the ancient C-runtime that comes along with Python 2.7
     # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-    ver = get_version_numeric_only(ctx, env=os.environ, major_version=major_version)
+    ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     env = {}
     windres_target = "pe-x86-64"
@@ -51,9 +40,7 @@ def build(
         env["GOARCH"] = "386"
         windres_target = "pe-i386"
 
-    command = "windres -v  --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
-        build_maj=build_maj, build_min=build_min, build_patch=build_patch, target_arch=windres_target
-    )
+    command = f"windres -v  --target {windres_target} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} "
     command += "-i cmd/systray/systray.rc -O coff -o cmd/systray/rsrc.syso"
     ctx.run(command)
     ldflags = get_version_ldflags(ctx, major_version=major_version)

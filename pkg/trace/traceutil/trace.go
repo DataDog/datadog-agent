@@ -1,22 +1,48 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package traceutil
 
 import (
-	"math"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	envKey     = "env"
+	versionKey = "version"
+)
+
 // GetEnv returns the first "env" tag found in trace t.
-func GetEnv(t pb.Trace) string {
-	for _, s := range t {
-		if v, ok := s.Meta["env"]; ok {
-			// exit this on first success
+// Search starts by root
+func GetEnv(root *pb.Span, t *pb.TraceChunk) string {
+	if v, ok := root.Meta[envKey]; ok {
+		return v
+	}
+	for _, s := range t.Spans {
+		if s.SpanID == root.SpanID {
+			continue
+		}
+		if v, ok := s.Meta[envKey]; ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// GetAppVersion returns the first "version" tag found in trace t.
+// Search starts by root
+func GetAppVersion(root *pb.Span, t *pb.TraceChunk) string {
+	if v, ok := root.Meta[versionKey]; ok {
+		return v
+	}
+	for _, s := range t.Spans {
+		if s.SpanID == root.SpanID {
+			continue
+		}
+		if v, ok := s.Meta[versionKey]; ok {
 			return v
 		}
 	}
@@ -61,28 +87,6 @@ func GetRoot(t pb.Trace) *pb.Span {
 
 	// Gracefully fail with the last span of the trace
 	return t[len(t)-1]
-}
-
-// APITrace returns an APITrace from t, as required by the Datadog API.
-// It also returns an estimated size in bytes.
-func APITrace(t pb.Trace) *pb.APITrace {
-	earliest, latest := int64(math.MaxInt64), int64(0)
-	for _, s := range t {
-		start := s.Start
-		if start < earliest {
-			earliest = start
-		}
-		end := s.Start + s.Duration
-		if end > latest {
-			latest = end
-		}
-	}
-	return &pb.APITrace{
-		TraceID:   t[0].TraceID,
-		Spans:     t,
-		StartTime: earliest,
-		EndTime:   latest,
-	}
 }
 
 // ChildrenMap returns a map containing for each span id the list of its

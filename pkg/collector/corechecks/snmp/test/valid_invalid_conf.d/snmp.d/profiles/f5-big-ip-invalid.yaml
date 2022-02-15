@@ -1,0 +1,16 @@
+# Profile for F5 BIG-IP devices
+#
+extends:
+  - _base.yaml
+  - _generic-if.yaml
+
+device:
+  vendor: "f5"
+
+
+sysobjectid: 1.3.6.1.4.1.3375.2.1.3.99.*
+
+metrics:
+  - MIB: F5-BIGIP-SYSTEM-MIB
+    forced_type: gauge
+    symbol: sysStatMemoryTotal  # invalid

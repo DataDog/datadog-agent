@@ -1,26 +1,28 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,35 +30,37 @@ import (
 
 const (
 	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
+	kubeServicesName            = "kube_services"
 )
 
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
-	informer      infov1.ServiceInformer
-	services      map[types.UID]Service
-	promInclAnnot common.PrometheusAnnotations
-	newService    chan<- Service
-	delService    chan<- Service
-	m             sync.RWMutex
+	informer          infov1.ServiceInformer
+	services          map[k8stypes.UID]Service
+	promInclAnnot     types.PrometheusAnnotations
+	newService        chan<- Service
+	delService        chan<- Service
+	targetAllServices bool
+	m                 sync.RWMutex
 }
 
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
-	entity       string
-	tags         []string
-	hosts        map[string]string
-	ports        []ContainerPort
-	creationTime integration.CreationTime
+	entity string
+	tags   []string
+	hosts  map[string]string
+	ports  []ContainerPort
 }
 
 // Make sure KubeServiceService implements the Service interface
 var _ Service = &KubeServiceService{}
 
 func init() {
-	Register("kube_services", NewKubeServiceListener)
+	Register(kubeServicesName, NewKubeServiceListener)
 }
 
-func NewKubeServiceListener() (ServiceListener, error) {
+func NewKubeServiceListener(conf Config) (ServiceListener, error) {
+	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -68,9 +72,10 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	}
 
 	return &KubeServiceListener{
-		services:      make(map[types.UID]Service),
-		informer:      servicesInformer,
-		promInclAnnot: common.GetPrometheusIncludeAnnotations(),
+		services:          make(map[k8stypes.UID]Service),
+		informer:          servicesInformer,
+		promInclAnnot:     getPrometheusIncludeAnnotations(),
+		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
 	}, nil
 }
 
@@ -91,7 +96,7 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 		log.Errorf("Cannot list Kubernetes services: %s", err)
 	}
 	for _, s := range services {
-		l.createService(s, true)
+		l.createService(s)
 	}
 }
 
@@ -106,7 +111,7 @@ func (l *KubeServiceListener) added(obj interface{}) {
 		log.Errorf("Expected a Service type, got: %v", obj)
 		return
 	}
-	l.createService(castedObj, false)
+	l.createService(castedObj)
 }
 
 func (l *KubeServiceListener) deleted(obj interface{}) {
@@ -129,12 +134,12 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %v", old)
-		l.createService(castedObj, false)
+		l.createService(castedObj)
 		return
 	}
 	if servicesDiffer(castedObj, castedOld) || l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		l.removeService(castedObj)
-		l.createService(castedObj, false)
+		l.createService(castedObj)
 	}
 }
 
@@ -174,32 +179,37 @@ func servicesDiffer(first, second *v1.Service) bool {
 	return false
 }
 
-func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
+func (l *KubeServiceListener) shouldIgnore(ksvc *v1.Service) bool {
+	if l.targetAllServices {
+		return false
+	}
+
+	// Ignore services with no AD or Prometheus AD include annotation
+	return !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
+}
+
+func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	if ksvc == nil {
 		return
 	}
 
-	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations()) {
-		// Ignore services with no AD or Prometheus AD include annotation
+	if l.shouldIgnore(ksvc) {
 		return
 	}
 
-	svc := processService(ksvc, firstRun)
+	svc := processService(ksvc)
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
 	l.m.Unlock()
 
 	l.newService <- svc
+	telemetry.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
 }
 
-func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
+func processService(ksvc *v1.Service) *KubeServiceService {
 	svc := &KubeServiceService{
-		entity:       apiserver.EntityForService(ksvc),
-		creationTime: integration.After,
-	}
-	if firstRun {
-		svc.creationTime = integration.Before
+		entity: apiserver.EntityForService(ksvc),
 	}
 
 	// Service tags
@@ -245,39 +255,40 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 		l.m.Unlock()
 
 		l.delService <- svc
+		telemetry.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *KubeServiceService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeServiceService) GetServiceID() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubeServiceService) GetTaggerEntity() string {
 	return s.entity
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
+func (s *KubeServiceService) GetADIdentifiers(context.Context) ([]string, error) {
 	// Only the entity for now, to match on annotation
 	return []string{s.entity}, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeServiceService) GetHosts() (map[string]string, error) {
+func (s *KubeServiceService) GetHosts(context.Context) (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPid is not supported for PodContainerService
-func (s *KubeServiceService) GetPid() (int, error) {
+func (s *KubeServiceService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -287,23 +298,18 @@ func (s *KubeServiceService) GetTags() ([]string, string, error) {
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeServiceService) GetHostname() (string, error) {
+func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
-// GetCreationTime returns the creation time of the service compare to the agent start.
-func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
-}
-
 // IsReady returns if the service is ready
-func (s *KubeServiceService) IsReady() bool {
+func (s *KubeServiceService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
 // KubeServiceService doesn't implement this method
-func (s *KubeServiceService) GetCheckNames() []string {
+func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

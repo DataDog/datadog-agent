@@ -2,24 +2,43 @@
 # pkg_metrics stage
 # Contains jobs which send metrics (package size) about the Linus Agent packages to our backend.
 
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
+.add_metric_func:
+  script:
+    - apt-get install -y jq
+    # Build up a JSON body in $post_body.
+    # To send metrics accumulated in $post_body by add_metric, use the .send_metrics script
+    - 'post_body="{\"series\": []}"'
+    - currenttime=$(date +%s)
+    - |
+        add_metric() {
+            local metric="${1}"
+            shift
+            local value="${1}"
+            shift
 
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
+            local tags=[]
+            while [ -n "${1}" ]; do
+                tags=$(echo $tags | jq -c ". += [\"${1}\"]")
+                shift
+            done
 
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
+            post_body=$(echo $post_body | jq -c ".series += [{\"metric\":\"$metric\", \"points\":[[$currenttime, $value]],\"tags\":$tags}]")
+        }
+
+.send_metrics:
+  script:
+    # Send the metrics accumulated by add_metric
+    - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
+    - 'curl --fail -X POST -H "Content-type: application/json" -d "$post_body" "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"'
+
 
 send_pkg_size-a6:
   allow_failure: true
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
@@ -52,21 +71,19 @@ send_pkg_size-a6:
     - |
       curl --fail -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\"]}
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\"]}
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
 send_pkg_size-a7:
   allow_failure: true
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a7]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
@@ -83,10 +100,32 @@ send_pkg_size-a7:
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
   script:
+    - !reference [.add_metric_func, script]
+
     - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent
     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd /tmp/rpm/iot-agent
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd /tmp/suse/iot-agent
+
+    - |
+        add_metrics() {
+            local base="${1}"
+            local os="${2}"
+
+            # record the total uncompressed size of each package
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH
+
+            # record the size of each of the important binaries in each package
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/trace-agent | sed 's/\([0-9]\+\).\+/\1/') bin:trace-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/security-agent | sed 's/\([0-9]\+\).\+/\1/') bin:security-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/process-agent | sed 's/\([0-9]\+\).\+/\1/') bin:process-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH
+        }
 
     # We silence dpkg and cpio output so we don't exceed gitlab log limit
 
@@ -94,37 +133,104 @@ send_pkg_size-a7:
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb /tmp/deb/agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb /tmp/deb/iot-agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb /tmp/deb/dogstatsd > /dev/null
-    - DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/agent | sed 's/\([0-9]\+\).\+/\1/')
-    - DEB_DOGSTATSD_SIZE=$(du -sB1 /tmp/deb/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
-    - DEB_IOT_AGENT_SIZE=$(du -sB1 /tmp/deb/iot-agent | sed 's/\([0-9]\+\).\+/\1/')
+    - add_metrics /tmp/deb debian
+
     # centos
     - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/rpm/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
-    - RPM_DOGSTATSD_SIZE=$(du -sB1 /tmp/rpm/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
-    - RPM_IOT_AGENT_SIZE=$(du -sB1 /tmp/rpm/iot-agent | sed 's/\([0-9]\+\).\+/\1/')
+    - add_metrics /tmp/rpm centos
+
     # suse
     - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/suse/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/agent | sed 's/\([0-9]\+\).\+/\1/')
-    - SUSE_DOGSTATSD_SIZE=$(du -sB1 /tmp/suse/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
-    - SUSE_IOT_AGENT_SIZE=$(du -sB1 /tmp/suse/iot-agent | sed 's/\([0-9]\+\).\+/\1/')
+    - add_metrics /tmp/suse suse
 
-    - currenttime=$(date +%s)
-    - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
+    # Send package and binary size metrics
+    - !reference [.send_metrics, script]
+
+.check_pkg_size:
+  stage: pkg_metrics
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    - !reference [.add_metric_func, script]
+
+    - ls -l $OMNIBUS_PACKAGE_DIR
+    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+    - source /root/.bashrc && conda activate ddpy3
+    - export failures=0
+    - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
+    # Get stable packages from S3 buckets, send new package sizes & compare stable and new package sizes
+    # The loop assumes that all flavors start with "da", which is currently the case
+    # We want to run all package size comparisons before failing, so we set +e while doing the comparisons
+    # to get the error codes without exiting the shell.
     - |
-      curl --fail -X POST -H "Content-type: application/json" \
-      -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_IOT_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:iot-agent\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_IOT_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:iot-agent\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_IOT_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:iot-agent\", \"agent:7\"]}
-          ]}" \
-      "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
+        for flavor in ${FLAVORS}; do
+            mkdir -p "/tmp/stable/${flavor}" "/tmp/stable/${flavor}/suse"
+            curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_amd64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
+            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
+            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+            
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_amd64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+
+            set +e
+            inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_amd64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
+            failures=$((${failures}+$?))
+            inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
+            failures=$((${failures}+$?))
+            inv package.compare-size --package-type "${flavor} suse rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+            failures=$((${failures}+$?))
+            set -e
+        done
+
+    # Send package size metrics
+    - !reference [.send_metrics, script]
+
+    # Make the job fail if at least one package is above threshold
+    - if [ "${failures}" -ne "0" ]; then false; fi
+
+check_pkg_size-a6:
+  extends: .check_pkg_size
+  rules:
+    !reference [.on_a6]
+  needs:
+    - agent_deb-x64-a6
+    - agent_rpm-x64-a6
+    - agent_suse-x64-a6
+  variables:
+    MAJOR_VERSION: 6
+    FLAVORS: "datadog-agent"
+  before_script:
+    - |
+        declare -Ar max_sizes=(
+            ["datadog-agent"]="15000000"
+        )
+
+check_pkg_size-a7:
+  extends: .check_pkg_size
+  rules:
+    !reference [.on_a7]
+  needs:
+    - agent_deb-x64-a7
+    - iot_agent_deb-x64
+    - dogstatsd_deb-x64
+    - agent_rpm-x64-a7
+    - iot_agent_rpm-x64
+    - dogstatsd_rpm-x64
+    - agent_suse-x64-a7
+    - dogstatsd_suse-x64
+    - iot_agent_suse-x64
+  variables:
+    MAJOR_VERSION: 7
+    FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
+  before_script:
+    - |
+        declare -Ar max_sizes=(
+            ["datadog-agent"]="15000000"
+            ["datadog-iot-agent"]="10000000"
+            ["datadog-dogstatsd"]="10000000"
+        )

@@ -2,8 +2,7 @@
 #include <map>
 #include <string>
 
-static const std::map<DWORD, std::wstring> lmerrors =
-{
+static const std::map<DWORD, std::wstring> lmerrors = {
     {2, L"The workstation driver is not installed."},
     {3, L"The server could not be located."},
     {4, L"An internal error occurred."},
@@ -322,7 +321,8 @@ static const std::map<DWORD, std::wstring> lmerrors =
     {613, L"Offline join operation successfully completed but a restart is needed."},
     {614, L"There was no offline join operation pending."},
     {615, L"Unable to set one or more requested machine or domain name values on the local computer."},
-    {616, L"Could not verify the current machine's hostname against the saved value in the join completion information."},
+    {616,
+     L"Could not verify the current machine's hostname against the saved value in the join completion information."},
     {617, L"Unable to load the specified offline registry hive."},
     {618, L"The minimum session security requirements for this operation were not met."},
     {619, L"Computer account provisioning blob version is not supported."},
@@ -332,5 +332,4 @@ static const std::map<DWORD, std::wstring> lmerrors =
     {623, L"The Windows version of the specified image does not support provisioning."},
     {624, L"The machine name is blocked from joining the domain."},
     {625, L"The domain controller does not meet the version requirement for this operation."},
-    {899, L"This is the last error in NERR range."}
-};
+    {899, L"This is the last error in NERR range."}};

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -12,6 +12,7 @@ import (
 	"net/http/httptrace"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,11 +26,11 @@ type Worker struct {
 	// Client the http client used to processed transactions.
 	Client *http.Client
 	// HighPrio is the channel used to receive high priority transaction from the Forwarder.
-	HighPrio <-chan Transaction
+	HighPrio <-chan transaction.Transaction
 	// LowPrio is the channel used to receive low priority transaction from the Forwarder.
-	LowPrio <-chan Transaction
+	LowPrio <-chan transaction.Transaction
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
-	RequeueChan chan<- Transaction
+	RequeueChan chan<- transaction.Transaction
 
 	resetConnectionChan chan struct{}
 	stopChan            chan struct{}
@@ -39,7 +40,11 @@ type Worker struct {
 
 // NewWorker returns a new worker to consume Transaction from inputChan
 // and push back erroneous ones into requeueChan.
-func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, requeueChan chan<- Transaction, blocked *blockedEndpoints) *Worker {
+func NewWorker(
+	highPrioChan <-chan transaction.Transaction,
+	lowPrioChan <-chan transaction.Transaction,
+	requeueChan chan<- transaction.Transaction,
+	blocked *blockedEndpoints) *Worker {
 	return &Worker{
 		HighPrio:            highPrioChan,
 		LowPrio:             lowPrioChan,
@@ -129,7 +134,7 @@ func (w *Worker) ScheduleConnectionReset() {
 
 // callProcess will process a transaction and cancel it if we need to stop the
 // worker.
-func (w *Worker) callProcess(t Transaction) error {
+func (w *Worker) callProcess(t transaction.Transaction) error {
 	// poll for connection reset events first
 	select {
 	case <-w.resetConnectionChan:
@@ -138,7 +143,7 @@ func (w *Worker) callProcess(t Transaction) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = httptrace.WithClientTrace(ctx, trace)
+	ctx = httptrace.WithClientTrace(ctx, transaction.Trace)
 	done := make(chan interface{})
 	go func() {
 		w.process(ctx, t)
@@ -158,7 +163,7 @@ func (w *Worker) callProcess(t Transaction) error {
 	return nil
 }
 
-func (w *Worker) process(ctx context.Context, t Transaction) {
+func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	requeue := func() {
 		select {
 		case w.RequeueChan <- t:

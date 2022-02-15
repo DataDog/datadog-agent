@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sampler
 
@@ -44,10 +44,10 @@ func TestCountScoreConvergence(t *testing.T) {
 
 	periods := 50
 	tracesPerPeriod := 1000
-	period := backend.decayPeriod
+	period := backend.DecayPeriod
 
 	for period := 0; period < periods; period++ {
-		backend.decayScore()
+		backend.DecayScore()
 		for i := 0; i < tracesPerPeriod; i++ {
 			backend.CountSignature(sign)
 			backend.CountSample()
@@ -70,7 +70,7 @@ func TestCountScoreOblivion(t *testing.T) {
 	ticks := 50
 
 	for period := 0; period < ticks; period++ {
-		backend.decayScore()
+		backend.DecayScore()
 		for i := 0; i < tracesPerPeriod; i++ {
 			backend.CountSignature(sign)
 		}
@@ -84,13 +84,13 @@ func TestCountScoreOblivion(t *testing.T) {
 	oblivionPeriods := 40
 
 	for period := 0; period < halfLifePeriods; period++ {
-		backend.decayScore()
+		backend.DecayScore()
 	}
 
 	assert.True(backend.GetSignatureScore(sign) < 0.5*float64(tracesPerPeriod))
 
 	for period := 0; period < oblivionPeriods-halfLifePeriods; period++ {
-		backend.decayScore()
+		backend.DecayScore()
 	}
 
 	assert.True(backend.GetSignatureScore(sign) < 0.01*float64(tracesPerPeriod))

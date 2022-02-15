@@ -1,45 +1,35 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
-import "github.com/DataDog/datadog-agent/pkg/process/util"
+import (
+	"syscall"
 
-// ReverseDNS translates IPs to names
-type ReverseDNS interface {
-	Resolve([]ConnectionStats) map[util.Address][]string
-	GetDNSStats() map[dnsKey]map[string]dnsStats
-	GetStats() map[string]int64
-	Close()
-}
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+)
 
-// NewNullReverseDNS returns a dummy implementation of ReverseDNS
-func NewNullReverseDNS() ReverseDNS {
-	return nullReverseDNS{}
-}
-
-type nullReverseDNS struct{}
-
-func (nullReverseDNS) Resolve(_ []ConnectionStats) map[util.Address][]string {
-	return nil
-}
-
-func (nullReverseDNS) GetDNSStats() map[dnsKey]map[string]dnsStats {
-	return nil
-}
-
-func (nullReverseDNS) GetStats() map[string]int64 {
-	return map[string]int64{
-		"lookups":           0,
-		"resolved":          0,
-		"ips":               0,
-		"added":             0,
-		"expired":           0,
-		"packets_received":  0,
-		"packets_processed": 0,
-		"packets_dropped":   0,
-		"socket_polls":      0,
-		"decoding_errors":   0,
+// DNSKey generates a key suitable for looking up DNS stats based on a ConnectionStats object
+func DNSKey(c *ConnectionStats) (dns.Key, bool) {
+	if c == nil || c.DPort != 53 {
+		return dns.Key{}, false
 	}
+
+	serverIP, _ := GetNATRemoteAddress(*c)
+	clientIP, clientPort := GetNATLocalAddress(*c)
+	key := dns.Key{
+		ServerIP:   serverIP,
+		ClientIP:   clientIP,
+		ClientPort: clientPort,
+	}
+	switch c.Type {
+	case TCP:
+		key.Protocol = syscall.IPPROTO_TCP
+	case UDP:
+		key.Protocol = syscall.IPPROTO_UDP
+	}
+
+	return key, true
 }
-
-func (nullReverseDNS) Close() {}
-
-var _ ReverseDNS = nullReverseDNS{}

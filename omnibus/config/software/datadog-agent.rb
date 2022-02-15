@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'pathname'
@@ -11,13 +11,15 @@ name 'datadog-agent'
 dependency "python2" if with_python_runtime? "2"
 dependency "python3" if with_python_runtime? "3"
 
-license "Apache-2.0"
-license_file "../LICENSE"
+dependency "libarchive" if windows?
+dependency "yaml-cpp" if windows?
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
+  license :project_license
+
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
@@ -31,6 +33,7 @@ build do
     }
     major_version_arg = "%MAJOR_VERSION%"
     py_runtimes_arg = "%PY_RUNTIMES%"
+    flavor_arg = "%AGENT_FLAVOR%"
   else
     env = {
         'GOPATH' => gopath.to_path,
@@ -43,17 +46,16 @@ build do
     }
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
+    flavor_arg = "$AGENT_FLAVOR"
+  end
+
+  unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
+    gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
+    env["GOMODCACHE"] = gomodcache.to_path
   end
 
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
-
-  # cgosymbolizer must be patched on SLES11 builders - PR upstream pending merge
-  if suse?
-    patch :source => "0001-sles-sys-types.h-must-be-included-here-to-build.patch", :plevel => 1,
-          :acceptable_output => "Reversed (or previously applied) patch detected",
-          :target => "#{gopath.to_path}/src/github.com/DataDog/datadog-agent/vendor/github.com/ianlancetaylor/cgosymbolizer/symbolizer.c"
-  end
 
   # we assume the go deps are already installed before running omnibus
   if windows?
@@ -64,12 +66,12 @@ build do
     end
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --no-development --arch #{platform}", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch #{platform}", env: env
   else
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
   end
 
   if osx?
@@ -87,7 +89,11 @@ build do
   ## build the custom action library required for the install
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
+    debug_customaction = ""
+    if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
+      debug_customaction = "--debug"
+    end
+    command "invoke -e customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
     unless windows_arch_i386?
       command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
       command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
@@ -100,14 +106,22 @@ build do
       move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
-  copy 'bin/agent', "#{install_dir}/bin/"
+
+  unless windows?
+    copy 'bin/agent', "#{install_dir}/bin/"
+  else
+    copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+    mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
+    copy 'bin/agent/customaction*.pdb', "#{Omnibus::Config.package_dir()}/"
+  end
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform}", :env => env
+    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     if windows?
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
@@ -119,7 +133,7 @@ build do
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
 
@@ -131,7 +145,7 @@ build do
       end
     end
   else
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
@@ -150,6 +164,7 @@ build do
   else
     command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
+    move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
   end
 
   if linux?
@@ -212,24 +227,6 @@ build do
       erb source: "upstart_redhat.security.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-security.conf",
           mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
-    if suse?
-      erb source: "sysvinit_suse.erb",
-          dest: "#{install_dir}/scripts/datadog-agent",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.process.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.trace.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
-          mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
 

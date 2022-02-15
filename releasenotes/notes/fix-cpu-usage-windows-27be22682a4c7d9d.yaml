@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes CPU utilization being underreported on Windows hosts with more than one physical CPU.

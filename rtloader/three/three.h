@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_THREE_H
 #define DATADOG_AGENT_RTLOADER_THREE_H
 
@@ -28,11 +28,12 @@ public:
     /*!
       \param python_home A C-string with the path to the python home for the
       python interpreter.
+      \param python_exe A C-string with the path to the python interpreter.
 
       Basic constructor, initializes the _error string to an empty string and
-      errorFlag to false and set the supplied PYTHONHOME.
+      errorFlag to false and set the supplied PYTHONHOME and ProgramName.
     */
-    Three(const char *python_home, cb_memory_tracker_t memtrack_cb);
+    Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     /*!
@@ -67,6 +68,7 @@ public:
                   RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
+    void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
@@ -90,6 +92,7 @@ public:
     void setSubmitServiceCheckCb(cb_submit_service_check_t);
     void setSubmitEventCb(cb_submit_event_t);
     void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t);
+    void setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t);
 
     // datadog_agent API
     void setGetVersionCb(cb_get_version_t);
@@ -105,6 +108,7 @@ public:
     void setReadPersistentCacheCb(cb_read_persistent_cache_t);
     void setObfuscateSqlCb(cb_obfuscate_sql_t);
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
+    void setGetProcessStartTimeCb(cb_get_process_start_time_t);
 
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);
@@ -128,6 +132,13 @@ private:
       \param pythonHome A C-string to the target python home for the python runtime.
     */
     void initPythonHome(const char *pythonHome = NULL);
+
+    //! initPythonExe member.
+    /*!
+      \brief This member function sets the path to the underlying python3 interpreter.
+      \param python_exe A C-string to the target python executable.
+    */
+    void initPythonExe(const char *python_exe = NULL);
 
     //! _importFrom member.
     /*!
@@ -170,6 +181,7 @@ private:
     typedef std::vector<std::string> PyPaths;
 
     wchar_t *_pythonHome; /*!< unicode string with the PYTHONHOME for the underlying interpreter */
+    wchar_t *_pythonExe; /*!< unicode string with the path to the executable of the underlying interpreter */
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
     PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */

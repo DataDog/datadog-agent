@@ -1,109 +1,87 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package stats
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	tagHostname   = "_dd.hostname"
 	tagStatusCode = "http.status_code"
 	tagVersion    = "version"
+	tagSynthetics = "synthetics"
 )
 
-// Aggregation contains all the dimension on which we aggregate statistics
-// when adding or removing fields to Aggregation the methods ToTagSet, KeyLen and
-// WriteKey should always be updated accordingly
+// Aggregation contains all the dimension on which we aggregate statistics.
 type Aggregation struct {
-	Env        string
-	Resource   string
+	BucketsAggregationKey
+	PayloadAggregationKey
+}
+
+// BucketsAggregationKey specifies the key by which a bucket is aggregated.
+type BucketsAggregationKey struct {
 	Service    string
-	Hostname   string
-	StatusCode string
-	Version    string
+	Name       string
+	Resource   string
+	Type       string
+	StatusCode uint32
+	Synthetics bool
+}
+
+// PayloadAggregationKey specifies the key by which a payload is aggregated.
+type PayloadAggregationKey struct {
+	Env         string
+	Hostname    string
+	Version     string
+	ContainerID string
+}
+
+func getStatusCode(s *pb.Span) uint32 {
+	strC := traceutil.GetMetaDefault(s, tagStatusCode, "")
+	if strC == "" {
+		return 0
+	}
+	c, err := strconv.ParseUint(strC, 10, 32)
+	if err != nil {
+		log.Debugf("Invalid status code %s. Using 0.", strC)
+		return 0
+	}
+	return uint32(c)
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, env string) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey) Aggregation {
+	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	return Aggregation{
-		Env:        env,
-		Resource:   s.Resource,
-		Service:    s.Service,
-		Hostname:   s.Meta[tagHostname],
-		StatusCode: s.Meta[tagStatusCode],
-		Version:    s.Meta[tagVersion],
+		PayloadAggregationKey: aggKey,
+		BucketsAggregationKey: BucketsAggregationKey{
+			Resource:   s.Resource,
+			Service:    s.Service,
+			Name:       s.Name,
+			Type:       s.Type,
+			StatusCode: getStatusCode(s),
+			Synthetics: synthetics,
+		},
 	}
 }
 
-// NewAggregation creates a new aggregation from the provided fields
-func NewAggregation(env string, resource string, service string, hostname string, statusCode string, version string) Aggregation {
+// NewAggregationFromGroup gets the Aggregation key of grouped stats.
+func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
-		Env:        env,
-		Resource:   resource,
-		Service:    service,
-		Hostname:   hostname,
-		StatusCode: statusCode,
-		Version:    version,
-	}
-}
-
-// ToTagSet creates a TagSet with the fields of the aggregation
-func (aggr *Aggregation) ToTagSet() TagSet {
-	tagSet := make(TagSet, 3, 7)
-	tagSet[0] = Tag{"env", aggr.Env}
-	tagSet[1] = Tag{"resource", aggr.Resource}
-	tagSet[2] = Tag{"service", aggr.Service}
-	if len(aggr.Hostname) > 0 {
-		tagSet = append(tagSet, Tag{tagHostname, aggr.Hostname})
-	}
-	if len(aggr.StatusCode) > 0 {
-		tagSet = append(tagSet, Tag{tagStatusCode, aggr.StatusCode})
-	}
-	if len(aggr.Version) > 0 {
-		tagSet = append(tagSet, Tag{tagVersion, aggr.Version})
-	}
-	return tagSet
-}
-
-// KeyLen computes the length of the string required to generate the string representing this aggregation
-func (aggr *Aggregation) KeyLen() int {
-	length := len("env:") + len(aggr.Env) + len(",resource:") + len(aggr.Resource) + len(",service:") + len(aggr.Service)
-	if len(aggr.Hostname) > 0 {
-		// +2 for "," and ":" separator
-		length += 1 + len(tagHostname) + 1 + len(aggr.Hostname)
-	}
-	if len(aggr.StatusCode) > 0 {
-		// +2 for "," and ":" separator
-		length += 1 + len(tagStatusCode) + 1 + len(aggr.StatusCode)
-	}
-	if len(aggr.Version) > 0 {
-		// +2 for "," and ":" separator
-		length += 1 + len(tagVersion) + 1 + len(aggr.Version)
-	}
-	return length
-}
-
-// WriteKey writes the aggregation to the provided strings.Builder in its canonical form
-func (aggr *Aggregation) WriteKey(b *strings.Builder) {
-	b.WriteString("env:")
-	b.WriteString(aggr.Env)
-	b.WriteString(",resource:")
-	b.WriteString(aggr.Resource)
-	b.WriteString(",service:")
-	b.WriteString(aggr.Service)
-
-	// Keys should be written in lexicographical order of the tag name
-	if len(aggr.Hostname) > 0 {
-		b.WriteString("," + tagHostname + ":")
-		b.WriteString(aggr.Hostname)
-	}
-	if len(aggr.StatusCode) > 0 {
-		b.WriteString("," + tagStatusCode + ":")
-		b.WriteString(aggr.StatusCode)
-	}
-	if len(aggr.Version) > 0 {
-		b.WriteString("," + tagVersion + ":")
-		b.WriteString(aggr.Version)
+		BucketsAggregationKey: BucketsAggregationKey{
+			Resource:   g.Resource,
+			Service:    g.Service,
+			Name:       g.Name,
+			StatusCode: g.HTTPStatusCode,
+			Synthetics: g.Synthetics,
+		},
 	}
 }

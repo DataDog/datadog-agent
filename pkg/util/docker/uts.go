@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,18 +21,18 @@ import (
 
 // GetAgentContainerUTSMode provides the UTS mode of the Agent container
 // To get this info in an optimal way, consider calling util.GetAgentUTSMode instead to benefit from the cache
-func GetAgentContainerUTSMode() (containers.UTSMode, error) {
+func GetAgentContainerUTSMode(ctx context.Context) (containers.UTSMode, error) {
 	agentCID, _ := providers.ContainerImpl().GetAgentCID()
-	return GetContainerUTSMode(agentCID)
+	return GetContainerUTSMode(ctx, agentCID)
 }
 
 // GetContainerUTSMode returns the UTS mode of a container
-func GetContainerUTSMode(cid string) (containers.UTSMode, error) {
+func GetContainerUTSMode(ctx context.Context, cid string) (containers.UTSMode, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return containers.UnknownUTSMode, err
 	}
-	container, err := du.Inspect(cid, false)
+	container, err := du.Inspect(ctx, cid, false)
 	if err != nil {
 		return containers.UnknownUTSMode, err
 	}

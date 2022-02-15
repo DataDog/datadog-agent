@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package certificate
@@ -17,14 +18,18 @@ func TestCreateSecretData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create the Secret: %v", err)
 	}
+
 	_, err = ParseSecretData(data)
 	if err != nil {
 		t.Fatalf("Failed to parse the Secret: %v", err)
 	}
-	expiration, err := GetDurationBeforeExpiration(data)
+
+	cert, err := GetCertFromSecret(data)
 	if err != nil {
 		t.Fatalf("Failed to parse the Secret: %v", err)
 	}
+
+	expiration := GetDurationBeforeExpiration(cert)
 	if expiration < 1*time.Hour {
 		t.Fatalf("The Secret expires too soon: %v", expiration)
 	}

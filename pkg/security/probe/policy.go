@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -20,9 +21,9 @@ type PolicyFlag uint8
 
 // Policy modes
 const (
-	PolicyModeAccept PolicyMode = iota + 1
+	PolicyModeNoFilter PolicyMode = iota
+	PolicyModeAccept
 	PolicyModeDeny
-	PolicyModeNoFilter
 )
 
 // Policy flags
@@ -32,7 +33,7 @@ const (
 	PolicyFlagMode     PolicyFlag = 4
 
 	// need to be aligned with the kernel size
-	BasenameFilterSize = 32
+	BasenameFilterSize = 256
 )
 
 func (m PolicyMode) String() string {

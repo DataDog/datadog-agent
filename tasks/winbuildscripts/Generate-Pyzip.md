@@ -1,6 +1,8 @@
 Generating Python Zips
 ======================
 
+⚠️ This method is no longer used to embed Python in the Agent. The Agent now uses python binaries built from source from the fork https://github.com/DataDog/cpython ⚠️
+
 The Windows builds require a prebuilt zip file which is extracted into the _embedded_ directory at build time. The zip files are constructed using the python installer from python.org.
 
 How To Run The Script
@@ -23,7 +25,7 @@ Running the script
 
 Putting it all together, you will have a command line such as
 ```powershell
-docker run --rm -v "$(Get-Location):c:\mnt" <image> powershell -C "c:\mnt\generate-pyzip.ps1 -Version 3.8.1 -OutDir c:\mnt"
+docker run --rm -v "$(Get-Location):c:\mnt" <image> powershell -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version 3.8.1 -OutDir c:\mnt"
 ```
 
 ```

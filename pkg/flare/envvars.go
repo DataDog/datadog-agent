@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -22,6 +22,11 @@ var allowedEnvvarNames = []string{
 	"DOCKER_CERT_PATH",
 	"DOCKER_HOST",
 	"DOCKER_TLS_VERIFY",
+
+	// HOST vars used in containerized agent
+	"HOST_ETC",
+	"HOST_PROC",
+	"HOST_ROOT",
 
 	// Proxy settings
 	"HTTP_PROXY",
@@ -53,6 +58,9 @@ var allowedEnvvarNames = []string{
 	"DD_APM_MAX_EPS",
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
+	"DD_APM_ERROR_TPS",
+	"DD_APM_DISABLE_RARE_SAMPLER",
+	"DD_APM_MAX_REMOTE_TPS",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",
 	"DD_APM_FEATURES",
@@ -63,7 +71,6 @@ var allowedEnvvarNames = []string{
 	"DD_APM_PROFILING_ADDITIONAL_ENDPOINTS",
 
 	// Process agent
-	"DD_PROCESS_AGENT_ENABLED",
 	"DD_PROCESS_AGENT_URL",
 	"DD_SCRUB_ARGS",
 	"DD_CUSTOM_SENSITIVE_WORDS",
@@ -85,11 +92,6 @@ var allowedEnvvarNames = []string{
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
 	for _, envName := range config.Datadog.GetEnvVars() {
-		// config.Datadog.GetEnvVars() returns nested config using the format DD_FOO.BAR
-		// we should consider the format DD_FOO_BAR
-		if replaced := strings.ReplaceAll(envName, ".", "_"); replaced != envName {
-			allowed = append(allowed, replaced)
-		}
 		allowed = append(allowed, envName)
 	}
 	var found []string
@@ -127,12 +129,5 @@ func zipEnvvars(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }

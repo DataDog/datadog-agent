@@ -13,14 +13,14 @@ Usage example:
 // you must first initialize the aggregator, see aggregator.InitAggregator
 
 // This will return an already running statd server ready to receive metrics
-statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
+statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels(), nil)
 
 // ...
 
 statsd.Stop()
 ```
 
-Dogstatsd implementation documentation (PacketsBuffer, StringInterner, ...) is available
+Dogstatsd implementation documentation (packets.Buffer, StringInterner, ...) is available
 in `docs/dogstatsd/internals.md`.
 
 Details on existing Dogstatsd internals tuning fields are available in `docs/dogstatsd/configuration.md`.

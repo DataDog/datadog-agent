@@ -1,14 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -37,7 +38,8 @@ type KubeServiceConfigProvider struct {
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -67,7 +69,7 @@ func (k *KubeServiceConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-func (k *KubeServiceConfigProvider) Collect() ([]integration.Config, error) {
+func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.lister.List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -78,7 +80,7 @@ func (k *KubeServiceConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (k *KubeServiceConfigProvider) IsUpToDate() (bool, error) {
+func (k *KubeServiceConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }
 
@@ -168,5 +170,10 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 }
 
 func init() {
-	RegisterProvider("kube_services", NewKubeServiceConfigProvider)
+	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the KubeServiceConfigProvider
+func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

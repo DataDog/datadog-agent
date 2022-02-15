@@ -177,10 +177,15 @@
                       Name="ConfigRoot" />
     </Property>
 
+    <Property Id="DD_FILTER_INSTALLED">
+      <RegistrySearch Key="SYSTEM\CurrentControlSet\Services\ddnpm"
+                      Root="HKLM"
+                      Type="raw"
+                      Id="DDFILTERINSTALLED_REGSEARCH"
+                      Name="Start" />
+    </Property>
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
-        <!-- We need to use APPLICATIONROOTDIRECTORY variable here or RemoveFolderEx
-             will not remove on "uninstall". -->
         <RegistryValue Root="HKLM"
                        Key="SOFTWARE\Datadog\Datadog Agent"
                        Name="InstallPath"
@@ -193,82 +198,7 @@
                        Value="[APPLICATIONDATADIRECTORY]"/>
         <util:RemoveFolderEx On="uninstall" Property="PROJECTLOCATION"/>
       </Component>
-      <!-- Register variables that will be used by the agent at startup -->
-      <Component Id="RegisterConfVariables" Guid="e2423815-704d-4f29-af3b-9baf23ef03d6">
-        <RegistryKey Root="HKLM"
-                     Key="SOFTWARE\Datadog\Datadog Agent"
-                     >
-
-
-          <RegistryValue Name="api_key"
-                         Type="string"
-                         Value="[APIKEY]">
-          </RegistryValue>
-          <RegistryValue Name="tags"
-                         Type="string"
-                         Value="[TAGS]" >
-          </RegistryValue>
-          <RegistryValue Name="hostname"
-                         Type="string"
-                         Value="[HOSTNAME]" >
-                       </RegistryValue>
-           <RegistryValue Name="proxy_host"
-                         Type="string"
-                         Value="[PROXY_HOST]">
-                       </RegistryValue>
-          <RegistryValue Name="proxy_port"
-                         Type="string"
-                         Value="[PROXY_PORT]" >
-                       </RegistryValue>
-          <RegistryValue Name="proxy_user"
-                         Type="string"
-                         Value="[PROXY_USER]">
-                       </RegistryValue>
-          <RegistryValue Name="proxy_password"
-                         Type="string"
-                         Value="[PROXY_PASSWORD]" >
-                       </RegistryValue>
-          <RegistryValue Name="logs_enabled"
-                         Type="string"
-                         Value="[LOGS_ENABLED]">
-                       </RegistryValue>
-          <RegistryValue Name="apm_enabled"
-                         Type="string"
-                         Value="[APM_ENABLED]" >
-                       </RegistryValue>
-          <RegistryValue Name="process_enabled"
-                         Type="string"
-                         Value="[PROCESS_ENABLED]">
-                         </RegistryValue>
-          <RegistryValue Name="cmd_port"
-                         Type="string"
-                         Value="[CMD_PORT]" />
-          <RegistryValue Name="site"
-                         Type="string"
-                         Value="[SITE]" />
-          <RegistryValue Name="dd_url"
-                         Type="string"
-                         Value="[DD_URL]" />
-          <RegistryValue Name="logs_dd_url"
-                         Type="string"
-                         Value="[LOGS_DD_URL]" />
-          <RegistryValue Name="process_dd_url"
-                         Type="string"
-                         Value="[PROCESS_DD_URL]" />
-          <RegistryValue Name="trace_dd_url"
-                         Type="string"
-                         Value="[TRACE_DD_URL]" />
-          <RegistryValue Name="py_version"
-                         Type="string"
-                         Value="[PYVER]" />
-          <RegistryValue Name="hostname_fqdn"
-                         Type="string"
-                         Value="[HOSTNAME_FQDN_ENABLED]" />
-        </RegistryKey>
-
-      </Component>
     </DirectoryRef>
-
     <!-- Let's ship our dist folder with the service and gui executables -->
     <DirectoryRef Id="PROJECTLOCATION">
       <!-- put the agent in the embedded folder so that it can find the python DLLS -->
@@ -385,6 +315,12 @@
                     KeyPath="yes"
                     DiskId="1"
                     Source="$(var.BinFiles)/system-probe.exe" />
+                <!-- The "Name" field must match the argument to eventlog.Open() -->
+                <util:EventSource Log="Application" Name="datadog-system-probe"
+                      EventMessageFile="[AGENT]system-probe.exe"
+                      SupportsErrors="yes"
+                      SupportsInformationals="yes"
+                      SupportsWarnings="yes"/>
                 </Component>
             <?endif ?> <!-- include sysprobe -->
           <?endif ?>
@@ -415,23 +351,14 @@
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
       <Component Id="datadog.yaml.example"
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
-                 NeverOverwrite="yes"
-                 Permanent="yes">
+                 NeverOverwrite="no"
+                 Permanent="no">
         <File Id="datadog.yaml.example"
-            Name="datadog.yaml"
+            Name="datadog.yaml.example"
+            KeyPath="yes"
             Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
 
-      <Component Id="install_info"
-                 Guid="260CEE46-E9E9-4EEF-A065-969524970B68"
-                 Permanent="no">
-        <Condition>
-          <![CDATA[UILevel > 2]]>
-        </Condition>
-        <File Id="install_info"
-            Name="install_info"
-            Source="Resources\assets\install_info"/>
-      </Component>
       <?if $(var.IncludeSysprobe) = true ?>
         <Component Id="system_probe.yaml.example"
                  Guid="a268622a-0305-4b5d-b08a-2371820f6b3f"
@@ -439,10 +366,11 @@
                  Permanent="yes">
           <File Id="system_probe.yaml.example"
             Name="system-probe.yaml"
+            KeyPath="yes"
             Source="$(var.EtcFiles)\system-probe.yaml.example"/>
         </Component>
       <?endif ?>
-      
+
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"
@@ -499,18 +427,18 @@
       <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
 
       <!-- always stop the services, regardless of what's going on -->
-      <Custom Action='StopDDServices' After='StopServices'> </Custom>
+      <Custom Action='StopDDServices' Before='StopServices'> </Custom>
 
       <!-- only run the FinalizeInstall action on INSTALL (for now) Note this
            is from the perspective of the installer being run; on upgrade the
            installer is called twice; the existing (previously installed)
            installer is called with _UPGRADE, and then the new installer
            is called with _INSTALL -->
-      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
+      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
+      <Custom Action='FinalizeInstall' Before='StartServices'>      <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
 
       <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
+      <Custom Action='StartDDServices' After='StartServices'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
 
       <!-- only do the uninstall (which removes the user state and file perms)
            on a full uninstall -->
@@ -521,47 +449,53 @@
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
-    <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
-      <ComponentRef Id="conffolder" />
-      <ComponentGroupRef Id="ProjectDir" />
-      <ComponentRef Id="datadog.yaml.example" />
-      <ComponentRef Id="install_info" />
-      <ComponentRef Id="logs" />
-      <ComponentRef Id="conf.d" />
-      <ComponentRef Id="checks.d" />
-      <ComponentRef Id="REGISTRYDIRECTORY" />
-      <ComponentRef Id="ApplicationShortcut" />
-      <ComponentRef Id="DATADOGAGENTSERVICE" />
-      <ComponentRef Id="RTLOADERDLLS" />
-      <?if $(var.Platform) = x64 ?>
-        <ComponentRef Id="DATADOGAPMSERVICE" />
-        <ComponentRef Id="DATADOGPROCESSSERVICE" />
+    <Feature
+      Id="MainApplication"
+      Title="Datadog Agent"
+      Level="1"
+      Absent="disallow"
+      ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+        <ComponentRef Id="conffolder" />
+        <ComponentGroupRef Id="ProjectDir" />
+        <ComponentRef Id="datadog.yaml.example" />
+        <ComponentRef Id="logs" />
+        <ComponentRef Id="conf.d" />
+        <ComponentRef Id="checks.d" />
+        <ComponentRef Id="REGISTRYDIRECTORY" />
+        <ComponentRef Id="ApplicationShortcut" />
+        <ComponentRef Id="DATADOGAGENTSERVICE" />
+        <ComponentRef Id="RTLOADERDLLS" />
+        <?if $(var.Platform) = x64 ?>
+          <ComponentRef Id="DATADOGAPMSERVICE" />
+          <ComponentRef Id="DATADOGPROCESSSERVICE" />
+        <?endif ?>
+        <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
+        <ComponentRef Id="CleanupMainApplicationFolder" />
+        <?if $(var.IncludePython2) = true ?>
+          <ComponentRef Id="MSVCRUNTIME" />
+        <?endif ?>
+      <?if $(var.IncludeSysprobe) = true ?>
+          <ComponentRef Id="DATADOGSYSPROBESERVICE" />
+          <ComponentRef Id="system_probe.yaml.example" />
       <?endif ?>
-      <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
-      <ComponentRef Id="CleanupMainApplicationFolder" />
-      <ComponentRef Id="RegisterConfVariables" />
-      <?if $(var.IncludePython2) = true ?>
-        <ComponentRef Id="MSVCRUNTIME" />
+      <Condition Level="1"><![CDATA[1]]></Condition>
+
+      <?if $(var.IncludeSysprobe) = true ?>
+        <!-- don't install by default (indicated by level 100)  Only things with level
+        <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
+        <Feature  Id="NPM"
+                  Level="100"
+                  Title="Network Performance Monitoring"
+                  ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
+                  Absent="allow"
+                  AllowAdvertise="no"
+        >
+          <MergeRef Id="ddnpminstall"/>
+          <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
+        </Feature>
       <?endif ?>
     </Feature>
-    <?if $(var.IncludeSysprobe) = true ?>
-      <!-- don't install by default (indicated by level 100)  Only things with level
-           <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-      <Feature Id="WindowsNP" 
-               Level="100"  
-               Title="Network Performance Monitoring" 
-               ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
-               Absent="allow"
-               AllowAdvertise="no"
-               >
-        <ComponentRef Id="DATADOGSYSPROBESERVICE" />
-        <MergeRef Id="ddnpminstall"/>
-        <ComponentRef Id="system_probe.yaml.example" />
-        <!--
-        <Condition Level="1"><![CDATA[ADDLOCAL >< "WindowsNP" OR ADDLOCAL = "ALL" ]]></Condition>
-        -->
-      </Feature>
-    <?endif ?>
+
     <!-- UI Stuff: 100% Omnibus Generated -->
     <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
@@ -626,28 +560,33 @@
            VerifyReady
 
            -->
-
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT PREVIOUSFOUND</Publish>
-      
+
 
       <?if $(var.IncludeSysprobe) = true ?>
         <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">PREVIOUSFOUND</Publish>
 
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">NOT PREVIOUSFOUND</Publish>
 
-        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
-        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">PREVIOUSFOUND</Publish>
+        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND)</Publish>
+        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode OR PREVIOUSFOUND</Publish>
 
-        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">NOT PREVIOUSFOUND</Publish>
-        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">PREVIOUSFOUND</Publish>
+        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND)</Publish>
+        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
+        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg"> WixUI_InstallMode </Publish>
 
-        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">PREVIOUSFOUND</Publish>
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">WixUI_InstallMode = "Change"</Publish>
+
+        <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="CustomizeDlg">1</Publish>
+
+
       <?else ?>
         <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">PREVIOUSFOUND</Publish>
 
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
 
-        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">PREVIOUSFOUND</Publish>
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
       <?endif ?>
 
       <!-- if the dialog is displayed, there's only one back from here, which is the welcome -->
@@ -656,17 +595,23 @@
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
       <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SiteDlg">NOT PREVIOUSFOUND</Publish>
-      
+
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
+
+
+
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="SiteDlg">APIKEY AND (NOT SITE)</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY AND SITE</Publish>
 
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair"</Publish>
+
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+
 
       <AdminUISequence>
         <Show Dialog="FatalError" OnExit="error" />
@@ -700,8 +645,44 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
-    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];SYSPROBE_PRESENT=[SYSPROBE_PRESENT];ADDLOCAL=[ADDLOCAL]' />
+    <!-- Properties must each be on their own line
+      NOTE: This property will cause the build time warning
+      "warning LGHT1076 : ICE03: String overflow (greater than length permitted in column);"
+      This does not affect the final artefact, as it seems to affects only the base string, not the expanded one.
+      At runtime this limitation doesn\'t seem to apply.
+    -->
+    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
+        Value='
+            UILevel=[UILevel]
+            PROJECTLOCATION=[PROJECTLOCATION]
+            APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]
+            DDAGENTUSER_NAME=[DDAGENTUSER_NAME]
+            DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]
+            SYSPROBE_PRESENT=[SYSPROBE_PRESENT]
+            ADDLOCAL=[ADDLOCAL]
+            APIKEY=[APIKEY]
+            TAGS=[TAGS]
+            HOSTNAME=[HOSTNAME]
+            PROXY_HOST=[PROXY_HOST]
+            PROXY_PORT=[PROXY_PORT]
+            PROXY_USER=[PROXY_USER]
+            PROXY_PASSWORD=[PROXY_PASSWORD]
+            LOGS_ENABLED=[LOGS_ENABLED]
+            APM_ENABLED=[APM_ENABLED]
+            PROCESS_ENABLED=[PROCESS_ENABLED]
+            PROCESS_DISCOVERY_ENABLED=[PROCESS_DISCOVERY_ENABLED]
+            CMD_PORT=[CMD_PORT]
+            SITE=[SITE]
+            DD_URL=[DD_URL]
+            LOGS_DD_URL=[LOGS_DD_URL]
+            PROCESS_DD_URL=[PROCESS_DD_URL]
+            TRACE_DD_URL=[TRACE_DD_URL]
+            PYVER=[PYVER]
+            HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED]
+            NPM=[NPM]
+            EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]
+            OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]
+            ' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
@@ -735,3 +716,7 @@
 
   </Product>
 </Wix>
+<!-- check
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\ddnpm
+
+-->

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package api
 
@@ -14,6 +14,84 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// measuredListener wraps an existing net.Listener and emits metrics upon accepting connections.
+type measuredListener struct {
+	net.Listener
+
+	name     string        // metric name to emit
+	accepted uint32        // accepted connection count
+	timedout uint32        // timedout connection count
+	errored  uint32        // errored connection count
+	exit     chan struct{} // exit signal channel (on Close call)
+}
+
+// NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
+// datadog.trace_agent.receiver.<name>. Additionally, a "status" tag will be added with
+// potential values "accepted", "timedout" or "errored".
+func NewMeasuredListener(ln net.Listener, name string) net.Listener {
+	ml := &measuredListener{
+		Listener: ln,
+		name:     "datadog.trace_agent.receiver." + name,
+		exit:     make(chan struct{}),
+	}
+	go ml.run()
+	return ml
+}
+
+func (ln *measuredListener) run() {
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
+	defer close(ln.exit)
+	for {
+		select {
+		case <-tick.C:
+			ln.flushMetrics()
+		case <-ln.exit:
+			return
+		}
+	}
+}
+
+func (ln *measuredListener) flushMetrics() {
+	for tag, stat := range map[string]*uint32{
+		"status:accepted": &ln.accepted,
+		"status:timedout": &ln.timedout,
+		"status:errored":  &ln.errored,
+	} {
+		if v := int64(atomic.SwapUint32(stat, 0)); v > 0 {
+			metrics.Count(ln.name, v, []string{tag}, 1)
+		}
+	}
+}
+
+// Accept implements net.Listener and keeps counts on connection statuses.
+func (ln *measuredListener) Accept() (net.Conn, error) {
+	conn, err := ln.Listener.Accept()
+	if err != nil {
+		if ne, ok := err.(net.Error); ok && ne.Timeout() && !ne.Temporary() {
+			atomic.AddUint32(&ln.timedout, 1)
+		} else {
+			atomic.AddUint32(&ln.errored, 1)
+		}
+	} else {
+		atomic.AddUint32(&ln.accepted, 1)
+	}
+	log.Tracef("Accepted connection named %q.", ln.name)
+	return conn, err
+}
+
+// Close implements net.Listener.
+func (ln measuredListener) Close() error {
+	err := ln.Listener.Close()
+	ln.flushMetrics()
+	ln.exit <- struct{}{}
+	<-ln.exit
+	return err
+}
+
+// Addr implements net.Listener.
+func (ln measuredListener) Addr() net.Addr { return ln.Listener.Addr() }
 
 // rateLimitedListener wraps a regular TCPListener with rate limiting.
 type rateLimitedListener struct {

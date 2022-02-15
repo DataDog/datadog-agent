@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package retry
 
@@ -313,4 +313,31 @@ func TestBackoff(t *testing.T) {
 	assert.True(t, IsErrWillRetry(err))
 	expectedNext = now.Add(maxRetryDelay)
 	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+}
+
+func TestLastError(t *testing.T) {
+	mocked := &DummyLogic{}
+	mocked.On("Attempt").Return(errors.New("nope")).Once()
+	retryDelay := 100 * time.Millisecond
+	config := &Config{
+		Name:          "mocked",
+		AttemptMethod: mocked.Attempt,
+		Strategy:      RetryCount,
+		RetryCount:    5,
+		RetryDelay:    retryDelay,
+	}
+	err := mocked.SetupRetrier(config)
+	assert.Nil(t, err)
+
+	// First call will trigger an attempt
+	_ = mocked.TriggerRetry()
+	err = mocked.LastError()
+	assert.True(t, IsErrWillRetry(err))
+	time.Sleep(retryDelay) // Make sure we expire the delay
+
+	// Second call should return OK
+	mocked.On("Attempt").Return(nil)
+	_ = mocked.TriggerRetry()
+	err = mocked.LastError()
+	assert.Nil(t, err)
 }

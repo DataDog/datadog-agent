@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package leaderelection
@@ -50,6 +51,7 @@ type LeaderEngine struct {
 	m       sync.Mutex
 	once    sync.Once
 
+	subscribers         []chan struct{}
 	HolderIdentity      string
 	LeaseDuration       time.Duration
 	LeaseName           string
@@ -72,6 +74,7 @@ func newLeaderEngine() *LeaderEngine {
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
+		subscribers:     []chan struct{}{},
 	}
 }
 
@@ -129,6 +132,7 @@ func (le *LeaderEngine) init() error {
 	}
 	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
 
+	// Using GetAPIClient (no retry) as LeaderElection is already wrapped in a retrier
 	apiClient, err := apiserver.GetAPIClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
@@ -138,7 +142,7 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1().(*corev1.CoreV1Client)
 
 	// check if we can get ConfigMap.
-	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
+	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), defaultLeaseName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) == false {
 		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", le.LeaderNamespace, err)
 		return err
@@ -220,7 +224,7 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 		return "", nil
 	}
 
-	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(le.ServiceName, metav1.GetOptions{})
+	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -236,6 +240,19 @@ func (le *LeaderEngine) IsLeader() bool {
 	return le.GetLeader() == le.HolderIdentity
 }
 
+// Subscribe allows any component to receive a notification
+// when the current process becomes leader.
+// Calling Subscribe is optional, use IsLeader if the client doesn't need an event-based approach.
+func (le *LeaderEngine) Subscribe() <-chan struct{} {
+	c := make(chan struct{}, 5) // buffered channel to avoid blocking in case of stuck subscriber
+
+	le.m.Lock()
+	le.subscribers = append(le.subscribers, c)
+	le.m.Unlock()
+
+	return c
+}
+
 // GetLeaderElectionRecord is used in for the Flare and for the Status commands.
 func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error) {
 	var led rl.LeaderElectionRecord
@@ -247,7 +264,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	c := client.Cl.CoreV1()
 
 	leaderNamespace := common.GetResourcesNamespace()
-	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
+	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), defaultLeaseName, metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}

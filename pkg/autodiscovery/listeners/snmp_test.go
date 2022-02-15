@@ -1,18 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
 package listeners
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,6 +24,7 @@ func TestSNMPListener(t *testing.T) {
 	snmpConfig := snmp.Config{
 		Network:   "192.168.0.0/24",
 		Community: "public",
+		Loader:    "core",
 	}
 	listenerConfig := snmp.ListenerConfig{
 		Configs: []snmp.Config{snmpConfig},
@@ -40,18 +41,18 @@ func TestSNMPListener(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener()
+	l, err := NewSNMPListener(&config.Listeners{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
 	job := <-testChan
 
+	assert.Equal(t, "core", job.subnet.config.Loader)
 	assert.Equal(t, "snmp", job.subnet.adIdentifier)
 	assert.Equal(t, "192.168.0.0", job.currentIP.String())
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 	assert.Equal(t, "192.168.0.0/24", job.subnet.network.String())
 	assert.Equal(t, "public", job.subnet.config.Community)
-	assert.Equal(t, "public", job.subnet.defaultParams.Community)
 
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())
@@ -139,7 +140,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener()
+	l, err := NewSNMPListener(&config.Listeners{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -156,17 +157,18 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 
 func TestExtraConfig(t *testing.T) {
 	snmpConfig := snmp.Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
-		Timeout:   5,
-		Retries:   2,
+		Network:      "192.168.0.0/24",
+		Community:    "public",
+		Timeout:      5,
+		Retries:      2,
+		OidBatchSize: 10,
+		Namespace:    "my-ns",
 	}
 
 	svc := SNMPService{
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 
@@ -185,6 +187,70 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("retries"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "2", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("oid_batch_size"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "10", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("tags"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
+	svc.config.CollectDeviceMetadata = true
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", string(info))
+
+	svc.config.CollectDeviceMetadata = false
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "0", string(info))
+
+	svc.config.UseDeviceIDAsHostname = false
+	info, err = svc.GetExtraConfig([]byte("use_device_id_as_hostname"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
+	svc.config.MinCollectionInterval = 60
+	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "60", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("namespace"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "my-ns", string(info))
+}
+
+func TestExtraConfigExtraTags(t *testing.T) {
+	snmpConfig := snmp.Config{
+		Network:   "192.168.0.0/24",
+		Community: "public",
+		Timeout:   5,
+		Retries:   2,
+		Tags: []string{
+			"tag1:val,1,2",
+			"tag2:val_2",
+		},
+	}
+
+	svc := SNMPService{
+		adIdentifier: "snmp",
+		entityID:     "id",
+		deviceIP:     "192.168.0.1",
+		config:       snmpConfig,
+	}
+
+	info, err := svc.GetExtraConfig([]byte("tags"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "tag1:val_1_2,tag2:val_2", string(info))
 }
 
 func TestExtraConfigv3(t *testing.T) {
@@ -195,13 +261,13 @@ func TestExtraConfigv3(t *testing.T) {
 		AuthProtocol: "SHA",
 		PrivKey:      "private",
 		PrivProtocol: "DES",
+		Loader:       "core",
 	}
 
 	svc := SNMPService{
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 
@@ -224,4 +290,8 @@ func TestExtraConfigv3(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("priv_protocol"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "DES", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("loader"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "core", string(info))
 }

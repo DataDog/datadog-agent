@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package utils
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -129,7 +131,7 @@ func getNetworkMode() (string, error) {
 	}
 
 	// Get container id if containerized
-	co, err := du.InspectSelf()
+	co, err := du.InspectSelf(context.TODO())
 	if err != nil {
 		return "host", nil
 	}

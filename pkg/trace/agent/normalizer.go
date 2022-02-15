@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -13,8 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,6 +24,12 @@ import (
 const (
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
+	// tagOrigin specifies the origin of the trace.
+	// DEPRECATED: Origin is now specified as a TraceChunk field.
+	tagOrigin = "_dd.origin"
+	// tagSamplingPriority specifies the sampling priority of the trace.
+	// DEPRECATED: Priority is now specified as a TraceChunk field.
+	tagSamplingPriority = "_sampling_priority_v1"
 )
 
 var (
@@ -54,6 +62,17 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	s.Service = svc
 
+	if features.Has("component2name") {
+		// This feature flag determines the component tag to become the span name.
+		//
+		// It works around the incompatibility between Opentracing and Datadog where the
+		// Opentracing operation name is many times invalid as a Datadog operation name (e.g. "/")
+		// and in Datadog terms it's the resource. Here, we aim to make the component the
+		// operation name to provide a better product experience.
+		if v, ok := s.Meta["component"]; ok {
+			s.Name = v
+		}
+	}
 	s.Name, err = traceutil.NormalizeName(s.Name)
 	switch err {
 	case traceutil.ErrEmpty:
@@ -122,6 +141,30 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		}
 	}
 	return nil
+}
+
+// normalizeChunk takes a trace chunk and
+// * populates Origin field if it wasn't populated
+// * populates Priority field if it wasn't populated
+func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
+	// check if priority is already populated
+	if chunk.Priority == int32(sampler.PriorityNone) {
+		// Older tracers set sampling priority in the root span.
+		if p, ok := root.Metrics[tagSamplingPriority]; ok {
+			chunk.Priority = int32(p)
+		} else {
+			for _, s := range chunk.Spans {
+				if p, ok := s.Metrics[tagSamplingPriority]; ok {
+					chunk.Priority = int32(p)
+					break
+				}
+			}
+		}
+	}
+	if chunk.Origin == "" && root.Meta != nil {
+		// Older tracers set origin in the root span.
+		chunk.Origin = root.Meta[tagOrigin]
+	}
 }
 
 // normalizeTrace takes a trace and

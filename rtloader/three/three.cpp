@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "three.h"
 
 #include "constants.h"
@@ -21,9 +21,10 @@
 #include <algorithm>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe,
+                                                       cb_memory_tracker_t memtrack_cb)
 {
-    return new Three(pythonHome, memtrack_cb);
+    return new Three(python_home, python_exe, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -31,13 +32,19 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Three::Three(const char *python_home, cb_memory_tracker_t memtrack_cb)
+Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
+    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
 {
     initPythonHome(python_home);
+
+    // If not empty, set our Python interpreter path
+    if (python_exe && strlen(python_exe) > 0) {
+        initPythonExe(python_exe);
+    }
 }
 
 Three::~Three()
@@ -50,6 +57,7 @@ Three::~Three()
 
 void Three::initPythonHome(const char *pythonHome)
 {
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     wchar_t *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
@@ -57,9 +65,26 @@ void Three::initPythonHome(const char *pythonHome)
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
     PyMem_RawFree((void *)oldPythonHome);
+}
+
+void Three::initPythonExe(const char *python_exe)
+{
+    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
+    wchar_t *oldPythonExe = _pythonExe;
+    _pythonExe = Py_DecodeLocale(python_exe, NULL);
+
+    Py_SetProgramName(_pythonExe);
+
+    // HACK: This extra internal API invocation is due to the workaround for an upstream bug on
+    // Windows (https://bugs.python.org/issue34725) where just using `Py_SetProgramName` is
+    // ineffective. The workaround API call will be removed at some point in the future (Python
+    // 3.12+) so we should convert this initialization to the new`PyConfig API`
+    // (https://docs.python.org/3.11/c-api/init_config.html#c.PyConfig) before then.
+    _Py_SetProgramFullPath(_pythonExe);
+
+    PyMem_RawFree((void *)oldPythonExe);
 }
 
 bool Three::init()
@@ -435,6 +460,25 @@ done:
     return ret;
 }
 
+void Three::cancelCheck(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    char cancel[] = "cancel";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, cancel, NULL);
+    // at least None should be returned
+    if (result == NULL) {
+        setError("error invoking 'cancel' method: " + _fetchPythonError());
+    }
+    Py_XDECREF(result);
+}
+
 char **Three::getCheckWarnings(RtLoaderPyObject *check)
 {
     if (check == NULL) {
@@ -806,6 +850,11 @@ void Three::setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t cb)
     _set_submit_histogram_bucket_cb(cb);
 }
 
+void Three::setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t cb)
+{
+    _set_submit_event_platform_event_cb(cb);
+}
+
 void Three::setGetVersionCb(cb_get_version_t cb)
 {
     _set_get_version_cb(cb);
@@ -894,6 +943,11 @@ void Three::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
 void Three::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
 {
     _set_obfuscate_sql_exec_plan_cb(cb);
+}
+
+void Three::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
+{
+    _set_get_process_start_time_cb(cb);
 }
 
 // Python Helpers

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package redact
 
@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"testing"
 
+	scrubberpkg "github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
@@ -162,7 +161,7 @@ func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
 	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningEnvs {
-				if scrubbedVal, _ := log.CredentialsCleanerBytes([]byte(p)); scrubbedVal != nil {
+				if scrubbedVal, _ := scrubberpkg.ScrubBytes([]byte(p)); scrubbedVal != nil {
 					c = true
 				}
 

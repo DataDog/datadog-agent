@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_H_INCLUDED
 #define DATADOG_AGENT_RTLOADER_H_INCLUDED
 
@@ -29,24 +29,26 @@ struct rtloader_pyobject_s;
 typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 
 // FACTORIES
-/*! \fn rtloader_t *make2(const char *python_home, char **error)
+/*! \fn rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
     \brief Factory function to load the python2 backend DLL and create its relevant RtLoader
     instance.
     \param python_home A C-string with the path to the PYTHONHOME for said DLL.
+    \param python_exe A C-string with the path to the python interpreter.
     \param error A C-string pointer output parameter to return error messages.
     \return A rtloader_t * pointer to the RtLoader instance.
     \sa rtloader_t
 */
-DATADOG_AGENT_RTLOADER_API rtloader_t *make2(const char *pythonhome, char **error);
-/*! \fn rtloader_t *make3(const char *python_home, char **error)
+DATADOG_AGENT_RTLOADER_API rtloader_t *make2(const char *python_home, const char *python_exe, char **error);
+/*! \fn rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     \brief Factory function to load the python3 backend DLL and create its relevant RtLoader
     instance.
     \param python_home A C-string with the path to the PYTHONHOME for said DLL.
+    \param python_exe A C-string with the path to the python interpreter.
     \param error A C-string pointer output parameter to return error messages.
     \return A rtloader_t * pointer to the RtLoader instance.
     \sa rtloader_t
 */
-DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *pythonhome, char **error);
+DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *python_home, const char *python_exe, char **error);
 
 // HELPERS
 /*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
@@ -182,10 +184,18 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
     \param check A rtloader_pyobject_t * pointer to the check instance we wish to run.
     \return A C-string with the check summary.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
+
+/*! \fn char *cancel_check(rtloader_t *, rtloader_pyobject_t *check)
+    \brief Cancels a check instance. This allow check to be notified when
+    they're unscheduled and can free any remaining resources.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to cancel.
+    \return A C-string with the check summary.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *check);
 
 /*! \fn char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check)
     \brief Get all warnings, if any, for a check instance.
@@ -195,8 +205,6 @@ DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *ch
     \return An array of C-strings with found warnings for the instance, or NULL if none or
     an error occurred.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check);
 
@@ -386,6 +394,15 @@ DATADOG_AGENT_RTLOADER_API void set_submit_event_cb(rtloader_t *, cb_submit_even
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_histogram_bucket_cb(rtloader_t *, cb_submit_histogram_bucket_t);
+
+/*! \fn void set_submit_event_platform_event_cb(rtloader_t *, cb_submit_event_platform_event_t)
+    \brief Sets the submit event callback to be used by rtloader for event-platform event.
+    \param cb A function pointer with cb_submit_event_platform_event_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_event_platform_event_cb(rtloader_t *, cb_submit_event_platform_event_t);
 
 // DATADOG_AGENT API
 /*! \fn void set_get_version_cb(rtloader_t *, cb_get_version_t)
@@ -593,6 +610,16 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_cb(rtloader_t *, cb_obfuscate_
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_obfuscate_sql_exec_plan_t);
+
+/*! \fn void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t)
+    \brief Sets a callback to be used by rtloader to retrieve agent process start time.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_get_process_start_time_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
 
 #ifdef __cplusplus
 }

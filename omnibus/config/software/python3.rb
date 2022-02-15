@@ -1,8 +1,7 @@
 name "python3"
 
-default_version "3.8.5"
-
 if ohai["platform"] != "windows"
+  default_version "3.8.11"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
@@ -14,13 +13,14 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "015115023c382eb6ab83d512762fe3c5502fa0c6c52ffebc4831c4e1a06ffc49"
+         :sha256 => "b77464ea80cec14581b86aeb7fb2ff02830e0abc7bcdc752b7b4bdfcd8f3e393"
 
   relative_path "Python-#{version}"
 
   python_configure = ["./configure",
                       "--prefix=#{install_dir}/embedded",
-                      "--with-ssl=#{install_dir}/embedded"]
+                      "--with-ssl=#{install_dir}/embedded",
+                      "--with-ensurepip=no"] # pip is installed separately by its own software def
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
@@ -36,7 +36,8 @@ if ohai["platform"] != "windows"
   python_configure.push("--with-dbmliborder=")
 
   build do
-    ship_license "PSFL"
+    # 2.0 is the license version here, not the python version
+    license "Python-2.0"
 
     env = case ohai["platform"]
           when "aix"
@@ -63,25 +64,26 @@ if ohai["platform"] != "windows"
   end
 
 else
+  default_version "3.8.11-v3.8.11"
   dependency "vc_redist_14"
-  #
-  # note for next version after 3.8.1, remove the `-withcrt` as the filename won't
-  # include that any more
-  #
+
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-            :sha256 => "3429dea4f0ad7ab03fb611948285386fa46ebf0f3f905cdde18a5419c87650e9"
+            :sha256 => "5BAEB08EF35486219342D5A4861D1718E084E29EF506A2F0C9E528A9AD3F2BF3".downcase
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "27adbfb9cba23d0403f0dd2a1e7681fb101ef263eefea17c225c65c25a4a30e5"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
+         :sha256 => "A437BB304F6B44FA516E44889506B2A0F2AC4EB8F01BA06A1BFBF5D87023CAE4".downcase
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
+    # 2.0 is the license version here, not the python version
+    license "Python-2.0"
+
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
   end

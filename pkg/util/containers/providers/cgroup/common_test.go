@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -13,6 +14,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type tempFolder struct {
@@ -104,4 +108,31 @@ func detab(str string) string {
 		}
 	}
 	return strings.Join(detabbed, "\n")
+}
+
+// Unit tests
+
+func Test_parseCPUSetFile(t *testing.T) {
+	for _, tc := range []struct {
+		input []string
+		want  int
+	}{
+		{
+			input: []string{"0-5"},
+			want:  6,
+		},
+		{
+			input: []string{"0-4,9"},
+			want:  6,
+		},
+		{
+			input: []string{"0-2,7,12-14"},
+			want:  7,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			numCPUs := parseCPUSetFile(tc.input)
+			assert.Equal(t, tc.want, numCPUs)
+		})
+	}
 }

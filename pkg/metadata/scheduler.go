@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metadata
 
@@ -10,10 +10,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -34,20 +35,20 @@ type scheduledCollector struct {
 // Scheduler takes care of sending metadata at specific
 // time intervals
 type Scheduler struct {
-	srl           *serializer.Serializer
+	demux         aggregator.Demultiplexer
 	collectors    map[string]*scheduledCollector
 	context       context.Context
 	contextCancel context.CancelFunc
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
-func NewScheduler(s *serializer.Serializer) *Scheduler {
+func NewScheduler(demux aggregator.Demultiplexer) *Scheduler {
 	scheduler := &Scheduler{
-		srl:        s,
+		demux:      demux,
 		collectors: make(map[string]*scheduledCollector),
 	}
 
-	if enableFirstRunCollection {
+	if enableFirstRunCollection && config.Datadog.GetBool("enable_metadata_collection") {
 		err := scheduler.firstRun()
 		if err != nil {
 			log.Errorf("Unable to send host metadata at first run: %v", err)
@@ -85,19 +86,20 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	}
 
 	go func() {
-		ctx, cancelCtxFunc := context.WithCancel(c.context)
-		defer cancelCtxFunc()
+		ctx, cancel := context.WithCancel(context.Background())
 		for {
 			select {
-			case <-ctx.Done():
+			case <-c.context.Done():
+				cancel()
 				return
-			case <-sc.healthHandle.C:
-				// Purposely empty
+			case healthDeadline := <-sc.healthHandle.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case <-sc.sendTimer.C:
 				sc.sendTimer.Reset(interval) // Reset the timer, so it fires again after `interval`.
 				// Note we call `p.Send` on the collector *after* resetting the Timer, so
 				// the time spent by `p.Send` is not added to the total time between runs.
-				if err := p.Send(c.srl); err != nil {
+				if err := p.Send(ctx, c.demux.Serializer()); err != nil {
 					log.Errorf("Unable to send '%s' metadata: %v", name, err)
 				}
 			}
@@ -150,7 +152,7 @@ func (c *Scheduler) firstRun() error {
 		log.Error("Unable to find 'host' metadata collector in the catalog!")
 		signals.ErrorStopper <- true
 	}
-	return p.Send(c.srl)
+	return p.Send(context.TODO(), c.demux.Serializer())
 }
 
 // RegisterCollector adds a Metadata Collector to the catalog

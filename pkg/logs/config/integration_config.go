@@ -1,29 +1,34 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // Logs source types
 const (
-	TCPType          = "tcp"
-	UDPType          = "udp"
-	FileType         = "file"
-	DockerType       = "docker"
-	JournaldType     = "journald"
-	WindowsEventType = "windows_event"
-	SnmpTrapsType    = "snmp_traps"
+	TCPType           = "tcp"
+	UDPType           = "udp"
+	FileType          = "file"
+	DockerType        = "docker"
+	JournaldType      = "journald"
+	WindowsEventType  = "windows_event"
+	SnmpTrapsType     = "snmp_traps"
+	StringChannelType = "string_channel"
 
 	// UTF16BE for UTF-16 Big endian encoding
 	UTF16BE string = "utf-16-be"
 	// UTF16LE for UTF-16 Little Endian encoding
 	UTF16LE string = "utf-16-le"
+	// SHIFTJIS for Shift JIS (Japanese) encoding
+	SHIFTJIS string = "shift-jis"
 )
 
 // LogsConfig represents a log source config, which can be for instance
@@ -31,8 +36,9 @@ const (
 type LogsConfig struct {
 	Type string
 
-	Port int    // Network
-	Path string // File, Journald
+	Port        int    // Network
+	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout"` // Network
+	Path        string // File, Journald
 
 	Encoding     string   `mapstructure:"encoding" json:"encoding"`             // File
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
@@ -52,11 +58,19 @@ type LogsConfig struct {
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
 
+	// used as input only by the Channel tailer.
+	// could have been unidirectional but the tailer could not close it in this case.
+	Channel chan *ChannelMessage
+
 	Service         string
 	Source          string
 	SourceCategory  string
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+
+	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
+	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
+	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
 }
 
 // TailingMode type
@@ -137,6 +151,16 @@ func (c *LogsConfig) validateTailingMode() error {
 		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
 	}
 	return nil
+}
+
+// AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
+// considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
+// particular log source.
+func (c *LogsConfig) AutoMultiLineEnabled() bool {
+	if c.AutoMultiLine != nil {
+		return *c.AutoMultiLine
+	}
+	return config.Datadog.GetBool("logs_config.auto_multi_line_detection")
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

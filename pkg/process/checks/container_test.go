@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package checks
@@ -9,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -115,33 +121,37 @@ func TestContainerNils(t *testing.T) {
 }
 
 func TestCalculateCtrPct(t *testing.T) {
-	epsilon := 0.0000001 // Difference less than some epsilon
+	epsilon := 0.1 // Difference less than some epsilon
 
-	before := time.Now().Add(-1 * time.Second)
+	currentTime := time.Now()
+	before := currentTime.Add(-1 * time.Second)
 
 	var emptyTime time.Time
 
 	// Underflow on cur-prev
-	assert.Equal(t, float32(0), calculateCtrPct(0, 1, 0, 0, 1, before))
+	assert.Equal(t, float32(0), calculateCtrPct(0, 1, 0, 0, 1, currentTime, before))
 
 	// Underflow on sys2-sys1
-	assert.Equal(t, float32(0), calculateCtrPct(3, 1, 4, 5, 1, before))
+	assert.Equal(t, float32(0), calculateCtrPct(3, 1, 4, 5, 1, currentTime, before))
 
 	// Time is empty
-	assert.Equal(t, float32(0), calculateCtrPct(3, 1, 0, 0, 1, emptyTime))
-
-	// Elapsed time is less than 1s
-	assert.Equal(t, float32(0), calculateCtrPct(3, 1, 0, 0, 1, time.Now()))
+	assert.Equal(t, float32(0), calculateCtrPct(3, 1, 0, 0, 1, currentTime, emptyTime))
 
 	// Div by zero on sys2/sys1, fallback to normal cpu calculation
-	assert.InEpsilon(t, 2, calculateCtrPct(3, 1, 1, 1, 1, before), epsilon)
+	assert.InEpsilon(t, 2, calculateCtrPct(3, 1, 1, 1, 1, currentTime, before), epsilon)
 
 	// use cur=2, prev=0, sys1=0, sys2=2 simulating first check on new container
-	assert.InEpsilon(t, float32(200), calculateCtrPct(2, 0, 1, 0, 1, before), epsilon)
+	assert.InEpsilon(t, float32(200), calculateCtrPct(2, 0, 1, 0, 1, currentTime, before), epsilon)
 
 	// Calculate based off cur & prev
-	assert.InEpsilon(t, 2, calculateCtrPct(3, 1, 0, 0, 1, before), epsilon)
+	assert.InEpsilon(t, 2, calculateCtrPct(3, 1, 0, 0, 1, currentTime, before), epsilon)
 
 	// Calculate based off all values
-	assert.InEpsilon(t, 66.66667, calculateCtrPct(3, 1, 4, 1, 1, before), epsilon)
+	assert.InEpsilon(t, 66.66667, calculateCtrPct(3, 1, 4, 1, 1, currentTime, before), epsilon)
+
+	// cur=-1 because of missing cgroup file
+	assert.Equal(t, float32(-1), calculateCtrPct(-1, 1, 0, 0, 1, currentTime, emptyTime))
+
+	// prev=-1 because of missing cgroup file in last run
+	assert.Equal(t, float32(-1), calculateCtrPct(3, -1, 0, 0, 1, currentTime, emptyTime))
 }

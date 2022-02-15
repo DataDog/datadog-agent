@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -30,7 +35,7 @@ func main() {
 	out := map[string]SecretOutput{}
 	for _, s := range in.Secrets {
 		out[s] = SecretOutput{
-			Value: fmt.Sprintf("secret_%s", s),
+			Value: fmt.Sprintf("secret-%s", s),
 		}
 	}
 

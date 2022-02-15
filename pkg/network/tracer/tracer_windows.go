@@ -1,38 +1,33 @@
-// +build windows
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows && npm
+// +build windows,npm
 
 package tracer
 
 import (
-	"expvar"
+	"errors"
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	defaultPollInterval = int(15)
+	defaultBufferSize   = 512
+	minBufferSize       = 256
 )
-
-var (
-	expvarEndpoints map[string]*expvar.Map
-)
-
-func init() {
-	expvarTypes := []string{"state"}
-	for _, n := range network.DriverExpvarNames {
-		expvarTypes = append(expvarTypes, string(n))
-	}
-
-	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
-	for _, name := range expvarTypes {
-		expvarEndpoints[name] = expvar.NewMap(name)
-	}
-}
 
 // Tracer struct for tracking network state and connections
 type Tracer struct {
@@ -40,23 +35,31 @@ type Tracer struct {
 	driverInterface *network.DriverInterface
 	stopChan        chan struct{}
 	state           network.State
-	reverseDNS      network.ReverseDNS
+	reverseDNS      dns.ReverseDNS
 
-	connStatsActive *network.DriverBuffer
-	connStatsClosed *network.DriverBuffer
-	connLock        sync.Mutex
+	activeBuffer *network.ConnectionBuffer
+	closedBuffer *network.ConnectionBuffer
+	connLock     sync.Mutex
 
 	timerInterval int
 
 	// ticker for the polling interval for writing
 	inTicker            *time.Ticker
 	stopInTickerRoutine chan bool
+
+	// Connections for the tracer to exclude
+	sourceExcludes []*network.ConnectionFilter
+	destExcludes   []*network.ConnectionFilter
 }
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config.EnableMonotonicCount, config.DriverBufferSize)
-	if err != nil {
+	di, err := network.NewDriverInterface(config)
+
+	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
+		log.Debugf("could not create driver interface: %v", err)
+		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
+	} else if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
 
@@ -64,64 +67,41 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
-		config.MaxDNSStatsBufferred,
-		config.CollectDNSDomains,
+		config.MaxDNSStatsBuffered,
+		config.MaxHTTPStatsBuffered,
 	)
 
+	reverseDNS := dns.NewNullReverseDNS()
+	if config.DNSInspection {
+		reverseDNS, err = dns.NewReverseDNS(config)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	tr := &Tracer{
+		config:          config,
 		driverInterface: di,
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		reverseDNS:      network.NewNullReverseDNS(),
-		connStatsActive: network.NewDriverBuffer(512),
-		connStatsClosed: network.NewDriverBuffer(512),
+		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		reverseDNS:      reverseDNS,
+		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
-	go tr.expvarStats(tr.stopChan)
 	return tr, nil
 }
 
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
+	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
 	if err != nil {
 		log.Errorf("error closing driver interface: %s", err)
-	}
-}
-
-func (t *Tracer) expvarStats(exit <-chan struct{}) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-	// starts running the body immediately instead waiting for the first tick
-	for range ticker.C {
-		select {
-		case <-exit:
-			return
-		default:
-			stats, err := t.GetStats()
-			if err != nil {
-				continue
-			}
-
-			// Move state stats into proper field
-			if states, ok := stats["state"]; ok {
-				if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-					stats["state"] = telemetry
-				}
-			}
-
-			for name, stat := range stats {
-				for metric, val := range stat.(map[string]int64) {
-					currVal := &expvar.Int{}
-					currVal.Set(val)
-					if ep, ok := expvarEndpoints[name]; ok {
-						ep.Set(snakeToCapInitialCamel(metric), currVal)
-					}
-				}
-			}
-		}
 	}
 }
 
@@ -130,26 +110,34 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	t.connStatsActive.Reset()
-	t.connStatsClosed.Reset()
-
-	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed)
+	_, _, err := t.driverInterface.GetConnectionStats(t.activeBuffer, t.closedBuffer, func(c *network.ConnectionStats) bool {
+		return !t.shouldSkipConnection(c)
+	})
 	if err != nil {
-		log.Errorf("failed to get connections")
-		return nil, err
+		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
-
-	activeConnStats := t.connStatsActive.Connections()
-	closedConnStats := t.connStatsClosed.Connections()
-
-	for _, connStat := range closedConnStats {
-		t.state.StoreClosedConnection(&connStat)
-	}
+	activeConnStats := t.activeBuffer.Connections()
+	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
-	return &network.Connections{Conns: conns}, nil
+
+	t.state.StoreClosedConnections(closedConnStats)
+	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+
+	t.activeBuffer.Reset()
+	t.closedBuffer.Reset()
+
+	ips := make([]util.Address, 0, len(delta.Conns)*2)
+	for _, conn := range delta.Conns {
+		ips = append(ips, conn.Source, conn.Dest)
+	}
+	names := t.reverseDNS.Resolve(ips)
+	return &network.Connections{
+		BufferedData: delta.BufferedData,
+		DNS:          names,
+		DNSStats:     delta.DNSStats,
+	}, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
@@ -159,9 +147,9 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
-	stateStats := t.state.GetStats()
 	stats := map[string]interface{}{
-		"state": stateStats,
+		"state": t.state.GetStats(),
+		"dns":   t.reverseDNS.GetStats(),
 	}
 	for _, name := range network.DriverExpvarNames {
 		stats[string(name)] = driverStats[name]
@@ -177,4 +165,9 @@ func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 // DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugEBPFMaps is not implemented on this OS for Tracer
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	return "", ebpf.ErrNotImplemented
 }

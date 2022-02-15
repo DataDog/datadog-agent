@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 package decoder
 
@@ -12,48 +12,40 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const header = "HEADER"
 
-type MockHandler struct {
-	ouputChan chan *Message
-}
-
-func (h *MockHandler) Handle(input *Message) {
-	h.ouputChan <- input
-}
-
-func (h *MockHandler) Start() {
-	return
-}
-
-func (h *MockHandler) Stop() {
-	return
+func lineParserChans() (chan *DecodedInput, chan *Message) {
+	return make(chan *DecodedInput, 5), make(chan *Message, 5)
 }
 
 type MockFailingParser struct {
 	header []byte
 }
 
-func NewMockFailingParser(header string) parser.Parser {
+func NewMockFailingParser(header string) parsers.Parser {
 	return &MockFailingParser{header: []byte(header)}
 }
 
 // Parse removes header from line, returns a message if its header matches the Parser header
 // or returns an error and flags the line as partial if it does not end up by \n
-func (u *MockFailingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (u *MockFailingParser) Parse(msg []byte) (parsers.Message, error) {
 	if bytes.HasPrefix(msg, u.header) {
 		msg := bytes.Replace(msg, u.header, []byte(""), 1)
 		l := len(msg)
 		if l > 1 && msg[l-2] == '\\' && msg[l-1] == 'n' {
-			return msg[:l-2], "", "", false, nil
+			return parsers.Message{Content: msg[:l-2]}, nil
 		}
-		return msg, "", "", true, nil
+		return parsers.Message{
+			Content:   msg,
+			IsPartial: true,
+		}, nil
 	}
-	return msg, "", "", false, fmt.Errorf("error")
+	return parsers.Message{Content: msg}, fmt.Errorf("error")
 }
 
 func (u *MockFailingParser) SupportsPartialLine() bool {
@@ -62,110 +54,115 @@ func (u *MockFailingParser) SupportsPartialLine() bool {
 
 func TestSingleLineParser(t *testing.T) {
 	var message *Message
-	h := &MockHandler{make(chan *Message)}
 	p := NewMockFailingParser(header)
 
-	lineParser := NewSingleLineParser(p, h)
+	inputChan, outputChan := lineParserChans()
+	lineParser := NewSingleLineParser(inputChan, outputChan, p)
 	lineParser.Start()
 
 	line := header
 
 	inputLen := len(line) + 1
-	lineParser.Handle(&DecodedInput{[]byte(line), inputLen})
-	message = <-h.ouputChan
+	inputChan <- &DecodedInput{[]byte(line), inputLen}
+	message = <-outputChan
 	assert.Equal(t, "", string(message.Content))
 	assert.Equal(t, inputLen, message.RawDataLen)
 
 	inputLen = len(line+"one message") + 1
-	lineParser.Handle(&DecodedInput{[]byte(line + "one message"), inputLen})
-	message = <-h.ouputChan
+	inputChan <- &DecodedInput{[]byte(line + "one message"), inputLen}
+	message = <-outputChan
 	assert.Equal(t, "one message", string(message.Content))
 	assert.Equal(t, inputLen, message.RawDataLen)
 
-	lineParser.Stop()
+	close(inputChan)
+
+	// once the input channel closes, the output channel closes as well
+	_, ok := <-outputChan
+	require.Equal(t, false, ok)
 }
 
 func TestSingleLineParserSendsRawInvalidMessages(t *testing.T) {
-
-	h := &MockHandler{make(chan *Message)}
 	p := NewMockFailingParser(header)
 
-	lineParser := NewSingleLineParser(p, h)
+	inputChan, outputChan := lineParserChans()
+	lineParser := NewSingleLineParser(inputChan, outputChan, p)
 	lineParser.Start()
 
-	lineParser.Handle(&DecodedInput{[]byte("one message"), 12})
-	message := <-h.ouputChan
+	inputChan <- &DecodedInput{[]byte("one message"), 12}
+	message := <-outputChan
 	assert.Equal(t, "one message", string(message.Content))
 
-	lineParser.Stop()
+	close(inputChan)
+
+	// once the input channel closes, the output channel closes as well
+	_, ok := <-outputChan
+	require.Equal(t, false, ok)
 }
 
 func TestMultilineParser(t *testing.T) {
-	h := &MockHandler{make(chan *Message)}
 	p := NewMockFailingParser(header)
 	timeout := 1000 * time.Millisecond
 	contentLenLimit := 256 * 100
 
-	lineParser := NewMultiLineParser(timeout, p, h, contentLenLimit)
+	inputChan, outputChan := lineParserChans()
+	lineParser := NewMultiLineParser(inputChan, outputChan, timeout, p, contentLenLimit)
 	lineParser.Start()
 
-	lineParser.Handle(&DecodedInput{[]byte(header + "one "), 11})
-	lineParser.Handle(&DecodedInput{[]byte(header + "long "), 12})
-	lineParser.Handle(&DecodedInput{[]byte(header + "line\\n"), 14})
+	inputChan <- &DecodedInput{[]byte(header + "one "), 11}
+	inputChan <- &DecodedInput{[]byte(header + "long "), 12}
+	inputChan <- &DecodedInput{[]byte(header + "line\\n"), 14}
 
-	message := <-h.ouputChan
+	message := <-outputChan
 
 	assert.Equal(t, "one long line", string(message.Content))
 	assert.Equal(t, message.RawDataLen, 11+12+14)
 
-	lineParser.Stop()
+	close(inputChan)
 }
 
 func TestMultilineParserTimeout(t *testing.T) {
-	h := &MockHandler{make(chan *Message)}
 	p := NewMockFailingParser(header)
 	timeout := 100 * time.Millisecond
 	contentLenLimit := 256 * 100
 
-	lineParser := NewMultiLineParser(timeout, p, h, contentLenLimit)
+	inputChan, outputChan := lineParserChans()
+	lineParser := NewMultiLineParser(inputChan, outputChan, timeout, p, contentLenLimit)
 	lineParser.Start()
+	defer close(inputChan)
 
-	lineParser.Handle(&DecodedInput{[]byte(header + "message"), 14})
+	inputChan <- &DecodedInput{[]byte(header + "message"), 14}
 
-	message := <-h.ouputChan
+	message := <-outputChan
 
 	assert.Equal(t, "message", string(message.Content))
 	assert.Equal(t, message.RawDataLen, 14)
-
-	lineParser.Stop()
 }
 
 func TestMultilineParserLimit(t *testing.T) {
 	// Allow buffering to ensure the line_parser does not timeout
-	h := &MockHandler{make(chan *Message, 10)}
 	p := NewMockFailingParser(header)
 	timeout := 1000 * time.Millisecond
 	contentLenLimit := 64
 	var message *Message
 	line := strings.Repeat("a", contentLenLimit)
 
-	lineParser := NewMultiLineParser(timeout, p, h, contentLenLimit)
+	inputChan, outputChan := lineParserChans()
+	lineParser := NewMultiLineParser(inputChan, outputChan, timeout, p, contentLenLimit)
 	lineParser.Start()
+	defer close(inputChan)
 
 	for i := 0; i < 10; i++ {
-		lineParser.Handle(&DecodedInput{[]byte(header + line), 7 + len(line)})
+		inputChan <- &DecodedInput{[]byte(header + line), 7 + len(line)}
 	}
-	lineParser.Handle(&DecodedInput{[]byte(header + "aaaa\\n"), 13})
+	inputChan <- &DecodedInput{[]byte(header + "aaaa\\n"), 13}
 
 	for i := 0; i < 10; i++ {
-		message = <-h.ouputChan
+		message = <-outputChan
 		assert.Equal(t, line, string(message.Content))
 		assert.Equal(t, message.RawDataLen, 7+len(line))
 	}
 
-	message = <-h.ouputChan
+	message = <-outputChan
 	assert.Equal(t, "aaaa", string(message.Content))
 	assert.Equal(t, message.RawDataLen, 13)
-
-	lineParser.Stop()
 }

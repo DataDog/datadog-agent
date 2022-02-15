@@ -43,6 +43,8 @@ From these base blocks, we define:
 - test types: `kitchen_test_<test_suite>_<flavor>` which is a combination of a chosen test suite, Agent flavor and Azure location.
 - scenarios: `kitchen_scenario_<OS>_aX` which is a combination of a chosen OS and major Agent version.
 
+**Note:** When jobs use combinations of other jobs with the `extends` keyword (eg. test types, scenarios), the `extends` list is processed in order. Duplicate keys are overridden (ie. the latest job in the list which contains the key wins). Therefore, `extends` lists need to be ordered from the most generic to the most specific extension.
+
 **Note:** To avoid having too many different test types, we bind each test suite with a specific Azure location. Eg. all install script tests are run in the same Azure location.
 
 The real jobs that are run in the Gitlab pipelines are thus a combination of test types and scenarios, named `kitchen_<OS>_<test_suite>_<flavor>-aX`.
@@ -154,18 +156,18 @@ The `test/integration` tree contains the `rspec` verification tests that are run
         │   └── rspec
         │       └── spec_helper.rb
         │       └── iot_spec_helper.rb
-        ├── dd-agent-install-script
+        ├── install-script
         │   └── rspec
-        │       ├── dd-agent_spec.rb
+        │       ├── install_script_spec.rb
         │       └── spec_helper.rb -> ../../common/rspec/spec_helper.rb
         │       └── iot_spec_helper.rb -> ../../common/rspec/iot_spec_helper.rb
-        ├── dd-agent-all-subservices
+        ├── win-all-subservices
         │   └── rspec
-        │       ├── dd-agent-all-subservices_spec.rb
+        │       ├── win-all-subservices_spec.rb
         │       └── spec_helper.rb -> ../../common/rspec/spec_helper.rb
-        ├── dd-agent-installopts
+        ├── win-installopts
         │   └── rspec
-        │       ├── dd-agent-installopts_spec.rb
+        │       ├── win-installopts_spec.rb
         │       └── spec_helper.rb -> ../../common/rspec/spec_helper.rb
 ```
 
@@ -200,6 +202,18 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 - The most important parts are the run list, the attributes to set for each cookbook used, and optionally a list of platforms to exclude.
 - Add the suite to the list of accepted suites in `tasks/run-test-kitchen.sh`.
 
+**Note:** When creating kitchen resources on Azure, the kitchen Azure driver creates one resource group for each suite + test platform combination. Its name is computed as follows:
+`kitchen-<suite_name>-<platform_name>-<timestamp>pl<pipeline n°>-<suffix>`, with:
+- `suite_name`: the kitchen test suite name, defined in `kitchen-azure-<suite_name>-test.yml`.
+- `platform_name`: the short name of the test platform, defined in the `TEST_PLATFORMS`.
+- `timestamp`: a `YYYYMMDDThhmmss` timestamp (15 chars),
+- `pipeline n°`: the pipeline number (7-8 chars for the foreseeable future).
+- `suffix`: `a6` or `a7` (2 chars).
+
+Azure will throw an error if a resource group name is longer than 80 characters: `Failed to complete #create action: [{"error"=>{"code"=>"InvalidParameter", "message"=>"The entity name 'resourceGroupName' is invalid according to its validation rule: ^[^_\\W][\\w-._]{0,79}(?<![-.])$.", "target"=>"resourceGroupName"}}]`
+
+Therefore, your test suite name + test platform short name combinations need to be short enough to not exceed the limit.
+
 **Note (HACK):** On some test suites, we define attributes for a cookbook named `dd-agent-rspec`. This is not a real cookbook; we're using this as a workaround to pass variables to the rspec tests (in the rspec tests, we only have access to a `dna.json` file that has the contents of `kitchen.yml`).
 
 3. Create the rspec test directory matching your new test suite.
@@ -215,7 +229,7 @@ When kitchen tests are run, VMs are created in dedicated resource groups in Azur
 
 The periodic cleanup jobs runs the `cleanup_azure.py` script on a given list of Azure resource group prefixes. Eg.:
 ```
-RESOURCE_GROUP_PREFIX=kitchen-dd-agent python3.6 ~/deploy_scripts/cleanup_azure.py
+RESOURCE_GROUP_PREFIX=kitchen-dd-agent python3.6 /deploy_scripts/cleanup_azure.py
 ```
 cleans up all resources created by test suites that start with `dd-agent`.
 

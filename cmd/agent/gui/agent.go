@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package gui
 
 import (
@@ -78,7 +83,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 
 // Sends the agent's hostname
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	hostname, e := util.GetHostname()
+	hostname, e := util.GetHostname(r.Context())
 	if e != nil {
 		log.Errorf("Error getting hostname: " + e.Error())
 		w.Write([]byte("Error: " + e.Error()))
@@ -140,7 +145,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		jmxLogFile = common.DefaultJmxLogFile
 	}
 
-	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil)
+	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, nil)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())

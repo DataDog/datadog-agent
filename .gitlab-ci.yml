@@ -4,6 +4,7 @@ include:
   - /.gitlab/deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
+  - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
@@ -11,15 +12,16 @@ include:
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
-  - /.gitlab/image_build.yml
-  - /.gitlab/image_scan.yml
+  - /.gitlab/container_build.yml
+  - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
-  - /.gitlab/image_deploy.yml
+  - /.gitlab/dev_container_deploy.yml
   - /.gitlab/deploy_6.yml
   - /.gitlab/deploy_7.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
   - /.gitlab/deploy_invalidate.yml
+  - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
   - /.gitlab/kitchen_cleanup.yml
@@ -31,7 +33,7 @@ include:
   # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/tag_job_templates.yml
+  - /.gitlab/docker_common/publish_job_templates.yml
 
 default:
   retry:
@@ -51,6 +53,7 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
+  - source_test_junit_upload
   - binary_build
   - integration_test
   - package_build
@@ -58,15 +61,16 @@ stages:
   - kitchen_deploy
   - kitchen_testing
   - pkg_metrics
-  - image_build
-  - image_scan
+  - container_build
+  - container_scan
   - check_deploy
-  - image_deploy
+  - dev_container_deploy
   - deploy6
   - deploy7
   - choco_build
   - choco_deploy
   - deploy_invalidate
+  - internal_image_deploy
   - trigger_release
   - e2e
   - kitchen_cleanup
@@ -81,18 +85,17 @@ variables:
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
-  OMNIBUS_BASE_DIR: /.omnibus
+  OMNIBUS_BASE_DIR: /omnibus
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
-  # Directory in which we execute the omnibus build for SUSE
-  # as we want to separate the RPM built for this distro.
-  OMNIBUS_BASE_DIR_SUSE: /.omnibus/suse
-  # Directory in which we put the artifacts after the build
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/omnibus/pkg/
+  # Directory in which we put the SUSE artifacts after the SUSE build
   # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg
-  OMNIBUS_BASE_DIR_WIN: c:\omni-base\$CI_RUNNER_ID
-  OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omni-base/$CI_RUNNER_ID
+  # RPM builds and SUSE RPM builds create artifacts with the same name.
+  # To differentiate them, we put them in different folders. That also
+  # avoids accidentally overwriting files when downloading artifacts from
+  # both RPM and SUSE rpm jobs.
+  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/omnibus/suse/pkg
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
@@ -106,7 +109,7 @@ variables:
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
   ANDROID_S3_BUCKET: dd-agent-androidtesting
-  DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
+  BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
@@ -123,107 +126,45 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
+  ## comment out the line below to disable integration wheels cache
+  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v3507010-02f01e5
-  DATADOG_AGENT_BUILDERS: v3648669-71b458d
-  DATADOG_AGENT_WINBUILDIMAGES: v3651799-a21376a
-  DATADOG_AGENT_ARMBUILDIMAGES: v3507010-02f01e5
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v3507010-02f01e5
-  DATADOG_AGENT_LIBBCC_BUILDIMAGES: v2894686-d80c3ce
-  BCC_VERSION: v0.12.0
-  SYSTEM_PROBE_GO_VERSION: 1.14.12
+  DATADOG_AGENT_BUILDIMAGES: v6844966-47298a5
+  DATADOG_AGENT_BUILDERS: v6814105-5ec7b27
+  DATADOG_AGENT_WINBUILDIMAGES: v6844966-47298a5
+  DATADOG_AGENT_ARMBUILDIMAGES: v6844966-47298a5
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v6844966-47298a5
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v6844966-47298a5
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
+  NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
+  NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
+  DEB_GPG_KEY_ID: 8387EEAF
+  DEB_GPG_KEY_NAME: "Datadog, Inc <package@datadoghq.com>"
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}
+  RPM_GPG_KEY_ID: e09422b3
   RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_e09422b3
   RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_e09422b3
   # docker.io authentication
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
+  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
 
 #
 # Condition mixins for simplification of rules
 #
-# FIXME: currently, the only good way we have to compose rules is by using YAML anchors.
-# However, as they are YAML features (and not Gitlab features), they have to be present
-# in each file that needs them, which results in a lot of copy-pasting.
-# In the future, we may be able to leverage YAML functions (https://gitlab.com/groups/gitlab-org/-/epics/4381)
-# and cross-file references (https://gitlab.com/gitlab-org/gitlab/-/issues/266173) to remove this
-# currently needed copy-paste.
-#
-# The list of all available rules is given below. To use a rule in a specific file, copy it.
-#
+.if_main_branch: &if_main_branch
+  if: $CI_COMMIT_BRANCH == "main"
 
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
+.if_not_main_branch: &if_not_main_branch
+  if: $CI_COMMIT_BRANCH != "main"
 
-.if_not_master_branch: &if_not_master_branch
-  if: $CI_COMMIT_BRANCH != "master"
+.if_release_branch: &if_release_branch
+  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
-.if_tagged_commit: &if_tagged_commit
-  if: $CI_COMMIT_TAG != null
-
-.if_not_tagged_commit: &if_not_tagged_commit
-  if: $CI_COMMIT_TAG == null
-
-# Run job only on deploy pipelines
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
-.if_deploy_6: &if_deploy_6
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
-
-.if_deploy_7: &if_deploy_7
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
-
-.if_not_deploy: &if_not_deploy
-  if: $DEPLOY_AGENT != "true"
-
-# anchor to trigger test kitchen setup, run, and cleanup (so all stages
-# are run if one stage is run).  Triggers as defined:
-# - master
-# - tags (a tagged build)
-# - deploys (as above)
-# - web (when the build is triggered by a specific build request through the
-#        web interface.  This way, if a kitchen run is desired on a specific branch,
-#        it can be triggered by requesting a specific build)
-# - api (when the build is triggered by an API call)
-#
-.if_kitchen_deploy: &if_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
-
-.if_not_kitchen_deploy: &if_not_kitchen_deploy
-  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"
-
-# true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
-# we are building either a new tagged version of the agent (an RC for example).
-# In both cases the artifacts should be uploaded to our staging repository.
-.if_deploy_on_tag_6: &if_deploy_on_tag_6
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
-
-.if_not_deploy_on_tag_6: &if_not_deploy_on_tag_6
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_6 == "nightly" || $RELEASE_VERSION_6 == ""
-
-.if_deploy_on_tag_7: &if_deploy_on_tag_7
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
-
-.if_not_deploy_on_tag_7: &if_not_deploy_on_tag_7
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_7 == "nightly-a7" || $RELEASE_VERSION_7 == ""
-
-# true only on deploys and when RELEASE_VERSION_X is "nightly". In this setting we
-# build from master and update the nightly build for windows, linux and docker.
-.if_deploy_on_nightly: &if_deploy_on_nightly
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
-
-.if_not_deploy_on_nightly: &if_not_deploy_on_nightly
-  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_6 != "nightly" || $RELEASE_VERSION_7 != "nightly-a7"
-
-# true only when RELEASE_VERSION_X is not set
 .if_version_6: &if_version_6
   if: $RELEASE_VERSION_6 != ""
 
@@ -235,3 +176,547 @@ variables:
 
 .if_not_version_7: &if_not_version_7
   if: $RELEASE_VERSION_7 == ""
+
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true"
+
+.if_not_deploy: &if_not_deploy
+  if: $DEPLOY_AGENT != "true"
+
+.if_tagged_commit: &if_tagged_commit
+  if: $CI_COMMIT_TAG != null
+
+.if_not_nightly_repo_branch: &if_not_nightly_repo_branch
+  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly"
+
+.if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
+  if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
+
+.if_not_stable_repo_branch: &if_not_stable_repo_branch
+  if: $BUCKET_BRANCH != "stable"
+
+# Rule to trigger all builds conditionally.
+# By default:
+# - on main and deploy pipelines, all builds are run
+# - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
+# RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
+# RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
+# on main and deploy pipelines depend on jobs that are only run if we run all builds).
+.if_run_all_builds: &if_run_all_builds
+  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+
+.if_not_run_all_builds: &if_not_run_all_builds
+  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+
+# Rule to trigger test kitchen setup, run, and cleanup.
+# By default:
+# - on main and deploy pipelines, kitchen tests are run
+# - on branch pipelines, kitchen tests are not run
+# RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
+# RUN_KITCHEN_TESTS can be set to false to force kitchen tests to not run on main/deploy pipelines.
+.if_kitchen: &if_kitchen
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
+
+# Rules to trigger default kitchen tests.
+# Some of the kitchen tests are run on all pipelines by default. They can only be disabled
+# by setting RUN_KITCHEN_TESTS to false.
+.if_default_kitchen: &if_default_kitchen
+  if: $RUN_KITCHEN_TESTS != "false"
+
+.if_testing_cleanup: &if_testing_cleanup
+  if: $TESTING_CLEANUP == "true"
+
+.if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
+  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
+
+.if_deploy_on_stable_repo_branch: &if_deploy_on_stable_repo_branch
+  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "stable"
+
+# Rule to trigger jobs only when a tag matches a given pattern (for RCs)
+# on the beta branch.
+# Note: due to workflow rules, rc tag => deploy pipeline, so there's technically no
+# need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
+# to explicitly add it.
+.if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
+  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+#
+# List of rule blocks used in the pipeline
+# Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
+#
+
+.manual:
+  - when: manual
+    allow_failure: true
+
+.on_a6:
+  - <<: *if_version_6
+
+.on_a6_manual:
+  - <<: *if_version_6
+    when: manual
+    allow_failure: true
+
+.on_a7:
+  - <<: *if_version_7
+
+.on_a7_manual:
+  - <<: *if_version_7
+    when: manual
+    allow_failure: true
+
+.on_dev_branch_manual:
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_tagged_commit
+    when: never
+  - when: manual
+    allow_failure: true
+
+.on_main:
+  - <<: *if_main_branch
+
+.on_main_manual:
+  - <<: *if_main_branch
+    when: manual
+    allow_failure: true
+
+.on_main_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_main_branch
+
+.on_main_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_main_branch
+
+.on_tag_or_a7:
+  - <<: *if_tagged_commit
+  - <<: *if_version_7
+
+.on_tag_or_a7_all_builds:
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_tagged_commit
+  - <<: *if_version_7
+
+.on_deploy:
+  - <<: *if_deploy
+
+.on_deploy_failure:
+  - <<: *if_deploy
+    when: on_failure
+
+.on_deploy_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_a6_rc:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+.on_deploy_a6_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+
+# Same as on_deploy_a6_manual, except the job would not run on pipelines
+# using beta branch, it would only run for the final release.
+.on_deploy_a6_manual_final:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_deploy_on_beta_repo_branch
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+
+# This rule is a variation of on_deploy_a6_manual where
+# the job is usually run manually, except when the pipeline
+# builds an RC: in this case, the job is run automatically.
+# This is done to reduce the number of manual steps that have
+# to be done when creating RCs.
+.on_deploy_a6_manual_auto_on_rc:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      IMG_REGISTRIES: dev
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+
+.on_deploy_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_a7_rc:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+.on_deploy_a7_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      DSD_REPOSITORY: dogstatsd-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+# Same as on_deploy_a7_manual, except the job would not run on pipelines
+# using beta branch, it would only run for the final release.
+.on_deploy_a7_manual_final:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_deploy_on_beta_repo_branch
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      DSD_REPOSITORY: dogstatsd-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+# This rule is a variation of on_deploy_a7_manual where
+# the job is usually run manually, except when the pipeline
+# builds an RC: in this case, the job is run automatically.
+# This is done to reduce the number of manual steps that have
+# to be done when creating RCs.
+.on_deploy_a7_manual_auto_on_rc:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      DSD_REPOSITORY: dogstatsd-dev
+      IMG_REGISTRIES: dev
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+.on_deploy_nightly_repo_branch_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_nightly_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_nightly_repo_branch_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_nightly_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch_a6_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_stable_or_beta_repo_branch_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch_a7_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+  - <<: *if_deploy_on_stable_repo_branch
+    when: on_success
+  - when: never
+
+.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7_manual_on_stable:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+  - <<: *if_deploy_on_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: never
+
+# This rule is a variation of on_deploy_stable_or_beta_repo_branch_a7_manual where
+# the job is usually run manually, except when the pipeline
+# builds an RC: in this case, the job is run automatically.
+# This is done to reduce the number of manual steps that have
+# to be done when creating RCs.
+.on_deploy_stable_or_beta_repo_branch_a7_manual_auto_on_rc:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_stable_repo_branch_a7_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.except_deploy:
+  - <<: *if_deploy
+    when: never
+  - when: on_success
+
+.on_a6_except_deploy:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: never
+  - when: on_success
+
+.on_a7_except_deploy:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: never
+  - when: on_success
+
+.on_main_or_release_branch:
+  - <<: *if_main_branch
+  - <<: *if_release_branch
+
+.on_main_or_release_branch_or_deploy:
+  - <<: *if_deploy
+  - <<: *if_main_branch
+  - <<: *if_release_branch
+
+.on_main_or_release_branch_or_deploy_failure:
+  - <<: *if_deploy
+    when: on_failure
+  - <<: *if_main_branch
+    when: on_failure
+  - <<: *if_release_branch
+    when: on_failure
+
+.on_all_builds:
+  - <<: *if_run_all_builds
+
+.on_all_builds_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_run_all_builds
+
+.on_all_builds_a6_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_run_all_builds
+    when: manual
+    allow_failure: true
+
+.on_all_builds_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_run_all_builds
+
+.on_all_builds_a7_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_run_all_builds
+    when: manual
+    allow_failure: true
+
+.on_kitchen_tests_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_kitchen
+
+.on_kitchen_tests_a6_always:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_kitchen
+    when: always
+
+.on_all_kitchen_builds_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
+
+.on_kitchen_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+
+.on_kitchen_tests_a7_always:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+    when: always
+
+.on_all_kitchen_builds_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
+
+# Default kitchen tests are also run on dev branches
+# In that case, the target OS versions is a subset of the
+# available versions, stored in DEFAULT_KITCHEN_OSVERS
+.on_default_kitchen_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+  - <<: *if_default_kitchen
+    variables:
+      KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_default_kitchen_tests_a7_always:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+    when: always
+  - <<: *if_default_kitchen
+    when: always
+    variables:
+      KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_testing_cleanup:
+  - <<: *if_testing_cleanup
+
+.on_system_probe_changes_or_manual:
+  - changes:
+      - pkg/ebpf/**/*
+      - pkg/network/**/*
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_install_script_release_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_main_branch
+    when: never
+  - <<: *if_kitchen
+    when: manual
+    allow_failure: true

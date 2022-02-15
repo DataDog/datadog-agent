@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package http
 
@@ -171,4 +171,21 @@ func TestCreateHTTPTransport(t *testing.T) {
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
+}
+
+func TestNoProxyWarningMap(t *testing.T) {
+	r1, _ := http.NewRequest("GET", "http://api.test_http.com/api/v1?arg=21", nil)
+
+	proxies := &config.Proxy{
+		HTTP:    "https://user:pass@proxy.com:3128",
+		HTTPS:   "https://user:pass@proxy_https.com:3128",
+		NoProxy: []string{"test_http.com"},
+	}
+	proxyFunc := GetProxyTransportFunc(proxies)
+
+	proxyURL, err := proxyFunc(r1)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+
+	assert.Equal(t, NoProxyIgnoredWarningMap["http://api.test_http.com"], true)
 }

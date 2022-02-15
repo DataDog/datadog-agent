@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "_util.h"
 #include "cgo_free.h"
 #include "rtloader_mem.h"
@@ -109,8 +109,8 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
     int i;
     int raise = 0;
     int ret_code = 0;
-    int subprocess_args_sz;
-    int subprocess_env_sz;
+    int subprocess_args_sz = 0;
+    int subprocess_env_sz = 0;
     char **subprocess_args = NULL;
     char **subprocess_env = NULL;
     char *c_stdout = NULL;

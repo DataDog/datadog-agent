@@ -118,3 +118,10 @@ Severity=Warning
 Language=English
 Unable to determine the location of Program Data using the default value %1.
 .
+
+MessageId=16
+SymbolicName=MSG_AGENT_PRE_SHUTDOWN_STARTING
+Severity=Informational
+Language=English
+The service %1 service is initiating pre-shutdown.
+.

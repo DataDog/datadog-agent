@@ -5,36 +5,35 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
-.if_deploy_6: &if_deploy_6
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
-
-.if_deploy_7: &if_deploy_7
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
 
 # Kitchen: OSes
 # -------------
 
 .kitchen_os_suse:
+  variables:
+    KITCHEN_PLATFORM: "suse"
+    KITCHEN_OSVERS: "sles-12,sles-15"
+    DEFAULT_KITCHEN_OSVERS: "sles-15"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-# Kitchen: scenarios (os * agent)
+# Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------
 
 .kitchen_scenario_suse_a6:
   extends:
-    - .kitchen_os_suse
     - .kitchen_agent_a6
+    - .kitchen_os_suse
+    - .kitchen_azure_x64
   needs: ["deploy_suse_rpm_testing-a6"]
 
 .kitchen_scenario_suse_a7:
   extends:
-    - .kitchen_os_suse
     - .kitchen_agent_a7
+    - .kitchen_os_suse
+    - .kitchen_azure_x64
   needs: ["deploy_suse_rpm_testing-a7"]
 
 # Kitchen: final test matrix (tests * scenarios)
@@ -46,6 +45,9 @@ kitchen_suse_install_script_agent-a6:
     - .kitchen_test_install_script_agent
 
 kitchen_suse_install_script_agent-a7:
+  # Run install script test on branches, on a reduced number of platforms
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_install_script_agent
@@ -68,14 +70,14 @@ kitchen_suse_step_by_step_agent-a6:
     - .kitchen_scenario_suse_a6
     - .kitchen_test_step_by_step_agent
   rules:
-    - <<: *if_deploy_6
+    !reference [.on_deploy_a6]
 
 kitchen_suse_step_by_step_agent-a7:
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_step_by_step_agent
   rules:
-    - <<: *if_deploy_7
+    !reference [.on_deploy_a7]
 
 kitchen_suse_upgrade5_agent-a6:
   extends:

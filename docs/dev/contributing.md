@@ -41,7 +41,7 @@ when submitting your PR:
   * summarize your PR with an explanatory title and a message describing your
     changes, cross-referencing any related bugs/PRs.
   * use [Reno](#reno) to create a releasenote.
-  * open your PR against the `master` branch.
+  * open your PR against the `main` branch.
   * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
     + set the relevant `team/` label
     + add a milestone to your PR (by default, use the highest milestone version available, ex: `6.8.0`)
@@ -89,19 +89,52 @@ If your commit is only shipping documentation changes or example files, and is a
 complete no-op for the test suite, please add **[skip ci]** in the commit message
 body to skip the build and give that slot to someone else who does need it.
 
-### Squash your commits
+### Pull request workflow
 
-Please rebase your changes on `master` and squash your commits whenever possible,
-it keeps history cleaner and it's easier to revert things. It also makes developers
-happier!
+The goals ordered by priority are:
+- Make PR reviews (both initial and follow-up reviews) easy for reviewers using
+ GitHub
+- On the `main` branch, have a meaningful commit history that allows
+ understanding (even years later) what each commit does, and why. 
+
+You must open the PR when the code is reviewable or you must set the PR as
+ draft if you want to share code before it's ready for actual reviews.
+
+#### Before the first PR review
+
+Before the first PR review, meaningful commits are best: logically-encapsulated
+ commits help the reviews go quicker and make the job for the reviewer easier.
+ Conflicts with `main` can be resolved with a `git rebase origin/main` and a
+ force push if it makes future review(s) easier.
+
+#### After the first review
+
+After the first review, to make follow-up reviews easier:
+- Avoid force pushes: rewriting the history that was already
+ reviewed makes follow-up reviews painful as GitHub loses track of each
+ comment. Instead, address reviews with additional commits on the PR branch.
+- Resolve merge conflicts with `main` using `git merge origin/main`
+
+#### How to merge to `main`
+
+Once reviews are complete, the merge to `main` should be done with either:
+- the squash-merge option, to keep the history of `main` clean (even though
+ some context/details are lost in the squash). The commit message for this
+ squash should always be edited to concisely describe the commit without
+ extraneous “address review comments” text. 
+- the “rebase-merge” option, after manually rewriting the PR’s commit history
+ and force-pushing to the branch. When using this option, the branch must have
+ a clean history. 
 
 ### Reno
 
 We use `Reno` to create our CHANGELOG. Reno is a pretty simple
-[tool](https://docs.openstack.org/reno/latest/user/usage.html). With each PR
-should come a new releasenotes created with `reno` (unless your change doesn't
-have a single user impact and should not be mentioned in the CHANGELOG, very
-unlikely !).
+[tool](https://docs.openstack.org/reno/latest/user/usage.html).
+
+Each PR should include a `releasenotes` file created with `reno`, unless the PR doesn't
+have any impact on the behavior of the Agent and therefore shouldn't be mentioned in the
+CHANGELOG (examples: repository documentation updates, changes in code comments). PRs that
+don't require a release note file will be labeled `changelog/no-changelog` by maintainers.
 
 To install reno: `pip install reno`
 

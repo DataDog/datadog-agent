@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Policy represents a policy file in the configuration file
@@ -22,10 +24,10 @@ type Policy struct {
 
 // Config holds the configuration for the runtime security agent
 type Config struct {
-	// Enabled defines if the runtime security module should be enabled
-	Enabled bool
-	// BPFDir defines where the eBPF programs are stored
-	BPFDir string
+	ebpf.Config
+
+	// RuntimeEnabled defines if the runtime security module should be enabled
+	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
@@ -45,8 +47,12 @@ type Config struct {
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
 	EventServerRate int
+	// EventServerRetention defines an event retention period so that some fields can be resolved
+	EventServerRetention int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
+	// CookieCacheSize is the size of the cookie cache used to cache process context
+	CookieCacheSize int
 	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
 	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
@@ -54,14 +60,51 @@ type Config struct {
 	// LoadControllerControlPeriod defines the period at which the load controller will empty the user space counter used
 	// to evaluate the amount of events brought back to user space
 	LoadControllerControlPeriod time.Duration
-	// StatsAddr defines the statsd address
+	// StatsPollingInterval determines how often metrics should be polled
+	StatsPollingInterval time.Duration
+	// StatsTagsCardinality determines the cardinality level of the tags added to the exported metrics
+	StatsTagsCardinality string
+	// StatsdAddr defines the statsd address
 	StatsdAddr string
+	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
+	AgentMonitoringEvents bool
+	// FIMEnabled determines whether fim rules will be loaded
+	FIMEnabled bool
+	// CustomSensitiveWords defines words to add to the scrubber
+	CustomSensitiveWords []string
+	// ERPCDentryResolutionEnabled determines if the ERPC dentry resolution is enabled
+	ERPCDentryResolutionEnabled bool
+	// MapDentryResolutionEnabled determines if the map resolution is enabled
+	MapDentryResolutionEnabled bool
+	// DentryCacheSize is the size of the user space dentry cache
+	DentryCacheSize int
+	// RemoteTaggerEnabled defines whether the remote tagger is enabled
+	RemoteTaggerEnabled bool
+	// HostServiceName string
+	HostServiceName string
+	// LogPatterns pattern to be used by the logger for trace level
+	LogPatterns []string
+	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
+	SelfTestEnabled bool
+	// EnableRemoteConfig defines if configuration should be fetched from the backend
+	EnableRemoteConfig bool
+	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
+	EnableRuntimeCompiledConstants bool
+	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
+	RuntimeCompiledConstantsIsSet bool
+}
+
+// IsEnabled returns true if any feature is enabled. Has to be applied in config package too
+func (c *Config) IsEnabled() bool {
+	return c.RuntimeEnabled || c.FIMEnabled
 }
 
 // NewConfig returns a new Config object
-func NewConfig(cfg *config.AgentConfig) (*Config, error) {
+func NewConfig(cfg *config.Config) (*Config, error) {
 	c := &Config{
-		Enabled:                            aconfig.Datadog.GetBool("runtime_security_config.enabled"),
+		Config:                             *ebpf.NewConfig(),
+		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
@@ -71,18 +114,34 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		PoliciesDir:                        aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention:               aconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
+		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
+		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
+		StatsTagsCardinality:               aconfig.Datadog.GetString("runtime_security_config.events_stats.tags_cardinality"),
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
+		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
+		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
+		ERPCDentryResolutionEnabled:        aconfig.Datadog.GetBool("runtime_security_config.erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:         aconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
+		DentryCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.dentry_cache_size"),
+		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
+		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
+		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
+		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
+		EnableRuntimeCompiledConstants:     aconfig.Datadog.GetBool("runtime_security_config.enable_runtime_compiled_constants"),
+		RuntimeCompiledConstantsIsSet:      aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants"),
 	}
 
-	if cfg != nil {
-		c.BPFDir = cfg.SystemProbeBPFDir
+	// if runtime is enabled then we force fim
+	if c.RuntimeEnabled {
+		c.FIMEnabled = true
 	}
 
-	if !c.Enabled {
+	if !c.IsEnabled() {
 		return c, nil
 	}
 
@@ -96,6 +155,15 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 
 	if !c.EnableApprovers && !c.EnableDiscarders {
 		c.EnableKernelFilters = false
+	}
+
+	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
+		c.MapDentryResolutionEnabled = true
+	}
+
+	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))
+	if len(serviceName) > 0 {
+		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
 
 	return c, nil

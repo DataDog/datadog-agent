@@ -11,7 +11,7 @@ The token is written to a file that's only readable by the user that the Agent r
 
 ## Endpoints
 
-Please refer to the [`cmd/agent/api`](https://github.com/DataDog/datadog-agent/tree/master/cmd/agent/api)
+Please refer to the [`cmd/agent/api`](https://github.com/DataDog/datadog-agent/tree/main/cmd/agent/api)
 package for a list of endpoints implemented so far.
 
 TODO: generate a list of endpoints with [swagger](http://swagger.io/)

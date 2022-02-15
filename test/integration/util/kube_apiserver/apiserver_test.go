@@ -1,19 +1,22 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
-// +build docker
-// +build kubeapiserver
+//go:build docker && kubeapiserver
+// +build docker,kubeapiserver
 
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -111,7 +114,7 @@ func (suite *testSuite) TestKubeEvents() {
 	// Create started event
 	testReference := createObjectReference("default", "integration_test", "event_test")
 	startedEvent := createEvent("default", "test_started", "started", *testReference)
-	_, err = core.Events("default").Create(startedEvent)
+	_, err = core.Events("default").Create(context.TODO(), startedEvent, v1.CreateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Test we get the new started event
@@ -122,7 +125,7 @@ func (suite *testSuite) TestKubeEvents() {
 
 	// Create tick event
 	tickEvent := createEvent("default", "test_tick", "tick", *testReference)
-	_, err = core.Events("default").Create(tickEvent)
+	_, err = core.Events("default").Create(context.TODO(), tickEvent, v1.CreateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Test we get the new tick event
@@ -135,13 +138,13 @@ func (suite *testSuite) TestKubeEvents() {
 	pointer2 := int32(2)
 	tickEvent2 := added[0]
 	tickEvent2.Count = pointer2
-	tickEvent3, err := core.Events("default").Update(tickEvent2)
+	tickEvent3, err := core.Events("default").Update(context.TODO(), tickEvent2, v1.UpdateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Update tick event a second time
 	pointer3 := int32(3)
 	tickEvent3.Count = pointer3
-	_, err = core.Events("default").Update(tickEvent3)
+	_, err = core.Events("default").Update(context.TODO(), tickEvent3, v1.UpdateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Test we get the two modified test events
@@ -160,6 +163,7 @@ func (suite *testSuite) TestKubeEvents() {
 }
 
 func (suite *testSuite) TestHostnameProvider() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	// Init own client to write the events
@@ -177,12 +181,12 @@ func (suite *testSuite) TestHostnameProvider() {
 	dummyPod := createPodOnNode("default", myHostname, "target.host")
 
 	// Register it in the apiserver
-	_, err = core.Pods("default").Create(dummyPod)
+	_, err = core.Pods("default").Create(ctx, dummyPod, v1.CreateOptions{})
 	require.NoError(suite.T(), err)
-	defer core.Pods("default").Delete(myHostname, nil)
+	defer core.Pods("default").Delete(ctx, myHostname, v1.DeleteOptions{})
 
 	// Hostname provider should return the expected value
-	foundHost, err := hostname_apiserver.HostnameProvider()
+	foundHost, err := hostname_apiserver.HostnameProvider(ctx, nil)
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
@@ -192,6 +196,6 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	foundHost, err = hostname_apiserver.HostnameProvider()
+	foundHost, err = hostname_apiserver.HostnameProvider(ctx, nil)
 	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agentchecks
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
@@ -23,7 +24,7 @@ func TestExternalHostTags(t *testing.T) {
 	externalhost.SetExternalTags(host1, sourceType, tags1)
 	externalhost.SetExternalTags(host2, sourceType, tags2)
 
-	pl := GetPayload()
+	pl := GetPayload(context.Background())
 	hpl := pl.ExternalHostPayload.Payload
 	assert.Len(t, hpl, 2)
 	for _, elem := range hpl {

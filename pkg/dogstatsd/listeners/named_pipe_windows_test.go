@@ -1,7 +1,8 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package listeners
@@ -15,6 +16,8 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
 const pipeName = "TestPipeName"
@@ -39,6 +42,10 @@ func TestNamedPipeSeveralClients(t *testing.T) {
 		client := createNamedPipeClient(t)
 		_, err := client.Write([]byte(fmt.Sprintf("client %d\n", i)))
 		assert.NoError(t, err)
+
+		// `Close` does not flush the previous write.
+		// Wait to make sure the write is flushed before closing.
+		time.Sleep(100 * time.Millisecond)
 		client.Close()
 	}
 
@@ -111,19 +118,21 @@ func TestNamedPipeTooBigMessage(t *testing.T) {
 
 type namedPipeListenerTest struct {
 	*NamedPipeListener
-	packetOut chan Packets
+	packetOut chan packets.Packets
 	client    net.Conn
 }
 
 func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
-	pool := NewPacketPool(maxPipeMessageCount)
-	packetOut := make(chan Packets, maxPipeMessageCount)
-	packetManager := newPacketManager(10, maxPipeMessageCount, 10*time.Millisecond, packetOut, pool)
+	pool := packets.NewPool(maxPipeMessageCount)
+	poolManager := packets.NewPoolManager(pool)
+	packetOut := make(chan packets.Packets, maxPipeMessageCount)
+	packetManager := packets.NewPacketManager(10, maxPipeMessageCount, 10*time.Millisecond, packetOut, poolManager)
 
 	listener, err := newNamedPipeListener(
 		pipeName,
 		namedPipeBufferSize,
-		packetManager)
+		packetManager,
+		nil)
 	assert.NoError(t, err)
 
 	listenerTest := namedPipeListenerTest{
@@ -160,7 +169,7 @@ func getNamedPipeMessages(t *testing.T, listener namedPipeListenerTest, nbMessag
 	return messageSet
 }
 
-func readNamedPipeMessagesFromChan(packetOut chan Packets) []string {
+func readNamedPipeMessagesFromChan(packetOut chan packets.Packets) []string {
 	var messages []string
 	packets := <-packetOut
 	for _, packet := range packets {

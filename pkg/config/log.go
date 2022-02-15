@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -19,6 +19,7 @@ import (
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
 )
 
@@ -49,23 +50,6 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
-}
-
-// buildCommonFormat returns the log common format seelog string
-func buildCommonFormat(loggerName LoggerName) string {
-	if loggerName == "JMXFETCH" {
-		return `%Msg%n`
-	}
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n", getLogDateFormat(), loggerName)
-}
-
-// buildJSONFormat returns the log JSON format seelog string
-func buildJSONFormat(loggerName LoggerName) string {
-	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter) //nolint:errcheck
-	if loggerName == "JMXFETCH" {
-		return `{"msg":%QuoteMsg}%n`
-	}
-	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg%%ExtraJSONContext}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat())
 }
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
@@ -110,7 +94,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
+	scrubber.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
 }
 
@@ -118,8 +102,11 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	seelogLogLevel, err := validateLogLevel(logLevel)
+func SetupJMXLogger(loggerName LoggerName, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+	// The JMX logger always logs at level "info", because JMXFetch does its
+	// own level filtering on and provides all messages to seelog at the info
+	// or error levels, via log.JMXInfo and log.JMXError.
+	seelogLogLevel, err := validateLogLevel("info")
 	if err != nil {
 		return err
 	}
@@ -367,10 +354,25 @@ func parseShortFilePath(params string) seelog.FormatterFunc {
 }
 
 func extractShortPathFromFullPath(fullPath string) string {
-	// We want to trim the part containing the path of the project
-	// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
-	slices := strings.Split(fullPath, "-agent/")
-	return slices[len(slices)-1]
+	shortPath := ""
+	if strings.Contains(fullPath, "-agent/") {
+		// We want to trim the part containing the path of the project
+		// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
+		slices := strings.Split(fullPath, "-agent/")
+		shortPath = slices[len(slices)-1]
+	} else {
+		// For logging from dependencies, we want to log e.g.
+		// "collector@v0.35.0/service/collector.go"
+		slices := strings.Split(fullPath, "/")
+		atSignIndex := len(slices) - 1
+		for ; atSignIndex > 0; atSignIndex-- {
+			if strings.Contains(slices[atSignIndex], "@") {
+				break
+			}
+		}
+		shortPath = strings.Join(slices[atSignIndex:], "/")
+	}
+	return shortPath
 }
 
 func createExtraJSONContext(params string) seelog.FormatterFunc {

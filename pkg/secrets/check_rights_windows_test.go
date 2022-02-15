@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018-2020 Datadog, Inc.
+// Copyright 2018-present Datadog, Inc.
 
+//go:build secrets && windows
 // +build secrets,windows
 
 package secrets
@@ -13,6 +14,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +41,7 @@ func TestCheckRights(t *testing.T) {
 	// file does not exist
 	require.NotNil(t, checkRights("/does not exists", allowGroupExec))
 
-	// missing ddagentuser
+	// missing current user
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
@@ -50,7 +52,8 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	err = checkRights(tmpfile.Name(), allowGroupExec)
+	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -62,7 +65,7 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "1",
 		"-addDDuser", "0").Run()
-	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing Administrator
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -74,7 +77,7 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "1",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// extra rights for someone else
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -86,7 +89,7 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
-	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	assert.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem or Administrator
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -98,5 +101,5 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
-	require.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	assert.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 }

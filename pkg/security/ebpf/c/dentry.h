@@ -9,29 +9,7 @@
 #include "defs.h"
 #include "filters.h"
 
-#define DENTRY_MAX_DEPTH 16
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
-
-#define DENTRY_INVALID -1
-#define DENTRY_DISCARDED -2
-
-#define FAKE_INODE_MSW 0xdeadc001UL
-
-struct path_leaf_t {
-  struct path_key_t parent;
-  // TODO: reduce the amount of allocated structs during the resolution so that we can take this buffer to its max
-  // theoretical value (256), without reaching the eBPF stack max size.
-  char name[128];
-};
-
-struct bpf_map_def SEC("maps/pathnames") pathnames = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct path_key_t),
-    .value_size = sizeof(struct path_leaf_t),
-    .max_entries = 64000,
-    .pinning = 0,
-    .namespace = "",
-};
 
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
     unsigned long ino;
@@ -111,6 +89,18 @@ struct dentry * __attribute__((always_inline)) get_vfsmount_dentry(struct vfsmou
     return dentry;
 }
 
+struct super_block * __attribute__((always_inline)) get_dentry_sb(struct dentry *dentry) {
+    struct super_block *sb;
+    bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
+    return sb;
+}
+
+struct file_system_type * __attribute__((always_inline)) get_super_block_fs(struct super_block *sb) {
+    struct file_system_type *fs;
+    bpf_probe_read(&fs, sizeof(fs), &sb->s_type);
+    return fs;
+}
+
 struct super_block * __attribute__((always_inline)) get_vfsmount_sb(struct vfsmount *mnt) {
     struct super_block *sb;
     bpf_probe_read(&sb, sizeof(sb), &mnt->mnt_sb);
@@ -139,21 +129,27 @@ dev_t __attribute__((always_inline)) get_mount_dev(void *mnt) {
     return get_vfsmount_dev(get_mount_vfsmount(mnt));
 }
 
-int __attribute__((always_inline)) get_overlay_numlower(struct dentry *dentry) {
-    int numlower;
-    void *fsdata;
-    bpf_probe_read(&fsdata, sizeof(void *), &dentry->d_fsdata);
-
-    // bpf_probe_read(&numlower, sizeof(int), fsdata + offsetof(struct ovl_entry, numlower));
-    // TODO: make it a constant and change its value based on the current kernel version. 16 is only good for kernels 4.13+
-    bpf_probe_read(&numlower, sizeof(int), fsdata + 16);
-    return numlower;
+struct inode* __attribute__((always_inline)) get_dentry_inode(struct dentry *dentry) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    return d_inode;
 }
 
 unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
+    return get_inode_ino(get_dentry_inode(dentry));
+}
+
+void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-    return get_inode_ino(d_inode);
+
+    bpf_probe_read(&file->nlink, sizeof(file->nlink), (void *)&d_inode->i_nlink);
+    bpf_probe_read(&file->mode, sizeof(file->mode), &d_inode->i_mode);
+    bpf_probe_read(&file->uid, sizeof(file->uid), &d_inode->i_uid);
+    bpf_probe_read(&file->gid, sizeof(file->gid), &d_inode->i_gid);
+
+    bpf_probe_read(&file->ctime, sizeof(file->ctime), &d_inode->i_ctime);
+    bpf_probe_read(&file->mtime, sizeof(file->mtime), &d_inode->i_mtime);
 }
 
 void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, struct inode **d_inode) {
@@ -191,70 +187,18 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
-static __attribute__((always_inline)) void set_path_key_inode(struct dentry *dentry, struct path_key_t *path_key, int invalidate) {
-    path_key->path_id = get_path_id(invalidate);
-    if (!path_key->ino) {
-        path_key->ino = get_dentry_ino(dentry);
-    }
-}
+static int is_overlayfs(struct dentry *dentry);
+static void set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags);
 
-static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, u64 event_type) {
-    struct path_leaf_t map_value = {};
-    struct path_key_t next_key = key;
-    struct qstr qstr;
-    struct dentry *d_parent;
-    struct inode *d_inode = NULL;
-
-    if (key.ino == 0 || key.mount_id == 0) {
-        return DENTRY_INVALID;
+static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
+    file->path_key.path_id = get_path_id(invalidate);
+    if (!file->path_key.ino) {
+        file->path_key.ino = get_dentry_ino(dentry);
     }
 
-#pragma unroll
-    for (int i = 0; i < DENTRY_MAX_DEPTH; i++)
-    {
-        d_parent = NULL;
-        bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
-
-        key = next_key;
-        if (dentry != d_parent) {
-            write_dentry_inode(d_parent, &d_inode);
-            write_inode_ino(d_inode, &next_key.ino);
-        }
-
-        // discard filename and its parent only in order to limit the number of lookup
-        if (event_type && i < 2) {
-            if (discarded_by_inode(event_type, key.mount_id, key.ino)) {
-                return DENTRY_DISCARDED;
-            }
-        }
-
-        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-        bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
-
-        if (map_value.name[0] == '/' || map_value.name[0] == 0) {
-            next_key.ino = 0;
-            next_key.mount_id = 0;
-        }
-
-        map_value.parent = next_key;
-
-        bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
-
-        dentry = d_parent;
-        if (next_key.ino == 0)
-            return i + 1;
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
     }
-
-    // If the last next_id isn't null, this means that there are still other parents to fetch.
-    // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times. For now, add a fake parent to notify
-    // that we couldn't fetch everything.
-
-    map_value.name[0] = 0;
-    map_value.parent.mount_id = 0;
-    map_value.parent.ino = 0;
-    bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);
-
-    return DENTRY_MAX_DEPTH;
 }
 
 #endif

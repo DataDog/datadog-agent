@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package v1
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -19,6 +21,7 @@ import (
 )
 
 func TestGetInstance(t *testing.T) {
+	ctx := context.Background()
 	assert := assert.New(t)
 
 	ecsinterface, err := testutil.NewDummyECS(
@@ -35,7 +38,7 @@ func TestGetInstance(t *testing.T) {
 	}
 
 	client := NewClient(ts.URL)
-	meta, err := client.GetInstance()
+	meta, err := client.GetInstance(ctx)
 	assert.Nil(err)
 	assert.Equal(expected, meta)
 
@@ -49,6 +52,7 @@ func TestGetInstance(t *testing.T) {
 }
 
 func TestGetTasks(t *testing.T) {
+	ctx := context.Background()
 	assert := assert.New(t)
 
 	ecsinterface, err := testutil.NewDummyECS(
@@ -83,7 +87,7 @@ func TestGetTasks(t *testing.T) {
 	}
 
 	client := NewClient(ts.URL)
-	tasks, err := client.GetTasks()
+	tasks, err := client.GetTasks(ctx)
 	assert.Nil(err)
 	assert.Equal(expected, tasks)
 
@@ -97,6 +101,7 @@ func TestGetTasks(t *testing.T) {
 }
 
 func TestGetTasksFail(t *testing.T) {
+	ctx := context.Background()
 	assert := assert.New(t)
 
 	ecsinterface, err := testutil.NewDummyECS(
@@ -112,7 +117,7 @@ func TestGetTasksFail(t *testing.T) {
 	expectedErr := errors.New("Failed to decode metadata v1 JSON payload to type *v1.Tasks: EOF")
 
 	client := NewClient(ts.URL)
-	tasks, err := client.GetTasks()
+	tasks, err := client.GetTasks(ctx)
 
 	assert.NotNil(err)
 	assert.Equal(expectedErr.Error(), err.Error())

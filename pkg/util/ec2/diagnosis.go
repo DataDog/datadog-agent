@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package ec2
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -16,9 +17,6 @@ func init() {
 
 // diagnose the ec2 metadata API availability
 func diagnose() error {
-	_, err := GetHostname()
-	if err != nil {
-		log.Error(err)
-	}
+	_, err := GetHostname(context.TODO())
 	return err
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package api
 
@@ -11,8 +11,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +28,8 @@ const (
 // should we add another fied.
 type traceResponse struct {
 	// All the sampling rates recommended, by service
-	Rates map[string]float64 `json:"rate_by_service"`
+	Rates      map[string]float64              `json:"rate_by_service"`
+	Mechanisms map[string]pb.SamplingMechanism `json:"mechanism,omitempty"`
 }
 
 // httpFormatError is used for payload format errors
@@ -43,7 +47,7 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	msg := err.Error()
 
 	switch err {
-	case ErrLimitedReaderLimitReached:
+	case apiutil.ErrLimitedReaderLimitReached:
 		status = http.StatusRequestEntityTooLarge
 		errtag = "payload-too-large"
 		msg = errtag
@@ -62,21 +66,57 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	http.Error(w, msg, status)
 }
 
-// httpOK is a dumb response for when things are a OK
-func httpOK(w http.ResponseWriter) {
-	io.WriteString(w, "OK\n")
+// httpOK is a dumb response for when things are a OK. It returns the number
+// of bytes written along with a boolean specifying if the response was successful.
+func httpOK(w http.ResponseWriter) (n uint64, ok bool) {
+	nn, err := io.WriteString(w, "OK\n")
+	return uint64(nn), err == nil
 }
 
+type writeCounter struct {
+	w io.Writer
+	n uint64
+}
+
+func newWriteCounter(w io.Writer) *writeCounter {
+	return &writeCounter{w: w}
+}
+
+func (wc *writeCounter) Write(p []byte) (n int, err error) {
+	atomic.AddUint64(&wc.n, uint64(len(p)))
+	return wc.w.Write(p)
+}
+
+func (wc *writeCounter) N() uint64 { return atomic.LoadUint64(&wc.n) }
+
 // httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
-func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) {
+// It returns the number of bytes written and a boolean specifying whether the write was
+// successful.
+func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *sampler.DynamicConfig) (n uint64, ok bool) {
+	wc := newWriteCounter(w)
+	var err error
+	defer func() {
+		n, ok = wc.N(), err == nil
+		if err != nil {
+			tags := []string{"error:response-error"}
+			metrics.Count(receiverErrorKey, 1, tags, 1)
+		}
+	}()
+
 	w.Header().Set("Content-Type", "application/json")
+	currentState := dynConf.RateByService.GetNewState(ratesVersion) // this is thread-safe
 	response := traceResponse{
-		Rates: dynConf.RateByService.GetAll(), // this is thread-safe
+		Rates: currentState.Rates,
 	}
-	encoder := json.NewEncoder(w)
-	if err := encoder.Encode(response); err != nil {
-		tags := []string{"error:response-error"}
-		metrics.Count(receiverErrorKey, 1, tags, 1)
-		return
+	if ratesVersion != "" {
+		w.Header().Set(headerRatesPayloadVersion, currentState.Version)
+		if ratesVersion == currentState.Version {
+			_, err = wc.Write([]byte("{}"))
+			return
+		}
+		response.Mechanisms = currentState.Mechanisms
 	}
+	encoder := json.NewEncoder(wc)
+	err = encoder.Encode(response)
+	return
 }

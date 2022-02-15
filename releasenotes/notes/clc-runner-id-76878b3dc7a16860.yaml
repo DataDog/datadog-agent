@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Introduce a clc_runner_id config option to allow overriding the default
+    Cluster Checks Runner identifier. Defaults to the node name to make it
+    backwards compatible. It is intended to allow binpacking more than a single
+    runner per node.

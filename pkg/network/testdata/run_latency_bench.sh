@@ -23,16 +23,16 @@ STATFILE=/tmp/ebpf-bench-benchstat.${now}
 for _ in {1..5}
 do
   go test \
-    -mod=vendor \
-    -tags linux_bpf,ebpf_bindata \
+    -mod=mod \
+    -tags linux_bpf \
     ./pkg/network/ebpf/... \
     -bench BenchmarkTCPLatency \
     -count=1 \
     -run XXX \
     >> "${RESFILE}"
   go test \
-    -mod=vendor \
-    -tags linux_bpf,ebpf_bindata \
+    -mod=mod \
+    -tags linux_bpf \
     ./pkg/network/ebpf/... \
     -bench BenchmarkUDPLatency \
     -count=1 \

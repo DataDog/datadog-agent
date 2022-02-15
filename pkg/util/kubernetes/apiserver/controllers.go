@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -10,20 +11,17 @@ package apiserver
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	dd_client "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"
-	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
-	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
-	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
-
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type startFunc func(ControllerContext, chan error)
@@ -57,10 +55,10 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 type ControllerContext struct {
 	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory
-	WPAClient          wpa_client.Interface
-	WPAInformerFactory wpa_informers.SharedInformerFactory
-	DDClient           dd_client.Interface
-	DDInformerFactory  dd_informers.SharedInformerFactory
+	WPAClient          dynamic.Interface
+	WPAInformerFactory dynamicinformer.DynamicSharedInformerFactory
+	DDClient           dynamic.Interface
+	DDInformerFactory  dynamicinformer.DynamicSharedInformerFactory
 	Client             kubernetes.Interface
 	IsLeaderFunc       func() bool
 	EventRecorder      record.EventRecorder
@@ -108,7 +106,7 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 	ctx.InformerFactory.Start(ctx.StopCh)
 
 	// Wait for the cache to sync
-	if err := SyncInformers(ctx.informers); err != nil {
+	if err := SyncInformers(ctx.informers, 0); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -121,6 +119,7 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 func startMetadataController(ctx ControllerContext, c chan error) {
 	metaController := NewMetadataController(
 		ctx.InformerFactory.Core().V1().Nodes(),
+		ctx.InformerFactory.Core().V1().Namespaces(),
 		ctx.InformerFactory.Core().V1().Endpoints(),
 	)
 	go metaController.Run(ctx.StopCh)
@@ -129,7 +128,8 @@ func startMetadataController(ctx ControllerContext, c chan error) {
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx ControllerContext, c chan error) {
-	dogCl, err := autoscalers.NewDatadogClient()
+	var err error
+	dogCl, err = autoscalers.NewDatadogClient()
 	if err != nil {
 		c <- err
 		return

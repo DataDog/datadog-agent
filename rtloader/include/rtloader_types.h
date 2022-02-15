@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_TYPES_H
 #define DATADOG_AGENT_RTLOADER_TYPES_H
 #include <stdbool.h>
@@ -98,8 +98,10 @@ typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, double, char *
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, char *);
 // (id, event)
 typedef void (*cb_submit_event_t)(char *, event_t *);
-// (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags)
-typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, float, int, char *, char **);
+// (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value)
+typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, float, int, char *, char **, bool);
+// (id, event, event_type)
+typedef void (*cb_submit_event_platform_event_t)(char *, char *, char *);
 
 // datadog_agent
 //
@@ -125,10 +127,12 @@ typedef void (*cb_set_external_tags_t)(char *, char *, char **);
 typedef void (*cb_write_persistent_cache_t)(char *, char *);
 // (value)
 typedef char *(*cb_read_persistent_cache_t)(char *);
-// (sql_query, error_message)
-typedef char *(*cb_obfuscate_sql_t)(char *, char **);
+// (sql_query, options, error_message)
+typedef char *(*cb_obfuscate_sql_t)(char *, char *, char **);
 // (exec_plan, normalize, error_message)
 typedef char *(*cb_obfuscate_sql_exec_plan_t)(char *, bool, char **);
+// ()
+typedef double (*cb_get_process_start_time_t)(void);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

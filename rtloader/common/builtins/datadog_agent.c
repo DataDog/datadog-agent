@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "datadog_agent.h"
 #include "cgo_free.h"
 #include "rtloader_mem.h"
@@ -22,6 +22,7 @@ static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
 static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
 static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
+static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -35,8 +36,9 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
 static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
-static PyObject *obfuscate_sql(PyObject *self, PyObject *args);
+static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -50,8 +52,9 @@ static PyMethodDef methods[] = {
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
-    { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS, "Obfuscate & normalize a SQL string." },
+    { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL string." },
     { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
+    { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { NULL, NULL } // guards
 };
 
@@ -130,6 +133,10 @@ void _set_obfuscate_sql_cb(cb_obfuscate_sql_t cb)
 void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t cb)
 {
     cb_obfuscate_sql_exec_plan = cb;
+}
+
+void _set_get_process_start_time_cb(cb_get_process_start_time_t cb) {
+    cb_get_process_start_time = cb;
 }
 
 
@@ -233,7 +240,7 @@ PyObject *get_config(PyObject *self, PyObject *args)
     different places:
 
      1. github.com/DataDog/integrations-core/blob/master/datadog_checks_base/datadog_checks/base/utils/headers.py
-     2. github.com/DataDog/datadog-agent/blob/master/pkg/util/common.go
+     2. github.com/DataDog/datadog-agent/blob/main/pkg/util/common.go
 */
 PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
 {
@@ -671,18 +678,19 @@ done:
 
 }
 
-/*! \fn PyObject *obfuscate_sql(PyObject *self, PyObject *args)
+/*! \fn PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
     \brief This function implements the `datadog_agent.obfuscate_sql` method, obfuscating
     the provided sql string.
     \param self A PyObject* pointer to the `datadog_agent` module.
     \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
     \return A PyObject* pointer to the value.
 
     This function is callable as the `datadog_agent.obfuscate_sql` Python method and
     uses the `cb_obfuscate_sql()` callback to retrieve the value from the agent
     with CGO. If the callback has not been set `None` will be returned.
 */
-static PyObject *obfuscate_sql(PyObject *self, PyObject *args)
+static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     // callback must be set
     if (cb_obfuscate_sql == NULL) {
@@ -691,15 +699,17 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args)
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    char *rawQuery;
-    if (!PyArg_ParseTuple(args, "s", &rawQuery)) {
+    char *rawQuery = NULL;
+    char *optionsObj = NULL;
+    static char *kwlist[] = {"query", "options", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &rawQuery, &optionsObj)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
     char *obfQuery = NULL;
     char *error_message = NULL;
-    obfQuery = cb_obfuscate_sql(rawQuery, &error_message);
+    obfQuery = cb_obfuscate_sql(rawQuery, optionsObj, &error_message);
 
     PyObject *retval = NULL;
     if (error_message != NULL) {
@@ -751,5 +761,33 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
     cgo_free(error_message);
     cgo_free(obfPlan);
     PyGILState_Release(gstate);
+    return retval;
+}
+
+/*! \fn PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.get_process_start_time` method, returning
+    the agent process start time, in seconds since the epoch.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to the arguments tuple.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.get_process_start_time` Python method and
+    uses the `cb_get_process_start_time()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    if (cb_get_process_start_time == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    double time = cb_get_process_start_time();
+    PyObject *retval = PyFloat_FromDouble(time);
+
+    PyGILState_Release(gstate);
+
     return retval;
 }

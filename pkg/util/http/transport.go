@@ -1,16 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package http
 
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -21,16 +23,56 @@ import (
 )
 
 var (
-	// NoProxyWarningMap map containing URL's whos proxy behavior will change in the future.
-	NoProxyWarningMap = make(map[string]bool)
+	// NoProxyIgnoredWarningMap map containing URL's who will ignore the proxy in the future
+	NoProxyIgnoredWarningMap = make(map[string]bool)
 
-	// NoProxyWarningMapMutex Lock for NoProxyWarningMap
-	NoProxyWarningMapMutex = sync.Mutex{}
+	// NoProxyUsedInFuture map containing URL's that will use a proxy in the future
+	NoProxyUsedInFuture = make(map[string]bool)
+
+	// NoProxyChanged map containing URL's whos proxy behavior will change in the future
+	NoProxyChanged = make(map[string]bool)
+
+	// NoProxyMapMutex Lock for all no proxy maps
+	NoProxyMapMutex = sync.Mutex{}
+
+	keyLogWriterInit sync.Once
+	keyLogWriter     io.Writer
 )
+
+func logSafeURLString(url *url.URL) string {
+	if url == nil {
+		return ""
+	}
+	return url.Scheme + "://" + url.Host
+}
+
+func warnOnce(warnMap map[string]bool, key string, format string, params ...interface{}) {
+	NoProxyMapMutex.Lock()
+	defer NoProxyMapMutex.Unlock()
+	if _, ok := warnMap[key]; !ok {
+		warnMap[key] = true
+		log.Warnf(format, params...)
+	}
+}
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport() *http.Transport {
+	// It’s OK to reuse the same file for all the http.Transport objects we create
+	// because all the writes to that file are protected by a global mutex.
+	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
+	keyLogWriterInit.Do(func() {
+		sslKeyLogFile := config.Datadog.GetString("sslkeylogfile")
+		if sslKeyLogFile != "" {
+			var err error
+			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+			if err != nil {
+				log.Warnf("Failed to open %s for writing NSS keys: %v", sslKeyLogFile, err)
+			}
+		}
+	})
+
 	tlsConfig := &tls.Config{
+		KeyLogWriter:       keyLogWriter,
 		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
 	}
 
@@ -40,7 +82,10 @@ func CreateHTTPTransport() *http.Transport {
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general
-	// timeout to our http clients.
+	// timeout to our http clients.  Setting DialContext and TLSClientConfig has the
+	// desirable side-effect of disabling http/2; if removing those fields then
+	// consider the implication of the protocol switch for intakes and other http
+	// servers. See ForceAttemptHTTP2 in https://pkg.go.dev/net/http#Transport.
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
@@ -125,17 +170,38 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			return nil, nil
 		}(r)
 
-		// Print a warning if the proxy behavior would change if the new no_proxy behavior would be enabled
+		// Test the new proxy function to see if the behavior will change in the future
 		newURL, _ := proxyConfig.ProxyFunc()(r.URL)
-		if url != newURL && url != nil {
-			urlString := r.URL.String()
-			NoProxyWarningMapMutex.Lock()
-			if _, ok := NoProxyWarningMap[urlString]; !ok {
-				NoProxyWarningMap[SanitizeURL(r.URL.String())] = true
-				logSafeURL := r.URL.Scheme + "://" + r.URL.Host
-				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
-			}
-			NoProxyWarningMapMutex.Unlock()
+
+		if url == nil && newURL == nil {
+			return url, err
+		}
+
+		logSafeURL := logSafeURLString(r.URL)
+
+		// Print a warning if the url would ignore the proxy when no_proxy_nonexact_match is true
+		if url != nil && newURL == nil {
+			warnOnce(NoProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
+			return url, err
+		}
+
+		var newURLString string
+		if newURL != nil {
+			newURLString = newURL.String()
+		}
+
+		// There are no known cases that will trigger the below warnings but because they are logically possible we should still include them.
+
+		// Print a warning if the url does not use the proxy - but will for some reason when no_proxy_nonexact_match is true
+		if url == nil && newURL != nil {
+			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeURLString(newURL))
+			return url, err
+		}
+
+		// Print a warning if the url uses the proxy and still will when no_proxy_nonexact_match is true but for some reason is different
+		if url.String() != newURLString {
+			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeURLString(newURL))
+			return url, err
 		}
 
 		return url, err

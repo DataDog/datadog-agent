@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inmetrics.
+// Copyright 2017-present Datadog, Inmetrics.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -141,7 +142,7 @@ func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]st
 		return nil, errors.New("no pid for this container")
 	}
 
-	metrics, err := collectNetworkStats(int(cg.Pids[0]), networks)
+	metrics, err := collectNetworkStats(int(cg.Pids[len(cg.Pids)-1]), networks)
 	if err != nil {
 		return nil, fmt.Errorf("Could not collect network stats for container %s: %s", containerID[:12], err)
 	}
@@ -154,7 +155,7 @@ func (mp *provider) GetAgentCID() (string, error) {
 	prefix := config.Datadog.GetString("container_cgroup_prefix")
 	cID, _, err := readCgroupsForPath("/proc/self/cgroup", prefix)
 	if err != nil {
-		return "", err
+		return "", err
 	}
 	return cID, err
 }
@@ -200,6 +201,12 @@ func (mp *provider) GetDefaultGateway() (net.IP, error) {
 // by parsing the routing table file in the proc file system.
 func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	return defaultHostIPs()
+}
+
+// GetNumFileDescriptors returns the number of open file descriptors for a given
+// pid
+func (mp *provider) GetNumFileDescriptors(pid int) (int, error) {
+	return GetFileDescriptorLen(pid)
 }
 
 func (mp *provider) getCgroup(containerID string) (*ContainerCgroup, error) {

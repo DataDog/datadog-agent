@@ -6,9 +6,9 @@
       <br>Flavor: {{.flavor}}
       <br>PID: {{.pid}}
       {{- if .runnerStats.Workers}}
-        <br>Check Workers: {{.runnerStats.Workers}}
+        <br>Check Workers: {{.runnerStats.Workers.Count}}
       {{end}}
-      <br>Agent start: {{.agent_start}}
+      <br>Agent start: {{ formatUnixTime .agent_start_nano }}
       {{- if .config.log_file}}
         <br>Log File: {{.config.log_file}}
       {{end}}
@@ -24,7 +24,7 @@
   <div class="stat">
     <span class="stat_title">System Info</span>
     <span class="stat_data">
-      System UTC Time: {{.time}}
+      System time: {{ formatUnixTime .time_nano }}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
@@ -105,15 +105,39 @@
   {{- if .TransportWarnings }}
     <div class="stat">
       <span class="stat_title">Transport Proxy Warnings</span>
+      {{- if .NoProxyIgnoredWarningMap }}
       <span class="stat_data">
-      The following URLs used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting. 
+      The following hosts used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
-        {{- range $key, $value := .TransportWarnings }}
+        {{- range $key, $value := .NoProxyIgnoredWarningMap }}
           {{ $key }}<br>
         {{- end }}
         </span>
       </span>
+      {{- end }}
+      {{- if .NoProxyUsedInFuture }}
+      <span class="stat_data">
+      The following hosts did not use a proxy - but will use the proxy in future Agent versions with the no_proxy setting.
+      Enable the new behavior now with no_proxy_nonexact_match: true
+        <span class="stat_data">
+        {{- range $key, $value := .NoProxyUsedInFuture }}
+          {{ $key }}<br>
+        {{- end }}
+        </span>
+      </span>
+      {{- end }}
+      {{- if .NoProxyChanged }}
+      <span class="stat_data">
+      The following hosts' proxy behavior will change in a future Agent version. Please check the Agent logs for more details.
+      Enable the new behavior now with no_proxy_nonexact_match: true
+        <span class="stat_data">
+        {{- range $key, $value := .NoProxyChanged }}
+          {{ $key }}<br>
+        {{- end }}
+        </span>
+      </span>
+      {{- end }}
     </div>
   {{- end }}
 
@@ -229,6 +253,25 @@
             </span>
           </span>
         {{- end}}
+      {{- end -}}
+      {{/* The subsection `On-disk storage` is not inside `{{- with .forwarderStats -}}` as it need to access `.config` */}}
+      <span class="stat_subtitle">On-disk storage</span>
+      <span class="stat_subdata">
+      {{- if .config.forwarder_storage_max_size_in_bytes }}
+        {{- if .forwarderStats.FileStorage.CurrentSizeInBytes }}
+        Disk usage in bytes: {{ .forwarderStats.FileStorage.CurrentSizeInBytes }}<br>
+        Number of files: {{ .forwarderStats.FileStorage.FilesCount }}<br>
+        Number of files dropped: {{ .forwarderStats.FileStorage.FilesRemovedCount }}<br>
+        Deserialization errors count: {{ .forwarderStats.FileStorage.DeserializeErrorsCount }}<br>
+        Outdated files removed at startup: {{ .forwarderStats.RemovalPolicy.OutdatedFilesCount }}<br>
+        {{- else }}
+        Enabled, not in-use.<br>
+        {{- end}}
+      {{- else }}
+        On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.<br>
+      {{- end}}
+      </span>
+      {{- with .forwarderStats -}}
         {{- if .APIKeyStatus}}
           <span class="stat_subtitle">API Keys Status</span>
           <span class="stat_subdata">
@@ -318,20 +361,28 @@
             {{- end }}
             {{- end }}
             {{- if .inputs }}
-            Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
-            BytesRead: {{ .bytes_read }}</br>
+            Inputs:
+            <ul>
+              {{- range $input := .inputs }}
+                <li>{{$input}}
+              {{- end }}
+            </ul>
+            {{- end }}
             BytesRead: {{ .bytes_read }}</br>
             Average Latency (ms): {{ .all_time_avg_latency }}</br>
             24h Average Latency (ms): {{ .recent_avg_latency }}</br>
             Peak Latency (ms): {{ .all_time_peak_latency }}</br>
             24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
-            {{- if .info }}
-            Container Info:</br>
+            {{- if .info }} 
+            {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
+            {{$key}}: {{index $value 0}}</br> {{ else }}
+            {{$key}}:</br>
               <span class="stat_subdata">
-                {{- range $inf := .info }}
+                {{- range $inf := $value }}
                   {{ $inf }}</br>
                 {{- end }}
               </span>
+            {{- end }}
             {{- end }}
             {{- end }}
             </span>
@@ -385,6 +436,11 @@
         {{- if .SketchesFlushErrors}}
           Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
         {{- end -}}
+        {{- if .EventPlatformEvents }}
+        {{- range $k, $v := .EventPlatformEvents }}
+          {{ $k }}: {{humanize $v}}
+        {{- end }}
+        {{- end }}
         {{- if .HostnameUpdate}}
           Hostname Update: {{humanize .HostnameUpdate}}<br>
         {{- end }}

@@ -1,12 +1,14 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 require "./lib/ostools.rb"
 
 name 'iot-agent'
 package_name 'datadog-iot-agent'
+license "Apache-2.0"
+license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
@@ -21,8 +23,30 @@ else
   install_dir '/opt/datadog-agent'
   if redhat? || suse?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
+
+    # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
+    # because these would be used in a kickstart during package installation phase.
+    # All of the packages that we depend on in prerm/postrm scripts always have to be
+    # installed on all distros that we support, so we don't have to depend on them
+    # explicitly.
+
+    # postinst and posttrans scripts use a subset of preinst script deps, so we don't
+    # have to list them, because they'll already be there because of preinst
+    runtime_script_dependency :pre, "coreutils"
+    runtime_script_dependency :pre, "grep"
+    if redhat?
+      runtime_script_dependency :pre, "glibc-common"
+      runtime_script_dependency :pre, "shadow-utils"
+    else
+      runtime_script_dependency :pre, "glibc"
+      runtime_script_dependency :pre, "shadow"
+    end
   else
     maintainer 'Datadog Packages <package@datadoghq.com>'
+  end
+
+  if debian?
+    runtime_recommended_dependency 'datadog-signing-keys'
   end
 end
 
@@ -53,6 +77,12 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
+    signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['DEB_GPG_KEY_NAME']}"
+    end
+  end
 end
 
 # .rpm specific flags

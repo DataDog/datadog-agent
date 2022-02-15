@@ -1,11 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package containers
 
 import (
+	"errors"
+	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,13 +17,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+type ctnDef struct {
+	ID    string
+	Name  string
+	Image string
+}
+
 func TestFilter(t *testing.T) {
 	containers := []struct {
-		c  Container
+		c  ctnDef
 		ns string
 	}{
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "1",
 				Name:  "secret-container-dd",
 				Image: "docker-dd-agent",
@@ -28,7 +37,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "2",
 				Name:  "webapp1-dd",
 				Image: "apache:2.2",
@@ -36,7 +45,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "3",
 				Name:  "mysql-dd",
 				Image: "mysql:5.3",
@@ -44,7 +53,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "4",
 				Name:  "linux-dd",
 				Image: "alpine:latest",
@@ -52,7 +61,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "5",
 				Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "gcr.io/random-project/superpause:1.0",
@@ -60,7 +69,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "6",
 				Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "gcr.io/random-project/pause:1.0",
@@ -68,7 +77,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "7",
 				Name:  "k8s_POD.f8120f_kube-proxy-gke-pool-1-2890-pv0",
 				Image: "gcr.io/google_containers/pause-amd64:3.0",
@@ -76,7 +85,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "8",
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "k8s.gcr.io/pause-amd64:3.1",
@@ -84,7 +93,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "9",
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "kubernetes/pause:latest",
@@ -92,7 +101,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "10",
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "asia.gcr.io/google_containers/pause-amd64:3.0",
@@ -100,7 +109,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "11",
 				Name:  "k8s_POD_AZURE_pause",
 				Image: "k8s-gcrio.azureedge.net/pause-amd64:3.0",
@@ -108,7 +117,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "12",
 				Name:  "k8s_POD_AZURE_pause",
 				Image: "gcrio.azureedge.net/google_containers/pause-amd64",
@@ -116,7 +125,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "13",
 				Name:  "k8s_POD_rancher_pause",
 				Image: "rancher/pause-amd64:3.0",
@@ -124,7 +133,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "14",
 				Name:  "foo-dd",
 				Image: "foo:1.0",
@@ -132,7 +141,7 @@ func TestFilter(t *testing.T) {
 			ns: "foo",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "15",
 				Name:  "bar-dd",
 				Image: "bar:1.0",
@@ -140,7 +149,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "16",
 				Name:  "foo",
 				Image: "gcr.io/gke-release/pause-win:1.1.0",
@@ -148,7 +157,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "17",
 				Name:  "foo",
 				Image: "mcr.microsoft.com/k8s/core/pause:1.2.0",
@@ -156,7 +165,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "18",
 				Name:  "foo",
 				Image: "ecr.us-east-1.amazonaws.com/pause",
@@ -164,7 +173,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "19",
 				Name:  "k8s_POD_AKS_pause",
 				Image: "aksrepos.azurecr.io/mirror/pause-amd64:3.1",
@@ -172,7 +181,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "20",
 				Name:  "k8s_POD_OSE3",
 				Image: "registry.access.redhat.com/rhel7/pod-infrastructure:latest",
@@ -180,7 +189,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "23",
 				Name:  "k8s_POD_EKS_Win",
 				Image: "amazonaws.com/eks/pause-windows:latest",
@@ -188,7 +197,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "24",
 				Name:  "k8s_POD_AKS_Win",
 				Image: "kubeletwin/pause:latest",
@@ -196,7 +205,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "25",
 				Name:  "eu_gcr",
 				Image: "eu.gcr.io/k8s-artifacts-prod/pause:3.3",
@@ -204,7 +213,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "26",
 				Name:  "private_jfrog",
 				Image: "foo.jfrog.io/google_containers/pause",
@@ -212,7 +221,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "27",
 				Name:  "private_ecr_upstream",
 				Image: "2342834325.ecr.us-east-1.amazonaws.com/upstream/pause",
@@ -220,7 +229,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "28",
 				Name:  "cdk",
 				Image: "cdk/pause-amd64:3.1",
@@ -401,6 +410,158 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
+
+	// Filter errors - non-duplicate error messages
+	config.Datadog.SetDefault("container_include", []string{"image:apache.*", "invalid"})
+	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+
+	f, err = NewAutodiscoveryFilter(GlobalFilter)
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	fe := map[string]struct{}{
+		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
+	}
+	assert.Equal(t, fe, GetFilterErrors())
+	ResetSharedFilter()
+	resetConfig()
+
+	// Filter errors - invalid regex
+	config.Datadog.SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
+	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+
+	f, err = NewAutodiscoveryFilter(GlobalFilter)
+	assert.Error(t, err, errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"))
+	assert.NotNil(t, f)
+	fe = map[string]struct{}{
+		"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`":                                {},
+		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
+	}
+	assert.Equal(t, fe, GetFilterErrors())
+	ResetSharedFilter()
+	resetConfig()
+}
+
+func TestValidateFilter(t *testing.T) {
+	for filters, tc := range []struct {
+		desc           string
+		filter         string
+		prefix         string
+		expectedRegexp *regexp.Regexp
+		expectedErr    error
+	}{
+		{
+			desc:           "image filter",
+			filter:         "image:apache.*",
+			prefix:         imageFilterPrefix,
+			expectedRegexp: regexp.MustCompile("apache.*"),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "name filter",
+			filter:         "name:dd-.*",
+			prefix:         nameFilterPrefix,
+			expectedRegexp: regexp.MustCompile("dd-.*"),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "kube_namespace filter",
+			filter:         "kube_namespace:monitoring",
+			prefix:         kubeNamespaceFilterPrefix,
+			expectedRegexp: regexp.MustCompile("monitoring"),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "empty filter regex",
+			filter:         "image:",
+			prefix:         imageFilterPrefix,
+			expectedRegexp: regexp.MustCompile(""),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "invalid golang regex",
+			filter:         "image:?",
+			prefix:         imageFilterPrefix,
+			expectedRegexp: nil,
+			expectedErr:    errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"),
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
+			r, err := filterToRegex(tc.filter, tc.prefix)
+			assert.Equal(t, tc.expectedRegexp, r)
+			assert.Equal(t, tc.expectedErr, err)
+		})
+	}
+}
+
+func TestParseFilters(t *testing.T) {
+	for filters, tc := range []struct {
+		desc             string
+		filters          []string
+		imageFilters     []*regexp.Regexp
+		nameFilters      []*regexp.Regexp
+		namespaceFilters []*regexp.Regexp
+		expectedErrMsg   error
+		filterErrors     []string
+	}{
+		{
+			desc:             "valid filters",
+			filters:          []string{"image:nginx.*", "name:xyz-.*", "kube_namespace:sandbox.*", "name:abc"},
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("nginx.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
+			expectedErrMsg:   nil,
+			filterErrors:     nil,
+		},
+		{
+			desc:             "invalid regex",
+			filters:          []string{"image:apache.*", "name:a(?=b)", "kube_namespace:sandbox.*", "name:abc"},
+			imageFilters:     nil,
+			nameFilters:      nil,
+			namespaceFilters: nil,
+			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			filterErrors:     []string{"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"},
+		},
+		{
+			desc:             "invalid filter prefix, valid regex",
+			filters:          []string{"image:redis.*", "invalid", "name:dd-.*", "kube_namespace:dev-.*", "name:abc", "also invalid"},
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("redis.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("dd-.*"), regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("dev-.*")},
+			expectedErrMsg:   nil,
+			filterErrors: []string{
+				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+			},
+		},
+		{
+			desc:             "invalid regex and invalid filter prefix",
+			filters:          []string{"invalid", "name:a(?=b)", "image:apache.*", "kube_namespace:?", "also invalid", "name:abc"},
+			imageFilters:     nil,
+			nameFilters:      nil,
+			namespaceFilters: nil,
+			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			filterErrors: []string{
+				"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`",
+				"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`",
+				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
+			imageFilters, nameFilters, namespaceFilters, filterErrors, err := parseFilters(tc.filters)
+			assert.Equal(t, tc.imageFilters, imageFilters)
+			assert.Equal(t, tc.nameFilters, nameFilters)
+			assert.Equal(t, tc.namespaceFilters, namespaceFilters)
+			assert.Equal(t, tc.filterErrors, filterErrors)
+			assert.Equal(t, tc.expectedErrMsg, err)
+		})
+	}
 }
 
 func resetConfig() {

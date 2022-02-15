@@ -1,0 +1,31 @@
+---
+driver:
+  name: vagrant
+  provider: <%= ENV['KITCHEN_VAGRANT_PROVIDER'] %>
+
+provisioner:
+  name: chef_zero
+  chef_license: accept
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
+
+platforms:
+<%
+    ENV['TEST_PLATFORMS'] ||= "centos7,roboxes/centos7|centos8,roboxes/centos8"
+    test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    test_platforms.each do |platform|
+%>
+  - name: <%= platform[0] %>
+    driver:
+      box: <%= platform[1] %>
+      <% if platform[1].include?('opensuse') %>
+      customize:
+        disk_bus: sata
+      <% end %>
+<%
+    end
+%>

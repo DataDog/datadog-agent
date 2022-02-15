@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package testsuite
 
@@ -58,6 +58,7 @@ func TestSecrets(t *testing.T) {
 		"DD_SECRET_BACKEND_COMMAND=" + binSecrets,
 		"DD_HOSTNAME=ENC[secret1]",
 		"DD_API_KEY=123",
+		"DD_APM_REMOTE_TAGGER=false",
 	}
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf

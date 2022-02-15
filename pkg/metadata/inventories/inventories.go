@@ -1,26 +1,33 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package inventories
 
 import (
+	"context"
+	"encoding/json"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type schedulerInterface interface {
 	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
-// AutoConfigInterface is an interface for the GetLoadedConfigs method of autodiscovery
+// AutoConfigInterface is an interface for the MapOverLoadedConfigs method of autodiscovery
 type AutoConfigInterface interface {
-	GetLoadedConfigs() map[string]integration.Config
+	MapOverLoadedConfigs(func(map[string]integration.Config))
 }
 
 // CollectorInterface is an interface for the GetAllInstanceIDs method of the collector
@@ -34,13 +41,14 @@ type checkMetadataCacheEntry struct {
 }
 
 var (
-	checkMetadataCache = make(map[string]*checkMetadataCacheEntry) // by check ID
-	checkCacheMutex    = &sync.Mutex{}
-	agentMetadataCache = make(AgentMetadata)
-	agentCacheMutex    = &sync.Mutex{}
+	checkMetadata      = make(map[string]*checkMetadataCacheEntry) // by check ID
+	checkMetadataMutex = &sync.Mutex{}
+	agentMetadata      = make(AgentMetadata)
+	agentMetadataMutex = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
 
+	lastPayload         *Payload
 	lastGetPayload      = timeNow()
 	lastGetPayloadMutex = &sync.Mutex{}
 
@@ -53,19 +61,50 @@ var (
 	timeSince = time.Since
 )
 
+// AgentMetadataName is an enum type containing all defined keys for
+// SetAgentMetadata.
+type AgentMetadataName string
+
+// Constants for the metadata names; these are defined in
+// pkg/metadata/inventories/README.md and any additions should
+// be updated there as well.
 const (
-	// CloudProviderMetatadaName is the field name to use to set the cloud
-	// provider name in the agent metadata.
-	CloudProviderMetatadaName = "cloud_provider"
+	AgentCloudProvider                 AgentMetadataName = "cloud_provider"
+	AgentHostnameSource                AgentMetadataName = "hostname_source"
+	AgentVersion                       AgentMetadataName = "agent_version"
+	AgentFlavor                        AgentMetadataName = "flavor"
+	AgentConfigAPMDDURL                AgentMetadataName = "config_apm_dd_url"
+	AgentConfigDDURL                   AgentMetadataName = "config_dd_url"
+	AgentConfigSite                    AgentMetadataName = "config_site"
+	AgentConfigLogsDDURL               AgentMetadataName = "config_logs_dd_url"
+	AgentConfigLogsSocks5ProxyAddress  AgentMetadataName = "config_logs_socks5_proxy_address"
+	AgentConfigNoProxy                 AgentMetadataName = "config_no_proxy"
+	AgentConfigProcessDDURL            AgentMetadataName = "config_process_dd_url"
+	AgentConfigProxyHTTP               AgentMetadataName = "config_proxy_http"
+	AgentConfigProxyHTTPS              AgentMetadataName = "config_proxy_https"
+	AgentInstallMethodInstallerVersion AgentMetadataName = "install_method_installer_version"
+	AgentInstallMethodTool             AgentMetadataName = "install_method_tool"
+	AgentInstallMethodToolVersion      AgentMetadataName = "install_method_tool_version"
+	AgentLogsTransport                 AgentMetadataName = "logs_transport"
+	AgentCWSEnabled                    AgentMetadataName = "feature_cws_enabled"
+	AgentOTLPEnabled                   AgentMetadataName = "feature_otlp_enabled"
+	AgentProcessEnabled                AgentMetadataName = "feature_process_enabled"
+	AgentProcessesContainerEnabled     AgentMetadataName = "feature_processes_container_enabled"
+	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
+	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
+	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
+	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
+	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
+	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
-func SetAgentMetadata(name string, value interface{}) {
-	agentCacheMutex.Lock()
-	defer agentCacheMutex.Unlock()
+func SetAgentMetadata(name AgentMetadataName, value interface{}) {
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
 
-	if agentMetadataCache[name] != value {
-		agentMetadataCache[name] = value
+	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
+		agentMetadata[string(name)] = value
 
 		select {
 		case metadataUpdatedC <- nil:
@@ -76,18 +115,18 @@ func SetAgentMetadata(name string, value interface{}) {
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 func SetCheckMetadata(checkID, key string, value interface{}) {
-	checkCacheMutex.Lock()
-	defer checkCacheMutex.Unlock()
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
 
-	entry, found := checkMetadataCache[checkID]
+	entry, found := checkMetadata[checkID]
 	if !found {
 		entry = &checkMetadataCacheEntry{
 			CheckInstanceMetadata: make(CheckInstanceMetadata),
 		}
-		checkMetadataCache[checkID] = entry
+		checkMetadata[checkID] = entry
 	}
 
-	if entry.CheckInstanceMetadata[key] != value {
+	if !reflect.DeepEqual(entry.CheckInstanceMetadata[key], value) {
 		entry.LastUpdated = timeNow()
 		entry.CheckInstanceMetadata[key] = value
 
@@ -104,7 +143,7 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 	var checkInstanceMetadata CheckInstanceMetadata
 	var lastUpdated time.Time
 
-	if entry, found := checkMetadataCache[checkID]; found {
+	if entry, found := checkMetadata[checkID]; found {
 		checkInstanceMetadata = make(CheckInstanceMetadata, len(entry.CheckInstanceMetadata)+transientFields)
 		for k, v := range entry.CheckInstanceMetadata {
 			checkInstanceMetadata[k] = v
@@ -123,59 +162,74 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 }
 
 // CreatePayload fills and returns the inventory metadata payload
-func CreatePayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
-	checkCacheMutex.Lock()
-	defer checkCacheMutex.Unlock()
+func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
 
-	checkMetadata := make(CheckMetadata)
+	// Collect check metadata for the payload
+	payloadCheckMeta := make(CheckMetadata)
 
 	foundInCollector := map[string]struct{}{}
 	if ac != nil {
-		configs := ac.GetLoadedConfigs()
-		for _, config := range configs {
-			checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
-			instanceIDs := coll.GetAllInstanceIDs(config.Name)
-			for _, id := range instanceIDs {
-				checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
-				checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
-				foundInCollector[string(id)] = struct{}{}
+		ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+			for _, config := range loadedConfigs {
+				payloadCheckMeta[config.Name] = make([]*CheckInstanceMetadata, 0)
+				instanceIDs := coll.GetAllInstanceIDs(config.Name)
+				for _, id := range instanceIDs {
+					checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
+					payloadCheckMeta[config.Name] = append(payloadCheckMeta[config.Name], checkInstanceMetadata)
+					foundInCollector[string(id)] = struct{}{}
+				}
 			}
-		}
+		})
 	}
-	// if metadata where added for check not in the collector we still need
-	// to add them to the checkMetadata (this happens when using the
+	// if metadata were added for a check not in the collector we still need
+	// to add them to the payloadCheckMeta (this happens when using the
 	// 'check' command)
-	for id := range checkMetadataCache {
+	for id := range checkMetadata {
 		if _, found := foundInCollector[id]; !found {
 			// id should be "check_name:check_hash"
 			parts := strings.SplitN(id, ":", 2)
-			checkMetadata[parts[0]] = append(checkMetadata[parts[0]], createCheckInstanceMetadata(id, ""))
+			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, ""))
 		}
 	}
 
-	agentCacheMutex.Lock()
-	defer agentCacheMutex.Unlock()
-	// Creating a copy of agentMetadataCache
-	agentMetadata := make(AgentMetadata)
-	for k, v := range agentMetadataCache {
-		agentMetadata[k] = v
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
+
+	// Create a static copy of agentMetadata for the payload
+	payloadAgentMeta := make(AgentMetadata)
+	for k, v := range agentMetadata {
+		payloadAgentMeta[k] = v
 	}
 
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
-		CheckMetadata: &checkMetadata,
-		AgentMetadata: &agentMetadata,
+		CheckMetadata: &payloadCheckMeta,
+		AgentMetadata: &payloadAgentMeta,
 	}
 }
 
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
-func GetPayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+func GetPayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	lastGetPayloadMutex.Lock()
 	defer lastGetPayloadMutex.Unlock()
 	lastGetPayload = timeNow()
 
-	return CreatePayload(hostname, ac, coll)
+	lastPayload = CreatePayload(ctx, hostname, ac, coll)
+	return lastPayload
+}
+
+// GetLastPayload returns the last payload created by the inventories metadata collector as JSON.
+func GetLastPayload() ([]byte, error) {
+	lastGetPayloadMutex.Lock()
+	defer lastGetPayloadMutex.Unlock()
+
+	if lastPayload == nil {
+		return []byte("no inventories metadata payload was created yet"), nil
+	}
+	return json.MarshalIndent(lastPayload, "", "    ")
 }
 
 // StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC
@@ -194,4 +248,51 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 		}
 	}()
 	return nil
+}
+
+// InitializeData inits the inventories payload with basic and static information (agent version, flavor name, ...)
+func InitializeData() {
+	SetAgentMetadata(AgentVersion, version.AgentVersion)
+	SetAgentMetadata(AgentFlavor, flavor.GetFlavor())
+
+	initializeConfig(config.Datadog)
+}
+
+func initializeConfig(cfg config.Config) {
+	clean := func(s string) string {
+		// Errors come from internal use of a Reader interface.  Since we are
+		// reading from a buffer, no errors are possible.
+		cleanBytes, _ := scrubber.ScrubBytes([]byte(s))
+		return string(cleanBytes)
+	}
+
+	cleanSlice := func(ss []string) []string {
+		rv := make([]string, len(ss))
+		for i, s := range ss {
+			rv[i] = clean(s)
+		}
+		return rv
+	}
+
+	SetAgentMetadata(AgentConfigAPMDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
+	SetAgentMetadata(AgentConfigDDURL, clean(cfg.GetString("dd_url")))
+	SetAgentMetadata(AgentConfigSite, clean(cfg.GetString("dd_site")))
+	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
+	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, clean(cfg.GetString("logs_config.socks5_proxy_address")))
+	SetAgentMetadata(AgentConfigNoProxy, cleanSlice(cfg.GetStringSlice("proxy.no_proxy")))
+	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
+	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
+	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
+	SetAgentMetadata(AgentCWSEnabled, config.Datadog.GetBool("runtime_security_config.enabled"))
+	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
+	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
+	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
+	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
+	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
+	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
+	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
+	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
+	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
+	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
 }

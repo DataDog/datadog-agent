@@ -90,3 +90,10 @@ Severity=Informational
 Language=English
 The service %1 received the shutdown command, shutting down.
 .
+
+MessageId=13
+SymbolicName=MSG_AGENT_PRE_SHUTDOWN_STARTING
+Severity=Informational
+Language=English
+The service %1 service is initiating pre-shutdown.
+.

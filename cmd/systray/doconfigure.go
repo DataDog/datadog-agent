@@ -1,7 +1,8 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package main
@@ -18,15 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func canConfigure() bool {
-	if _, err := security.FetchAuthToken(); err != nil {
-		return false
-	}
-	return true
-}
 func onConfigure() {
 	// seems like a waste.  However, the handler function doesn't expect an error code.
-	// this just eates the error code.
+	// this just eats the error code.
 	err := doConfigure()
 	if err != nil {
 		log.Warnf("Failed to launch gui %v", err)

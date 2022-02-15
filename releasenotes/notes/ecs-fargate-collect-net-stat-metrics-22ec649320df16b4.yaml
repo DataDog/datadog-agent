@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Collect net stats metrics (RX/TX) for ECS Fargate in Live Containers.

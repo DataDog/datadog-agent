@@ -1,18 +1,24 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
+	"errors"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,17 +30,19 @@ func cleanConfig() func() {
 }
 
 func TestConfigHostname(t *testing.T) {
-	t.Run("nothing", func(t *testing.T) {
+	t.Run("fail", func(t *testing.T) {
 		defer cleanConfig()()
+		config.Datadog.Set("apm_config.dd_agent_bin", "/not/exist")
+		config.Datadog.Set("cmd_port", "-1")
 		assert := assert.New(t)
 		fallbackHostnameFunc = func() (string, error) {
-			return "", nil
+			return "", errors.New("could not get hostname")
 		}
 		defer func() {
 			fallbackHostnameFunc = os.Hostname
 		}()
 		_, err := Load("./testdata/site_override.yaml")
-		assert.Equal(ErrMissingHostname, err)
+		assert.Contains(err.Error(), "nor from OS")
 	})
 
 	t.Run("fallback", func(t *testing.T) {
@@ -80,6 +88,83 @@ func TestConfigHostname(t *testing.T) {
 		cfg, err := Load("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("envoverride", cfg.Hostname)
+	})
+
+	t.Run("external", func(t *testing.T) {
+		body, err := ioutil.ReadFile("../test/fixtures/stringcode.go.tmpl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// makeProgram creates a new binary file which returns the given response and exits to the OS
+		// given the specified code, returning the path of the program.
+		makeProgram := func(response string, code int) string {
+			f, err := ioutil.TempFile("", "trace-test-hostname.*.go")
+			if err != nil {
+				t.Fatal(err)
+			}
+			tmpl, err := template.New("program").Parse(string(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := tmpl.Execute(f, struct {
+				Response string
+				ExitCode int
+			}{response, code}); err != nil {
+				t.Fatal(err)
+			}
+			stat, err := f.Stat()
+			if err != nil {
+				t.Fatal(err)
+			}
+			srcpath := filepath.Join(os.TempDir(), stat.Name())
+			binpath := strings.TrimSuffix(srcpath, ".go")
+			if err := exec.Command("go", "build", "-o", binpath, srcpath).Run(); err != nil {
+				t.Fatal(err)
+			}
+			os.Remove(srcpath)
+			return binpath
+		}
+
+		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
+		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
+
+		t.Run("good", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("host.name", 0)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostnameFallback())
+			assert.Equal(t, cfg.Hostname, "host.name")
+		})
+
+		t.Run("empty", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("", 0)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostnameFallback())
+			assert.Empty(t, cfg.Hostname)
+		})
+
+		t.Run("empty+disallowed", func(t *testing.T) {
+			features.Set("disable_empty_hostname")
+			defer func() { features.Set(os.Getenv("DD_APM_FEATURES")) }()
+
+			cfg := AgentConfig{DDAgentBin: makeProgram("", 0)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostnameFallback())
+			assert.Equal(t, "fallback.host", cfg.Hostname)
+		})
+
+		t.Run("fallback1", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("", 1)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostnameFallback())
+			assert.Equal(t, cfg.Hostname, "fallback.host")
+		})
+
+		t.Run("fallback2", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("some text", 1)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostnameFallback())
+			assert.Equal(t, cfg.Hostname, "fallback.host")
+		})
 	})
 }
 
@@ -157,7 +242,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(123, c.ConnectionLimit)
 	assert.Equal(18126, c.ReceiverPort)
 	assert.Equal(0.5, c.ExtraSampleRate)
-	assert.Equal(5.0, c.MaxTPS)
+	assert.Equal(5.0, c.TargetTPS)
 	assert.Equal(50.0, c.MaxEPS)
 	assert.Equal(0.5, c.MaxCPU)
 	assert.EqualValues(123.4, c.MaxMemory)
@@ -171,7 +256,6 @@ func TestFullYamlConfig(t *testing.T) {
 		// this test to fail.
 		noProxy = false
 	}
-
 	assert.ElementsMatch([]*Endpoint{
 		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
@@ -180,6 +264,9 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
 	}, c.Endpoints)
+
+	assert.ElementsMatch([]*Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, c.RequireTags)
+	assert.ElementsMatch([]*Tag{{K: "outcome", V: "success"}}, c.RejectTags)
 
 	assert.ElementsMatch([]*ReplaceRule{
 		{
@@ -204,6 +291,9 @@ func TestFullYamlConfig(t *testing.T) {
 
 	assert.EqualValues([]string{"/health", "/500"}, c.Ignore["resource"])
 
+	assert.Equal("0.0.0.0", c.OTLPReceiver.BindHost)
+	assert.Equal(50053, c.OTLPReceiver.GRPCPort)
+
 	o := c.Obfuscation
 	assert.NotNil(o)
 	assert.True(o.ES.Enabled)
@@ -215,6 +305,8 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(o.RemoveStackTraces)
 	assert.True(c.Obfuscation.Redis.Enabled)
 	assert.True(c.Obfuscation.Memcached.Enabled)
+	assert.True(c.Obfuscation.CreditCards.Enabled)
+	assert.True(c.Obfuscation.CreditCards.Luhn)
 }
 
 func TestUndocumentedYamlConfig(t *testing.T) {
@@ -234,7 +326,10 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal("thing", c.Hostname)
 	assert.Equal("apikey_12", c.Endpoints[0].APIKey)
 	assert.Equal(0.33, c.ExtraSampleRate)
-	assert.Equal(100.0, c.MaxTPS)
+	assert.Equal(100.0, c.TargetTPS)
+	assert.Equal(37.0, c.ErrorTPS)
+	assert.Equal(true, c.DisableRareSampler)
+	assert.Equal(127.0, c.MaxRemoteTPS)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
 	assert.Equal(120*time.Second, c.ConnectionResetInterval)
@@ -260,10 +355,71 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(0.05, c.AnalyzedSpansByService["db"]["intake"])
 }
 
-func TestAcquireHostname(t *testing.T) {
+func TestAcquireHostnameFallback(t *testing.T) {
 	c := New()
-	err := c.acquireHostname()
+	err := c.acquireHostnameFallback()
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)
+}
+
+func TestNormalizeEnvFromDDEnv(t *testing.T) {
+	assert := assert.New(t)
+
+	for in, out := range map[string]string{
+		"staging":   "staging",
+		"stAging":   "staging",
+		"staging 1": "staging_1",
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			err := os.Setenv("DD_ENV", in)
+			defer os.Unsetenv("DD_ENV")
+			assert.NoError(err)
+			cfg, err := Load("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+			assert.Equal(out, cfg.DefaultEnv)
+		})
+	}
+}
+
+func TestNormalizeEnvFromDDTags(t *testing.T) {
+	assert := assert.New(t)
+
+	for in, out := range map[string]string{
+		"env:staging": "staging",
+		"env:stAging": "staging",
+		// The value of DD_TAGS is parsed with a space delimiter.
+		"tag:value env:STAGING tag2:value2": "staging",
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			err := os.Setenv("DD_TAGS", in)
+			defer os.Unsetenv("DD_TAGS")
+			assert.NoError(err)
+			cfg, err := Load("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+			assert.Equal(out, cfg.DefaultEnv)
+		})
+	}
+}
+
+func TestNormalizeEnvFromConfig(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, cfgFile := range []string{
+		"./testdata/ok_env_apm_config.yaml",
+		"./testdata/ok_env_top_level.yaml",
+		"./testdata/ok_env_host_tag.yaml",
+		"./testdata/non-normalized_env_apm_config.yaml",
+		"./testdata/non-normalized_env_top_level.yaml",
+		"./testdata/non-normalized_env_host_tag.yaml",
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			cfg, err := Load(cfgFile)
+			assert.NoError(err)
+			assert.Equal("staging", cfg.DefaultEnv)
+		})
+	}
 }

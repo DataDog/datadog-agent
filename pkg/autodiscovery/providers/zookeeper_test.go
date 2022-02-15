@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build zk
 // +build zk
 
 package providers
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -136,6 +138,7 @@ func TestZKGetTemplates(t *testing.T) {
 }
 
 func TestZKCollect(t *testing.T) {
+	ctx := context.Background()
 	backend := &zkTest{}
 
 	backend.On("Children", "/datadog/check_configs").Return([]string{"other", "config_folder_1", "config_folder_2"}, nil, nil).Times(1)
@@ -153,7 +156,7 @@ func TestZKCollect(t *testing.T) {
 
 	zk := ZookeeperConfigProvider{client: backend, templateDir: "/datadog/check_configs"}
 
-	res, err := zk.Collect()
+	res, err := zk.Collect(ctx)
 	assert.Nil(t, err)
 	assert.Len(t, res, 3)
 
@@ -189,6 +192,7 @@ func TestZKIsUpToDate(t *testing.T) {
 	// If the number of ADTemplate is modified we update
 	// If nothing changed we don't update
 
+	ctx := context.Background()
 	backend := &zkTest{}
 	z := new(zk.Stat)
 	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1"}, nil, nil).Times(1)
@@ -199,15 +203,15 @@ func TestZKIsUpToDate(t *testing.T) {
 	z.Mtime = int64(709662600)
 	backend.On("Get", "/datadog/check_configs/config_folder_1/init_configs").Return([]byte("[{}, {}]"), z, nil)
 
-	cache := NewCPCache()
+	cache := newProviderCache()
 
 	zkr := ZookeeperConfigProvider{client: backend, templateDir: "/datadog/check_configs", cache: cache}
-	assert.Equal(t, float64(0), zkr.cache.LatestTemplateIdx)
-	assert.Equal(t, int(0), zkr.cache.NumAdTemplates)
+	assert.Equal(t, float64(0), zkr.cache.mostRecentMod)
+	assert.Equal(t, int(0), zkr.cache.count)
 
-	update, _ := zkr.IsUpToDate()
+	update, _ := zkr.IsUpToDate(ctx)
 	assert.False(t, update)
-	assert.Equal(t, float64(709662600), zkr.cache.LatestTemplateIdx)
+	assert.Equal(t, float64(709662600), zkr.cache.mostRecentMod)
 
 	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1", "config_folder_2"}, nil, nil)
 	backend.On("Children", "/datadog/check_configs/config_folder_2").Return([]string{"check_names", "instances", "init_configs"}, z, nil)
@@ -216,11 +220,11 @@ func TestZKIsUpToDate(t *testing.T) {
 	backend.On("Get", "/datadog/check_configs/config_folder_2/instances").Return([]byte("[{}]"), z, nil)
 	backend.On("Get", "/datadog/check_configs/config_folder_2/init_configs").Return([]byte("[{}]"), z, nil)
 
-	update, _ = zkr.IsUpToDate()
+	update, _ = zkr.IsUpToDate(ctx)
 	assert.False(t, update)
-	assert.Equal(t, int(2), zkr.cache.NumAdTemplates)
+	assert.Equal(t, int(2), zkr.cache.count)
 
-	update, _ = zkr.IsUpToDate()
+	update, _ = zkr.IsUpToDate(ctx)
 	assert.True(t, update)
 	backend.AssertExpectations(t)
 }

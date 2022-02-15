@@ -1,14 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package checks implements Compliance Agent checks
 package checks
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"time"
 
@@ -20,6 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	cache "github.com/patrickmn/go-cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by Builder
@@ -53,6 +59,14 @@ type BuilderOption func(*builder) error
 func WithInterval(interval time.Duration) BuilderOption {
 	return func(b *builder) error {
 		b.checkInterval = interval
+		return nil
+	}
+}
+
+// WithMaxEvents configures default max events per run
+func WithMaxEvents(max int) BuilderOption {
+	return func(b *builder) error {
+		b.maxEventsPerRun = max
 		return nil
 	}
 }
@@ -114,10 +128,38 @@ func WithAuditClient(cli env.AuditClient) BuilderOption {
 	}
 }
 
+type kubeClient struct {
+	dynamic.Interface
+	clusterID string
+}
+
+func (c *kubeClient) Resource(resource schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
+	return c.Interface.Resource(resource)
+}
+
+func (c *kubeClient) ClusterID() (string, error) {
+	if c.clusterID != "" {
+		return c.clusterID, nil
+	}
+
+	resourceDef := c.Resource(schema.GroupVersionResource{
+		Resource: "namespaces",
+		Version:  "v1",
+	})
+
+	resource, err := resourceDef.Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	c.clusterID = string(resource.GetUID())
+	return c.clusterID, nil
+}
+
 // WithKubernetesClient allows specific Kubernetes client
-func WithKubernetesClient(cli env.KubeClient) BuilderOption {
+func WithKubernetesClient(cli dynamic.Interface, clusterID string) BuilderOption {
 	return func(b *builder) error {
-		b.kubeClient = cli
+		b.kubeClient = &kubeClient{Interface: cli, clusterID: clusterID}
 		return nil
 	}
 }
@@ -142,7 +184,7 @@ func WithMatchSuite(matcher SuiteMatcher) BuilderOption {
 }
 
 // RuleMatcher checks if a compliance rule is included
-type RuleMatcher func(*compliance.Rule) bool
+type RuleMatcher func(*compliance.RuleCommon) bool
 
 // WithMatchRule configures builder to use a suite matcher
 func WithMatchRule(matcher RuleMatcher) BuilderOption {
@@ -174,6 +216,26 @@ func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
 	}
 }
 
+// WithRegoInput configures a builder to provide rego input based on the content
+// of a file instead of the current environment
+func WithRegoInput(regoInputPath string) BuilderOption {
+	return func(b *builder) error {
+		content, err := ioutil.ReadFile(regoInputPath)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(content, &b.regoInputOverride)
+	}
+}
+
+// WithRegoInputDumpPath configures a builder to dump the rego input to the provided file path
+func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
+	return func(b *builder) error {
+		b.regoInputDumpPath = regoInputDumpPath
+		return nil
+	}
+}
+
 // IsFramework matches a compliance suite by the name of the framework
 func IsFramework(framework string) SuiteMatcher {
 	return func(s *compliance.SuiteMeta) bool {
@@ -183,7 +245,7 @@ func IsFramework(framework string) SuiteMatcher {
 
 // IsRuleID matches a compliance rule by ID
 func IsRuleID(ruleID string) RuleMatcher {
-	return func(r *compliance.Rule) bool {
+	return func(r *compliance.RuleCommon) bool {
 		return r.ID == ruleID
 	}
 }
@@ -191,10 +253,11 @@ func IsRuleID(ruleID string) RuleMatcher {
 // NewBuilder constructs a check builder
 func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, error) {
 	b := &builder{
-		reporter:      reporter,
-		checkInterval: 20 * time.Minute,
-		etcGroupPath:  "/etc/group",
-		status:        newStatus(),
+		reporter:        reporter,
+		checkInterval:   20 * time.Minute,
+		maxEventsPerRun: 30,
+		etcGroupPath:    "/etc/group",
+		status:          newStatus(),
 	}
 
 	for _, o := range options {
@@ -212,7 +275,8 @@ func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, err
 }
 
 type builder struct {
-	checkInterval time.Duration
+	checkInterval   time.Duration
+	maxEventsPerRun int
 
 	reporter   event.Reporter
 	valueCache *cache.Cache
@@ -227,8 +291,11 @@ type builder struct {
 
 	dockerClient env.DockerClient
 	auditClient  env.AuditClient
-	kubeClient   env.KubeClient
+	kubeClient   *kubeClient
 	isLeaderFunc func() bool
+
+	regoInputOverride map[string]eval.RegoInputMap
+	regoInputDumpPath string
 
 	status *status
 }
@@ -245,6 +312,45 @@ func (b *builder) Close() error {
 		}
 	}
 
+	return nil
+}
+
+func (b *builder) checkMatchingRule(file string, suite *compliance.Suite, rule compliance.Rule) bool {
+	ruleCommon := rule.Common()
+	if b.ruleMatcher != nil {
+		if b.ruleMatcher(ruleCommon) {
+			log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, ruleCommon.ID, file)
+		} else {
+			log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, ruleCommon.ID, file)
+			return false
+		}
+	}
+
+	if rule.ResourceCount() == 0 {
+		log.Infof("%s/%s: skipped rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, ruleCommon.ID)
+		return false
+	}
+
+	return true
+}
+
+func (b *builder) addCheckAndRun(suite *compliance.Suite, r *compliance.RuleCommon, check compliance.Check, onCheck compliance.CheckVisitor, initErr error) error {
+	if b.status != nil {
+		b.status.addCheck(&compliance.CheckStatus{
+			RuleID:      r.ID,
+			Description: r.Description,
+			Name:        compliance.CheckName(r.ID, r.Description),
+			Framework:   suite.Meta.Framework,
+			Source:      suite.Meta.Source,
+			Version:     suite.Meta.Version,
+			InitError:   initErr,
+		})
+	}
+	ok := onCheck(r, check, initErr)
+	if !ok {
+		log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
+		return initErr
+	}
 	return nil
 }
 
@@ -267,24 +373,14 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 	matchedCount := 0
 	for _, r := range suite.Rules {
-		if b.ruleMatcher != nil {
-			if b.ruleMatcher(&r) {
-				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
-			} else {
-				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
-				continue
-			}
-		}
-		matchedCount++
-
-		if len(r.Resources) == 0 {
-			log.Infof("%s/%s: skipped rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
+		if b.checkMatchingRule(file, suite, &r) {
+			matchedCount++
+		} else {
 			continue
 		}
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRule(&suite.Meta, &r)
-
 		if err != nil {
 			if err != ErrRuleDoesNotApply {
 				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
@@ -292,20 +388,28 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
 		}
 
-		if b.status != nil {
-			b.status.addCheck(&compliance.CheckStatus{
-				RuleID:      r.ID,
-				Description: r.Description,
-				Name:        compliance.CheckName(r.ID, r.Description),
-				Framework:   suite.Meta.Framework,
-				Source:      suite.Meta.Source,
-				Version:     suite.Meta.Version,
-				InitError:   err,
-			})
+		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
+			return err
 		}
-		ok := onCheck(&r, check, err)
-		if !ok {
-			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
+	}
+
+	for _, r := range suite.RegoRules {
+		if b.checkMatchingRule(file, suite, &r) {
+			matchedCount++
+		} else {
+			continue
+		}
+
+		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
+		check, err := b.checkFromRegoRule(&suite.Meta, &r)
+		if err != nil {
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
+			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
+		}
+
+		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
 			return err
 		}
 	}
@@ -324,13 +428,13 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 	return compliance.CheckStatusList{}
 }
 
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.Check, error) {
-	ruleScope, err := getRuleScope(meta, rule)
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.ConditionFallbackRule) (compliance.Check, error) {
+	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
 	}
 
-	eligible, err := b.hostMatcher(ruleScope, rule)
+	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -340,39 +444,138 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 		return nil, ErrRuleDoesNotApply
 	}
 
-	return b.newCheck(meta, ruleScope, rule)
+	resourceReporter := b.getRuleResourceReporter(ruleScope, *rule)
+	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
-func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.RuleScope, error) {
+func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
+	ruleScope, err := getRuleScope(meta, rule.Scope)
+	if err != nil {
+		return nil, err
+	}
+
+	// skip host match check if rego input is overridden
+	if b.regoInputOverride == nil {
+		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+		if err != nil {
+			return nil, err
+		}
+
+		if !eligible {
+			log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
+			return nil, ErrRuleDoesNotApply
+		}
+	}
+
+	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
+}
+
+func fallthroughReporter(report *compliance.Report) compliance.ReportResource {
+	return report.Resource
+}
+
+func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList) (compliance.RuleScope, error) {
 	switch {
-	case rule.Scope.Includes(compliance.DockerScope):
+	case scopeList.Includes(compliance.DockerScope):
 		return compliance.DockerScope, nil
-	case rule.Scope.Includes(compliance.KubernetesNodeScope):
+	case scopeList.Includes(compliance.KubernetesNodeScope):
 		return compliance.KubernetesNodeScope, nil
-	case rule.Scope.Includes(compliance.KubernetesClusterScope):
+	case scopeList.Includes(compliance.KubernetesClusterScope):
 		return compliance.KubernetesClusterScope, nil
 	default:
 		return "", ErrRuleScopeNotSupported
 	}
 }
 
-func (b *builder) hostMatcher(scope compliance.RuleScope, rule *compliance.Rule) (bool, error) {
+func (b *builder) kubeResourceReporter(rule compliance.ConditionFallbackRule, resourceType string) resourceReporter {
+	return func(report *compliance.Report) compliance.ReportResource {
+		var clusterID string
+		var err error
+
+		if b.kubeClient != nil {
+			clusterID, err = b.kubeClient.ClusterID()
+			if err != nil {
+				log.Debugf("failed to retrieve cluster id, defaulting to hostname")
+			}
+		}
+
+		if clusterID == "" {
+			clusterID = b.Hostname()
+		}
+
+		if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
+			return compliance.ReportResource{
+				ID:   clusterID + "_" + report.Resource.ID,
+				Type: report.Resource.Type,
+			}
+		}
+
+		if rule.ResourceType != "" {
+			resourceType = rule.ResourceType
+		}
+
+		return compliance.ReportResource{
+			ID:   clusterID + "_" + resourceType,
+			Type: resourceType,
+		}
+	}
+}
+
+func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.ConditionFallbackRule) resourceReporter {
+	switch scope {
+	case compliance.DockerScope:
+		return func(report *compliance.Report) compliance.ReportResource {
+			if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
+				return compliance.ReportResource{
+					ID:   b.Hostname() + "_" + report.Resource.ID,
+					Type: report.Resource.Type,
+				}
+			}
+
+			resourceType := rule.ResourceType
+			if resourceType == "" {
+				resourceType = "docker_daemon"
+			}
+
+			return compliance.ReportResource{
+				ID:   b.Hostname() + "_daemon",
+				Type: resourceType,
+			}
+		}
+
+	case compliance.KubernetesNodeScope:
+		return b.kubeResourceReporter(rule, "kubernetes_node")
+
+	case compliance.KubernetesClusterScope:
+		return b.kubeResourceReporter(rule, "kubernetes_cluster")
+
+	default:
+		return func(report *compliance.Report) compliance.ReportResource {
+			return compliance.ReportResource{
+				ID:   b.Hostname(),
+				Type: string(scope),
+			}
+		}
+	}
+}
+
+func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string) (bool, error) {
 	switch scope {
 	case compliance.DockerScope:
 		if b.dockerClient == nil {
-			log.Infof("rule %s skipped - not running in a docker environment", rule.ID)
+			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
 			return false, nil
 		}
 	case compliance.KubernetesClusterScope:
 		if b.kubeClient == nil {
-			log.Infof("rule %s skipped - not running as Cluster Agent", rule.ID)
+			log.Infof("rule %s skipped - not running as Cluster Agent", ruleID)
 			return false, nil
 		}
 	case compliance.KubernetesNodeScope:
 		if config.IsKubernetes() {
-			return b.isKubernetesNodeEligible(rule.HostSelector)
+			return b.isKubernetesNodeEligible(hostSelector)
 		}
-		log.Infof("rule %s skipped - not running on a Kubernetes node", rule.ID)
+		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)
 		return false, nil
 	}
 
@@ -389,16 +592,19 @@ func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
 		return false, err
 	}
 
-	nodeInstance := &eval.Instance{
-		Functions: eval.FunctionMap{
+	labelKeys := b.nodeLabelKeys()
+	nodeInstance := eval.NewInstance(
+		eval.VarMap{
+			"node.labels": labelKeys,
+		},
+		eval.FunctionMap{
 			"node.hasLabel": b.nodeHasLabel,
 			"node.label":    b.nodeLabel,
 		},
-
-		Vars: eval.VarMap{
-			"node.labels": b.nodeLabelKeys(),
+		eval.RegoInputMap{
+			"labels": labelKeys,
 		},
-	}
+	)
 
 	result, err := expr.Evaluate(nodeInstance)
 	if err != nil {
@@ -428,12 +634,12 @@ func (b *builder) getNodeLabel(args ...interface{}) (string, bool, error) {
 	return v, ok, nil
 }
 
-func (b *builder) nodeHasLabel(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func (b *builder) nodeHasLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	_, ok, err := b.getNodeLabel(args...)
 	return ok, err
 }
 
-func (b *builder) nodeLabel(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func (b *builder) nodeLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	v, _, err := b.getNodeLabel(args...)
 	return v, err
 }
@@ -446,9 +652,8 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule) (compliance.Check, error) {
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.ConditionFallbackRule, handler resourceReporter) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
-
 	if err != nil {
 		return nil, err
 	}
@@ -468,10 +673,42 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 
 		suiteMeta: meta,
 
-		// For now we are using rule scope (e.g. docker, kubernetesNode) as resource type
-		resourceType: string(ruleScope),
-		resourceID:   b.hostname,
-		checkable:    checkable,
+		resourceHandler: handler,
+		scope:           ruleScope,
+		checkable:       checkable,
+
+		eventNotify: notify,
+	}, nil
+}
+
+func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
+	regoCheck := &regoCheck{
+		ruleID: rule.ID,
+		inputs: rule.Inputs,
+	}
+
+	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {
+		return nil, err
+	}
+
+	var notify eventNotify
+	if b.status != nil {
+		notify = b.status.updateCheck
+	}
+
+	// We capture err as configuration error but do not prevent check creation
+	return &complianceCheck{
+		Env: b,
+
+		ruleID:      rule.ID,
+		description: rule.Description,
+		interval:    b.checkInterval,
+
+		suiteMeta: meta,
+
+		resourceHandler: handler,
+		scope:           ruleScope,
+		checkable:       regoCheck,
 
 		eventNotify: notify,
 	}, nil
@@ -493,12 +730,24 @@ func (b *builder) KubeClient() env.KubeClient {
 	return b.kubeClient
 }
 
+func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
+	return b.regoInputOverride[ruleID]
+}
+
+func (b *builder) DumpInputPath() string {
+	return b.regoInputDumpPath
+}
+
 func (b *builder) Hostname() string {
 	return b.hostname
 }
 
 func (b *builder) EtcGroupPath() string {
 	return b.etcGroupPath
+}
+
+func (b *builder) MaxEventsPerRun() int {
+	return b.maxEventsPerRun
 }
 
 func (b *builder) NormalizeToHostRoot(path string) string {
@@ -522,22 +771,28 @@ func (b *builder) IsLeader() bool {
 	return true
 }
 
+func (b *builder) NodeLabels() map[string]string {
+	return b.nodeLabels
+}
+
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
-	instance := &eval.Instance{
-		Functions: eval.FunctionMap{
+	instance := eval.NewInstance(
+		nil,
+		eval.FunctionMap{
 			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),
 			builderFuncExec:        b.withValueCache(builderFuncExec, evalCommandExec),
 			builderFuncProcessFlag: b.withValueCache(builderFuncProcessFlag, evalProcessFlag),
 			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
 			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
 		},
-	}
+		nil,
+	)
 
 	return ev.Evaluate(instance)
 }
 
 func (b *builder) withValueCache(funcName string, fn eval.Function) eval.Function {
-	return func(instance *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(instance eval.Instance, args ...interface{}) (interface{}, error) {
 		var sargs []string
 		for _, arg := range args {
 			sargs = append(sargs, fmt.Sprintf("%v", arg))
@@ -554,7 +809,7 @@ func (b *builder) withValueCache(funcName string, fn eval.Function) eval.Functio
 	}
 }
 
-func evalCommandShell(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, errors.New(`expecting at least one argument`)
 	}
@@ -597,7 +852,7 @@ func valueFromShellCommand(command string, shellAndArgs ...string) (interface{},
 	return stdout, nil
 }
 
-func evalCommandExec(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, errors.New(`expecting at least one argument`)
 	}
@@ -628,7 +883,7 @@ func valueFromBinaryCommand(name string, args ...string) (interface{}, error) {
 	return stdout, nil
 }
 
-func evalProcessFlag(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) != 2 {
 		return nil, errors.New(`expecting two arguments`)
 	}
@@ -660,7 +915,7 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 }
 
 func (b *builder) evalValueFromFile(get getter) eval.Function {
-	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 2 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
 		}

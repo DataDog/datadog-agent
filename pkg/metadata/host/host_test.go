@@ -1,12 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package host
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -26,7 +28,8 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	p := GetPayload(util.HostnameData{Hostname: "myhostname", Provider: ""})
+	ctx := context.Background()
+	p := GetPayload(ctx, util.HostnameData{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
 	assert.NotEmpty(t, p.AgentFlavor)
 	assert.NotEmpty(t, p.PythonVersion)
@@ -72,7 +75,8 @@ func TestGetHostInfo(t *testing.T) {
 }
 
 func TestGetMeta(t *testing.T) {
-	meta := getMeta(util.HostnameData{})
+	ctx := context.Background()
+	meta := getMeta(ctx, util.HostnameData{})
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
@@ -179,7 +183,17 @@ func TestGetProxyMeta(t *testing.T) {
 	assert.Equal(t, meta.NoProxyNonexactMatch, true)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)
 
-	httputils.NoProxyWarningMap["http://someUrl.com"] = true
+	httputils.NoProxyIgnoredWarningMap["http://someUrl.com"] = true
 	meta = getProxyMeta()
 	assert.Equal(t, meta.ProxyBehaviorChanged, true)
+}
+
+func TestGetOtlpMeta(t *testing.T) {
+	config.Datadog.Set(config.OTLPReceiverSection+".protocols.grpc.endpoint", "localhost:9999")
+	meta := getOtlpMeta()
+	assert.Equal(t, meta.Enabled, true)
+
+	config.Datadog.Set(config.OTLPSection, nil)
+	meta = getOtlpMeta()
+	assert.Equal(t, meta.Enabled, false)
 }

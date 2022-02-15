@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -20,9 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
+
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 type DockerListenerTestSuite struct {
@@ -39,8 +45,12 @@ type DockerListenerTestSuite struct {
 func (suite *DockerListenerTestSuite) SetupSuite() {
 	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
+	config.DetectFeatures()
 	containers.ResetSharedFilter()
 
+	workloadmeta.GetGlobalStore().Start(context.Background())
+
+	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 	tagger.Init()
 
 	config.SetupLogger(
@@ -70,7 +80,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewDockerListener()
+	dl, err := listeners.NewContainerListener(&config.Listeners{})
 	if err != nil {
 		panic(err)
 	}
@@ -113,7 +123,7 @@ func (suite *DockerListenerTestSuite) getServices(targetIDs, excludedIDs []strin
 		select {
 		case svc := <-channel:
 			for _, id := range targetIDs {
-				if strings.HasSuffix(svc.GetEntity(), id) {
+				if strings.HasSuffix(svc.GetServiceID(), id) {
 					log.Infof("Service matches container %s, keeping", id)
 					services[id] = svc
 					log.Infof("Got services for %d containers so far, out of %d wanted", len(services), len(targetIDs))
@@ -124,7 +134,7 @@ func (suite *DockerListenerTestSuite) getServices(targetIDs, excludedIDs []strin
 				}
 			}
 			for _, id := range excludedIDs {
-				if strings.HasSuffix(svc.GetEntity(), id) {
+				if strings.HasSuffix(svc.GetServiceID(), id) {
 					return services, fmt.Errorf("got service for excluded container %s", id)
 				}
 			}
@@ -168,12 +178,13 @@ func (suite *DockerListenerTestSuite) TestListenBeforeStart() {
 
 // Common section for both scenarios
 func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
+	ctx := context.Background()
 	expectedADIDs := make(map[string][]string)
 	var includedIDs, excludedIDs []string
 	var excludedEntity string
 
 	for _, container := range containerIDs {
-		inspect, err := suite.dockerutil.Inspect(container, false)
+		inspect, err := suite.dockerutil.Inspect(ctx, container, false)
 		assert.Nil(suite.T(), err)
 		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "excluded") {
@@ -188,7 +199,8 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 			expectedADIDs[entity] = []string{
 				entity,
 				"datadog/docker-library",
-				"docker-library"}
+				"docker-library",
+			}
 		}
 	}
 
@@ -198,17 +210,17 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	assert.Len(suite.T(), services, 2)
 
 	for _, service := range services {
-		pid, err := service.GetPid()
+		pid, err := service.GetPid(ctx)
 		assert.Nil(suite.T(), err)
 		assert.True(suite.T(), pid > 0)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), hosts, 1)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), ports, 1)
 
-		entity := service.GetEntity()
+		entity := service.GetServiceID()
 		expectedTags, found := expectedADIDs[entity]
 		assert.True(suite.T(), found, "entity not found in expected ones")
 
@@ -219,7 +231,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")
 
-		adIDs, err := service.GetADIdentifiers()
+		adIDs, err := service.GetADIdentifiers(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Equal(suite.T(), expectedTags, adIDs)
 	}
@@ -227,7 +239,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	// Listen for late messages
 	select {
 	case svc := <-suite.newSvc:
-		if svc.GetEntity() == excludedEntity {
+		if svc.GetServiceID() == excludedEntity {
 			assert.FailNowf(suite.T(), "received service for excluded container %s", excludedEntity)
 		}
 	case <-time.After(250 * time.Millisecond):
@@ -244,7 +256,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	// Listen for late messages
 	select {
 	case svc := <-suite.delSvc:
-		if svc.GetEntity() == excludedEntity {
+		if svc.GetServiceID() == excludedEntity {
 			assert.FailNowf(suite.T(), "received service for excluded container %s", excludedEntity)
 		}
 	case <-time.After(250 * time.Millisecond):

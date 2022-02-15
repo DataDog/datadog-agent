@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -186,6 +188,36 @@ func TestNormalizeNoTraceID(t *testing.T) {
 	s.TraceID = 0
 	assert.Error(t, normalize(ts, s))
 	assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero: 1}), ts)
+}
+
+func TestNormalizeComponent2Name(t *testing.T) {
+	ts := newTagStats()
+	assert := assert.New(t)
+
+	t.Run("on", func(t *testing.T) {
+		defer testutil.WithFeatures("component2name")()
+
+		t.Run("with", func(t *testing.T) {
+			s := newTestSpan()
+			s.Meta["component"] = "component"
+			assert.NoError(normalize(ts, s))
+			assert.Equal(s.Name, "component")
+		})
+
+		t.Run("without", func(t *testing.T) {
+			s := newTestSpan()
+			assert.Empty(s.Meta["component"])
+			assert.NoError(normalize(ts, s))
+			assert.Equal(s.Name, "django.controller")
+		})
+	})
+
+	t.Run("off", func(t *testing.T) {
+		s := newTestSpan()
+		s.Meta["component"] = "component"
+		assert.NoError(normalize(ts, s))
+		assert.Equal(s.Name, "django.controller")
+	})
 }
 
 func TestNormalizeSpanIDPassThru(t *testing.T) {
@@ -419,6 +451,59 @@ func TestIsValidStatusCode(t *testing.T) {
 	assert.False(isValidStatusCode("99"))
 	assert.False(isValidStatusCode("600"))
 	assert.False(isValidStatusCode("Invalid status code"))
+}
+
+func TestNormalizeChunkPopulatingOrigin(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMeta(root, "_dd.origin", "rum")
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Origin = ""
+	normalizeChunk(chunk, root)
+	assert.Equal("rum", chunk.Origin)
+}
+
+func TestNormalizeChunkNotPopulatingOrigin(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMeta(root, "_dd.origin", "rum")
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Origin = "lambda"
+	normalizeChunk(chunk, root)
+	assert.Equal("lambda", chunk.Origin)
+}
+
+func TestNormalizeChunkPopulatingSamplingPriority(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityNone)
+	normalizeChunk(chunk, root)
+	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
+}
+
+func TestNormalizeChunkNotPopulatingSamplingPriority(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityAutoDrop)
+	normalizeChunk(chunk, root)
+	assert.EqualValues(sampler.PriorityAutoDrop, chunk.Priority)
+}
+
+func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityNone)
+	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
+	chunk.Spans[0].Metrics = nil
+	chunk.Spans[2].Metrics = nil
+	traceutil.SetMetric(chunk.Spans[1], "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
+	normalizeChunk(chunk, root)
+	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 
 func BenchmarkNormalization(b *testing.B) {

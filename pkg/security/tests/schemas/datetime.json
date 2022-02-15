@@ -1,0 +1,16 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "datetime.json",
+    "allOf": [
+        {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}"
+        },
+        {
+            "not": {
+                "type": "string",
+                "pattern": "^0001-01-01"
+            }
+        }
+    ]
+}

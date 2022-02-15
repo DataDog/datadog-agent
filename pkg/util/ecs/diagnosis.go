@@ -1,13 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package ecs
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -24,13 +28,11 @@ func init() {
 func diagnoseECS() error {
 	client, err := ecsmeta.V1()
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Info("successfully detected ECS metadata server endpoint")
 
-	if _, err = client.GetTasks(); err != nil {
-		log.Error(err)
+	if _, err = client.GetTasks(context.TODO()); err != nil {
 		return err
 	}
 	log.Info("successfully retrieved task list from ECS metadata server")
@@ -42,13 +44,11 @@ func diagnoseECS() error {
 func diagnoseECSTags() error {
 	client, err := ecsmeta.V3FromCurrentTask()
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Info("successfully detected ECS metadata server endpoint for resource tags")
 
-	if _, err = client.GetTaskWithTags(); err != nil {
-		log.Error(err)
+	if _, err = client.GetTaskWithTags(context.TODO()); err != nil {
 		return err
 	}
 	log.Info("successfully retrieved task with potential tags from ECS metadata server")
@@ -60,12 +60,10 @@ func diagnoseECSTags() error {
 func diagnoseFargate() error {
 	client, err := ecsmeta.V2()
 	if err != nil {
-		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
-		return err
+		return fmt.Errorf("error while initializing ECS metadata V2 client: %w", err)
 	}
 
-	if _, err := client.GetTask(); err != nil {
-		log.Error(err)
+	if _, err := client.GetTask(context.TODO()); err != nil {
 		return err
 	}
 	log.Info("successfully retrieved task from Fargate metadata endpoint")

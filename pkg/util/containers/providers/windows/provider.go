@@ -1,16 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inmetrics.
+// Copyright 2017-present Datadog, Inmetrics.
 
-// +build windows
-// +build docker
+//go:build windows && docker
+// +build windows,docker
 
 package windows
 
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -67,7 +68,7 @@ func (mp *provider) Prefetch() error {
 	}
 
 	// We don't need exited/stopped containers
-	rawContainers, err := dockerUtil.RawContainerList(types.ContainerListOptions{})
+	rawContainers, err := dockerUtil.RawContainerList(context.TODO(), types.ContainerListOptions{})
 	if err != nil {
 		return err
 	}
@@ -82,7 +83,7 @@ func (mp *provider) Prefetch() error {
 	for _, container := range rawContainers {
 		containerBundle := containerBundle{}
 
-		cjson, err := dockerUtil.Inspect(container.ID, false)
+		cjson, err := dockerUtil.Inspect(context.TODO(), container.ID, false)
 		if err == nil {
 			mp.fillContainerDetails(cjson, &containerBundle)
 
@@ -94,7 +95,7 @@ func (mp *provider) Prefetch() error {
 			log.Debugf("Impossible to inspect container %s: %v", container.ID, err)
 		}
 
-		stats, err := dockerUtil.GetContainerStats(container.ID)
+		stats, err := dockerUtil.GetContainerStats(context.TODO(), container.ID)
 		if err == nil && stats != nil {
 			mp.fillContainerMetrics(stats, &containerBundle)
 			mp.fillContainerNetworkMetrics(stats, &containerBundle)
@@ -148,8 +149,8 @@ func (mp *provider) fillContainerMetrics(stats *types.StatsJSON, containerBundle
 
 	containerBundle.metrics = &metrics.ContainerMetrics{
 		CPU: &metrics.ContainerCPUStats{
-			User:       user,
-			System:     kernel,
+			User:       float64(user),
+			System:     float64(kernel),
 			UsageTotal: float64(total),
 		},
 		Memory: &metrics.ContainerMemStats{
@@ -319,6 +320,12 @@ func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	}
 	//
 	return []string{fields[3]}, nil
+}
+
+// GetNumFileDescriptors returns the number of open file descriptors for a given
+// pid
+func (mp *provider) GetNumFileDescriptors(pid int) (int, error) {
+	return 0, fmt.Errorf("not supported on windows")
 }
 
 // Output from route print 0.0.0.0:

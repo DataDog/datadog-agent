@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -62,6 +64,7 @@ func TestParseContainerHealth(t *testing.T) {
 }
 
 func TestResolveImageName(t *testing.T) {
+	ctx := context.Background()
 	imageName := "datadog/docker-dd-agent:latest"
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
@@ -93,7 +96,7 @@ func TestResolveImageName(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			name, err := globalDockerUtil.ResolveImageName(tc.input)
+			name, err := globalDockerUtil.ResolveImageName(ctx, tc.input)
 			assert.Equal(tc.expected, name, "test %s failed", i)
 			assert.Nil(err, "test %s failed", i)
 		})
@@ -101,6 +104,7 @@ func TestResolveImageName(t *testing.T) {
 }
 
 func TestResolveImageNameFromContainer(t *testing.T) {
+	ctx := context.Background()
 	imageName := "datadog/docker-dd-agent:latest"
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
@@ -120,37 +124,39 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 		expectedImage string
 	}{
 		{
-			name: "test empty Image",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: ""},
-				Config:            &container.Config{Image: "myapp"},
-			},
-			expectedImage: "",
-		}, {
-			name: "test standard image name",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: imageName},
-				Config:            &container.Config{Image: "myapp"},
-			},
-			expectedImage: imageName,
-		}, {
-			name: "test image name with sha tag",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: imageWithShaTag},
-				Config:            &container.Config{Image: "myapp"},
-			},
-			expectedImage: imageName,
-		}, {
-			name: "test image sha tag itself",
+			name: "test empty config image name",
 			input: types.ContainerJSON{
 				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
-				Config:            &container.Config{Image: "myapp"},
+				Config:            &container.Config{},
+			},
+			expectedImage: imageName,
+		}, {
+			name: "test standard config image name",
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: "ignored"},
+				Config:            &container.Config{Image: imageName},
+			},
+			expectedImage: imageName,
+		},
+		{
+			name: "test config image name as sha tag",
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+				Config:            &container.Config{Image: imageSha},
+			},
+			expectedImage: imageName,
+		},
+		{
+			name: "test config image name with sha tag",
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+				Config:            &container.Config{Image: imageWithShaTag},
 			},
 			expectedImage: imageName,
 		},
 	} {
 		t.Run(fmt.Sprintf("case %s", tc.name), func(t *testing.T) {
-			result, err := globalDockerUtil.ResolveImageNameFromContainer(tc.input)
+			result, err := globalDockerUtil.ResolveImageNameFromContainer(ctx, tc.input)
 			assert.Equal(tc.expectedImage, result, "%s test failed; expected %s but got %s", tc.name, tc.expectedImage, result)
 			assert.Nil(err, "%s test failed; expected nil error but got %s", tc.name, err)
 		})
@@ -158,6 +164,7 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 }
 
 func TestResolveImageNameFromContainerError(t *testing.T) {
+	ctx := context.Background()
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	assert := assert.New(t)
 
@@ -172,69 +179,12 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 
 	input := types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
-		Config:            &container.Config{Image: "myapp"},
+		Config:            &container.Config{Image: imageSha},
 	}
 
-	result, err := globalDockerUtil.ResolveImageNameFromContainer(input)
+	result, err := globalDockerUtil.ResolveImageNameFromContainer(ctx, input)
 	assert.Equal(imageSha, result, "test failed; expected %s but got %s", imageSha, result)
 	assert.NotNil(err, "test failed; expected an error but got %s", err)
-}
-
-func TestGetBestImageName(t *testing.T) {
-	latest := "latest"
-	assert := assert.New(t)
-	for _, tc := range []struct {
-		name          string
-		imageInspect  types.ImageInspect
-		configImage   string
-		expectedImage string
-	}{
-		{
-			name: "only one repo tag",
-			imageInspect: types.ImageInspect{
-				ID:       "image_id",
-				RepoTags: []string{latest},
-			},
-			configImage:   latest,
-			expectedImage: latest,
-		}, {
-			name: "two repo tags and configImage matches one",
-			imageInspect: types.ImageInspect{
-				ID:       "image_id",
-				RepoTags: []string{latest, "random_tag"},
-			},
-			configImage:   latest,
-			expectedImage: latest,
-		}, {
-			name: "two repo tags and configImage does not match one",
-			imageInspect: types.ImageInspect{
-				ID:       "image_id",
-				RepoTags: []string{"random_tag1", "random_tag2"},
-			},
-			configImage:   latest,
-			expectedImage: "random_tag1",
-		}, {
-			name: "no repo tags but a repo digest",
-			imageInspect: types.ImageInspect{
-				ID:          "image_id",
-				RepoDigests: []string{"quay.io/foo/bar@sha256:hash"},
-			},
-			configImage:   latest,
-			expectedImage: "quay.io/foo/bar",
-		}, {
-			name: "no repo tags or repo digests, returns empty image name",
-			imageInspect: types.ImageInspect{
-				ID: "image_id",
-			},
-			configImage:   latest,
-			expectedImage: "",
-		},
-	} {
-		t.Run(fmt.Sprintf("test case: %s", tc.name), func(t *testing.T) {
-			result := getBestImageName(tc.imageInspect, tc.configImage)
-			assert.Equal(tc.expectedImage, result, "%s test failed: expected %s but got %s", tc.name, tc.expectedImage, result)
-		})
-	}
 }
 
 func TestParseECSContainerNetworkAddresses(t *testing.T) {

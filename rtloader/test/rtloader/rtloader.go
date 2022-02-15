@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testrtloader
 
 /*
@@ -161,14 +166,14 @@ func getFakeCheck() (string, error) {
 	// check instance
 	emptyStr := (*C.char)(helpers.TrackedCString(""))
 	defer C._free(unsafe.Pointer(emptyStr))
-	checkIdStr := (*C.char)(helpers.TrackedCString("checkID"))
-	defer C._free(unsafe.Pointer(checkIdStr))
+	checkIDStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIDStr))
 	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
 	defer C._free(unsafe.Pointer(configStr))
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
 
-	ret = C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
+	ret = C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
 	if ret != 1 || check == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
 	}
@@ -200,14 +205,14 @@ func runFakeCheck() (string, error) {
 
 	emptyStr := (*C.char)(helpers.TrackedCString(""))
 	defer C._free(unsafe.Pointer(emptyStr))
-	checkIdStr := (*C.char)(helpers.TrackedCString("checkID"))
-	defer C._free(unsafe.Pointer(checkIdStr))
+	checkIDStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIDStr))
 	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
 	defer C._free(unsafe.Pointer(configStr))
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
 
-	C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
+	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
 
 	checkResultStr := C.run_check(rtloader, check)
 	defer C._free(unsafe.Pointer(checkResultStr))
@@ -217,7 +222,37 @@ func runFakeCheck() (string, error) {
 	runtime.UnlockOSThread()
 
 	return out, err
+}
 
+func cancelFakeCheck() error {
+	var module *C.rtloader_pyobject_t
+	var class *C.rtloader_pyobject_t
+	var check *C.rtloader_pyobject_t
+
+	runtime.LockOSThread()
+	state := C.ensure_gil(rtloader)
+
+	classStr := (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+	C.get_class(rtloader, classStr, &module, &class)
+
+	emptyStr := (*C.char)(helpers.TrackedCString(""))
+	defer C._free(unsafe.Pointer(emptyStr))
+	checkIDStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIDStr))
+	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
+	defer C._free(unsafe.Pointer(configStr))
+	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
+
+	C.cancel_check(rtloader, check)
+
+	C.release_gil(rtloader, state)
+	runtime.UnlockOSThread()
+
+	return fetchError()
 }
 
 func runFakeGetWarnings() ([]string, error) {
@@ -235,14 +270,14 @@ func runFakeGetWarnings() ([]string, error) {
 
 	emptyStr := (*C.char)(helpers.TrackedCString(""))
 	defer C._free(unsafe.Pointer(emptyStr))
-	checkIdStr := (*C.char)(helpers.TrackedCString("checkID"))
-	defer C._free(unsafe.Pointer(checkIdStr))
+	checkIDStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIDStr))
 	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
 	defer C._free(unsafe.Pointer(configStr))
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
 
-	C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
+	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
 
 	warns := C.get_checks_warnings(rtloader, check)
 

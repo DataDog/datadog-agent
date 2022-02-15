@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Datadog Agent won't try to connect to kubelet anymore if it's not running in a Kubernetes cluster.

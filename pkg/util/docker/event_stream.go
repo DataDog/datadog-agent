@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -24,8 +26,8 @@ const eventSendBuffer = 5
 
 // SubscribeToContainerEvents allows a package to subscribe to events from the event stream.
 // A unique subscriber name should be provided.
-func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerEvent, <-chan error, error) {
-	sub, err := d.eventState.subscribe(name)
+func (d *DockerUtil) SubscribeToContainerEvents(name string, filter *containers.Filter) (<-chan *ContainerEvent, <-chan error, error) {
+	sub, err := d.eventState.subscribe(name, filter)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -34,7 +36,7 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 	return sub.eventChan, sub.errorChan, err
 }
 
-func (e *eventStreamState) subscribe(name string) (*eventSubscriber, error) {
+func (e *eventStreamState) subscribe(name string, filter *containers.Filter) (*eventSubscriber, error) {
 	e.RLock()
 	if _, found := e.subscribers[name]; found {
 		e.RUnlock()
@@ -47,6 +49,7 @@ func (e *eventStreamState) subscribe(name string) (*eventSubscriber, error) {
 		eventChan:  make(chan *ContainerEvent, eventSendBuffer),
 		errorChan:  make(chan error, 1), // TODO: remove errorChan once design is stable
 		cancelChan: make(chan struct{}),
+		filter:     filter,
 	}
 	e.Lock()
 	e.subscribers[name] = sub
@@ -81,6 +84,8 @@ func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 	fltrs.Add("type", "container")
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
+	fltrs.Add("event", "died")
+	fltrs.Add("event", "rename")
 
 	// On initial subscribe, don't go back in time. On reconnect, we'll
 	// resume at the latest timestamp we got.
@@ -116,7 +121,7 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 				continue CONNECT // Re-connect to docker
 			case msg := <-messages:
 				latestTimestamp = msg.Time
-				event, err := d.processContainerEvent(msg)
+				event, err := d.processContainerEvent(ctx, msg, sub.filter)
 				if err != nil {
 					log.Debugf("Skipping event: %s", err)
 					continue

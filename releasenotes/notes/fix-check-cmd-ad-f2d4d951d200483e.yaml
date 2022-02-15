@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Improve the resiliency of the ``datadog-agent check`` command when running Autodiscovered checks.

@@ -2,6 +2,11 @@
 
 set -ex
 
+if ! command -v socat >/dev/null 2>&1; then
+  echo "socat cound not be found"
+  exit 1
+fi
+
 ip netns add test
 
 ip netns exec test socat STDIO tcp4-listen:34567 &

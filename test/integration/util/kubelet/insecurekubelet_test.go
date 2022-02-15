@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -29,6 +31,7 @@ func (suite *InsecureTestSuite) SetupTest() {
 }
 
 func (suite *InsecureTestSuite) TestHTTP() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
@@ -43,17 +46,17 @@ func (suite *InsecureTestSuite) TestHTTP() {
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), "http://127.0.0.1:10255", ku.GetKubeletAPIEndpoint())
-	b, code, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), "ok", string(b))
 
-	b, code, err = ku.QueryKubelet("/pods")
+	b, code, err = ku.QueryKubelet(ctx, "/pods")
 	assert.Equal(suite.T(), 200, code)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
-	podList, err := ku.GetLocalPodList()
+	podList, err := ku.GetLocalPodList(ctx)
 	// we don't consider null podlist as valid
 	require.Error(suite.T(), err)
 	assert.Nil(suite.T(), podList)
@@ -65,6 +68,7 @@ func (suite *InsecureTestSuite) TestHTTP() {
 }
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
@@ -76,17 +80,17 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
-	b, code, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Equal(suite.T(), 200, code)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 
-	b, code, err = ku.QueryKubelet("/pods")
+	b, code, err = ku.QueryKubelet(ctx, "/pods")
 	assert.Equal(suite.T(), 200, code)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
-	podList, err := ku.GetLocalPodList()
+	podList, err := ku.GetLocalPodList(ctx)
 	// we don't consider null podlist as valid
 	require.Error(suite.T(), err)
 	assert.Nil(suite.T(), podList)

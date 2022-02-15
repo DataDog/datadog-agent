@@ -1,39 +1,46 @@
-// +build linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf || (windows && npm)
+// +build linux_bpf windows,npm
 
 package tracer
 
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
-	"errors"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
+	nethttp "net/http"
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -43,140 +50,106 @@ var (
 	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
 
-func TestTracerExpvar(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
+// runtimeCompilationEnvVar forces use of the runtime compiler for ebpf functionality
+const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
-	cfg := config.NewDefaultConfig()
-	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
-	cfg.BPFDebug = true
+func TestMain(m *testing.M) {
+	log.SetupLogger(seelog.Default, "warn")
+	cfg := testConfig()
+	if cfg.EnableRuntimeCompiler {
+		fmt.Println("RUNTIME COMPILER ENABLED")
+	}
+	os.Exit(m.Run())
+}
+
+func TestGetStats(t *testing.T) {
+	dnsSupported := dnsSupported(t)
+	cfg := testConfig()
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
 	<-time.After(time.Second)
 
-	expected := map[string][]string{
+	linuxExpected := map[string][]string{
 		"conntrack": {
-			"StateSize",
-			"Enobufs",
-			"Throttles",
-			"SamplingPct",
-			"ReadErrors",
-			"MsgErrors",
+			"state_size",
+			"enobufs",
+			"throttles",
+			"sampling_pct",
+			"read_errors",
+			"msg_errors",
 		},
 		"state": {
-			"StatsResets",
-			"UnorderedConns",
-			"ClosedConnDropped",
-			"ConnDropped",
-			"TimeSyncCollisions",
-			"DnsStatsDropped",
-			"DnsPidCollisions",
+			"stats_resets",
+			"closed_conn_dropped",
+			"conn_dropped",
+			"time_sync_collisions",
+			"dns_stats_dropped",
+			"dns_pid_collisions",
 		},
 		"tracer": {
-			"ClosedConnPollingLost",
-			"ClosedConnPollingReceived",
-			"ConnValidSkipped",
-			"ExpiredTcpConns",
-			"PidCollisions",
+			"conn_valid_skipped",
+			"expired_tcp_conns",
 		},
 		"ebpf": {
-			"TcpSentMiscounts",
-			"MissedTcpClose",
+			"tcp_sent_miscounts",
+			"missed_tcp_close",
+			"closed_conn_polling_lost",
+			"closed_conn_polling_received",
+			"pid_collisions",
 		},
 		"dns": {
-			"Added",
-			"DecodingErrors",
-			"Errors",
-			"Expired",
-			"Ips",
-			"Lookups",
-			"Oversized",
-			"PacketsCaptured",
-			"PacketsDropped",
-			"PacketsProcessed",
-			"Queries",
-			"Resolved",
-			"SocketPolls",
-			"Successes",
-			"TimestampMicroSecs",
-			"TruncatedPackets",
+			"added",
+			"decoding_errors",
+			"errors",
+			"expired",
+			"ips",
+			"lookups",
+			"oversized",
+			"packets_captured",
+			"packets_dropped",
+			"packets_processed",
+			"queries",
+			"resolved",
+			"socket_polls",
+			"successes",
+			"timestamp_micro_secs",
+			"truncated_packets",
 		},
-		"kprobes": {
-			"PTcpCleanupRbufHits",
-			"PTcpCleanupRbufMisses",
-			"PTcpCloseHits",
-			"PTcpCloseMisses",
-			"PTcpRetransmitSkbHits",
-			"PTcpRetransmitSkbMisses",
-			"PTcpSendmsgHits",
-			"PTcpSendmsgMisses",
-			"PTcpSetStateHits",
-			"PTcpSetStateMisses",
-			"PTcpVDestroySockHits",
-			"PTcpVDestroySockMisses",
-			"PUdpDestroySockHits",
-			"PUdpDestroySockMisses",
-			"PUdpRecvmsgHits",
-			"PUdpRecvmsgMisses",
-			"PIpMakeSkbHits",
-			"PIpMakeSkbMisses",
-			"RInetCskAcceptHits",
-			"RInetCskAcceptMisses",
-			"RTcpCloseHits",
-			"RTcpCloseMisses",
-			"RUdpRecvmsgHits",
-			"RUdpRecvmsgMisses",
-			"RTcpSendmsgHits",
-			"RTcpSendmsgMisses",
-		},
+		"kprobes": nil,
+	}
+	windowsExpected := map[string][]string{
+		"driver":                   nil,
+		"flows":                    nil,
+		"driver_total_flow_stats":  nil,
+		"driver_flow_handle_stats": nil,
+		"state":                    nil,
+		"dns":                      nil,
 	}
 
-	archSpecificKprobes := [][]string{
-		{"PSySBindHits", "PXSysBindHits"},
-		{"PSySBindMisses", "PXSysBindMisses"},
-		{"PSySSocketHits", "PXSysSocketHits"},
-		{"PSySSocketMisses", "PXSysSocketMisses"},
-		{"RSySBindHits", "RXSysBindHits"},
-		{"RSySBindMisses", "RXSysBindMisses"},
-		{"RSySSocketHits", "RXSysSocketHits"},
-		{"RSySSocketMisses", "RXSysSocketMisses"},
+	expected := linuxExpected
+	if runtime.GOOS == "windows" {
+		expected = windowsExpected
 	}
 
-	for _, et := range expvarTypes {
-		if et == "dns" && pre410Kernel {
-			// DNS stats not supported on <4.1.0
+	actual, _ := tr.GetStats()
+
+	for section, entries := range expected {
+		if section == "dns" && !dnsSupported {
+			// DNS stats not supported on some systems
 			continue
 		}
-
-		expvar := map[string]float64{}
-		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
-		for _, name := range expected[et] {
-			assert.Contains(t, expvar, name, "%s actual is missing %s", et, name)
-		}
-		// check variants of arch-specific syscall kprobes
-		if et == "kprobes" {
-			for _, options := range archSpecificKprobes {
-				inMap := false
-				for _, opt := range options {
-					_, inMap = expvar[opt]
-					if inMap {
-						break
-					}
-				}
-				if !inMap {
-					assert.Failf(t, "missing kprobe in expvar", "one of %v", options)
-				}
-			}
+		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
+		for _, name := range entries {
+			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 		}
 	}
 }
 
 func TestTCPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
-	tr, err := NewTracer(config.NewDefaultConfig())
+	tr, err := NewTracer(testConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,23 +178,22 @@ func TestTCPSendAndReceive(t *testing.T) {
 	defer c.Close()
 
 	// Connect to server 10 times
-	wg := sync.WaitGroup{}
+	wg := new(errgroup.Group)
 	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() error {
 			// Write clientMessageSize to server, and read response
 			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-				t.Fatal(err)
+				return err
 			}
 
 			r := bufio.NewReader(c)
 			r.ReadBytes(byte('\n'))
-		}()
+			return nil
+		})
 	}
 
-	wg.Wait()
+	err = wg.Wait()
+	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -240,6 +212,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 }
 
 func TestPreexistingConnectionDirection(t *testing.T) {
+	// windows doesn't have a way to read existing port bindings on startup (yet)
+	skipIfWindows(t)
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 	doneChan := make(chan struct{})
@@ -262,7 +236,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	}
 
 	// Enable BPF-based system probe
-	tr, err := NewTracer(config.NewDefaultConfig())
+	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
 
@@ -288,317 +262,9 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestDNATIntraHostIntegration(t *testing.T) {
-	t.SkipNow()
-	setupDNAT(t)
-	defer teardownDNAT(t)
-
-	tr, err := NewTracer(config.NewDefaultConfig())
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	conns := getConnections(t, tr).Conns
-
-	server := &TCPServer{
-		address: "1.1.1.1:5432",
-		onMessage: func(c net.Conn) {
-			bs := make([]byte, 1)
-			_, err := c.Read(bs)
-			require.NoError(t, err, "error reading in server")
-
-			_, err = c.Write([]byte("Ping back"))
-			require.NoError(t, err, "error writing back in server")
-			_ = c.Close()
-		},
-	}
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	conn, err := net.Dial("tcp", "2.2.2.2:5432")
-	require.NoError(t, err, "error connecting to client")
-	_, err = conn.Write([]byte("ping"))
-	require.NoError(t, err, "error writing in client")
-
-	bs := make([]byte, 1)
-	_, err = conn.Read(bs)
-	require.NoError(t, err)
-	require.NoError(t, conn.Close(), "error closing client connection")
-
-	doneChan <- struct{}{}
-
-	time.Sleep(time.Second * 1)
-
-	conns = getConnections(t, tr).Conns
-	assert.Condition(t, func() bool {
-		for _, c := range conns {
-			if c.Source == util.AddressFromString("1.1.1.1") {
-				return c.IntraHost == true
-			}
-		}
-
-		return false
-	}, "did not find 1.1.1.1 connection classified as local: %v", conns)
-
-	assert.Condition(t, func() bool {
-		for _, c := range conns {
-			if c.Dest == util.AddressFromString("2.2.2.2") {
-				return c.IntraHost == true
-			}
-		}
-		return true
-	})
-}
-
-func TestTCPRemoveEntries(t *testing.T) {
-	config := config.NewDefaultConfig()
-	config.TCPConnTimeout = 100 * time.Millisecond
-	tr, err := NewTracer(config)
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create a dummy TCP Server
-	server := NewTCPServer(func(c net.Conn) {
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
-	require.NoError(t, err)
-
-	// Write a message
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-	defer c.Close()
-
-	// Write a bunch of messages with blocking iptable rule to create retransmits
-	iptablesWrapper(t, func() {
-		for i := 0; i < 99; i++ {
-			// Send a bunch of messages
-			c.Write(genPayload(clientMessageSize))
-		}
-		time.Sleep(time.Second)
-	})
-
-	// Wait a bit for the first connection to be considered as timeouting
-	time.Sleep(1 * time.Second)
-
-	// Create a new client
-	c2, err := net.DialTimeout("tcp", server.address, 1*time.Second)
-	require.NoError(t, err)
-
-	// Send a messages
-	_, err = c2.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-	defer c2.Close()
-
-	c.Close()
-	// Retrieve the list of connections
-	connections := getConnections(t, tr)
-
-	// Make sure the first connection got cleaned up
-	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.False(t, ok)
-
-	// Assert the TCP map does not contain first connection because of the clean up
-	tcpMp, err := tr.getMap(probes.TcpStatsMap)
-	require.NoError(t, err)
-
-	key, err := connTupleFromConn(c, 0)
-	require.NoError(t, err)
-	stats := new(TCPStats)
-	err = tcpMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
-	if !assert.True(t, errors.Is(err, ebpf.ErrKeyNotExist)) {
-		t.Logf("tcp_stats map entries:\n")
-		ek := &ConnTuple{}
-		sv := new(TCPStats)
-		entries := tcpMp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
-		for entries.Next(unsafe.Pointer(ek), unsafe.Pointer(sv)) {
-			t.Logf("%s => %+v\n", ek, sv)
-		}
-		require.NoError(t, entries.Err())
-	}
-
-	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
-	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
-	assert.Equal(t, 0, int(conn.MonotonicRecvBytes))
-	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-}
-
-func TestTCPRetransmit(t *testing.T) {
-	// Enable BPF-based system probe
-	tr, err := NewTracer(config.NewDefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tr.Stop()
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-	r := bufio.NewReader(c)
-	r.ReadBytes(byte('\n'))
-
-	iptablesWrapper(t, func() {
-		for i := 0; i < 99; i++ {
-			// Send a bunch of messages
-			c.Write(genPayload(clientMessageSize))
-		}
-		time.Sleep(time.Second)
-	})
-
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts and there was at least 1 retransmission
-	connections := getConnections(t, tr)
-
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	assert.Equal(t, 100*clientMessageSize, int(conn.MonotonicSentBytes))
-	assert.True(t, int(conn.MonotonicRetransmits) > 0)
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-}
-
-func TestTCPRetransmitSharedSocket(t *testing.T) {
-	// Enable BPF-based system probe
-	tr, err := NewTracer(config.NewDefaultConfig())
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create TCP Server that simply "drains" connection until receiving an EOF
-	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
-	require.NoError(t, err)
-	socketFile, err := c.(*net.TCPConn).File()
-	require.NoError(t, err)
-	const numProcesses = 10
-	iptablesWrapper(t, func() {
-		for i := 0; i < numProcesses; i++ {
-			// Establish one connection per process, all sharing the same socket represented by fd=3
-			// https://github.com/golang/go/blob/release-branch.go1.10/src/os/exec/exec.go#L111-L114
-			msg := genPayload(clientMessageSize)
-			cmd := exec.Command("bash", "-c", fmt.Sprintf("echo -ne %q >&3", msg))
-			cmd.ExtraFiles = []*os.File{socketFile}
-			err := cmd.Run()
-			require.NoError(t, err)
-		}
-		time.Sleep(time.Second)
-	})
-	socketFile.Close()
-	c.Close()
-
-	// Fetch all connections matching source and target address
-	allConnections := getConnections(t, tr)
-	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
-	require.Len(t, conns, numProcesses)
-
-	totalSent := 0
-	for _, c := range conns {
-		totalSent += int(c.MonotonicSentBytes)
-	}
-	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
-
-	// Since we can't reliably identify the PID associated to a retransmit, we have opted
-	// to report the total number of retransmits for *one* of the connections sharing the
-	// same socket
-	connsWithRetransmits := 0
-	for _, c := range conns {
-		if c.MonotonicRetransmits > 0 {
-			connsWithRetransmits++
-		}
-	}
-	assert.Equal(t, 1, connsWithRetransmits)
-
-	// Test if telemetry measuring PID collisions is correct
-	assert.Equal(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
-}
-
-func TestTCPRTT(t *testing.T) {
-	// Enable BPF-based system probe
-	tr, err := NewTracer(config.NewDefaultConfig())
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create TCP Server that simply "drains" connection until receiving an EOF
-	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
-	require.NoError(t, err)
-	defer c.Close()
-
-	// Wait for a second so RTT can stabilize
-	time.Sleep(1 * time.Second)
-
-	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := tcpGetInfo(c)
-	require.NoError(t, err)
-
-	// Write something to socket to ensure connection is tracked
-	// This will trigger the collection of TCP stats including RTT
-	_, err = c.Write([]byte("foo"))
-	require.NoError(t, err)
-
-	// Fetch connection matching source and target address
-	allConnections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
-	require.True(t, ok)
-
-	// Assert that values returned from syscall match ones generated by eBPF program
-	assert.EqualValues(t, int(tcpInfo.Rtt), int(conn.RTT))
-	assert.EqualValues(t, int(tcpInfo.Rttvar), int(conn.RTTVar))
-}
-
-type AddrPair struct {
-	local  net.Addr
-	remote net.Addr
-}
-
 func TestTCPShortlived(t *testing.T) {
 	// Enable BPF-based system probe
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	cfg.TCPClosedTimeout = 10 * time.Millisecond
 	tr, err := NewTracer(cfg)
 	if err != nil {
@@ -623,26 +289,24 @@ func TestTCPShortlived(t *testing.T) {
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
 	// Explicitly close this TCP connection
 	c.Close()
 
-	// Wait for the message to be sent from the perf buffer
-	time.Sleep(2 * cfg.TCPClosedTimeout)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+		return ok
+	}, 3*time.Second, time.Second, "connection not found")
 
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
@@ -655,16 +319,17 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, uint32(1), conn.MonotonicTCPEstablished)
 	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
 
-	// Confirm that the connection has been cleaned up since the last get
-	connections = getConnections(t, tr)
-
-	conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
 }
 
 func TestTCPOverIPv6(t *testing.T) {
 	t.SkipNow()
-	config := config.NewDefaultConfig()
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
+	config := testConfig()
 	config.CollectIPv6Conns = true
 
 	tr, err := NewTracer(config)
@@ -725,7 +390,7 @@ func TestTCPOverIPv6(t *testing.T) {
 
 func TestTCPCollectionDisabled(t *testing.T) {
 	// Enable BPF-based system probe with TCP disabled
-	config := config.NewDefaultConfig()
+	config := testConfig()
 	config.CollectTCPConns = false
 
 	tr, err := NewTracer(config)
@@ -767,51 +432,70 @@ func TestTCPCollectionDisabled(t *testing.T) {
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
-	// Enable BPF-based system probe
-	cfg := config.NewDefaultConfig()
+	t.Run("v4", func(t *testing.T) {
+		testUDPSendAndReceive(t, "127.0.0.1:8001")
+	})
+	t.Run("v6", func(t *testing.T) {
+		testUDPSendAndReceive(t, "[::1]:8001")
+	})
+}
+
+func testUDPSendAndReceive(t *testing.T, addr string) {
+	cfg := testConfig()
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	defer tr.Stop()
+	t.Cleanup(tr.Stop)
 
-	cmd := exec.Command("../testdata/simulate_udp.sh")
-	if err := cmd.Run(); err != nil {
-		require.NoError(t, err)
+	server := &UDPServer{
+		address: addr,
+		onMessage: func(buf []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
 	}
 
-	defer func() {
-		exec.Command("../testdata/teardown_simulate_udp.sh").Run()
-	}()
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan, clientMessageSize)
+	require.NoError(t, err)
+	t.Cleanup(func() { close(doneChan) })
+
+	// Connect to server
+	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Write clientMessageSize to server, and read response
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+
+	_, err = c.Read(make([]byte, serverMessageSize))
+	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
-	incoming := searchConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.SPort == 8081
-	})
-	require.Len(t, incoming, 1)
-	assert.Equal(t, network.INCOMING, incoming[0].Direction)
+	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	if assert.True(t, ok, "unable to find incoming connection") {
+		assert.Equal(t, network.INCOMING, incoming.Direction)
 
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == 8081
-	})
+		// make sure the inverse values are seen for the other message
+		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSentBytes), "incoming sent")
+		assert.Equal(t, clientMessageSize, int(incoming.MonotonicRecvBytes), "incoming recv")
+		assert.True(t, incoming.IntraHost, "incoming intrahost")
+	}
 
-	require.Len(t, outgoing, 1)
-	assert.Equal(t, network.OUTGOING, outgoing[0].Direction)
+	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	if assert.True(t, ok, "unable to find outgoing connection") {
+		assert.Equal(t, network.OUTGOING, outgoing.Direction)
 
-	// these values come from simulate_udp.sh
-	assert.Equal(t, 512, int(outgoing[0].MonotonicSentBytes))
-	assert.Equal(t, 256, int(outgoing[0].MonotonicRecvBytes))
-	assert.True(t, outgoing[0].IntraHost)
-
-	// make sure the inverse values are seen for the other message
-	assert.Equal(t, 256, int(incoming[0].MonotonicSentBytes))
-	assert.Equal(t, 512, int(incoming[0].MonotonicRecvBytes))
-	assert.True(t, incoming[0].IntraHost)
+		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSentBytes), "outgoing sent")
+		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicRecvBytes), "outgoing recv")
+		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+	}
 }
 
 func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
-	config := config.NewDefaultConfig()
+	config := testConfig()
 	config.CollectUDPConns = false
 
 	tr, err := NewTracer(config)
@@ -821,9 +505,11 @@ func TestUDPDisabled(t *testing.T) {
 	defer tr.Stop()
 
 	// Create UDP Server which sends back serverMessageSize bytes
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	doneChan := make(chan struct{})
 	err = server.Run(doneChan, clientMessageSize)
@@ -853,7 +539,7 @@ func TestUDPDisabled(t *testing.T) {
 
 func TestLocalDNSCollectionDisabled(t *testing.T) {
 	// Enable BPF-based system probe with DNS disabled (by default)
-	config := config.NewDefaultConfig()
+	config := testConfig()
 
 	tr, err := NewTracer(config)
 	if err != nil {
@@ -881,7 +567,7 @@ func TestLocalDNSCollectionDisabled(t *testing.T) {
 
 func TestLocalDNSCollectionEnabled(t *testing.T) {
 	// Enable BPF-based system probe with DNS enabled
-	config := config.NewDefaultConfig()
+	config := testConfig()
 	config.CollectLocalDNS = true
 	config.CollectUDPConns = true
 
@@ -918,7 +604,7 @@ func isLocalDNS(c network.ConnectionStats) bool {
 
 func TestShouldSkipExcludedConnection(t *testing.T) {
 	// exclude connections from 127.0.0.1:80
-	config := config.NewDefaultConfig()
+	config := testConfig()
 	// exclude source SSH connections to make this pass in VM
 	config.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}, "*": {"22"}}
 	config.ExcludedDestinationConnections = map[string][]string{"127.0.0.1": {"tcp 80"}}
@@ -957,136 +643,7 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	}, "Unable to find UDP connection to 127.0.0.1:80")
 }
 
-func TestTooSmallBPFMap(t *testing.T) {
-	// Enable BPF-based system probe with BPF maps size = 1
-	config := config.NewDefaultConfig()
-	config.MaxTrackedConnections = 1
-
-	tr, err := NewTracer(config)
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	// Connect to server two times
-	// Write clientMessageSize to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	// Second time
-	c2, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c2.Close()
-	_, err = c2.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	connections := getConnections(t, tr)
-	// we should only have one connection returned
-	assert.Len(t, connections.Conns, 1)
-}
-
-func TestIsExpired(t *testing.T) {
-	// 10mn
-	var timeout uint64 = 600000000000
-	for _, tc := range []struct {
-		stats      ConnStatsWithTimestamp
-		latestTime uint64
-		expected   bool
-	}{
-		{
-			ConnStatsWithTimestamp{timestamp: 101},
-			100,
-			false,
-		},
-		{
-			ConnStatsWithTimestamp{timestamp: 100},
-			101,
-			false,
-		},
-		{
-			ConnStatsWithTimestamp{timestamp: 100},
-			101 + timeout,
-			true,
-		},
-	} {
-		assert.Equal(t, tc.expected, tc.stats.isExpired(tc.latestTime, timeout))
-	}
-}
-
-func TestTCPMiscount(t *testing.T) {
-	t.Skip("skipping because this test will pass/fail depending on host performance")
-	tr, err := NewTracer(config.NewDefaultConfig())
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create a dummy TCP Server
-	server := NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		for {
-			if _, err := r.ReadBytes(byte('\n')); err != nil { // indicates that EOF has been reached,
-				break
-			}
-		}
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	file, err := c.(*net.TCPConn).File()
-	require.NoError(t, err)
-
-	fd := int(file.Fd())
-
-	// Set a really low sendtimeout of 1us to trigger EAGAIN errors in `tcp_sendmsg`
-	err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &syscall.Timeval{
-		Sec:  0,
-		Usec: 1,
-	})
-	require.NoError(t, err)
-
-	// 100 MB payload
-	x := make([]byte, 100*1024*1024)
-
-	n, err := c.Write(x)
-	assert.NoError(t, err)
-	assert.EqualValues(t, len(x), n)
-
-	doneChan <- struct{}{}
-
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
-	assert.True(t, ok)
-
-	// TODO this should not happen but is expected for now
-	// we don't have the correct count since retries happened
-	assert.False(t, uint64(len(x)) == conn.MonotonicSentBytes)
-
-	tel := tr.getEbpfTelemetry()
-	assert.NotZero(t, tel["tcp_sent_miscounts"])
-}
-
 func TestSkipConnectionDNS(t *testing.T) {
-
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
 		tr := &Tracer{config: &config.Config{CollectLocalDNS: false}}
 		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{
@@ -1144,83 +701,6 @@ func TestSkipConnectionDNS(t *testing.T) {
 	})
 }
 
-func TestConnectionExpirationRegression(t *testing.T) {
-	t.SkipNow()
-	tr, err := NewTracer(config.NewDefaultConfig())
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create TCP Server that simply "drains" connection until receiving an EOF
-	connClosed := make(chan struct{})
-	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
-		c.Close()
-		connClosed <- struct{}{}
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
-	require.NoError(t, err)
-
-	// Warm up state
-	_ = getConnections(t, tr)
-
-	// Write 5 bytes to TCP socket
-	payload := []byte("12345")
-	_, err = c.Write(payload)
-	require.NoError(t, err)
-
-	// Fetch connection matching source and target address
-	// This will make sure to populate the state for this particular client
-	allConnections := getConnections(t, tr)
-	connectionStats, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
-	require.True(t, ok)
-	assert.Equal(t, uint64(len(payload)), connectionStats.LastSentBytes)
-
-	// This emulates the race condition, a `tcp_close` followed by a call to `Tracer.removeConnections()`
-	// It's unfortunate we're relying here on private methods, but there isn't much we can do to avoid that.
-	c.Close()
-	<-connClosed
-	time.Sleep(100 * time.Millisecond)
-	removeConnection(t, tr, connectionStats)
-
-	// Since no bytes were send or received after we obtained the connectionStats, we should have 0 LastBytesSent
-	allConnections = getConnections(t, tr)
-	connectionStats, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
-	require.True(t, ok)
-	assert.Equal(t, uint64(0), connectionStats.LastSentBytes)
-
-	// Finally, this connection should have been expired from the state
-	allConnections = getConnections(t, tr)
-	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
-	require.False(t, ok)
-}
-
-func removeConnection(t *testing.T, tr *Tracer, c *network.ConnectionStats) {
-	mp, err := tr.getMap(probes.ConnMap)
-	require.NoError(t, err)
-
-	tcpMp, err := tr.getMap(probes.TcpStatsMap)
-	require.NoError(t, err)
-
-	tuple := []*ConnTuple{
-		{
-			pid:      _Ctype_uint(c.Pid),
-			saddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Source.Bytes())),
-			daddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Dest.Bytes())),
-			sport:    _Ctype_ushort(c.SPort),
-			dport:    _Ctype_ushort(c.DPort),
-			netns:    _Ctype_uint(c.NetNS),
-			metadata: 1, // TCP/IPv4
-		},
-	}
-
-	tr.removeEntries(mp, tcpMp, tuple)
-}
-
 func byAddress(l, r net.Addr) func(c network.ConnectionStats) bool {
 	return func(c network.ConnectionStats) bool {
 		return addrMatches(l, c.Source.String(), c.SPort) && addrMatches(r, c.Dest.String(), c.DPort)
@@ -1262,7 +742,7 @@ func BenchmarkUDPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesUDP, "", benchEchoUDP)
 
 	// Enable BPF-based system probe
-	t, err := NewTracer(config.NewDefaultConfig())
+	t, err := NewTracer(testConfig())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1281,7 +761,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewUDPServer(echoOnMessage)
+		server := &UDPServer{onMessage: echoOnMessage}
 		err := server.Run(end, size)
 		require.NoError(b, err)
 		defer close(end)
@@ -1311,7 +791,7 @@ func BenchmarkTCPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchEchoTCP)
 
 	// Enable BPF-based system probe
-	t, err := NewTracer(config.NewDefaultConfig())
+	t, err := NewTracer(testConfig())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1324,7 +804,7 @@ func BenchmarkTCPSend(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchSendTCP)
 
 	// Enable BPF-based system probe
-	t, err := NewTracer(config.NewDefaultConfig())
+	t, err := NewTracer(testConfig())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1445,7 +925,7 @@ func (s *TCPServer) Run(done chan struct{}) error {
 			if err != nil {
 				return
 			}
-			s.onMessage(conn)
+			go s.onMessage(conn)
 		}
 	}()
 
@@ -1453,23 +933,18 @@ func (s *TCPServer) Run(done chan struct{}) error {
 }
 
 type UDPServer struct {
+	network   string
 	address   string
 	onMessage func(b []byte, n int) []byte
 }
 
-func NewUDPServer(onMessage func(b []byte, n int) []byte) *UDPServer {
-	return NewUDPServerOnAddress("127.0.0.1:0", onMessage)
-}
-
-func NewUDPServerOnAddress(addr string, onMessage func(b []byte, n int) []byte) *UDPServer {
-	return &UDPServer{
-		address:   addr,
-		onMessage: onMessage,
-	}
-}
-
 func (s *UDPServer) Run(done chan struct{}, payloadSize int) error {
-	ln, err := net.ListenPacket("udp", s.address)
+	network := "udp"
+	if s.network != "" {
+		network = s.network
+	}
+
+	ln, err := net.ListenPacket(network, s.address)
 	if err != nil {
 		return err
 	}
@@ -1517,33 +992,6 @@ func genPayload(n int) []byte {
 	return b
 }
 
-func iptablesWrapper(t *testing.T, f func()) {
-	iptables, err := exec.LookPath("iptables")
-	assert.Nil(t, err)
-
-	// Init iptables rule to simulate packet loss
-	rule := "INPUT --source 127.0.0.1 -j DROP"
-	create := strings.Fields(fmt.Sprintf("-I %s", rule))
-	remove := strings.Fields(fmt.Sprintf("-D %s", rule))
-
-	createCmd := exec.Command(iptables, create...)
-	err = createCmd.Start()
-	assert.Nil(t, err)
-	err = createCmd.Wait()
-	assert.Nil(t, err)
-
-	defer func() {
-		// Remove the iptable rule
-		removeCmd := exec.Command(iptables, remove...)
-		err = removeCmd.Start()
-		assert.Nil(t, err)
-		err = removeCmd.Wait()
-		assert.Nil(t, err)
-	}()
-
-	f()
-}
-
 func addrPort(addr string) int {
 	p, _ := strconv.Atoi(strings.Split(addr, ":")[1])
 	return p
@@ -1564,15 +1012,12 @@ const (
 )
 
 func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
-	if pre410Kernel {
+	if !dnsSupported(t) {
 		t.Skip("DNS feature not available on pre 4.1.0 kernels")
 		return
 	}
 
-	config := config.NewDefaultConfig()
+	config := testConfig()
 	config.CollectDNSStats = true
 	config.DNSTimeout = 1 * time.Second
 	tr, err := NewTracer(config)
@@ -1585,19 +1030,12 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	// Get outbound IP
-	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
+	dnsClient := new(dns.Client)
+	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
 	require.NoError(t, err)
-	dummyConn.Close()
-	localAddr := dummyConn.LocalAddr().(*net.UDPAddr)
-
-	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port: 7777}
-	localAddrDialer := &net.Dialer{
-		LocalAddr: dnsClientAddr,
-	}
-
-	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
-	_, _, err = dnsClient.Exchange(queryMsg, dnsServerAddr.String())
+	defer dnsConn.Close()
+	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 
 	if err != nil && timeout == 0 {
 		t.Fatalf("Failed to get dns response %s\n", err.Error())
@@ -1615,10 +1053,31 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
+	dnsKey, ok := network.DNSKey(conn)
+	require.True(t, ok)
+
+	dnsStats, ok := connections.DNSStats[dnsKey]
+	require.True(t, ok)
+
+	var total uint32
+	var successfulResponses uint32
+	var timeouts uint32
+	for _, byDomain := range dnsStats {
+		for _, byQueryType := range byDomain {
+			successfulResponses += byQueryType.CountByRcode[uint32(0)]
+			timeouts += byQueryType.Timeouts
+			for _, count := range byQueryType.CountByRcode {
+				total += count
+			}
+		}
+	}
+
+	failedResponses := total - successfulResponses
+
 	// DNS Stats
-	assert.Equal(t, uint32(success), conn.DNSSuccessfulResponses)
-	assert.Equal(t, uint32(failure), conn.DNSFailedResponses)
-	assert.Equal(t, uint32(timeout), conn.DNSTimeouts)
+	assert.Equal(t, uint32(success), successfulResponses)
+	assert.Equal(t, uint32(failure), failedResponses)
+	assert.Equal(t, uint32(timeout), timeouts)
 }
 
 func TestDNSStatsForValidDomain(t *testing.T) {
@@ -1633,64 +1092,9 @@ func TestDNSStatsForTimeout(t *testing.T) {
 	testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
 }
 
-func TestConntrackExpiration(t *testing.T) {
-	setupDNAT(t)
-	defer teardownDNAT(t)
-
-	tr, err := NewTracer(config.NewDefaultConfig())
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Warm-up tracer state
-	_ = getConnections(t, tr)
-
-	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
-	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	rand.Seed(time.Now().UnixNano())
-	port := 5430 + rand.Intn(100)
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
-	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write([]byte("ping"))
-	require.NoError(t, err)
-
-	// Give enough time for conntrack cache to be populated
-	time.Sleep(100 * time.Millisecond)
-
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
-
-	// This will force the connection to be expired next time we call getConnections, but
-	// conntrack should still have the connection information since the connection is still
-	// alive
-	tr.config.TCPConnTimeout = time.Duration(-1)
-	_ = getConnections(t, tr)
-
-	assert.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should not have been deleted")
-
-	// delete the connection from system conntrack
-	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "conntrack delete failed, output: %s", out)
-	_ = getConnections(t, tr)
-
-	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
-}
-
 func TestTCPEstablished(t *testing.T) {
 	// Ensure closed connections are flushed as soon as possible
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
 	tr, err := NewTracer(cfg)
@@ -1748,7 +1152,7 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 
 	// Ensure closed connections are flushed as soon as possible
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
 	tr, err := NewTracer(cfg)
@@ -1771,13 +1175,13 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 }
 
 func TestUnconnectedUDPSendIPv4(t *testing.T) {
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
@@ -1796,7 +1200,11 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 }
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
-	cfg := config.NewDefaultConfig()
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
+	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
@@ -1822,127 +1230,423 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 }
 
 func TestConnectionClobber(t *testing.T) {
-	tr, err := NewTracer(config.NewDefaultConfig())
-	if err != nil {
-		t.Fatal(err)
+	cfg := testConfig()
+	cfg.CollectUDPConns = false
+	cfg.ExcludedDestinationConnections = map[string][]string{
+		"0.0.0.0/2":   {"*"},
+		"64.0.0.0/3":  {"*"},
+		"96.0.0.0/4":  {"*"},
+		"112.0.0.0/5": {"*"},
+		"120.0.0.0/6": {"*"},
+		"124.0.0.0/7": {"*"},
+		"126.0.0.0/8": {"*"},
+		"128.0.0.0/1": {"*"},
 	}
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
+	var serverConns []net.Conn
 	srvRecvBuf := make([]byte, 4)
 	server := NewTCPServer(func(c net.Conn) {
+		serverConns = append(serverConns, c)
 		_, _ = io.ReadFull(c, srvRecvBuf)
 		_, _ = c.Write(srvRecvBuf)
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// we only need 1/4 since both send and recv sides will be registered
-	sendCount := (cap(tr.buffer) / 4) + 1
-	sendAndRecv := func(closeCh chan struct{}) *sync.WaitGroup {
-		sendWg := sync.WaitGroup{}
-		doneWg := sync.WaitGroup{}
-		sendBuf := make([]byte, 4)
-		recvBuf := make([]byte, 4)
+	sendCount := tr.activeBuffer.Capacity()/4 + 1
+	sendAndRecv := func() []net.Conn {
+		connsCh := make(chan net.Conn, sendCount)
+		var conns []net.Conn
+		go func() {
+			for c := range connsCh {
+				conns = append(conns, c)
+			}
+		}()
+
+		workers := sync.WaitGroup{}
 		for i := 0; i < sendCount; i++ {
-			senderNum := i
-			sendWg.Add(1)
-			doneWg.Add(1)
+			workers.Add(1)
 			go func() {
-				defer doneWg.Done()
+				defer workers.Done()
 
 				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
-				if err != nil {
-					t.Logf("dial error %d: %s\n", senderNum, err)
-					return
-				}
-				defer c.Close()
+				require.NoError(t, err)
+				connsCh <- c
 
-				if _, err = c.Write(sendBuf); err != nil {
-					t.Fatal(err)
-				}
-				_, _ = io.ReadFull(c, recvBuf)
-				sendWg.Done()
-				<-closeCh
+				buf := make([]byte, 4)
+				_, err = c.Write(buf)
+				require.NoError(t, err)
+
+				_, err = io.ReadFull(c, buf[:0])
+				require.NoError(t, err)
 			}()
 		}
-		sendWg.Wait()
-		return &doneWg
+
+		workers.Wait()
+		close(connsCh)
+
+		return conns
 	}
 
-	closeCh := make(chan struct{})
-	dg := sendAndRecv(closeCh)
+	conns := sendAndRecv()
 
-	preCap := cap(tr.buffer)
-	firstConnections := getConnections(t, tr)
+	// wait for tracer to pick up all connections
+	//
+	// there is not a good way do this other than a sleep since we
+	// can't call getConnections in a `require.Eventually` call
+	// to the get the number of connections as that could
+	// affect the `activeBuffer` length
+	time.Sleep(2 * time.Second)
+
+	preCap := tr.activeBuffer.Capacity()
+	connections := getConnections(t, tr)
+	require.NotEmpty(t, connections)
+	src := connections.Conns[0].SPort
+	dst := connections.Conns[0].DPort
+	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
-	require.Equal(t, preCap, cap(tr.buffer))
-	src := firstConnections.Conns[0].SPort
-	dst := firstConnections.Conns[0].DPort
-	t.Logf("before src: %d dst: %d\n", src, dst)
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 
-	close(closeCh)
-	dg.Wait()
+	for _, c := range append(conns, serverConns...) {
+		c.Close()
+	}
 
 	// send second batch so that underlying array gets clobbered
-	closeCh = make(chan struct{})
-	dg = sendAndRecv(closeCh)
+	conns = sendAndRecv()
+	serverConns = serverConns[:0]
+	defer func() {
+		for _, c := range append(conns, serverConns...) {
+			c.Close()
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+
+	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
+	assert.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
+	assert.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
+}
+
+func TestTCPDirection(t *testing.T) {
+
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
 	_ = getConnections(t, tr)
-	require.Equal(t, preCap, cap(tr.buffer))
 
-	t.Logf("after src: %d dst: %d\n", firstConnections.Conns[0].SPort, firstConnections.Conns[0].DPort)
-	assert.EqualValues(t, int(src), int(firstConnections.Conns[0].SPort), "source port should not change")
-	assert.EqualValues(t, int(dst), int(firstConnections.Conns[0].DPort), "dest port should not change")
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srv := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
+			t.Logf("received http request from %s", req.RemoteAddr)
+			io.Copy(ioutil.Discard, req.Body)
+			w.WriteHeader(200)
+		}),
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
+	srv.SetKeepAlivesEnabled(false)
+	go func() {
+		_ = srv.ListenAndServe()
+	}()
+	defer srv.Shutdown(context.Background())
 
-	close(closeCh)
-	dg.Wait()
+	// Allow the HTTP server time to get set up
+	time.Sleep(time.Millisecond * 500)
 
-	doneChan <- struct{}{}
+	// Send a HTTP request to the test server
+	client := new(nethttp.Client)
+	resp, err := client.Get("http://" + serverAddr + "/test")
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	// Iterate through active connections until we find connection created above
+	var outgoingConns []network.ConnectionStats
+	var incomingConns []network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if len(outgoingConns) == 0 {
+			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
+			})
+		}
+		if len(incomingConns) == 0 {
+			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+			})
+		}
+
+		return len(outgoingConns) == 1 && len(incomingConns) == 1
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+
+	// Verify connection directions
+	conn := outgoingConns[0]
+	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
+	conn = incomingConns[0]
+	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
+func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
+	// incoming flow is marked outgoing: windows doesn't have a way to handle directionality of preexisting connections
+	skipIfWindows(t)
+
+	wg := sync.WaitGroup{}
+
+	// setup server to listen on a port
+	server := NewTCPServer(func(c net.Conn) {
+		t.Logf("received connection from %s", c.RemoteAddr())
+		_, _ = bufio.NewReader(c).ReadBytes('\n')
+		c.Close()
+		wg.Done()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+	defer close(doneChan)
+	t.Logf("server address: %s", server.address)
+
+	// create an initial client connection to the server
+	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// start tracer so it dumps port bindings
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// open and close another client connection to force port binding delete
+	wg.Add(1)
+	c2, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	_, err = c2.Write([]byte("conn2\n"))
+	require.NoError(t, err)
+	c2.Close()
+
+	wg.Wait()
+
+	wg.Add(1)
+	// write some data so tracer determines direction of this connection
+	_, err = c.Write([]byte("original\n"))
+	require.NoError(t, err)
+
+	wg.Wait()
+
+	// the original connection should still be incoming for the server
+	conns := getConnections(t, tr)
+	origConn := searchConnections(conns, func(cs network.ConnectionStats) bool {
+		return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == server.address &&
+			fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
+	})
+	require.Len(t, origConn, 1)
+	require.Equal(t, network.INCOMING, origConn[0].Direction, "original server<->client connection should have incoming direction")
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
-	cfg := config.NewDefaultConfig()
+	if !httpSupported(t) {
+		t.Skip("HTTP monitoring not supported")
+	}
+
+	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 }
 
-func setupDNAT(t *testing.T) {
-	if _, err := exec.LookPath("conntrack"); err != nil {
-		t.Errorf("conntrack not found in PATH: %s", err)
+func TestHTTPStats(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTP monitoring feature not available")
 		return
 	}
 
-	// Using dummy1 instead of dummy0 (https://serverfault.com/a/841723)
-	cmds := []string{
-		"ip link add dummy1 type dummy",
-		"ip address add 1.1.1.1 broadcast + dev dummy1",
-		"ip link set dummy1 up",
-		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
-	}
-	runCommands(t, cmds)
-}
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
 
-func teardownDNAT(t *testing.T) {
-	cmds := []string{
-		// tear down the testing interface, and iptables rule
-		"ip link del dummy1",
-		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
-		// clear out the conntrack table
-		"conntrack -F",
-	}
-	runCommands(t, cmds)
-}
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
 
-func runCommands(t *testing.T, cmds []string) {
-	for _, c := range cmds {
-		args := strings.Split(c, " ")
-		c := exec.Command(args[0], args[1:]...)
-		out, err := c.CombinedOutput()
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srv := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
+			io.Copy(ioutil.Discard, req.Body)
+			w.WriteHeader(200)
+		}),
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
+	srv.SetKeepAlivesEnabled(false)
+	go func() {
+		_ = srv.ListenAndServe()
+	}()
+	defer srv.Shutdown(context.Background())
+
+	// Allow the HTTP server time to get set up
+	time.Sleep(time.Millisecond * 500)
+
+	// Send a series of HTTP requests to the test server
+	client := new(nethttp.Client)
+	resp, err := client.Get("http://" + serverAddr + "/test")
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	// Iterate through active connections until we find connection created above
+	var httpReqStats http.RequestStats
+	require.Eventuallyf(t, func() bool {
+		payload, err := tr.GetActiveConnections("1")
 		if err != nil {
-			t.Errorf("%s returned %s: %s", c, err, out)
-			return
+			t.Fatal(err)
 		}
+
+		for key, stats := range payload.HTTP {
+			if key.Path == "/test" {
+				httpReqStats = stats
+				return true
+			}
+		}
+
+		return false
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
+
+	// Verify HTTP stats
+	assert.Equal(t, 0, httpReqStats[0].Count, "100s") // number of requests with response status 100
+	assert.Equal(t, 1, httpReqStats[1].Count, "200s") // 200
+	assert.Equal(t, 0, httpReqStats[2].Count, "300s") // 300
+	assert.Equal(t, 0, httpReqStats[3].Count, "400s") // 400
+	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
+}
+
+var regexSSL = regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`)
+
+func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
+	}
+
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		t.Skip("this feature is not yet support on arm")
+	}
+
+	wget, err := exec.LookPath("wget")
+	if err != nil {
+		t.Skip("wget not found; skipping test.")
+	}
+
+	ldd, err := exec.LookPath("ldd")
+	if err != nil {
+		t.Skip("ldd not found; skipping test.")
+	}
+
+	linked, _ := exec.Command(ldd, wget).Output()
+	libSSLPath := regexSSL.FindString(string(linked))
+	if _, err := os.Stat(libSSLPath); len(libSSLPath) == 0 || os.IsNotExist(err) {
+		t.Skip("libssl.so not found; skipping test.")
+	}
+
+	// Start tracer with HTTPS support
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	testHTTPS := func(keepalives bool) {
+		// Spin-up HTTPS server
+		serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+			EnableTLS:        true,
+			EnableKeepAlives: keepalives,
+		})
+		defer serverDoneFn()
+
+		// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+		exec.Command(wget).Run()
+		time.Sleep(time.Second)
+
+		// Issue request using `wget`
+		// This is necessary (as opposed to using net/http) because we want to
+		// test a HTTP client linked to OpenSSL
+		const targetURL = "https://127.0.0.1:443/200/foobar"
+		requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
+		err = requestCmd.Run()
+		assert.NoErrorf(t, err, "failed to issue request via wget: %s", err)
+
+		assert.Eventuallyf(t, func() bool {
+			payload, _ := tr.GetActiveConnections("1")
+			for key := range payload.HTTP {
+				if key.Path == "/200/foobar" {
+					return true
+				}
+			}
+
+			return false
+		}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
+	}
+
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPS(true)
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPS(false)
+	})
+}
+
+func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
+	cfg := testConfig()
+	enabled := os.Getenv(runtimeCompilationEnvVar) != ""
+	assert.Equal(t, enabled, cfg.EnableRuntimeCompiler)
+	assert.NotEqual(t, enabled, cfg.AllowPrecompiledFallback)
+}
+
+func testConfig() *config.Config {
+	cfg := config.New()
+	if os.Getenv("BPF_DEBUG") != "" {
+		cfg.BPFDebug = true
+	}
+	if os.Getenv(runtimeCompilationEnvVar) != "" {
+		cfg.EnableRuntimeCompiler = true
+		cfg.AllowPrecompiledFallback = false
+	}
+	return cfg
+}
+
+func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+	queryMsg.RecursionDesired = true
+	dnsClient := new(dns.Client)
+	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+	require.NoError(t, err)
+	defer dnsConn.Close()
+	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+	require.NoError(t, err)
+
+	return dnsClientAddr, dnsServerAddr
+}
+
+func skipIfWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test unavailable on windows")
 	}
 }

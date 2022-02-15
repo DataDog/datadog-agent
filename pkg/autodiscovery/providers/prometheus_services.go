@@ -1,19 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -58,11 +60,12 @@ type PrometheusServicesConfigProvider struct {
 	collectEndpoints   bool
 	monitoredEndpoints map[string]bool
 
-	checks []*common.PrometheusCheck
+	checks []*types.PrometheusCheck
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationProviders) (ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -90,14 +93,12 @@ func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationPro
 		endpointsLister: endpointsLister,
 	}
 
-	// TODO: refactor PrometheusConfigProvider to be an init once helper
-	configProvider := &PrometheusConfigProvider{}
-	err = configProvider.setupConfigs()
+	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err
 	}
 
-	p := newPromServicesProvider(configProvider.checks, api, collectEndpoints)
+	p := newPromServicesProvider(checks, api, collectEndpoints)
 
 	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
@@ -113,7 +114,7 @@ func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationPro
 	return p, nil
 }
 
-func newPromServicesProvider(checks []*common.PrometheusCheck, api ServiceAPI, collectEndpoints bool) *PrometheusServicesConfigProvider {
+func newPromServicesProvider(checks []*types.PrometheusCheck, api ServiceAPI, collectEndpoints bool) *PrometheusServicesConfigProvider {
 	return &PrometheusServicesConfigProvider{
 		checks:             checks,
 		api:                api,
@@ -128,7 +129,7 @@ func (p *PrometheusServicesConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-func (p *PrometheusServicesConfigProvider) Collect() ([]integration.Config, error) {
+func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := p.api.ListServices()
 	if err != nil {
 		return nil, err
@@ -137,7 +138,7 @@ func (p *PrometheusServicesConfigProvider) Collect() ([]integration.Config, erro
 	var configs []integration.Config
 	for _, svc := range services {
 		for _, check := range p.checks {
-			serviceConfigs := check.ConfigsForService(svc)
+			serviceConfigs := utils.ConfigsForService(check, svc)
 
 			if len(serviceConfigs) == 0 {
 				continue
@@ -154,7 +155,7 @@ func (p *PrometheusServicesConfigProvider) Collect() ([]integration.Config, erro
 				return nil, err
 			}
 
-			endpointConfigs := check.ConfigsForServiceEndpoints(svc, ep)
+			endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
 
 			if len(endpointConfigs) == 0 {
 				continue
@@ -182,7 +183,7 @@ func (p *PrometheusServicesConfigProvider) setUpToDate(v bool) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (p *PrometheusServicesConfigProvider) IsUpToDate() (bool, error) {
+func (p *PrometheusServicesConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 	return p.upToDate, nil
@@ -268,7 +269,7 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj
 
 // promAnnotationsDiffer returns whether a service update corresponds to a config invalidation
 func (p *PrometheusServicesConfigProvider) promAnnotationsDiffer(first, second map[string]string) bool {
-	for _, annotation := range common.PrometheusStandardAnnotations {
+	for _, annotation := range types.PrometheusStandardAnnotations {
 		if first[annotation] != second[annotation] {
 			return true
 		}
@@ -291,5 +292,10 @@ func (p *PrometheusServicesConfigProvider) promAnnotationsDiffer(first, second m
 }
 
 func init() {
-	RegisterProvider("prometheus_services", NewPrometheusServicesConfigProvider)
+	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the PrometheusServicesConfigProvider
+func (p *PrometheusServicesConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

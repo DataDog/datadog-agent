@@ -183,6 +183,7 @@
     <ClCompile Include="..\cal\delfiles.cpp" />
     <ClCompile Include="..\cal\doUninstall.cpp" />
     <ClCompile Include="..\cal\Error.cpp" />
+    <ClCompile Include="..\cal\PropertyReplacer.cpp" />
     <ClCompile Include="..\cal\stopservices.cpp" />
     <ClCompile Include="..\cal\strings.cpp" />
     <ClCompile Include="..\cal\TargetMachine.cpp" />

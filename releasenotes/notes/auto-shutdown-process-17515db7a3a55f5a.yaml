@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add a new parameter (auto_exit) to allow the Agent to exit automatically based on some condition. Currently, the only supported method "noprocess", triggers an exit if no other processes are visible to the Agent (taking into account HOST_PROC). Only available on POSIX systems.

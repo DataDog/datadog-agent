@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package pb
 
@@ -74,6 +74,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	hook, hookok := MetaHook()
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -83,99 +84,54 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		}
 		switch msgp.UnsafeString(field) {
 		case "service":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Service = ""
-				break
-			}
 			z.Service, bts, err = parseStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "name":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Name = ""
-				break
-			}
 			z.Name, bts, err = parseStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "resource":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Resource = ""
-				break
-			}
 			z.Resource, bts, err = parseStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "trace_id":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.TraceID = 0
-				break
-			}
 			z.TraceID, bts, err = parseUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "TraceID")
 				return
 			}
 		case "span_id":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.SpanID = 0
-				break
-			}
 			z.SpanID, bts, err = parseUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanID")
 				return
 			}
 		case "parent_id":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.ParentID = 0
-				break
-			}
 			z.ParentID, bts, err = parseUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ParentID")
 				return
 			}
 		case "start":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Start = 0
-				break
-			}
 			z.Start, bts, err = parseInt64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Start")
 				return
 			}
 		case "duration":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Duration = 0
-				break
-			}
 			z.Duration, bts, err = parseInt64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Duration")
 				return
 			}
 		case "error":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Error = 0
-				break
-			}
 			z.Error, bts, err = parseInt32Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Error")
@@ -214,7 +170,11 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "Meta", za0001)
 					return
 				}
-				z.Meta[za0001] = za0002
+				if hookok {
+					z.Meta[za0001] = hook(za0001, za0002)
+				} else {
+					z.Meta[za0001] = za0002
+				}
 			}
 		case "metrics":
 			if msgp.IsNil(bts) {
@@ -252,11 +212,6 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				z.Metrics[za0003] = za0004
 			}
 		case "type":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Type = ""
-				break
-			}
 			z.Type, bts, err = parseStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Type")

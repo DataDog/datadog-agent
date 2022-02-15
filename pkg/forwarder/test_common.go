@@ -1,7 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+//go:build test
+// +build test
 
 package forwarder
 
@@ -10,6 +13,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -50,8 +54,8 @@ func (t *testTransaction) GetTarget() string {
 	return t.Called().Get(0).(string)
 }
 
-func (t *testTransaction) GetPriority() TransactionPriority {
-	return TransactionPriorityNormal
+func (t *testTransaction) GetPriority() transaction.Priority {
+	return transaction.TransactionPriorityNormal
 }
 
 func (t *testTransaction) GetEndpointName() string {
@@ -62,7 +66,7 @@ func (t *testTransaction) GetPayloadSize() int {
 	return t.Called().Get(0).(int)
 }
 
-func (t *testTransaction) SerializeTo(serializer *TransactionsSerializer) error {
+func (t *testTransaction) SerializeTo(serializer transaction.TransactionsSerializer) error {
 	return nil
 }
 
@@ -89,6 +93,11 @@ func (tf *MockedForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 	return tf.Called(payload, extra).Error(0)
 }
 
+// SubmitSeries updates the internal mock struct
+func (tf *MockedForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
 // SubmitV1Intake updates the internal mock struct
 func (tf *MockedForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
@@ -96,21 +105,6 @@ func (tf *MockedForwarder) SubmitV1Intake(payload Payloads, extra http.Header) e
 
 // SubmitV1CheckRuns updates the internal mock struct
 func (tf *MockedForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
-// SubmitSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
-// SubmitEvents updates the internal mock struct
-func (tf *MockedForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
-// SubmitServiceChecks updates the internal mock struct
-func (tf *MockedForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 
@@ -124,6 +118,11 @@ func (tf *MockedForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 	return tf.Called(payload, extra).Error(0)
 }
 
+// SubmitAgentChecksMetadata updates the internal mock struct
+func (tf *MockedForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
 // SubmitMetadata updates the internal mock struct
 func (tf *MockedForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
@@ -131,6 +130,11 @@ func (tf *MockedForwarder) SubmitMetadata(payload Payloads, extra http.Header) e
 
 // SubmitProcessChecks mock
 func (tf *MockedForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitProcessDiscoveryChecks mock
+func (tf *MockedForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
 
@@ -155,6 +159,11 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 }
 
 // SubmitOrchestratorChecks mock
-func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitContainerLifecycleEvents mock
+func (tf *MockedForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package check
 
@@ -31,8 +31,8 @@ type Check interface {
 	ID() ID
 	// GetWarnings returns the last warning registered by the check
 	GetWarnings() []error
-	// GetMetricStats gets metric stats from the sender
-	GetMetricStats() (map[string]int64, error)
+	// GetSenderStats returns the stats from the last run of the check.
+	GetSenderStats() (SenderStats, error)
 	// Version returns the version of the check if available
 	Version() string
 	// ConfigSource returns the configuration source of the check

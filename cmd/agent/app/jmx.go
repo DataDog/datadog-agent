@@ -1,15 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build jmx
 // +build jmx
 
 package app
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -21,7 +26,7 @@ import (
 var (
 	jmxCmd = &cobra.Command{
 		Use:   "jmx",
-		Short: "",
+		Short: "Run troubleshooting commands on JMXFetch integrations",
 		Long:  ``,
 	}
 
@@ -89,10 +94,20 @@ var (
 
 	cliSelectedChecks = []string{}
 	jmxLogLevel       string
+	saveFlare         bool
+)
+
+var (
+	discoveryTimeout       uint
+	discoveryRetryInterval uint
+	discoveryMinInstances  uint
 )
 
 func init() {
 	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "", "set the log level (default 'debug') (deprecated, use the env var DD_LOG_LEVEL instead)")
+	jmxCmd.PersistentFlags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
+	jmxCmd.PersistentFlags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	jmxCmd.PersistentFlags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
@@ -102,7 +117,9 @@ func init() {
 	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd, jmxListWithRateMetricsCmd)
 
 	jmxListCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
+	jmxListCmd.PersistentFlags().BoolVarP(&saveFlare, "flare", "", false, "save jmx list results to the log dir so it may be reported in a flare")
 	jmxCollectCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
+	jmxCollectCmd.PersistentFlags().BoolVarP(&saveFlare, "flare", "", false, "save jmx list results to the log dir so it may be reported in a flare")
 
 	// attach the command to the root
 	AgentCmd.AddCommand(jmxCmd)
@@ -143,19 +160,39 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
 func runJmxCommandConsole(command string) error {
-	logLevel, _, err := standalone.SetupCLI(loggerName, confFilePath, "", jmxLogLevel, "debug")
+	logFile := ""
+	if saveFlare {
+		// Windows cannot accept ":" in file names
+		filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
+		logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+command+"_"+filenameSafeTimeStamp+".log")
+		jmxLogLevel = "debug"
+	}
+
+	logLevel, _, err := standalone.SetupCLI(loggerName, confFilePath, "", logFile, jmxLogLevel, "debug")
 	if err != nil {
 		fmt.Printf("Cannot initialize command: %v\n", err)
 		return err
 	}
-	err = config.SetupJMXLogger(jmxLoggerName, logLevel, "", "", false, true, false)
+
+	err = config.SetupJMXLogger(jmxLoggerName, logFile, "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}
 
-	common.LoadComponents(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
-	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel)
+	if discoveryRetryInterval > discoveryTimeout {
+		fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
+		fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
+		discoveryRetryInterval = discoveryTimeout
+	}
+
+	// Note: when no checks are selected, cliSelectedChecks will be the empty slice and thus common.SelectedCheckMatcherBuilder
+	//       will return false, leading WaitForConfigs to timeout before returning all AD configs.
+	allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
+		common.SelectedCheckMatcherBuilder(cliSelectedChecks, discoveryMinInstances))
+
+	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, allConfigs)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

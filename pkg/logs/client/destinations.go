@@ -1,20 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package client
 
-// Destinations holds the main destination and additional ones to send logs to.
+// Destinations encapsulates a set of log destinations, distinguishing reliable vs unreliable destinations
 type Destinations struct {
-	Main        Destination
-	Additionals []Destination
+	Reliable   []Destination
+	Unreliable []Destination
 }
 
 // NewDestinations returns a new destinations composite.
-func NewDestinations(main Destination, additionals []Destination) *Destinations {
+func NewDestinations(reliable []Destination, unreliable []Destination) *Destinations {
 	return &Destinations{
-		Main:        main,
-		Additionals: additionals,
+		Reliable:   reliable,
+		Unreliable: unreliable,
 	}
 }

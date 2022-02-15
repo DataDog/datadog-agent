@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !linux && !windows
 // +build !linux,!windows
 
 package net
 
 import (
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -32,5 +38,10 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 
 // GetStats is not supported
 func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
+}
+
+// GetProcStats is not supported
+func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, ebpf.ErrNotImplemented
 }

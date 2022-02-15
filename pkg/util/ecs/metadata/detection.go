@@ -1,18 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package metadata
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -34,7 +36,7 @@ func detectAgentV1URL() (string, error) {
 
 	if config.IsContainerized() {
 		// List all interfaces for the ecs-agent container
-		agentURLS, err := getAgentV1ContainerURLs()
+		agentURLS, err := getAgentV1ContainerURLs(context.TODO())
 		if err != nil {
 			log.Debugf("Could not inspect ecs-agent container: %s", err)
 		} else {
@@ -64,14 +66,18 @@ func detectAgentV1URL() (string, error) {
 	return "", fmt.Errorf("could not detect ECS agent, tried URLs: %s", urls)
 }
 
-func getAgentV1ContainerURLs() ([]string, error) {
+func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	var urls []string
+
+	if !config.IsFeaturePresent(config.Docker) {
+		return nil, errors.New("Docker feature not activated")
+	}
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return nil, err
 	}
-	ecsConfig, err := du.Inspect(config.Datadog.GetString("ecs_agent_container_name"), false)
+	ecsConfig, err := du.Inspect(ctx, config.Datadog.GetString("ecs_agent_container_name"), false)
 	if err != nil {
 		return nil, err
 	}
@@ -122,32 +128,4 @@ func getAgentV3URLFromEnv() (string, error) {
 		return "", fmt.Errorf("Could not initialize client: missing metadata v3 URL")
 	}
 	return agentURL, nil
-}
-
-func getAgentV3URLFromDocker(containerID string) (string, error) {
-	du, err := docker.GetDockerUtil()
-	if err != nil {
-		return "", err
-	}
-
-	container, err := du.Inspect(containerID, false)
-	if err != nil {
-		return "", err
-	}
-
-	for _, env := range container.Config.Env {
-		substrings := strings.Split(env, "=")
-		if len(substrings) != 2 {
-			log.Tracef("invalid container env format: %s", env)
-		}
-
-		k := substrings[0]
-		v := substrings[1]
-
-		if k == v3.DefaultMetadataURIEnvVariable {
-			return v, nil
-		}
-	}
-
-	return "", fmt.Errorf("metadata v3 URL not found in container %s", containerID)
 }

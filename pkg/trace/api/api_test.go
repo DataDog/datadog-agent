@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,18 +17,23 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"google.golang.org/grpc"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
@@ -45,15 +51,51 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
-	dynConf := sampler.NewDynamicConfig("none")
+	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
 	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
 
 	return receiver
+}
+
+func newTestReceiverFromConfigWithGRPC(conf *config.AgentConfig, grpcClient pbgo.AgentSecureClient) *HTTPReceiver {
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.coreClient = grpcClient
+	return receiver
+}
+
+type mockAgentSecureServer struct {
+	pbgo.AgentSecureClient
+	mock.Mock
+}
+
+func (a *mockAgentSecureServer) TaggerStreamEntities(ctx context.Context, in *pbgo.StreamTagsRequest, opts ...grpc.CallOption) (pbgo.AgentSecure_TaggerStreamEntitiesClient, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(pbgo.AgentSecure_TaggerStreamEntitiesClient), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) TaggerFetchEntity(ctx context.Context, in *pbgo.FetchEntityRequest, opts ...grpc.CallOption) (*pbgo.FetchEntityResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.FetchEntityResponse), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) DogstatsdCaptureTrigger(ctx context.Context, in *pbgo.CaptureTriggerRequest, opts ...grpc.CallOption) (*pbgo.CaptureTriggerResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.CaptureTriggerResponse), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) DogstatsdSetTaggerState(ctx context.Context, in *pbgo.TaggerState, opts ...grpc.CallOption) (*pbgo.TaggerStateResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.TaggerStateResponse), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) ClientGetConfigs(ctx context.Context, in *pbgo.ClientGetConfigsRequest, opts ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.ClientGetConfigsResponse), args.Error(1)
 }
 
 func newTestReceiverConfig() *config.AgentConfig {
@@ -117,6 +159,61 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	testBody(http.StatusRequestEntityTooLarge, " []")
 }
 
+func TestListenTCP(t *testing.T) {
+	t.Run("measured", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*measuredListener)
+		assert.True(t, ok)
+	})
+
+	t.Run("limited", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*rateLimitedListener)
+		assert.True(t, ok)
+	})
+}
+
+func TestStateHeaders(t *testing.T) {
+	assert := assert.New(t)
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+	data := msgpTraces(t, pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	})
+
+	for _, e := range []string{
+		"/v0.3/traces",
+		"/v0.4/traces",
+		// this one will return 500, but that's fine, we want to test that all
+		// reponses have the header regardless of status code
+		"/v0.5/traces",
+		"/v0.7/traces",
+	} {
+		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, ok := resp.Header["Datadog-Agent-Version"]
+		assert.True(ok)
+		v := resp.Header.Get("Datadog-Agent-Version")
+		assert.Equal(v, info.Version)
+
+		_, ok = resp.Header["Datadog-Agent-State"]
+		assert.True(ok)
+		v = resp.Header.Get("Datadog-Agent-State")
+		assert.NotEmpty(v)
+	}
+}
+
 func TestLegacyReceiver(t *testing.T) {
 	// testing traces without content-type in agent endpoints, it should use JSON decoding
 	assert := assert.New(t)
@@ -154,8 +251,8 @@ func TestLegacyReceiver(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				assert.Len(p.Traces, 1)
-				rt := p.Traces[0]
+				assert.Len(p.Chunks(), 1)
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -219,7 +316,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				rt := p.Traces[0]
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -286,7 +383,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -309,7 +406,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -461,73 +558,91 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	traces, err := decodeTraces(v05, req)
+	req.Header.Set(headerContainerID, "abcdef123789456")
+	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
+		Tags: info.Tags{
+			Lang:          "python",
+			LangVersion:   "3.8.1",
+			TracerVersion: "1.2.3",
+		},
+	})
 	assert.NoError(err)
-	assert.EqualValues(traces, pb.Traces{
-		{
+	assert.EqualValues(tp, &pb.TracerPayload{
+		ContainerID:     "abcdef123789456",
+		LanguageName:    "python",
+		LanguageVersion: "3.8.1",
+		TracerVersion:   "1.2.3",
+		Chunks: []*pb.TraceChunk{
 			{
-				Service:  "Service",
-				Name:     "Name",
-				Resource: "Resource",
-				TraceID:  1,
-				SpanID:   2,
-				ParentID: 3,
-				Start:    123,
-				Duration: 456,
-				Error:    1,
-				Meta:     map[string]string{"A": "B"},
-				Metrics:  map[string]float64{"X": 1.2},
-				Type:     "sql",
-			},
-			{
-				Service:  "Service2",
-				Name:     "Name2",
-				Resource: "Resource2",
-				TraceID:  2,
-				SpanID:   3,
-				ParentID: 3,
-				Start:    789,
-				Duration: 456,
-				Error:    0,
-				Meta:     map[string]string{"c": "d"},
-				Metrics:  map[string]float64{"y": 1.4},
-				Type:     "sql",
-			},
-			{
-				Service:  "Service2",
-				Name:     "Name2",
-				Resource: "Resource2",
-				TraceID:  2,
-				SpanID:   3,
-				ParentID: 3,
-				Start:    789,
-				Duration: 456,
-				Error:    0,
-				Meta:     map[string]string{"c": "d"},
-				Metrics:  nil,
-				Type:     "sql",
+				Priority: int32(sampler.PriorityNone),
+				Spans: []*pb.Span{
+					{
+						Service:  "Service",
+						Name:     "Name",
+						Resource: "Resource",
+						TraceID:  1,
+						SpanID:   2,
+						ParentID: 3,
+						Start:    123,
+						Duration: 456,
+						Error:    1,
+						Meta:     map[string]string{"A": "B"},
+						Metrics:  map[string]float64{"X": 1.2},
+						Type:     "sql",
+					},
+					{
+						Service:  "Service2",
+						Name:     "Name2",
+						Resource: "Resource2",
+						TraceID:  2,
+						SpanID:   3,
+						ParentID: 3,
+						Start:    789,
+						Duration: 456,
+						Error:    0,
+						Meta:     map[string]string{"c": "d"},
+						Metrics:  map[string]float64{"y": 1.4},
+						Type:     "sql",
+					},
+					{
+						Service:  "Service2",
+						Name:     "Name2",
+						Resource: "Resource2",
+						TraceID:  2,
+						SpanID:   3,
+						ParentID: 3,
+						Start:    789,
+						Duration: 456,
+						Error:    0,
+						Meta:     map[string]string{"c": "d"},
+						Metrics:  nil,
+						Type:     "sql",
+					},
+				},
 			},
 		},
 	})
 }
 
 type mockStatsProcessor struct {
-	mu       sync.RWMutex
-	lastP    pb.ClientStatsPayload
-	lastLang string
+	mu                sync.RWMutex
+	lastP             pb.ClientStatsPayload
+	lastLang          string
+	lastTracerVersion string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang string) {
+func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
+	m.lastTracerVersion = tracerVersion
 }
 
-func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang string) {
+func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang
+	return m.lastP, m.lastLang, m.lastTracerVersion
 }
 
 func TestHandleStats(t *testing.T) {
@@ -558,11 +673,6 @@ func TestHandleStats(t *testing.T) {
 	}
 
 	t.Run("on", func(t *testing.T) {
-		defer func(old string) {
-			os.Setenv("DD_APM_FEATURES", old)
-		}(os.Getenv("DD_APM_FEATURES"))
-		os.Setenv("DD_APM_FEATURES", "client_stats")
-
 		cfg := newTestReceiverConfig()
 		rcv := newTestReceiverFromConfig(cfg)
 		mockProcessor := new(mockStatsProcessor)
@@ -574,9 +684,10 @@ func TestHandleStats(t *testing.T) {
 		if err := msgp.Encode(&buf, &p); err != nil {
 			t.Fatal(err)
 		}
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
+		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
+		req.Header.Set(headerTracerVersion, "0.1.0")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -585,26 +696,10 @@ func TestHandleStats(t *testing.T) {
 			slurp, _ := ioutil.ReadAll(resp.Body)
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
-		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
+
+		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
+		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
-	})
-
-	t.Run("off", func(t *testing.T) {
-		cfg := newTestReceiverConfig()
-		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := new(mockStatsProcessor)
-		rcv.statsProcessor = mockProcessor
-		mux := rcv.buildMux()
-		server := httptest.NewServer(mux)
-
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", nil)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != 404 {
-			t.Fail()
 		}
 	})
 }
@@ -633,10 +728,12 @@ func TestClientComputedStatsHeader(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)
@@ -743,10 +840,12 @@ func TestClientComputedTopLevel(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)
@@ -765,6 +864,92 @@ func TestClientComputedTopLevel(t *testing.T) {
 
 	t.Run("on", run(true))
 	t.Run("off", run(false))
+}
+
+func TestConfigEndpoint(t *testing.T) {
+	defer func(old string) { features.Set(old) }(strings.Join(features.All(), ","))
+
+	var tcs = []struct {
+		name               string
+		reqBody            string
+		expectedStatusCode int
+		enabled            bool
+		valid              bool
+		response           string
+	}{
+		{
+			name:               "disabled",
+			expectedStatusCode: http.StatusNotFound,
+			response:           "404 page not found\n",
+		},
+		{
+			name:               "bad",
+			enabled:            true,
+			expectedStatusCode: http.StatusBadRequest,
+			response:           "unexpected end of JSON input\n",
+		},
+		{
+			name:    "valid",
+			reqBody: `{"client":{"id":"test_client"}}`,
+
+			enabled:            true,
+			valid:              true,
+			expectedStatusCode: http.StatusOK,
+			response:           `{"targets":{"version":1,"raw":"dGVzdA=="}}`,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			if tc.enabled {
+				features.Set("config_endpoint")
+			}
+			conf := newTestReceiverConfig()
+			grpc := mockAgentSecureServer{}
+			rcv := newTestReceiverFromConfigWithGRPC(conf, &grpc)
+			mux := rcv.buildMux()
+			server := httptest.NewServer(mux)
+			if tc.valid {
+				var request pbgo.ClientGetConfigsRequest
+				err := json.Unmarshal([]byte(tc.reqBody), &request)
+				assert.NoError(err)
+				grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: &pbgo.TopMeta{Version: 1, Raw: []byte("test")}}, nil)
+			}
+			req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(tc.reqBody))
+			req.Header.Set("Content-Type", "application/msgpack")
+			resp, err := http.DefaultClient.Do(req)
+			assert.Nil(err)
+			body, err := ioutil.ReadAll(resp.Body)
+			assert.Nil(err)
+			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
+			assert.Equal(tc.response, string(body))
+		})
+	}
+}
+
+func TestClientDropP0s(t *testing.T) {
+	conf := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(conf)
+	mux := rcv.buildMux()
+	server := httptest.NewServer(mux)
+
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(t, err)
+
+	req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(headerLang, "lang1")
+	req.Header.Set(headerDroppedP0Traces, "153")
+	req.Header.Set(headerDroppedP0Spans, "2331")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+	p := <-rcv.out
+	assert.Equal(t, p.ClientDroppedP0s, int64(153))
 }
 
 func TestReceiverRateLimiterCancel(t *testing.T) {
@@ -998,8 +1183,7 @@ func TestWatchdog(t *testing.T) {
 		if testing.Short() {
 			return
 		}
-		os.Setenv("DD_APM_FEATURES", "429")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("429")()
 
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"

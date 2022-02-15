@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The cluster-agent container now tries to remove any folder beginning by ``..`` in paths of
+    files mounted in ``/conf.d`` while copying them to the cluster-agent config folder

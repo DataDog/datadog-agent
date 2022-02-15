@@ -1,19 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !windows
 // +build !windows
 
 package checks
 
 import (
 	"os/user"
-	"runtime"
 	"strconv"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
-
-	model "github.com/DataDog/agent-payload/process"
 )
 
-func formatUser(fp *process.FilledProcess) *model.ProcessUser {
+func formatUser(fp *procutil.Process) *model.ProcessUser {
 	var username string
 	var uid, gid int32
 	if len(fp.Uids) > 0 {
@@ -34,11 +39,11 @@ func formatUser(fp *process.FilledProcess) *model.ProcessUser {
 	}
 }
 
-func formatCPU(fp *process.FilledProcess, t2, t1, syst2, syst1 cpu.TimesStat) *model.CPUStat {
-	numCPU := float64(runtime.NumCPU())
+func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
+	numCPU := float64(system.HostCPUCount())
 	deltaSys := syst2.Total() - syst1.Total()
 	return &model.CPUStat{
-		LastCpu:    t2.CPU,
+		LastCpu:    "cpu",
 		TotalPct:   calculatePct((t2.User-t1.User)+(t2.System-t1.System), deltaSys, numCPU),
 		UserPct:    calculatePct(t2.User-t1.User, deltaSys, numCPU),
 		SystemPct:  calculatePct(t2.System-t1.System, deltaSys, numCPU),

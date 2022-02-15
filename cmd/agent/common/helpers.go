@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package common
 
@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/spf13/viper"
+	"github.com/DataDog/viper"
 )
 
 // SetupConfig fires up the configuration system
@@ -69,4 +70,20 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool, fa
 		return warnings, fmt.Errorf("unable to load Datadog config file: %w", err)
 	}
 	return warnings, nil
+}
+
+// SelectedCheckMatcherBuilder returns a function that returns true if the number of configs found for the
+// check name is more or equal to min instances
+func SelectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(configs []integration.Config) bool {
+	return func(configs []integration.Config) bool {
+		var matchedConfigsCount uint
+		for _, cfg := range configs {
+			for _, name := range checkNames {
+				if cfg.Name == name {
+					matchedConfigsCount++
+				}
+			}
+		}
+		return matchedConfigsCount >= minInstances
+	}
 }

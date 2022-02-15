@@ -1,53 +1,84 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package http
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type telemetry struct {
-	then   time.Time
-	hits   map[int]int
-	misses int
+	then    int64
+	elapsed int64
+
+	hits         [5]int64
+	misses       int64 // this happens when we can't cope with the rate of events
+	dropped      int64 // this happens when httpStatKeeper reaches capacity
+	rejected     int64 // this happens when an user-defined reject-filter matches a request
+	aggregations int64
 }
 
 func newTelemetry() *telemetry {
-	t := new(telemetry)
-	t.reset()
-	return t
+	return &telemetry{
+		then: time.Now().Unix(),
+	}
 }
 
 func (t *telemetry) aggregate(txs []httpTX, err error) {
 	for _, tx := range txs {
-		t.hits[tx.StatusClass()]++
+		if i := tx.StatusClass()/100 - 1; i >= 0 && i < len(t.hits) {
+			atomic.AddInt64(&t.hits[i], 1)
+		}
 	}
 
 	if err == errLostBatch {
-		t.misses++
+		atomic.AddInt64(&t.misses, int64(HTTPBatchSize))
 	}
 }
 
-func (t *telemetry) report() {
-	delta := float64(time.Now().Sub(t.then).Seconds())
-	log.Infof(
-		"http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
-		t.hits[100], float64(t.hits[100])/delta,
-		t.hits[200], float64(t.hits[200])/delta,
-		t.hits[300], float64(t.hits[300])/delta,
-		t.hits[400], float64(t.hits[400])/delta,
-		t.hits[500], float64(t.hits[500])/delta,
-		t.misses*HTTPBatchSize,
-		float64(t.misses*HTTPBatchSize)/delta,
-	)
+func (t *telemetry) reset() telemetry {
+	now := time.Now()
+	then := atomic.SwapInt64(&t.then, now.Unix())
 
-	t.reset()
+	delta := telemetry{
+		misses:       atomic.SwapInt64(&t.misses, 0),
+		dropped:      atomic.SwapInt64(&t.dropped, 0),
+		rejected:     atomic.SwapInt64(&t.rejected, 0),
+		aggregations: atomic.SwapInt64(&t.aggregations, 0),
+		elapsed:      now.Unix() - then,
+	}
+
+	for i := range t.hits {
+		delta.hits[i] = atomic.SwapInt64(&t.hits[i], 0)
+	}
+
+	return delta
 }
 
-func (t *telemetry) reset() {
-	t.then = time.Now()
-	t.hits = make(map[int]int)
-	t.misses = 0
+func (t *telemetry) report() {
+	var totalRequests int64
+	for _, n := range t.hits {
+		totalRequests += n
+	}
+
+	log.Debugf(
+		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) aggregations=%d",
+		totalRequests,
+		float64(totalRequests)/float64(t.elapsed),
+		t.misses,
+		float64(t.misses)/float64(t.elapsed),
+		t.dropped,
+		float64(t.rejected)/float64(t.elapsed),
+		t.rejected,
+		float64(t.dropped)/float64(t.elapsed),
+		t.aggregations,
+	)
 }

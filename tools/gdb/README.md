@@ -18,12 +18,18 @@ The image is based on the `datadog/agent` image for the version of the Agent you
   docker build -t gdb-agent:7.18.0 --build-arg AGENT_VERSION=7.18.0 .
   ```
 
-  Optional build args, which configure how to source the `datadog-agent-dbg` package:
+  For Agent 7.26.0 or earlier, if the Debian snapshot repos definitions in the Agent image do not actually reflect the debian repo snapshots
+  that were used at the time of the original Agent image build, the optional build arg `DEBIAN_REPO_SNAPSHOT_DATE`
+  must be set to the snapshot's date.
+
+  Example: for `7.25.1`, which was built on `2021-01-26`, you have to specify `--build-arg DEBIAN_REPO_SNAPSHOT_DATE=20210126T000000Z`.
+
+  Optional build args which configure how to source the `datadog-agent-dbg` package:
   * `APT_REPO`: APT repo (default: `apt.datadoghq.com`)
   * `APT_DISTRIBUTION`: APT distro (default: `stable`)
 
   Example: for `7.18.0-rc.2` use `--build-arg APT_REPO=apt.datad0g.com --build-arg APT_DISTRIBUTION=beta`.
-  
+
 2. Navigate the core dump file in a gdb prompt:
 
   ```sh

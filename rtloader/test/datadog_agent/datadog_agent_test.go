@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testdatadogagent
 
 import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -441,20 +447,57 @@ func TestReadPersistentCache(t *testing.T) {
 func TestObfuscateSql(t *testing.T) {
 	helpers.ResetMemoryStats()
 
-	code := fmt.Sprintf(`
-	result = datadog_agent.obfuscate_sql("select * from table where id = 1")
+	testCases := []struct {
+		name     string
+		code     string
+		expected string
+	}{
+		{
+			name: "Test query obfuscation",
+			code: fmt.Sprintf(`
+	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
 	with open(r'%s', 'w') as f:
-		f.write(str(result))
-	`, tmpfile.Name())
-
-	out, err := run(code)
-
-	if err != nil {
-		t.Fatal(err)
+		f.write(str(result['query']))
+	`, tmpfile.Name()),
+			expected: "select * from table where id = ?",
+		},
+		{
+			name: "Test metadata tables_csv",
+			code: fmt.Sprintf(`
+	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+	with open(r'%s', 'w') as f:
+		f.write(str(result['metadata']['tables_csv']))
+	`, tmpfile.Name()),
+			expected: "table",
+		},
+		{
+			name: "Test metadata commands",
+			code: fmt.Sprintf(`
+	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+	with open(r'%s', 'w') as f:
+		f.write(str(result['metadata']['commands'][0]))
+	`, tmpfile.Name()),
+			expected: "SELECT",
+		},
+		{
+			name: "Test metadata comments",
+			code: fmt.Sprintf(`
+	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+	with open(r'%s', 'w') as f:
+		f.write(str(result['metadata']['comments'][0]))
+	`, tmpfile.Name()),
+			expected: "-- SQL test comment",
+		},
 	}
-	expected := "select * from table where id = ?"
-	if out != expected {
-		t.Fatalf("expected: '%s', found: '%s'", expected, out)
+
+	for _, test := range testCases {
+		out, err := run(test.code)
+		if err != nil {
+			t.Fatalf("%s: err: %s", test.name, err)
+		}
+		if out != test.expected {
+			t.Fatalf("%s: expected: '%s', found: '%s'", test.name, test.expected, out)
+		}
 	}
 
 	helpers.AssertMemoryUsage(t)
@@ -465,21 +508,23 @@ func TestObfuscateSQLErrors(t *testing.T) {
 
 	testCases := []struct {
 		input    string
+		options  string
 		expected string
 	}{
-		{"\"\"", "result is empty"},
-		{"{1: 2}", "argument 1 must be str(ing)?, not dict"},
-		{"None", "argument 1 must be str(ing)?, not None"},
+		{"\"\"", "{'quantize_sql_tables': True}", "result is empty"},
+		{"\"\"", "None", "result is empty"},
+		{"{1: 2}", "{'quantize_sql_tables': False}", "argument 1 must be str(ing)?, not dict"},
+		{"None", "{}", "argument 1 must be str(ing)?, not None"},
 	}
 
 	for _, c := range testCases {
 		code := fmt.Sprintf(`
 	try:
-		result = datadog_agent.obfuscate_sql(%s)
+		result = json.loads(datadog_agent.obfuscate_sql(%s, json.dumps(%s)))
 	except Exception as e:
 		with open(r'%s', 'w') as f:
 			f.write(str(e))
-		`, c.input, tmpfile.Name())
+		`, c.input, c.options, tmpfile.Name())
 		out, err := run(code)
 		if err != nil {
 			t.Fatal(err)
@@ -489,7 +534,7 @@ func TestObfuscateSQLErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !matched {
-			t.Fatalf("expected: '%s', found: '%s'", out, c.expected)
+			t.Fatalf("expected: '%s', found: '%s'", c.expected, out)
 		}
 	}
 
@@ -574,5 +619,36 @@ func TestObfuscateSqlExecPlanErrors(t *testing.T) {
 		}
 	}
 
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestProcessStartTime(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	exp := processStartTime // copy the value before anything touches it
+
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		pst = datadog_agent.get_process_start_time()
+		assert type(pst) == type(0.0)
+		f.write(pst.hex())
+	`, tmpfile.Name())
+
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	val, err := strconv.ParseFloat(out, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if val != exp {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }

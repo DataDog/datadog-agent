@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -87,25 +88,31 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 			continue
 		}
 
-		if queryResult, found := results[datadogMetric.Query]; found {
-			log.Debugf("QueryResult from DD: %v", queryResult)
+		query := datadogMetric.Query()
+		if queryResult, found := results[query]; found {
+			log.Debugf("QueryResult from DD for %q: %v", query, queryResult)
 
 			if queryResult.Valid {
 				datadogMetricFromStore.Value = queryResult.Value
 
 				// If we get a valid but old metric, flag it as invalid
-				if currentTime.Unix()-queryResult.Timestamp <= mr.metricsMaxAge {
+				maxAge := datadogMetric.MaxAge
+				if maxAge == 0 {
+					maxAge = time.Duration(mr.metricsMaxAge) * time.Second
+				}
+
+				if time.Duration(currentTime.Unix()-queryResult.Timestamp)*time.Second <= maxAge {
 					datadogMetricFromStore.Valid = true
 					datadogMetricFromStore.Error = nil
 					datadogMetricFromStore.UpdateTime = time.Unix(queryResult.Timestamp, 0).UTC()
 				} else {
 					datadogMetricFromStore.Valid = false
-					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricOutdatedErrorMessage, datadogMetric.Query)
+					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricOutdatedErrorMessage, query)
 					datadogMetricFromStore.UpdateTime = currentTime
 				}
 			} else {
 				datadogMetricFromStore.Valid = false
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricBackendErrorMessage, datadogMetric.Query)
+				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricBackendErrorMessage, query)
 				datadogMetricFromStore.UpdateTime = currentTime
 			}
 		} else {
@@ -113,7 +120,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 			if globalError {
 				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
 			} else {
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricNoDataErrorMessage, datadogMetric.Query)
+				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricNoDataErrorMessage, query)
 			}
 			datadogMetricFromStore.UpdateTime = currentTime
 		}
@@ -126,9 +133,10 @@ func getUniqueQueries(datadogMetrics []model.DatadogMetricInternal) []string {
 	queries := make([]string, 0, len(datadogMetrics))
 	unique := make(map[string]struct{}, len(queries))
 	for _, datadogMetric := range datadogMetrics {
-		if _, found := unique[datadogMetric.Query]; !found {
-			unique[datadogMetric.Query] = struct{}{}
-			queries = append(queries, datadogMetric.Query)
+		query := datadogMetric.Query()
+		if _, found := unique[query]; !found {
+			unique[query] = struct{}{}
+			queries = append(queries, query)
 		}
 	}
 

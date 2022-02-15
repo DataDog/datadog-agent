@@ -1,14 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -41,16 +42,18 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 						"ad.datadoghq.com/service.init_configs": "[{}]",
 						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 					},
+					Name:      "svc",
+					Namespace: "ns",
 				},
 			},
 			expectedOut: []integration.Config{
 				{
 					Name:                    "http_check",
-					ADIdentifiers:           []string{"kube_service_uid://test"},
+					ADIdentifiers:           []string{"kube_service://ns/svc"},
 					InitConfig:              integration.Data("{}"),
 					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:            true,
-					Source:                  "kube_services:kube_service_uid://test",
+					Source:                  "kube_services:kube_service://ns/svc",
 					IgnoreAutodiscoveryTags: false,
 				},
 			},
@@ -66,16 +69,18 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 						"ad.datadoghq.com/service.instances":                 "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 						"ad.datadoghq.com/service.ignore_autodiscovery_tags": "true",
 					},
+					Name:      "svc",
+					Namespace: "ns",
 				},
 			},
 			expectedOut: []integration.Config{
 				{
 					Name:                    "http_check",
-					ADIdentifiers:           []string{"kube_service_uid://test"},
+					ADIdentifiers:           []string{"kube_service://ns/svc"},
 					InitConfig:              integration.Data("{}"),
 					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:            true,
-					Source:                  "kube_services:kube_service_uid://test",
+					Source:                  "kube_services:kube_service://ns/svc",
 					IgnoreAutodiscoveryTags: true,
 				},
 			},
@@ -170,10 +175,11 @@ func TestInvalidateIfChanged(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			ctx := context.Background()
 			provider := &KubeServiceConfigProvider{upToDate: true}
 			provider.invalidateIfChanged(tc.old, tc.obj)
 
-			upToDate, err := provider.IsUpToDate()
+			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
 		})

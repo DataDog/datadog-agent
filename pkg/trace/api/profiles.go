@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
@@ -9,20 +14,24 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// profilingURLTemplate specifies the template for obtaining the profiling URL along with the site.
-	profilingURLTemplate = "https://intake.profile.%s/v1/input"
+	profilingURLTemplate = "https://intake.profile.%s/api/v2/profile"
 	// profilingURLDefault specifies the default intake API URL.
-	profilingURLDefault = "https://intake.profile.datadoghq.com/v1/input"
+	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
+	// profilingV1EndpointSuffix suffix identifying a user-configured V1 endpoint
+	profilingV1EndpointSuffix = "v1/input"
 )
 
 // profilingEndpoints returns the profiling intake urls and their corresponding
@@ -32,6 +41,10 @@ func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err e
 	main := profilingURLDefault
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		main = v
+		if strings.HasSuffix(main, profilingV1EndpointSuffix) {
+			log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
+				"The updated endpoint path is /api/v2/profile.", v)
+		}
 	} else if site := config.Datadog.GetString("site"); site != "" {
 		main = fmt.Sprintf(profilingURLTemplate, site)
 	}
@@ -68,7 +81,11 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if err != nil {
 		return errorHandler(err)
 	}
-	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
+	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
+	if orch := r.conf.FargateOrchestrator; orch != fargate.Unknown {
+		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
+		tags = tags + "," + tag
+	}
 	return newProfileProxy(r.conf.NewHTTPTransport(), targets, keys, tags)
 }
 
@@ -124,12 +141,22 @@ type multiTransport struct {
 	keys    []string
 }
 
-func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
+	defer func() {
+		// Hack for backwards-compatibility
+		// The old v1/input endpoint responded with 200 and as this handler
+		// is just a proxy to existing clients, some clients break on
+		// encountering a 202 response when proxying for the new api/v2/profile endpoints.
+		if rresp != nil && rresp.StatusCode == http.StatusAccepted {
+			rresp.Status = http.StatusText(http.StatusOK)
+			rresp.StatusCode = http.StatusOK
+		}
+	}()
 	if len(m.targets) == 1 {
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
@@ -138,10 +165,6 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	var (
-		rresp *http.Response
-		rerr  error
-	)
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))

@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build stresstests
 // +build stresstests
 
 package tests
@@ -16,9 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
-
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 var (
@@ -30,12 +30,12 @@ var (
 
 // Stress test of open syscalls
 func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size int) {
-	var rules []*rules.RuleDefinition
+	var ruleDefs []*rules.RuleDefinition
 	if rule != nil {
-		rules = append(rules, rule)
+		ruleDefs = append(ruleDefs, rule)
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,27 +53,9 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	eventsStats := test.probe.GetEventsStats()
-	eventsStats.GetAndResetLost()
-
-	events := 0
-	go func() {
-		for range test.events {
-			events++
-		}
-	}()
-
-	var prevLogLevel seelog.LogLevel
-
-	pre := func() (err error) {
-		prevLogLevel, err = test.SwapLogLevel(seelog.ErrorLvl)
-		return err
-	}
-
-	post := func() error {
-		_, err := test.SwapLogLevel(prevLogLevel)
-		return err
-	}
+	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
+	perfBufferMonitor.GetAndResetLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		f, err := os.Create(testFile)
@@ -88,34 +70,45 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 			}
 		}
 
-		if err := f.Close(); err != nil {
-			return err
-		}
-
-		return nil
+		return f.Close()
 	}
 
 	opts := StressOpts{
-		Duration:    time.Duration(30) * time.Second,
+		Duration:    time.Duration(duration) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
 		TopFrom:     "probe",
 		ReportFile:  reportFile,
 	}
 
-	report, err := StressIt(t, pre, post, fnc, opts)
+	events := 0
+	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+		events++
+	})
+	defer test.RegisterRuleEventHandler(nil)
+
+	report, err := StressIt(t, nil, nil, fnc, opts)
+	test.RegisterRuleEventHandler(nil)
+
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	report.AddMetric("lost", float64(eventsStats.GetLost()), "lost")
+	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
-	report.Print()
+	report.Print(t)
 
-	if report.Delta() < -0.10 {
+	if report.Delta() < -2.0 {
 		t.Error("unexpected performance degradation")
+
+		cmdOutput, _ := exec.Command("pstree").Output()
+		fmt.Println(string(cmdOutput))
+
+		cmdOutput, _ = exec.Command("ps", "aux").Output()
+		fmt.Println(string(cmdOutput))
 	}
 }
 
@@ -131,7 +124,7 @@ func TestStress_E2EOpenNoKprobe(t *testing.T) {
 func TestStress_E2EOpenEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 0)
@@ -142,7 +135,7 @@ func TestStress_E2EOpenEvent(t *testing.T) {
 func TestStress_E2EOpenNoEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 0)
@@ -153,7 +146,7 @@ func TestStress_E2EOpenNoEvent(t *testing.T) {
 func TestStress_E2EOpenWrite1KEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 1024)
@@ -171,7 +164,7 @@ func TestStress_E2EOpenWrite1KNoKprobe(t *testing.T) {
 func TestStress_E2EOpenWrite1KNoEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 1024)
@@ -179,12 +172,12 @@ func TestStress_E2EOpenWrite1KNoEvent(t *testing.T) {
 
 // Stress test of fork/exec syscalls
 func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, executable string) {
-	var rules []*rules.RuleDefinition
+	var ruleDefs []*rules.RuleDefinition
 	if rule != nil {
-		rules = append(rules, rule)
+		ruleDefs = append(ruleDefs, rule)
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,35 +195,14 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		t.Fatal(err)
 	}
 
-	eventsStats := test.probe.GetEventsStats()
-	eventsStats.GetAndResetLost()
-
-	events := 0
-	go func() {
-		for range test.events {
-			events++
-		}
-	}()
-
-	var prevLogLevel seelog.LogLevel
-
-	pre := func() (err error) {
-		prevLogLevel, err = test.SwapLogLevel(seelog.ErrorLvl)
-		return err
-	}
-
-	post := func() error {
-		_, err := test.SwapLogLevel(prevLogLevel)
-		return err
-	}
+	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
+	perfBufferMonitor.GetAndResetLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			return err
-		}
-
-		return nil
+		_, err := cmd.CombinedOutput()
+		return err
 	}
 
 	opts := StressOpts{
@@ -241,36 +213,34 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		ReportFile:  reportFile,
 	}
 
-	report, err := StressIt(t, pre, post, fnc, opts)
+	events := 0
+	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+		events++
+	})
+	defer test.RegisterRuleEventHandler(nil)
+
+	report, err := StressIt(t, nil, nil, fnc, opts)
+	test.RegisterRuleEventHandler(nil)
+
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	time.Sleep(2 * time.Second)
 
-	report.AddMetric("lost", float64(eventsStats.GetLost()), "lost")
+	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
-	report.Print()
-
-	if report.Delta() < -0.10 {
-		t.Error("unexpected performance degradation")
-	}
+	report.Print(t)
 }
 
 // goal: measure host abality to handle open syscall without any kprobe, act as a reference
 // this benchmark generate syscall but without having kprobe installed
 
 func TestStress_E2EOExecNoKprobe(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	stressExec(t, nil, "folder1/folder2/folder1/folder2/test", executable)
 }
@@ -278,18 +248,11 @@ func TestStress_E2EOExecNoKprobe(t *testing.T) {
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
 // this benchmark generate event that passs from the kernel to the userspace
 func TestStress_E2EExecEvent(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`open.filename == "{{.Root}}/folder1/folder2/test-ancestors" && process.name == "%s"`, "touch"),
+		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/folder1/folder2/test-ancestors" && process.file.name == "%s"`, "touch"),
 	}
 
 	stressExec(t, rule, "folder1/folder2/test-ancestors", executable)

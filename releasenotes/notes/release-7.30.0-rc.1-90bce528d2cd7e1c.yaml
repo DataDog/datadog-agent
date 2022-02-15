@@ -1,0 +1,6 @@
+other:
+  - |
+    Build environment changes:
+
+    * omnibus-software: [cacerts] updating with latest: 2021-07-05 (#399)
+    * omnibus-ruby: Support 'Recommends' dependencies for deb packages (#122)

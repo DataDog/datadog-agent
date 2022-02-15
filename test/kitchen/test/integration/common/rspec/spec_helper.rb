@@ -5,6 +5,13 @@ require 'rbconfig'
 require 'yaml'
 require 'find'
 
+#
+# this enables RSpec output so that individual tests ("it behaves like...") are
+# logged.
+RSpec.configure do |c|
+  c.default_formatter = "documentation"
+end
+
 os_cache = nil
 
 # We retrieve the value defined in kitchen.yml because there is no simple way
@@ -23,7 +30,7 @@ def get_service_name(flavor)
   # Return the service name of the given flavor depending on the OS
   if os == :windows
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadogagent"
     when "datadog-dogstatsd"
       # Placeholder, not used yet
@@ -31,7 +38,7 @@ def get_service_name(flavor)
     end
   else
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadog-agent"
     when "datadog-dogstatsd"
       "datadog-dogstatsd"
@@ -58,6 +65,25 @@ def os
   )
 end
 
+def safe_program_files
+  # HACK: on non-English Windows, Chef wrongly installs its 32-bit version on 64-bit hosts because
+  # of this issue: https://github.com/chef/mixlib-install/issues/343
+  # Because of this, the ENV['ProgramFiles'] content is wrong (it's `C:/Program Files (x86)`)
+  # while the Agent is installed in `C:/Program Files`
+  # To prevent this issue, we check the system arch and the ProgramFiles folder, and we fix it
+  # if needed.
+
+  # Env variables are frozen strings, they need to be duplicated to modify them
+  program_files = ENV['ProgramFiles'].dup
+  arch = `Powershell -command "(Get-WmiObject Win32_OperatingSystem).OsArchitecture"`
+  if arch.include? "64" and program_files.include? "(x86)"
+    program_files.slice!("(x86)")
+    program_files.strip!
+  end
+
+  program_files
+end
+
 
 def agent_command
   if os == :windows
@@ -71,44 +97,36 @@ def wait_until_service_stopped(service, timeout = 60)
   # Check if the service has stopped every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if !is_service_running?(service)
+    if !is_service_running?(service)
+      case service
+      when "datadog-agent"
+        break if !is_port_bound(5001)
+      when "datadog-dogstatsd"
+        break if !is_port_bound(8125)
+      else
+        break
+      end
+    end
     sleep 1
   end
-  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
-  # Agent start and the moment when the status command starts working
-  # has dramatically increased.
-  # Before (on ubuntu/debian):
-  # - during the first ~0.05s: connection refused
-  # - after: works correctly
-  # Now:
-  # - during the first ~0.05s: connection refused
-  # - between ~0.05s and ~1s: EOF
-  # - after: works correctly
-  # Until we understand and fix the problem, we're adding this sleep
-  # so that we don't get flakes in the kitchen tests.
-  sleep 2
 end
 
 def wait_until_service_started(service, timeout = 30)
   # Check if the service has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if is_service_running?(service)
+    if is_service_running?(service)
+      case service
+      when "datadog-agent"
+        break if is_port_bound(5001)
+      when "datadog-dogstatsd"
+        break if is_port_bound(8125)
+      else
+        break
+      end
+    end
     sleep 1
   end
-  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
-  # Agent start and the moment when the status command starts working
-  # has dramatically increased.
-  # Before (on ubuntu/debian):
-  # - during the first ~0.05s: connection refused
-  # - after: works correctly
-  # Now:
-  # - during the first ~0.05s: connection refused
-  # - between ~0.05s and ~1s: EOF
-  # - after: works correctly
-  # Until we understand and fix the problem, we're adding this sleep
-  # so that we don't get flakes in the kitchen tests.
-  sleep 5
 end
 
 def stop(flavor)
@@ -189,6 +207,10 @@ def has_upstart
   system('/sbin/init --version 2>&1 | grep -q upstart >/dev/null')
 end
 
+def has_dpkg
+  system('command -v dpkg 2>&1 > /dev/null')
+end
+
 def info
   `#{agent_command} status 2>&1`
 end
@@ -221,26 +243,15 @@ def json_info
   JSON.parse(info_output)
 end
 
-def flavor_service_status(flavor)
-  service = get_service_name(flavor)
-  if os == :windows
-    status_out = `sc interrogate #{service} 2>&1`
-    puts status_out
-    status_out.include?('RUNNING')
-  else
-    if has_systemctl
-      system "sudo systemctl status --no-pager #{service}.service"
-    elsif has_upstart
-      system "sudo initctl status #{service}"
-    else
-      system "sudo /sbin/service #{service} status"
-    end
-  end
+def windows_service_status(service)
+  raise "windows_service_status is only for windows" unless os == :windows
+  # Language-independent way of getting the service status
+  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
 end
 
 def is_service_running?(service)
   if os == :windows
-    `sc interrogate #{service} 2>&1`.include?('RUNNING')
+    return windows_service_status(service) == "RUNNING"
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -254,6 +265,11 @@ def is_service_running?(service)
   end
 end
 
+def is_windows_service_installed(service)
+  raise "is_windows_service_installed is only for windows" unless os == :windows
+  return windows_service_status(service) != "NOTINSTALLED"
+end
+  
 def is_flavor_running?(flavor)
   is_service_running?(get_service_name(flavor))
 end
@@ -352,22 +368,18 @@ end
 def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
-  output = `powershell -command get-authenticodesignature -FilePath '#{fullpath}'`
-  signature_hash = "21FE8679BDFB16B879A87DF228003758B62ABF5E"
-  if not output.include? signature_hash
-    return false
-  end
-  if not output.include? "Valid"
-    return false
-  end
-  if output.include? "NotSigned"
-    return false
-  end
-  return true
+  output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
+  signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
+  return output.upcase.strip == signature_hash
+end
+
+def is_dpkg_package_installed(package)
+  system("dpkg -l #{package} | grep ii")
 end
 
 shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Agent'
+  it_behaves_like 'an installed Datadog Signing Keys'
 end
 
 shared_examples_for 'Agent behavior' do
@@ -412,7 +424,7 @@ shared_examples_for "an installed Agent" do
   }
 
   it 'is properly signed' do
-    puts "swsc is #{skip_windows_signing_check}"
+    puts "skipping windows signing check #{skip_windows_signing_check}" if os == :windows and skip_windows_signing_check
     #puts "is an upgrade is #{is_upgrade}"
     if os == :windows and !skip_windows_signing_check
       # The user in the yaml file is "datadog", however the default test kitchen user is azure.
@@ -428,17 +440,27 @@ shared_examples_for "an installed Agent" do
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
 
+      program_files = safe_program_files
       verify_signature_files = [
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe"
       ]
       verify_signature_files.each do |vf|
         is_signed = is_file_signed(vf)
         expect(is_signed).to be_truthy
       end
     end
+  end
+end
+
+shared_examples_for "an installed Datadog Signing Keys" do
+  it 'is installed (on Debian-based systems)' do
+    skip if os == :windows
+    skip unless has_dpkg
+    # Only check on Debian-based systems, which have dpkg installed
+    expect(is_dpkg_package_installed('datadog-signing-keys')).to be_truthy
   end
 end
 
@@ -450,7 +472,7 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'is running' do
-    expect(flavor_service_status "datadog-agent").to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 
   it 'has a config file' do
@@ -567,7 +589,7 @@ shared_examples_for 'an Agent that stops' do
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(flavor_service_status "datadog-agent").to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
 
@@ -660,14 +682,14 @@ shared_examples_for 'an Agent with integrations' do
 
   before do
     freeze_content = File.read(integrations_freeze_file)
-    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==1.0.1')
+    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==1.5.3')
     File.write(integrations_freeze_file, freeze_content)
 
     integration_remove('datadog-cilium')
   end
 
   it 'can uninstall an installed package' do
-    integration_install('datadog-cilium==1.0.1')
+    integration_install('datadog-cilium==1.5.3')
 
     expect do
       integration_remove('datadog-cilium')
@@ -678,32 +700,32 @@ shared_examples_for 'an Agent with integrations' do
     integration_remove('datadog-cilium')
 
     expect do
-      integration_install('datadog-cilium==1.0.1')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+      integration_install('datadog-cilium==1.5.3')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
   end
 
   it 'can upgrade an installed package' do
     expect do
-      integration_install('datadog-cilium==1.0.2')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.2}) }.from(false).to(true)
+      integration_install('datadog-cilium==1.6.0')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.6\.0}) }.from(false).to(true)
   end
 
   it 'can downgrade an installed package' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.0.2')
+    integration_install('datadog-cilium==1.6.0')
 
     expect do
-      integration_install('datadog-cilium==1.0.1')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+      integration_install('datadog-cilium==1.5.3')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
   end
 
   it 'cannot downgrade an installed package to a version older than the one shipped with the agent' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.0.1')
+    integration_install('datadog-cilium==1.5.3')
 
     expect do
-      integration_install('datadog-cilium==1.0.0')
-    end.to raise_error(/Failed to install integrations package 'datadog-cilium==1\.0\.0'/)
+      integration_install('datadog-cilium==1.5.2')
+    end.to raise_error(/Failed to install integrations package 'datadog-cilium==1\.5\.2'/)
   end
 end
 
@@ -715,11 +737,11 @@ shared_examples_for 'an Agent that is removed' do
       expect(system(uninstallcmd)).to be_truthy
     else
       if system('which apt-get &> /dev/null')
-        expect(system("sudo apt-get -q -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo apt-get -q -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which yum &> /dev/null')
-        expect(system("sudo yum -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo yum -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which zypper &> /dev/null')
-        expect(system("sudo zypper --non-interactive remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo zypper --non-interactive remove #{get_agent_flavor} > /dev/null")).to be_truthy
       else
         raise 'Unknown package manager'
       end
@@ -735,12 +757,15 @@ shared_examples_for 'an Agent that is removed' do
     it 'should not make changes to system files' do
       exclude = [
             'C:/Windows/Assembly/Temp/',
+            'C:/Windows/Assembly/Tmp/',
+            'C:/windows/AppReadiness/',
             'C:/Windows/Temp/',
             'C:/Windows/Prefetch/',
             'C:/Windows/Installer/',
             'C:/Windows/WinSxS/',
             'C:/Windows/Logs/',
             'C:/Windows/servicing/',
+            'c:/Windows/System32/catroot2/',
             'c:/windows/System32/config/',
             'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
             'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
@@ -749,7 +774,8 @@ shared_examples_for 'an Agent that is removed' do
             'c:/windows/System32/LogFiles/',
             'c:/windows/SoftwareDistribution/',
             'c:/windows/ServiceProfiles/NetworkService/AppData/',
-            'c:/windows/System32/Tasks/Microsoft/Windows/UpdateOrchestrator/'
+            'c:/windows/System32/Tasks/Microsoft/Windows/UpdateOrchestrator/',
+            'c:/windows/System32/Tasks/Microsoft/Windows/Windows Defender/Windows Defender Scheduled Scan'
       ].each { |e| e.downcase! }
 
       # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging
@@ -823,6 +849,36 @@ shared_examples_for 'an Agent with process enabled' do
     expect(is_service_running?("datadog-process-agent")).to be_truthy
   end
 end
+
+shared_examples_for 'an upgraded Agent with the expected version' do
+  # We retrieve the value defined in kitchen.yml because there is no simple way
+  # to set env variables on the target machine or via parameters in Kitchen/Busser
+  # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
+  let(:agent_expected_version) {
+    if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-upgrade-rspec').fetch('agent_expected_version')
+  }
+
+  it 'runs with the expected version (based on the `info` command output)' do
+    agent_short_version = /(\.?\d)+/.match(agent_expected_version)[0]
+    expect(info).to include "v#{agent_short_version}"
+  end
+
+  it 'runs with the expected version (based on the version manifest file)' do
+    if os == :windows
+      version_manifest_file = "C:/Program Files/Datadog/Datadog Agent/version-manifest.txt"
+    else
+      version_manifest_file = '/opt/datadog-agent/version-manifest.txt'
+    end
+    expect(File).to exist(version_manifest_file)
+    # Match the first line of the manifest file
+    expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "agent #{agent_expected_version}"
+  end
+end 
 
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip

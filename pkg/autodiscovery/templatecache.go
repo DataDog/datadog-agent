@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package autodiscovery
 
@@ -13,17 +13,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-// TemplateCache is a data structure to store configuration templates
-type TemplateCache struct {
+// templateCache is a data structure to store configuration templates
+type templateCache struct {
 	adIDToDigests    map[string][]string           // map an AD identifier to all the configs that have it
 	digestToADId     map[string][]string           // map a config digest to the list of AD identifiers it has
 	digestToTemplate map[string]integration.Config // map a digest to the corresponding config object
 	m                sync.RWMutex
 }
 
-// NewTemplateCache creates a new cache
-func NewTemplateCache() *TemplateCache {
-	return &TemplateCache{
+// newTemplateCache creates a new cache
+func newTemplateCache() *templateCache {
+	return &templateCache{
 		adIDToDigests:    map[string][]string{},
 		digestToADId:     map[string][]string{},
 		digestToTemplate: map[string]integration.Config{},
@@ -31,7 +31,7 @@ func NewTemplateCache() *TemplateCache {
 }
 
 // Set stores or updates a template in the cache
-func (cache *TemplateCache) Set(tpl integration.Config) error {
+func (cache *templateCache) set(tpl integration.Config) error {
 	// return an error if configuration has no AD identifiers
 	if len(tpl.ADIdentifiers) == 0 {
 		return fmt.Errorf("template has no AD identifiers, unable to store it in the cache")
@@ -59,7 +59,7 @@ func (cache *TemplateCache) Set(tpl integration.Config) error {
 }
 
 // Get retrieves a template from the cache
-func (cache *TemplateCache) Get(adID string) ([]integration.Config, error) {
+func (cache *templateCache) get(adID string) ([]integration.Config, error) {
 	cache.m.RLock()
 	defer cache.m.RUnlock()
 
@@ -75,8 +75,8 @@ func (cache *TemplateCache) Get(adID string) ([]integration.Config, error) {
 	return nil, fmt.Errorf("AD id %s not found in cache", adID)
 }
 
-// GetUnresolvedTemplates returns templates yet to be resolved
-func (cache *TemplateCache) GetUnresolvedTemplates() map[string][]integration.Config {
+// getUnresolvedTemplates returns templates yet to be resolved
+func (cache *templateCache) getUnresolvedTemplates() map[string][]integration.Config {
 	tpls := make(map[string][]integration.Config)
 	for d, config := range cache.digestToTemplate {
 		ids := strings.Join(cache.digestToADId[d][:], ",")
@@ -85,8 +85,8 @@ func (cache *TemplateCache) GetUnresolvedTemplates() map[string][]integration.Co
 	return tpls
 }
 
-// Del removes a template from the cache
-func (cache *TemplateCache) Del(tpl integration.Config) error {
+// del removes a template from the cache
+func (cache *templateCache) del(tpl integration.Config) error {
 	// compute the digest once
 	d := tpl.Digest()
 	cache.m.Lock()
@@ -105,10 +105,14 @@ func (cache *TemplateCache) Del(tpl integration.Config) error {
 	for _, id := range tpl.ADIdentifiers {
 		digests := cache.adIDToDigests[id]
 		// remove the template from id2templates
-		for i, digest := range digests {
-			if digest == d {
-				cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
-				break
+		if len(digests) == 1 && digests[0] == d {
+			delete(cache.adIDToDigests, id)
+		} else {
+			for i, digest := range digests {
+				if digest == d {
+					cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
+					break
+				}
 			}
 		}
 	}

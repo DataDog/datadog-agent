@@ -1,25 +1,22 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package autoscalers
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -85,7 +82,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 		}
 
 		// Perform matching between query and reply, using query order and `QueryIndex` from API reply (QueryIndex is 0-based)
-		var queryIndex int = 0
+		var queryIndex int
 		if ddQueriesLen > 1 {
 			if serie.QueryIndex != nil && *serie.QueryIndex < ddQueriesLen {
 				queryIndex = *serie.QueryIndex
@@ -151,7 +148,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 
 	// If we add no series at all, return an error on top of invalid metrics
 	if len(seriesSlice) == 0 {
-		return processedMetrics, log.Errorf("Returned series slice empty")
+		return processedMetrics, log.Warnf("none of the queries %s returned any point, there might be an issue with them", query)
 	}
 
 	return processedMetrics, nil
@@ -178,23 +175,4 @@ func (p *Processor) updateRateLimitingMetrics() error {
 	}
 
 	return utilserror.NewAggregate(errors)
-}
-
-// NewDatadogClient generates a new client to query metrics from Datadog
-func NewDatadogClient() (*datadog.Client, error) {
-	apiKey := config.Datadog.GetString("api_key")
-	appKey := config.Datadog.GetString("app_key")
-
-	if appKey == "" || apiKey == "" {
-		return nil, errors.New("missing the api/app key pair to query Datadog")
-	}
-
-	log.Infof("Initialized the Datadog Client for HPA")
-
-	client := datadog.NewClient(apiKey, appKey)
-	client.HttpClient.Transport = httputils.CreateHTTPTransport()
-	client.RetryTimeout = 3 * time.Second
-	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
-
-	return client, nil
 }

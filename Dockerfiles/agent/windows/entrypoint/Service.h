@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 
 #pragma once
 #include <Windows.h>
@@ -23,7 +23,7 @@ public:
     ~Service();
 
     DWORD PID();
-    void Start(std::chrono::milliseconds timeout = std::chrono::seconds(30));
+    void Start(std::chrono::milliseconds timeout = std::chrono::seconds(60));
     void Stop(std::chrono::milliseconds timeout = std::chrono::seconds(30));
 };
 

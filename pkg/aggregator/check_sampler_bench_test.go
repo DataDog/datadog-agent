@@ -1,18 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package aggregator
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
@@ -20,10 +20,13 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	aggregatorInstance.serializer = serializer.NewSerializer(forwarder.NewDefaultForwarder(
-		forwarder.NewOptions(map[string][]string{"hello": {"world"}})),
-	)
-	checkSampler := newCheckSampler()
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	options := DefaultDemultiplexerOptions(forwarderOpts)
+	options.DontStartForwarders = true
+	demux := InitAndStartAgentDemultiplexer(options, "hostname")
+	defer demux.Stop(true)
+
+	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -38,12 +41,11 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 		checkSampler.addBucket(bucket)
 		// reset bucket cache
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)
-		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{
@@ -64,7 +66,6 @@ func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
 		}
 		// reset bucket cache
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)
-		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
 }
 

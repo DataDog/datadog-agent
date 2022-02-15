@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -33,10 +34,35 @@ func TestCPU(t *testing.T) {
 
 	timeStat, err := cgroup.CPU()
 	assert.Nil(t, err)
-	assert.Equal(t, timeStat.User, uint64(64140))
-	assert.Equal(t, timeStat.System, uint64(18327))
-	assert.Equal(t, timeStat.Shares, uint64(1024))
+	assert.Equal(t, timeStat.User, float64(64140))
+	assert.Equal(t, timeStat.System, float64(18327))
+	assert.Equal(t, timeStat.Shares, float64(1024))
 	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
+}
+
+func TestCPULimit(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-limit")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	// CFS period and quota
+	tempFolder.add("cpu/cpu.cfs_period_us", "100000")
+	tempFolder.add("cpu/cpu.cfs_quota_us", "600000")
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
+	cpuLimit, err := cgroup.CPULimit()
+
+	assert.Nil(t, err)
+	assert.Equal(t, cpuLimit, float64(600))
+
+	// CPU set
+	tempFolder.add("cpuset/cpuset.cpus", "0-4")
+
+	cgroup = newDummyContainerCgroup(tempFolder.RootPath, "cpu", "cpuset")
+	cpuLimit, err = cgroup.CPULimit()
+
+	assert.Nil(t, err)
+	assert.Equal(t, cpuLimit, float64(500))
 }
 
 func TestCPUNrThrottled(t *testing.T) {

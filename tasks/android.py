@@ -1,7 +1,7 @@
 """
 Android namespaced tasks
 """
-from __future__ import print_function
+
 
 import os
 import shutil
@@ -11,7 +11,6 @@ import yaml
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import generate
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 # constants
@@ -31,16 +30,7 @@ CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 
 
 @task
-def build(
-    ctx,
-    rebuild=False,
-    race=False,
-    development=True,
-    precompile_only=False,
-    skip_assets=False,
-    major_version='7',
-    python_runtimes='3',
-):
+def build(ctx, rebuild=False, race=False, major_version='7', python_runtimes='3'):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -57,13 +47,25 @@ def build(
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
-
     build_tags = get_default_build_tags(build="android")
 
-    cmd = "gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    # Even though gomobile supports modules, I didn't manage to make `gomobile bind` work.
+    # There are two problems: First, it calls `go list -m all` to parse the repo dependencies,
+    # which doesn't work if using vendoring. This can be solved by using go modules not vendored.
+    # The second problem is that it tries to import our repo as a module from generated code and
+    # our repo is not importable due to the dependency on k8s.io/kubernetes. A workaround is to
+    # remove the k8s dependencies from go.mod before doing the build (since they are not needed
+    # for Android), but given all these problems I decided to just disable go modules.
+    env["GO111MODULE"] = "off"
+    # Install gomobile on the GOPATH instead of as a module
+    ctx.run('go get golang.org/x/mobile/cmd/gomobile', env=env)
+    # Pin its version to what's indicated in go.mod
+    ctx.run(
+        'VERSION=$(grep golang.org/x/mobile go.mod | rev | cut -d - -f 1 | rev); cd /go/src/golang.org/x/mobile; git checkout $VERSION'
+    )
 
+    ctx.run('go run golang.org/x/mobile/cmd/gomobile init', env=env)
+    cmd = "go run golang.org/x/mobile/cmd/gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
     args = {
         "race_opt": "-race" if race else "",
@@ -74,9 +76,6 @@ def build(
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-    # gomobile is not supporting go modules
-    # https://go-review.googlesource.com/c/mobile/+/167659/
-    env["GO111MODULE"] = "off"
     ctx.run(cmd.format(**args), env=env)
 
     pwd = os.getcwd()
@@ -87,13 +86,13 @@ def build(
         cmd = "./gradlew --no-daemon build"
     ctx.run(cmd)
     os.chdir(pwd)
-    ver = get_version(ctx, include_git=True, git_sha_length=7, major_version=major_version)
-    outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
+    ver = get_version(ctx, include_git=True, git_sha_length=7, major_version=major_version, include_pipeline_id=True)
+    outfile = f"bin/agent/ddagent-{ver}-unsigned.apk"
     shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 
 
 @task
-def sign_apk(ctx, development=True):
+def sign_apk(ctx):
     """
     Signs the APK with the default platform signature.
     """
@@ -134,7 +133,7 @@ def clean(ctx):
 
 
 @task
-def assetconfigs(ctx):
+def assetconfigs(_):
     # move the core check config
     shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 
@@ -142,13 +141,13 @@ def assetconfigs(ctx):
     files_list = []
     os.makedirs(CORECHECK_CONFS_DIR)
     for check in ANDROID_CORECHECKS:
-        srcfile = "cmd/agent/dist/conf.d/{}.d/conf.yaml.default".format(check)
-        tgtfile = "{}/{}.yaml".format(CORECHECK_CONFS_DIR, check)
+        srcfile = f"cmd/agent/dist/conf.d/{check}.d/conf.yaml.default"
+        tgtfile = f"{CORECHECK_CONFS_DIR}/{check}.yaml"
         shutil.copyfile(srcfile, tgtfile)
-        files_list.append("{}.yaml".format(check))
+        files_list.append(f"{check}.yaml")
     files["files"] = files_list
 
-    with open("{}/directory_manifest.yaml".format(CORECHECK_CONFS_DIR), 'w') as outfile:
+    with open(f"{CORECHECK_CONFS_DIR}/directory_manifest.yaml", 'w') as outfile:
         yaml.dump(files, outfile, default_flow_style=False)
 
 
@@ -166,9 +165,7 @@ def launchservice(ctx, api_key, hostname=None, tags=None):
         print("Setting tags to owner:db,env:local,role:windows")
         tags = "owner:db,env:local,role:windows"
 
-    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(
-        api_key, hostname, tags
-    )
+    cmd = f"adb shell am startservice --es api_key {api_key} --es hostname {hostname} --es tags {tags} org.datadog.agent/.DDService"
     ctx.run(cmd)
 
 

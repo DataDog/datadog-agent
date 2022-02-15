@@ -1,8 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -14,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 const (
@@ -25,6 +26,17 @@ const (
 	// flooding.
 	defaultBurst int = 40
 )
+
+// Limit defines rate limiter limit
+type Limit struct {
+	Limit int
+	Burst int
+}
+
+// LimiterOpts rate limiter options
+type LimiterOpts struct {
+	Limits map[rules.RuleID]Limit
+}
 
 // Limiter describes an object that applies limits on
 // the rate of triggering of a rule to ensure we don't overflow
@@ -48,15 +60,17 @@ func NewLimiter(limit rate.Limit, burst int) *Limiter {
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
 	sync.RWMutex
+	opts         LimiterOpts
 	limiters     map[rules.RuleID]*Limiter
 	statsdClient *statsd.Client
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(client *statsd.Client) *RateLimiter {
+func NewRateLimiter(client *statsd.Client, opts LimiterOpts) *RateLimiter {
 	return &RateLimiter{
 		limiters:     make(map[string]*Limiter),
 		statsdClient: client,
+		opts:         opts,
 	}
 }
 
@@ -70,7 +84,14 @@ func (rl *RateLimiter) Apply(rules []rules.RuleID) {
 		if limiter, found := rl.limiters[id]; found {
 			newLimiters[id] = limiter
 		} else {
-			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+			limit := defaultLimit
+			burst := defaultBurst
+
+			if l, exists := rl.opts.Limits[id]; exists {
+				limit = rate.Limit(l.Limit)
+				burst = l.Burst
+			}
+			newLimiters[id] = NewLimiter(limit, burst)
 		}
 	}
 	rl.limiters = newLimiters
@@ -102,8 +123,8 @@ type RateLimiterStat struct {
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were dropped because of the rate limiter
 func (rl *RateLimiter) GetStats() map[rules.RuleID]RateLimiterStat {
-	rl.RLock()
-	defer rl.RUnlock()
+	rl.Lock()
+	defer rl.Unlock()
 
 	stats := make(map[rules.RuleID]RateLimiterStat)
 	for ruleID, ruleLimiter := range rl.limiters {
@@ -123,12 +144,12 @@ func (rl *RateLimiter) SendStats() error {
 	for ruleID, counts := range rl.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if counts.dropped > 0 {
-			if err := rl.statsdClient.Count(probe.MetricPrefix+".rules.rate_limiter.drop", counts.dropped, tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterDrop, counts.dropped, tags, 1.0); err != nil {
 				return err
 			}
 		}
 		if counts.allowed > 0 {
-			if err := rl.statsdClient.Count(probe.MetricPrefix+".rules.rate_limiter.allow", counts.allowed, tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterAllow, counts.allowed, tags, 1.0); err != nil {
 				return err
 			}
 		}

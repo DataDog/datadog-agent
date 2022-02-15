@@ -15,7 +15,7 @@ Forwarder
   {{- if .Transactions.DroppedOnInput }}
 
     Warning: the forwarder dropped transactions, there is probably an issue with your network
-    More info at https://github.com/DataDog/datadog-agent/tree/master/docs/agent/status.md
+    More info at https://github.com/DataDog/datadog-agent/tree/main/docs/agent/status.md
   {{- end}}
   {{- if .Transactions.Success}}
 
@@ -54,6 +54,22 @@ Forwarder
       {{- end}}
   {{- end}}
 {{- end}}
+
+  On-disk storage
+  ===============
+  {{- if .config.forwarder_storage_max_size_in_bytes }}
+    {{- if .FileStorage.CurrentSizeInBytes }}
+    Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}
+    Current number of files: {{ .FileStorage.FilesCount }}
+    Number of files dropped: {{ .FileStorage.FilesRemovedCount }}
+    Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}
+    Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}
+    {{- else }}
+    Enabled, not in-use.
+    {{- end}}
+  {{- else }}
+    On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.
+  {{- end}}
 
 {{- if .APIKeyStatus }}
 

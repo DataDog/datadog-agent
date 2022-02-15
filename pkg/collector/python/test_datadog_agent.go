@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
+//go:build python && test
 // +build python,test
 
 package python
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +38,7 @@ func testGetHostname(t *testing.T) {
 	GetHostname(&h)
 	require.NotNil(t, h)
 
-	hostname, _ := util.GetHostname()
+	hostname, _ := util.GetHostname(context.Background())
 	assert.Equal(t, hostname, C.GoString(h))
 }
 
@@ -45,7 +47,7 @@ func testGetClusterName(t *testing.T) {
 	GetClusterName(&ch)
 	require.NotNil(t, ch)
 
-	assert.Equal(t, clustername.GetClusterName(""), C.GoString(ch))
+	assert.Equal(t, clustername.GetClusterName(context.Background(), ""), C.GoString(ch))
 }
 
 func testHeaders(t *testing.T) {
