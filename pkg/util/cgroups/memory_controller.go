@@ -10,8 +10,10 @@ package cgroups
 
 import (
 	"fmt"
+	"path/filepath"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/cgroups"
 )
@@ -53,11 +55,51 @@ func MemoryPressureMonitor(cb func(), level string) MemoryMonitor {
 	}
 }
 
+type hostSubsystem struct {
+	cgroups.Subsystem
+}
+
+func (h *hostSubsystem) Path(path string) string {
+	cgroupRoot := config.Datadog.GetString("container_cgroup_root")
+	return filepath.Join(cgroupRoot, string(h.Name()), path)
+}
+
+func hostHierarchy(hierarchy cgroups.Hierarchy) cgroups.Hierarchy {
+	return func() ([]cgroups.Subsystem, error) {
+		subsystems, err := hierarchy()
+		if err != nil {
+			return nil, err
+		}
+
+		for i, subsystem := range subsystems {
+			subsystems[i] = &hostSubsystem{
+				Subsystem: subsystem,
+			}
+		}
+
+		return subsystems, nil
+	}
+}
+
 // NewMemoryController creates a new systemd cgroup based memory controller
-func NewMemoryController(monitors ...MemoryMonitor) (*MemoryController, error) {
+func NewMemoryController(kind string, monitors ...MemoryMonitor) (*MemoryController, error) {
 	path := cgroups.NestedPath("")
 
-	cgroup, err := cgroups.Load(cgroups.Systemd, path)
+	var cgroupHierarchy cgroups.Hierarchy
+	switch kind {
+	case "systemd":
+		cgroupHierarchy = cgroups.Systemd
+	case "v1":
+		cgroupHierarchy = cgroups.V1
+	default:
+		return nil, fmt.Errorf("unsupported cgroup hierarchy '%s'", kind)
+	}
+
+	if config.IsContainerized() {
+		cgroupHierarchy = hostHierarchy(cgroupHierarchy)
+	}
+
+	cgroup, err := cgroups.Load(cgroupHierarchy, path)
 	if err != nil {
 		return nil, fmt.Errorf("can't open memory cgroup: %w", err)
 	}
