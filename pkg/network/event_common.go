@@ -124,8 +124,10 @@ type Connections struct {
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
+// ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
 type ConnTelemetryType string
 
+//revive:disable
 const (
 	MonotonicKprobesTriggered          ConnTelemetryType = "MonotonicKprobesTriggered"
 	KprobesTriggered                                     = "KprobesTriggered"
@@ -138,15 +140,17 @@ const (
 	MonotonicConntrackRegistersDropped                   = "MonotonicConntrackRegistersDropped"
 	ConntrackRegistersDropped                            = "ConntrackRegistersDropped"
 	MonotonicDNSPacketsProcessed                         = "MonotonicDNSPacketsProcessed"
-	DnsPacketsProcessed                                  = "DnsPacketsProcessed"
+	DNSPacketsProcessed                                  = "DnsPacketsProcessed"
 	MonotonicUDPSendsProcessed                           = "MonotonicUDPSendsProcessed"
-	UdpSendsProcessed                                    = "UdpSendsProcessed"
+	UDPSendsProcessed                                    = "UdpSendsProcessed"
 	MonotonicUDPSendsMissed                              = "MonotonicUDPSendsMissed"
-	UdpSendsMissed                                       = "UdpSendsMissed"
+	UDPSendsMissed                                       = "UdpSendsMissed"
 	DNSStatsDropped                                      = "DNSStatsDropped"
 	ConnsBpfMapSize                                      = "ConnsBpfMapSize"
 	ConntrackSamplingPercent                             = "ConntrackSamplingPercent"
 )
+
+//revive:enable
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
 type RuntimeCompilationTelemetry struct {
