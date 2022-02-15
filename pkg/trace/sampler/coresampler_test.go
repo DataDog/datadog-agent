@@ -7,6 +7,7 @@ package sampler
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cihub/seelog"
 )
@@ -26,12 +27,14 @@ func TestSamplerAccessRace(t *testing.T) {
 	// regression test: even though the sampler is channel protected, it
 	// has getters accessing its fields.
 	s := newSampler(1, 2, nil)
+	testTime := time.Now()
 	go func() {
 		for i := 0; i < 10000; i++ {
-			s.SetSignatureCoefficients(float64(i), float64(i)/2)
+			s.countWeightedSig(testTime, Signature(i%3), 5)
 		}
 	}()
 	for i := 0; i < 5000; i++ {
-		s.GetAllCountScores()
+		s.countSample()
+		s.getSignatureSampleRate(Signature(i % 3))
 	}
 }

@@ -196,10 +196,11 @@ func (a *Agent) Process(p *api.Payload) {
 		log.Debugf("Skipping received empty payload")
 		return
 	}
-	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
+	now := time.Now()
+	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	ss := new(writer.SampledChunks)
-	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
+	a.PrioritySampler.CountClientDroppedP0s(now, p.ClientDroppedP0s)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
@@ -299,7 +300,7 @@ func (a *Agent) Process(p *api.Payload) {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
-		numEvents, keep, filteredChunk := a.sample(ts, pt)
+		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 		if !keep {
 			if numEvents == 0 {
 				// the trace was dropped and no analyzed span were kept
@@ -393,7 +394,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 }
 
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
-func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredChunk *pb.TraceChunk) {
+func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredChunk *pb.TraceChunk) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -406,7 +407,7 @@ func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvent
 		return 0, false, nil
 	}
 
-	sampled := a.runSamplers(pt, hasPriority)
+	sampled := a.runSamplers(now, pt, hasPriority)
 
 	filteredChunk = pt.TraceChunk
 	if !sampled {
@@ -424,36 +425,36 @@ func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvent
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt traceutil.ProcessedTrace, hasPriority bool) bool {
+func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
 	if hasPriority {
-		return a.samplePriorityTrace(pt)
+		return a.samplePriorityTrace(now, pt)
 	}
-	return a.sampleNoPriorityTrace(pt)
+	return a.sampleNoPriorityTrace(now, pt)
 }
 
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(pt traceutil.ProcessedTrace) bool {
-	if a.PrioritySampler.Sample(pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0s) {
+func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0s) {
 		return true
 	}
 	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
 	if a.conf.DisableRareSampler {
 		return false
 	}
-	return a.RareSampler.Sample(pt.TraceChunk, pt.TracerEnv)
+	return a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(pt traceutil.ProcessedTrace) bool {
+func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
-	return a.NoPrioritySampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 }
 
 func traceContainsError(trace pb.Trace) bool {

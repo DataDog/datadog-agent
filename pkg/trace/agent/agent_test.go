@@ -876,7 +876,7 @@ func TestSampling(t *testing.T) {
 				}
 			}
 
-			sampled := a.runSamplers(pt, tt.hasPriority)
+			sampled := a.runSamplers(time.Now(), pt, tt.hasPriority)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
 	}
@@ -1410,7 +1410,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	defer cancel()
 
 	span := testutil.RandomSpan()
-	numEvents, keep, _ := agnt.sample(info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
+	numEvents, keep, _ := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
 		TraceChunk: testutil.TraceChunkWithSpan(span),
 		Root:       span,
 	})

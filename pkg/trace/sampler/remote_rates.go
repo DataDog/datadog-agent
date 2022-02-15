@@ -8,6 +8,7 @@ package sampler
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -115,7 +116,7 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]pb.TargetTPS) {
 			noTPSConfigured[sig] = struct{}{}
 		}
 		sampler.target = target
-		sampler.UpdateTargetTPS(target.Value)
+		sampler.updateTargetTPS(target.Value)
 	}
 	r.mu.RUnlock()
 
@@ -125,15 +126,6 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]pb.TargetTPS) {
 		delete(r.samplers, sig)
 	}
 	r.mu.Unlock()
-}
-
-// update all samplers
-func (r *RemoteRates) update() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, s := range r.samplers {
-		s.update()
-	}
 }
 
 // Start runs and adjust rates per signature following remote TPS targets
@@ -177,48 +169,36 @@ func (r *RemoteRates) initSampler(sig Signature) (*remoteSampler, bool) {
 	return sampler, true
 }
 
-// CountSignature counts the number of root span seen matching a signature.
-func (r *RemoteRates) CountSignature(sig Signature) {
+// countWeightedSig counts the number of root span seen matching a signature.
+func (r *RemoteRates) countWeightedSig(now time.Time, sig Signature, weight uint32) {
 	s, ok := r.getSampler(sig)
 	if !ok {
 		if s, ok = r.initSampler(sig); !ok {
 			return
 		}
 	}
-	s.Backend.CountSignature(sig)
+	s.countWeightedSig(now, sig, 1)
 }
 
-// CountSample counts the number of sampled root span matching a signature.
-func (r *RemoteRates) CountSample(root *pb.Span, sig Signature) {
+// countSample counts the number of sampled root span matching a signature.
+func (r *RemoteRates) countSample(root *pb.Span, sig Signature) {
 	s, ok := r.getSampler(sig)
 	if !ok {
 		return
 	}
-	s.Backend.CountSample()
+	s.countSample()
 	root.Metrics[tagRemoteTPS] = s.targetTPS.Load()
 	root.Metrics[tagRemoteVersion] = float64(atomic.LoadUint64(&r.tpsVersion))
 	return
 }
 
-// CountWeightedSig counts weighted root span seen for a signature.
-// This function is called when trace-agent client drop unsampled spans.
-// as dropped root spans are not accounted anymore in CountSignature calls.
-func (r *RemoteRates) CountWeightedSig(sig Signature, weight float64) {
-	s, ok := r.getSampler(sig)
-	if !ok {
-		return
-	}
-	s.Backend.CountWeightedSig(sig, weight)
-	s.Backend.AddTotalScore(weight)
-}
-
-// GetSignatureSampleRate returns the sampling rate to apply for a registered signature.
-func (r *RemoteRates) GetSignatureSampleRate(sig Signature) (float64, bool) {
+// getSignatureSampleRate returns the sampling rate to apply for a registered signature.
+func (r *RemoteRates) getSignatureSampleRate(sig Signature) (float64, bool) {
 	s, ok := r.getSampler(sig)
 	if !ok {
 		return 0, false
 	}
-	return s.GetSignatureSampleRate(sig), true
+	return s.getSignatureSampleRate(sig), true
 }
 
 // getAllSignatureSampleRates returns sampling rates to apply for all registered signatures.
@@ -228,7 +208,7 @@ func (r *RemoteRates) getAllSignatureSampleRates() map[Signature]rm {
 	res := make(map[Signature]rm, len(r.samplers))
 	for sig, s := range r.samplers {
 		res[sig] = rm{
-			r: s.GetSignatureSampleRate(sig),
+			r: s.getSignatureSampleRate(sig),
 			m: s.target.Mechanism,
 		}
 	}

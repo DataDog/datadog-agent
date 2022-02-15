@@ -6,6 +6,8 @@
 package sampler
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -47,7 +49,7 @@ func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
-func (s ScoreSampler) Sample(trace pb.Trace, root *pb.Span, env string) bool {
+func (s ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env string) bool {
 	if s.disabled {
 		return false
 	}
@@ -58,25 +60,11 @@ func (s ScoreSampler) Sample(trace pb.Trace, root *pb.Span, env string) bool {
 	}
 	signature := computeSignatureWithRootAndEnv(trace, root, env)
 	// Update sampler state by counting this trace
-	s.Backend.CountSignature(signature)
+	s.countWeightedSig(now, signature, 1)
 
-	rate := s.GetSampleRate(trace, root, signature)
+	rate := s.getSampleRate(trace, root, signature)
 
-	sampled := s.applySampleRate(root, rate)
-
-	if sampled {
-		// Count the trace to allow us to check for the targetTPS limit.
-		// It has to happen before the targetTPS sampling.
-		s.Backend.CountSample()
-
-		// Check for the targetTPS limit, and if we require an extra sampling.
-		// No need to check if we already decided not to keep the trace.
-		targetTPSrate := s.GetTargetTPSSampleRate()
-		if targetTPSrate < 1 {
-			sampled = s.applySampleRate(root, targetTPSrate)
-		}
-	}
-	return sampled
+	return s.applySampleRate(root, rate)
 }
 
 func (s ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
