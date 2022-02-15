@@ -122,33 +122,6 @@ func TestPrioritySample(t *testing.T) {
 	assert.False(sampled, "this should not happen but a trace without priority sampling set should be dropped")
 }
 
-func TestPrioritySampleThresholdTo1(t *testing.T) {
-	assert := assert.New(t)
-	env := defaultEnv
-
-	s := getTestPrioritySampler()
-	for i := 0; i < 1e2; i++ {
-		chunk, root := getTestTraceWithService(t, "my-service", s)
-		chunk.Priority = int32(i % 2)
-		sampled := s.Sample(chunk, root, env, false)
-		if sampled {
-			rate, _ := root.Metrics[agentRateKey]
-			assert.Equal(1.0, rate)
-		}
-	}
-	for i := 0; i < 1e3; i++ {
-		chunk, root := getTestTraceWithService(t, "my-service", s)
-		chunk.Priority = int32(i % 2)
-		sampled := s.Sample(chunk, root, env, false)
-		if sampled {
-			rate, _ := root.Metrics[agentRateKey]
-			if rate < 1 {
-				assert.True(rate < priorityLocalRateThresholdTo1)
-			}
-		}
-	}
-}
-
 func TestPrioritySamplerWithNilRemote(t *testing.T) {
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
@@ -199,8 +172,8 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	if !testing.Short() {
 		testCases = append(testCases,
 			testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.2, service: "2"},
-			testCase{targetTPS: 10.0, generatedTPS: 10.0, expectedTPS: 10.0, relativeError: 0.0051, service: "4"},
-			testCase{targetTPS: 10.0, generatedTPS: 3.0, expectedTPS: 3.0, relativeError: 0.0051, service: "10"},
+			testCase{targetTPS: 10.0, generatedTPS: 10.0, expectedTPS: 10.0, relativeError: 0.03, service: "4"},
+			testCase{targetTPS: 10.0, generatedTPS: 3.0, expectedTPS: 3.0, relativeError: 0.03, service: "10"},
 			testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.5, service: "0.5"},
 		)
 	}

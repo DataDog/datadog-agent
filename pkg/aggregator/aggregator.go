@@ -440,7 +440,22 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 	return sketches
 }
 
-func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
+func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
+	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
+	log.DebugfServerless("Sending sketches payload : %+v", sketches)
+	err := agg.serializer.SendSketch(sketches)
+	updateSketchTelemetry(start, uint64(len(sketches)), "BufferedAggregator", err)
+	tagsetTlm.updateHugeSketchesTelemetry(&sketches)
+}
+
+func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
+	log.Debugf("Flushing %d series to the forwarder", len(series))
+	err := agg.serializer.SendSeries(series)
+	updateSerieTelemetry(start, uint64(len(series)), "BufferedAggregator", err)
+	tagsetTlm.updateHugeSeriesTelemetry(&series)
+}
+
+func updateSerieTelemetry(start time.Time, serieCount int, err error) {
 	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing series: %v", err)

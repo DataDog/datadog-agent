@@ -28,7 +28,7 @@ func TestWithAttributeMap(t *testing.T) {
 		"key3": pdata.NewAttributeValueString(""),
 	})
 
-	dims := metricsDimensions{}
+	dims := Dimensions{}
 	assert.ElementsMatch(t,
 		dims.WithAttributeMap(attributes).tags,
 		[...]string{"key1:val1", "key2:val2", "key3:n/a"},
@@ -37,7 +37,7 @@ func TestWithAttributeMap(t *testing.T) {
 
 func TestMetricDimensionsString(t *testing.T) {
 	getKey := func(name string, tags []string, host string) string {
-		dims := metricsDimensions{name: name, tags: tags, host: host}
+		dims := Dimensions{name: name, tags: tags, host: host}
 		return dims.String()
 	}
 	metricName := "metric.name"
@@ -68,7 +68,7 @@ func TestMetricDimensionsStringNoTagsChange(t *testing.T) {
 	originalTags[0] = "key1:val1"
 	originalTags[1] = "key2:val2"
 
-	dims := metricsDimensions{
+	dims := Dimensions{
 		name: "a.metric.name",
 		tags: originalTags,
 	}
@@ -78,7 +78,7 @@ func TestMetricDimensionsStringNoTagsChange(t *testing.T) {
 
 }
 
-var testDims = metricsDimensions{
+var testDims = Dimensions{
 	name: "test.metric",
 	tags: []string{"key:val"},
 	host: "host",

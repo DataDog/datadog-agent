@@ -196,6 +196,8 @@ type DataType string
 const (
 	// Metrics type covers series & sketches
 	Metrics DataType = "metrics"
+	// Logs type covers all outgoing logs
+	Logs DataType = "logs"
 )
 
 // prometheusScrapeChecksTransformer is a trampoline function that delays the
@@ -622,6 +624,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	// No default as the agent falls back to `network_devices.namespace` if empty.
+	config.BindEnv("snmp_traps_config.namespace")
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 
@@ -658,6 +662,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
 	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
+	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -987,6 +992,7 @@ func InitConfig(config Config) {
 
 	// Vector integration
 	bindVectorOptions(config, Metrics)
+	bindVectorOptions(config, Logs)
 
 	setAssetFs(config)
 	setupAPM(config)

@@ -41,6 +41,10 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
+const (
+	statsdPoolSize = 64
+)
+
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
@@ -510,7 +514,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 			statsdAddr = cfg.StatsdAddr
 		}
 
-		if statsdClient, err = statsd.New(statsdAddr); err != nil {
+		if statsdClient, err = statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize)); err != nil {
 			return nil, err
 		}
 	} else {
