@@ -706,7 +706,18 @@ func getRoutinesDistribution(vCPUs int) (int, int) {
 	}
 
 	// we will auto-adjust the pipeline and workers count
-	// --------------------------------------------------
+	//
+	// Benchmarks have revealed that 3 very busy workers can be processed
+	// by 2 pipelines DogStatsD and have a good ratio execution / scheduling / waiting.
+	// To keep this simple for now, we will try running 1 less pipeline than workers.
+	// (e.g. for 4 workers, 3 pipelines)
+	// Use Go routines analysis with pprof to look at execution time if you want
+	// adapt this heuristic.
+	//
+	// Basically the formula is:
+	//  - half the amount of vCPUS for the amount of workers routines
+	//  - half the amount of vCPUS - 1 for the amount of pipeline routines
+	//  - this last routine for the listener routine
 
 	dsdWorkerCount = vCPUs / 2
 
