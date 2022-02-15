@@ -152,10 +152,10 @@ func GetAgentContainerNetworkMode(ctx context.Context) (string, error) {
 
 // GetContainerNetworkAddresses returns internal container network address
 // representations from the container metadata retrieved at the given URL.
-func GetContainerNetworkAddresses(agentURL string) ([]containers.NetworkAddress, error) {
-	container, err := v3or4.NewClient(agentURL).GetContainer(context.TODO())
+func GetContainerNetworkAddresses(agentURL, apiVersion string) ([]containers.NetworkAddress, error) {
+	container, err := v3or4.NewClient(agentURL, apiVersion).GetContainer(context.TODO())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task from metadata v3 or v4 API: %s", err)
+		return nil, fmt.Errorf("failed to get task from metadata %s API: %s", apiVersion, err)
 	}
 	return parseContainerNetworkAddresses(container.Ports, container.Networks, container.DockerName), nil
 }

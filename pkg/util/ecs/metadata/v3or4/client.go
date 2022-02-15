@@ -34,13 +34,15 @@ const (
 
 // Client represents a client for a metadata v3 or v4 API endpoint.
 type Client struct {
-	agentURL string
+	agentURL   string
+	apiVersion string
 }
 
 // NewClient creates a new client for the specified metadata v3 or v4 API endpoint.
-func NewClient(agentURL string) *Client {
+func NewClient(agentURL, apiVersion string) *Client {
 	return &Client{
-		agentURL: agentURL,
+		agentURL:   agentURL,
+		apiVersion: apiVersion,
 	}
 }
 
@@ -87,11 +89,11 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Unexpected HTTP status code in metadata v3 or v4 reply: %d", resp.StatusCode)
+		return fmt.Errorf("Unexpected HTTP status code in metadata %s reply: %d", c.apiVersion, resp.StatusCode)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("Failed to decode metadata v3 or v4 JSON payload to type %s: %s", reflect.TypeOf(v), err)
+		return fmt.Errorf("Failed to decode metadata %s JSON payload to type %s: %s", c.apiVersion, reflect.TypeOf(v), err)
 	}
 
 	return nil

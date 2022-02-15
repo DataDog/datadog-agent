@@ -95,6 +95,7 @@ func V2() (*v2.Client, error) {
 // V3orV4FromCurrentTask returns a client for the ECS metadata API v3 or v4 by detecting
 // the endpoint address from the task the executable is running in. Returns an
 // error if it was not possible to detect the endpoint address.
+// v4 metadata API is preferred over v3 if both are available.
 func V3orV4FromCurrentTask() (*v3or4.Client, error) {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
@@ -133,7 +134,7 @@ func newClientV3ForCurrentTask() (*v3or4.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return v3or4.NewClient(agentURL), nil
+	return v3or4.NewClient(agentURL, "v3"), nil
 }
 
 // newClientV4ForCurrentTask detects the metadata API v4 endpoint from the current
@@ -143,7 +144,7 @@ func newClientV4ForCurrentTask() (*v3or4.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return v3or4.NewClient(agentURL), nil
+	return v3or4.NewClient(agentURL, "v4"), nil
 }
 
 func initV1() error {

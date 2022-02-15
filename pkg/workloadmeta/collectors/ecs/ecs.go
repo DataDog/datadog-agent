@@ -237,7 +237,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 		return rt
 	}
 
-	metaV3orV4 := v3or4.NewClient(metaURI)
+	metaV3orV4 := v3or4.NewClient(metaURI, metaVersion)
 	taskWithTags, err := metaV3orV4.GetTaskWithTags(ctx)
 	if err != nil {
 		log.Errorf("failed to get task with tags from metadata %s API: %s", metaVersion, err)
