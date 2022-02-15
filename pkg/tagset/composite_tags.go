@@ -10,15 +10,20 @@ import (
 	"strings"
 )
 
-// CompositeTags stores two tag sets and provides methods to manipulate them easily
-// CompositeTags is designed to be used for metric tags created by the aggregator
-// (Context, Serie, SketchSeries, ...)
+// CompositeTags stores read-only views of two tag sets and provides methods to iterate them easily.
+
+// CompositeTags is designed to be used for metric tags created by the aggregator (Context, Serie,
+// SketchSeries, ...).
 type CompositeTags struct {
+	// Methods should never modify these slices without copying first.
 	tags1 []string
 	tags2 []string
 }
 
-// NewCompositeTags creates a new CompositeTags
+// NewCompositeTags creates a new CompositeTags with the given slices.
+//
+// Returned value may reference the argument slices directly (or not). Callers should avoid
+// modifying the slices after calling this function.
 func NewCompositeTags(tags1 []string, tags2 []string) CompositeTags {
 	return CompositeTags{
 		tags1: tags1,
@@ -31,8 +36,12 @@ func CompositeTagsFromSlice(tags []string) CompositeTags {
 	return NewCompositeTags(tags, nil)
 }
 
-// CombineCompositeTagsAndSlice creates a new CompositeTags from an existing CompositeTags and string slice
-// Implementation note: This function may duplicate `compositeTags.tags2`.
+// CombineCompositeTagsAndSlice creates a new CompositeTags from an existing CompositeTags and string slice.
+//
+// Returned value may reference the argument slices directly (or not). Callers should avoid
+// modifying the slices after calling this function. Slices contained in compositeTags are not
+// modified, but may be copied. Prefer constructing a complete value in one go with NewCompositeTags
+// instead.
 func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) CompositeTags {
 	if compositeTags.tags2 == nil {
 		return NewCompositeTags(compositeTags.tags1, tags)
@@ -44,6 +53,10 @@ func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) Co
 }
 
 // CombineWithSlice adds tags to the composite tags. Consumes the slice.
+//
+// Returned value may reference the argument tags slice directly (or not). Callers should avoid
+// modifying the slices after calling this function. Slices contained in t are not modified, but may
+// be copied. Prefer constructing a complete value in one go with NewCompositeTags instead.
 func (t *CompositeTags) CombineWithSlice(tags []string) {
 	*t = CombineCompositeTagsAndSlice(*t, tags)
 }
