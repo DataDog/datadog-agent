@@ -386,7 +386,7 @@ func StartAgent() error {
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
-		telemetry.RegisterStatsHandler(sender)
+		telemetry.RegisterStatsSender(sender)
 	}
 
 	// Start OTLP intake

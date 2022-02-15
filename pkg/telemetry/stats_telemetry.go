@@ -2,26 +2,26 @@ package telemetry
 
 import "sync"
 
-// StatsTelemetryHandler contains methods needed for sending stats metrics
-type StatsTelemetryHandler interface {
+// StatsTelemetrySender contains methods needed for sending stats metrics
+type StatsTelemetrySender interface {
 	Count(metric string, value float64, hostname string, tags []string)
 }
 
-// StatsTelemetryProvider handles stats telemetry and passes it on to a handler
+// StatsTelemetryProvider handles stats telemetry and passes it on to a sender
 type StatsTelemetryProvider struct {
-	handler StatsTelemetryHandler
-	m       sync.RWMutex
+	sender StatsTelemetrySender
+	m      sync.RWMutex
 }
 
 var (
 	statsProvider = &StatsTelemetryProvider{}
 )
 
-// RegisterStatsHandler regsiters a handler to send the stats metrics
-func RegisterStatsHandler(handler StatsTelemetryHandler) {
+// RegisterStatsSender regsiters a sender to send the stats metrics
+func RegisterStatsSender(sender StatsTelemetrySender) {
 	statsProvider.m.Lock()
 	defer statsProvider.m.Unlock()
-	statsProvider.handler = handler
+	statsProvider.sender = sender
 }
 
 // GetStatsTelemetryProvider gets an instance of the current stats telemetry provider
@@ -29,13 +29,13 @@ func GetStatsTelemetryProvider() *StatsTelemetryProvider {
 	return statsProvider
 }
 
-// Count reports a count metric to the handler
+// Count reports a count metric to the sender
 func (s *StatsTelemetryProvider) Count(metric string, value float64, tags []string) {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	if s.handler == nil {
+	if s.sender == nil {
 		return
 	}
 
-	s.handler.Count(metric, value, "", tags)
+	s.sender.Count(metric, value, "", tags)
 }
