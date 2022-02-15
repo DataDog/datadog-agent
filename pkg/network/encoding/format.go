@@ -101,6 +101,19 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 	return ret
 }
 
+// FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
+	if tel == nil {
+		return nil
+	}
+
+	ret := make(map[string]int64)
+	for k, v := range tel {
+		ret[string(k)] = v
+	}
+	return ret
+}
+
 // FormatHTTPStats converts the HTTP map into a suitable format for serialization
 func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*model.HTTPAggregations {
 	var (

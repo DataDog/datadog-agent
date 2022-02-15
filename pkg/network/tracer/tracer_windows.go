@@ -141,8 +141,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}, nil
 }
 
-func (t *Tracer) getConnTelemetry() map[string]int64 {
-	tm := map[string]int64{}
+func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
+	tm := map[network.ConnTelemetryType]int64{}
 	return tm
 }
 
