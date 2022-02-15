@@ -490,6 +490,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)

@@ -88,7 +88,7 @@ var (
 
 	configService *remoteconfig.Service
 
-	demux aggregator.Demultiplexer
+	demux *aggregator.AgentDemultiplexer
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -371,7 +371,7 @@ func StartAgent() error {
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
-	demux.Aggregator().AddAgentStartupTelemetry(version.AgentVersion)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
