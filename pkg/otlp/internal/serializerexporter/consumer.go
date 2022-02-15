@@ -43,7 +43,7 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 
 	orchestratorTags, err := tagger.OrchestratorScopeTag()
 	if err != nil {
-		log.Error(err.Error())
+		log.Trace(err.Error())
 	} else {
 		enrichedTags = append(enrichedTags, orchestratorTags...)
 	}
