@@ -530,10 +530,6 @@ dd_url: https://my-url.com
 process_config:
   enabled: "true"`
 
-	cfg := config.Mock()
-	// Use different port in case the host is running a real agent
-	cfg.Set("process_config.cmd_port", 8182)
-
 	t.Run("without process-agent running", func(t *testing.T) {
 		dir, err := ioutil.TempDir("", "TestZipProcessAgentFullConfig")
 		require.NoError(t, err)
