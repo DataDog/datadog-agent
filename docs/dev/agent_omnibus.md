@@ -87,7 +87,7 @@ To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows
 
 Start a Powershell prompt and navigate to your local clone of the `datadog-agent` repo and run:
 ```powershell
-docker run -v ""$(Get-Location):c:\mnt"" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e PY_RUNTIMES=3 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
+docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e PY_RUNTIMES=3 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
 ```
 
 It takes a while on the first run since it has to download the Docker image.
