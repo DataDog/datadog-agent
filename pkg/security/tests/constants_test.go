@@ -18,6 +18,10 @@ import (
 )
 
 func TestFallbackConstants(t *testing.T) {
+	if isSuseKernel() {
+		t.Skip("SUSE kernel: skipping chown32 tests")
+	}
+
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
