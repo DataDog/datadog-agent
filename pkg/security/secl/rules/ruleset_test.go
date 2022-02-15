@@ -72,7 +72,7 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 	}
 }
 
-func TestRuleBuckets(t *testing.T) {
+func newRuleSet() *RuleSet {
 	enabled := map[eval.EventType]bool{"*": true}
 
 	var opts Opts
@@ -81,13 +81,16 @@ func TestRuleBuckets(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+}
 
+func TestRuleBuckets(t *testing.T) {
 	exprs := []string{
 		`(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`,
 		`(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`,
 	}
 
+	rs := newRuleSet()
 	addRuleExpr(t, rs, exprs...)
 
 	if bucket, ok := rs.eventRuleBuckets["open"]; !ok || len(bucket.rules) != 1 {
@@ -113,15 +116,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 		filters: make(map[string]testFieldValues),
 	}
 
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(m, func() eval.Event { return &testEvent{} }, &opts)
+	rs := newRuleSet()
 	rs.AddListener(handler)
 
 	exprs := []string{
@@ -181,16 +176,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 }
 
 func TestRuleSetFilters1(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
+	rs := newRuleSet()
 	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 || process.gid == 0)`)
 
 	caps := FieldCapabilities{
@@ -211,8 +197,8 @@ func TestRuleSetFilters1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, exists := approvers["process.uid"]; exists {
-		t.Fatal("Shouldn't get an approver for uid")
+	if _, exists := approvers["process.uid"]; !exists {
+		t.Fatal("expected approver not found")
 	}
 
 	if _, exists := approvers["process.gid"]; !exists {
@@ -249,21 +235,12 @@ func TestRuleSetFilters1(t *testing.T) {
 }
 
 func TestRuleSetFilters2(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
 	exprs := []string{
 		`open.filename in ["/etc/passwd", "/etc/shadow"] && process.uid == 0`,
 		`open.flags & O_CREAT > 0 && (process.uid == 0 || process.gid == 0)`,
 	}
 
+	rs := newRuleSet()
 	addRuleExpr(t, rs, exprs...)
 
 	caps := FieldCapabilities{
@@ -305,27 +282,17 @@ func TestRuleSetFilters2(t *testing.T) {
 		t.Fatal("expected approver not found")
 	}
 
-	if _, exists := approvers["process.uid"]; exists {
-		t.Fatal("shouldn't an approver for uid")
+	if _, exists := approvers["process.uid"]; !exists {
+		t.Fatal("expected approver not found")
 	}
 
 	if _, exists := approvers["process.gid"]; !exists {
 		t.Fatal("expected approver not found")
 	}
-
 }
 
 func TestRuleSetFilters3(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
+	rs := newRuleSet()
 	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
 
 	caps := FieldCapabilities{
@@ -345,21 +312,12 @@ func TestRuleSetFilters3(t *testing.T) {
 	}
 
 	if len(approvers) != 1 {
-		t.Fatal("should get only one approver")
+		t.Fatal("should get only one field approver")
 	}
 }
 
 func TestRuleSetFilters4(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
+	rs := newRuleSet()
 	addRuleExpr(t, rs, `open.filename =~ "/etc/passwd" && process.uid == 0`)
 
 	caps := FieldCapabilities{
@@ -386,16 +344,7 @@ func TestRuleSetFilters4(t *testing.T) {
 }
 
 func TestRuleSetFilters5(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
+	rs := newRuleSet()
 	addRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
 
 	caps := FieldCapabilities{
@@ -409,50 +358,20 @@ func TestRuleSetFilters5(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err != nil {
+	approvers, err := rs.GetEventApprovers("open", caps)
+	if err != nil {
 		t.Fatal("expected approver not found")
 	}
+
+	for _, value := range approvers["open.flags"] {
+		if value.Value.(int)&syscall.O_RDWR == 0 {
+			t.Fatal("expected approver not found")
+		}
+	}
 }
 
-// TODO: re-add this test once approver on multiple event type rules will be fixed
 func TestRuleSetFilters6(t *testing.T) {
-	t.Skip()
-
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
-	addRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) || process.name == "httpd"`)
-
-	caps := FieldCapabilities{
-		{
-			Field: "open.flags",
-			Types: eval.ScalarValueType | eval.BitmaskValueType,
-		},
-	}
-
-	if _, err := rs.GetEventApprovers("open", caps); err == nil {
-		t.Fatal("shouldn't get any approver")
-	}
-}
-
-func TestRuleSetFilters7(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled)
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
+	rs := newRuleSet()
 	addRuleExpr(t, rs, `open.filename == "123456"`)
 
 	caps := FieldCapabilities{
@@ -481,6 +400,87 @@ func TestRuleSetFilters7(t *testing.T) {
 
 	if _, err := rs.GetEventApprovers("open", caps); err == nil {
 		t.Fatal("shouldn't get any approver")
+	}
+}
+
+func TestRuleSetFilters7(t *testing.T) {
+	rs := newRuleSet()
+	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.flags",
+			Types: eval.ScalarValueType | eval.BitmaskValueType,
+		},
+	}
+
+	approvers, err := rs.GetEventApprovers("open", caps)
+	if err != nil {
+		t.Fatal("expected approver not found")
+	}
+
+	if len(approvers["open.flags"]) != 1 || approvers["open.flags"][0].Value.(int)&syscall.O_CREAT == 0 {
+		t.Fatal("expected approver not found")
+	}
+}
+
+func TestRuleSetFilters8(t *testing.T) {
+	rs := newRuleSet()
+	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT && open.filename in ["/etc/passwd", "/etc/shadow"]`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.flags",
+			Types: eval.ScalarValueType,
+		},
+		{
+			Field:        "open.filename",
+			Types:        eval.ScalarValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, err := rs.GetEventApprovers("open", caps)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.filename"]; !exists || len(values) != 2 {
+		t.Fatal("expected approver not found")
+	}
+
+	if _, exists := approvers["open.flags"]; exists {
+		t.Fatal("shouldn't get an approver for flags")
+	}
+}
+
+func TestRuleSetFilters9(t *testing.T) {
+	rs := newRuleSet()
+	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT && open.filename not in ["/etc/passwd", "/etc/shadow"]`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.flags",
+			Types: eval.ScalarValueType,
+		},
+		{
+			Field:        "open.filename",
+			Types:        eval.ScalarValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, err := rs.GetEventApprovers("open", caps)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, exists := approvers["open.filename"]; exists {
+		t.Fatal("shouldn't get an approver for filename")
+	}
+
+	if _, exists := approvers["open.flags"]; !exists {
+		t.Fatal("expected approver not found")
 	}
 }
 

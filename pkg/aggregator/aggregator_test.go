@@ -473,6 +473,7 @@ func TestRecurrentSeries(t *testing.T) {
 	demux.ForceFlushToSerializer(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
+	time.Sleep(1 * time.Second) // a lot of async thing are going on
 	s.AssertExpectations(t)
 
 	recurrentSeries = nil

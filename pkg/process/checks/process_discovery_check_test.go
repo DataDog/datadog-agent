@@ -6,21 +6,21 @@
 package checks
 
 import (
-	"sync"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestProcessDiscoveryCheck(t *testing.T) {
-	// override maxBatchSizeOnce so maxBatchSize can be set to the new value
-	maxBatchSizeOnce = sync.Once{}
+	prev := getMaxBatchSize
+	defer func() {
+		getMaxBatchSize = prev
+	}()
+
 	maxBatchSize := 10
-	mockConfig := ddconfig.Mock()
-	mockConfig.Set("process_config.max_per_message", maxBatchSize)
+	getMaxBatchSize = func() int { return maxBatchSize }
 
 	cfg := &config.AgentConfig{}
 	ProcessDiscovery.Init(cfg, &model.SystemInfo{

@@ -592,6 +592,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	addFlushCount("Series", int64(len(series)))
 	if len(series) > 0 {
+		log.Debugf("Flushing %d series to the serializer", len(series))
 		err := d.sharedSerializer.SendSeries(series)
 		updateSerieTelemetry(start, uint64(len(series)), err)
 		tagsetTlm.updateHugeSeriesTelemetry(&series)
@@ -599,6 +600,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	addFlushCount("Sketches", int64(len(sketches)))
 	if len(sketches) > 0 {
+		log.Debugf("Flushing %d sketches to the serializer", len(sketches))
 		err := d.sharedSerializer.SendSketch(sketches)
 		updateSketchTelemetry(start, uint64(len(sketches)), err)
 		tagsetTlm.updateHugeSketchesTelemetry(&sketches)
@@ -644,6 +646,12 @@ func (d *AgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 // AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 func (d *AgentDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
 	panic("not implemented yet.")
+}
+
+// GetDogStatsDPipelinesCount returns how many sampling pipeline are running for
+// the DogStatsD samples.
+func (d *AgentDemultiplexer) GetDogStatsDPipelinesCount() int {
+	return d.statsd.pipelinesCount
 }
 
 // Serializer returns a serializer that anyone can use. This method exists
@@ -847,6 +855,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	}
 
 	d.serializer.SendSeries(series) //nolint:errcheck
+	log.DebugfServerless("Sending sketches payload : %+v", sketches)
 	if len(sketches) > 0 {
 		d.serializer.SendSketch(sketches) //nolint:errcheck
 	}

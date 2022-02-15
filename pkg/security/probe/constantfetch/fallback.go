@@ -134,7 +134,13 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		} else {
 			ttyOffset = 400
 		}
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_7, kernel.Kernel5_9):
+	case kv.Code != 0 && kv.Code == kernel.Kernel5_10:
+		if runtime.GOARCH == "arm64" {
+			ttyOffset = 408
+		} else {
+			ttyOffset = 400
+		}
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_7, kernel.Kernel5_9) || kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_14):
 		if runtime.GOARCH == "arm64" {
 			ttyOffset = 400
 		} else {

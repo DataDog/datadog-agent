@@ -18,6 +18,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const defaultPolicy = "default.policy"
+
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
 	Name    string
@@ -35,9 +37,11 @@ func checkRuleID(ruleID string) bool {
 
 // GetValidMacroAndRules returns valid macro, rules definitions
 func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition, *multierror.Error) {
-	var result *multierror.Error
-	var macros []*MacroDefinition
-	var rules []*RuleDefinition
+	var (
+		result *multierror.Error
+		macros []*MacroDefinition
+		rules  []*RuleDefinition
+	)
 
 	for _, macroDef := range p.Macros {
 		if macroDef.ID == "" {
@@ -49,10 +53,6 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			continue
 		}
 
-		if macroDef.Expression == "" {
-			result = multierror.Append(result, &ErrMacroLoad{Definition: macroDef, Err: errors.New("no expression defined")})
-			continue
-		}
 		macros = append(macros, macroDef)
 	}
 
@@ -68,7 +68,7 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			continue
 		}
 
-		if ruleDef.Expression == "" {
+		if ruleDef.Expression == "" && !ruleDef.Disabled {
 			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
 			continue
 		}
@@ -94,15 +94,27 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
 func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 	var (
-		result   *multierror.Error
-		allRules []*RuleDefinition
+		result     *multierror.Error
+		allRules   []*RuleDefinition
+		allMacros  []*MacroDefinition
+		macroIndex = make(map[string]*MacroDefinition)
+		ruleIndex  = make(map[string]*RuleDefinition)
 	)
 
 	policyFiles, err := os.ReadDir(policiesDir)
 	if err != nil {
 		return multierror.Append(result, ErrPoliciesLoad{Name: policiesDir, Err: err})
 	}
-	sort.Slice(policyFiles, func(i, j int) bool { return policyFiles[i].Name() < policyFiles[j].Name() })
+	sort.Slice(policyFiles, func(i, j int) bool {
+		switch {
+		case policyFiles[i].Name() == defaultPolicy:
+			return true
+		case policyFiles[j].Name() == defaultPolicy:
+			return false
+		default:
+			return policyFiles[i].Name() < policyFiles[j].Name()
+		}
+	})
 
 	// Load and parse policies
 	for _, policyPath := range policyFiles {
@@ -138,16 +150,36 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 		}
 
 		if len(macros) > 0 {
-			// Add the macros to the ruleset and generate macros evaluators
-			if mErr := ruleSet.AddMacros(macros); mErr.ErrorOrNil() != nil {
-				result = multierror.Append(result, err)
+			for _, macro := range macros {
+				if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
+					if err := existingMacro.MergeWith(macro); err != nil {
+						result = multierror.Append(result, err)
+					}
+				} else {
+					macroIndex[macro.ID] = macro
+					allMacros = append(allMacros, macro)
+				}
 			}
 		}
 
 		// aggregates them as we may need to have all the macro before compiling
 		if len(rules) > 0 {
-			allRules = append(allRules, rules...)
+			for _, rule := range rules {
+				if existingRule := ruleIndex[rule.ID]; existingRule != nil {
+					if err := existingRule.MergeWith(rule); err != nil {
+						result = multierror.Append(result, err)
+					}
+				} else {
+					ruleIndex[rule.ID] = rule
+					allRules = append(allRules, rule)
+				}
+			}
 		}
+	}
+
+	// Add the macros to the ruleset and generate macros evaluators
+	if mErr := ruleSet.AddMacros(allMacros); mErr.ErrorOrNil() != nil {
+		result = multierror.Append(result, err)
 	}
 
 	// Add rules to the ruleset and generate rules evaluators
