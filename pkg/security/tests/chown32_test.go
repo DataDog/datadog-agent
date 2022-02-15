@@ -14,14 +14,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestChown32(t *testing.T) {
-	if isSuseKernel() {
-		t.Skip("SUSE kernel: skipping chown32 tests")
-	}
+	checkKernelCompatibility(t, "SUSE kernel", func(kv *kernel.Version) bool {
+		return kv.IsSuseKernel()
+	})
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",

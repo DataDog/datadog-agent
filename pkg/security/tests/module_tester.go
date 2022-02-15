@@ -1205,18 +1205,14 @@ func randStringRunes(n int) string {
 	return string(b)
 }
 
-func isSuseKernel() bool {
+func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
-		return false
+		t.Errorf("failed to get kernel version: %w", err)
+		return
 	}
-	return kv.IsSuseKernel()
-}
 
-func isOracleKernel() bool {
-	kv, err := kernel.NewKernelVersion()
-	if err != nil {
-		return false
+	if skipCheck(kv) {
+		t.Skipf("kernel version not supported: %s", why)
 	}
-	return kv.IsOracleUEKKernel()
 }

@@ -11,6 +11,7 @@ package tests
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -18,13 +19,9 @@ import (
 )
 
 func TestFallbackConstants(t *testing.T) {
-	if isSuseKernel() {
-		t.Skip("SUSE kernel: skipping chown32 tests")
-	}
-
-	if isOracleKernel() {
-		t.Skip("SUSE kernel: skipping chown32 tests")
-	}
+	checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		return kv.IsSLES12Kernel() || kv.IsSLES15Kernel() || kv.IsOracleUEKKernel()
+	})
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{})
 	if err != nil {
