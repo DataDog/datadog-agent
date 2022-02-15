@@ -33,7 +33,7 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 	tb := tagset.NewHashlessTagsAccumulator()
 	// Append to copy slice and avoid modifying dimensions.Tags()
 	tb.Append(dimensions.Tags()...)
-	tagger.EnrichTags(tb, dimensions.OriginID(), dimensions.K8sOriginID(), c.cardinality)
+	tagger.EnrichTags(tb, "", dimensions.OriginID(), c.cardinality)
 	return tb.Get()
 }
 
