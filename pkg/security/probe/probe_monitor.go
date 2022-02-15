@@ -11,6 +11,7 @@ package probe
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -85,16 +86,22 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 
 // SendStats sends statistics about the probe to Datadog
 func (m *Monitor) SendStats() error {
+	// delay between to send in order to reduce the statsd pool presure
+	const delay = time.Second
+
 	if m.syscallMonitor != nil {
 		if err := m.syscallMonitor.SendStats(m.client); err != nil {
 			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
+	time.Sleep(delay)
 
 	if resolvers := m.probe.GetResolvers(); resolvers != nil {
 		if err := resolvers.ProcessResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
 		}
+		time.Sleep(delay)
+
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
 		}
@@ -103,6 +110,7 @@ func (m *Monitor) SendStats() error {
 	if err := m.perfBufferMonitor.SendStats(); err != nil {
 		return errors.Wrap(err, "failed to send events stats")
 	}
+	time.Sleep(delay)
 
 	if err := m.loadController.SendStats(); err != nil {
 		return errors.Wrap(err, "failed to send load controller stats")

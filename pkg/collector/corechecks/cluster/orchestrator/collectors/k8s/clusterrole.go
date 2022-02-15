@@ -35,7 +35,7 @@ type ClusterRoleCollector struct {
 func NewClusterRoleCollector() *ClusterRoleCollector {
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "clusterroles",
 			NodeType: orchestrator.K8sClusterRole,
 		},

@@ -21,7 +21,7 @@ func TestGetKernelHeaders(t *testing.T) {
 	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
 		t.Skip("set INTEGRATION environment variable to run")
 	}
-	dirs, _, err := GetKernelHeaders(nil, "", "", "", "")
+	dirs, _, err := GetKernelHeaders(false, nil, "", "", "", "")
 	require.NoError(t, err)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)

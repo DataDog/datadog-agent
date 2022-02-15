@@ -170,7 +170,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
 		LogChannel:             logsChan,
-		MetricChannel:          d.MetricAgent.GetMetricChannel(),
+		Demux:                  d.MetricAgent.Demux,
 		LogsEnabled:            logsEnabled,
 		EnhancedMetricsEnabled: enhancedMetricsEnabled,
 		HandleRuntimeDone:      d.HandleRuntimeDone,
