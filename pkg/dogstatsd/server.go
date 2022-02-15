@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -403,21 +402,16 @@ func (s *Server) handleMessages() {
 		go l.Listen()
 	}
 
-	// We let available:
-	// - a core to the listener goroutine
-	// - one per aggregation pipeline (time sampler)
-	// But we want at minimum 2 workers.
-	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
-	workersCount := runtime.GOMAXPROCS(-1) - 1 - pc
-	if workersCount < 2 {
-		workersCount = 2
-	}
+	workersCount, _ := aggregator.GetRoutinesDistribution()
 
 	// undocumented configuration field to force the amount of dogstatsd workers
 	// mainly used for benchmarks or some very specific use-case.
 	if configWC := config.Datadog.GetInt("dogstatsd_workers_count"); configWC != 0 {
+		log.Debug("Forcing the amount of DogStatsD workers to:", configWC)
 		workersCount = configWC
 	}
+
+	log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s)
