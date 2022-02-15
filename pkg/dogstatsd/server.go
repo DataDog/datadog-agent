@@ -199,8 +199,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-// If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
-func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -285,9 +284,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 
-	if extraTags == nil {
-		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
-	}
+	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 

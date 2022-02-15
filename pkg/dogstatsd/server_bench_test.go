@@ -49,7 +49,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := mockDemultiplexer()
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -99,7 +99,7 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := mockDemultiplexer()
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -160,7 +160,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := mockDemultiplexer()
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux)
 	defer s.Stop()
 
 	done := make(chan struct{})
