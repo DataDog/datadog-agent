@@ -126,9 +126,14 @@ func TestDedup2Small(t *testing.T) {
 		{"empty", "", "", "", ""},
 		{"empty l small", "", "foo", "", "foo"},
 		{"empty r small", "foo", "", "foo", ""},
+		// bruteforce mode (# tags <= 4)
 		{"small-1", "foo,foo,bar", "ook", "foo,bar", "ook"},
 		{"small-2", "foo,bar", "foo,ook", "foo,bar", "ook"},
 		{"small-3", "foo", "ook,foo,eek", "foo", "ook,eek"},
+		{"small-4", "foo,bar,foo", "", "foo,bar", ""},
+		{"small-5", "", "bar,foo,bar,bar", "", "bar,foo"},
+		// hashing mode (# tags > 4)
+		{"mid-1", "foo,bar,bar", "bar,bar,bar,foo", "foo,bar", ""},
 	}
 
 	for _, tc := range cases {
