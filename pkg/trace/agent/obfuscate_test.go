@@ -19,7 +19,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-func JsonToMsgpack(src []byte) ([]byte, error) {
+func JSONToMsgpack(src []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	var data interface{}
 
