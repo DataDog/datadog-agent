@@ -267,12 +267,6 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
 ):
-    if not skip_linters:
-        targets = ['./pkg/security/tests']
-        vet(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
@@ -284,19 +278,28 @@ def build_functional_tests(
     if arch == "x86":
         env["GOARCH"] = "386"
 
-    build_tags = "linux_bpf," + build_tags
+    build_tags = build_tags.split(",")
+    build_tags.append("linux_bpf")
     if bundle_ebpf:
-        build_tags = "ebpf_bindata," + build_tags
+        build_tags.append("ebpf_bindata")
 
     if static:
-        build_tags += ',osusergo,netgo'
+        build_tags.extend(["osusergo", "netgo"])
         if "CGO_CPPFLAGS" not in env:
             env["CGO_CPPFLAGS"] = ""
         env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
-    if nikos_embedded_path:
-        build_tags += ",dnf"
+    if not skip_linters:
+        targets = ['./pkg/security/tests']
+        vet(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        staticcheck(ctx, targets=targets, build_tags=build_tags, arch=arch)
 
+    # linters have a hard time with dnf, so we add the build tag after running them
+    if nikos_embedded_path:
+        build_tags.append("dnf")
+
+    build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
@@ -478,7 +481,7 @@ RUN apt-get update -y \
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
+    cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /:/host/root -e HOST_ROOT=/host/root '

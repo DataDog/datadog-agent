@@ -8,16 +8,17 @@ package logs
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -177,6 +178,9 @@ func TestGetLambdaSourceValidSource(t *testing.T) {
 }
 
 func TestProcessMessageValid(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
 	message := logMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
@@ -194,30 +198,24 @@ func TestProcessMessageValid(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	select {
-	case received := <-metricsChan:
-		assert.Equal(t, len(received), 6)
-	case <-time.After(100 * time.Millisecond):
-		assert.Fail(t, "We should have received metrics")
-	}
+	received := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, len(received), 6)
+	demux.Reset()
 
-	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	select {
-	case <-metricsChan:
-		assert.Fail(t, "We should NOT have received metrics")
-	case <-time.After(100 * time.Millisecond):
-		//nothing to do here
-	}
+	received = demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, len(received), 0, "we should NOT have received metrics")
 }
 
 func TestProcessMessageStartValid(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
 	message := logMessage{
 		logType: logTypePlatformStart,
 		time:    time.Now(),
@@ -229,7 +227,6 @@ func TestProcessMessageStartValid(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}
 	computeEnhancedMetrics := true
 
@@ -238,12 +235,14 @@ func TestProcessMessageStartValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
 	assert.Equal(t, lastRequestID, executionContext.LastLogRequestID)
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
 	message := logMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    time.Now(),
@@ -258,7 +257,6 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
 	computeEnhancedMetrics := true
@@ -268,15 +266,17 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
 	assert.Equal(t, startTime, executionContext.StartTime)
 	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
 	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
 	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-
 	message := logMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    time.Now(),
@@ -291,7 +291,6 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 	lastRequestID := currentRequestID
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
 	computeEnhancedMetrics := true
@@ -301,13 +300,15 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
 	assert.Equal(t, startTime, executionContext.StartTime)
 	// Runtime done callback should NOT be called if the log message was for a previous invocation
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
 	message := logMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
@@ -324,19 +325,16 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	select {
-	case <-metricsChan:
-		assert.Fail(t, "We should NOT have received metrics")
-	case <-time.After(100 * time.Millisecond):
-		//nothing to do here
-	}
+	received := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
 }
 
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
 	message := logMessage{
 		logType:      logTypePlatformLogsDropped,
 		time:         time.Now(),
@@ -347,19 +345,16 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	select {
-	case <-metricsChan:
-		assert.Fail(t, "We should NOT have received metrics")
-	case <-time.After(100 * time.Millisecond):
-		//nothing to do here
-	}
+	received := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
 }
 
 func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
 	message := logMessage{
 		logType:      logTypeFunction,
 		time:         time.Now(),
@@ -370,17 +365,14 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	select {
-	case received := <-metricsChan:
-		assert.Equal(t, len(received), 1)
-		assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
-	case <-time.After(100 * time.Millisecond):
-		assert.Fail(t, "We should have received metrics")
-	}
+	received := demux.WaitForSamples(100 * time.Millisecond)
+	fmt.Println(received)
+	assert.Equal(t, len(received), 2)
+	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
+	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
 }
 
 func TestProcessLogMessageLogsEnabled(t *testing.T) {

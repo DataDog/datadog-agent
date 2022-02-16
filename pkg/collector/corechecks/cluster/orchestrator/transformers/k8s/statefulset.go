@@ -46,5 +46,7 @@ func ExtractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 		statefulSet.Spec.Selectors = extractLabelSelector(sts.Spec.Selector)
 	}
 
+	statefulSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(sts.Spec.Template)
+
 	return &statefulSet
 }

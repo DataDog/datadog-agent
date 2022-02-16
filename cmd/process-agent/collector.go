@@ -252,8 +252,13 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 }
 
 func (l *Collector) run(exit chan struct{}) error {
-	eps := make([]string, 0, len(l.cfg.APIEndpoints))
-	for _, e := range l.cfg.APIEndpoints {
+	processAPIEndpoints, err := getAPIEndpoints()
+	if err != nil {
+		return err
+	}
+
+	eps := make([]string, 0, len(processAPIEndpoints))
+	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
 	orchestratorEps := make([]string, 0, len(l.cfg.Orchestrator.OrchestratorEndpoints))
@@ -271,6 +276,7 @@ func (l *Collector) run(exit chan struct{}) error {
 			checkNames = append(checkNames, checks.Process.RealTimeName())
 		}
 	}
+	updateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
@@ -322,7 +328,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
+	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)

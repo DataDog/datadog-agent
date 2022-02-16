@@ -59,6 +59,7 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
+    "winkmem",
     "winproc",
     "jetson",
 ]
@@ -627,22 +628,49 @@ def omnibus_manifest(
 
 
 @task
-def check_supports_python_version(_, filename, python):
+def check_supports_python_version(_, check_dir, python):
     """
-    Check if a setup.py file states support for a given major Python version.
+    Check if a Python project states support for a given major Python version.
     """
+    import toml
+    from packaging.specifiers import SpecifierSet
+
     if python not in ['2', '3']:
         raise Exit("invalid Python version", code=2)
 
-    with open(filename, 'r') as f:
-        tree = ast.parse(f.read(), filename=filename)
+    project_file = os.path.join(check_dir, 'pyproject.toml')
+    setup_file = os.path.join(check_dir, 'setup.py')
+    if os.path.isfile(project_file):
+        with open(project_file, 'r') as f:
+            data = toml.loads(f.read())
 
-    prefix = f'Programming Language :: Python :: {python}'
-    for node in ast.walk(tree):
-        if isinstance(node, ast.keyword) and node.arg == "classifiers":
-            classifiers = ast.literal_eval(node.value)
-            print(any(cls.startswith(prefix) for cls in classifiers), end="")
+        project_metadata = data['project']
+        if 'requires-python' not in project_metadata:
+            print('True', end='')
             return
+
+        specifier = SpecifierSet(project_metadata['requires-python'])
+        # It might be e.g. `>=3.8` which would not immediatelly contain `3`
+        for minor_version in range(100):
+            if specifier.contains(f'{python}.{minor_version}'):
+                print('True', end='')
+                return
+        else:
+            print('False', end='')
+    elif os.path.isfile(setup_file):
+        with open(setup_file, 'r') as f:
+            tree = ast.parse(f.read(), filename=setup_file)
+
+        prefix = f'Programming Language :: Python :: {python}'
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg == 'classifiers':
+                classifiers = ast.literal_eval(node.value)
+                print(any(cls.startswith(prefix) for cls in classifiers), end='')
+                return
+        else:
+            print('False', end='')
+    else:
+        raise Exit('not a Python project', code=1)
 
 
 @task

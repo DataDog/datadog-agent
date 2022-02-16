@@ -62,11 +62,11 @@
 /.gitlab/functional_test/system_probe.yml            @DataDog/agent-network @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/agent-network @DataDog/agent-platform
 
-/.gitlab/image_build/                                @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/image_deploy/                               @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/image_scan.yml                              @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/internal_deploy.yml                         @DataDog/agent-network @DataDog/agent-platform
 
@@ -164,7 +164,7 @@
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
-/pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
+/pkg/config/config_template.yaml        @DataDog/agent-core @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app

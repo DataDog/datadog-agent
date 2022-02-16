@@ -54,6 +54,9 @@ func (c *DaemonSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.lister = c.informer.Lister()
 }
 
+// IsAvailable returns whether the collector is available.
+func (c *DaemonSetCollector) IsAvailable() bool { return true }
+
 // Metadata is used to access information about the collector.
 func (c *DaemonSetCollector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata

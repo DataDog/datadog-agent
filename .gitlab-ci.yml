@@ -12,10 +12,10 @@ include:
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
-  - /.gitlab/image_build.yml
-  - /.gitlab/image_scan.yml
+  - /.gitlab/container_build.yml
+  - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
-  - /.gitlab/image_deploy.yml
+  - /.gitlab/dev_container_deploy.yml
   - /.gitlab/deploy_6.yml
   - /.gitlab/deploy_7.yml
   - /.gitlab/choco_build.yml
@@ -61,10 +61,10 @@ stages:
   - kitchen_deploy
   - kitchen_testing
   - pkg_metrics
-  - image_build
-  - image_scan
+  - container_build
+  - container_scan
   - check_deploy
-  - image_deploy
+  - dev_container_deploy
   - deploy6
   - deploy7
   - choco_build
@@ -213,7 +213,7 @@ variables:
 # - on main and deploy pipelines, kitchen tests are run
 # - on branch pipelines, kitchen tests are not run
 # RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
-# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on main/deploy pipelines.
+# RUN_KITCHEN_TESTS can be set to false to force kitchen tests to not run on main/deploy pipelines.
 .if_kitchen: &if_kitchen
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
@@ -653,6 +653,13 @@ variables:
   - <<: *if_kitchen
     when: always
 
+.on_all_kitchen_builds_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
+
 .on_kitchen_tests_a7:
   - <<: *if_not_version_7
     when: never
@@ -663,6 +670,13 @@ variables:
     when: never
   - <<: *if_kitchen
     when: always
+
+.on_all_kitchen_builds_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
 
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the

@@ -101,9 +101,9 @@ type ChmodEvent struct {
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	UID   uint32    `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
+	UID   int64     `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
 	User  string    `field:"file.destination.user,ResolveChownUID"`  // New user of the chown-ed file's owner
-	GID   uint32    `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
+	GID   int64     `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
 	Group string    `field:"file.destination.group,ResolveChownGID"` // New group of the chown-ed file's owner
 }
 

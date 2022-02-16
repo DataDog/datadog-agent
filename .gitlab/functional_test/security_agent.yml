@@ -24,6 +24,7 @@
 kitchen_test_security_agent_x64:
   extends:
     - .kitchen_test_security_agent
+    - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   needs: ["tests_ebpf_x64"]
   variables:
@@ -35,13 +36,15 @@ kitchen_test_security_agent_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-77,rhel-81"
+        KITCHEN_OSVERS: "centos-77,rhel-85"
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-18-04-3"
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-21-10"
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
+      - KITCHEN_PLATFORM: "suse"
+        KITCHEN_OSVERS: "opensuse-15-3"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
       - KITCHEN_PLATFORM: "oracle"
@@ -69,6 +72,7 @@ kitchen_stress_security_agent:
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   rules:
     !reference [.manual]

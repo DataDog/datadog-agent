@@ -11,7 +11,6 @@ package docker
 import (
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -28,27 +27,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func createContainerMeta(runtime, cID string) *workloadmeta.Container {
-	return &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   cID,
-		},
-		Runtime: workloadmeta.ContainerRuntime(runtime),
-		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
-		},
-	}
-}
-
 func TestDockerCheckGenericPart(t *testing.T) {
 	// Creating mocks
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
-		createContainerMeta("docker", "cID100"),
+		generic.CreateContainerMeta("docker", "cID100"),
 		// Should never been called as we are in the Docker check
-		createContainerMeta("containerd", "cID101"),
+		generic.CreateContainerMeta("containerd", "cID101"),
 	}
 
 	containersStats := map[string]metrics.MockContainerEntry{
