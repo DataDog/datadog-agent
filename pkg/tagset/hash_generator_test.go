@@ -135,6 +135,9 @@ func TestDedup2Small(t *testing.T) {
 		{"small-5", "", "bar,foo,bar,bar", "", "bar,foo", 0, 0x7047de8cfccfa365},
 		// hashing mode (# tags > 4)
 		{"mid-1", "foo,bar,bar", "bar,bar,bar,foo", "foo,bar", "", 0x7047de8cfccfa365, 0},
+		{"mid-2", "foo,foo,bar", "ook,ook", "foo,bar", "ook", 0x7047de8cfccfa365, 0xaf143bb3d715f7c5},
+		{"mid-3", "foo,foo,bar", "foo,ook,bar,eek", "foo,bar", "eek,ook", 0x7047de8cfccfa365, 0x5cc6d96d47bebee3},
+		{"mid-4", "bar,bar,foo", "foo,ook,bar,eek,ook", "bar,foo", "ook,eek", 0x7047de8cfccfa365, 0x5cc6d96d47bebee3},
 	}
 
 	for _, tc := range cases {
