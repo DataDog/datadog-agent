@@ -98,7 +98,7 @@ type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
 	SendSeries(series metrics.Series) error
-	SendIterableSeries(series marshaler.IterableMarshaler) error
+	SendIterableSeries(series *metrics.IterableSeries) error
 	IsIterableSeriesSupported() bool
 	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.JSONMarshaler) error
@@ -305,12 +305,13 @@ func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) erro
 }
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
-func (s *Serializer) SendIterableSeries(series marshaler.IterableMarshaler) error {
+func (s *Serializer) SendIterableSeries(series *metrics.IterableSeries) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
 
+	seriesSerializer := metricsserializer.IterableSeries{IterableSeries: series}
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesPayloads forwarder.Payloads
@@ -318,9 +319,9 @@ func (s *Serializer) SendIterableSeries(series marshaler.IterableMarshaler) erro
 	var err error
 
 	if useV1API {
-		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(series, stream.DropItemOnErrItemTooBig)
+		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 	} else {
-		seriesPayloads, err = series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		seriesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 

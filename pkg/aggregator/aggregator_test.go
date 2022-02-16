@@ -28,9 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -59,7 +57,7 @@ func initF() {
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metricsserializer.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
+	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
 	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
@@ -581,8 +579,7 @@ type MockSerializerIterableSerie struct {
 	serializer.MockSerializer
 }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableMarshaler) error {
-	iterableSerie := series.(*metricsserializer.IterableSeries)
+func (s *MockSerializerIterableSerie) SendIterableSeries(iterableSerie *metrics.IterableSeries) error {
 	defer iterableSerie.IterationStopped()
 
 	for iterableSerie.MoveNext() {

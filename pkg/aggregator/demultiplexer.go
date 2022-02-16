@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
+
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -503,11 +503,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
 	// only used when we're using flush/serialize in parallel feature
-	var seriesSink *metricsserializer.IterableSeries
+	var seriesSink *metrics.IterableSeries
 	var done chan struct{}
 
 	if d.aggregator.flushAndSerializeInParallel.enabled {
-		seriesSink = metricsserializer.NewIterableSeries(func(se *metrics.Serie) {
+		seriesSink = metrics.NewIterableSeries(func(se *metrics.Serie) {
 			if logPayloads {
 				log.Debugf("Flushing serie: %s", se)
 			}
@@ -615,7 +615,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 // series sink.
 // Mainly meant to be executed in its own routine, sendIterableSeries is closing the `done` channel once it has returned
 // from SendIterableSeries (because the SenderStopped methods has been called on the sink).
-func (d *AgentDemultiplexer) sendIterableSeries(start time.Time, series *metricsserializer.IterableSeries, done chan<- struct{}) {
+func (d *AgentDemultiplexer) sendIterableSeries(start time.Time, series *metrics.IterableSeries, done chan<- struct{}) {
 	log.Debug("Demultiplexer: sendIterableSeries: start sending iterable series to the serializer")
 	err := d.sharedSerializer.SendIterableSeries(series)
 	// if err == nil, SenderStopped was called and it is safe to read the number of series.
