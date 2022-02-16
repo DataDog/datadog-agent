@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -53,14 +54,14 @@ func initF() {
 	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
-	recurrentSeries = metrics.Series{}
+	recurrentSeries = metricsserializer.Series{}
 	tagsetTlm.reset()
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
-	flushedSeries := make([]metrics.Series, 0)
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	seriesSink := metricsserializer.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
+	flushedSeries := make([]metricsserializer.Series, 0)
+	flushedSketches := make([]metricsserializer.SketchSeriesList, 0)
 
 	return flushTrigger{
 		trigger: trigger{
@@ -228,7 +229,7 @@ func TestDefaultData(t *testing.T) {
 	agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
-	s.On("SendServiceChecks", metrics.ServiceChecks{{
+	s.On("SendServiceChecks", metricsserializer.ServiceChecks{{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
 		Tags:      []string{},
@@ -236,7 +237,7 @@ func TestDefaultData(t *testing.T) {
 		Host:      agg.hostname,
 	}}).Return(nil).Times(1)
 
-	series := metrics.Series{&metrics.Serie{
+	series := metricsserializer.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
@@ -316,7 +317,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			// reset telemetry for next tests
 			demux.Stop(false)
-			recurrentSeries = metrics.Series{}
+			recurrentSeries = metricsserializer.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -380,7 +381,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			assert.Equal(t, expMap, gotMap)
 
 			// reset for next tests
-			recurrentSeries = metrics.Series{}
+			recurrentSeries = metricsserializer.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -420,7 +421,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	start := time.Now()
 
-	series := metrics.Series{&metrics.Serie{
+	series := metricsserializer.Series{&metrics.Serie{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
 		Tags:           []string{"tag:1", "tag:2"},
@@ -451,12 +452,13 @@ func TestRecurrentSeries(t *testing.T) {
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m metricsserializer.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
 		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, demux.Aggregator().hostname, m[0].Host)
+
 		return true
 	})
 
@@ -580,7 +582,7 @@ type MockSerializerIterableSerie struct {
 }
 
 func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableMarshaler) error {
-	iterableSerie := series.(*metrics.IterableSeries)
+	iterableSerie := series.(*metricsserializer.IterableSeries)
 	defer iterableSerie.IterationStopped()
 
 	for iterableSerie.MoveNext() {
@@ -590,7 +592,7 @@ func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.Iterab
 }
 
 func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
-	s.series = append(s.series, series.(metrics.Series)...)
+	s.series = append(s.series, series.(metricsserializer.Series)...)
 	return nil
 }
 
@@ -628,8 +630,8 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 
 func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map[string]*metrics.Serie) {
 	// default series
-	r := require.New(t)
 
+	r := require.New(t)
 	for _, serie := range series {
 		// ignore default series automatically sent by the aggregator
 		if serie.Name == fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()) ||
