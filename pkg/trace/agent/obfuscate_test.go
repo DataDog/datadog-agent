@@ -92,7 +92,7 @@ func TestAppSecMetaStructHook(t *testing.T) {
 				]
 			}]
 		}]}`)
-		appsecb, err := JsonToMsgpack(appsecdata)
+		appsecb, err := JSONToMsgpack(appsecdata)
 		if err != nil {
 			t.Fatalf("couldn't marshal appsec struct: %v", err)
 		}
@@ -114,7 +114,7 @@ func TestAppSecMetaStructHook(t *testing.T) {
 				]
 			}]
 		}]}`)
-		appsecb, err := JsonToMsgpack(appsecdata)
+		appsecb, err := JSONToMsgpack(appsecdata)
 		if err != nil {
 			t.Fatalf("couldn't marshal appsec struct: %v", err)
 		}
