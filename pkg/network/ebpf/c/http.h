@@ -115,7 +115,7 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     http->response_status_code = status_code;
 }
 
-static __always_inline void http_parse_data(char *p, http_packet_t *packet_type, http_method_t *method) {
+static __always_inline void http_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
         *packet_type = HTTP_RESPONSE;
     } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T')) {
