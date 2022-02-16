@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/manifest"
 	"github.com/DataDog/agent-payload/v5/process"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -261,14 +262,19 @@ func TestSendPodMessage(t *testing.T) {
 	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
 
+	pd := make([]process.MessageBody, 0, 2)
 	m := &process.CollectorPod{
 		HostName: testHostName,
 		GroupId:  1,
 	}
+	mm := &manifest.ManifestPayload{
+		ClusterId: clusterID,
+	}
+	pd = append(pd, m, mm)
 
 	check := &testCheck{
 		name: checks.Pod.Name(),
-		data: [][]process.MessageBody{{m}},
+		data: [][]process.MessageBody{pd},
 	}
 
 	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(), func(cfg *config.AgentConfig, ep *mockEndpoint) {

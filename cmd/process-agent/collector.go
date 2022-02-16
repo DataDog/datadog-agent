@@ -276,6 +276,7 @@ func manifestMessagesToResults(l *Collector, start time.Time, name string, messa
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}
 		}
+
 		body, err := manifest.EncodeMessage(m.(*manifest.ManifestPayload))
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)

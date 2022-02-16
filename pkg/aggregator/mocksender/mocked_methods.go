@@ -113,6 +113,6 @@ func (m *MockSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycl
 }
 
 // OrchestratorManifest submit orchestrator manifest messages
-func (m *MockSender) OrchestratorManifest(msgs []serializer.ManifestMessage, clusterName string, clusterID string) {
+func (m *MockSender) OrchestratorManifest(msgs []*serializer.ManifestMessage, clusterName string, clusterID string) {
 	m.Called(msgs, clusterName, clusterID)
 }

@@ -80,6 +80,6 @@ func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMe
 }
 
 // SendOrchestratorManifests serializes & send orchestrator manifest payloads
-func (s *MockSerializer) SendOrchestratorManifests(msgs []ManifestMessage, hostName, clusterID string) error {
+func (s *MockSerializer) SendOrchestratorManifests(msgs []*ManifestMessage, hostName, clusterID string) error {
 	return s.Called(msgs, hostName, clusterID).Error(0)
 }
