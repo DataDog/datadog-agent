@@ -85,12 +85,15 @@ the source files for the `datadog-agent` software definition.
 ### Prerequisites
 To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows/install/) must be installed and configured to use Windows containers.
 
-Start a Powershell prompt and navigate to your local clone of the `datadog-agent` repo and run:
+Start a Powershell prompt and navigate to your local clone of the `datadog-agent` repo.
+
+ Run the following command: 
+ 
 ```powershell
 docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e PY_RUNTIMES=3 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
 ```
 
-It takes a while on the first run since it has to download the Docker image.
+Downloading the Docker image may take some time in the first run.
 
 Alternatively here's a small Powershell script to facilitate using the docker image:
 ```powershell
