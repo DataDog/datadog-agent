@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/theupdateframework/go-tuf/data"
+	"github.com/theupdateframework/go-tuf/pkg/keys"
 	"github.com/theupdateframework/go-tuf/sign"
 )
 
@@ -240,20 +241,20 @@ func TestClientVerifyOrgID(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func generateKey() *sign.PrivateKey {
-	key, _ := sign.GenerateEd25519Key()
+func generateKey() keys.Signer {
+	key, _ := keys.GenerateEd25519Key()
 	return key
 }
 
 type testRepositories struct {
-	configTimestampKey   *sign.PrivateKey
-	configTargetsKey     *sign.PrivateKey
-	configSnapshotKey    *sign.PrivateKey
-	configRootKey        *sign.PrivateKey
-	directorTimestampKey *sign.PrivateKey
-	directorTargetsKey   *sign.PrivateKey
-	directorSnapshotKey  *sign.PrivateKey
-	directorRootKey      *sign.PrivateKey
+	configTimestampKey   keys.Signer
+	configTargetsKey     keys.Signer
+	configSnapshotKey    keys.Signer
+	configRootKey        keys.Signer
+	directorTimestampKey keys.Signer
+	directorTargetsKey   keys.Signer
+	directorSnapshotKey  keys.Signer
+	directorRootKey      keys.Signer
 
 	configTimestampVersion   int
 	configTargetsVersion     int
@@ -325,7 +326,7 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	}
 }
 
-func generateRoot(key *sign.PrivateKey, version int, timestampKey *sign.PrivateKey, targetsKey *sign.PrivateKey, snapshotKey *sign.PrivateKey) []byte {
+func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -349,40 +350,40 @@ func generateRoot(key *sign.PrivateKey, version int, timestampKey *sign.PrivateK
 		KeyIDs:    snapshotKey.PublicData().IDs(),
 		Threshold: 1,
 	}
-	signedRoot, _ := sign.Marshal(&root, key.Signer())
+	signedRoot, _ := sign.Marshal(&root, key)
 	serializedRoot, _ := json.Marshal(signedRoot)
 	return serializedRoot
 }
 
-func generateTimestamp(key *sign.PrivateKey, version int, snapshotVersion int, snapshot []byte) []byte {
+func generateTimestamp(key keys.Signer, version int, snapshotVersion int, snapshot []byte) []byte {
 	meta := data.NewTimestamp()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Meta["snapshot.json"] = data.TimestampFileMeta{Version: snapshotVersion, FileMeta: data.FileMeta{Length: int64(len(snapshot)), Hashes: data.Hashes{
 		"sha256": hashSha256(snapshot),
 	}}}
-	signed, _ := sign.Marshal(&meta, key.Signer())
+	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
 
-func generateTargets(key *sign.PrivateKey, version int, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Targets = targets
-	signed, _ := sign.Marshal(&meta, key.Signer())
+	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
 
-func generateSnapshot(key *sign.PrivateKey, version int, targetsVersion int) []byte {
+func generateSnapshot(key keys.Signer, version int, targetsVersion int) []byte {
 	meta := data.NewSnapshot()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Meta["targets.json"] = data.SnapshotFileMeta{Version: targetsVersion}
 
-	signed, _ := sign.Marshal(&meta, key.Signer())
+	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
