@@ -179,24 +179,24 @@ func (mr *MockAgentSecureClientMockRecorder) DogstatsdSetTaggerState(ctx, in int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureClient)(nil).DogstatsdSetTaggerState), varargs...)
 }
 
-// GetConfigFullState mocks base method.
-func (m *MockAgentSecureClient) GetConfigFullState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*pbgo.GetStateConfigResponse, error) {
+// GetConfigState mocks base method.
+func (m *MockAgentSecureClient) GetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*pbgo.GetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "GetConfigFullState", varargs...)
+	ret := m.ctrl.Call(m, "GetConfigState", varargs...)
 	ret0, _ := ret[0].(*pbgo.GetStateConfigResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetConfigFullState indicates an expected call of GetConfigFullState.
-func (mr *MockAgentSecureClientMockRecorder) GetConfigFullState(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+// GetConfigState indicates an expected call of GetConfigState.
+func (mr *MockAgentSecureClientMockRecorder) GetConfigState(ctx, in interface{}, opts ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigFullState", reflect.TypeOf((*MockAgentSecureClient)(nil).GetConfigFullState), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigState", reflect.TypeOf((*MockAgentSecureClient)(nil).GetConfigState), varargs...)
 }
 
 // TaggerFetchEntity mocks base method.
@@ -430,19 +430,19 @@ func (mr *MockAgentSecureServerMockRecorder) DogstatsdSetTaggerState(arg0, arg1 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureServer)(nil).DogstatsdSetTaggerState), arg0, arg1)
 }
 
-// GetConfigFullState mocks base method.
-func (m *MockAgentSecureServer) GetConfigFullState(arg0 context.Context, arg1 *emptypb.Empty) (*pbgo.GetStateConfigResponse, error) {
+// GetConfigState mocks base method.
+func (m *MockAgentSecureServer) GetConfigState(arg0 context.Context, arg1 *emptypb.Empty) (*pbgo.GetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetConfigFullState", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetConfigState", arg0, arg1)
 	ret0, _ := ret[0].(*pbgo.GetStateConfigResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetConfigFullState indicates an expected call of GetConfigFullState.
-func (mr *MockAgentSecureServerMockRecorder) GetConfigFullState(arg0, arg1 interface{}) *gomock.Call {
+// GetConfigState indicates an expected call of GetConfigState.
+func (mr *MockAgentSecureServerMockRecorder) GetConfigState(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigFullState", reflect.TypeOf((*MockAgentSecureServer)(nil).GetConfigFullState), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigState", reflect.TypeOf((*MockAgentSecureServer)(nil).GetConfigState), arg0, arg1)
 }
 
 // TaggerFetchEntity mocks base method.

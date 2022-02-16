@@ -66,7 +66,7 @@ func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error
 	}
 	in := new(emptypb.Empty)
 
-	s, err := cli.GetConfigFullState(ctx, in)
+	s, err := cli.GetConfigState(ctx, in)
 	if err != nil {
 		return fmt.Errorf("Couldn't get the repositories state: %v", err)
 	}

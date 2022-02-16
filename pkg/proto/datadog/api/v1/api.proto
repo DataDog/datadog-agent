@@ -100,7 +100,7 @@ service AgentSecure {
         };
     };
 
-    rpc GetConfigFullState(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
+    rpc GetConfigState(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/remoteconfig/state"
             body: "*"
