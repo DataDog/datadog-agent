@@ -183,10 +183,7 @@ def kitchen_prepare(ctx, windows=is_windows):
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
-            check_output(
-                f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
+            check_output(f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}", shell=True)
             .decode('utf-8')
             .strip()
             .split("\n")
@@ -492,6 +489,7 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
             LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file),
             asynchronous=parallel_build,
         )
+
 
 def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
