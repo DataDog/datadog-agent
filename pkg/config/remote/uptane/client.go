@@ -18,19 +18,6 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// State represents the state of an uptane client
-type State struct {
-	ConfigState     map[string]MetaState
-	DirectorState   map[string]MetaState
-	TargetFilenames map[string]string
-}
-
-// MetaState represents the state of a tuf file
-type MetaState struct {
-	Version uint64
-	Hash    string
-}
-
 // Client is an uptane client
 type Client struct {
 	sync.Mutex
@@ -41,6 +28,11 @@ type Client struct {
 	configRemoteStore *remoteStoreConfig
 	configTUFClient   *client.Client
 
+	configUserEnabled     bool
+	configUserLocalStore  *localStore
+	configUserRemoteStore *remoteStoreConfigUser
+	configUserTUFClient   *client.Client
+
 	directorLocalStore  *localStore
 	directorRemoteStore *remoteStoreDirector
 	directorTUFClient   *client.Client
@@ -49,7 +41,7 @@ type Client struct {
 }
 
 // NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error) {
+func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64, configUserEnabled bool) (*Client, error) {
 	localStoreConfig, err := newLocalStoreConfig(cacheDB, cacheKey)
 	if err != nil {
 		return nil, err
@@ -64,6 +56,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 	}
 	c := &Client{
 		orgID:               orgID,
+		configUserEnabled:   configUserEnabled,
 		configLocalStore:    localStoreConfig,
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorLocalStore:  localStoreDirector,
@@ -72,6 +65,15 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 	}
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+	if configUserEnabled {
+		configUserLocalStore, err := newLocalStoreConfigUser(cacheDB, cacheKey)
+		if err != nil {
+			return nil, err
+		}
+		c.configUserLocalStore = configUserLocalStore
+		c.configUserRemoteStore = newRemoteStoreConfigUser(targetStore)
+		c.configUserTUFClient = client.NewClient(c.configUserLocalStore, c.configUserRemoteStore)
+	}
 	return c, nil
 }
 
@@ -88,91 +90,6 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 		return err
 	}
 	return c.verify()
-}
-
-// ConfigRootVersion returns the version of the config root.json file
-func (s *State) ConfigRootVersion() uint64 {
-	meta, found := s.ConfigState[metaRoot]
-	if !found {
-		return 0
-	}
-	return meta.Version
-}
-
-// ConfigSnapshotVersion returns the version of the config snapshot.json file
-func (s *State) ConfigSnapshotVersion() uint64 {
-	meta, found := s.ConfigState[metaSnapshot]
-	if !found {
-		return 0
-	}
-	return meta.Version
-}
-
-// DirectorRootVersion returns the version of the director root.json file
-func (s *State) DirectorRootVersion() uint64 {
-	meta, found := s.DirectorState[metaRoot]
-	if !found {
-		return 0
-	}
-	return meta.Version
-}
-
-// DirectorTargetsVersion returns the version of the director targets.json file
-func (s *State) DirectorTargetsVersion() uint64 {
-	meta, found := s.DirectorState[metaTargets]
-	if !found {
-		return 0
-	}
-	return meta.Version
-}
-
-// State returns the state of the uptane client
-func (c *Client) State() (State, error) {
-	c.Lock()
-	defer c.Unlock()
-
-	s := State{
-		ConfigState:     map[string]MetaState{},
-		DirectorState:   map[string]MetaState{},
-		TargetFilenames: map[string]string{},
-	}
-
-	metas, err := c.configLocalStore.GetMeta()
-	if err != nil {
-		return State{}, err
-	}
-
-	for metaName, content := range metas {
-		version, err := metaVersion(content)
-		if err == nil {
-			s.ConfigState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
-		}
-	}
-
-	directorMetas, err := c.directorLocalStore.GetMeta()
-	if err != nil {
-		return State{}, err
-	}
-
-	for metaName, content := range directorMetas {
-		version, err := metaVersion(content)
-		if err == nil {
-			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
-		}
-	}
-
-	targets, err := c.unsafeTargets()
-	if err != nil {
-		return State{}, err
-	}
-	for targetName := range targets {
-		content, err := c.unsafeTargetFile(targetName)
-		if err == nil {
-			s.TargetFilenames[targetName] = metaHash(content)
-		}
-	}
-
-	return s, nil
 }
 
 // DirectorRoot returns a director root
@@ -262,6 +179,13 @@ func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
 	if err != nil {
 		return errors.Wrap(err, "could not update config repository")
 	}
+	if c.configUserEnabled {
+		c.configUserRemoteStore.update(response)
+		_, err = c.configUserTUFClient.Update()
+		if err != nil {
+			return errors.Wrap(err, "could not update user config repository")
+		}
+	}
 	return nil
 }
 
@@ -308,37 +232,49 @@ func (c *Client) verifyUptane() error {
 		return err
 	}
 	for targetPath, targetMeta := range directorTargets {
-		configTargetMeta, err := c.configTUFClient.Target(targetPath)
-		if err != nil {
-			return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
-		}
-		if configTargetMeta.Length != targetMeta.Length {
-			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)
-		}
-		if len(targetMeta.Hashes) == 0 {
-			return fmt.Errorf("target '%s' no hashes in the director repository", targetPath)
-		}
-		if len(targetMeta.Hashes) != len(configTargetMeta.Hashes) {
-			return fmt.Errorf("target '%s' has %d hashes in directory repository and %d hashes in config repository", targetPath, len(targetMeta.Hashes), len(configTargetMeta.Hashes))
-		}
-		for hashAlgo, directorHash := range targetMeta.Hashes {
-			configHash, found := configTargetMeta.Hashes[hashAlgo]
-			if !found {
-				return fmt.Errorf("hash '%s' found in directory repository but not in the config repository", directorHash)
-			}
-			if !bytes.Equal([]byte(directorHash), []byte(configHash)) {
-				return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
-			}
-		}
-		// Check that the file is valid in the context of the TUF repository (path in targets, hash matching)
-		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
+		pathMeta, err := rdata.ParseFilePathMeta(targetPath)
 		if err != nil {
 			return err
 		}
-		err = c.directorTUFClient.Download(targetPath, &bufferDestination{})
+		selectedConfigClient := c.configTUFClient
+		if pathMeta.Source == rdata.SourceUser && c.configUserEnabled {
+			selectedConfigClient = c.configUserTUFClient
+		}
+		err = verifyUptaneTarget(c.directorTUFClient, selectedConfigClient, targetPath, targetMeta)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func verifyUptaneTarget(directorClient *client.Client, configClient *client.Client, targetPath string, targetMeta data.TargetFileMeta) error {
+	configTargetMeta, err := configClient.Target(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
+	}
+	if configTargetMeta.Length != targetMeta.Length {
+		return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)
+	}
+	if len(targetMeta.Hashes) == 0 {
+		return fmt.Errorf("target '%s' no hashes in the director repository", targetPath)
+	}
+	if len(targetMeta.Hashes) != len(configTargetMeta.Hashes) {
+		return fmt.Errorf("target '%s' has %d hashes in directory repository and %d hashes in config repository", targetPath, len(targetMeta.Hashes), len(configTargetMeta.Hashes))
+	}
+	for hashAlgo, directorHash := range targetMeta.Hashes {
+		configHash, found := configTargetMeta.Hashes[hashAlgo]
+		if !found {
+			return fmt.Errorf("hash '%s' found in directory repository but not in the config repository", directorHash)
+		}
+		if !bytes.Equal([]byte(directorHash), []byte(configHash)) {
+			return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
+		}
+	}
+	// Check that the file is valid in the context of the TUF repository (path in targets, hash matching)
+	err = configClient.Download(targetPath, &bufferDestination{})
+	if err != nil {
+		return err
+	}
+	return directorClient.Download(targetPath, &bufferDestination{})
 }

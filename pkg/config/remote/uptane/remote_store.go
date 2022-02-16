@@ -167,3 +167,43 @@ func (sc *remoteStoreConfig) update(update *pbgo.LatestConfigsResponse) {
 		sc.metas[roleTargets][metas.TopTargets.Version] = metas.TopTargets.Raw
 	}
 }
+
+type remoteStoreConfigUser struct {
+	remoteStore
+}
+
+func newRemoteStoreConfigUser(targetStore *targetStore) *remoteStoreConfigUser {
+	return &remoteStoreConfigUser{
+		remoteStore: newRemoteStore(targetStore),
+	}
+}
+
+func (sc *remoteStoreConfigUser) update(update *pbgo.LatestConfigsResponse) {
+	if update == nil {
+		return
+	}
+	if update.ConfigUserMetas == nil {
+		return
+	}
+	metas := update.ConfigUserMetas
+	for _, root := range metas.Roots {
+		sc.metas[roleRoot][root.Version] = root.Raw
+	}
+	for _, delegatedMeta := range metas.DelegatedTargets {
+		role := role(delegatedMeta.Role)
+		sc.resetRole(role)
+		sc.metas[role][delegatedMeta.Version] = delegatedMeta.Raw
+	}
+	if metas.Timestamp != nil {
+		sc.resetRole(roleTimestamp)
+		sc.metas[roleTimestamp][metas.Timestamp.Version] = metas.Timestamp.Raw
+	}
+	if metas.Snapshot != nil {
+		sc.resetRole(roleSnapshot)
+		sc.metas[roleSnapshot][metas.Snapshot.Version] = metas.Snapshot.Raw
+	}
+	if metas.TopTargets != nil {
+		sc.resetRole(roleTargets)
+		sc.metas[roleTargets][metas.TopTargets.Version] = metas.TopTargets.Raw
+	}
+}

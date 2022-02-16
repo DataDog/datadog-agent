@@ -7,6 +7,7 @@ package meta
 
 import (
 	_ "embed"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -43,7 +44,7 @@ func RootsDirector() EmbeddedRoots {
 	return rootsDirector
 }
 
-// RootsConfig returns all the roots of the director repo
+// RootsConfig returns all the roots of the config repo
 func RootsConfig() EmbeddedRoots {
 	if configRoot := config.Datadog.GetString("remote_configuration.config_root"); configRoot != "" {
 		return EmbeddedRoots{
@@ -51,6 +52,16 @@ func RootsConfig() EmbeddedRoots {
 		}
 	}
 	return rootsConfig
+}
+
+// RootsConfigUser returns all the roots of the user config repo
+func RootsConfigUser() (EmbeddedRoots, error) {
+	if configRoot := config.Datadog.GetString("remote_configuration.unstable.self_signed_root"); configRoot != "" {
+		return EmbeddedRoots{
+			1: EmbeddedRoot(configRoot),
+		}, nil
+	}
+	return nil, fmt.Errorf("missing root for the user self-signed remote-configuration repository")
 }
 
 // Last returns the last root the EmbeddedRoots

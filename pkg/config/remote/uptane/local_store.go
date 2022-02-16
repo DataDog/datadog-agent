@@ -168,3 +168,11 @@ func newLocalStoreDirector(db *bbolt.DB, cacheKey string) (*localStore, error) {
 func newLocalStoreConfig(db *bbolt.DB, cacheKey string) (*localStore, error) {
 	return newLocalStore(db, "config", cacheKey, meta.RootsConfig())
 }
+
+func newLocalStoreConfigUser(db *bbolt.DB, cacheKey string) (*localStore, error) {
+	userRoots, err := meta.RootsConfigUser()
+	if err != nil {
+		return nil, err
+	}
+	return newLocalStore(db, "config_user", cacheKey, userRoots)
+}
