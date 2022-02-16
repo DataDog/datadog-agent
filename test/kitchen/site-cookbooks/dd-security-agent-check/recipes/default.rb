@@ -32,12 +32,6 @@ if node['platform_family'] != 'windows'
     size 2048
   end
 
-  # To uncomment when gitlab runner are able to build with GOARCH=386
-  # cookbook_file "#{wrk_dir}/testsuite32" do
-  #   source "testsuite32"
-  #   mode '755'
-  # end
-
   kernel_module 'loop' do
     action :load
   end
@@ -131,8 +125,6 @@ if node['platform_family'] != 'windows'
         package_name 'glibc.i686'
       when 'ubuntu', 'debian'
         package_name 'libc6-i386'
-      # when 'suse'
-      #   package_name 'glibc-32bit'
       end
     end
   end
