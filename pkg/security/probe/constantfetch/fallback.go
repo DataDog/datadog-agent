@@ -310,6 +310,8 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 256
 	case kv.IsSLES12Kernel():
 		nameOffset = 160
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		nameOffset = 544
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
 		nameOffset = 152
