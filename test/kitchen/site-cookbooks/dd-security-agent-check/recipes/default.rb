@@ -107,24 +107,13 @@ if node['platform_family'] != 'windows'
 
     docker_exec 'install_xfs' do
       container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs', 'glibc.i686']
+      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
     end
 
     for i in 0..7 do
       docker_exec 'create_loop' do
         container 'docker-testsuite'
         command ['bash', '-c', "mknod /dev/loop#{i} b 7 #{i} || true"]
-      end
-    end
-  end
-
-  if not platform_family?('suse') and intel? and _64_bit?
-    package 'Install i386 libc' do
-      case node[:platform]
-      when 'redhat', 'centos', 'fedora', 'oracle'
-        package_name 'glibc.i686'
-      when 'ubuntu', 'debian'
-        package_name 'libc6-i386'
       end
     end
   end
