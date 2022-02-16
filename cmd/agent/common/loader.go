@@ -50,6 +50,8 @@ func LoadComponents(ctx context.Context, confdPath string) {
 
 	// registering the logs scheduler
 	if lstatus.Get().IsRunning {
+		// note that this assumes that the logs agent has alredy been
+		// initialized (pkg/logs.Start).
 		metaScheduler.Register("logs", lsched.GetScheduler())
 	}
 

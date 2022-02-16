@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,6 +36,8 @@ type Scheduler struct {
 	services *service.Services
 }
 
+var _ schedulers.Scheduler = &Scheduler{}
+
 // CreateScheduler creates the scheduler.
 func CreateScheduler(sources *logsConfig.LogSources, services *service.Services) {
 	adScheduler = &Scheduler{
@@ -43,7 +46,12 @@ func CreateScheduler(sources *logsConfig.LogSources, services *service.Services)
 	}
 }
 
-// Stop does nothing.
+// Start implements schedulers.Scheduler#Start.
+func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
+	// does nothing; scheduler is already registered in cmd/agent/common/loader.go
+}
+
+// Stop implements schedulers.Scheduler#Stop.
 func (s *Scheduler) Stop() {
 	adScheduler = nil
 }
