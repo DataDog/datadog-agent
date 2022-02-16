@@ -188,16 +188,6 @@ func (l *LogsConfigKeys) batchMaxContentSize() int {
 	return batchMaxContentSize
 }
 
-func (l *LogsConfigKeys) batchMaxPayloadSize() int {
-	key := l.getConfigKey("batch_max_payload_size")
-	batchMaxPayloadSize := l.getConfig().GetInt(key)
-	if batchMaxPayloadSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxPayloadSize, coreConfig.DefaultBatchMaxPayloadSize)
-		return coreConfig.DefaultBatchMaxPayloadSize
-	}
-	return batchMaxPayloadSize
-}
-
 func (l *LogsConfigKeys) senderBackoffFactor() float64 {
 	key := l.getConfigKey("sender_backoff_factor")
 	senderBackoffFactor := l.getConfig().GetFloat64(key)

@@ -207,7 +207,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
-		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize, coreConfig.DefaultBatchMaxPayloadSize)
+		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -316,7 +316,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
-		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize, coreConfig.DefaultBatchMaxPayloadSize)
+		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -396,7 +396,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
-		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize, coreConfig.DefaultBatchMaxPayloadSize)
+		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -478,7 +478,6 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
-		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
@@ -525,7 +524,6 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
-		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
@@ -562,7 +560,6 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
-		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
@@ -601,7 +598,6 @@ func getTestEndpoints(e Endpoint) *Endpoints {
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
-		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 	}
 }
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {

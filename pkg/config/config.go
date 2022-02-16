@@ -56,11 +56,9 @@ const (
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
 	DefaultBatchMaxSize = 1000
 
-	// DefaultBatchMaxContentSize is the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 1000000
-
-	// DefaultBatchMaxPayloadSize is the default HTTP batch max payload size (before compression) for logs
-	DefaultBatchMaxPayloadSize = 5000000
+	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
+	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
+	DefaultBatchMaxContentSize = 5000000
 
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
@@ -1299,7 +1297,6 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
 	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
 	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
-	config.BindEnvAndSetDefault(prefix+"batch_max_payload_size", DefaultBatchMaxPayloadSize)
 	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", DefaultLogsSenderBackoffFactor)
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", DefaultLogsSenderBackoffBase)

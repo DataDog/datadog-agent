@@ -41,7 +41,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
-		defaultBatchMaxPayloadSize:    pkgconfig.DefaultBatchMaxPayloadSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 	{
@@ -51,8 +50,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		intakeTrackType:        "dbmmetrics",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
-		defaultBatchMaxPayloadSize:    20e6,
+		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 	{
@@ -62,8 +60,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		intakeTrackType:        "dbmactivity",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
-		defaultBatchMaxPayloadSize:    20e6,
+		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 	{
@@ -73,7 +70,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		intakeTrackType:               "ndm",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
-		defaultBatchMaxPayloadSize:    pkgconfig.DefaultBatchMaxPayloadSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 }
@@ -164,7 +160,6 @@ type passthroughPipelineDesc struct {
 	hostnameEndpointPrefix        string
 	defaultBatchMaxConcurrentSend int
 	defaultBatchMaxContentSize    int
-	defaultBatchMaxPayloadSize    int
 	defaultBatchMaxSize           int
 }
 
@@ -185,9 +180,6 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	if endpoints.BatchMaxContentSize <= pkgconfig.DefaultBatchMaxContentSize {
 		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
-	}
-	if endpoints.BatchMaxPayloadSize <= pkgconfig.DefaultBatchMaxPayloadSize {
-		endpoints.BatchMaxPayloadSize = desc.defaultBatchMaxPayloadSize
 	}
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
@@ -217,7 +209,6 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		endpoints.BatchWait,
 		pkgconfig.DefaultBatchMaxSize,
 		endpoints.BatchMaxContentSize,
-		endpoints.BatchMaxPayloadSize,
 		desc.eventType,
 		encoder)
 
