@@ -6,9 +6,7 @@
 package agent
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -16,26 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 )
-
-func JSONToMsgpack(src []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	var data interface{}
-
-	err := json.Unmarshal(src, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	w := msgp.NewWriter(&buf)
-	err = w.WriteIntf(data)
-	if err != nil {
-		return nil, err
-	}
-	w.Flush()
-	return buf.Bytes(), nil
-}
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
 	_, ok := pb.MetaHook()
@@ -47,8 +26,6 @@ func TestNewCreditCardsObfuscator(t *testing.T) {
 	cfg.Obfuscation.CreditCards.Enabled = true
 	NewAgent(ctx, cfg)
 	_, ok = pb.MetaHook()
-	assert.True(t, ok)
-	_, ok = pb.MetaStructHook()
 	assert.True(t, ok)
 }
 
@@ -71,75 +48,6 @@ func TestMetaHook(t *testing.T) {
 	} {
 		assert.Equal(t, tt.out, cco.MetaHook(tt.k, tt.v))
 	}
-}
-
-func TestAppSecMetaStructHook(t *testing.T) {
-	cco := newCreditCardsObfuscator(config.CreditCardsConfig{Enabled: true})
-	defer cco.Stop()
-
-	t.Run("normal", func(t *testing.T) {
-		appsecdata := []byte(`{"triggers": [{
-			"rule": {"id": "ua-000-01", "name": "Arachni"},
-			"rule_matches": [{
-				"operator":      "regex_match",
-				"operator_value": "Arachni",
-				"parameters": [
-					{
-						"address":   "http.request.headers",
-						"value":     "Arachni/v1",
-						"highlight": ["Arachni"]
-					}
-				]
-			}]
-		}]}`)
-		appsecb, err := JSONToMsgpack(appsecdata)
-		if err != nil {
-			t.Fatalf("couldn't marshal appsec struct: %v", err)
-		}
-		assert.Equal(t, appsecb, cco.MetaStructHook("appsec", appsecb))
-	})
-
-	t.Run("creditcard", func(t *testing.T) {
-		appsecdata := []byte(`{"triggers": [{
-			"rule": {"id": "ua-000-01", "name": "5105-1051-0510-5100"},
-			"rule_matches": [{
-				"operator":      "regex_match",
-				"operator_value": "Arachni",
-				"parameters": [
-					{
-						"address":   "http.request.headers",
-						"value":     "5105-1051-0510-5100",
-						"highlight": ["5105-1051-0510-5100"]
-					}
-				]
-			}]
-		}]}`)
-		appsecb, err := JSONToMsgpack(appsecdata)
-		if err != nil {
-			t.Fatalf("couldn't marshal appsec struct: %v", err)
-		}
-		v := cco.MetaStructHook("appsec", appsecb)
-
-		appsecstruct, _, err := msgp.ReadMapStrIntfBytes(v, nil)
-		assert.Nil(t, err)
-		// Rule name does not contain user data
-		assert.Equal(t, "5105-1051-0510-5100", appsecstruct["triggers"].([]interface{})[0].(map[string]interface{})["rule"].(map[string]interface{})["name"].(string))
-		// Rule match value & highlight can contain user data
-		assert.Equal(t, "?", appsecstruct["triggers"].([]interface{})[0].(map[string]interface{})["rule_matches"].([]interface{})[0].(map[string]interface{})["parameters"].([]interface{})[0].(map[string]interface{})["value"].(string))
-		assert.Equal(t, "?", appsecstruct["triggers"].([]interface{})[0].(map[string]interface{})["rule_matches"].([]interface{})[0].(map[string]interface{})["parameters"].([]interface{})[0].(map[string]interface{})["highlight"].([]interface{})[0].(string))
-	})
-
-	t.Run("unknown", func(t *testing.T) {
-		data := []byte{0x80}
-		v := cco.MetaStructHook("unknown", data)
-		assert.Equal(t, data, v)
-	})
-
-	t.Run("invalid", func(t *testing.T) {
-		data := []byte{0x80}
-		v := cco.MetaStructHook("appsec", data)
-		assert.Equal(t, data, v)
-	})
 }
 
 func TestObfuscateStatsGroup(t *testing.T) {

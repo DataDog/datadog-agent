@@ -6,7 +6,6 @@
 package agent
 
 import (
-	"bytes"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -14,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/tinylib/msgp/msgp"
 )
 
 const (
@@ -128,12 +125,12 @@ func newCreditCardsObfuscator(cfg config.CreditCardsConfig) *ccObfuscator {
 	cco := &ccObfuscator{luhn: cfg.Luhn}
 	if cfg.Enabled {
 		// obfuscator disabled
-		pb.SetMetaHooks(cco.MetaHook, cco.MetaStructHook)
+		pb.SetMetaHook(cco.MetaHook)
 	}
 	return cco
 }
 
-func (cco *ccObfuscator) Stop() { pb.SetMetaHooks(nil, nil) }
+func (cco *ccObfuscator) Stop() { pb.SetMetaHook(nil) }
 
 // MetaHook checks the tag with the given key and val and returns the final
 // value to be assigned to this tag.
@@ -176,88 +173,6 @@ func (cco *ccObfuscator) MetaHook(k, v string) (newval string) {
 	}
 	if obfuscate.IsCardNumber(v, cco.luhn) {
 		return "?"
-	}
-	return v
-}
-
-// MetaStructHook checks the message inside `v` for credit card information and obfuscates it.
-func (cco *ccObfuscator) MetaStructHook(k string, v []byte) (newval []byte) {
-	if k != "appsec" {
-		// Do not obfuscate unknown structures
-		log.Debugf("Obfuscating unknown meta struct is not supported for key: %v", k)
-		return v
-	}
-	var (
-		changed bool
-	)
-	appsecstruct, _, err := msgp.ReadMapStrIntfBytes(v, nil)
-	if err != nil {
-		// Not an appsec struct, ignore the value and log an error
-		log.Errorf("Error obfuscating appsec struct: %v", err)
-		return v
-	}
-	triggers, ok := appsecstruct["triggers"].([]interface{})
-	if !ok {
-		return v
-	}
-	for _, trigger := range triggers {
-		trigger, ok := trigger.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		ruleMatches, ok := trigger["rule_matches"].([]interface{})
-		if !ok {
-			continue
-		}
-		for _, ruleMatch := range ruleMatches {
-			ruleMatch, ok := ruleMatch.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			parameters, ok := ruleMatch["parameters"].([]interface{})
-			if !ok {
-				continue
-			}
-			for _, param := range parameters {
-				param, ok := param.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				paramValue, hasStrValue := param["value"].(string)
-				if hasStrValue && obfuscate.IsCardNumber(paramValue, cco.luhn) {
-					param["value"] = "?"
-					changed = true
-				}
-				highlightValue, hasHighlight := param["highlight"].([]interface{})
-				if !hasHighlight {
-					continue
-				}
-				for j, highlightEntry := range highlightValue {
-					highlight, isHighlightStr := highlightEntry.(string)
-					if !isHighlightStr {
-						continue
-					}
-
-					if obfuscate.IsCardNumber(highlight, cco.luhn) {
-						highlightValue[j] = "?"
-						changed = true
-					}
-				}
-			}
-		}
-	}
-	if changed {
-		var buf bytes.Buffer
-
-		buf.Grow(len(v))
-		w := msgp.NewWriter(&buf)
-		err := w.WriteMapStrIntf(appsecstruct)
-		if err != nil {
-			log.Errorf("Error replacing obfuscated appsec struct: %v", err)
-			return v
-		}
-		w.Flush()
-		return buf.Bytes()
 	}
 	return v
 }
