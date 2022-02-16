@@ -14,8 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -26,7 +25,6 @@ const (
 	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
 	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
-	gardenSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindGardenContainer)
 )
 
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
@@ -75,7 +73,7 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
 
-	c.staticTags = fargateStaticTags(ctx)
+	c.staticTags = util.GetStaticTags(ctx)
 
 	return StreamCollection, nil
 }
@@ -135,54 +133,6 @@ func workloadmetaFactory() Collector {
 	return &WorkloadMetaCollector{
 		store: workloadmeta.GetGlobalStore(),
 	}
-}
-
-func fargateStaticTags(ctx context.Context) map[string]string {
-	// fargate (ECS or EKS) does not have host tags, so we need to
-	// add static tags to each container manually
-
-	if !fargate.IsFargateInstance(ctx) {
-		return nil
-	}
-
-	tags := make(map[string]string)
-
-	// DD_TAGS
-	for _, tag := range config.GetConfiguredTags(false) {
-		tagParts := strings.SplitN(tag, ":", 2)
-		if len(tagParts) != 2 {
-			log.Warnf("Cannot split tag %s", tag)
-			continue
-		}
-		tags[tagParts[0]] = tagParts[1]
-	}
-
-	// EKS Fargate specific tags
-	if fargate.IsEKSFargateInstance() {
-		// eks_fargate_node
-		node, err := fargate.GetEKSFargateNodename()
-		if err != nil {
-			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
-		} else {
-			tags["eks_fargate_node"] = node
-		}
-
-		// kube_cluster_name
-		clusterTagName := "kube_cluster_name"
-		tag, found := tags[clusterTagName]
-		if found {
-			log.Infof("'%s:%s' was set manually via DD_TAGS, not changing it", clusterTagName, tag)
-		} else {
-			cluster := clustername.GetClusterName(ctx, "")
-			if cluster == "" {
-				log.Infof("Couldn't build the %q tag, DD_CLUSTER_NAME can be used to set it", clusterTagName)
-			} else {
-				tags[clusterTagName] = cluster
-			}
-		}
-	}
-
-	return tags
 }
 
 // retrieveMappingFromConfig gets a stringmapstring config key and

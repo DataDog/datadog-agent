@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -289,6 +288,14 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
 	}
 
+	// if the server is running in a context where static tags are required, add those
+	// to extraTags.
+	if staticTags := util.GetStaticTagsSlice(context.TODO()); staticTags != nil {
+		extraTags = append([]string{}, extraTags...)
+		extraTags = append(extraTags, staticTags...)
+	}
+	util.SortUniqInPlace(extraTags)
+
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
 	eolTerminationUDP := false
@@ -403,12 +410,16 @@ func (s *Server) handleMessages() {
 		go l.Listen()
 	}
 
-	// Run min(2, GoMaxProcs-2) workers, we dedicate a core to the
-	// listener goroutine and another to aggregator + forwarder
-	workersCount := runtime.GOMAXPROCS(-1) - 2
-	if workersCount < 2 {
-		workersCount = 2
+	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
+
+	// undocumented configuration field to force the amount of dogstatsd workers
+	// mainly used for benchmarks or some very specific use-case.
+	if configWC := config.Datadog.GetInt("dogstatsd_workers_count"); configWC != 0 {
+		log.Debug("Forcing the amount of DogStatsD workers to:", configWC)
+		workersCount = configWC
 	}
+
+	log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s)
@@ -444,12 +455,14 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 // ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
-	// make all workers flush their aggregated data (in the batcher) to the aggregator.
+
+	// make all workers flush their aggregated data (in the batchers) to the aggregator.
 	s.serverlessFlushChan <- true
+
+	start := time.Now()
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	agg := s.demultiplexer.Aggregator()
-	agg.ServerlessFlush <- true
-	<-agg.ServerlessFlushDone
+	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
+	s.demultiplexer.ForceFlushToSerializer(start.Add(time.Second*10), true)
 }
 
 // dropCR drops a terminal \r from the data.
@@ -509,6 +522,7 @@ func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
 	return false
 }
 
+// workers are running this function in their goroutine
 func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)

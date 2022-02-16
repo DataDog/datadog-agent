@@ -167,6 +167,7 @@ func TestGetTags(t *testing.T) {
 	tags := GetTags(packet)
 	assert.Equal(t, tags, []string{
 		"snmp_version:2",
+		"device_namespace:default",
 		"snmp_device:127.0.0.1",
 	})
 }
@@ -177,6 +178,7 @@ func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
 	tags := GetTags(packet)
 	assert.Equal(t, tags, []string{
 		"snmp_version:unknown",
+		"device_namespace:default",
 		"snmp_device:127.0.0.1",
 	})
 }

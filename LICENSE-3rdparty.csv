@@ -196,6 +196,7 @@ core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
 core,github.com/containerd/cgroups,Apache-2.0,The containerd Authors
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,The containerd Authors
+core,github.com/containerd/cgroups/v2/stats,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/events,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/services/containers/v1,Apache-2.0,The containerd Authors
@@ -1058,6 +1059,7 @@ core,google.golang.org/protobuf/runtime/protoimpl,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/types/descriptorpb,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/types/known/anypb,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/types/known/durationpb,BSD-3-Clause,The Go Authors
+core,google.golang.org/protobuf/types/known/emptypb,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/types/known/fieldmaskpb,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/types/known/structpb,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/types/known/timestamppb,BSD-3-Clause,The Go Authors

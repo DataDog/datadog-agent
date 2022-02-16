@@ -62,6 +62,14 @@ func GetPacketsChannel() PacketsChannel {
 	return serverInstance.packets
 }
 
+// GetNamespace returns the device namespace for the traps listener.
+func GetNamespace() string {
+	if serverInstance != nil {
+		return serverInstance.config.Namespace
+	}
+	return defaultNamespace
+}
+
 // NewTrapServer configures and returns a running SNMP traps server.
 func NewTrapServer(agentHostname string) (*TrapServer, error) {
 	config, err := ReadConfig(agentHostname)

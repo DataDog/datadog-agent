@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
 )
@@ -38,18 +37,18 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 type ProcessCheck struct {
 	probe procutil.Probe
 
-	sysInfo         *model.SystemInfo
-	lastCPUTime     cpu.TimesStat
-	lastProcs       map[int32]*procutil.Process
-	lastCtrRates    map[string]util.ContainerRateMetrics
-	lastCtrIDForPID map[int32]string
-	lastRun         time.Time
-	networkID       string
+	sysInfo            *model.SystemInfo
+	lastCPUTime        cpu.TimesStat
+	lastProcs          map[int32]*procutil.Process
+	lastRun            time.Time
+	containerProvider  util.ContainerProvider
+	lastContainerRates map[string]*util.ContainerRateMetrics
+	lastContainerRun   time.Time
+	networkID          string
 
-	realtimeLastCPUTime  cpu.TimesStat
-	realtimeLastProcs    map[int32]*procutil.Stats
-	realtimeLastCtrRates map[string]util.ContainerRateMetrics
-	realtimeLastRun      time.Time
+	realtimeLastCPUTime cpu.TimesStat
+	realtimeLastProcs   map[int32]*procutil.Stats
+	realtimeLastRun     time.Time
 
 	notInitializedLogLimit *util.LogLimit
 
@@ -71,6 +70,7 @@ type ProcessCheck struct {
 func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
 	p.probe = getProcessProbe()
+	p.containerProvider = util.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
@@ -149,44 +149,45 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		mergeProcWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
-	ctrList, _ := util.GetContainers()
+	var containers []*model.Container
+	var pidToCid map[int]string
+	var lastContainerRates map[string]*util.ContainerRateMetrics
+	containerTime := time.Now()
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityNoRT, p.lastContainerRates, p.lastContainerRun, containerTime)
+	if err == nil {
+		p.lastContainerRun = containerTime
+		p.lastContainerRates = lastContainerRates
+	} else {
+		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
 
 	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(ctrList)
+	LocalResolver.LoadAddrs(containers, pidToCid)
 
-	ctrByProc := ctrIDForPID(ctrList)
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
-		p.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
-		p.lastCtrIDForPID = ctrByProc
 		p.lastRun = time.Now()
 		p.storeCreateTimes()
 
 		if collectRealTime {
 			p.realtimeLastCPUTime = p.lastCPUTime
 			p.realtimeLastProcs = procsToStats(p.lastProcs)
-			p.realtimeLastCtrRates = p.lastCtrRates
 			p.realtimeLastRun = p.lastRun
 		}
 		return &RunResult{}, nil
 	}
 
 	connsByPID := Connections.getLastConnectionsByPID()
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
-
-	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
-
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID)
+	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
 	p.lastProcs = procs
-	p.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
-	p.lastCtrIDForPID = ctrByProc
 	p.storeCreateTimes()
 
 	result := &RunResult{
@@ -197,9 +198,9 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, stats, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 			groupSize := len(chunkedStats)
-			chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
+			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
 			messages := make([]model.MessageBody, 0, groupSize)
 			for i := 0; i < groupSize; i++ {
@@ -219,7 +220,6 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 		p.realtimeLastCPUTime = p.lastCPUTime
 		p.realtimeLastProcs = stats
-		p.realtimeLastCtrRates = p.lastCtrRates
 		p.realtimeLastRun = p.lastRun
 	}
 
@@ -309,22 +309,12 @@ func chunkProcessesAndContainers(
 	return chunker.collectorProcs, totalProcs, totalContainers
 }
 
-func ctrIDForPID(ctrList []*containers.Container) map[int32]string {
-	ctrIDForPID := make(map[int32]string, len(ctrList))
-	for _, c := range ctrList {
-		for _, p := range c.Pids {
-			ctrIDForPID[p] = c.ID
-		}
-	}
-	return ctrIDForPID
-}
-
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
 	cfg *config.AgentConfig,
 	procs, lastProcs map[int32]*procutil.Process,
-	ctrByProc map[int32]string,
+	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connsByPID map[int32][]*model.Connection,
@@ -365,7 +355,7 @@ func fmtProcesses(
 			IoStat:                 ioStat,
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
-			ContainerId:            ctrByProc[fp.Pid],
+			ContainerId:            ctrByProc[int(fp.Pid)],
 			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
 		}
 		_, ok := procsByCtr[proc.ContainerId]

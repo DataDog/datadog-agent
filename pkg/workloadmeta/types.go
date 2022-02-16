@@ -84,10 +84,9 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer       Kind = "container"
-	KindKubernetesPod   Kind = "kubernetes_pod"
-	KindECSTask         Kind = "ecs_task"
-	KindGardenContainer Kind = "garden_container"
+	KindContainer     Kind = "container"
+	KindKubernetesPod Kind = "kubernetes_pod"
+	KindECSTask       Kind = "ecs_task"
 )
 
 // Source is the source name of an entity.
@@ -124,6 +123,30 @@ const (
 	ContainerRuntimeContainerd ContainerRuntime = "containerd"
 	ContainerRuntimePodman     ContainerRuntime = "podman"
 	ContainerRuntimeCRIO       ContainerRuntime = "cri-o"
+	ContainerRuntimeGarden     ContainerRuntime = "garden"
+)
+
+// ContainerStatus is the status of the container
+type ContainerStatus string
+
+// Defined ContainerStatus
+const (
+	ContainerStatusUnknown    ContainerStatus = "unknown"
+	ContainerStatusCreated    ContainerStatus = "created"
+	ContainerStatusRunning    ContainerStatus = "running"
+	ContainerStatusRestarting ContainerStatus = "restarting"
+	ContainerStatusPaused     ContainerStatus = "paused"
+	ContainerStatusStopped    ContainerStatus = "stopped"
+)
+
+// ContainerHealth is the health of the container
+type ContainerHealth string
+
+// Defined ContainerHealth
+const (
+	ContainerHealthUnknown   ContainerHealth = "unknown"
+	ContainerHealthHealthy   ContainerHealth = "healthy"
+	ContainerHealthUnhealthy ContainerHealth = "unhealthy"
 )
 
 // ECSLaunchType is the launch type of an ECS task.
@@ -283,6 +306,9 @@ func (c ContainerImage) String(verbose bool) string {
 // ContainerState is the state of a container.
 type ContainerState struct {
 	Running    bool
+	Status     ContainerStatus
+	Health     ContainerHealth
+	CreatedAt  time.Time
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *uint32
@@ -294,6 +320,9 @@ func (c ContainerState) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Running:", c.Running)
 
 	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Status:", c.Status)
+		_, _ = fmt.Fprintln(&sb, "Health:", c.Health)
+		_, _ = fmt.Fprintln(&sb, "Created At:", c.CreatedAt)
 		_, _ = fmt.Fprintln(&sb, "Started At:", c.StartedAt)
 		_, _ = fmt.Fprintln(&sb, "Finished At:", c.FinishedAt)
 		if c.ExitCode != nil {
@@ -349,6 +378,9 @@ type Container struct {
 	Ports      []ContainerPort
 	Runtime    ContainerRuntime
 	State      ContainerState
+	// CollectorTags represent tags coming from the collector itself
+	// and that it would impossible to compute later on
+	CollectorTags []string
 }
 
 // GetID implements Entity#GetID.
@@ -498,7 +530,6 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
-
 	}
 
 	return sb.String()

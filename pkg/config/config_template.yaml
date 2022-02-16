@@ -106,12 +106,28 @@ api_key:
 ## @env DD_TAGS - space separated list of strings - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
-## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
+## This configuration value merges with `DD_EXTRA_TAGS`, allowing some
+## tags to be set in a configuration file (`tags`), and additional tags to be added
+## with an environment variable (`DD_EXTRA_TAGS`).
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:
 #   - team:infra
+#   - <TAG_KEY>:<TAG_VALUE>
+
+## @param extra_tags  - list of key:value elements - optional
+## @env DD_EXTRA_TAGS - space separated list of strings - optional
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## This configuration value merges with `tags`, allowing some
+## tags to be set in a configuration file (`tags`), and additional tags to be added
+## with an environment variable (`DD_EXTRA_TAGS`).
+##
+## Learn more about tagging: https://docs.datadoghq.com/tagging/
+#
+# extra_tags:
+#   - region:northerly
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
@@ -332,11 +348,22 @@ api_key:
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
-## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
-## permission. See docs for further details:
+## Requires one of:
+##  - `collect_ec2_tags_use_imds: true` and configuration of the
+##    EC2 instance to allow tags in instance metadata; or
+##  - configuration of the EC2 instance to have an IAM role with
+##    the `EC2:DescribeTags` permission.
+## See docs for further details:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+
+## @param collect_ec2_tags_use_imds - boolean - optional - default: false
+## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
+## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
+## Requires `collect_ec2_tags`.
+#
+# collect_ec2_tags_use_imds: false
 
 ## @param ec2_metadata_timeout - integer - optional - default: 300
 ## @env DD_EC2_METADATA_TIMEOUT - integer - optional - default: 300
@@ -2806,6 +2833,18 @@ api_key:
 ###################################
 ## Network Devices Configuration ##
 ###################################
+
+## @param network_devices - custom object - optional
+## Configuration related to Network Devices Monitoring
+#
+# network_devices:
+
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with the same IP.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  ## This field is used by both the SNMP check and by the traps listener.
+  #
+  # namespace: default
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.
