@@ -27,6 +27,12 @@ type Collector interface {
 	// informers and listers.
 	Init(*CollectorRunConfig)
 
+	// IsAvailable returns whether a collector is available.
+	// A typical use-case is checking whether the targeted apiGroup version
+	// used by the collector is available in the cluster.
+	// Should be called after Init.
+	IsAvailable() bool
+
 	// Metadata is used to access information describing the collector.
 	Metadata() *CollectorMetadata
 

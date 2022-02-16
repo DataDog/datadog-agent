@@ -114,6 +114,11 @@ func (cb *CollectorBundle) Initialize() error {
 
 	for _, collector := range cb.collectors {
 		collector.Init(cb.runCfg)
+		if available := collector.IsAvailable(); !available {
+			_ = cb.check.Warnf("Collector %q is unavailable, skipping it", collector.Metadata().Name)
+			continue
+		}
+
 		informer := collector.Informer()
 		informersToSync[apiserver.InformerName(collector.Metadata().Name)] = informer
 
