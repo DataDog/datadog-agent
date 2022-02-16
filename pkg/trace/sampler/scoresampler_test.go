@@ -7,6 +7,7 @@ package sampler
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -54,53 +55,12 @@ func TestExtraSampleRate(t *testing.T) {
 	// trigger rates update
 	s.Sample(testTime.Add(10*time.Second), trace, root, defaultEnv)
 
-	sRate := s.getSampleRate(trace, root, signature)
-	fmt.Println(sRate)
+	sRate := s.getSignatureSampleRate(signature)
 
 	// Then turn on the extra sample rate, then ensure it affects both existing and new signatures
 	s.extraRate = 0.33
 
-	assert.Equal(s.getSampleRate(trace, root, signature), s.extraRate*sRate)
-}
-
-/*
-func TestTargetTPS(t *testing.T) {
-	// Test the "effectiveness" of the targetTPS option.
-	assert := assert.New(t)
-	targetTPS := 10.0
-	s := getTestErrorsSampler(targetTPS)
-
-	generatedTPS := 200.0
-	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
-	initPeriods := 10
-	periods := 300
-
-	s.targetTPS = atomic.NewFloat(targetTPS)
-	periodSeconds := decayPeriod.Seconds()
-	tracesPerPeriod := generatedTPS * periodSeconds
-
-	sampledCount := 0
-
-	for period := 0; period < initPeriods+periods; period++ {
-		s.update()
-		for i := 0; i < int(tracesPerPeriod); i++ {
-			trace, root := getTestTrace()
-			sampled := s.Sample(trace, root, defaultEnv)
-			// Once we got into the "supposed-to-be" stable "regime", count the samples
-			if period > initPeriods && sampled {
-				sampledCount++
-			}
-		}
-	}
-	assert.InEpsilon(targetTPS, s.Backend.GetSampledScore(), 0.2)
-
-	// We should keep the right percentage of traces
-	assert.InEpsilon(targetTPS/generatedTPS, float64(sampledCount)/(tracesPerPeriod*float64(initPeriods+periods)), 0.1)
-
-	// We should have a throughput of sampled traces around targetTPS
-	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
-	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods+initPeriods)*decayPeriod.Seconds()), 0.1)
+	assert.Equal(s.getSignatureSampleRate(signature), s.extraRate*sRate)
 }
 
 func TestDisable(t *testing.T) {
@@ -109,7 +69,7 @@ func TestDisable(t *testing.T) {
 	s := getTestErrorsSampler(0)
 	trace, root := getTestTrace()
 	for i := 0; i < int(1e2); i++ {
-		assert.False(s.Sample(trace, root, defaultEnv))
+		assert.False(s.Sample(time.Now(), trace, root, defaultEnv))
 	}
 }
 
@@ -121,6 +81,7 @@ func BenchmarkSampler(b *testing.B) {
 
 	s := getTestErrorsSampler(10)
 
+	ts := time.Now()
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -132,7 +93,6 @@ func BenchmarkSampler(b *testing.B) {
 			&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Start: 500000000, Duration: 500000, Service: "redis", Type: "redis"},
 			&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Start: 700000000, Duration: 700000, Service: "mcnulty", Type: ""},
 		}
-		s.Sample(trace, trace[0], defaultEnv)
+		s.Sample(ts, trace, trace[0], defaultEnv)
 	}
 }
-*/

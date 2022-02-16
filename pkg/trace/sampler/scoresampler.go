@@ -62,7 +62,7 @@ func (s ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env s
 	// Update sampler state by counting this trace
 	s.countWeightedSig(now, signature, 1)
 
-	rate := s.getSampleRate(trace, root, signature)
+	rate := s.getSignatureSampleRate(signature)
 
 	return s.applySampleRate(root, rate)
 }

@@ -12,13 +12,13 @@ import (
 
 	ddatomic "github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
 const (
-	bucketDuration = 10 * time.Second
-	numBuckets     = 6
+	bucketDuration  = 10 * time.Second
+	numBuckets      = 6
+	maxRateIncrease = 1.2
 )
 
 // Sampler is the main component of the sampling logic
@@ -141,19 +141,18 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 
 	rates := make(map[Signature]float64, len(s.seen))
 	for sig, buckets := range s.seen {
-
 		maxBucket, buckets := zeroAndGetMax(buckets, previousBucket, newBucket)
 		s.seen[sig] = buckets
 
 		seenTPS := float64(maxBucket) / bucketDuration.Seconds()
 		rate := 1.0
-		if tpsPerSig < seenTPS {
+		if tpsPerSig < seenTPS && seenTPS > 0 {
 			rate = tpsPerSig / seenTPS
 		}
 		// caping increase rate to 20%
 		if prevRate, ok := s.rates[sig]; ok && prevRate != 0 {
-			if rate/prevRate > 1.2 {
-				rate = prevRate * 1.2
+			if rate/prevRate > maxRateIncrease {
+				rate = prevRate * maxRateIncrease
 			}
 		}
 		if rate > 1.0 {
@@ -239,9 +238,4 @@ func (s *Sampler) report() {
 func (s *Sampler) Stop() {
 	close(s.exit)
 	<-s.stopped
-}
-
-// getSampleRate returns the sample rate to apply to a trace.
-func (s *Sampler) getSampleRate(trace pb.Trace, root *pb.Span, signature Signature) float64 {
-	return s.getSignatureSampleRate(signature)
 }
