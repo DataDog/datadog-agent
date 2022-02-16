@@ -9,4 +9,4 @@
 
 fixes:
   - |
-   OTLP ingest now uses the exact sum and count values from OTLP Histograms when generating Datadog distributions
+   OTLP ingest now uses the exact sum and count values from OTLP Histograms when generating Datadog distributions.
