@@ -2924,6 +2924,7 @@ api_key:
 
   ## @param metrics - custom object - optional
   ## Metrics-specific configuration for OTLP ingest in the Datadog Agent.
+  ## Note that these configuration options may change in future minor Agent versions.
   #
   # metrics:
 
