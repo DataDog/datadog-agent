@@ -14,7 +14,7 @@ import (
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
 func IsEnabled() bool {
 	// TODO: add netflow_enabled to config.go
-	return config.Datadog.GetBool("device_flow.enabled")
+	return config.Datadog.GetBool("network_devices.flow.enabled")
 }
 
 // Config contains configuration for SNMP trap listeners.
@@ -30,7 +30,7 @@ type Config struct {
 // ReadConfig builds and returns configuration from Agent configuration.
 func ReadConfig() (*Config, error) {
 	var c Config
-	err := config.Datadog.UnmarshalKey("device_flow", &c)
+	err := config.Datadog.UnmarshalKey("network_devices.flow", &c)
 	if err != nil {
 		return nil, err
 	}

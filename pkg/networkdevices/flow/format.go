@@ -74,7 +74,7 @@ func (d *FlowDriver) sendEvents(flowmsg *flowmessage.FlowMessage) {
 		log.Errorf("Error marshalling device metadata: %s", err)
 		return
 	}
-	log.Debugf("device_flow payload: %v", string(payloadBytes))
+	log.Debugf("device flow payload: %v", string(payloadBytes))
 	d.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
