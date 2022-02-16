@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -73,6 +72,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
@@ -87,7 +87,7 @@ var (
 
 	configService *remoteconfig.Service
 
-	demux aggregator.Demultiplexer
+	demux *aggregator.AgentDemultiplexer
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -364,13 +364,13 @@ func StartAgent() error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
-	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
 	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
-	demux.Aggregator().AddAgentStartupTelemetry(version.AgentVersion)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {

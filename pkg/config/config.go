@@ -490,6 +490,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
@@ -623,8 +624,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	// No default as the agent falls back to `network_devices.namespace` if empty.
+	config.BindEnv("snmp_traps_config.namespace")
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
+	config.SetKnown("snmp_traps_config.users")
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -659,6 +663,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
 	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
+	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected

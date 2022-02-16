@@ -20,17 +20,9 @@ import (
 )
 
 func TestChown32(t *testing.T) {
-	isSuseKernel := func() bool {
-		kv, err := kernel.NewKernelVersion()
-		if err != nil {
-			return false
-		}
+	checkKernelCompatibility(t, "SUSE kernel", func(kv *kernel.Version) bool {
 		return kv.IsSuseKernel()
-	}()
-
-	if isSuseKernel {
-		t.Skip("SUSE kernel: skipping chown32 tests")
-	}
+	})
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",

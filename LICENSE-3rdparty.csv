@@ -196,6 +196,7 @@ core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
 core,github.com/containerd/cgroups,Apache-2.0,The containerd Authors
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,The containerd Authors
+core,github.com/containerd/cgroups/v2/stats,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/events,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/services/containers/v1,Apache-2.0,The containerd Authors
@@ -537,6 +538,7 @@ core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,The OPA Autho
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/json/patch,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,The OPA Authors | lestrrat
 core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,The OPA Authors | lestrrat
 core,github.com/open-policy-agent/opa/internal/jwx/jwk,MIT,The OPA Authors | lestrrat
@@ -547,6 +549,7 @@ core,github.com/open-policy-agent/opa/internal/lcss,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/leb128,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/ref,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/strings,Apache-2.0,The OPA Authors
@@ -575,6 +578,7 @@ core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Author
 core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/tracing,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors

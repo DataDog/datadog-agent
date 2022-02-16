@@ -18,10 +18,38 @@ import (
 // MacroID represents the ID of a macro
 type MacroID = string
 
+// CombinePolicy represents the policy to use to combine rules and macros
+type CombinePolicy = string
+
+// Combine policies
+const (
+	NoPolicy       CombinePolicy = ""
+	MergePolicy                  = "merge"
+	OverridePolicy               = "override"
+)
+
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
-	ID         MacroID `yaml:"id"`
-	Expression string  `yaml:"expression"`
+	ID         MacroID       `yaml:"id"`
+	Expression string        `yaml:"expression"`
+	Values     []string      `yaml:"values"`
+	Combine    CombinePolicy `yaml:"combine"`
+}
+
+// MergeWith merges macro m2 into m
+func (m *MacroDefinition) MergeWith(m2 *MacroDefinition) error {
+	switch m2.Combine {
+	case MergePolicy:
+		if m.Expression != "" || m2.Expression != "" {
+			return &ErrMacroLoad{Definition: m2, Err: ErrCannotMergeExpression}
+		}
+		m.Values = append(m.Values, m2.Values...)
+	case OverridePolicy:
+		m.Values = m2.Values
+	default:
+		return &ErrMacroLoad{Definition: m2, Err: ErrInternalIDConflict}
+	}
+	return nil
 }
 
 // Macro describes a macro of a ruleset
@@ -40,6 +68,8 @@ type RuleDefinition struct {
 	Expression  string            `yaml:"expression"`
 	Description string            `yaml:"description"`
 	Tags        map[string]string `yaml:"tags"`
+	Disabled    bool              `yaml:"disabled"`
+	Combine     CombinePolicy     `yaml:"combine"`
 	Policy      *Policy
 }
 
@@ -52,6 +82,20 @@ func (rd *RuleDefinition) GetTags() []string {
 			fmt.Sprintf("%s:%s", k, v))
 	}
 	return tags
+}
+
+// MergeWith merges rule rd2 into rd
+func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
+	switch rd2.Combine {
+	case OverridePolicy:
+		rd.Expression = rd2.Expression
+	default:
+		if !rd2.Disabled {
+			return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
+		}
+	}
+	rd.Disabled = rd2.Disabled
+	return nil
 }
 
 // Rule describes a rule of a ruleset
@@ -74,7 +118,6 @@ type RuleSet struct {
 	loadedPolicies   map[string]string
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
-	macros           map[eval.RuleID]*Macro
 	model            eval.Model
 	eventCtor        func() eval.Event
 	listeners        []RuleSetListener
@@ -123,24 +166,25 @@ func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
 func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
+	var err error
+
 	if _, exists := rs.opts.Macros[macroDef.ID]; exists {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("multiple definition with the same ID")}
 	}
 
-	macro := &Macro{
-		Macro: &eval.Macro{
-			ID:         macroDef.ID,
-			Expression: macroDef.Expression,
-		},
-		Definition: macroDef,
-	}
+	macro := &Macro{Definition: macroDef}
 
-	if err := macro.Parse(); err != nil {
-		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.Wrap(err, "syntax error")}
-	}
-
-	if err := macro.GenEvaluator(rs.model, &rs.opts.Opts); err != nil {
-		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.Wrap(err, "compilation error")}
+	switch {
+	case macroDef.Expression != "" && len(macroDef.Values) > 0:
+		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
+	case macroDef.Expression != "":
+		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, &rs.opts.Opts); err != nil {
+			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
+		}
+	default:
+		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, &rs.opts.Opts); err != nil {
+			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
+		}
 	}
 
 	rs.opts.AddMacro(macro.Macro)
@@ -186,6 +230,10 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
+	if ruleDef.Disabled {
+		return nil, nil
+	}
+
 	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == ruleDef.ID {
 			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrInternalIDConflict}
@@ -461,7 +509,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		opts:             opts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*Rule),
-		macros:           make(map[eval.RuleID]*Macro),
 		loadedPolicies:   make(map[string]string),
 		logger:           logger,
 		pool:             eval.NewContextPool(),

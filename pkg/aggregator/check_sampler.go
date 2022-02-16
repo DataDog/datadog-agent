@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,7 +21,7 @@ const checksSourceTypeName = "System"
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*metrics.Serie
-	sketches        metrics.SketchSeriesList
+	sketches        metricsserializer.SketchSeriesList
 	contextResolver *countBasedContextResolver
 	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
@@ -31,7 +32,7 @@ type CheckSampler struct {
 func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, cache *tags.Store) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
-		sketches:        make(metrics.SketchSeriesList, 0),
+		sketches:        make(metricsserializer.SketchSeriesList, 0),
 		contextResolver: newCountBasedContextResolver(expirationCount, cache),
 		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
@@ -176,14 +177,14 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	cs.metrics.Expire(expiredContextKeys, timestamp)
 }
 
-func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
+func (cs *CheckSampler) flush() (metricsserializer.Series, metricsserializer.SketchSeriesList) {
 	// series
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
 
 	// sketches
 	sketches := cs.sketches
-	cs.sketches = make(metrics.SketchSeriesList, 0)
+	cs.sketches = make(metricsserializer.SketchSeriesList, 0)
 
 	return series, sketches
 }

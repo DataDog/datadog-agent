@@ -15,13 +15,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-func buildSeries(numberOfSeries int) metrics.Series {
-	testSeries := metrics.Series{}
+func buildSeries(numberOfSeries int) metricsserializer.Series {
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < numberOfSeries; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
