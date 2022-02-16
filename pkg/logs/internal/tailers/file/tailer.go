@@ -126,7 +126,12 @@ func (t *Tailer) DidRotate() (bool, error) {
 }
 
 func (t *Tailer) readForever() {
-	defer t.onStop()
+	defer func() {
+		t.osFile.Close()
+		t.decoder.Stop()
+		log.Info("Closed", t.File.Path, "for tailer key", t.File.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
+	}()
+
 	for {
 		n, err := t.read()
 		if err != nil {
@@ -178,23 +183,12 @@ func (t *Tailer) Stop() {
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
 	atomic.StoreInt32(&t.didFileRotate, 1)
-	go t.startStopTimer()
+	go func() {
+		time.Sleep(t.closeTimeout)
+		t.stopForward()
+		t.stop <- struct{}{}
+	}()
 	t.File.Source.RemoveInput(t.File.Path)
-}
-
-// startStopTimer initializes and starts a timer to stop the tailor after the timeout
-func (t *Tailer) startStopTimer() {
-	stopTimer := time.NewTimer(t.closeTimeout)
-	<-stopTimer.C
-	t.stopForward()
-	t.stop <- struct{}{}
-}
-
-// onStop finishes to stop the tailer
-func (t *Tailer) onStop() {
-	t.osFile.Close()
-	t.decoder.Stop()
-	log.Info("Closed", t.File.Path, "for tailer key", t.File.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
 }
 
 // IsFinished returns true if the tailer is in the process of stopping.  Specifically,
