@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package scheduler
+package ad
 
 import (
 	"fmt"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	adScheduler "github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -21,39 +22,36 @@ import (
 )
 
 var (
-	// scheduler is plugged to autodiscovery to collect integration configs
-	// and schedule log collection for different kind of inputs
-	adScheduler *Scheduler
+	// ADMetaScheduler is the metaScheduler that is set up early in agent
+	// initialization.  We get a copy of it during that process, for use later.
+	ADMetaScheduler *adScheduler.MetaScheduler
 )
 
 // Scheduler creates and deletes new sources and services to start or stop
-// log collection on different kind of inputs.
-// A source represents a logs-config that can be defined either in a configuration file,
-// in a docker label or a pod annotation.
-// A service represents a process that is actually running on the host like a container for example.
+// log collection based on information from autodiscovery.
 type Scheduler struct {
-	sources  *logsConfig.LogSources
-	services *service.Services
+	mgr                schedulers.SourceManager
+	sourcesByServiceID map[string]*logsConfig.LogSource
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
 
-// CreateScheduler creates the scheduler.
-func CreateScheduler(sources *logsConfig.LogSources, services *service.Services) {
-	adScheduler = &Scheduler{
-		sources:  sources,
-		services: services,
+// New creates a new scheduler.
+func New() schedulers.Scheduler {
+	return &Scheduler{
+		sourcesByServiceID: make(map[string]*logsConfig.LogSource),
 	}
 }
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
-	// does nothing; scheduler is already registered in cmd/agent/common/loader.go
+	s.mgr = sourceMgr
+	ADMetaScheduler.Register("logs", s)
 }
 
 // Stop implements schedulers.Scheduler#Stop.
 func (s *Scheduler) Stop() {
-	adScheduler = nil
+	ADMetaScheduler.Deregister("logs")
 }
 
 // Schedule creates new sources and services from a list of integration configs.
@@ -78,7 +76,8 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				continue
 			}
 			for _, source := range sources {
-				s.sources.AddSource(source)
+				s.mgr.AddSource(source)
+				s.sourcesByServiceID[source.Config.Identifier] = source
 			}
 		case s.newService(config):
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
@@ -96,7 +95,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				log.Warnf("Invalid service: %v", err)
 				continue
 			}
-			s.services.AddService(service)
+			s.mgr.AddService(service)
 		default:
 			// invalid integration config
 			continue
@@ -119,10 +118,9 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-			for _, source := range s.sources.GetSources() {
-				if identifier == source.Config.Identifier {
-					s.sources.RemoveSource(source)
-				}
+			if source, found := s.sourcesByServiceID[identifier]; found {
+				delete(s.sourcesByServiceID, identifier)
+				s.mgr.RemoveSource(source)
 			}
 		case s.newService(config):
 			// new service to remove
@@ -141,7 +139,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid service: %v", err)
 				continue
 			}
-			s.services.RemoveService(service)
+			s.mgr.RemoveService(service)
 		default:
 			// invalid integration config
 			continue
@@ -272,9 +270,4 @@ func (s *Scheduler) parseServiceID(serviceID string) (string, string, error) {
 		return "", "", fmt.Errorf("service ID does not have the form `xxx://yyy`: %v", serviceID)
 	}
 	return components[0], components[1], nil
-}
-
-// GetScheduler returns the logs-config scheduler if set.
-func GetScheduler() *Scheduler {
-	return adScheduler
 }

@@ -3,26 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package scheduler
+package ad
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+func setup() (scheduler *Scheduler, spy *schedulers.SourceManagerSpy) {
+	scheduler = New().(*Scheduler)
+	spy = &schedulers.SourceManagerSpy{}
+	scheduler.mgr = spy
+	return scheduler, spy
+}
+
 func TestScheduleConfigCreatesNewSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	CreateScheduler(logSources, services)
-
-	logSourcesStream := logSources.GetAddedForType(config.DockerType)
-
+	scheduler, spy := setup()
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
@@ -32,8 +34,11 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 		ClusterCheck:  false,
 	}
 
-	go adScheduler.Schedule([]integration.Config{configSource})
-	logSource := <-logSourcesStream
+	scheduler.Schedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
 	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
@@ -44,12 +49,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 }
 
 func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	CreateScheduler(logSources, services)
-
-	logSourcesStream := logSources.GetAddedForType(config.DockerType)
-
+	scheduler, spy := setup()
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar"}]`),
@@ -60,8 +60,11 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 		ClusterCheck:  false,
 	}
 
-	go adScheduler.Schedule([]integration.Config{configSource})
-	logSource := <-logSourcesStream
+	scheduler.Schedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
 	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
@@ -72,12 +75,7 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 }
 
 func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	CreateScheduler(logSources, services)
-
-	logSourcesStream := logSources.GetAddedForType(config.DockerType)
-
+	scheduler, spy := setup()
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar","service":"baz"}]`),
@@ -88,8 +86,11 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 		ClusterCheck:  false,
 	}
 
-	go adScheduler.Schedule([]integration.Config{configSource})
-	logSource := <-logSourcesStream
+	scheduler.Schedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
 	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
@@ -100,12 +101,7 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 }
 
 func TestScheduleConfigCreatesNewService(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	CreateScheduler(logSources, services)
-
-	servicesStream := services.GetAddedServicesForType(config.DockerType)
-
+	scheduler, spy := setup()
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
@@ -113,8 +109,12 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 		ClusterCheck: false,
 	}
 
-	go adScheduler.Schedule([]integration.Config{configService})
-	svc := <-servicesStream
+	scheduler.Schedule([]integration.Config{configService})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	svc := spy.Events[0].Service
+
 	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
 
 	// shouldn't consider pods
@@ -124,21 +124,12 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
 		ClusterCheck: false,
 	}
-	go adScheduler.Schedule([]integration.Config{configService})
-	select {
-	case <-servicesStream:
-		assert.Fail(t, "Pod should be ignored")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
+	scheduler.Schedule([]integration.Config{configService})
+	require.Equal(t, 1, len(spy.Events)) // no new events
 }
 
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	CreateScheduler(logSources, services)
-	logSourcesStream := logSources.GetRemovedForType(config.DockerType)
-
+	scheduler, spy := setup()
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
@@ -149,11 +140,14 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	}
 
 	// We need to have a source to remove
-	sources, _ := adScheduler.toSources(configSource)
-	logSources.AddSource(sources[0])
+	sources, _ := scheduler.toSources(configSource)
+	scheduler.sourcesByServiceID[sources[0].Config.Identifier] = sources[0]
 
-	go adScheduler.Unschedule([]integration.Config{configSource})
-	logSource := <-logSourcesStream
+	scheduler.Unschedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.False(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
 	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
@@ -164,11 +158,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 }
 
 func TestUnscheduleConfigRemovesService(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	CreateScheduler(logSources, services)
-	servicesStream := services.GetRemovedServicesForType(config.DockerType)
-
+	scheduler, spy := setup()
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
@@ -176,8 +166,10 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 		ClusterCheck: false,
 	}
 
-	go adScheduler.Unschedule([]integration.Config{configService})
-	svc := <-servicesStream
+	scheduler.Unschedule([]integration.Config{configService})
+	require.Equal(t, 1, len(spy.Events))
+	require.False(t, spy.Events[0].Add)
+	svc := spy.Events[0].Service
 	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
 
 	// shouldn't consider pods
@@ -188,22 +180,12 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 		ClusterCheck: false,
 	}
 
-	go adScheduler.Unschedule([]integration.Config{configService})
-	select {
-	case <-servicesStream:
-		assert.Fail(t, "Pod should be ignored")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
+	scheduler.Unschedule([]integration.Config{configService})
+	require.Equal(t, 1, len(spy.Events)) // no new events
 }
 
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	CreateScheduler(logSources, services)
-	servicesStreamIn := services.GetAddedServicesForType(config.DockerType)
-	servicesStreamOut := services.GetRemovedServicesForType(config.DockerType)
-
+	scheduler, spy := setup()
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
@@ -212,19 +194,7 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 		LogsExcluded: true,
 	}
 
-	go adScheduler.Schedule([]integration.Config{configService})
-	select {
-	case <-servicesStreamIn:
-		assert.Fail(t, "config must be ignored")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
-
-	go adScheduler.Unschedule([]integration.Config{configService})
-	select {
-	case <-servicesStreamOut:
-		assert.Fail(t, "config must be ignored")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
+	scheduler.Schedule([]integration.Config{configService})
+	scheduler.Unschedule([]integration.Config{configService})
+	require.Equal(t, 0, len(spy.Events)) // no events
 }

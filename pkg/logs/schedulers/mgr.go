@@ -44,8 +44,11 @@ type SpyAddRemove struct {
 	// Added is true if this source was added; otherwise it was removed
 	Add bool
 
-	// Source is the source that was added or removed.
+	// Source is the source that was added or removed, or nil.
 	Source *logsConfig.LogSource
+
+	// Service is the service that was added or removed, or nil.
+	Service *service.Service
 }
 
 // SourceManagerSpy is a "spy" that records the AddSource and RemoveSource
@@ -69,7 +72,11 @@ func (sm *SourceManagerSpy) RemoveSource(source *logsConfig.LogSource) {
 }
 
 // AddService implements SourceManager#AddService.
-func (sm *SourceManagerSpy) AddService(service *service.Service) {}
+func (sm *SourceManagerSpy) AddService(service *service.Service) {
+	sm.Events = append(sm.Events, SpyAddRemove{Add: true, Service: service})
+}
 
 // RemoveService implements SourceManager#RemoveService.
-func (sm *SourceManagerSpy) RemoveService(service *service.Service) {}
+func (sm *SourceManagerSpy) RemoveService(service *service.Service) {
+	sm.Events = append(sm.Events, SpyAddRemove{Add: false, Service: service})
+}
