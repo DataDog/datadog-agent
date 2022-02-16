@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020-present Datadog, Inc.
+// Copyright 2022-present Datadog, Inc.
 
-package v3
+package v3or4
 
-// Task represents a task as returned by the ECS metadata API v3.
+// Task represents a task as returned by the ECS metadata API v3 or v4.
 type Task struct {
 	ClusterName           string             `json:"Cluster"`
 	Containers            []Container        `json:"Containers"`
@@ -13,33 +13,37 @@ type Task struct {
 	TaskARN               string             `json:"TaskARN"`
 	Family                string             `json:"Family"`
 	Version               string             `json:"Revision"`
-	Limits                map[string]float64 `json:"Limits"`
+	Limits                map[string]float64 `json:"Limits,omitempty"`
 	DesiredStatus         string             `json:"DesiredStatus"`
-	ContainerInstanceTags map[string]string  `json:"ContainerInstanceTags,omitempty"` // undocumented
-	TaskTags              map[string]string  `json:"TaskTags,omitempty"`              // undocumented
+	LaunchType            string             `json:"LaunchType,omitempty"` // present only in v4
+	ContainerInstanceTags map[string]string  `json:"ContainerInstanceTags,omitempty"`
+	TaskTags              map[string]string  `json:"TaskTags,omitempty"`
 }
 
 // Container represents a container within a task.
 type Container struct {
 	Name          string            `json:"Name"`
-	Limits        map[string]uint64 `json:"Limits"`
+	Limits        map[string]uint64 `json:"Limits,omitempty"`
 	ImageID       string            `json:"ImageID,omitempty"`
-	StartedAt     string            `json:"StartedAt"` // 2017-11-17T17:14:07.781711848Z
+	StartedAt     string            `json:"StartedAt,omitempty"` // 2017-11-17T17:14:07.781711848Z
 	DockerName    string            `json:"DockerName"`
 	Type          string            `json:"Type"`
 	Image         string            `json:"Image"`
-	Labels        map[string]string `json:"Labels"`
+	Labels        map[string]string `json:"Labels,omitempty"`
 	KnownStatus   string            `json:"KnownStatus"`
 	DesiredStatus string            `json:"DesiredStatus"`
 	DockerID      string            `json:"DockerID"`
-	CreatedAt     string            `json:"CreatedAt"`
-	Networks      []Network         `json:"Networks"`
-	Ports         []Port            `json:"Ports"`
+	CreatedAt     string            `json:"CreatedAt,omitempty"`
+	Networks      []Network         `json:"Networks,omitempty"`
+	Ports         []Port            `json:"Ports,omitempty"`
+	LogDriver     string            `json:"LogDriver,omitemty"`     // present only in v4
+	LogOptions    map[string]string `json:"LogOptions,omitempty"`   // present only in v4
+	ContainerARN  string            `json:"ContainerARN,omitempty"` // present only in v4
 }
 
 // Network represents the network of a container
 type Network struct {
-	NetworkMode   string   `json:"NetworkMode"`   // as of today the only supported mode is awsvpc
+	NetworkMode   string   `json:"NetworkMode"`   // supports awsvpc and bridge
 	IPv4Addresses []string `json:"IPv4Addresses"` // one-element list
 }
 
