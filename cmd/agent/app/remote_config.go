@@ -42,6 +42,7 @@ var remoteConfigCmd = &cobra.Command{
 		}
 		return state(cmd, args)
 	},
+	Hidden: true,
 }
 
 func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error {
