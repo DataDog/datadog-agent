@@ -516,6 +516,7 @@ def get_http_build_flags(network_c_dir):
     flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
     return flags
 
+
 def build_http_ebpf_files(ctx, build_dir):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
@@ -529,6 +530,7 @@ def build_http_ebpf_files(ctx, build_dir):
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags, extension=".o"
     )
+
 
 def get_network_build_flags(network_c_dir):
     flags = get_ebpf_build_flags()
