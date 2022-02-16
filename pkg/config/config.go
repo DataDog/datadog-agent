@@ -86,6 +86,9 @@ const (
 
 	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
 	DefaultInventoriesMaxInterval = 10 * 60
+
+	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
+	maxExternalMetricsProviderChunkSize = 35
 )
 
 // Datadog is the global configuration object
@@ -1208,6 +1211,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	useHostEtc(config)
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
+	sanitizeExternalMetricsProviderChunkSize(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -1253,6 +1257,19 @@ func ResolveSecrets(config Config, origin string) error {
 // SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func SanitizeAPIKeyConfig(config Config, key string) {
 	config.Set(key, SanitizeAPIKey(config.GetString(key)))
+}
+
+// sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
+func sanitizeExternalMetricsProviderChunkSize(config Config) {
+	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
+	if chunkSize <= 0 {
+		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
+		config.Set("external_metrics_provider.chunk_size", 1)
+	}
+	if chunkSize > maxExternalMetricsProviderChunkSize {
+		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize)
+		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
+	}
 }
 
 // SanitizeAPIKey strips newlines and other control characters from a given string.

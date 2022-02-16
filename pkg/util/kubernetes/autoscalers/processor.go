@@ -29,8 +29,6 @@ import (
 )
 
 const (
-	// maxChunkSize ensures batch queries are limited in size.
-	maxChunkSize = 35
 	// maxCharactersPerChunk is the maximum size of a single chunk to avoid 414 Request-URI Too Large
 	maxCharactersPerChunk = 7000
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
@@ -215,14 +213,6 @@ func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
 	}
 
 	chunkSize := config.Datadog.GetInt("external_metrics_provider.chunk_size")
-	if chunkSize <= 0 {
-		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
-		chunkSize = 1
-	}
-	if chunkSize > maxChunkSize {
-		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxChunkSize, maxChunkSize)
-		chunkSize = maxChunkSize
-	}
 
 	return uriLength >= maxCharactersPerChunk || numBuckets >= chunkSize, nil
 }
