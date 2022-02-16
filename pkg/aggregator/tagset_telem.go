@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -84,7 +83,7 @@ func (t *tagsetTelemetry) updateTelemetry(tagsetSizes []uint64, atomicCounts []u
 }
 
 // updateHugeSketches huge and almost-huge series in the given value
-func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metricsserializer.SketchSeriesList) {
+func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
 	tagsetSizes := make([]uint64, len(*sketches))
 	for i, s := range *sketches {
 		tagsetSizes[i] = uint64(len(s.Tags))

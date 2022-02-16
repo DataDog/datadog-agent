@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -529,7 +528,7 @@ func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
 }
 
-func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metricsserializer.SketchSeriesList) {
+func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	sketches := sampler.flush(timestamp, &series)
 	return series, sketches

@@ -100,7 +100,7 @@ type MetricSerializer interface {
 	SendSeries(series metrics.Series) error
 	SendIterableSeries(series marshaler.IterableMarshaler) error
 	IsIterableSeriesSupported() bool
-	SendSketch(sketches marshaler.Marshaler) error
+	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
@@ -371,14 +371,14 @@ func (s *Serializer) SendSeries(series metrics.Series) error {
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
+func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	if !s.enableSketches {
 		log.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}
-
+	sketchesSerializer := metricsserializer.SketchSeriesList(sketches)
 	if s.enableSketchProtobufStream {
-		payloads, err := sketches.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		if err == nil {
 			return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
 		}
@@ -387,7 +387,7 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 
 	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
-	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
+	splitSketches, extraHeaders, err := s.serializePayload(sketchesSerializer, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}

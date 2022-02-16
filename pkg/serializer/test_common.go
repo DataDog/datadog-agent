@@ -46,7 +46,7 @@ func (s *MockSerializer) SendSeries(series metrics.Series) error {
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *MockSerializer) SendSketch(sketches marshaler.Marshaler) error {
+func (s *MockSerializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	return s.Called(sketches).Error(0)
 }
 

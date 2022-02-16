@@ -26,3 +26,6 @@ type SketchPoint struct {
 	Sketch *quantile.Sketch `json:"sketch"`
 	Ts     int64            `json:"ts"`
 }
+
+// SketchSeriesList is a collection of SketchSeries
+type SketchSeriesList []SketchSeries
