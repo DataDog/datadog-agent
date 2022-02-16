@@ -32,11 +32,16 @@ int socket__http_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    // don't bother to inspect packet contents when there is no chance we're dealing with plain HTTP
-    if (!(skb_info.tup.metadata&CONN_TYPE_TCP) || skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) {
+    // If the socket is for https and it is finishing,
+    // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
+    // Otherwise, don't bother to inspect packet contents
+    // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
+    if (!(skb_info.tup.metadata&CONN_TYPE_TCP)) {
         return 0;
     }
-
+    if ((skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
+        return 0;
+    }
 
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
