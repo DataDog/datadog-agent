@@ -66,12 +66,12 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	}
 
 	if len(headerDirs) > 0 {
-		if dirs := validateHeaderDirs(hv, headerDirs, true); len(dirs) > 0 {
+		if dirs, err := validateHeaderDirs(hv, headerDirs, true); err == nil && len(dirs) > 0 {
 			return headerDirs, customHeadersFound, nil
 		}
 		log.Debugf("unable to find configured kernel headers: no valid headers found")
 	} else {
-		if dirs := validateHeaderDirs(hv, getDefaultHeaderDirs(), true); len(dirs) > 0 {
+		if dirs, err := validateHeaderDirs(hv, getDefaultHeaderDirs(), true); err == nil && len(dirs) > 0 {
 			return dirs, defaultHeadersFound, nil
 		}
 		log.Debugf("unable to find default kernel headers: no valid headers found")
@@ -87,7 +87,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 		log.Debugf("unable to find system kernel headers: %v", err)
 	}
 
-	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
+	downloadedDirs, _ := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
 	if err := containsCriticalHeaders(downloadedDirs); err != nil {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
@@ -115,15 +115,20 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	}
 
 	log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
-	if dirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), true); len(dirs) > 0 {
-		return dirs, downloadSuccess, nil
+	dirs, err := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), true)
+	if err != nil {
+		return nil, validationFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
 	}
-	return nil, validationFailure, fmt.Errorf("downloaded headers are not valid")
+	if len(dirs) == 0 {
+		return nil, validationFailure, fmt.Errorf("downloaded headers are not valid")
+	}
+
+	return dirs, downloadSuccess, nil
 }
 
 // validateHeaderDirs checks all the given directories and returns the directories containing kernel
 // headers matching the kernel version of the running host
-func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool) []string {
+func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool) ([]string, error) {
 	var valid []string
 	for _, d := range dirs {
 		if _, err := os.Stat(d); errors.Is(err, fs.ErrNotExist) {
@@ -154,11 +159,11 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 	if checkForCriticalHeaders && len(valid) != 0 {
 		if err := containsCriticalHeaders(valid); err != nil {
 			log.Debugf("error validating %s: missing critical headers: %w", valid, err)
-			return nil
+			return nil, err
 		}
 	}
 
-	return valid
+	return valid, nil
 }
 
 func containsCriticalHeaders(dirs []string) error {
