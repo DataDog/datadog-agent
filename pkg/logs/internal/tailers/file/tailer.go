@@ -45,8 +45,12 @@ type Tailer struct {
 
 	sleepDuration time.Duration
 
-	closeTimeout  time.Duration
-	ShouldStop    int32
+	closeTimeout time.Duration
+
+	// isFinished is an atomic value, set to 1 when the tailer has closed its input
+	// and flushed all messages.
+	isFinished int32
+
 	didFileRotate int32
 	stop          chan struct{}
 	done          chan struct{}
@@ -193,11 +197,18 @@ func (t *Tailer) onStop() {
 	log.Info("Closed", t.File.Path, "for tailer key", t.File.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
 }
 
+// IsFinished returns true if the tailer is in the process of stopping.  Specifically,
+// this may be true if the tailer has completed handling all messages, but has not
+// yet had its Stop method called.
+func (t *Tailer) IsFinished() bool {
+	return atomic.LoadInt32(&t.isFinished) != 0
+}
+
 // forwardMessages lets the Tailer forward log messages to the output channel
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		atomic.StoreInt32(&t.ShouldStop, 1)
+		atomic.StoreInt32(&t.isFinished, 1)
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
