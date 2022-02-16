@@ -699,7 +699,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 
 	if !autoAdjust {
 		pipelineCount = config.Datadog.GetInt("dogstatsd_pipeline_count")
-		if pipelineCount <= 0 { // guard aginst configuration mistakes
+		if pipelineCount <= 0 { // guard against configuration mistakes
 			pipelineCount = 1
 		}
 
