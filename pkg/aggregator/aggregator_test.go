@@ -465,7 +465,6 @@ func TestRecurrentSeries(t *testing.T) {
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
 	demux.ForceFlushToSerializer(start, true)
-
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
@@ -559,7 +558,6 @@ func TestTimeSamplerFlush(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
 			s := &MockSerializerIterableSerie{}
-
 			s.On("IsIterableSeriesSupported", mock.Anything).Return(true).Maybe()
 			s.On("SendServiceChecks", mock.Anything).Return(nil)
 			opts := demuxTestOptions()
@@ -634,7 +632,6 @@ func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map
 	// default series
 
 	r := require.New(t)
-
 	for _, serie := range series {
 		// ignore default series automatically sent by the aggregator
 		if serie.Name == fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()) ||

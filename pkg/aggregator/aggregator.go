@@ -260,7 +260,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
-
 		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
 		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
 
@@ -277,8 +276,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleStopper: make(chan struct{}),
 
-		tagsStore: tagsStore,
-
+		tagsStore:               tagsStore,
 		checkSamplers:           make(map[check.ID]*CheckSampler),
 		flushInterval:           flushInterval,
 		serializer:              s,
@@ -292,7 +290,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName:               agentName,
 		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
 		agentTags:               tagger.AgentTags,
-
 		flushAndSerializeInParallel: flushAndSerializeInParallel{
 			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && s != nil && s.IsIterableSeriesSupported(),
 			bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
@@ -446,7 +443,6 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
-
 	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing series: %v", err)
@@ -535,22 +531,17 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 
 		if len(series) > 0 {
 			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-
 		}
 		if len(sketches) > 0 {
 			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-
 		}
-
 	} else {
 		sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
 		agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 
 		if len(sketches) > 0 {
 			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-
 		}
-
 	}
 }
 
@@ -674,14 +665,11 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 
 // Stop stops the aggregator.
 func (agg *BufferedAggregator) Stop() {
-
 	agg.stopChan <- struct{}{}
 	close(agg.contLcycleStopper)
-
 }
 
 func (agg *BufferedAggregator) run() {
-
 	// ensures event platform errors are logged at most once per flush
 	aggregatorEventPlatformErrorLogged := false
 
@@ -708,7 +696,6 @@ func (agg *BufferedAggregator) run() {
 			aggregatorCheckHistogramBucketMetricSample.Add(1)
 			tlmProcessed.Inc("histogram_bucket")
 			agg.handleSenderBucket(checkHistogramBucket)
-
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
 			tlmProcessed.Inc("events")
@@ -717,7 +704,6 @@ func (agg *BufferedAggregator) run() {
 			aggregatorServiceCheck.Add(1)
 			tlmProcessed.Inc("service_checks")
 			agg.addServiceCheck(serviceCheck)
-
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")
