@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var autoMultiLineTelemetryMetricName = "datadog.logs_agent.auto_multi_line"
+const autoMultiLineTelemetryMetricName = "datadog.logs_agent.auto_multi_line"
 
 type scoredPattern struct {
 	score  int
