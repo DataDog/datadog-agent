@@ -26,8 +26,8 @@ func (s *MockSerializer) SendEvents(events metrics.Events) error {
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *MockSerializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
-	return s.Called(sc).Error(0)
+func (s *MockSerializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) error {
+	return s.Called(serviceChecks).Error(0)
 }
 
 // SendIterableSeries serializes a list of Serie and sends the payload to the forwarder

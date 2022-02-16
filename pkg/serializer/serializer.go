@@ -96,7 +96,7 @@ type EventsStreamJSONMarshaler interface {
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
-	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
+	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
 	SendSeries(series metrics.Series) error
 	SendIterableSeries(series marshaler.IterableMarshaler) error
 	IsIterableSeriesSupported() bool
@@ -281,20 +281,21 @@ func (s *Serializer) SendEvents(events metrics.Events) error {
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
+func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) error {
 	if !s.enableServiceChecks {
 		log.Debug("service_checks payloads are disabled: dropping it")
 		return nil
 	}
 
+	serviceChecksSerializer := metricsserializer.ServiceChecks(serviceChecks)
 	var serviceCheckPayloads forwarder.Payloads
 	var extraHeaders http.Header
 	var err error
 
 	if s.enableServiceChecksJSONStream {
-		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, stream.DropItemOnErrItemTooBig)
+		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(serviceChecksSerializer, stream.DropItemOnErrItemTooBig)
 	} else {
-		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(sc, true)
+		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(serviceChecksSerializer, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)

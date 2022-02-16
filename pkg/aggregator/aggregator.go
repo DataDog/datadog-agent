@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -213,7 +212,7 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[check.ID]*CheckSampler
-	serviceChecks          metricsserializer.ServiceChecks
+	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
 	flushInterval          time.Duration
 	mu                     sync.Mutex // to protect the checkSamplers field
@@ -546,7 +545,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
-func (agg *BufferedAggregator) GetServiceChecks() metricsserializer.ServiceChecks {
+func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	// Clear the current service check slice
@@ -555,7 +554,7 @@ func (agg *BufferedAggregator) GetServiceChecks() metricsserializer.ServiceCheck
 	return serviceChecks
 }
 
-func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metricsserializer.ServiceChecks) {
+func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
 	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
 	state := stateOk
 	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {
