@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -21,8 +22,8 @@ import (
 var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
-	series   metrics.Series
-	sketches metrics.SketchSeriesList
+	series   metricsserializer.Series
+	sketches metricsserializer.SketchSeriesList
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {

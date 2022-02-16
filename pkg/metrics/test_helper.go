@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,7 +41,7 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 }
 
 // AssertSeriesEqual evaluate if two list of series match
-func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
+func AssertSeriesEqual(t *testing.T, expected []*Serie, series []*Serie) {
 	assert.Equal(t, len(expected), len(series))
 	for _, serie := range series {
 		found := false
@@ -132,41 +131,6 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSer
 			}
 		}
 	}
-}
-
-func makesketch(n int) *quantile.Sketch {
-	s, c := &quantile.Sketch{}, quantile.Default()
-	for i := 0; i < n; i++ {
-		s.Insert(c, float64(i))
-	}
-	return s
-}
-
-// Makeseries creates a SketchSeries with i+5 Sketch Points
-func Makeseries(i int) SketchSeries {
-	// Makeseries is deterministic so that we can test for mutation.
-	ss := SketchSeries{
-		Name: fmt.Sprintf("name.%d", i),
-		Tags: []string{
-			fmt.Sprintf("a:%d", i),
-			fmt.Sprintf("b:%d", i),
-		},
-		Host:     fmt.Sprintf("host.%d", i),
-		Interval: int64(i),
-	}
-
-	// We create i+5 Sketch Points to insure all hosts have at least 5 Sketch Points for tests
-	for j := 0; j < i+5; j++ {
-		ss.Points = append(ss.Points, SketchPoint{
-			Ts:     10 * int64(j),
-			Sketch: makesketch(j),
-		})
-	}
-
-	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(ss.Tags))
-
-	return ss
 }
 
 type tHelper interface {

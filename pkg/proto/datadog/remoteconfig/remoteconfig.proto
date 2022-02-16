@@ -115,3 +115,16 @@ message ClientGetConfigsResponse {
   TopMeta targets = 2;
   repeated File target_files = 3;
 }
+
+// Full state
+
+message FileMetaState {
+  uint64 version = 1;
+  string hash = 2;
+}
+
+message GetStateConfigResponse {
+  map<string, FileMetaState> config_state = 1;
+  map<string, FileMetaState> director_state = 2;
+  map<string, string> target_filenames = 3;
+}

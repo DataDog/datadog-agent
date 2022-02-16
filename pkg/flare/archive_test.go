@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -505,4 +506,62 @@ func TestZipVersionHistory(t *testing.T) {
 	actualContent, err := ioutil.ReadFile(targetPath)
 	require.NoError(t, err)
 	require.Equal(t, "mockfilecontent", string(actualContent))
+}
+
+func TestZipProcessAgentFullConfig(t *testing.T) {
+	type ProcessConfig struct {
+		Enabled string `yaml:"enabled"`
+	}
+
+	globalCfg := struct {
+		Apikey     string        `yaml:"api_key"`
+		DDurl      string        `yaml:"dd_url"`
+		ProcessCfg ProcessConfig `yaml:"process_config"`
+	}{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"https://my-url.com",
+		ProcessConfig{
+			"true",
+		},
+	}
+
+	exp := `api_key: ***************************aaaaa
+dd_url: https://my-url.com
+process_config:
+  enabled: "true"`
+
+	t.Run("without process-agent running", func(t *testing.T) {
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentFullConfig")
+		require.NoError(t, err)
+		defer os.RemoveAll(dir)
+
+		zipProcessAgentFullConfig(dir, "")
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, "error: process-agent is not running or is unreachable", string(content))
+	})
+
+	t.Run("with process-agent running", func(t *testing.T) {
+		// Create a server to mock process-agent /config/all endpoint
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+			b, err := yaml.Marshal(globalCfg)
+			require.NoError(t, err)
+
+			_, err = w.Write(b)
+			require.NoError(t, err)
+		}
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
+
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentFullConfig")
+		require.NoError(t, err)
+		defer os.RemoveAll(dir)
+
+		procStatusURL = srv.URL
+		zipProcessAgentFullConfig(dir, "")
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, exp, string(content))
+	})
 }

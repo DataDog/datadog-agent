@@ -54,6 +54,9 @@ func (c *ServiceAccountCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.lister = c.informer.Lister()
 }
 
+// IsAvailable returns whether the collector is available.
+func (c *ServiceAccountCollector) IsAvailable() bool { return true }
+
 // Metadata is used to access information about the collector.
 func (c *ServiceAccountCollector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata

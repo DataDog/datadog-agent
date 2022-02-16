@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -110,7 +111,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metricsserializer.SerieSink) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
@@ -154,7 +155,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 
 func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
-	serieSink metrics.SerieSink,
+	serieSink metricsserializer.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie) {
 
 	// clear the map. Reuse serieBySignature
@@ -189,9 +190,9 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 }
 
-func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
+func (s *TimeSampler) flushSketches(cutoffTime int64) metricsserializer.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
+	sketches := make(metricsserializer.SketchSeriesList, 0, len(pointsByCtx))
 
 	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
@@ -206,7 +207,7 @@ func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	return sketches
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink) metrics.SketchSeriesList {
+func (s *TimeSampler) flush(timestamp float64, series metricsserializer.SerieSink) metricsserializer.SketchSeriesList {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 

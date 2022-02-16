@@ -67,9 +67,9 @@ func buildLatestConfigsRequest(hostname string, state uptane.State, activeClient
 		AgentVersion:                 version.AgentVersion,
 		Products:                     data.ProductListToString(productsList),
 		NewProducts:                  data.ProductListToString(newProductsList),
-		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion,
-		CurrentConfigRootVersion:     state.ConfigRootVersion,
-		CurrentDirectorRootVersion:   state.DirectorRootVersion,
+		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion(),
+		CurrentConfigRootVersion:     state.ConfigRootVersion(),
+		CurrentDirectorRootVersion:   state.DirectorRootVersion(),
 		ActiveClients:                activeClients,
 		ClientState:                  clientState,
 	}

@@ -30,7 +30,10 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 )
 
-const dockerCheckName = "docker"
+const (
+	dockerCheckName = "docker"
+	cacheValidity   = 2 * time.Second
+)
 
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
@@ -132,7 +135,6 @@ func (d *DockerCheck) Run() error {
 		return err
 	}
 
-	// Docker custom part is run before as some information is required in networkProcessorExtension
 	if err := d.runProcessor(sender); err != nil {
 		_ = d.Warnf("Error collecting metrics: %s", err)
 	}
@@ -141,7 +143,7 @@ func (d *DockerCheck) Run() error {
 }
 
 func (d *DockerCheck) runProcessor(sender aggregator.Sender) error {
-	return d.processor.Run(sender, d.Interval()/2)
+	return d.processor.Run(sender, cacheValidity)
 }
 
 type containerPerImage struct {

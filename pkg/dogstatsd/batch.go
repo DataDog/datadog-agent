@@ -53,7 +53,7 @@ func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 func newBatcher(demux aggregator.Demultiplexer) *batcher {
 	agg := demux.Aggregator()
 
-	pipelineCount := demux.GetDogStatsDPipelinesCount()
+	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
 	e, sc := agg.GetBufferedChannels()
 	samples := make([][]metrics.MetricSample, pipelineCount)
