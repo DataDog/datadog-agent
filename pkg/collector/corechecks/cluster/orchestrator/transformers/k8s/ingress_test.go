@@ -245,13 +245,12 @@ func TestExtractIngressBackend(t *testing.T) {
 				},
 			},
 		},
-		"with service": {
+		"with service and port name": {
 			input: netv1.IngressBackend{
 				Service: &netv1.IngressServiceBackend{
 					Name: "service",
 					Port: netv1.ServiceBackendPort{
-						Number: 443,
-						Name:   "https",
+						Name: "https",
 					},
 				},
 			},
@@ -259,6 +258,21 @@ func TestExtractIngressBackend(t *testing.T) {
 				Service: &model.IngressServiceBackend{
 					ServiceName: "service",
 					PortName:    "https",
+				},
+			},
+		},
+		"with service and port number": {
+			input: netv1.IngressBackend{
+				Service: &netv1.IngressServiceBackend{
+					Name: "service",
+					Port: netv1.ServiceBackendPort{
+						Number: 443,
+					},
+				},
+			},
+			expected: model.IngressBackend{
+				Service: &model.IngressServiceBackend{
+					ServiceName: "service",
 					PortNumber:  443,
 				},
 			},
