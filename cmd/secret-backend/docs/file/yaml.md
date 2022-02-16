@@ -28,7 +28,7 @@ The backend secret is referenced in your Datadog Agent configuration files using
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-api_key: "ENC[{backendId}:{yaml_property_name}"
+api_key: "ENC[{backendId}:{yaml_property_name}]"
 
 ```
 
