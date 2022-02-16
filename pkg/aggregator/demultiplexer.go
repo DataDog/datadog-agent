@@ -264,7 +264,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore)
 	}
 
 	// --
@@ -715,7 +715,7 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel{enabled: false})
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel{enabled: false}, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
 		aggregator:       aggregator,
