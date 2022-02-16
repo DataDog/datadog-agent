@@ -8,6 +8,4 @@
 ---
 features:
   - |
-    Implements support for parallel execution of DogStatsD sampling pipelines for
-    high-throughput scenarios.
-    This feature is not enabled by default.
+    Add ``Ingress`` collection in the orchestrator check.

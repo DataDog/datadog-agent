@@ -19,10 +19,15 @@ import (
 	"github.com/containerd/containerd/events"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 type mockEvt struct {
@@ -50,7 +55,7 @@ func TestCheckEvents(t *testing.T) {
 		},
 	}
 	// Test the basic listener
-	sub := CreateEventSubscriber("subscriberTest1", nil)
+	sub := createEventSubscriber("subscriberTest1", nil)
 	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
 	tp := containerdevents.TaskPaused{
@@ -74,7 +79,7 @@ func TestCheckEvents(t *testing.T) {
 	for {
 		select {
 		case <-ticker.C:
-			if !sub.IsRunning() {
+			if !sub.isRunning() {
 				continue
 			}
 			condition = true
@@ -94,7 +99,7 @@ func TestCheckEvents(t *testing.T) {
 	for {
 		select {
 		case <-ticker.C:
-			if sub.IsRunning() {
+			if sub.isRunning() {
 				continue
 			}
 			condition = true
@@ -107,7 +112,7 @@ func TestCheckEvents(t *testing.T) {
 	}
 
 	// Test the multiple events one unsupported
-	sub = CreateEventSubscriber("subscriberTest2", nil)
+	sub = createEventSubscriber("subscriberTest2", nil)
 	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
 	tk := containerdevents.TaskOOM{
@@ -145,7 +150,7 @@ func TestCheckEvents(t *testing.T) {
 	for {
 		select {
 		case <-ticker.C:
-			if !sub.IsRunning() {
+			if !sub.isRunning() {
 				continue
 			}
 			condition = true
@@ -160,5 +165,104 @@ func TestCheckEvents(t *testing.T) {
 	fmt.Printf("\n\n 2/ Flush %v\n\n", ev2)
 	assert.Len(t, ev2, 1)
 	assert.Equal(t, ev2[0].Topic, "/tasks/oom")
+}
 
+// TestComputeEvents checks the conversion of Containerd events to Datadog events
+func TestComputeEvents(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	var err error
+	defer containers.ResetSharedFilter()
+	containerdCheck.containerFilter, err = containers.GetSharedMetricFilter()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		events        []containerdEvent
+		expectedTitle string
+		expectedTags  []string
+		numberEvents  int
+	}{
+		{
+			name:          "No events",
+			events:        []containerdEvent{},
+			expectedTitle: "",
+			numberEvents:  0,
+		},
+		{
+			name: "Events on wrong type",
+			events: []containerdEvent{
+				{
+					Topic: "/containers/delete/extra",
+				}, {
+					Topic: "containers/delete",
+				},
+			},
+			expectedTitle: "",
+			numberEvents:  0,
+		},
+		{
+			name: "High cardinality Events with one invalid",
+			events: []containerdEvent{
+				{
+					Topic:     "/containers/delete",
+					Timestamp: time.Now(),
+					Extra:     map[string]string{"foo": "bar"},
+					Message:   "Container xxx deleted",
+					ID:        "xxx",
+				}, {
+					Topic: "containers/delete",
+				},
+			},
+			expectedTitle: "Event on containers from Containerd",
+			expectedTags:  []string{"foo:bar"},
+			numberEvents:  1,
+		},
+		{
+			name: "Low cardinality Event",
+			events: []containerdEvent{
+				{
+					Topic:     "/images/update",
+					Timestamp: time.Now(),
+					Extra:     map[string]string{"foo": "baz"},
+					Message:   "Image yyy updated",
+					ID:        "yyy",
+				},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  []string{"foo:baz"},
+			numberEvents:  1,
+		},
+		{
+			name: "Filtered event",
+			events: []containerdEvent{
+				{
+					Topic:     "/images/create",
+					Timestamp: time.Now(),
+					Extra:     map[string]string{},
+					Message:   "Image kubernetes/pause created",
+					ID:        "kubernetes/pause",
+				},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  nil,
+			numberEvents:  0,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeEvents(test.events, mocked, containerdCheck.containerFilter)
+			mocked.On("Event", mock.AnythingOfType("metrics.Event"))
+			if len(mocked.Calls) > 0 {
+				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
+				assert.Contains(t, res.Title, test.expectedTitle)
+				assert.ElementsMatch(t, res.Tags, test.expectedTags)
+			}
+			mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
+			mocked.ResetCalls()
+		})
+	}
 }

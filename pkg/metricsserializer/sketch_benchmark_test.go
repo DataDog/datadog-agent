@@ -6,7 +6,7 @@
 //go:build test
 // +build test
 
-package metrics
+package metricsserializer
 
 import (
 	"testing"

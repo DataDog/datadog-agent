@@ -629,6 +629,7 @@ func InitConfig(config Config) {
 	config.BindEnv("snmp_traps_config.namespace")
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
+	config.SetKnown("snmp_traps_config.users")
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")

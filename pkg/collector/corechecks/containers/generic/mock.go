@@ -6,6 +6,8 @@
 package generic
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
@@ -55,5 +57,20 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 func MockSendMetric(senderFunc func(string, float64, string, []string), metricName string, value *float64, tags []string) {
 	if value != nil {
 		senderFunc(metricName, *value, "", tags)
+	}
+}
+
+// CreateContainerMeta returns a dummy workloadmeta.Container
+func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
+	return &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   cID,
+		},
+		Runtime: workloadmeta.ContainerRuntime(runtime),
+		State: workloadmeta.ContainerState{
+			Running:   true,
+			StartedAt: time.Now(),
+		},
 	}
 }

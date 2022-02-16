@@ -6,7 +6,7 @@
 //go:build test
 // +build test
 
-package metrics
+package metricsserializer
 
 import (
 	"bytes"
@@ -16,13 +16,14 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func check(t *testing.T, in SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
+func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
 	t.Helper()
 	s, b := in.Sketch, in.Sketch.Basic
 	require.Equal(t, in.Ts, pb.Ts)
@@ -125,7 +126,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	sl[0] = Makeseries(0)
 
 	// A small item (no dropped)
-	sl[1] = SketchSeries{
+	sl[1] = metrics.SketchSeries{
 		Name:     "small",
 		Tags:     []string{},
 		Host:     "",

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 )
 
 // The timeSamplerWorker runs the process loop for a TimeSampler:
@@ -90,7 +91,7 @@ func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
 			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 		}
 	} else {
-		var series metrics.Series
+		var series metricsserializer.Series
 		sketches := w.sampler.flush(float64(trigger.time.Unix()), &series)
 		if len(series) > 0 {
 			*trigger.flushedSeries = append(*trigger.flushedSeries, series)

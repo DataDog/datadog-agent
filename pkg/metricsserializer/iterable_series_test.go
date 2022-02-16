@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package metricsserializer
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ import (
 )
 
 func TestIterableSeries(t *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 10, 1)
+	iterableSeries := NewIterableSeries(func(*metrics.Serie) {}, 10, 1)
 	done := make(chan struct{})
 	var descritions []string
 	go func() {
@@ -28,9 +29,9 @@ func TestIterableSeries(t *testing.T) {
 		}
 		close(done)
 	}()
-	iterableSeries.Append(&Serie{Name: "serie1"})
-	iterableSeries.Append(&Serie{Name: "serie2"})
-	iterableSeries.Append(&Serie{Name: "serie3"})
+	iterableSeries.Append(&metrics.Serie{Name: "serie1"})
+	iterableSeries.Append(&metrics.Serie{Name: "serie2"})
+	iterableSeries.Append(&metrics.Serie{Name: "serie3"})
 	iterableSeries.SenderStopped()
 	<-done
 	r := require.New(t)
@@ -42,10 +43,10 @@ func TestIterableSeries(t *testing.T) {
 
 func TestIterableSeriesCallback(t *testing.T) {
 	var series Series
-	callback := func(s *Serie) { series = append(series, s) }
+	callback := func(s *metrics.Serie) { series = append(series, s) }
 	iterableSeries := NewIterableSeries(callback, 10, 10)
-	iterableSeries.Append(&Serie{Name: "serie1"})
-	iterableSeries.Append(&Serie{Name: "serie2"})
+	iterableSeries.Append(&metrics.Serie{Name: "serie1"})
+	iterableSeries.Append(&metrics.Serie{Name: "serie2"})
 
 	r := require.New(t)
 	r.Equal(uint64(2), iterableSeries.SeriesCount())
@@ -55,22 +56,22 @@ func TestIterableSeriesCallback(t *testing.T) {
 }
 
 func TestIterableSeriesReceiverStopped(t *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 1, 1)
-	iterableSeries.Append(&Serie{Name: "serie1"})
+	iterableSeries := NewIterableSeries(func(*metrics.Serie) {}, 1, 1)
+	iterableSeries.Append(&metrics.Serie{Name: "serie1"})
 
 	// Next call to Append must not block
 	go iterableSeries.IterationStopped()
-	iterableSeries.Append(&Serie{Name: "serie2"})
-	iterableSeries.Append(&Serie{Name: "serie3"})
+	iterableSeries.Append(&metrics.Serie{Name: "serie2"})
+	iterableSeries.Append(&metrics.Serie{Name: "serie3"})
 }
 
 func TestIterableStreamJSONMarshalerAdapter(t *testing.T) {
 	var series Series
-	series = append(series, &Serie{Name: "serie1"})
-	series = append(series, &Serie{Name: "serie2"})
-	series = append(series, &Serie{Name: "serie3"})
+	series = append(series, &metrics.Serie{Name: "serie1"})
+	series = append(series, &metrics.Serie{Name: "serie2"})
+	series = append(series, &metrics.Serie{Name: "serie3"})
 
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 4, 2)
+	iterableSeries := NewIterableSeries(func(*metrics.Serie) {}, 4, 2)
 	for _, serie := range series {
 		iterableSeries.Append(serie)
 	}
@@ -95,7 +96,7 @@ func dumpIterableStream(marshaler marshaler.IterableStreamJSONMarshaler) []byte 
 func BenchmarkIterableSeries(b *testing.B) {
 	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
 		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
-			iterableSeries := NewIterableSeries(func(*Serie) {}, 100, bufferSize)
+			iterableSeries := NewIterableSeries(func(*metrics.Serie) {}, 100, bufferSize)
 			done := make(chan struct{})
 			go func() {
 				defer iterableSeries.IterationStopped()
@@ -105,7 +106,7 @@ func BenchmarkIterableSeries(b *testing.B) {
 			}()
 
 			for i := 0; i < b.N; i++ {
-				iterableSeries.Append(&Serie{Name: "name"})
+				iterableSeries.Append(&metrics.Serie{Name: "name"})
 			}
 			iterableSeries.SenderStopped()
 			<-done
@@ -114,9 +115,9 @@ func BenchmarkIterableSeries(b *testing.B) {
 }
 
 func TestIterableSeriesSeveralValues(t *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 10, 2)
+	iterableSeries := NewIterableSeries(func(*metrics.Serie) {}, 10, 2)
 	done := make(chan struct{})
-	var series []*Serie
+	var series []*metrics.Serie
 	go func() {
 		defer iterableSeries.IterationStopped()
 		for iterableSeries.MoveNext() {
@@ -128,7 +129,7 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 	for i := 0; i < 101; i++ {
 		name := "serie" + strconv.Itoa(i)
 		expected = append(expected, name)
-		iterableSeries.Append(&Serie{Name: name})
+		iterableSeries.Append(&metrics.Serie{Name: name})
 	}
 	iterableSeries.SenderStopped()
 	<-done

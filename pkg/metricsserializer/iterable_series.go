@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package metricsserializer
 
 import (
 	"context"
@@ -12,25 +12,26 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// IterableSeries represents an iterable collection of Serie.
-// Serie can be appended to IterableSeries while IterableSeries is serialized
+// IterableSeries represents an iterable collection of metrics.Serie.
+// metrics.Serie can be appended to IterableSeries while IterableSeries is serialized
 type IterableSeries struct {
 	ch                 *util.BufferedChan
 	bufferedChanClosed bool
 	cancel             context.CancelFunc
-	callback           func(*Serie)
-	current            *Serie
+	callback           func(*metrics.Serie)
+	current            *metrics.Serie
 	count              uint64
 }
 
 // NewIterableSeries creates a new instance of *IterableSeries
 // `callback` is called each time `Append` is called.
-func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
+func NewIterableSeries(callback func(*metrics.Serie), chanSize int, bufferSize int) *IterableSeries {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &IterableSeries{
 		ch:       util.NewBufferedChan(ctx, chanSize, bufferSize),
@@ -41,7 +42,7 @@ func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *Ite
 }
 
 // Append appends a serie
-func (series *IterableSeries) Append(serie *Serie) {
+func (series *IterableSeries) Append(serie *metrics.Serie) {
 	series.callback(serie)
 	atomic.AddUint64(&series.count, 1)
 	if !series.ch.Put(serie) && !series.bufferedChanClosed {
@@ -101,7 +102,7 @@ func (series *IterableSeries) DescribeCurrentItem() string {
 func (series *IterableSeries) MoveNext() bool {
 	v, ok := series.ch.Get()
 	if v != nil {
-		series.current = v.(*Serie)
+		series.current = v.(*metrics.Serie)
 	} else {
 		series.current = nil
 	}
@@ -109,7 +110,7 @@ func (series *IterableSeries) MoveNext() bool {
 }
 
 // Current returns the current serie.
-func (series *IterableSeries) Current() *Serie {
+func (series *IterableSeries) Current() *metrics.Serie {
 	return series.current
 }
 

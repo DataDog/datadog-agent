@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -44,13 +42,6 @@ var (
 	ErrNotFound         = errors.New("entity not found") //nolint:revive
 	ErrIsEmpty          = errors.New("entity is empty")  //nolint:revive
 	ErrNotLeader        = errors.New("not Leader")       //nolint:revive
-	isConnectVerbose    = false
-
-	gvrDDM = &schema.GroupVersionResource{
-		Group:    "datadoghq.com",
-		Version:  "v1alpha1",
-		Resource: "datadogmetrics",
-	}
 )
 
 const (
@@ -374,11 +365,6 @@ func (c *APIClient) connect() error {
 	}
 	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
-	err = c.checkResourcesAuth()
-	if err != nil {
-		return err
-	}
-	log.Debug("Could successfully collect Pods, Nodes, Services and Events")
 	return nil
 }
 
@@ -393,64 +379,6 @@ func newMetadataMapperBundle() *metadataMapperBundle {
 		Services: apiv1.NewNamespacesPodsStringsSet(),
 		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
 	}
-}
-
-func aggregateCheckResourcesErrors(errorMessages []string) error {
-	if len(errorMessages) == 0 {
-		return nil
-	}
-	return fmt.Errorf("check resources failed: %s", strings.Join(errorMessages, ", "))
-}
-
-// checkResourcesAuth is meant to check that we can query resources from the API server.
-// Depending on the user's config we only trigger an error if necessary.
-// The Event check requires getting Events data.
-// The MetadataMapper case, requires access to Services, Nodes and Pods.
-func (c *APIClient) checkResourcesAuth() error {
-	var errorMessages []string
-
-	// We always want to collect events
-	_, err := c.Cl.CoreV1().Events("").List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-
-	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
-		return aggregateCheckResourcesErrors(errorMessages)
-	}
-
-	_, err = c.Cl.CoreV1().Services("").List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-
-	_, err = c.Cl.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-
-	_, err = c.Cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
-	}
-
-	if c.DDClient != nil {
-		_, err = c.DDClient.Resource(*gvrDDM).List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-		if err != nil {
-			errorMessages = append(errorMessages, fmt.Sprintf("DatadogMetric collection: %q", err.Error()))
-		}
-	}
-
-	return aggregateCheckResourcesErrors(errorMessages)
 }
 
 // ComponentStatuses returns the component status list from the APIServer

@@ -9,8 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetProcessAgentStatus fetches the process-agent status from the process-agent API server
@@ -38,4 +41,34 @@ func GetProcessAgentStatus() map[string]interface{} {
 	}
 
 	return s
+}
+
+// marshalError marshals an error as YAML
+func marshalError(err error) []byte {
+	errYaml := map[string]string{
+		"error": err.Error(),
+	}
+
+	b, err := yaml.Marshal(errYaml)
+	if err != nil {
+		log.Warn("Unable to marshal error as yaml")
+		return nil
+	}
+
+	return b
+}
+
+// GetProcessAgentRuntimeConfig fetches the process-agent runtime settings.
+// The API server in process-agent already scrubs and marshals the runtime settings as YAML.
+// Since the api_key has been obfuscated with *, we're not able to unmarshal the response as YAML because *
+// is not a valid YAML character
+func GetProcessAgentRuntimeConfig(statusURL string) []byte {
+	httpClient := apiutil.GetClient(false)
+
+	b, err := apiutil.DoGet(httpClient, statusURL)
+	if err != nil {
+		return marshalError(fmt.Errorf("process-agent is not running or is unreachable"))
+	}
+
+	return b
 }

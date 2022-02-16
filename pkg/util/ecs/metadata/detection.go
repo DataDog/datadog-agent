@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
-	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
+	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 
 func detectAgentV1URL() (string, error) {
@@ -123,9 +123,17 @@ func testURLs(urls []string, timeout time.Duration) string {
 }
 
 func getAgentV3URLFromEnv() (string, error) {
-	agentURL, found := os.LookupEnv(v3.DefaultMetadataURIEnvVariable)
+	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv3EnvVariable)
 	if !found {
 		return "", fmt.Errorf("Could not initialize client: missing metadata v3 URL")
+	}
+	return agentURL, nil
+}
+
+func getAgentV4URLFromEnv() (string, error) {
+	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv4EnvVariable)
+	if !found {
+		return "", fmt.Errorf("Could not initialize client: missing metadata v4 URL")
 	}
 	return agentURL, nil
 }
