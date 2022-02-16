@@ -6,9 +6,14 @@
 package sampler
 
 import (
+	"fmt"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
 )
 
 const defaultEnv = "testEnv"
@@ -34,7 +39,6 @@ func getTestTrace() (pb.Trace, *pb.Span) {
 	return trace, trace[0]
 }
 
-/*
 func TestExtraSampleRate(t *testing.T) {
 	assert := assert.New(t)
 
@@ -42,12 +46,16 @@ func TestExtraSampleRate(t *testing.T) {
 	trace, root := getTestTrace()
 	signature := testComputeSignature(trace, "")
 
+	testTime := time.Now()
 	// Feed the s with a signature so that it has a < 1 sample rate
 	for i := 0; i < int(1e6); i++ {
-		s.Sample(time.Now(), trace, root, defaultEnv)
+		s.Sample(testTime, trace, root, defaultEnv)
 	}
+	// trigger rates update
+	s.Sample(testTime.Add(10*time.Second), trace, root, defaultEnv)
 
 	sRate := s.getSampleRate(trace, root, signature)
+	fmt.Println(sRate)
 
 	// Then turn on the extra sample rate, then ensure it affects both existing and new signatures
 	s.extraRate = 0.33
@@ -55,6 +63,7 @@ func TestExtraSampleRate(t *testing.T) {
 	assert.Equal(s.getSampleRate(trace, root, signature), s.extraRate*sRate)
 }
 
+/*
 func TestTargetTPS(t *testing.T) {
 	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)

@@ -29,8 +29,9 @@ const (
 // of the buffer is used to compute the sampling rates.
 type Sampler struct {
 	// seen maps signatures to scores.
-	seen         map[Signature][numBuckets]uint32
-	lastRotation uint64
+	seen map[Signature][numBuckets]uint32
+	// lastBucketID is the index of the last bucket on which traces were counted
+	lastBucketID int64
 	// rates maps sampling rate in %
 	rates map[Signature]float64
 
@@ -67,9 +68,21 @@ func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 	return s
 }
 
-// updateTargetTPS updates the max TPS limit
+// updateTargetTPS updates the targetTPS and all rates
 func (s *Sampler) updateTargetTPS(targetTPS float64) {
+	previousTargetTPS := s.targetTPS.Load()
 	s.targetTPS.Store(targetTPS)
+
+	if previousTargetTPS == 0 {
+		return
+	}
+	ratio := targetTPS / previousTargetTPS
+
+	s.muRates.Lock()
+	for sig, rate := range s.rates {
+		s.rates[sig] = rate * ratio
+	}
+	s.muRates.Unlock()
 }
 
 // Start runs and the Sampler main loop
@@ -90,47 +103,97 @@ func (s *Sampler) Start() {
 	}()
 }
 
-// countWeightedSig counts a trace sampled by the sampler.
+// countWeightedSig counts a trace sampled by the sampler and update rates
+// if buckets are rotated
 func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n uint32) {
-	id := (now.Unix() / int64(bucketDuration.Seconds())) % numBuckets
+	bucketID := now.Unix() / int64(bucketDuration.Seconds())
 	s.muSeen.Lock()
-	s.updateRates(id, id) // TODO
+	prevBucketID := s.lastBucketID
+	s.lastBucketID = bucketID
+
+	// pass through each bucket, zero expired ones and adjust sampling rates
+	if prevBucketID != bucketID {
+		s.updateRates(prevBucketID, bucketID)
+	}
+
 	buckets, ok := s.seen[signature]
 	if !ok {
 		buckets = [numBuckets]uint32{}
-		s.seen[signature] = buckets
 	}
-	buckets[id] += n
+	buckets[bucketID%numBuckets] += n
+	s.seen[signature] = buckets
 	s.muSeen.Unlock()
 	atomic.AddInt64(&s.totalSeen, int64(n))
 }
 
+// updateRates distributes TPS uniformly on each signature and apply it to the moving
+// max of seen buckets.
+// Rates increase are bounded by 20% increases, it requires 13 evaluations (1.2**13 = 10.6)
+// to increase a sampling rate by 10 fold.
 func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 	if len(s.seen) == 0 {
 		return
 	}
 	tpsPerSig := s.targetTPS.Load() / float64(len(s.seen))
 
+	s.muRates.Lock()
+	defer s.muRates.Unlock()
+
 	rates := make(map[Signature]float64, len(s.seen))
 	for sig, buckets := range s.seen {
-		maxBucket := uint32(0)
 
-		// TODO zeroes + previous bucket
-		for _, c := range buckets {
-			if c > maxBucket {
-				maxBucket = c
-			}
-		}
+		maxBucket, buckets := zeroAndGetMax(buckets, previousBucket, newBucket)
+		s.seen[sig] = buckets
+
 		seenTPS := float64(maxBucket) / bucketDuration.Seconds()
 		rate := 1.0
 		if tpsPerSig < seenTPS {
 			rate = tpsPerSig / seenTPS
 		}
+		// caping increase rate to 20%
+		if prevRate, ok := s.rates[sig]; ok && prevRate != 0 {
+			if rate/prevRate > 1.2 {
+				rate = prevRate * 1.2
+			}
+		}
+		if rate > 1.0 {
+			rate = 1.0
+		}
+		// no traffic on this signature, clean it up from the sampler
+		if rate == 1.0 && maxBucket == 0 {
+			delete(s.seen, sig)
+			continue
+		}
 		rates[sig] = rate
 	}
-	s.muRates.Lock()
 	s.rates = rates
-	s.muRates.Unlock()
+}
+
+// zeroAndGetMax zeroes expired buckets and returns the max count
+func zeroAndGetMax(buckets [numBuckets]uint32, previousBucket, newBucket int64) (uint32, [numBuckets]uint32) {
+	maxBucket := uint32(0)
+	for i := previousBucket + 1; i <= previousBucket+numBuckets; i++ {
+		index := i % numBuckets
+
+		// if a complete rotation happened between previousBucket and newBucket
+		// all buckets will be zeroed
+		if i < newBucket {
+			buckets[index] = 0
+			continue
+		}
+
+		value := buckets[index]
+		if value > maxBucket {
+			maxBucket = value
+		}
+
+		// take in account previous value of the bucket that is overriden
+		// in this rotation
+		if i == newBucket {
+			buckets[index] = 0
+		}
+	}
+	return maxBucket, buckets
 }
 
 // countSample counts a trace sampled by the sampler.
@@ -180,5 +243,5 @@ func (s *Sampler) Stop() {
 
 // getSampleRate returns the sample rate to apply to a trace.
 func (s *Sampler) getSampleRate(trace pb.Trace, root *pb.Span, signature Signature) float64 {
-	return s.getSignatureSampleRate(signature) * s.extraRate
+	return s.getSignatureSampleRate(signature)
 }
