@@ -136,6 +136,7 @@ func TestInfoHandler(t *testing.T) {
 		"feature_flag"
 	],
 	"client_drop_p0s": true,
+	"span_meta_structs": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
@@ -195,6 +196,7 @@ func TestInfoHandler(t *testing.T) {
 		"config_endpoint"
 	],
 	"client_drop_p0s": true,
+	"span_meta_structs": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,

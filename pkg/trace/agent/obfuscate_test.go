@@ -6,7 +6,9 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -14,7 +16,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tinylib/msgp/msgp"
 )
+
+func JsonToMsgpack(src []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	var data interface{}
+
+	err := json.Unmarshal(src, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	w := msgp.NewWriter(&buf)
+	err = w.WriteIntf(data)
+	if err != nil {
+		return nil, err
+	}
+	w.Flush()
+	return buf.Bytes(), nil
+}
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
 	_, ok := pb.MetaHook()
@@ -57,22 +78,21 @@ func TestAppSecMetaStructHook(t *testing.T) {
 	defer cco.Stop()
 
 	t.Run("normal", func(t *testing.T) {
-		appsecstruct := pb.AppSecStruct{Triggers: []*pb.AppSecTrigger{{
-			Rule: &pb.AppSecRuleTrigger{Id: "ua-000-01", Name: "Arachni"},
-			RuleMatches: []*pb.AppSecRuleMatch{{
-				Operator:      "regex_match",
-				OperatorValue: "Arachni",
-				Parameters: []*pb.AppSecRuleParameter{
+		appsecdata := []byte(`{"triggers": [{
+			"rule": {"id": "ua-000-01", "name": "Arachni"},
+			"rule_matches": [{
+				"operator":      "regex_match",
+				"operator_value": "Arachni",
+				"parameters": [
 					{
-						Address:   "http.request.headers",
-						Value:     "Arachni/v1",
-						Highlight: []string{"Arachni"},
-					},
-				},
-			}},
-		}}}
-		appsecb := []byte{}
-		appsecb, err := appsecstruct.MarshalMsg(appsecb)
+						"address":   "http.request.headers",
+						"value":     "Arachni/v1",
+						"highlight": ["Arachni"]
+					}
+				]
+			}]
+		}]}`)
+		appsecb, err := JsonToMsgpack(appsecdata)
 		if err != nil {
 			t.Fatalf("couldn't marshal appsec struct: %v", err)
 		}
@@ -80,33 +100,33 @@ func TestAppSecMetaStructHook(t *testing.T) {
 	})
 
 	t.Run("creditcard", func(t *testing.T) {
-		appsecstruct := pb.AppSecStruct{Triggers: []*pb.AppSecTrigger{{
-			Rule: &pb.AppSecRuleTrigger{Id: "ua-000-01", Name: "5105-1051-0510-5100"},
-			RuleMatches: []*pb.AppSecRuleMatch{{
-				Operator:      "regex_match",
-				OperatorValue: "Arachni",
-				Parameters: []*pb.AppSecRuleParameter{
+		appsecdata := []byte(`{"triggers": [{
+			"rule": {"id": "ua-000-01", "name": "5105-1051-0510-5100"},
+			"rule_matches": [{
+				"operator":      "regex_match",
+				"operator_value": "Arachni",
+				"parameters": [
 					{
-						Address:   "http.request.headers",
-						Value:     "5105-1051-0510-5100",
-						Highlight: []string{"5105-1051-0510-5100"},
-					},
-				},
-			}},
-		}}}
-		appsecb := []byte{}
-		appsecb, err := appsecstruct.MarshalMsg(appsecb)
+						"address":   "http.request.headers",
+						"value":     "5105-1051-0510-5100",
+						"highlight": ["5105-1051-0510-5100"]
+					}
+				]
+			}]
+		}]}`)
+		appsecb, err := JsonToMsgpack(appsecdata)
 		if err != nil {
 			t.Fatalf("couldn't marshal appsec struct: %v", err)
 		}
 		v := cco.MetaStructHook("appsec", appsecb)
-		_, err = appsecstruct.UnmarshalMsg(v)
+
+		appsecstruct, _, err := msgp.ReadMapStrIntfBytes(v, nil)
 		assert.Nil(t, err)
 		// Rule name does not contain user data
-		assert.Equal(t, "5105-1051-0510-5100", appsecstruct.Triggers[0].Rule.Name)
+		assert.Equal(t, "5105-1051-0510-5100", appsecstruct["triggers"].([]interface{})[0].(map[string]interface{})["rule"].(map[string]interface{})["name"].(string))
 		// Rule match value & highlight can contain user data
-		assert.Equal(t, "?", appsecstruct.Triggers[0].RuleMatches[0].Parameters[0].Value)
-		assert.Equal(t, []string{"?"}, appsecstruct.Triggers[0].RuleMatches[0].Parameters[0].Highlight)
+		assert.Equal(t, "?", appsecstruct["triggers"].([]interface{})[0].(map[string]interface{})["rule_matches"].([]interface{})[0].(map[string]interface{})["parameters"].([]interface{})[0].(map[string]interface{})["value"].(string))
+		assert.Equal(t, "?", appsecstruct["triggers"].([]interface{})[0].(map[string]interface{})["rule_matches"].([]interface{})[0].(map[string]interface{})["parameters"].([]interface{})[0].(map[string]interface{})["highlight"].([]interface{})[0].(string))
 	})
 
 	t.Run("unknown", func(t *testing.T) {

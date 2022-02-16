@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -13,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 const (
@@ -185,28 +188,58 @@ func (cco *ccObfuscator) MetaStructHook(k string, v []byte) (newval []byte) {
 		return v
 	}
 	var (
-		changed      bool
-		appsecstruct pb.AppSecStruct
+		changed bool
 	)
-	_, err := appsecstruct.UnmarshalMsg(v)
+	appsecstruct, _, err := msgp.ReadMapStrIntfBytes(v, nil)
 	if err != nil {
 		// Not an appsec struct, ignore the value and log an error
 		log.Errorf("Error obfuscating appsec struct: %v", err)
 		return v
 	}
-	for _, trigger := range appsecstruct.GetTriggers() {
-		for _, rulematch := range trigger.GetRuleMatches() {
-			for _, parameter := range rulematch.GetParameters() {
-				if obfuscate.IsCardNumber(parameter.Value, cco.luhn) {
-					parameter.Value = "?"
-					changed = true
-				}
-				if parameter.Highlight == nil {
+	triggers, ok := appsecstruct["triggers"].([]interface{})
+	if !ok {
+		return v
+	}
+	for _, trigger := range triggers {
+		trigger, ok := trigger.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		ruleMatches, ok := trigger["rule_matches"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, ruleMatch := range ruleMatches {
+			ruleMatch, ok := ruleMatch.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			parameters, ok := ruleMatch["parameters"].([]interface{})
+			if !ok {
+				continue
+			}
+			for _, param := range parameters {
+				param, ok := param.(map[string]interface{})
+				if !ok {
 					continue
 				}
-				for j, highlight := range parameter.Highlight {
+				paramValue, hasStrValue := param["value"].(string)
+				if hasStrValue && obfuscate.IsCardNumber(paramValue, cco.luhn) {
+					param["value"] = "?"
+					changed = true
+				}
+				highlightValue, hasHighlight := param["highlight"].([]interface{})
+				if !hasHighlight {
+					continue
+				}
+				for j, highlightEntry := range highlightValue {
+					highlight, isHighlightStr := highlightEntry.(string)
+					if !isHighlightStr {
+						continue
+					}
+
 					if obfuscate.IsCardNumber(highlight, cco.luhn) {
-						parameter.Highlight[j] = "?"
+						highlightValue[j] = "?"
 						changed = true
 					}
 				}
@@ -214,12 +247,17 @@ func (cco *ccObfuscator) MetaStructHook(k string, v []byte) (newval []byte) {
 		}
 	}
 	if changed {
-		newval, err := appsecstruct.MarshalMsg(nil)
+		var buf bytes.Buffer
+
+		buf.Grow(len(v))
+		w := msgp.NewWriter(&buf)
+		err := w.WriteMapStrIntf(appsecstruct)
 		if err != nil {
 			log.Errorf("Error replacing obfuscated appsec struct: %v", err)
 			return v
 		}
-		return newval
+		w.Flush()
+		return buf.Bytes()
 	}
 	return v
 }
