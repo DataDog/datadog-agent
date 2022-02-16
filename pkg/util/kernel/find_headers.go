@@ -88,7 +88,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
-	if !containsCriticalHeaders(downloadedDirs) {
+	if err := containsCriticalHeaders(downloadedDirs); err != nil {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
 		log.Infof("deleting previously downloaded kernel headers")
@@ -151,15 +151,17 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 		valid = append(valid, d)
 	}
 
-	if checkForCriticalHeaders && len(valid) != 0 && !containsCriticalHeaders(valid) {
-		log.Debugf("error validating %s: missing critical headers", valid)
-		return nil
+	if checkForCriticalHeaders && len(valid) != 0 {
+		if err := containsCriticalHeaders(valid); err != nil {
+			log.Debugf("error validating %s: missing critical headers: %w", valid, err)
+			return nil
+		}
 	}
 
 	return valid
 }
 
-func containsCriticalHeaders(dirs []string) bool {
+func containsCriticalHeaders(dirs []string) error {
 	criticalPaths := []string{
 		"include/linux/types.h",
 		"include/linux/kconfig.h",
@@ -180,13 +182,17 @@ func containsCriticalHeaders(dirs []string) bool {
 		}
 	}
 
-	for _, found := range searchResult {
+	missingHeaders := make([]string, 0)
+	for header, found := range searchResult {
 		if !found {
-			return false
+			missingHeaders = append(missingHeaders, header)
 		}
 	}
 
-	return true
+	if len(missingHeaders) != 0 {
+		return fmt.Errorf("missing critical headers: %v", missingHeaders)
+	}
+	return nil
 }
 
 func deleteKernelHeaderDirectory(dir string) {
