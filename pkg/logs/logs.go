@@ -207,6 +207,22 @@ func Flush(ctx context.Context) {
 	log.Debug("Flush in the logs-agent done.")
 }
 
+// GetLambdaSource allows access to the LogSource named "lambda".  This is a
+// temporary workaround, as this will eventually be handled by a dedicated
+// scheduler.
+func GetLambdaSource() *config.LogSource {
+	if agent == nil {
+		log.Debug("Impossible to retrieve the lambda LogSource: agent not started")
+		return nil
+	}
+
+	source := agent.sources.GetSourceByName("lambda")
+	if source == nil {
+		log.Debug("Impossible to retrieve the lambda LogSource")
+	}
+	return source
+}
+
 // IsAgentRunning returns true if the logs-agent is running.
 func IsAgentRunning() bool {
 	return status.Get().IsRunning

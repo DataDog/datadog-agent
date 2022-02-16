@@ -36,6 +36,8 @@ import (
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type Agent struct {
+	sources                   *config.LogSources
+	services                  *service.Services
 	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
@@ -104,6 +106,8 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	}
 
 	return &Agent{
+		sources:                   sources,
+		services:                  services,
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
@@ -134,6 +138,8 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	}
 
 	return &Agent{
+		sources:                   sources,
+		services:                  services,
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
