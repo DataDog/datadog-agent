@@ -252,8 +252,10 @@ func TestSerialization(t *testing.T) {
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
-
 		require.NoError(t, err)
+		result.Conns[0].Tags = nil
+		result.Conns[1].Tags = nil
+		result.Tags = nil
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
@@ -272,6 +274,9 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+		result.Conns[0].Tags = nil
+		result.Conns[1].Tags = nil
+		result.Tags = nil
 		assert.Equal(out, result)
 	})
 
@@ -291,6 +296,9 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+		result.Conns[0].Tags = nil
+		result.Conns[1].Tags = nil
+		result.Tags = nil
 		assert.Equal(out, result)
 	})
 
@@ -312,6 +320,9 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+		result.Conns[0].Tags = nil
+		result.Conns[1].Tags = nil
+		result.Tags = nil
 		assert.Equal(out, result)
 	})
 
