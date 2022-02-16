@@ -28,8 +28,7 @@ type serializerConsumer struct {
 }
 
 // enrichedTags of a given dimension.
-// In the OTLP pipeline, 'contexts' are kept within the translator, and,
-// therefore, this works a little differently than for DogStatsD/check metrics.
+// In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
 func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []string {
 	enrichedTags := make([]string, 0, len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
