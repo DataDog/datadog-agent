@@ -62,6 +62,18 @@ func init() {
 	registerFeature(Podman)
 }
 
+// IsAnyContainerFeaturePresent checks if any of known container features is present
+func IsAnyContainerFeaturePresent() bool {
+	return IsFeaturePresent(Docker) ||
+		IsFeaturePresent(Containerd) ||
+		IsFeaturePresent(Cri) ||
+		IsFeaturePresent(Kubernetes) ||
+		IsFeaturePresent(ECSFargate) ||
+		IsFeaturePresent(EKSFargate) ||
+		IsFeaturePresent(CloudFoundry) ||
+		IsFeaturePresent(Podman)
+}
+
 func detectContainerFeatures(features FeatureMap) {
 	detectKubernetes(features)
 	detectDocker(features)

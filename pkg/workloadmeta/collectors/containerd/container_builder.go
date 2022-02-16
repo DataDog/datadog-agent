@@ -61,7 +61,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		// The container exists, but there isn't a task associated to it. That
 		// means that the container is not running, which is all we need to know
 		// in this function (we can set any status != containerd.Running).
-		status = ""
+		status = containerd.Unknown
 	}
 
 	// Some attributes in workloadmeta.Container cannot be fetched from
@@ -81,11 +81,28 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		Runtime: workloadmeta.ContainerRuntimeContainerd,
 		State: workloadmeta.ContainerState{
 			Running:    status == containerd.Running,
-			StartedAt:  info.CreatedAt,
-			FinishedAt: time.Time{}, // Not available
+			Status:     extractStatus(status),
+			CreatedAt:  info.CreatedAt,
+			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
+			FinishedAt: time.Time{},    // Not available
 		},
 		NetworkIPs: make(map[string]string), // Not available
 		Hostname:   spec.Hostname,
 		PID:        0, // Not available
 	}, nil
+}
+
+func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus {
+	switch status {
+	case containerd.Paused, containerd.Pausing:
+		return workloadmeta.ContainerStatusPaused
+	case containerd.Created:
+		return workloadmeta.ContainerStatusCreated
+	case containerd.Running:
+		return workloadmeta.ContainerStatusRunning
+	case containerd.Stopped:
+		return workloadmeta.ContainerStatusStopped
+	}
+
+	return workloadmeta.ContainerStatusUnknown
 }

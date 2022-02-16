@@ -185,6 +185,14 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			return event, fmt.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
 		}
 
+		var createdAt time.Time
+		if container.Created != "" {
+			createdAt, err = time.Parse(time.RFC3339, container.Created)
+			if err != nil {
+				log.Debugf("could not parse creation time '%q' for container %q: %s", container.Created, container.ID, err)
+			}
+		}
+
 		var startedAt time.Time
 		if container.State.StartedAt != "" {
 			startedAt, err = time.Parse(time.RFC3339, container.State.StartedAt)
@@ -214,8 +222,10 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			Runtime: workloadmeta.ContainerRuntimeDocker,
 			State: workloadmeta.ContainerState{
 				Running:    container.State.Running,
+				Status:     extractStatus(container.State),
 				StartedAt:  startedAt,
 				FinishedAt: finishedAt,
+				CreatedAt:  createdAt,
 			},
 			NetworkIPs: extractNetworkIPs(container.NetworkSettings.Networks),
 			Hostname:   container.Config.Hostname,
@@ -383,4 +393,25 @@ func extractNetworkIPs(networks map[string]*network.EndpointSettings) map[string
 	}
 
 	return networkIPs
+}
+
+func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerStatus {
+	if containerState == nil {
+		return workloadmeta.ContainerStatusUnknown
+	}
+
+	switch containerState.Status {
+	case "created":
+		return workloadmeta.ContainerStatusCreated
+	case "running":
+		return workloadmeta.ContainerStatusRunning
+	case "paused":
+		return workloadmeta.ContainerStatusPaused
+	case "restarting":
+		return workloadmeta.ContainerStatusRestarting
+	case "removing", "exited", "dead":
+		return workloadmeta.ContainerStatusStopped
+	}
+
+	return workloadmeta.ContainerStatusUnknown
 }
