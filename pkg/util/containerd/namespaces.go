@@ -19,13 +19,11 @@ import (
 // "containerd_namespace" option has been set, it returns the namespaces it contains.
 // Otherwise, it returns all of them.
 func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]string, error) {
-	namespaces := config.Datadog.GetStringSlice("containerd_namespace")
-
-	if len(namespaces) == 0 {
-		return containerdClient.Namespaces(ctx)
+	if namespaces := config.Datadog.GetStringSlice("containerd_namespaces"); len(namespaces) > 0 {
+		return namespaces, nil
 	}
 
-	return namespaces, nil
+	return containerdClient.Namespaces(ctx)
 }
 
 // FiltersWithNamespaces returns the given list of filters adapted to take into
@@ -34,7 +32,7 @@ func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]s
 // namespace that we need to watch is "ns1", this function returns
 // `topic=="/container/create",namespace=="ns1"`.
 func FiltersWithNamespaces(filters []string) []string {
-	namespaces := config.Datadog.GetStringSlice("containerd_namespace")
+	namespaces := config.Datadog.GetStringSlice("containerd_namespaces")
 
 	if len(namespaces) == 0 {
 		// Watch all namespaces. No need to add them to the filters.

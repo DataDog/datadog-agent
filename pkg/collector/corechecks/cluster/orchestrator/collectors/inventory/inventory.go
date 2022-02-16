@@ -31,6 +31,7 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewCronJobCollector(),
 			k8sCollectors.NewDaemonSetCollector(),
 			k8sCollectors.NewDeploymentCollector(),
+			k8sCollectors.NewIngressCollector(),
 			k8sCollectors.NewJobCollector(),
 			k8sCollectors.NewNodeCollector(),
 			k8sCollectors.NewPersistentVolumeCollector(),

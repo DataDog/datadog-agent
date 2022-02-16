@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -52,6 +53,7 @@ var (
 		config.Datadog.GetString("expvar_port"))
 	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
 		config.Datadog.GetString("expvar_port"))
+	procStatusURL string
 
 	// Match .yaml and .yml to ship configuration files in the flare.
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
@@ -525,6 +527,24 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 	return writeScrubbedFile(sysProbeFile, sysProbeBuf)
 }
 
+// zipProcessAgentFullConfig fetches process-agent runtime config as YAML and writes it to process_agent_runtime_config_dump.yaml
+func zipProcessAgentFullConfig(tempDir, hostname string) error {
+	// procStatusURL can be manually set for test purposes
+	if procStatusURL == "" {
+		addressPort, err := api.GetAPIAddressPort()
+		if err != nil {
+			return fmt.Errorf("wrong configuration to connect to process-agent")
+		}
+
+		procStatusURL = fmt.Sprintf("http://%s/config/all", addressPort)
+	}
+
+	cfgB := status.GetProcessAgentRuntimeConfig(procStatusURL)
+	f := filepath.Join(tempDir, hostname, "process_agent_runtime_config_dump.yaml")
+
+	return writeScrubbedFile(f, cfgB)
+}
+
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
@@ -540,6 +560,12 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	err = writeScrubbedFile(f, c)
 	if err != nil {
 		return err
+	}
+
+	// Use best effort to write process-agent runtime configs
+	err = zipProcessAgentFullConfig(tempDir, hostname)
+	if err != nil {
+		log.Warnf("could not zip process_agent_runtime_config_dump.yaml: %s", err)
 	}
 
 	err = walkConfigFilePaths(tempDir, hostname, confSearchPaths, permsInfos)
@@ -607,19 +633,21 @@ func zipDiagnose(tempDir, hostname string) error {
 	return writeScrubbedFile(f, b.Bytes())
 }
 
-func zipFile(originalPath, zippedPath string) error {
-	original, err := os.Open(originalPath)
+func zipFile(sourceDir, targetDir, filename string) error {
+	original, err := os.Open(filepath.Join(sourceDir, filename))
+	targetPath := filepath.Join(targetDir, filename)
+
 	if err != nil {
 		return err
 	}
 	defer original.Close()
 
-	err = ensureParentDirsExist(zippedPath)
+	err = ensureParentDirsExist(targetPath)
 	if err != nil {
 		return err
 	}
 
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	zipped, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -645,15 +673,15 @@ func zipFile(originalPath, zippedPath string) error {
 }
 
 func zipRegistryJSON(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
-	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
-	return zipFile(originalPath, zippedPath)
+	originalPath := config.Datadog.GetString("logs_config.run_path")
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(originalPath, targetPath, "registry.json")
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
-	return zipFile(originalPath, zippedPath)
+	originalPath := config.Datadog.GetString("run_path")
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(originalPath, targetPath, "version-history.json")
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
@@ -697,6 +725,7 @@ func zipTaggerList(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "tagger-list.json")
+
 	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
@@ -774,9 +803,8 @@ func zipHealth(tempDir, hostname string) error {
 }
 
 func zipInstallInfo(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
-	zippedPath := filepath.Join(tempDir, hostname, "install_info")
-	return zipFile(originalPath, zippedPath)
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(config.FileUsedDir(), targetPath, "install_info")
 }
 
 func zipTelemetry(tempDir, hostname string) error {

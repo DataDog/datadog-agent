@@ -104,7 +104,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	// container2 is normal container in Kubernetes (no network config) - linked to container3 and PID 101
 	// container3 is a pause container in Kubernetes (owns the network config) - linked to nothing
 	// container4 is a normal docker container connected to 2 networks 0 linked to PID 200
-	container1 := createContainerMeta("docker", "kube-host-network")
+	container1 := generic.CreateContainerMeta("docker", "kube-host-network")
 	mockCollector.SetContainerEntry(container1.ID, metrics.MockContainerEntry{
 		ContainerStats: provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
@@ -156,7 +156,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 		},
 	}
 
-	container2 := createContainerMeta("docker", "kube-app")
+	container2 := generic.CreateContainerMeta("docker", "kube-app")
 	mockCollector.SetContainerEntry(container2.ID, metrics.MockContainerEntry{
 		ContainerStats: provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
@@ -202,7 +202,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 		},
 	}
 
-	container4 := createContainerMeta("docker", "docker-app")
+	container4 := generic.CreateContainerMeta("docker", "docker-app")
 	mockCollector.SetContainerEntry(container4.ID, metrics.MockContainerEntry{
 		ContainerStats: provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{

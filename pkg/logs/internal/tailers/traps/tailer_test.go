@@ -30,7 +30,7 @@ func TestTrapsShouldReceiveMessages(t *testing.T) {
 		Content: &gosnmp.SnmpPacket{
 			Version:   gosnmp.Version2c,
 			Community: "public",
-			Variables: traps.NetSNMPExampleHeartbeatNotificationVariables,
+			Variables: traps.NetSNMPExampleHeartbeatNotification.Variables,
 		},
 		Addr: &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 1620},
 	}
