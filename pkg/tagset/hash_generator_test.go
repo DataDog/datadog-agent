@@ -120,20 +120,21 @@ func TestDedup2Small(t *testing.T) {
 	g := NewHashGenerator()
 
 	cases := []struct {
-		name             string
-		l, r, expL, expR string
+		name               string
+		l, r, expL, expR   string
+		expHashL, expHashR uint64
 	}{
-		{"empty", "", "", "", ""},
-		{"empty l small", "", "foo", "", "foo"},
-		{"empty r small", "foo", "", "foo", ""},
+		{"empty", "", "", "", "", 0, 0},
+		{"empty l small", "", "foo", "", "foo", 0, 0xe271865701f54561},
+		{"empty r small", "foo", "", "foo", "", 0xe271865701f54561, 0},
 		// bruteforce mode (# tags <= 4)
-		{"small-1", "foo,foo,bar", "ook", "foo,bar", "ook"},
-		{"small-2", "foo,bar", "foo,ook", "foo,bar", "ook"},
-		{"small-3", "foo", "ook,foo,eek", "foo", "ook,eek"},
-		{"small-4", "foo,bar,foo", "", "foo,bar", ""},
-		{"small-5", "", "bar,foo,bar,bar", "", "bar,foo"},
+		{"small-1", "foo,foo,bar", "ook", "foo,bar", "ook", 0x7047de8cfccfa365, 0xaf143bb3d715f7c5},
+		{"small-2", "foo,bar", "foo,ook", "foo,bar", "ook", 0x7047de8cfccfa365, 0xaf143bb3d715f7c5},
+		{"small-3", "foo", "ook,foo,eek", "foo", "ook,eek", 0xe271865701f54561, 0x5cc6d96d47bebee3},
+		{"small-4", "foo,bar,foo", "", "foo,bar", "", 0x7047de8cfccfa365, 0},
+		{"small-5", "", "bar,foo,bar,bar", "", "bar,foo", 0, 0x7047de8cfccfa365},
 		// hashing mode (# tags > 4)
-		{"mid-1", "foo,bar,bar", "bar,bar,bar,foo", "foo,bar", ""},
+		{"mid-1", "foo,bar,bar", "bar,bar,bar,foo", "foo,bar", "", 0x7047de8cfccfa365, 0},
 	}
 
 	for _, tc := range cases {
@@ -152,6 +153,8 @@ func TestDedup2Small(t *testing.T) {
 			assert.EqualValues(t, exp, got)
 			assert.EqualValues(t, tc.expL, strings.Join(l.Get(), ","))
 			assert.EqualValues(t, tc.expR, strings.Join(r.Get(), ","))
+			assert.EqualValues(t, tc.expHashL, l.Hash())
+			assert.EqualValues(t, tc.expHashR, r.Hash())
 		})
 	}
 }
