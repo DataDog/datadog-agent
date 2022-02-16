@@ -54,7 +54,7 @@ type Tailer struct {
 	readTimeout   time.Duration
 	sleepDuration time.Duration
 
-	/// stop: writing a value to this channel will cause the readForever component to stop
+	// stop: writing a value to this channel will cause the readForever component to stop
 	stop chan struct{}
 
 	// done: a value is written to this channel when the message-forwarder

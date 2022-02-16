@@ -259,7 +259,7 @@ func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
 }
 
-// fileHasRotated indicates causes subsequent calls to hasFileRotated to return true.
+// fileHasRotated causes subsequent calls to hasFileRotated to return true.
 func (t *Tailer) fileHasRotated() {
 	atomic.StoreInt32(&t.didFileRotate, 1)
 }
