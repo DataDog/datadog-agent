@@ -65,6 +65,9 @@ CWS logs have the following JSON schema:
         "date": {
             "type": "string",
             "format": "date-time"
+        },
+        "network": {
+            "$ref": "#/definitions/NetworkContext"
         }
     },
     "additionalProperties": false,
@@ -91,6 +94,7 @@ CWS logs have the following JSON schema:
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `date` | string |  |
+| `network` | $ref | Please see [NetworkContext](#networkcontext) |
 
 ## `BPFEvent`
 
@@ -258,37 +262,16 @@ CWS logs have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
-        "id",
-        "qdcount",
-        "qclass",
-        "qtype",
-        "dns_server_ip",
-        "name"
+        "id"
     ],
     "properties": {
         "id": {
             "type": "integer",
             "description": "id is the unique identifier of the DNS request"
         },
-        "qdcount": {
-            "type": "integer",
-            "description": "qdcount is the number of questions in the DNS request"
-        },
-        "qclass": {
-            "type": "string",
-            "description": "qclass is the class of the DNS request"
-        },
-        "qtype": {
-            "type": "string",
-            "description": "qtype is the type of the DNS request"
-        },
-        "dns_server_ip": {
-            "type": "string",
-            "description": "dns_server_ip is the DNS server IP to which the DNS request was sent"
-        },
-        "name": {
-            "type": "string",
-            "description": "name of the DNS request"
+        "question": {
+            "$ref": "#/definitions/DNSQuestion",
+            "description": "question is a DNS question for the DNS request"
         }
     },
     "additionalProperties": false,
@@ -300,11 +283,59 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | id is the unique identifier of the DNS request |
-| `qdcount` | qdcount is the number of questions in the DNS request |
-| `qclass` | qclass is the class of the DNS request |
-| `qtype` | qtype is the type of the DNS request |
-| `dns_server_ip` | dns_server_ip is the DNS server IP to which the DNS request was sent |
-| `name` | name of the DNS request |
+| `question` | question is a DNS question for the DNS request |
+
+| References |
+| ---------- |
+| [DNSQuestion](#dnsquestion) |
+
+## `DNSQuestion`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "class",
+        "type",
+        "name",
+        "size",
+        "count"
+    ],
+    "properties": {
+        "class": {
+            "type": "string",
+            "description": "class is the class looked up by the DNS question"
+        },
+        "type": {
+            "type": "string",
+            "description": "type is a two octet code which specifies the DNS question type"
+        },
+        "name": {
+            "type": "string",
+            "description": "name is the queried domain name"
+        },
+        "size": {
+            "type": "integer",
+            "description": "size is the total DNS request size in bytes"
+        },
+        "count": {
+            "type": "integer",
+            "description": "count is the total count of questions in the DNS request"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `class` | class is the class looked up by the DNS question |
+| `type` | type is a two octet code which specifies the DNS question type |
+| `name` | name is the queried domain name |
+| `size` | size is the total DNS request size in bytes |
+| `count` | count is the total count of questions in the DNS request |
 
 
 ## `EventContext`
@@ -597,6 +628,37 @@ CWS logs have the following JSON schema:
 | ---------- |
 | [File](#file) |
 
+## `IPPort`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "ip",
+        "port"
+    ],
+    "properties": {
+        "ip": {
+            "type": "string",
+            "description": "IP address"
+        },
+        "port": {
+            "type": "integer",
+            "description": "Port number"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `ip` | IP address |
+| `port` | Port number |
+
+
 ## `MMapEvent`
 
 
@@ -717,6 +779,102 @@ CWS logs have the following JSON schema:
 | ----- | ----------- |
 | `name` | module name |
 | `loaded_from_memory` | indicates if a module was loaded from memory, as opposed to a file |
+
+
+## `NetworkContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+    ],
+    "properties": {
+        "device": {
+            "$ref": "#/definitions/NetworkDevice",
+            "description": "device is the network device on which the event was captured"
+        },
+        "l3_protocol": {
+            "type": "string",
+            "description": "l3_protocol is the layer 3 procotocol name"
+        },
+        "l4_protocol": {
+            "type": "string",
+            "description": "l4_protocol is the layer 4 procotocol name"
+        },
+        "source": {
+            "$ref": "#/definitions/IPPort",
+            "description": "source is the emitter of the network event"
+        },
+        "destination": {
+            "$ref": "#/definitions/IPPort",
+            "description": "destination is the receiver of the network event"
+        },
+        "size": {
+            "type": "integer",
+            "description": "size is the size in bytes of the network event"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `device` | device is the network device on which the event was captured |
+| `l3_protocol` | l3_protocol is the layer 3 procotocol name |
+| `l4_protocol` | l4_protocol is the layer 4 procotocol name |
+| `source` | source is the emitter of the network event |
+| `destination` | destination is the receiver of the network event |
+| `size` | size is the size in bytes of the network event |
+
+| References |
+| ---------- |
+| [NetworkDevice](#networkdevice) |
+| [IPPort](#ipport) |
+| [IPPort](#ipport) |
+
+## `NetworkDevice`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "netns",
+        "ifindex",
+        "ifname"
+    ],
+    "properties": {
+        "netns": {
+            "type": "integer",
+            "description": "netns is the interface ifindex"
+        },
+        "ifindex": {
+            "type": "integer",
+            "description": "ifindex is the network interface ifindex"
+        },
+        "ifname": {
+            "type": "string",
+            "description": "ifname is the network interface name"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `netns` | netns is the interface ifindex |
+| `ifindex` | ifindex is the network interface ifindex |
+| `ifname` | ifname is the network interface name |
 
 
 ## `PTraceEvent`

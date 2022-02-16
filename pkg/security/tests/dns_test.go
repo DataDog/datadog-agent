@@ -21,7 +21,7 @@ import (
 func TestDNS(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `dns.qtype == A && dns.name == "google.com" && process.file.name == "testsuite"`,
+		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{enableNetwork: true})

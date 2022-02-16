@@ -18,6 +18,41 @@
           "definition": "Tags of the container"
         },
         {
+          "name": "network.destination.port",
+          "type": "int",
+          "definition": "Port number"
+        },
+        {
+          "name": "network.device.ifindex",
+          "type": "int",
+          "definition": "interface ifindex"
+        },
+        {
+          "name": "network.device.ifname",
+          "type": "string",
+          "definition": "interface ifname"
+        },
+        {
+          "name": "network.l3_protocol",
+          "type": "int",
+          "definition": "l3 protocol of the network packet"
+        },
+        {
+          "name": "network.l4_protocol",
+          "type": "int",
+          "definition": "l4 protocol of the network packet"
+        },
+        {
+          "name": "network.size",
+          "type": "int",
+          "definition": "size in bytes of the network packet"
+        },
+        {
+          "name": "network.source.port",
+          "type": "int",
+          "definition": "Port number"
+        },
+        {
           "name": "process.ancestors.args",
           "type": "string",
           "definition": "Arguments of the process (as a string)"
@@ -743,44 +778,34 @@
     {
       "name": "dns",
       "definition": "A DNS request was sent",
-      "type": "Kernel",
-      "from_agent_version": "7.35",
-      "experimental": true,
+      "type": "Network",
+      "from_agent_version": "7.36",
+      "experimental": false,
       "properties": [
         {
-          "name": "dns.dns_server_ip_family",
+          "name": "dns.question.class",
           "type": "int",
-          "definition": "DNS server IP family (IPv4 or IPv6) of the DNS server IP"
+          "definition": "the class looked up by the DNS question"
         },
         {
-          "name": "dns.id",
+          "name": "dns.question.count",
           "type": "int",
-          "definition": "id field of the DNS request"
+          "definition": "the total count of questions in the DNS request"
         },
         {
-          "name": "dns.name",
+          "name": "dns.question.name",
           "type": "string",
-          "definition": "name field of the DNS request"
+          "definition": "the queried domain name"
         },
         {
-          "name": "dns.qclass",
+          "name": "dns.question.size",
           "type": "int",
-          "definition": "qclass field of the DNS request"
+          "definition": "the total DNS request size in bytes"
         },
         {
-          "name": "dns.qdcount",
+          "name": "dns.question.type",
           "type": "int",
-          "definition": "qdcount field of the DNS request"
-        },
-        {
-          "name": "dns.qtype",
-          "type": "int",
-          "definition": "qtype field of the DNS request"
-        },
-        {
-          "name": "dns.retval",
-          "type": "int",
-          "definition": "Return value of the syscall"
+          "definition": "a two octet code which specifies the DNS question type"
         }
       ]
     },

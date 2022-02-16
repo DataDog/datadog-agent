@@ -10,11 +10,6 @@ static __attribute__((always_inline)) u32 get_netns() {
     return (u32) netns;
 }
 
-struct network_device_context_t {
-    u32 netns;
-    u32 ifindex;
-};
-
 struct cursor {
 	void *pos;
 	void *end;
@@ -50,12 +45,13 @@ struct packet_t {
     struct tcphdr tcp;
     struct udphdr udp;
 
-    struct flow_t flow;
-    struct flow_t translated_flow;
+    struct namespaced_flow_t ns_flow;
+    struct namespaced_flow_t translated_ns_flow;
 
     u32 offset;
     u32 pid;
-    u8 l4_protocol;
+    u32 payload_len;
+    u16 l4_protocol;
 };
 
 struct bpf_map_def SEC("maps/packets") packets = {
@@ -75,12 +71,43 @@ __attribute__((always_inline)) struct packet_t *get_packet() {
 __attribute__((always_inline)) struct packet_t *reset_packet() {
     u32 key = PACKET_KEY;
     struct packet_t new_pkt = {
-        .flow = {
+        .ns_flow = {
             .netns = get_netns(),
         },
     };
     bpf_map_update_elem(&packets, &key, &new_pkt, BPF_ANY);
     return get_packet();
+}
+
+__attribute__((always_inline)) void fill_network_process_context(struct process_context_t *process, struct packet_t *pkt) {
+    process->pid = pkt->pid;
+    process->tid = pkt->pid;
+    process->netns = pkt->translated_ns_flow.netns;
+}
+
+struct network_device_context_t {
+    u32 netns;
+    u32 ifindex;
+};
+
+struct network_context_t {
+    struct network_device_context_t device;
+    struct flow_t flow;
+
+    u32 size;
+    u16 l3_protocol;
+    u16 l4_protocol;
+};
+
+__attribute__((always_inline)) void fill_network_context(struct network_context_t *net_ctx, struct __sk_buff *skb, struct packet_t *pkt) {
+    net_ctx->l3_protocol = htons(pkt->eth.h_proto);
+    net_ctx->l4_protocol = pkt->l4_protocol;
+    net_ctx->size = skb->len;
+    net_ctx->flow = pkt->translated_ns_flow.flow;
+
+    // network device context
+    net_ctx->device.netns = pkt->translated_ns_flow.netns;
+    net_ctx->device.ifindex = skb->ifindex;
 }
 
 #define DNS_REQUEST        1
@@ -99,19 +126,19 @@ __attribute__((always_inline)) void tail_call_to_classifier(struct __sk_buff *sk
 
 __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packet_t *pkt, int network_direction) {
     struct pid_route_t pid_route = {};
-    struct flow_t tmp_flow = pkt->flow; // for compatibility with older kernels
-    pkt->translated_flow = pkt->flow;
+    struct namespaced_flow_t tmp_ns_flow = pkt->ns_flow; // for compatibility with older kernels
+    pkt->translated_ns_flow = pkt->ns_flow;
 
     // lookup flow in conntrack table
     #pragma unroll
     for (int i = 0; i < 10; i++) {
-        struct flow_t *translated_flow = bpf_map_lookup_elem(&conntrack, &tmp_flow);
-        if (translated_flow == NULL) {
+        struct namespaced_flow_t *translated_ns_flow = bpf_map_lookup_elem(&conntrack, &tmp_ns_flow);
+        if (translated_ns_flow == NULL) {
             break;
         }
 
-        pkt->translated_flow = *translated_flow;
-        tmp_flow = *translated_flow;
+        pkt->translated_ns_flow = *translated_ns_flow;
+        tmp_ns_flow = *translated_ns_flow;
     }
 
     // TODO: if nothing was found in the conntrack map, lookup ingress nat rules (nothing to do for egress though)
@@ -119,17 +146,17 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     // resolve pid
     switch (network_direction) {
         case EGRESS: {
-            pid_route.addr[0] = pkt->translated_flow.saddr[0];
-            pid_route.addr[1] = pkt->translated_flow.saddr[1];
-            pid_route.netns = pkt->translated_flow.netns;
-            pid_route.port = pkt->translated_flow.sport;
+            pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
+            pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
+            pid_route.port = pkt->translated_ns_flow.flow.sport;
+            pid_route.netns = pkt->translated_ns_flow.netns;
             break;
         }
         case INGRESS: {
-            pid_route.addr[0] = pkt->translated_flow.daddr[0];
-            pid_route.addr[1] = pkt->translated_flow.daddr[1];
-            pid_route.netns = pkt->translated_flow.netns;
-            pid_route.port = pkt->translated_flow.dport;
+            pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
+            pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
+            pid_route.port = pkt->translated_ns_flow.flow.dport;
+            pid_route.netns = pkt->translated_ns_flow.netns;
         }
     }
     pkt->pid = get_flow_pid(&pid_route);
@@ -137,7 +164,7 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     // TODO: l3 / l4 firewall
 
     // route l7 protocol
-    if (pkt->translated_flow.dport == htons(53)) {
+    if (pkt->translated_ns_flow.flow.dport == htons(53)) {
         tail_call_to_classifier(skb, DNS_REQUEST);
     }
 

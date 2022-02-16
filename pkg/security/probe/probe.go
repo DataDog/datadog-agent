@@ -385,6 +385,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	// save netns handle if applicable
 	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, event.ProcessContext.Tid)
 
+	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode Network Context")
+		}
+		offset += read
+	}
+
 	switch eventType {
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
@@ -549,11 +556,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-	case model.DNSEventType:
-		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
 	case model.PTraceEventType:
 		if _, err = event.PTrace.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
@@ -612,6 +614,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
 	case model.NamespaceSwitchEventType:
 		break
+	case model.DNSEventType:
+		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -924,7 +931,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers, p.scrubber)
+		return NewEvent(p.resolvers, p.scrubber, p)
 	}
 	opts.WithLogger(&seclog.PatternLogger{})
 
@@ -1176,10 +1183,11 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.scrubber = pconfig.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
-	p.event = NewEvent(p.resolvers, p.scrubber)
+	p.event = NewEvent(p.resolvers, p.scrubber, p)
 
 	eventZero.resolvers = p.resolvers
 	eventZero.scrubber = p.scrubber
+	eventZero.probe = p
 
 	return p, nil
 }

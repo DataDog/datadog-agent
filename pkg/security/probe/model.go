@@ -79,6 +79,7 @@ type Event struct {
 	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
 	scrubber            *pconfig.DataScrubber
+	probe               *Probe
 }
 
 // Retain the event
@@ -526,11 +527,40 @@ func (ev *Event) GetProcessServiceTag() string {
 	return ""
 }
 
+// ResolveNetworkDeviceIfName returns the network iterface name from the network context
+func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
+	if len(device.IfName) == 0 && ev.probe != nil {
+		key := NetDeviceKey{
+			NetNS:            device.NetNS,
+			IfIndex:          device.IfIndex,
+			NetworkDirection: manager.Egress,
+		}
+
+		ev.probe.tcProgramsLock.RLock()
+		defer ev.probe.tcProgramsLock.RUnlock()
+
+		tcProbe, ok := ev.probe.tcPrograms[key]
+		if !ok {
+			key.NetworkDirection = manager.Ingress
+			tcProbe = ev.probe.tcPrograms[key]
+		}
+
+		if tcProbe != nil {
+			device.IfName = tcProbe.IfName
+		}
+	}
+	if ev.probe == nil {
+		fmt.Println("NILLY")
+	}
+	return device.IfName
+}
+
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber, probe *Probe) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,
 		scrubber:  scrubber,
+		probe:     probe,
 	}
 }

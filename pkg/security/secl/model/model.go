@@ -136,6 +136,7 @@ type Event struct {
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	SpanContext      SpanContext      `field:"-"`
 	ContainerContext ContainerContext `field:"container"`
+	NetworkContext   NetworkContext   `field:"network"`
 
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
 	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
@@ -163,7 +164,7 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
-	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.35] [Kernel] [Experimental] A DNS request was sent
+	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.36] [Network] A DNS request was sent
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -746,21 +747,34 @@ type CgroupTracingEvent struct {
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"-"`
+	IfIndex uint32 `field:"ifindex"`                           // interface ifindex
+	IfName  string `field:"ifname,ResolveNetworkDeviceIfName"` // interface ifname
+}
+
+type IpPortContext struct {
+	IP   net.IP `field:"-"`
+	Port uint16 `field:"port"` // Port number
+}
+
+// NetworkContext represents the network context of the event
+type NetworkContext struct {
+	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
+
+	L3Protocol  uint16        `field:"l3_protocol"` // l3 protocol of the network packet
+	L4Protocol  uint16        `field:"l4_protocol"` // l4 protocol of the network packet
+	Source      IpPortContext `field:"source"`      // source of the network packet
+	Destination IpPortContext `field:"destination"` // destination of the network packet
+	Size        uint32        `field:"size"`        // size in bytes of the network packet
 }
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	SyscallEvent
-	NetworkDeviceContext
-
-	ID                uint16 `field:"id"`                   // id field of the DNS request
-	QDCount           uint16 `field:"qdcount"`              // qdcount field of the DNS request
-	QClass            uint16 `field:"qclass"`               // qclass field of the DNS request
-	QType             uint16 `field:"qtype"`                // qtype field of the DNS request
-	DNSServerIPFamily uint64 `field:"dns_server_ip_family"` // DNS server IP family (IPv4 or IPv6) of the DNS server IP
-	DNSServerIP       net.IP `field:"dns_server_ip"`        // DNS server IP to which the request was sent
-	Name              string `field:"name"`                 // name field of the DNS request
+	ID    uint16 `field:"-"`
+	Name  string `field:"question.name"`  // the queried domain name
+	Type  uint16 `field:"question.type"`  // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class"` // the class looked up by the DNS question
+	Size  uint16 `field:"question.size"`  // the total DNS request size in bytes
+	Count uint16 `field:"question.count"` // the total count of questions in the DNS request
 }
 
 // NetDevice represents a network device

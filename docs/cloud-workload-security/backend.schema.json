@@ -62,6 +62,10 @@
     "date": {
       "type": "string",
       "format": "date-time"
+    },
+    "network": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/NetworkContext"
     }
   },
   "additionalProperties": false,
@@ -159,37 +163,50 @@
     },
     "DNSEvent": {
       "required": [
-        "id",
-        "qdcount",
-        "qclass",
-        "qtype",
-        "dns_server_ip",
-        "name"
+        "id"
       ],
       "properties": {
         "id": {
           "type": "integer",
           "description": "id is the unique identifier of the DNS request"
         },
-        "qdcount": {
-          "type": "integer",
-          "description": "qdcount is the number of questions in the DNS request"
-        },
-        "qclass": {
+        "question": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/DNSQuestion",
+          "description": "question is a DNS question for the DNS request"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DNSQuestion": {
+      "required": [
+        "class",
+        "type",
+        "name",
+        "size",
+        "count"
+      ],
+      "properties": {
+        "class": {
           "type": "string",
-          "description": "qclass is the class of the DNS request"
+          "description": "class is the class looked up by the DNS question"
         },
-        "qtype": {
+        "type": {
           "type": "string",
-          "description": "qtype is the type of the DNS request"
-        },
-        "dns_server_ip": {
-          "type": "string",
-          "description": "dns_server_ip is the DNS server IP to which the DNS request was sent"
+          "description": "type is a two octet code which specifies the DNS question type"
         },
         "name": {
           "type": "string",
-          "description": "name of the DNS request"
+          "description": "name is the queried domain name"
+        },
+        "size": {
+          "type": "integer",
+          "description": "size is the total DNS request size in bytes"
+        },
+        "count": {
+          "type": "integer",
+          "description": "count is the total count of questions in the DNS request"
         }
       },
       "additionalProperties": false,
@@ -408,6 +425,24 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "IPPort": {
+      "required": [
+        "ip",
+        "port"
+      ],
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IP address"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "MMapEvent": {
       "required": [
         "address",
@@ -481,6 +516,68 @@
         "loaded_from_memory": {
           "type": "boolean",
           "description": "indicates if a module was loaded from memory, as opposed to a file"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "NetworkContext": {
+      "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+      ],
+      "properties": {
+        "device": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/NetworkDevice",
+          "description": "device is the network device on which the event was captured"
+        },
+        "l3_protocol": {
+          "type": "string",
+          "description": "l3_protocol is the layer 3 procotocol name"
+        },
+        "l4_protocol": {
+          "type": "string",
+          "description": "l4_protocol is the layer 4 procotocol name"
+        },
+        "source": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/IPPort",
+          "description": "source is the emitter of the network event"
+        },
+        "destination": {
+          "$ref": "#/definitions/IPPort",
+          "description": "destination is the receiver of the network event"
+        },
+        "size": {
+          "type": "integer",
+          "description": "size is the size in bytes of the network event"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "NetworkDevice": {
+      "required": [
+        "netns",
+        "ifindex",
+        "ifname"
+      ],
+      "properties": {
+        "netns": {
+          "type": "integer",
+          "description": "netns is the interface ifindex"
+        },
+        "ifindex": {
+          "type": "integer",
+          "description": "ifindex is the network interface ifindex"
+        },
+        "ifname": {
+          "type": "string",
+          "description": "ifname is the network interface name"
         }
       },
       "additionalProperties": false,

@@ -27,8 +27,8 @@ int classifier_egress(struct __sk_buff *skb) {
                 return ACT_OK;
 
             pkt->l4_protocol = pkt->ipv4.protocol;
-            pkt->flow.saddr[0] = pkt->ipv4.saddr;
-            pkt->flow.daddr[0] = pkt->ipv4.daddr;
+            pkt->ns_flow.flow.saddr[0] = pkt->ipv4.saddr;
+            pkt->ns_flow.flow.daddr[0] = pkt->ipv4.daddr;
             break;
 
         case htons(ETH_P_IPV6):
@@ -38,10 +38,10 @@ int classifier_egress(struct __sk_buff *skb) {
                 return ACT_OK;
 
             pkt->l4_protocol = pkt->ipv6.nexthdr;
-            pkt->flow.saddr[0] = *(u64*)&pkt->ipv6.saddr;
-            pkt->flow.saddr[1] = *((u64*)(&pkt->ipv6.saddr) + 1);
-            pkt->flow.daddr[0] = *(u64*)&pkt->ipv6.daddr;
-            pkt->flow.daddr[1] = *((u64*)(&pkt->ipv6.daddr) + 1);
+            pkt->ns_flow.flow.saddr[0] = *(u64*)&pkt->ipv6.saddr;
+            pkt->ns_flow.flow.saddr[1] = *((u64*)(&pkt->ipv6.saddr) + 1);
+            pkt->ns_flow.flow.daddr[0] = *(u64*)&pkt->ipv6.daddr;
+            pkt->ns_flow.flow.daddr[1] = *((u64*)(&pkt->ipv6.daddr) + 1);
             break;
 
         default:
@@ -60,8 +60,9 @@ int classifier_egress(struct __sk_buff *skb) {
 
             // save current offset within the packet
             pkt->offset = ((u32)(long)c.pos - skb->data);
-            pkt->flow.sport = pkt->tcp.source;
-            pkt->flow.dport = pkt->tcp.dest;
+            pkt->payload_len = skb->len - pkt->offset;
+            pkt->ns_flow.flow.sport = pkt->tcp.source;
+            pkt->ns_flow.flow.dport = pkt->tcp.dest;
             break;
 
         case IPPROTO_UDP:
@@ -71,8 +72,9 @@ int classifier_egress(struct __sk_buff *skb) {
 
             // save current offset within the packet
             pkt->offset = ((u32)(long)c.pos - skb->data);
-            pkt->flow.sport = pkt->udp.source;
-            pkt->flow.dport = pkt->udp.dest;
+            pkt->payload_len = skb->len - pkt->offset;
+            pkt->ns_flow.flow.sport = pkt->udp.source;
+            pkt->ns_flow.flow.dport = pkt->udp.dest;
             break;
 
         default:

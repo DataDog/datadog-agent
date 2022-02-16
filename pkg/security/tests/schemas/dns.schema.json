@@ -13,6 +13,9 @@
             "$ref": "/schemas/process_context.json"
         },
         {
+            "$ref": "/schemas/network.json"
+        },
+        {
             "date": {
                 "$ref": "/schemas/datetime.json"
             }
@@ -22,31 +25,38 @@
                 "dns": {
                     "type": "object",
                     "required": [
-                        "id",
-                        "qdcount",
-                        "qclass",
-                        "qtype",
-                        "dns_server_ip",
-                        "name"
+                        "id"
                     ],
                     "properties": {
                         "id": {
-                            "type": "integer"
+                            "type": "number"
                         },
-                        "qdcount": {
-                            "type": "integer"
-                        },
-                        "qclass":{
-                            "type": "string"
-                        },
-                        "qtype": {
-                            "type": "string"
-                        },
-                        "dns_server_ip": {
-                            "type": "string"
-                        },
-                        "name": {
-                            "type": "string"
+                        "question": {
+                            "type": "object",
+                            "required": [
+                                "count",
+                                "class",
+                                "type",
+                                "size",
+                                "name"
+                            ],
+                            "properties": {
+                                "count": {
+                                    "type": "number"
+                                },
+                                "class":{
+                                    "type": "string"
+                                },
+                                "type": {
+                                    "type": "string"
+                                },
+                                "size": {
+                                    "type": "number"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }

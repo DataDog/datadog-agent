@@ -32,15 +32,13 @@ struct dns_event_t {
     struct process_context_t process;
     struct span_context_t span;
     struct container_context_t container;
-    struct syscall_t syscall;
-    struct network_device_context_t device;
+    struct network_context_t network;
 
     u16 id;
     u16 qdcount;
     u16 qtype;
     u16 qclass;
-    u64 dns_server_ip_family;
-    u64 dns_server_ip[2];
+    u16 size;
     char name[DNS_MAX_LENGTH];
 };
 
@@ -67,12 +65,16 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
         return NULL;
     }
 
+    // reset DNS name
     evt->name[0] = 0;
-    evt->process.pid = pkt->pid;
-    evt->process.tid = pkt->pid;
-    evt->process.netns = pkt->translated_flow.netns;
-    evt->device.netns = pkt->translated_flow.netns;
-    evt->device.ifindex = skb->ifindex;
+    evt->size = pkt->payload_len;
+
+    // process context
+    fill_network_process_context(&evt->process, pkt);
+
+    // network context
+    fill_network_context(&evt->network, skb, pkt);
+
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     if (entry == NULL) {
@@ -157,13 +159,6 @@ int classifier_dns_request(struct __sk_buff *skb) {
     }
     evt->qdcount = htons(header.qdcount);
     evt->id = htons(header.id);
-    evt->dns_server_ip_family = htons(pkt->eth.h_proto);
-    if (evt->dns_server_ip_family == ETH_P_IP) {
-        evt->dns_server_ip[0] = pkt->ipv4.daddr;
-    } else if (evt->dns_server_ip_family == ETH_P_IPV6) {
-        evt->dns_server_ip[0] = *(u64*)&pkt->ipv6.saddr;
-        evt->dns_server_ip[1] = *((u64*)(&pkt->ipv6.saddr) + 1);
-    }
 
     // tail call to the dns request parser
     tail_call_to_classifier(skb, DNS_REQUEST_PARSER);

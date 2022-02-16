@@ -129,9 +129,14 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
 struct flow_t {
     u64 saddr[2];
     u64 daddr[2];
-    u32 netns;
     u16 sport;
     u16 dport;
+    u32 padding;
+};
+
+struct namespaced_flow_t {
+    struct flow_t flow;
+    u32 netns;
 };
 
 __attribute__((always_inline)) void flip(struct flow_t *flow) {
@@ -159,8 +164,8 @@ __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple
 
 struct bpf_map_def SEC("maps/conntrack") conntrack = {
     .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct flow_t),
-    .value_size = sizeof(struct flow_t),
+    .key_size = sizeof(struct namespaced_flow_t),
+    .value_size = sizeof(struct namespaced_flow_t),
     .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
@@ -176,22 +181,22 @@ __attribute__((always_inline)) int trace_nat_manip_pkt(struct pt_regs *ctx, stru
     struct nf_conntrack_tuple *reply_tuple = &tuplehash[IP_CT_DIR_REPLY].tuple;
 
     // parse nat flows
-    struct flow_t orig = {
+    struct namespaced_flow_t orig = {
         .netns = netns,
     };
-    struct flow_t reply = {
+    struct namespaced_flow_t reply = {
         .netns = netns,
     };
-    parse_tuple(orig_tuple, &orig);
-    parse_tuple(reply_tuple, &reply);
+    parse_tuple(orig_tuple, &orig.flow);
+    parse_tuple(reply_tuple, &reply.flow);
 
     // save nat translation:
     //   - flip(reply) should be mapped to orig
     //   - reply should be mapped to flip(orig)
-    flip(&reply);
+    flip(&reply.flow);
     bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
-    flip(&reply);
-    flip(&orig);
+    flip(&reply.flow);
+    flip(&orig.flow);
     bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
     return 0;
 }

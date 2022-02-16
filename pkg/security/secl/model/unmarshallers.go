@@ -6,6 +6,7 @@
 package model
 
 import (
+	"encoding/binary"
 	"fmt"
 	"strings"
 	"time"
@@ -759,28 +760,57 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.NetworkDeviceContext)
+func (e *NetworkDeviceContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.NetNS = ByteOrder.Uint32(data[0:4])
+	e.IfIndex = ByteOrder.Uint32(data[4:8])
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.Device)
 	if err != nil {
 		return 0, err
 	}
-	cursor := read
 
-	if len(data[cursor:]) < 32 {
+	if len(data)-read < 44 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ID = ByteOrder.Uint16(data[cursor : cursor+2])
-	e.QDCount = ByteOrder.Uint16(data[cursor+2 : cursor+4])
-	e.QType = ByteOrder.Uint16(data[cursor+4 : cursor+6])
-	e.QClass = ByteOrder.Uint16(data[cursor+6 : cursor+8])
-	e.DNSServerIPFamily = ByteOrder.Uint64(data[cursor+8 : cursor+16])
-	if e.DNSServerIPFamily == 0x800 { // unix.ETH_P_IP
-		e.DNSServerIP = data[cursor+16 : cursor+20]
-	} else if e.DNSServerIPFamily == 0x86dd { // unix.ETH_P_IPV6
-		e.DNSServerIP = data[cursor+16 : cursor+32]
+	e.Source.IP = data[read : read+16]
+	e.Destination.IP = data[read+16 : read+32]
+	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
+	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
+	// padding 4 bytes
+
+	e.Size = ByteOrder.Uint32(data[read+40 : read+44])
+	e.L3Protocol = ByteOrder.Uint16(data[read+44 : read+46])
+	e.L4Protocol = ByteOrder.Uint16(data[read+46 : read+48])
+
+	// readjust IP sizes depending on the protocol
+	switch e.L3Protocol {
+	case 0x800: // unix.ETH_P_IP
+		e.Source.IP = e.Source.IP[0:4]
+		e.Destination.IP = e.Destination.IP[0:4]
 	}
-	e.Name = decodeDNS(data[cursor+32:])
+	return read + 48, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 10 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.ID = ByteOrder.Uint16(data[0:2])
+	e.Count = ByteOrder.Uint16(data[2:4])
+	e.Type = ByteOrder.Uint16(data[4:6])
+	e.Class = ByteOrder.Uint16(data[6:8])
+	e.Size = ByteOrder.Uint16(data[8:10])
+	e.Name = decodeDNS(data[10:])
 	return len(data), nil
 }
 
@@ -865,14 +895,4 @@ func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
 	cursor += read
 
 	return cursor, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *NetworkDeviceContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
-	}
-	e.NetNS = ByteOrder.Uint32(data[0:4])
-	e.IfIndex = ByteOrder.Uint32(data[4:8])
-	return 8, nil
 }
