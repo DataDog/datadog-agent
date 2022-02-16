@@ -112,12 +112,17 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 func (cb *CollectorBundle) Initialize() error {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
 
+	i := 0
 	for _, collector := range cb.collectors {
 		collector.Init(cb.runCfg)
-		if available := collector.IsAvailable(); !available {
+		if !collector.IsAvailable() {
 			_ = cb.check.Warnf("Collector %q is unavailable, skipping it", collector.Metadata().Name)
 			continue
 		}
+
+		// keep available collectors only.
+		cb.collectors[i] = collector
+		i++
 
 		informer := collector.Informer()
 		informersToSync[apiserver.InformerName(collector.Metadata().Name)] = informer
@@ -127,6 +132,8 @@ func (cb *CollectorBundle) Initialize() error {
 		// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
 		go informer.Run(cb.stopCh)
 	}
+
+	cb.collectors = cb.collectors[:i]
 
 	return apiserver.SyncInformers(informersToSync, cb.extraSyncTimeout)
 }
