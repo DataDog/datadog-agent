@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/cihub/seelog"
@@ -71,6 +72,45 @@ func TestDisable(t *testing.T) {
 	for i := 0; i < int(1e2); i++ {
 		assert.False(s.Sample(time.Now(), trace, root, defaultEnv))
 	}
+}
+
+func TestTargetTPS(t *testing.T) {
+	// Test the "effectiveness" of the targetTPS option.
+	assert := assert.New(t)
+	targetTPS := 10.0
+	s := getTestErrorsSampler(targetTPS)
+
+	generatedTPS := 200.0
+	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
+	initPeriods := 2
+	periods := 10
+
+	s.targetTPS = atomic.NewFloat(targetTPS)
+	periodSeconds := bucketDuration.Seconds()
+	tracesPerPeriod := generatedTPS * periodSeconds
+
+	sampledCount := 0
+
+	testTime := time.Now()
+	for period := 0; period < initPeriods+periods; period++ {
+		testTime = testTime.Add(bucketDuration)
+		for i := 0; i < int(tracesPerPeriod); i++ {
+			trace, root := getTestTrace()
+			sampled := s.Sample(testTime, trace, root, defaultEnv)
+			// Once we got into the "supposed-to-be" stable "regime", count the samples
+			if period > initPeriods && sampled {
+				sampledCount++
+			}
+		}
+	}
+
+	// We should keep the right percentage of traces
+	assert.InEpsilon(targetTPS/generatedTPS, float64(sampledCount)/(tracesPerPeriod*float64(periods)), 0.2)
+
+	// We should have a throughput of sampled traces around targetTPS
+	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
+	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
+	assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods)*bucketDuration.Seconds()), 0.2)
 }
 
 func BenchmarkSampler(b *testing.B) {

@@ -200,7 +200,6 @@ func (a *Agent) Process(p *api.Payload) {
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	ss := new(writer.SampledChunks)
-	a.PrioritySampler.CountClientDroppedP0s(now, p.ClientDroppedP0s)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)

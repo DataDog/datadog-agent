@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	bucketDuration  = 10 * time.Second
+	bucketDuration  = 5 * time.Second
 	numBuckets      = 6
 	maxRateIncrease = 1.2
 )
@@ -80,7 +80,11 @@ func (s *Sampler) updateTargetTPS(targetTPS float64) {
 
 	s.muRates.Lock()
 	for sig, rate := range s.rates {
-		s.rates[sig] = rate * ratio
+		newRate := rate * ratio
+		if newRate > 1 {
+			newRate = 1
+		}
+		s.rates[sig] = newRate
 	}
 	s.muRates.Unlock()
 }
@@ -105,14 +109,15 @@ func (s *Sampler) Start() {
 
 // countWeightedSig counts a trace sampled by the sampler and update rates
 // if buckets are rotated
-func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n uint32) {
+func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n uint32) bool {
 	bucketID := now.Unix() / int64(bucketDuration.Seconds())
 	s.muSeen.Lock()
 	prevBucketID := s.lastBucketID
 	s.lastBucketID = bucketID
 
 	// pass through each bucket, zero expired ones and adjust sampling rates
-	if prevBucketID != bucketID {
+	updateRates := prevBucketID != bucketID
+	if updateRates {
 		s.updateRates(prevBucketID, bucketID)
 	}
 
@@ -124,12 +129,13 @@ func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n uint32)
 	s.seen[signature] = buckets
 	s.muSeen.Unlock()
 	atomic.AddInt64(&s.totalSeen, int64(n))
+	return updateRates
 }
 
 // updateRates distributes TPS uniformly on each signature and apply it to the moving
 // max of seen buckets.
 // Rates increase are bounded by 20% increases, it requires 13 evaluations (1.2**13 = 10.6)
-// to increase a sampling rate by 10 fold.
+// to increase a sampling rate by 10 fold in about 1min.
 func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 	if len(s.seen) == 0 {
 		return
@@ -186,7 +192,7 @@ func zeroAndGetMax(buckets [numBuckets]uint32, previousBucket, newBucket int64) 
 			maxBucket = value
 		}
 
-		// take in account previous value of the bucket that is overriden
+		// take in account previous value of the bucket that is overridden
 		// in this rotation
 		if i == newBucket {
 			buckets[index] = 0

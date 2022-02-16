@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/cihub/seelog"
@@ -152,4 +153,117 @@ func TestPrioritySamplerWithRemote(t *testing.T) {
 	chunk, root := getTestTraceWithService(t, "my-service", s)
 	assert.True(t, s.Sample(time.Now(), chunk, root, "", false))
 	s.Stop()
+}
+
+func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
+	assert := assert.New(t)
+	rand.Seed(1)
+
+	type testCase struct {
+		targetTPS     float64
+		generatedTPS  float64
+		service       string
+		localRate     bool
+		clientDrop    bool
+		relativeError float64
+		expectedTPS   float64
+	}
+	testCases := []testCase{
+		{targetTPS: 5.0, generatedTPS: 50.0, expectedTPS: 5.0, relativeError: 0.2, service: "bim"},
+	}
+	if !testing.Short() {
+		testCases = append(testCases,
+			testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.2, service: "2"},
+			testCase{targetTPS: 10.0, generatedTPS: 10.0, expectedTPS: 10.0, relativeError: 0.03, service: "4"},
+			testCase{targetTPS: 10.0, generatedTPS: 3.0, expectedTPS: 3.0, relativeError: 0.03, service: "10"},
+			testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.5, service: "0.5"},
+		)
+	}
+	// Duplicate each testcases and use local rates instead of remote rates
+	for i := len(testCases) - 1; i >= 0; i-- {
+		tc := testCases[i]
+		tc.localRate = true
+		tc.service = "local" + tc.service
+		testCases = append(testCases, tc)
+	}
+
+	// Duplicate each testcases and consider that agent client drops unsampled spans
+	for i := len(testCases) - 1; i >= 0; i-- {
+		tc := testCases[i]
+		tc.clientDrop = true
+		testCases = append(testCases, tc)
+	}
+
+	// setting up remote store
+	testCasesRates := pb.APMSampling{TargetTPS: make([]pb.TargetTPS, 0, len(testCases))}
+	for _, tc := range testCases {
+
+		if tc.localRate {
+			continue
+		}
+		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
+	}
+	for _, tc := range testCases {
+		s := getTestPrioritySampler()
+		s.remoteRates = newTestRemoteRates()
+		generatedConfigVersion := uint64(120)
+		s.remoteRates.onUpdate(configGenerator(generatedConfigVersion, testCasesRates))
+
+		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)
+		if tc.localRate {
+			s.localRates.targetTPS = atomic.NewFloat(tc.targetTPS)
+		}
+
+		var sampledCount, handledCount int
+		const warmUpDuration, testDuration = 2, 6
+		testTime := time.Now()
+		for timeElapsed := 0; timeElapsed < warmUpDuration+testDuration; timeElapsed++ {
+			s.updateRates()
+
+			tracesPerPeriod := tc.generatedTPS * bucketDuration.Seconds()
+			testTime = testTime.Add(bucketDuration)
+			for i := 0; i < int(tracesPerPeriod); i++ {
+				chunk, root := getTestTraceWithService(t, tc.service, s)
+
+				var sampled bool
+				if !tc.clientDrop {
+					sampled = s.Sample(testTime, chunk, root, defaultEnv, false)
+				} else {
+					if prio, _ := GetSamplingPriority(chunk); prio == 1 {
+						sampled = s.Sample(testTime, chunk, root, defaultEnv, true)
+					}
+				}
+
+				tpsTag, okTPS := root.Metrics[tagRemoteTPS]
+				versionTag, okVersion := root.Metrics[tagRemoteVersion]
+				if !tc.localRate && sampled {
+					assert.True(okTPS)
+					assert.Equal(tc.targetTPS, tpsTag)
+					assert.True(okVersion)
+					assert.Equal(float64(generatedConfigVersion), versionTag)
+				} else {
+					assert.False(okTPS)
+					assert.False(okVersion)
+				}
+
+				if timeElapsed < warmUpDuration {
+					continue
+				}
+
+				// We track rates stats only when the warm up phase is over
+				handledCount++
+				if sampled {
+					sampledCount++
+				}
+			}
+		}
+
+		// We should keep the right percentage of traces
+		assert.InEpsilon(tc.expectedTPS/tc.generatedTPS, float64(sampledCount)/float64(handledCount), tc.relativeError)
+
+		// We should have a throughput of sampled traces around targetTPS
+		// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
+		// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
+		assert.InEpsilon(tc.expectedTPS, float64(sampledCount)/(float64(testDuration)*bucketDuration.Seconds()), tc.relativeError)
+	}
 }

@@ -149,7 +149,10 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 
 // countSignature counts all chunks received with local chunk root signature.
 func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature) {
-	s.localRates.countWeightedSig(now, signature, 1)
+	newRates := s.localRates.countWeightedSig(now, signature, 1)
+	if newRates {
+		s.updateRates()
+	}
 
 	// remoteRates only considers root spans
 	if s.remoteRates != nil && root.ParentID == 0 {
@@ -177,12 +180,6 @@ func (s *PrioritySampler) countSampled(now time.Time, root *pb.Span, clientDropp
 			s.remoteRates.countWeightedSig(now, signature, uint32(weight))
 		}
 	}
-}
-
-// CountClientDroppedP0s counts client dropped traces. They are added
-// to the totalScore, allowing them to weight on sampling rates
-func (s *PrioritySampler) CountClientDroppedP0s(now time.Time, dropped int64) {
-	s.localRates.countWeightedSig(now, Signature(1), uint32(dropped))
 }
 
 func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) float64 {

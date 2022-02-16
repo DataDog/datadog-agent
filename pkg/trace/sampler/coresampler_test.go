@@ -6,7 +6,6 @@
 package sampler
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -149,6 +148,37 @@ func TestRateIncrease(t *testing.T) {
 	}
 }
 
+func TestOldSigEviction(t *testing.T) {
+	targetTPS := 7.0
+	initialTPS := 21.0
+	s := newSampler(1, targetTPS, nil)
+
+	testSig := Signature(25)
+	testTime := time.Now()
+	s.countWeightedSig(testTime, testSig, uint32(initialTPS*bucketDuration.Seconds()))
+	// force rate evaluation
+	s.countWeightedSig(testTime.Add(bucketDuration+time.Nanosecond), testSig, 0)
+
+	// move out of the max window
+	testTime = testTime.Add(numBuckets*bucketDuration + 1*time.Nanosecond)
+	for i := 0; i <= 20; i++ {
+		s.countWeightedSig(testTime.Add(time.Duration(i)*bucketDuration), Signature(0), 1)
+		if i < 5 {
+			rates, _ := s.getAllSignatureSampleRates()
+			_, ok := rates[testSig]
+			assert.True(t, ok)
+			_, ok = s.seen[testSig]
+			assert.True(t, ok)
+		}
+	}
+	rates, defaultRate := s.getAllSignatureSampleRates()
+	_, ok := rates[testSig]
+	assert.False(t, ok)
+	assert.Equal(t, defaultRate, 1.0)
+	_, ok = s.seen[testSig]
+	assert.False(t, ok)
+}
+
 func TestMovingMax(t *testing.T) {
 	targetTPS := 1.0
 	s := newSampler(1, targetTPS, nil)
@@ -173,10 +203,80 @@ func TestMovingMax(t *testing.T) {
 			assert.Equal(t, expectedRate, s.getSignatureSampleRate(Signature(0)))
 		} else {
 			rate, ok := rates[Signature(0)]
-			fmt.Println(i)
 			require.True(t, ok)
 			assert.Equal(t, expectedRate, rate)
 			assert.Equal(t, expectedRate, s.getSignatureSampleRate(Signature(0)))
 		}
+	}
+}
+
+func TestTargetTPSUpdate(t *testing.T) {
+	targetTPS := 2.0
+	s := newSampler(1, targetTPS, nil)
+
+	testTime := time.Now()
+
+	signaturesInitialCount := []uint32{37, 1, 21, 2921, 5}
+
+	for i, c := range signaturesInitialCount {
+		s.countWeightedSig(testTime, Signature(i), c)
+
+	}
+	// trigger rate computation
+	s.countWeightedSig(testTime.Add(bucketDuration+time.Nanosecond), Signature(0), 0)
+
+	tts := []struct {
+		name                string
+		newTargetTPS        float64
+		expectedRates       []float64
+		expectedDefaultRate float64
+	}{
+		{
+			name:                "increase rates",
+			newTargetTPS:        targetTPS * 1,
+			expectedDefaultRate: 2.0 / 2921,
+			expectedRates:       []float64{2.0 / 37, 1.0, 2.0 / 21, 2.0 / 2921, 2.0 / 5},
+		},
+		{
+			name:                "set to 0",
+			newTargetTPS:        0,
+			expectedDefaultRate: 0,
+			expectedRates:       []float64{0, 0, 0, 0, 0},
+		},
+		{
+			name:                "set back",
+			newTargetTPS:        targetTPS * 1,
+			expectedDefaultRate: 2.0 / 2921,
+			expectedRates:       []float64{2.0 / 37, 1.0, 2.0 / 21, 2.0 / 2921, 2.0 / 5},
+		},
+		{
+			name:                "tripple",
+			newTargetTPS:        targetTPS * 3,
+			expectedDefaultRate: 6.0 / 2921,
+			expectedRates:       []float64{6.0 / 37, 1.0, 6.0 / 21, 6.0 / 2921, 1.0},
+		},
+	}
+	epsilon := 0.0000000001
+	for j, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			s.updateTargetTPS(tc.newTargetTPS)
+			s.countWeightedSig(testTime.Add(time.Duration(j)*bucketDuration+time.Nanosecond), Signature(0), 0)
+			rates, defaultRate := s.getAllSignatureSampleRates()
+			if tc.expectedDefaultRate == 0 {
+				assert.Equal(t, tc.expectedDefaultRate, defaultRate)
+			} else {
+				assert.InEpsilon(t, tc.expectedDefaultRate, defaultRate, epsilon)
+			}
+			for i, expectedRate := range tc.expectedRates {
+				rate, ok := rates[Signature(i)]
+				assert.True(t, ok)
+				if expectedRate == 0 {
+					assert.Equal(t, expectedRate, rate)
+				} else {
+					assert.InEpsilon(t, expectedRate, rate, epsilon)
+				}
+			}
+
+		})
 	}
 }

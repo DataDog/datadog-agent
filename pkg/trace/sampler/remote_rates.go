@@ -45,7 +45,7 @@ type RemoteRates struct {
 }
 
 type remoteSampler struct {
-	Sampler
+	*Sampler
 	target pb.TargetTPS
 }
 
@@ -160,7 +160,7 @@ func (r *RemoteRates) initSampler(sig Signature) (*remoteSampler, bool) {
 	}
 	s := newSampler(1.0, targetTPS.Value, nil)
 	sampler := &remoteSampler{
-		*s,
+		s,
 		targetTPS,
 	}
 	r.mu.Lock()
