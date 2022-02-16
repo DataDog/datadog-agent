@@ -21,8 +21,6 @@ import (
 
 func TestExtractIngress(t *testing.T) {
 	pathType := netv1.PathTypeImplementationSpecific
-	apiGroup := "apiGroup"
-	ingressClassName := "ingressClassName"
 
 	tests := map[string]struct {
 		input    netv1.Ingress
@@ -61,7 +59,7 @@ func TestExtractIngress(t *testing.T) {
 					},
 					DefaultBackend: &netv1.IngressBackend{
 						Resource: &v1.TypedLocalObjectReference{
-							APIGroup: &apiGroup,
+							APIGroup: strPtr("apiGroup"),
 							Kind:     "kind",
 							Name:     "name",
 						},
@@ -72,7 +70,7 @@ func TestExtractIngress(t *testing.T) {
 							SecretName: "secret",
 						},
 					},
-					IngressClassName: &ingressClassName,
+					IngressClassName: strPtr("ingressClassName"),
 				},
 				Status: netv1.IngressStatus{
 					LoadBalancer: v1.LoadBalancerStatus{
@@ -141,7 +139,7 @@ func TestExtractIngressStatus(t *testing.T) {
 		expected model.IngressStatus
 	}{
 		"empty": {input: netv1.IngressStatus{}, expected: model.IngressStatus{Ingress: []*model.LoadBalancerIngress{}}},
-		"multiple ingress status": {
+		"multiple ingress statuses": {
 			input: netv1.IngressStatus{
 				LoadBalancer: v1.LoadBalancerStatus{
 					Ingress: []v1.LoadBalancerIngress{
@@ -226,7 +224,6 @@ func TestExtractIngressRules(t *testing.T) {
 }
 
 func TestExtractIngressBackend(t *testing.T) {
-	apiGroup := "apiGroup"
 	tests := map[string]struct {
 		input    netv1.IngressBackend
 		expected model.IngressBackend
@@ -235,7 +232,7 @@ func TestExtractIngressBackend(t *testing.T) {
 		"with resource": {
 			input: netv1.IngressBackend{
 				Resource: &v1.TypedLocalObjectReference{
-					APIGroup: &apiGroup,
+					APIGroup: strPtr("apiGroup"),
 					Kind:     "kind",
 					Name:     "name",
 				},
