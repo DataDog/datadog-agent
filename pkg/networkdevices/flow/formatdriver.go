@@ -11,28 +11,28 @@ import (
 	"net"
 )
 
-// FlowDriver desc
-type FlowDriver struct {
+// Driver desc
+type Driver struct {
 	sender aggregator.Sender
 	config *Config
 }
 
-func NewFlowDriver(sender aggregator.Sender, config *Config) *FlowDriver {
-	return &FlowDriver{sender: sender, config: config}
+func NewFlowDriver(sender aggregator.Sender, config *Config) *Driver {
+	return &Driver{sender: sender, config: config}
 }
 
 // Prepare desc
-func (d *FlowDriver) Prepare() error {
+func (d *Driver) Prepare() error {
 	return nil
 }
 
 // Init desc
-func (d *FlowDriver) Init(context.Context) error {
+func (d *Driver) Init(context.Context) error {
 	return nil
 }
 
 // Format desc
-func (d *FlowDriver) Format(data interface{}) ([]byte, []byte, error) {
+func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 	flowmsg, ok := data.(*flowmessage.FlowMessage)
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not flowmessage.FlowMessage")
@@ -46,7 +46,7 @@ func (d *FlowDriver) Format(data interface{}) ([]byte, []byte, error) {
 	return nil, nil, nil
 }
 
-func (d *FlowDriver) sendMetrics(flowmsg *flowmessage.FlowMessage) {
+func (d *Driver) sendMetrics(flowmsg *flowmessage.FlowMessage) {
 	srcAddr := net.IP(flowmsg.SrcAddr)
 	dstAddr := net.IP(flowmsg.DstAddr)
 
@@ -67,7 +67,7 @@ func (d *FlowDriver) sendMetrics(flowmsg *flowmessage.FlowMessage) {
 	d.sender.Count("netflow.packets", float64(flowmsg.Packets), "", tags)
 }
 
-func (d *FlowDriver) sendEvents(flowmsg *flowmessage.FlowMessage) {
+func (d *Driver) sendEvents(flowmsg *flowmessage.FlowMessage) {
 	payload := buildPayload(flowmsg)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {

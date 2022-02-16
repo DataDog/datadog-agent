@@ -20,11 +20,16 @@ func IsEnabled() bool {
 // Config contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type Config struct {
-	Port        uint16 `mapstructure:"port" yaml:"port"`
-	BindHost    string `mapstructure:"bind_host" yaml:"bind_host"`
-	StopTimeout int    `mapstructure:"stop_timeout" yaml:"stop_timeout"`
-	SendEvents  bool   `mapstructure:"send_events" yaml:"send_events"`
-	SendMetrics bool   `mapstructure:"send_metrics" yaml:"send_metrics"`
+	configs     []ListenerConfig `mapstructure:"configs" yaml:"configs"`
+	StopTimeout int              `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	SendEvents  bool             `mapstructure:"send_events" yaml:"send_events"`
+	SendMetrics bool             `mapstructure:"send_metrics" yaml:"send_metrics"`
+}
+
+// ListenerConfig contains configuration for a single flow listener
+type ListenerConfig struct {
+	Port     uint16 `mapstructure:"port" yaml:"port"`
+	BindHost string `mapstructure:"bind_host" yaml:"bind_host"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
@@ -35,14 +40,19 @@ func ReadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	// TODO: Set default Port per Flow Type
+	//       defaultPortNETFLOW = uint16(2055)
+	//		 defaultPortIPFIX   = uint16(4739)
+	//		 defaultPortSFLOW   = uint16(6343)
 	// Set defaults.
-	if c.Port == 0 {
-		c.Port = defaultPortNETFLOW
-	}
-	if c.BindHost == "" {
-		// Default to global bind_host option.
-		c.BindHost = config.GetBindHost()
-	}
+	//if c.Port == 0 {
+	//	c.Port = defaultPortNETFLOW
+	//}
+	// TODO: When bindHost is needed?
+	//if c.BindHost == "" {
+	//	// Default to global bind_host option.
+	//	c.BindHost = config.GetBindHost()
+	//}
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout
 	}
