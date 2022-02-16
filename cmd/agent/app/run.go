@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/deviceflow"
+	"github.com/DataDog/datadog-agent/pkg/networkdevices/flow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -412,9 +412,9 @@ func StartAgent() error {
 		}
 	}
 
-	// Start SNMP trap server
-	if deviceflow.IsEnabled() {
-		err = deviceflow.StartServer(demux)
+	// Start NDM flow server
+	if flow.IsEnabled() {
+		err = flow.StartServer(demux)
 		if err != nil {
 			log.Errorf("Failed to start netflow server: %s", err)
 		}
@@ -495,7 +495,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	deviceflow.StopServer()
+	flow.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()

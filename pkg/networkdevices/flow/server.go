@@ -3,28 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package deviceflow
+package flow
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"net"
 	"time"
 
 	"github.com/netsampler/goflow2/utils"
 	logrus "github.com/sirupsen/logrus"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gosnmp/gosnmp"
 )
 
-// SnmpPacket is the type of packets yielded by server listeners.
-type SnmpPacket struct {
-	Content *gosnmp.SnmpPacket
-	Addr    *net.UDPAddr
-}
-
-// NfCollector manages an SNMPv2 trap listener.
-type NfCollector struct {
+// Server manages an SNMPv2 trap listener.
+type Server struct {
 	Addr          string
 	config        *Config
 	listener      *utils.StateNetFlow
@@ -32,7 +24,7 @@ type NfCollector struct {
 }
 
 var (
-	serverInstance *NfCollector
+	serverInstance *Server
 )
 
 // StartServer starts the global trap server.
@@ -56,7 +48,7 @@ func IsRunning() bool {
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NfCollector, error) {
+func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	config, err := ReadConfig()
 	if err != nil {
 		return nil, err
@@ -67,7 +59,7 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NfCollector, err
 		return nil, err
 	}
 
-	server := &NfCollector{
+	server := &Server{
 		listener:      listener,
 		config:        config,
 		demultiplexer: demultiplexer,
@@ -106,8 +98,8 @@ func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*ut
 	return sNF, nil
 }
 
-// Stop stops the NfCollector.
-func (s *NfCollector) Stop() {
+// Stop stops the Server.
+func (s *Server) Stop() {
 	log.Infof("Stop listening on %s", s.config.Addr())
 	stopped := make(chan interface{})
 

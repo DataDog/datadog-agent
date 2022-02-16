@@ -1,4 +1,4 @@
-package deviceflow
+package flow
 
 import (
 	"context"
@@ -62,9 +62,9 @@ func (d *FlowDriver) sendMetrics(flowmsg *flowmessage.FlowMessage) {
 	}
 	log.Debugf("metrics tags: %v", tags)
 
-	d.sender.Count("netflow.flows", 1,"", tags)
-	d.sender.Count("netflow.bytes", float64(flowmsg.Bytes),"", tags)
-	d.sender.Count("netflow.packets", float64(flowmsg.Packets),"", tags)
+	d.sender.Count("netflow.flows", 1, "", tags)
+	d.sender.Count("netflow.bytes", float64(flowmsg.Bytes), "", tags)
+	d.sender.Count("netflow.packets", float64(flowmsg.Packets), "", tags)
 }
 
 func (d *FlowDriver) sendEvents(flowmsg *flowmessage.FlowMessage) {
@@ -84,15 +84,15 @@ func buildPayload(flowmsg *flowmessage.FlowMessage) DeviceFlow {
 	samplerAddr := net.IP(flowmsg.SamplerAddress)
 
 	return DeviceFlow{
-		SrcAddr: srcAddr.String(),
-		DstAddr: dstAddr.String(),
-		SamplerAddr    : samplerAddr.String(),
-		FlowType       : flowmsg.Type.String(),
-		Proto          : flowmsg.Proto,
-		InputInterface : flowmsg.InIf,
+		SrcAddr:         srcAddr.String(),
+		DstAddr:         dstAddr.String(),
+		SamplerAddr:     samplerAddr.String(),
+		FlowType:        flowmsg.Type.String(),
+		Proto:           flowmsg.Proto,
+		InputInterface:  flowmsg.InIf,
 		OutputInterface: flowmsg.OutIf,
-		Direction      : flowmsg.FlowDirection,
-		Bytes          : flowmsg.Bytes,
-		Packets        : flowmsg.Packets,
+		Direction:       flowmsg.FlowDirection,
+		Bytes:           flowmsg.Bytes,
+		Packets:         flowmsg.Packets,
 	}
 }
