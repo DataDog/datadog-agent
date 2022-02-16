@@ -699,6 +699,9 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 
 	if !autoAdjust {
 		pipelineCount = config.Datadog.GetInt("dogstatsd_pipeline_count")
+		if pipelineCount <= 0 { // guard aginst configuration mistakes
+			pipelineCount = 1
+		}
 
 		// - a core for the listener goroutine
 		// - one per aggregation pipeline (time sampler)
@@ -728,12 +731,14 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	//  - this last routine for the listener routine
 
 	dsdWorkerCount = vCPUs / 2
-
-	if dsdWorkerCount < 2 {
+	if dsdWorkerCount < 2 { // minimum 2 workers
 		dsdWorkerCount = 2
 	}
 
 	pipelineCount = dsdWorkerCount - 1
+	if pipelineCount <= 0 { // minimum 1 pipeline
+		pipelineCount = 1
+	}
 
 	if config.Datadog.GetInt("dogstatsd_pipeline_count") > 1 {
 		log.Warn("DogStatsD pipeline count value ignored since 'dogstatsd_pipeline_autoadjust' is enabled.")
