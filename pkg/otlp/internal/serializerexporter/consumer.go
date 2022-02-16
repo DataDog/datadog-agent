@@ -26,11 +26,11 @@ type serializerConsumer struct {
 	sketches metricsserializer.SketchSeriesList
 }
 
-func (c *serializerConsumer) ConsumeSketch(_ context.Context, name string, ts uint64, qsketch *quantile.Sketch, tags []string, host string) {
+func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
 	c.sketches = append(c.sketches, metrics.SketchSeries{
-		Name:     name,
-		Tags:     tags,
-		Host:     host,
+		Name:     dimensions.Name(),
+		Tags:     dimensions.Tags(),
+		Host:     dimensions.Host(),
 		Interval: 1,
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
@@ -49,13 +49,13 @@ func apiTypeFromTranslatorType(typ translator.MetricDataType) metrics.APIMetricT
 	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
 }
 
-func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, name string, typ translator.MetricDataType, ts uint64, value float64, tags []string, host string) {
+func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *translator.Dimensions, typ translator.MetricDataType, ts uint64, value float64) {
 	c.series = append(c.series,
 		&metrics.Serie{
-			Name:     name,
+			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tags,
-			Host:     host,
+			Tags:     dimensions.Tags(),
+			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: 1,
 		},

@@ -214,6 +214,7 @@ flavor_to_readable=(
     ["datadog-agent"]="Datadog Agent"
     ["datadog-iot-agent"]="Datadog IoT Agent"
     ["datadog-dogstatsd"]="Datadog Dogstatsd"
+    ["datadog-heroku-agent"]="Datadog Heroku Agent"
 )
 nice_flavor=${flavor_to_readable[$agent_flavor]}
 
@@ -307,11 +308,6 @@ if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
     exit 1;
 fi
 
-if [[ `uname -m` != "x86_64" ]] && [[ $agent_flavor == "datadog-dogstatsd" ]]; then
-    printf "\033[31mThe $nice_flavor is only available for x86_64 architecture.\033[0m\n"
-    exit 1;
-fi
-
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux)"
@@ -336,6 +332,17 @@ elif [ -f /etc/Eos-release ] || [ "$DISTRIBUTION" == "Arista" ]; then
 # openSUSE and SUSE use /etc/SuSE-release or /etc/os-release
 elif [ -f /etc/SuSE-release ] || [ "$DISTRIBUTION" == "SUSE" ] || [ "$DISTRIBUTION" == "openSUSE" ]; then
     OS="SUSE"
+fi
+
+if [[ "$agent_flavor" == "datadog-dogstatsd" ]]; then
+    if [[ `uname -m` == "armv7l" ]] || { [[ `uname -m` != "x86_64" ]] && [[ "$OS" != "Debian" ]]; }; then
+        printf "\033[31mThe $nice_flavor isn't available for your architecture.\033[0m\n"
+        exit 1;
+    fi
+    if  [[ "$OS" == "Debian" ]] && [[ `uname -m` == "aarch64" ]] && { [[ -n "$agent_minor_version" ]] && [[ "$agent_minor_version" -lt 35 ]]; }; then
+        printf "\033[31mThe $nice_flavor is only available since version 7.35.0 for your architecture.\033[0m\n"
+        exit 1;
+    fi
 fi
 
 # Root user detection

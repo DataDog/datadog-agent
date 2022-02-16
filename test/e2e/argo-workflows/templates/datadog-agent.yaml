@@ -37,8 +37,8 @@ spec:
             env:
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
-              - name: DD_OTLP_GRPC_PORT
-                value: "4317"
+              - name: DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT
+                value: "0.0.0.0:4317"
             leaderElection: true
             logs:
               enabled: true

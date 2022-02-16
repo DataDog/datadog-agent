@@ -63,6 +63,7 @@ log_level: DEBUG
 system_probe_config:
   enabled: true
   sysprobe_socket: /tmp/test-sysprobe.sock
+  enable_kernel_header_download: true
 
 runtime_security_config:
   enabled: true

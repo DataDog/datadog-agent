@@ -235,6 +235,7 @@ func (w *TraceWriter) flush() {
 		ErrorTPS:       w.errorTPS,
 		TracerPayloads: w.tracerPayloads,
 	}
+	log.DebugfServerless("Sending trace payload : %+v", p)
 	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)

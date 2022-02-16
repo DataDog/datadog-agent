@@ -35,11 +35,9 @@ type sketchConsumer struct {
 // ConsumeSketch implements the translator.Consumer interface.
 func (c *sketchConsumer) ConsumeSketch(
 	_ context.Context,
-	_ string,
+	_ *Dimensions,
 	_ uint64,
 	sketch *quantile.Sketch,
-	_ []string,
-	_ string,
 ) {
 	c.sk = sketch
 }
@@ -106,7 +104,7 @@ func TestHistogramSketches(t *testing.T) {
 	cfg := quantile.Default()
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
-	dims := metricsDimensions{name: "test"}
+	dims := &Dimensions{name: "test"}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			p := fromCDF(test.cdf)
@@ -199,7 +197,7 @@ func TestInfiniteBounds(t *testing.T) {
 
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
-	dims := metricsDimensions{name: "test"}
+	dims := &Dimensions{name: "test"}
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
 			p := testInstance.getHist()

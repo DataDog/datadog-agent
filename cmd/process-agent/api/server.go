@@ -22,6 +22,7 @@ func setupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/agent/status", statusHandler).Methods("GET")
 }
 
 // StartServer starts the config server
@@ -30,7 +31,7 @@ func StartServer() error {
 	r := mux.NewRouter()
 	setupHandlers(r)
 
-	addr, err := getIPCAddressPort()
+	addr, err := GetAPIAddressPort()
 	if err != nil {
 		return err
 	}
@@ -50,8 +51,8 @@ func StartServer() error {
 	return nil
 }
 
-// getIPCAddressPort returns a listening connection
-func getIPCAddressPort() (string, error) {
+// GetAPIAddressPort returns a listening connection
+func GetAPIAddressPort() (string, error) {
 	address, err := ddconfig.GetIPCAddress()
 	if err != nil {
 		return "", err

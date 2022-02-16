@@ -21,13 +21,6 @@ func init() {
 	providers.Register(providerMocks.FakeContainerImpl{})
 }
 
-func resetDemuxInstance(require *require.Assertions) {
-	if demultiplexerInstance != nil {
-		demultiplexerInstance.Stop(false)
-		require.Nil(demultiplexerInstance)
-	}
-}
-
 func demuxTestOptions() DemultiplexerOptions {
 	opts := DefaultDemultiplexerOptions(nil)
 	opts.FlushInterval = time.Hour
@@ -43,8 +36,6 @@ func orchestratorEnabled() bool {
 func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 	require := require.New(t)
 
-	resetDemuxInstance(require)
-
 	opts := demuxTestOptions()
 	demux := InitAndStartAgentDemultiplexer(opts, "")
 
@@ -57,8 +48,6 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 
 func TestDemuxForwardersCreated(t *testing.T) {
 	require := require.New(t)
-
-	resetDemuxInstance(require)
 
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment
@@ -148,8 +137,6 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 func TestDemuxSerializerCreated(t *testing.T) {
 	require := require.New(t)
-
-	resetDemuxInstance(require)
 
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment

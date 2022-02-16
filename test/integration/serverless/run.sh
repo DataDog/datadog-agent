@@ -15,10 +15,13 @@
 # NODE_LAYER_VERSION [number] - A specific layer version of datadog-lambda-js to use.
 # PYTHON_LAYER_VERSION [number] - A specific layer version of datadog-lambda-py to use.
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
+# DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
+# ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=1
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -49,10 +52,14 @@ LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
 if [ "$BUILD_EXTENSION" != "false" ]; then
     echo "Building extension"
 
+    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
+        ENABLE_RACE_DETECTION=false
+    fi
+
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=amd64 RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
     echo "Skipping extension build, reusing previously built extension"
 fi
@@ -76,9 +83,14 @@ if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
     export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
 fi
 
-echo "Using Node layer version: $NODE_LAYER_VERSION"
-echo "Using Python layer version: $PYTHON_LAYER_VERSION"
-echo "Using Java tracer layer version: $JAVA_TRACE_LAYER_VERSION"
+if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
+    export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
+fi
+
+echo "Using dd-lambda-js layer version: $NODE_LAYER_VERSION"
+echo "Using dd-lambda-python version: $PYTHON_LAYER_VERSION"
+echo "Using dd-trace-java layer version: $JAVA_TRACE_LAYER_VERSION"
+echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
@@ -92,9 +104,7 @@ function remove_stack() {
 trap remove_stack EXIT
 
 # deploy the stack
-NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
-    PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} \
-    serverless deploy --stage "${stage}"
+serverless deploy --stage "${stage}"
 
 metric_functions=(
     "metric-node"
@@ -102,13 +112,18 @@ metric_functions=(
     "metric-java"
     "metric-go"
     "metric-csharp"
+    "metric-proxy"
     "timeout-node"
     "timeout-python"
     "timeout-java"
     "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
     "error-node"
     "error-python"
     "error-java"
+    "error-csharp"
+    "error-proxy"
 )
 log_functions=(
     "log-node"
@@ -116,12 +131,15 @@ log_functions=(
     "log-java"
     "log-go"
     "log-csharp"
+    "log-proxy"
 )
 trace_functions=(
     "trace-node"
     "trace-python"
     "trace-java"
     "trace-go"
+    "trace-csharp"
+    "trace-proxy"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
@@ -129,7 +147,13 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
 functions_to_skip=(
-    # Not currently skipping any functions
+    # Tagging behavior after a timeout is currently known to be flaky
+    "timeout-node"
+    "timeout-python"
+    "timeout-java"
+    "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
 )
 
 echo "Invoking functions for the first time..."
@@ -163,7 +187,7 @@ for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name}..."
     retry_counter=1
     while [ $retry_counter -lt 11 ]; do
-        raw_logs=$(NODE_LAYER_VERSION=${NODE_LAYER_VERSION} PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
+        raw_logs=$(serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
         fetch_logs_exit_code=$?
         if [ $fetch_logs_exit_code -eq 1 ]; then
             printf "\e[A\e[K" # erase previous log line
@@ -204,10 +228,14 @@ for function_name in "${all_functions[@]}"; do
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[trace\]" |
                 grep -v "\[sketch\]" |
                 grep "\[log\]" |
+                # remove configuration log line from dd-trace-go
+                grep -v "DATADOG TRACER CONFIGURATION" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
                 perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
@@ -227,6 +255,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
+                perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
@@ -237,7 +266,7 @@ for function_name in "${all_functions[@]}"; do
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
         echo "$logs" >"$function_snapshot_path"

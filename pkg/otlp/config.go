@@ -34,7 +34,21 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	// Step one works around https://github.com/spf13/viper/issues/819
 	// If we only had the stuff below, the nil sections would be ignored.
 	// We want to take into account nil-but-present sections.
-	cfgMap := colConfig.NewMapFromStringMap(cfg.GetStringMap(section))
+	//
+	// Furthermore, Viper returns an `interface{}` nil in the case where
+	// `section` is present but empty: e.g. we want to read
+	//	"otlp_config.receiver", but we have
+	//
+	//         otlp_config:
+	//           receiver:
+	//
+	// `GetStringMap` it will fail to cast `interface{}` nil to
+	// `map[string]interface{}` nil; we use `Get` and cast manually.
+	rawVal := cfg.Get(section)
+	cfgMap := colConfig.NewMap()
+	if stringMap, ok := rawVal.(map[string]interface{}); ok {
+		cfgMap = colConfig.NewMapFromStringMap(stringMap)
+	}
 
 	// Step two works around https://github.com/spf13/viper/issues/1012
 	// we check every key manually, and if it belongs to the OTLP receiver section,
