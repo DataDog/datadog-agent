@@ -11,6 +11,7 @@ package serializer
 import (
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -39,8 +40,8 @@ func (s *MockSerializer) IsIterableSeriesSupported() bool {
 	return s.Called().Get(0).(bool)
 }
 
-// SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *MockSerializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
+// SendSeries serializes a list of series and sends the payload to the forwarder
+func (s *MockSerializer) SendSeries(series metrics.Series) error {
 	return s.Called(series).Error(0)
 }
 

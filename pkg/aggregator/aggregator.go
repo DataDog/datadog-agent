@@ -133,7 +133,7 @@ var (
 		nil, "Count the number of dogstatsd contexts in the aggregator")
 
 	// Hold series to be added to aggregated series on each flush
-	recurrentSeries     metricsserializer.Series
+	recurrentSeries     metrics.Series
 	recurrentSeriesLock sync.Mutex
 )
 
@@ -418,8 +418,8 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsserializer.Series, metricsserializer.SketchSeriesList) {
-	var series metricsserializer.Series
+func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metricsserializer.SketchSeriesList) {
+	var series metrics.Series
 	sketches := agg.getSeriesAndSketches(before, &series)
 	return series, sketches
 }
@@ -427,7 +427,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsse
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metricsserializer.SerieSink) metricsserializer.SketchSeriesList {
+func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metrics.SerieSink) metricsserializer.SketchSeriesList {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
@@ -467,7 +467,7 @@ func updateSketchTelemetry(start time.Time, sketchesCount uint64, err error) {
 	tlmFlush.Add(float64(sketchesCount), "sketches", state)
 }
 
-func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metricsserializer.SerieSink) {
+func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
 	recurrentSeriesLock.Lock()
 	// Adding recurrentSeries to the flushed ones
 	for _, extra := range recurrentSeries {

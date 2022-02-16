@@ -22,7 +22,7 @@ import (
 var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
-	series   metricsserializer.Series
+	series   metrics.Series
 	sketches metricsserializer.SketchSeriesList
 }
 

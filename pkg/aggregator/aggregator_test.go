@@ -54,13 +54,13 @@ func initF() {
 	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
-	recurrentSeries = metricsserializer.Series{}
+	recurrentSeries = metrics.Series{}
 	tagsetTlm.reset()
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 	seriesSink := metricsserializer.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
-	flushedSeries := make([]metricsserializer.Series, 0)
+	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metricsserializer.SketchSeriesList, 0)
 
 	return flushTrigger{
@@ -237,7 +237,7 @@ func TestDefaultData(t *testing.T) {
 		Host:      agg.hostname,
 	}}).Return(nil).Times(1)
 
-	series := metricsserializer.Series{&metrics.Serie{
+	series := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
@@ -317,7 +317,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			// reset telemetry for next tests
 			demux.Stop(false)
-			recurrentSeries = metricsserializer.Series{}
+			recurrentSeries = metrics.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -381,7 +381,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			assert.Equal(t, expMap, gotMap)
 
 			// reset for next tests
-			recurrentSeries = metricsserializer.Series{}
+			recurrentSeries = metrics.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -421,7 +421,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	start := time.Now()
 
-	series := metricsserializer.Series{&metrics.Serie{
+	series := metrics.Series{&metrics.Serie{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
 		Tags:           []string{"tag:1", "tag:2"},
@@ -591,8 +591,8 @@ func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.Iterab
 	return nil
 }
 
-func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
-	s.series = append(s.series, series.(metricsserializer.Series)...)
+func (s *MockSerializerIterableSerie) SendSeries(series metrics.Series) error {
+	s.series = append(s.series, series...)
 	return nil
 }
 

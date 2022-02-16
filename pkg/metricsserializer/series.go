@@ -11,8 +11,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"sort"
-	"strconv"
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
@@ -34,44 +32,6 @@ var (
 
 // Series represents a list of metrics.Serie ready to be serialize
 type Series []*metrics.Serie
-
-// MarshalStrings converts the timeseries to a sorted slice of string slices
-func (series Series) MarshalStrings() ([]string, [][]string) {
-	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
-	var payload = make([][]string, len(series))
-
-	for _, serie := range series {
-		payload = append(payload, []string{
-			serie.Name,
-			serie.MType.String(),
-			strconv.FormatFloat(serie.Points[0].Ts, 'f', 0, 64),
-			strconv.FormatFloat(serie.Points[0].Value, 'f', -1, 64),
-			strings.Join(serie.Tags, ", "),
-		})
-	}
-
-	sort.Slice(payload, func(i, j int) bool {
-		// edge cases
-		if len(payload[i]) == 0 && len(payload[j]) == 0 {
-			return false
-		}
-		if len(payload[i]) == 0 || len(payload[j]) == 0 {
-			return len(payload[i]) == 0
-		}
-		// sort by metric name
-		if payload[i][0] != payload[j][0] {
-			return payload[i][0] < payload[j][0]
-		}
-		// then by timestamp
-		if payload[i][2] != payload[j][2] {
-			return payload[i][2] < payload[j][2]
-		}
-		// finally by tags (last field) as tie breaker
-		return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
-	})
-
-	return headers, payload
-}
 
 // populateDeviceField removes any `device:` tag in the series tags and uses the value to
 // populate the Serie.Device field
@@ -554,15 +514,4 @@ func (series Series) DescribeItem(i int) string {
 		return "out of range"
 	}
 	return describeItem(series[i])
-}
-
-// SerieSink is a sink for series.
-// It provides a way to append a serie into `Series` or `IterableSerie`
-type SerieSink interface {
-	Append(*metrics.Serie)
-}
-
-// Append appends a serie into series. Implement `SerieSink` interface.
-func (series *Series) Append(serie *metrics.Serie) {
-	*series = append(*series, serie)
 }

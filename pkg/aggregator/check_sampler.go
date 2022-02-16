@@ -177,7 +177,7 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	cs.metrics.Expire(expiredContextKeys, timestamp)
 }
 
-func (cs *CheckSampler) flush() (metricsserializer.Series, metricsserializer.SketchSeriesList) {
+func (cs *CheckSampler) flush() (metrics.Series, metricsserializer.SketchSeriesList) {
 	// series
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)

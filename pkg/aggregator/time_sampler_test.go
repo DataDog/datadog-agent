@@ -136,7 +136,7 @@ func testContextSampling(t *testing.T, store *tags.Store) {
 	}
 	expectedSerie3.ContextKey = generateSerieContextKey(expectedSerie3)
 
-	expectedSeries := metricsserializer.Series{expectedSerie1, expectedSerie2, expectedSerie3}
+	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
 func TestContextSampling(t *testing.T) {
@@ -210,7 +210,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		ContextKey: generateContextKey(sampleGauge3),
 		Interval:   10,
 	}
-	expectedSeries := metricsserializer.Series{expectedSerie1, expectedSerie2, expectedSerie3}
+	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
 
 	require.Equal(t, 2, len(sampler.counterLastSampledByContext))
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
@@ -250,7 +250,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		ContextKey: generateContextKey(sampleCounter2),
 		Interval:   10,
 	}
-	expectedSeries = metricsserializer.Series{expectedSerie1, expectedSerie2}
+	expectedSeries = metrics.Series{expectedSerie1, expectedSerie2}
 
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 
@@ -529,8 +529,8 @@ func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
 }
 
-func flushSerie(sampler *TimeSampler, timestamp float64) (metricsserializer.Series, metricsserializer.SketchSeriesList) {
-	var series metricsserializer.Series
+func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metricsserializer.SketchSeriesList) {
+	var series metrics.Series
 	sketches := sampler.flush(timestamp, &series)
 	return series, sketches
 }

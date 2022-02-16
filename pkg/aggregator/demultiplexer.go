@@ -164,9 +164,9 @@ type trigger struct {
 type flushTrigger struct {
 	trigger
 
-	flushedSeries   *[]metricsserializer.Series
+	flushedSeries   *[]metrics.Series
 	flushedSketches *[]metricsserializer.SketchSeriesList
-	seriesSink      metricsserializer.SerieSink
+	seriesSink      metrics.SerieSink
 }
 
 // DefaultDemultiplexerOptions returns the default options to initialize a Demultiplexer.
@@ -499,7 +499,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	flushedSeries := make([]metricsserializer.Series, 0)
+	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metricsserializer.SketchSeriesList, 0)
 
 	// only used when we're using flush/serialize in parallel feature
@@ -563,7 +563,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	// collect the series and sketches that the multiple samplers may have reported
 	// ------------------------------------------------------
 
-	var series metricsserializer.Series
+	var series metrics.Series
 	var sketches metricsserializer.SketchSeriesList
 
 	for _, s := range flushedSeries {
@@ -835,7 +835,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
-	flushedSeries := make([]metricsserializer.Series, 0)
+	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metricsserializer.SketchSeriesList, 0)
 
 	trigger := flushTrigger{
@@ -851,7 +851,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.statsdWorker.flushChan <- trigger
 	<-trigger.blockChan
 
-	var series metricsserializer.Series
+	var series metrics.Series
 	for _, s := range flushedSeries {
 		series = append(series, s...)
 	}
