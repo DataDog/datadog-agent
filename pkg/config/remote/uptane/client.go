@@ -20,10 +20,15 @@ import (
 
 // State represents the state of an uptane client
 type State struct {
-	ConfigRootVersion      uint64
-	ConfigSnapshotVersion  uint64
-	DirectorRootVersion    uint64
-	DirectorTargetsVersion uint64
+	ConfigState     map[string]MetaState
+	DirectorState   map[string]MetaState
+	TargetFilenames map[string]string
+}
+
+// MetaState represents the state of a tuf file
+type MetaState struct {
+	Version uint64
+	Hash    string
 }
 
 // Client is an uptane client
@@ -85,32 +90,89 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	return c.verify()
 }
 
+// ConfigRootVersion returns the version of the config root.json file
+func (s *State) ConfigRootVersion() uint64 {
+	meta, found := s.ConfigState[metaRoot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
+// ConfigSnapshotVersion returns the version of the config snapshot.json file
+func (s *State) ConfigSnapshotVersion() uint64 {
+	meta, found := s.ConfigState[metaSnapshot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
+// DirectorRootVersion returns the version of the director root.json file
+func (s *State) DirectorRootVersion() uint64 {
+	meta, found := s.DirectorState[metaRoot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
+// DirectorTargetsVersion returns the version of the director targets.json file
+func (s *State) DirectorTargetsVersion() uint64 {
+	meta, found := s.DirectorState[metaTargets]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
 	c.Lock()
 	defer c.Unlock()
-	configRootVersion, err := c.configLocalStore.GetMetaVersion(metaRoot)
+
+	s := State{
+		ConfigState:     map[string]MetaState{},
+		DirectorState:   map[string]MetaState{},
+		TargetFilenames: map[string]string{},
+	}
+
+	metas, err := c.configLocalStore.GetMeta()
 	if err != nil {
 		return State{}, err
 	}
-	directorRootVersion, err := c.directorLocalStore.GetMetaVersion(metaRoot)
+
+	for metaName, content := range metas {
+		version, err := metaVersion(content)
+		if err == nil {
+			s.ConfigState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+		}
+	}
+
+	directorMetas, err := c.directorLocalStore.GetMeta()
 	if err != nil {
 		return State{}, err
 	}
-	configSnapshotVersion, err := c.configLocalStore.GetMetaVersion(metaSnapshot)
+
+	for metaName, content := range directorMetas {
+		version, err := metaVersion(content)
+		if err == nil {
+			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+		}
+	}
+
+	targets, err := c.unsafeTargets()
 	if err != nil {
 		return State{}, err
 	}
-	directorTargetsVersion, err := c.directorLocalStore.GetMetaVersion(metaTargets)
-	if err != nil {
-		return State{}, err
+	for targetName := range targets {
+		content, err := c.unsafeTargetFile(targetName)
+		if err == nil {
+			s.TargetFilenames[targetName] = metaHash(content)
+		}
 	}
-	return State{
-		ConfigRootVersion:      configRootVersion,
-		ConfigSnapshotVersion:  configSnapshotVersion,
-		DirectorRootVersion:    directorRootVersion,
-		DirectorTargetsVersion: directorTargetsVersion,
-	}, nil
+
+	return s, nil
 }
 
 // DirectorRoot returns a director root
@@ -131,10 +193,7 @@ func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	return root, nil
 }
 
-// Targets returns the current targets of this uptane client
-func (c *Client) Targets() (data.TargetFiles, error) {
-	c.Lock()
-	defer c.Unlock()
+func (c *Client) unsafeTargets() (data.TargetFiles, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -142,10 +201,14 @@ func (c *Client) Targets() (data.TargetFiles, error) {
 	return c.directorTUFClient.Targets()
 }
 
-// TargetFile returns the content of a target if the repository is in a verified state
-func (c *Client) TargetFile(path string) ([]byte, error) {
+// Targets returns the current targets of this uptane client
+func (c *Client) Targets() (data.TargetFiles, error) {
 	c.Lock()
 	defer c.Unlock()
+	return c.unsafeTargets()
+}
+
+func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -156,6 +219,13 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// TargetFile returns the content of a target if the repository is in a verified state
+func (c *Client) TargetFile(path string) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetFile(path)
 }
 
 // TargetsMeta returns the current raw targets.json meta of this uptane client

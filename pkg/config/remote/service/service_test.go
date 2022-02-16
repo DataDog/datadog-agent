@@ -236,7 +236,19 @@ func TestService(t *testing.T) {
 	fileAPM2 := []byte(`testapm2`)
 	uptaneClient.On("TargetsMeta").Return(targets, nil)
 	uptaneClient.On("Targets").Return(data.TargetFiles{"datadog/2/APM_SAMPLING/id/1": {}, "datadog/2/TESTING1/id/1": {}, "datadog/2/APM_SAMPLING/id/2": {}, "datadog/2/APPSEC/id/1": {}}, nil)
-	uptaneClient.On("State").Return(uptane.State{ConfigRootVersion: 1, ConfigSnapshotVersion: 2, DirectorRootVersion: 4, DirectorTargetsVersion: 5}, nil)
+	uptaneClient.On("State").Return(uptane.State{
+		ConfigState: map[string]uptane.MetaState{
+			"root.json":      {Version: 1},
+			"snapshot.json":  {Version: 2},
+			"timestamp.json": {Version: 3},
+			"targets.json":   {Version: 4},
+			"role1.json":     {Version: 5},
+		},
+		DirectorState: map[string]uptane.MetaState{
+			"root.json":    {Version: 4},
+			"targets.json": {Version: 5},
+		},
+	}, nil)
 	uptaneClient.On("DirectorRoot", uint64(3)).Return(root3, nil)
 	uptaneClient.On("DirectorRoot", uint64(4)).Return(root4, nil)
 	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return(fileAPM1, nil)
@@ -263,6 +275,11 @@ func TestService(t *testing.T) {
 	err = service.refresh()
 	assert.NoError(t, err)
 
+	stateResponse, err := service.ConfigGetState()
+	assert.NoError(t, err)
+	assert.Equal(t, 5, len(stateResponse.ConfigState))
+	assert.Equal(t, uint64(5), stateResponse.ConfigState["role1.json"].Version)
+	assert.Equal(t, 2, len(stateResponse.DirectorState))
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 }
