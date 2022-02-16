@@ -6,6 +6,8 @@
 package uptane
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	fmt "fmt"
 
@@ -174,5 +176,8 @@ func newLocalStoreConfigUser(db *bbolt.DB, cacheKey string) (*localStore, error)
 	if err != nil {
 		return nil, err
 	}
+	// add the hash of the root key to the cache key to allow smooth rotations of user roots
+	rootHash := sha256.Sum256(userRoots.Last())
+	cacheKey = fmt.Sprintf("%s%s/", cacheKey, hex.EncodeToString(rootHash[:]))
 	return newLocalStore(db, "config_user", cacheKey, userRoots)
 }

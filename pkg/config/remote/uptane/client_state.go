@@ -3,7 +3,7 @@ package uptane
 // State represents the state of an uptane client
 type State struct {
 	ConfigState     map[string]MetaState
-	UserConfigState map[string]MetaState
+	ConfigUserState map[string]MetaState
 	DirectorState   map[string]MetaState
 	TargetFilenames map[string]string
 }
@@ -32,6 +32,24 @@ func (s *State) ConfigSnapshotVersion() uint64 {
 	return meta.Version
 }
 
+// ConfigUserRootVersion returns the version of the user config root.json file
+func (s *State) ConfigUserRootVersion() uint64 {
+	meta, found := s.ConfigUserState[metaRoot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
+// ConfigSnapshotVersion returns the version of the user config snapshot.json file
+func (s *State) ConfigUserSnapshotVersion() uint64 {
+	meta, found := s.ConfigUserState[metaSnapshot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
 // DirectorRootVersion returns the version of the director root.json file
 func (s *State) DirectorRootVersion() uint64 {
 	meta, found := s.DirectorState[metaRoot]
@@ -54,35 +72,43 @@ func (s *State) DirectorTargetsVersion() uint64 {
 func (c *Client) State() (State, error) {
 	c.Lock()
 	defer c.Unlock()
-
 	s := State{
 		ConfigState:     map[string]MetaState{},
-		UserConfigState: map[string]MetaState{},
+		ConfigUserState: map[string]MetaState{},
 		DirectorState:   map[string]MetaState{},
 		TargetFilenames: map[string]string{},
 	}
 
-	metas, err := c.configLocalStore.GetMeta()
+	configMetas, err := c.configLocalStore.GetMeta()
 	if err != nil {
 		return State{}, err
 	}
-
-	for metaName, content := range metas {
+	for metaName, content := range configMetas {
 		version, err := metaVersion(content)
 		if err == nil {
 			s.ConfigState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
 	}
-
 	directorMetas, err := c.directorLocalStore.GetMeta()
 	if err != nil {
 		return State{}, err
 	}
-
 	for metaName, content := range directorMetas {
 		version, err := metaVersion(content)
 		if err == nil {
 			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+		}
+	}
+	if c.configUserEnabled {
+		userConfigMetas, err := c.configUserLocalStore.GetMeta()
+		if err != nil {
+			return State{}, err
+		}
+		for metaName, content := range userConfigMetas {
+			version, err := metaVersion(content)
+			if err == nil {
+				s.ConfigUserState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+			}
 		}
 	}
 
@@ -96,6 +122,5 @@ func (c *Client) State() (State, error) {
 			s.TargetFilenames[targetName] = metaHash(content)
 		}
 	}
-
 	return s, nil
 }
