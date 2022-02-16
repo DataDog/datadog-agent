@@ -59,9 +59,9 @@ func initF() {
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
-	flushedSeries := make([]metrics.Series, 0)
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	seriesSink := metricsserializer.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
+	flushedSeries := make([]metricsserializer.Series, 0)
+	flushedSketches := make([]metricsserializer.SketchSeriesList, 0)
 
 	return flushTrigger{
 		trigger: trigger{
@@ -549,7 +549,6 @@ func TestTimeSamplerFlush(t *testing.T) {
 	}{
 		{name: "aggregator_flush_metrics_and_serialize_in_parallel false", enabled: false},
 		{name: "aggregator_flush_metrics_and_serialize_in_parallel true", enabled: true},
-
 	}
 
 	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")

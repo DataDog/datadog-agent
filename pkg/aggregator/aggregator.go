@@ -191,10 +191,8 @@ func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, eventPlatfor
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
 	bufferedEventIn        chan []*metrics.Event
-
 
 	eventIn        chan metrics.Event
 	serviceCheckIn chan metrics.ServiceCheck
@@ -213,7 +211,6 @@ type BufferedAggregator struct {
 	// Used by the Dogstatsd Batcher.
 	MetricSamplePool *metrics.MetricSamplePool
 
-
 	tagsStore              *tags.Store
 	checkSamplers          map[check.ID]*CheckSampler
 	serviceChecks          metricsserializer.ServiceChecks
@@ -228,9 +225,9 @@ type BufferedAggregator struct {
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
 	flushChan              chan flushTrigger
 
-	stopChan               chan struct{}
-	health                 *health.Handle
-	agentName              string // Name of the agent for telemetry metrics
+	stopChan  chan struct{}
+	health    *health.Handle
+	agentName string // Name of the agent for telemetry metrics
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
@@ -267,7 +264,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
 		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
 
-
 		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
 		eventIn:        make(chan metrics.Event, bufferSize),
 
@@ -281,8 +277,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleStopper: make(chan struct{}),
 
-
-		tagsStore:               tagsStore,
+		tagsStore: tagsStore,
 
 		checkSamplers:           make(map[check.ID]*CheckSampler),
 		flushInterval:           flushInterval,
@@ -329,14 +324,12 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, cha
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
-
 // SetHostname sets the hostname that the aggregator uses by default on all the data it sends
 // Blocks until the main aggregator goroutine has finished handling the update
 func (agg *BufferedAggregator) SetHostname(hostname string) {
 	agg.hostnameUpdate <- hostname
 	<-agg.hostnameUpdateDone
 }
-
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.mu.Lock()
@@ -425,7 +418,6 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	agg.events = append(agg.events, &e)
 }
 
-
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
@@ -442,8 +434,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-
-	var sketches metrics.SketchSeriesList
+	var sketches metricsserializer.SketchSeriesList
 	for _, checkSampler := range agg.checkSamplers {
 		checkSeries, sk := checkSampler.flush()
 		for _, s := range checkSeries {
@@ -455,8 +446,6 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
-
-
 
 	state := stateOk
 	if err != nil {
@@ -541,10 +530,8 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	if !agg.flushAndSerializeInParallel.enabled {
 
-
 		series, sketches := agg.GetSeriesAndSketches(trigger.time)
 		agg.appendDefaultSeries(trigger.time, &series)
-
 
 		if len(series) > 0 {
 			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
@@ -553,21 +540,14 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 		if len(sketches) > 0 {
 			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 
-
-
 		}
-
-
 
 	} else {
 		sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
 		agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 
-
 		if len(sketches) > 0 {
 			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-
-
 
 		}
 
@@ -713,12 +693,10 @@ func (agg *BufferedAggregator) run() {
 		case trigger := <-agg.flushChan:
 			agg.Flush(trigger)
 
-
 			// Do this here, rather than in the Flush():
 			// - make sure Shrink doesn't happen concurrently with sample processing.
 			// - we don't need to Shrink() on stop
 			agg.tagsStore.Shrink()
-
 
 			aggregatorEventPlatformErrorLogged = false
 		case <-agg.health.C:

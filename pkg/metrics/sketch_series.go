@@ -6,11 +6,9 @@
 package metrics
 
 import (
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 
 	"github.com/DataDog/datadog-agent/pkg/quantile"
-
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
@@ -27,15 +25,4 @@ type SketchSeries struct {
 type SketchPoint struct {
 	Sketch *quantile.Sketch `json:"sketch"`
 	Ts     int64            `json:"ts"`
-}
-
-
-// String returns the JSON representation of a SketchSeriesList as a string
-// or an empty string in case of an error
-func (sl SketchSeriesList) String() string {
-	json, err := sl.MarshalJSON()
-	if err != nil {
-		return ""
-	}
-	return string(json)
 }

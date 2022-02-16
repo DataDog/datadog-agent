@@ -369,3 +369,13 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	}
 	return splitPayloads, nil
 }
+
+// String returns the JSON representation of a SketchSeriesList as a string
+// or an empty string in case of an error
+func (sl SketchSeriesList) String() string {
+	json, err := sl.MarshalJSON()
+	if err != nil {
+		return ""
+	}
+	return string(json)
+}
