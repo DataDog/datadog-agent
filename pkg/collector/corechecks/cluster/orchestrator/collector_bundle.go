@@ -111,8 +111,8 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // synced.
 func (cb *CollectorBundle) Initialize() error {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
+	availableCollectors := []collectors.Collector{}
 
-	i := 0
 	for _, collector := range cb.collectors {
 		collector.Init(cb.runCfg)
 		if !collector.IsAvailable() {
@@ -120,9 +120,7 @@ func (cb *CollectorBundle) Initialize() error {
 			continue
 		}
 
-		// keep available collectors only.
-		cb.collectors[i] = collector
-		i++
+		availableCollectors = append(availableCollectors, collector)
 
 		informer := collector.Informer()
 		informersToSync[apiserver.InformerName(collector.Metadata().Name)] = informer
@@ -133,7 +131,7 @@ func (cb *CollectorBundle) Initialize() error {
 		go informer.Run(cb.stopCh)
 	}
 
-	cb.collectors = cb.collectors[:i]
+	cb.collectors = availableCollectors
 
 	return apiserver.SyncInformers(informersToSync, cb.extraSyncTimeout)
 }
