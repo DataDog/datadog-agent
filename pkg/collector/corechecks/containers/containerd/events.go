@@ -11,6 +11,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,11 +20,55 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/gogo/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//containerdEvent contains the timestamp to make sure we flush all events that happened between two checks
+// compute events converts Containerd events into Datadog events
+func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *ddContainers.Filter) {
+	for _, e := range events {
+		split := strings.Split(e.Topic, "/")
+		if len(split) != 3 {
+			// sanity checking the event, to avoid submitting
+			log.Debugf("Event topic %s does not have the expected format", e.Topic)
+			continue
+		}
+		if split[1] == "images" && fil.IsExcluded("", e.ID, "") {
+			continue
+		}
+		output := coreMetrics.Event{
+			Priority:       coreMetrics.EventPriorityNormal,
+			SourceTypeName: containerdCheckName,
+			EventType:      containerdCheckName,
+			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
+		}
+		output.Text = e.Message
+		if len(e.Extra) > 0 {
+			for k, v := range e.Extra {
+				output.Tags = append(output.Tags, fmt.Sprintf("%s:%s", k, v))
+			}
+		}
+		output.Ts = e.Timestamp.Unix()
+		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
+		if split[1] == "containers" || split[1] == "tasks" {
+			// For task events, we use the container ID in order to query the Tagger's API
+			tags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+e.ID, collectors.HighCardinality)
+			if err != nil {
+				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
+				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
+			}
+			output.Tags = append(output.Tags, tags...)
+		}
+		sender.Event(output)
+	}
+}
+
+// containerdEvent contains the timestamp to make sure we flush all events that happened between two checks
 type containerdEvent struct {
 	ID        string
 	Timestamp time.Time
@@ -33,16 +78,25 @@ type containerdEvent struct {
 	Extra     map[string]string
 }
 
+func processMessage(id string, message *containerdevents.Envelope) containerdEvent {
+	return containerdEvent{
+		ID:        id,
+		Timestamp: message.Timestamp,
+		Topic:     message.Topic,
+		Namespace: message.Namespace,
+	}
+}
+
 type subscriber struct {
 	sync.Mutex
 	Name                string
 	Filters             []string
 	Events              []containerdEvent
 	CollectionTimestamp int64
-	isRunning           bool
+	running             bool
 }
 
-func CreateEventSubscriber(name string, f []string) *subscriber { //nolint:revive
+func createEventSubscriber(name string, f []string) *subscriber {
 	return &subscriber{
 		Name:                name,
 		CollectionTimestamp: time.Now().Unix(),
@@ -57,23 +111,15 @@ func (s *subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	go s.run(ctx, ev) //nolint:errcheck
 }
 
-func processMessage(id string, message *containerdevents.Envelope) containerdEvent {
-	return containerdEvent{
-		ID:        id,
-		Timestamp: message.Timestamp,
-		Topic:     message.Topic,
-		Namespace: message.Namespace,
-	}
-}
-
 // Run should only be called once, at start time
 func (s *subscriber) run(ctx context.Context, ev containerd.EventService) error {
-	if s.IsRunning() {
+	s.Lock()
+	if s.running {
+		s.Unlock()
 		return fmt.Errorf("subscriber is already running the event listener routine")
 	}
 	stream, errC := ev.Subscribe(ctx, s.Filters...)
-	s.Lock()
-	s.isRunning = true
+	s.running = true
 	s.Unlock()
 	for {
 		select {
@@ -211,7 +257,7 @@ func (s *subscriber) run(ctx context.Context, ev containerd.EventService) error 
 		case e := <-errC:
 			// As we only collect events from one containerd namespace, using this bool is sufficient.
 			s.Lock()
-			s.isRunning = false
+			s.running = false
 			s.Unlock()
 			if e == context.Canceled {
 				log.Debugf("Context of the event listener routine was canceled")
@@ -229,10 +275,10 @@ func (s *subscriber) addEvents(event containerdEvent) {
 	s.Unlock()
 }
 
-func (s *subscriber) IsRunning() bool {
+func (s *subscriber) isRunning() bool {
 	s.Lock()
 	defer s.Unlock()
-	return s.isRunning
+	return s.running
 }
 
 // Flush should be called every time you want to get the list of events that have been received since the last Flush
