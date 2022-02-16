@@ -11,7 +11,7 @@ import (
 )
 
 // CompositeTags stores read-only views of two tag sets and provides methods to iterate them easily.
-
+//
 // CompositeTags is designed to be used for metric tags created by the aggregator (Context, Serie,
 // SketchSeries, ...).
 type CompositeTags struct {
