@@ -11,6 +11,8 @@ package orchestrator
 import (
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/manifest"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -143,6 +145,14 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Messages), collector.Metadata().NodeType)
 		sender.OrchestratorMetadata(result.Messages, cb.check.clusterID, int(collector.Metadata().NodeType))
-		sender.OrchestratorManifest(result.Manifests, cb.check.orchestratorConfig.KubeClusterName, cb.check.clusterID)
+		sender.OrchestratorManifest(toManifest(result.Manifests), cb.check.orchestratorConfig.KubeClusterName, cb.check.clusterID)
 	}
+}
+
+func toManifest(msgs []model.MessageBody) []*manifest.ManifestPayload {
+	mm := make([]*manifest.ManifestPayload, 0, len(msgs))
+	for _, m := range msgs {
+		mm = append(mm, m.(*manifest.ManifestPayload))
+	}
+	return mm
 }

@@ -144,6 +144,7 @@ func init() {
 	newFlushTimeStats("EventFlushTime")
 	newFlushTimeStats("MainFlushTime")
 	newFlushTimeStats("MetricSketchFlushTime")
+	newFlushTimeStats("ManifestsTime")
 	aggregatorExpvars.Set("Flush", expvar.Func(expStatsMap(flushTimeStats)))
 
 	newFlushCountStats("ServiceChecks")
@@ -342,10 +343,10 @@ func (agg *BufferedAggregator) sendOrchestratorManifests(start time.Time, sender
 		if err != nil {
 			log.Warnf("Error flushing events: %v", err)
 			aggregatorOrchestratorMetadataErrors.Add(1)
-		} else {
-			aggregatorOrchestratorManifest.Add(1)
-			addFlushTime("Manifests", int64(time.Since(start)))
 		}
+		aggregatorOrchestratorManifest.Add(1)
+		addFlushTime("ManifestsTime", int64(time.Since(start)))
+
 	}
 }
 
@@ -821,6 +822,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushSeriesAndSketches(start, waitForSerializer)
 	agg.flushServiceChecks(start, waitForSerializer)
 	agg.flushEvents(start, waitForSerializer)
+	agg.flushOrchestratorManifests(start, waitForSerializer)
 	agg.updateChecksTelemetry()
 }
 

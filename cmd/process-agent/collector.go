@@ -6,7 +6,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/manifest"
 	model "github.com/DataDog/agent-payload/v5/process"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -29,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/zstd_0"
-	"github.com/gogo/protobuf/proto"
 )
 
 type checkResult struct {
@@ -213,6 +211,8 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 	if len(messages) == 0 {
 		return
 	}
+
+	// split manifests from slice of podcheck messages
 	if name == config.PodCheckName {
 		manifestMessagesToResults(l, start, name, messages[len(messages)/2:], results)
 		messages = messages[:len(messages)/2]
@@ -267,36 +267,21 @@ func manifestMessagesToResults(l *Collector, start time.Time, name string, messa
 	for _, m := range messages {
 		extraHeaders := make(http.Header)
 
+		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
+		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
+		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
+
 		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}
 		}
-
-		b := new(bytes.Buffer)
-		var p []byte
-
-		pb, err := proto.Marshal(m)
+		body, err := manifest.EncodeMessage(m.(*manifest.ManifestPayload))
 		if err != nil {
-			log.Warnf("unable to marshal manifest message")
+			log.Errorf("Unable to encode message: %s", err)
 			continue
 		}
 
-		p, err = zstd_0.Compress(nil, pb)
-		if err != nil {
-			log.Warnf("unable to compress manifest message")
-			continue
-		}
-
-		_, err = b.Write(p)
-		if err != nil {
-			log.Warnf("unable to write manifest message into bytes")
-			continue
-		}
-
-		body := b.Bytes()
-
-		extraHeaders.Set("Content-Type", "application/x-protobuf")
 		manifestPayloads = append(manifestPayloads, checkPayload{
 			body:    body,
 			headers: extraHeaders,
@@ -552,6 +537,8 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Pod.Name():
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
+
+				// Manifests don't need this header
 				if payload.headers.Get(headers.ContainerCountHeader) == "" {
 					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 				} else {

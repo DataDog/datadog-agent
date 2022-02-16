@@ -6,7 +6,6 @@
 package serializer
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -23,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/zstd_0"
-
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -106,7 +103,7 @@ type MetricSerializer interface {
 	SendProcessesMetadata(data interface{}) error
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
-	SendOrchestratorManifests(msgs []ManifestMessage, hostName, clusterID string) error
+	SendOrchestratorManifests(msgs []*ManifestMessage, hostName, clusterID string) error
 	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
 }
 
@@ -512,7 +509,7 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 }
 
 // SendOrchestratorManifests serializes & send orchestrator manifest payloads
-func (s *Serializer) SendOrchestratorManifests(msgs []ManifestMessage, hostName, clusterID string) error {
+func (s *Serializer) SendOrchestratorManifests(msgs []*ManifestMessage, hostName, clusterID string) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}
@@ -521,32 +518,12 @@ func (s *Serializer) SendOrchestratorManifests(msgs []ManifestMessage, hostName,
 		extraHeaders.Set(headers.HostHeader, hostName)
 		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
 
-		b := new(bytes.Buffer)
-		var p []byte
-
-		pb, err := proto.Marshal(&m)
+		body, err := manifestPayloadEncoder(m)
 		if err != nil {
-			log.Warnf("unable to marshal manifest message")
+			log.Errorf("Unable to encode message: %s", err)
 			continue
-		}
-
-		p, err = zstd_0.Compress(nil, pb)
-		if err != nil {
-			log.Warnf("unable to compress manifest message")
-			continue
-		}
-
-		_, err = b.Write(p)
-		if err != nil {
-			log.Warnf("unable to write manifest message into bytes")
-			continue
-		}
-
-		body := b.Bytes()
-
-		if err != nil {
-			return log.Errorf("Unable to encode message: %s", err)
 		}
 
 		payloads := forwarder.Payloads{&body}

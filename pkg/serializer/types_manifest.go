@@ -11,3 +11,5 @@ import (
 
 // ManifestMessage is a type alias for manifest payload proto message
 type ManifestMessage = manifest.ManifestPayload
+
+var manifestPayloadEncoder = manifest.EncodeMessage

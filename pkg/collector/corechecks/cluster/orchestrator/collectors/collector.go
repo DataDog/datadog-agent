@@ -9,7 +9,6 @@
 package collectors
 
 import (
-	"github.com/DataDog/agent-payload/v5/manifest"
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -55,7 +54,7 @@ type CollectorRunConfig struct {
 // CollectorRunResult contains information about what the collector has done.
 type CollectorRunResult struct {
 	Messages           []model.MessageBody
-	Manifests          []manifest.ManifestPayload
+	Manifests          []model.MessageBody
 	ResourcesListed    int
 	ResourcesProcessed int
 }

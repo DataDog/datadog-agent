@@ -75,9 +75,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	// Append manifestMessages behind metadataMessages to avoiding modifying the func signature.
 	// Split the messages during forwarding.
-	log.Errorf(">>>>>>test metadataMessages: %v", len(metadataMessages))
 	metadataMessages = append(metadataMessages, manifestMessages...)
-	log.Errorf("<<<<<<test all manifestMessages: %v", len(metadataMessages))
 	if processed == -1 {
 		return nil, fmt.Errorf("unable to process pods: a panic occurred")
 	}

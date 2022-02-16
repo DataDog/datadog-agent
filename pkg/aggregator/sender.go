@@ -38,7 +38,7 @@ type Sender interface {
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
-	OrchestratorManifest(msgs []serializer.ManifestMessage, clusterName string, clusterID string)
+	OrchestratorManifest(msgs []*serializer.ManifestMessage, clusterName string, clusterID string)
 	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
 }
 
@@ -97,7 +97,7 @@ type senderContainerLifecycleEvent struct {
 }
 
 type senderOrchestratorManifest struct {
-	msgs        []serializer.ManifestMessage
+	msgs        []*serializer.ManifestMessage
 	clusterName string
 	clusterID   string
 }
@@ -413,7 +413,7 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 	s.orchestratorMetadataOut <- om
 }
 
-func (s *checkSender) OrchestratorManifest(msgs []serializer.ManifestMessage, clusterName string, clusterID string) {
+func (s *checkSender) OrchestratorManifest(msgs []*serializer.ManifestMessage, clusterName string, clusterID string) {
 	om := senderOrchestratorManifest{
 		msgs:        msgs,
 		clusterName: clusterName,

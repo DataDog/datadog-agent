@@ -91,7 +91,7 @@ func NewProcessor(h Handlers) *Processor {
 }
 
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (metadataMessages []model.MessageBody, manifestMessages []manifest.ManifestPayload, processed int) {
+func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (metadataMessages []model.MessageBody, manifestMessages []model.MessageBody, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -161,7 +161,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (metadataMe
 	// chunk orchestrator manifest
 	manifestChunks := chunkResources(resourceManifests, chunkCount, ctx.Cfg.MaxPerMessage)
 
-	manifestMessages = make([]manifest.ManifestPayload, 0, chunkCount)
+	manifestMessages = make([]model.MessageBody, 0, chunkCount)
 	for i := 0; i < chunkCount; i++ {
 		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx, manifestChunks[i]))
 	}
@@ -193,14 +193,14 @@ func buildManifest(ctx *ProcessorContext, uid string, yaml []byte) *manifest.Man
 }
 
 // build orchestrator resource manifest
-func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}) manifest.ManifestPayload {
+func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}) model.MessageBody {
 	manifests := make([]*manifest.Manifest, 0, len(resourceManifests))
 
 	for _, m := range resourceManifests {
 		manifests = append(manifests, m.(*manifest.Manifest))
 	}
 
-	return manifest.ManifestPayload{
+	return &manifest.ManifestPayload{
 		Version:     orchestrator.ManifestPayloadVersion,
 		ClusterName: ctx.Cfg.KubeClusterName,
 		ClusterId:   ctx.ClusterID,
