@@ -209,7 +209,6 @@
 /pkg/snmp/                              @DataDog/infrastructure-integrations
 /pkg/appsec/                            @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
-/pkg/trace/pb/appsec.proto              @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
 /pkg/workloadmeta/collectors/cloudfoundry @DataDog/integrations-tools-and-libraries
 
