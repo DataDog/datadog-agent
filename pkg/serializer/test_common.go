@@ -21,8 +21,8 @@ type MockSerializer struct {
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *MockSerializer) SendEvents(e EventsStreamJSONMarshaler) error {
-	return s.Called(e).Error(0)
+func (s *MockSerializer) SendEvents(events metrics.Events) error {
+	return s.Called(events).Error(0)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder

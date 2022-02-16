@@ -95,7 +95,7 @@ type EventsStreamJSONMarshaler interface {
 
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
-	SendEvents(e EventsStreamJSONMarshaler) error
+	SendEvents(e metrics.Events) error
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series metrics.Series) error
 	SendIterableSeries(series marshaler.IterableMarshaler) error
@@ -257,7 +257,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
+func (s *Serializer) SendEvents(events metrics.Events) error {
 	if !s.enableEvents {
 		log.Debug("events payloads are disabled: dropping it")
 		return nil
@@ -267,10 +267,11 @@ func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 	var extraHeaders http.Header
 	var err error
 
+	eventsSerializer := metricsserializer.Events(events)
 	if s.enableEventsJSONStream {
-		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e, true)
+		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer, true)
 	} else {
-		eventPayloads, extraHeaders, err = s.serializePayload(e, true, true)
+		eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, true, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
