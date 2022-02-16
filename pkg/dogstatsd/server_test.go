@@ -516,6 +516,43 @@ func TestExtraTags(t *testing.T) {
 	assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
 }
 
+func TestStaticTags(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
+	config.Datadog.SetDefault("eks_fargate", true) // triggers DD_TAGS in static_tags
+	config.Datadog.SetDefault("tags", []string{"from:dd_tags"})
+	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
+	defer config.Datadog.SetDefault("eks_fargate", false)
+
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	s, err := NewServer(demux, nil)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	// Test metric
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	samples := demux.WaitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample := samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.EqualValues(t, sample.Value, 666.0)
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.ElementsMatch(t, sample.Tags, []string{
+		"sometag1:somevalue1",
+		"sometag2:somevalue2",
+		"sometag3:somevalue3",
+		"from:dd_tags",
+	})
+}
+
 func TestDebugStatsSpike(t *testing.T) {
 	assert := assert.New(t)
 	demux := mockDemultiplexer()
@@ -825,8 +862,8 @@ func TestNewServerExtraTags(t *testing.T) {
 	s, err = NewServer(demux, nil)
 	require.NoError(err, "starting the DogStatsD server shouldn't fail")
 	require.Len(s.extraTags, 2, "two tags should have been read")
-	require.Equal(s.extraTags[0], "hello:world", "the tag hello:world should be set")
-	require.Equal(s.extraTags[1], "extra:tags", "the tag extra:tags should be set")
+	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
+	require.Equal(s.extraTags[1], "hello:world", "the tag hello:world should be set")
 	s.Stop()
 	demux.Stop(false)
 
