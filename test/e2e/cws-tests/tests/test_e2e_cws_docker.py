@@ -96,7 +96,7 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("security-agent", self.docker_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="wait for host tags(~2m)", emoji=":alarm_clock:"):
+        with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):

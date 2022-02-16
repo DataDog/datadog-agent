@@ -88,7 +88,7 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="wait for host tags(~2m)", emoji=":alarm_clock:"):
+        with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
         with Step(msg="upload policies", emoji=":down_arrow:"):
