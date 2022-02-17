@@ -45,16 +45,19 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 func (tx *httpTX) Path(buffer []byte) []byte {
 	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
 
+	// b might contain a null terminator in the middle
+	bLen := strlen(b[:])
+
 	var i, j int
-	for i = 0; i < len(b) && b[i] != ' '; i++ {
+	for i = 0; i < bLen && b[i] != ' '; i++ {
 	}
 
 	i++
 
-	for j = i; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
+	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
 	}
 
-	if i < j && j <= len(b) {
+	if i < j && j <= bLen {
 		n := copy(buffer, b[i:j])
 		return buffer[:n]
 	}
@@ -77,6 +80,12 @@ func (tx *httpTX) RequestLatency() float64 {
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *httpTX) Incomplete() bool {
 	return tx.request_started == 0 || tx.response_status_code == 0
+}
+
+// Tags returns an uint64 representing the tags bitfields
+// Tags are defined here : pkg/network/ebpf/kprobe_types.go
+func (tx *httpTX) Tags() uint64 {
+	return uint64(tx.tags)
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still
@@ -104,4 +113,14 @@ func nsTimestampToFloat(ns uint64) float64 {
 		shift++
 	}
 	return float64(ns << shift)
+}
+
+// strlen returns the length of a null-terminated string
+func strlen(str []byte) int {
+	for i := 0; i < len(str); i++ {
+		if str[i] == 0 {
+			return i
+		}
+	}
+	return len(str)
 }
