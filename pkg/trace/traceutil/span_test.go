@@ -56,7 +56,7 @@ func TestGetSetMetaStruct(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, []interface{}{int64(1), int64(2), int64(3)}, val)
 		assert.NotNil(t, SetMetaStruct(s, "cannot-marshal", struct{}{}))
-		val, ok = GetMetaStruct(s, "cannot-marshal")
+		_, ok = GetMetaStruct(s, "cannot-marshal")
 		assert.False(t, ok)
 	}
 }
