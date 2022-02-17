@@ -78,11 +78,9 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 		listener, err := startSNMPv2Listener(config, demultiplexer)
 		if err != nil {
 			log.Warn("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d)", config.FlowType, config.BindHost, config.Port)
+		} else {
+			listeners = append(listeners, listener)
 		}
-		listeners = append(listeners, Listener{
-			flowState: listener,
-			config:    config,
-		})
 	}
 
 	server := &Server{
@@ -93,34 +91,65 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	return server, nil
 }
 
-func startSNMPv2Listener(listenerConfig ListenerConfig, demultiplexer aggregator.Demultiplexer) (*utils.StateNetFlow, error) {
+func startSNMPv2Listener(listenerConfig ListenerConfig, demultiplexer aggregator.Demultiplexer) (Listener, error) {
 	log.Warn("Starting Netflow Server")
 	//agg := demultiplexer.Aggregator()
 	sender, err := demultiplexer.GetDefaultSender()
 	if err != nil {
-		return nil, err
+		return Listener{}, err
 	}
 	ndmFlowDriver := NewFlowDriver(sender, listenerConfig)
 
+	// TODO: Match logger with agent logger
 	logger := logrus.StandardLogger()
-	logger.SetLevel(logrus.TraceLevel)
-	sNF := &utils.StateNetFlow{
-		Format: ndmFlowDriver,
-		Logger: logger,
-	}
+	logger.SetLevel(logrus.InfoLevel)
+
 	hostname := listenerConfig.BindHost
 	port := listenerConfig.Port
 	reusePort := false
+
+	var flowState interface{}
+
 	go func() {
-		log.Errorf("Starting FlowRoutine...")
-		err = sNF.FlowRoutine(1, hostname, int(port), reusePort)
-		log.Errorf("Exited FlowRoutine")
-		if err != nil {
-			log.Errorf("Error exiting FlowRoutine: %s", err)
+		log.Info("Starting FlowRoutine...")
+		switch listenerConfig.FlowType {
+		case NETFLOW9, IPFIX:
+			stateNetFlow := &utils.StateNetFlow{
+				Format: ndmFlowDriver,
+				Logger: logger,
+			}
+			flowState = stateNetFlow
+			err = stateNetFlow.FlowRoutine(1, hostname, int(port), reusePort)
+			if err != nil {
+				log.Errorf("Error listener to netflow9/ipfix: %s", err)
+			}
+		case SFLOW:
+			stateSFlow := &utils.StateSFlow{
+				Format: ndmFlowDriver,
+				Logger: logger,
+			}
+			flowState = stateSFlow
+			err = stateSFlow.FlowRoutine(1, hostname, int(port), reusePort)
+			if err != nil {
+				log.Errorf("Error listener to sflow: %s", err)
+			}
+		case NETFLOW5:
+			stateNFLegacy := &utils.StateNFLegacy{
+				Format: ndmFlowDriver,
+				Logger: logger,
+			}
+			flowState = stateNFLegacy
+			err = stateNFLegacy.FlowRoutine(1, hostname, int(port), reusePort)
+			if err != nil {
+				log.Errorf("Error listener to netflow5: %s", err)
+			}
 		}
 	}()
-
-	return sNF, nil
+	listener := Listener{
+		flowState: flowState,
+		config:    listenerConfig,
+	}
+	return listener, nil
 }
 
 // Stop stops the Server.

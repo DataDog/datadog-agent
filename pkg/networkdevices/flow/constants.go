@@ -11,3 +11,12 @@ const (
 	defaultPortSFLOW   = uint16(6343)
 	defaultStopTimeout = 5
 )
+
+type FlowType string
+
+const (
+	IPFIX    FlowType = "ipfix"
+	SFLOW             = "sflow"
+	NETFLOW5          = "netflow5"
+	NETFLOW9          = "netflow9"
+)

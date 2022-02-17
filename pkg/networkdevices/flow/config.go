@@ -27,9 +27,9 @@ type Config struct {
 // ListenerConfig contains configuration for a single flow listener
 type ListenerConfig struct {
 	// TODO: Need both mapstructure and yaml ?
-	FlowType uint16 `mapstructure:"flow_type" yaml:"flow_type"`
-	Port     uint16 `mapstructure:"port" yaml:"port"`
-	BindHost string `mapstructure:"bind_host" yaml:"bind_host"`
+	FlowType FlowType `mapstructure:"flow_type" yaml:"flow_type"`
+	Port     uint16   `mapstructure:"port" yaml:"port"`
+	BindHost string   `mapstructure:"bind_host" yaml:"bind_host"`
 
 	// TODO: remove after dev stage
 	SendEvents  bool `mapstructure:"send_events" yaml:"send_events"`
