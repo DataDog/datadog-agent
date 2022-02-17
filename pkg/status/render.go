@@ -90,18 +90,18 @@ func FormatStatus(data []byte) (string, error) {
 		}
 	}
 
-	// Sections of the status output that should be present in either the CLC or regular agent
-	renderFuncsByType := map[string][]func(){
-		"clc": {headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc, autodiscoveryFunc},
-		"agent": {headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc, logsAgentFunc, systemProbeFunc,
-			processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc, clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}}
+	var renderFuncs []func()
 
 	if config.IsCLCRunner() {
-		renderAgentSections("clc", renderFuncsByType)
-		return b.String(), nil
+		renderFuncs = []func(){headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc, 
+			autodiscoveryFunc}
+	} else {
+		renderFuncs = []func(){headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc, 
+			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc, 
+			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}
 	}
 
-	renderAgentSections("agent", renderFuncsByType)
+	renderAgentSections(renderFuncs)
 
 	return b.String(), nil
 }
@@ -253,8 +253,8 @@ func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
 	}
 }
 
-func renderAgentSections(agentType string, renderFuncsByType map[string][]func()) {
-	for _, f := range renderFuncsByType[agentType] {
+func renderAgentSections(renderFuncs []func()) {
+	for _, f := range renderFuncs {
 		f()
 	}
 }
