@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/ebpf/manager"
 )
 
-var openSSLProbes = []string{
+var sslProbes = []string{
 	"uprobe/SSL_set_bio",
 	"uprobe/SSL_set_fd",
 	"uprobe/SSL_read",
@@ -38,16 +38,6 @@ var cryptoProbes = []string{
 	"uretprobe/BIO_new_socket",
 }
 
-var gnuTLSProbes = []string{
-	"uprobe/gnutls_transport_set_int2",
-	"uprobe/gnutls_transport_set_ptr",
-	"uprobe/gnutls_transport_set_ptr2",
-	"uprobe/gnutls_record_recv",
-	"uretprobe/gnutls_record_recv",
-	"uprobe/gnutls_record_send",
-	"uprobe/gnutls_bye",
-}
-
 const (
 	sslSockByCtxMap        = "ssl_sock_by_ctx"
 	sharedLibrariesPerfMap = "shared_libraries"
@@ -57,7 +47,7 @@ const (
 	doSysOpenRet = "kretprobe/do_sys_open"
 )
 
-type sslProgram struct {
+type openSSLProgram struct {
 	cfg         *config.Config
 	sockFDMap   *ebpf.Map
 	perfHandler *ddebpf.PerfHandler
@@ -65,21 +55,21 @@ type sslProgram struct {
 	manager     *manager.Manager
 }
 
-var _ subprogram = &sslProgram{}
+var _ subprogram = &openSSLProgram{}
 
-func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*sslProgram, error) {
+func newOpenSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*openSSLProgram, error) {
 	if !c.EnableHTTPSMonitoring {
 		return nil, nil
 	}
 
-	return &sslProgram{
+	return &openSSLProgram{
 		cfg:         c,
 		sockFDMap:   sockFDMap,
 		perfHandler: ddebpf.NewPerfHandler(batchNotificationsChanSize),
 	}, nil
 }
 
-func (o *sslProgram) ConfigureManager(m *manager.Manager) {
+func (o *openSSLProgram) ConfigureManager(m *manager.Manager) {
 	if o == nil {
 		return
 	}
@@ -104,7 +94,7 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 	}
 }
 
-func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+func (o *openSSLProgram) ConfigureOptions(options *manager.Options) {
 	if o == nil {
 		return
 	}
@@ -137,7 +127,7 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	options.MapEditors[string(probes.SockByPidFDMap)] = o.sockFDMap
 }
 
-func (o *sslProgram) Start() {
+func (o *openSSLProgram) Start() {
 	if o == nil {
 		return
 	}
@@ -146,25 +136,20 @@ func (o *sslProgram) Start() {
 	o.watcher = newSOWatcher(o.cfg.ProcRoot, o.perfHandler,
 		soRule{
 			re:           regexp.MustCompile(`libssl.so`),
-			registerCB:   addHooks(o.manager, openSSLProbes),
-			unregisterCB: removeHooks(o.manager, openSSLProbes),
+			registerCB:   addHooks(o.manager, sslProbes),
+			unregisterCB: removeHooks(o.manager, sslProbes),
 		},
 		soRule{
 			re:           regexp.MustCompile(`libcrypto.so`),
 			registerCB:   addHooks(o.manager, cryptoProbes),
 			unregisterCB: removeHooks(o.manager, cryptoProbes),
 		},
-		soRule{
-			re:           regexp.MustCompile(`libgnutls.so`),
-			registerCB:   addHooks(o.manager, gnuTLSProbes),
-			unregisterCB: removeHooks(o.manager, gnuTLSProbes),
-		},
 	)
 
 	o.watcher.Start()
 }
 
-func (o *sslProgram) Stop() {
+func (o *openSSLProgram) Stop() {
 	if o == nil {
 		return
 	}
