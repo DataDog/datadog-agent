@@ -558,10 +558,6 @@ CWS logs have the following JSON schema:
         "flags": {
             "type": "string",
             "description": "memory segment flags"
-        },
-        "file": {
-            "$ref": "#/definitions/File",
-            "description": "mmaped file"
         }
     },
     "additionalProperties": false,
@@ -577,11 +573,7 @@ CWS logs have the following JSON schema:
 | `length` | memory segment length |
 | `protection` | memory segment protection |
 | `flags` | memory segment flags |
-| `file` | mmaped file |
 
-| References |
-| ---------- |
-| [File](#file) |
 
 ## `MProtectEvent`
 
@@ -592,7 +584,7 @@ CWS logs have the following JSON schema:
         "vm_start",
         "vm_end",
         "vm_protection",
-        "new_protection"
+        "req_protection"
     ],
     "properties": {
         "vm_start": {
@@ -605,9 +597,9 @@ CWS logs have the following JSON schema:
         },
         "vm_protection": {
             "type": "string",
-            "description": "memory segment protection"
+            "description": "initial memory segment protection"
         },
-        "new_protection": {
+        "req_protection": {
             "type": "string",
             "description": "new memory segment protection"
         }
@@ -622,8 +614,8 @@ CWS logs have the following JSON schema:
 | ----- | ----------- |
 | `vm_start` | memory segment start address |
 | `vm_end` | memory segment end address |
-| `vm_protection` | memory segment protection |
-| `new_protection` | new memory segment protection |
+| `vm_protection` | initial memory segment protection |
+| `req_protection` | new memory segment protection |
 
 
 ## `PTraceEvent`
