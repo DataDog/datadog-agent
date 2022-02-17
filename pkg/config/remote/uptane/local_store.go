@@ -164,6 +164,24 @@ func (s *localStore) GetMetaVersion(metaName string) (uint64, error) {
 	return metaVersion, nil
 }
 
+// GetMetaCustom returns the custom of a particular meta
+func (s *localStore) GetMetaCustom(metaName string) ([]byte, error) {
+	metas, err := s.GetMeta()
+	if err != nil {
+		return nil, err
+	}
+	meta, found := metas[metaName]
+	if !found {
+		return nil, nil
+	}
+	return metaCustom(meta)
+}
+
+// Close is a useless function required by go-tuf interface but unused in their code
+func (s *localStore) Close() error {
+	return nil
+}
+
 func newLocalStoreDirector(db *bbolt.DB, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
 	return newLocalStore(db, "director", cacheKey, initialRoots)
 }

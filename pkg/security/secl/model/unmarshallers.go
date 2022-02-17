@@ -6,6 +6,7 @@
 package model
 
 import (
+	"fmt"
 	"time"
 	"unsafe"
 )
@@ -550,7 +551,7 @@ func (m *BPFMap) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
 	p.ID = ByteOrder.Uint32(data[0:4])
@@ -568,7 +569,10 @@ func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return 56, nil
+	for _, b := range data[56:64] {
+		p.Tag += fmt.Sprintf("%x", b)
+	}
+	return 64, nil
 }
 
 func parseHelpers(helpers []uint64) []uint32 {

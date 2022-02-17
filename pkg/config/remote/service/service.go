@@ -71,6 +71,7 @@ type uptaneClient interface {
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
+	TargetsCustom() ([]byte, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -201,7 +202,11 @@ func (s *Service) refresh() error {
 	if s.forceRefresh() || err != nil {
 		previousState = uptane.State{}
 	}
-	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts))
+	clientState, err := s.getClientState()
+	if err != nil {
+		log.Warnf("could not get previous backend client state: %v", err)
+	}
+	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, clientState))
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
@@ -234,6 +239,18 @@ func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
 			}
 		}
 	}
+}
+
+func (s *Service) getClientState() ([]byte, error) {
+	rawTargetsCustom, err := s.uptane.TargetsCustom()
+	if err != nil {
+		return nil, err
+	}
+	custom, err := parseTargetsCustom(rawTargetsCustom)
+	if err != nil {
+		return nil, err
+	}
+	return custom.ClientState, nil
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations

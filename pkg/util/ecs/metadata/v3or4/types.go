@@ -30,13 +30,13 @@ type Container struct {
 	Type          string            `json:"Type"`
 	Image         string            `json:"Image"`
 	Labels        map[string]string `json:"Labels,omitempty"`
-	KnownStatus   string            `json:"KnownStatus"`
+	KnownStatus   string            `json:"KnownStatus"` // See https://github.com/aws/amazon-ecs-agent/blob/master/agent/api/container/status/containerstatus.go
 	DesiredStatus string            `json:"DesiredStatus"`
 	DockerID      string            `json:"DockerID"`
 	CreatedAt     string            `json:"CreatedAt,omitempty"`
 	Networks      []Network         `json:"Networks,omitempty"`
 	Ports         []Port            `json:"Ports,omitempty"`
-	LogDriver     string            `json:"LogDriver,omitemty"`     // present only in v4
+	LogDriver     string            `json:"LogDriver,omitempty"`    // present only in v4
 	LogOptions    map[string]string `json:"LogOptions,omitempty"`   // present only in v4
 	ContainerARN  string            `json:"ContainerARN,omitempty"` // present only in v4
 }

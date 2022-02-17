@@ -130,8 +130,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
-			case workloadmeta.KindGardenContainer:
-				tagInfos = append(tagInfos, c.handleGardenContainer(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -169,6 +167,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInfo {
 	container := ev.Entity.(*workloadmeta.Container)
+
+	// Garden containers tagging is specific as we don't have any information locally
+	// Metadata are not available and tags are retrieved as-is from Cluster Agent
+	if container.Runtime == workloadmeta.ContainerRuntimeGarden {
+		return c.handleGardenContainer(container)
+	}
 
 	tags := utils.NewTagList()
 	tags.AddHigh("container_name", container.Name)
@@ -378,14 +382,13 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 
 	return tagInfos
 }
-func (c *WorkloadMetaCollector) handleGardenContainer(ev workloadmeta.Event) []*TagInfo {
-	container := ev.Entity.(*workloadmeta.GardenContainer)
 
+func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Container) []*TagInfo {
 	return []*TagInfo{
 		{
-			Source:       gardenSource,
+			Source:       containerSource,
 			Entity:       buildTaggerEntityID(container.EntityID),
-			HighCardTags: container.Tags,
+			HighCardTags: container.CollectorTags,
 		},
 	}
 }
@@ -585,7 +588,7 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 
 func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 	switch entityID.Kind {
-	case workloadmeta.KindContainer, workloadmeta.KindGardenContainer:
+	case workloadmeta.KindContainer:
 		return containers.BuildTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesPod:
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)

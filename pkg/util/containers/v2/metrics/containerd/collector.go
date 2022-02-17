@@ -10,6 +10,7 @@ package containerd
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
@@ -22,12 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
 	containerdCollectorID = "containerd"
+
+	pidCacheGCInterval     = 60 * time.Second
+	pidCacheFullRefreshKey = "refreshTime"
 )
 
 func init() {
@@ -45,6 +50,7 @@ func init() {
 type containerdCollector struct {
 	client            cutil.ContainerdItf
 	workloadmetaStore workloadmeta.Store
+	pidCache          *provider.Cache
 }
 
 func newContainerdCollector() (*containerdCollector, error) {
@@ -60,6 +66,7 @@ func newContainerdCollector() (*containerdCollector, error) {
 	return &containerdCollector{
 		client:            client,
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
+		pidCache:          provider.NewCache(pidCacheGCInterval),
 	}, nil
 }
 
@@ -76,7 +83,7 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 	}
 	c.client.SetCurrentNamespace(namespace)
 
-	metrics, err := c.getContainerdMetrics(containerID, cacheValidity)
+	metrics, err := c.getContainerdMetrics(containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +137,7 @@ func (c *containerdCollector) GetContainerNetworkStats(containerID string, cache
 	}
 	c.client.SetCurrentNamespace(namespace)
 
-	metrics, err := c.getContainerdMetrics(containerID, cacheValidity)
+	metrics, err := c.getContainerdMetrics(containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -149,10 +156,39 @@ func (c *containerdCollector) GetContainerNetworkStats(containerID string, cache
 	}
 }
 
+// GetContainerIDForPID returns the container ID for given PID
+func (c *containerdCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	currentTime := time.Now()
+	strPid := strconv.Itoa(pid)
+
+	cID, found, _ := c.pidCache.Get(currentTime, strPid, cacheValidity)
+	if found {
+		return cID.(string), nil
+	}
+
+	if err := c.refreshPIDCache(currentTime, cacheValidity); err != nil {
+		return "", err
+	}
+
+	// Use harcoded cacheValidity as input one could be 0
+	cID, found, _ = c.pidCache.Get(currentTime, strPid, time.Second)
+	if found {
+		return cID.(string), nil
+	}
+
+	return "", nil
+}
+
+// GetSelfContainerID returns current process container ID
+func (c *containerdCollector) GetSelfContainerID() (string, error) {
+	// Not available
+	return "", nil
+}
+
 // This method returns interface{} because the metrics could be an instance of
 // v1.Metrics (for Linux) or stats.Statistics (Windows) and they don't share a
 // common interface.
-func (c *containerdCollector) getContainerdMetrics(containerID string, cacheValidity time.Duration) (interface{}, error) {
+func (c *containerdCollector) getContainerdMetrics(containerID string) (interface{}, error) {
 	container, err := c.client.Container(containerID)
 	if err != nil {
 		return nil, fmt.Errorf("could not get container with ID %s: %s", containerID, err)
@@ -169,6 +205,37 @@ func (c *containerdCollector) getContainerdMetrics(containerID string, cacheVali
 	}
 
 	return metrics, nil
+}
+
+func (c *containerdCollector) refreshPIDCache(currentTime time.Time, cacheValidity time.Duration) error {
+	// If we've done a full refresh within cacheValidity, we do not trigger another full refresh
+	// We're using the cache itself with a dedicated key pidCacheFullRefreshKey to know if
+	// we need to perform a full refresh or not to seamlessly handle cacheValidity and cache GC.
+	_, found, err := c.pidCache.Get(currentTime, pidCacheFullRefreshKey, cacheValidity)
+	if found {
+		return err
+	}
+
+	// Full refresh
+	containers, err := c.client.Containers()
+	if err != nil {
+		c.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
+		return err
+	}
+
+	for _, container := range containers {
+		processes, err := c.client.TaskPids(container)
+		if err != nil {
+			log.Debugf("could not retrieve the processes of the container with ID %s: %s", container.ID(), err)
+		}
+
+		for _, process := range processes {
+			c.pidCache.Store(currentTime, strconv.FormatUint(uint64(process.Pid), 10), container.ID(), nil)
+		}
+	}
+
+	c.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, nil)
+	return nil
 }
 
 func getContainerdCPULimit(currentTime time.Time, startTime time.Time, OCISpec *oci.Spec) *float64 {

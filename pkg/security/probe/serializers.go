@@ -203,6 +203,7 @@ type BPFMapSerializer struct {
 // easyjson:json
 type BPFProgramSerializer struct {
 	Name        string   `json:"name,omitempty" jsonschema_description:"Name of the BPF program"`
+	Tag         string   `json:"tag,omitempty" jsonschema_description:"Hash (sha1) of the BPF program"`
 	ProgramType string   `json:"program_type,omitempty" jsonschema_description:"Type of the BPF program"`
 	AttachType  string   `json:"attach_type,omitempty" jsonschema_description:"Attach type of the BPF program"`
 	Helpers     []string `json:"helpers,omitempty" jsonschema_description:"List of helpers used by the BPF program"`
@@ -500,6 +501,7 @@ func newBPFProgramSerializer(e *Event) *BPFProgramSerializer {
 
 	return &BPFProgramSerializer{
 		Name:        e.BPF.Program.Name,
+		Tag:         e.BPF.Program.Tag,
 		ProgramType: model.BPFProgramType(e.BPF.Program.Type).String(),
 		AttachType:  model.BPFAttachType(e.BPF.Program.AttachType).String(),
 		Helpers:     model.StringifyHelpersList(e.BPF.Program.Helpers),

@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -75,6 +75,18 @@ func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cache
 	return convertNetworkStats(stats.Networks), nil
 }
 
+// GetContainerIDForPID returns the container ID for given PID
+func (e *ecsFargateCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	// Not available
+	return "", nil
+}
+
+// GetSelfContainerID returns current process container ID
+func (e *ecsFargateCollector) GetSelfContainerID() (string, error) {
+	// Not available
+	return "", nil
+}
+
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
 // Cache expires every 2 minutes and can also be invalidated using the cacheValidity argument.
 func (e *ecsFargateCollector) stats(containerID string) (*v2.ContainerStats, error) {
@@ -105,9 +117,9 @@ func convertCPUStats(cpuStats *v2.CPUStats) *provider.ContainerCPUStats {
 	}
 
 	return &provider.ContainerCPUStats{
-		Total:  util.UIntToFloatPtr(cpuStats.Usage.Total),
-		System: util.UIntToFloatPtr(cpuStats.Usage.Kernelmode),
-		User:   util.UIntToFloatPtr(cpuStats.Usage.Usermode),
+		Total:  pointer.UIntToFloatPtr(cpuStats.Usage.Total),
+		System: pointer.UIntToFloatPtr(cpuStats.Usage.Kernelmode),
+		User:   pointer.UIntToFloatPtr(cpuStats.Usage.Usermode),
 	}
 }
 
@@ -117,10 +129,10 @@ func convertMemoryStats(memStats *v2.MemStats) *provider.ContainerMemStats {
 	}
 
 	return &provider.ContainerMemStats{
-		Limit:      util.UIntToFloatPtr(memStats.Limit),
-		UsageTotal: util.UIntToFloatPtr(memStats.Usage),
-		RSS:        util.UIntToFloatPtr(memStats.Details.RSS),
-		Cache:      util.UIntToFloatPtr(memStats.Details.Cache),
+		Limit:      pointer.UIntToFloatPtr(memStats.Limit),
+		UsageTotal: pointer.UIntToFloatPtr(memStats.Usage),
+		RSS:        pointer.UIntToFloatPtr(memStats.Details.RSS),
+		Cache:      pointer.UIntToFloatPtr(memStats.Details.Cache),
 	}
 }
 
@@ -154,10 +166,10 @@ func convertIOStats(ioStats *v2.IOStats) *provider.ContainerIOStats {
 	}
 
 	return &provider.ContainerIOStats{
-		ReadBytes:       util.UIntToFloatPtr(readBytes),
-		WriteBytes:      util.UIntToFloatPtr(writeBytes),
-		ReadOperations:  util.UIntToFloatPtr(readOp),
-		WriteOperations: util.UIntToFloatPtr(writeOp),
+		ReadBytes:       pointer.UIntToFloatPtr(readBytes),
+		WriteBytes:      pointer.UIntToFloatPtr(writeBytes),
+		ReadOperations:  pointer.UIntToFloatPtr(readOp),
+		WriteOperations: pointer.UIntToFloatPtr(writeOp),
 	}
 }
 
@@ -169,10 +181,10 @@ func convertNetworkStats(netStats v2.NetStatsMap) *provider.ContainerNetworkStat
 	var totalPacketsRcvd, totalPacketsSent, totalBytesRcvd, totalBytesSent uint64
 	for iface, statsPerInterface := range netStats {
 		iStats := provider.InterfaceNetStats{
-			BytesSent:   util.UIntToFloatPtr(statsPerInterface.TxBytes),
-			PacketsSent: util.UIntToFloatPtr(statsPerInterface.TxPackets),
-			BytesRcvd:   util.UIntToFloatPtr(statsPerInterface.RxBytes),
-			PacketsRcvd: util.UIntToFloatPtr(statsPerInterface.RxPackets),
+			BytesSent:   pointer.UIntToFloatPtr(statsPerInterface.TxBytes),
+			PacketsSent: pointer.UIntToFloatPtr(statsPerInterface.TxPackets),
+			BytesRcvd:   pointer.UIntToFloatPtr(statsPerInterface.RxBytes),
+			PacketsRcvd: pointer.UIntToFloatPtr(statsPerInterface.RxPackets),
 		}
 		stats.Interfaces[iface] = iStats
 
@@ -182,10 +194,10 @@ func convertNetworkStats(netStats v2.NetStatsMap) *provider.ContainerNetworkStat
 		totalBytesSent += statsPerInterface.TxBytes
 	}
 
-	stats.PacketsRcvd = util.UIntToFloatPtr(totalPacketsRcvd)
-	stats.PacketsSent = util.UIntToFloatPtr(totalPacketsSent)
-	stats.BytesRcvd = util.UIntToFloatPtr(totalBytesRcvd)
-	stats.BytesSent = util.UIntToFloatPtr(totalBytesSent)
+	stats.PacketsRcvd = pointer.UIntToFloatPtr(totalPacketsRcvd)
+	stats.PacketsSent = pointer.UIntToFloatPtr(totalPacketsSent)
+	stats.BytesRcvd = pointer.UIntToFloatPtr(totalBytesRcvd)
+	stats.BytesSent = pointer.UIntToFloatPtr(totalBytesSent)
 
 	return stats
 }

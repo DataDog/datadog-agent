@@ -51,6 +51,7 @@ message LatestConfigsRequest {
   repeated string products = 4;
   repeated string new_products = 5;
   repeated Client active_clients = 6;
+  bytes client_state = 10;
 }
 
 message LatestConfigsResponse {
