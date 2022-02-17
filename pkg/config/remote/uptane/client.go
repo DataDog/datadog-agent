@@ -82,6 +82,13 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	return c.verify()
 }
 
+// TargetsCustom returns the current targets custom of this uptane client
+func (c *Client) TargetsCustom() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.director.localStore.GetMetaCustom(metaTargets)
+}
+
 // DirectorRoot returns a director root
 func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	c.Lock()
