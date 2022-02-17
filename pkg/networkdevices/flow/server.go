@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/netsampler/goflow2/utils"
-	logrus "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Server manages an SNMPv2 trap listener.
+// Server manages netflow listeners.
 type Server struct {
 	Addr          string
 	config        *Config
@@ -52,21 +52,18 @@ var (
 // StartServer starts the global trap server.
 func StartServer(demultiplexer aggregator.Demultiplexer) error {
 	server, err := NewNetflowServer(demultiplexer)
-	serverInstance = server
+	if err != nil {
+		serverInstance = server
+	}
 	return err
 }
 
-// StopServer stops the global trap server, if it is running.
+// StopServer stops the netflow server, if it is running.
 func StopServer() {
 	if serverInstance != nil {
 		serverInstance.Stop()
 		serverInstance = nil
 	}
-}
-
-// IsRunning returns whether the trap server is currently running.
-func IsRunning() bool {
-	return serverInstance != nil
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
@@ -80,7 +77,7 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 
 	for _, config := range allConfigs.Configs {
 		log.Infof("Starting Netflow listener for flow type %s on %s", config.FlowType, config.Addr())
-		listener, err := startFlowListeners(config, demultiplexer)
+		listener, err := startFlowListener(config, demultiplexer)
 		if err != nil {
 			log.Warn("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d)", config.FlowType, config.BindHost, config.Port)
 		} else {
@@ -97,8 +94,7 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	return server, nil
 }
 
-func startFlowListeners(listenerConfig ListenerConfig, demultiplexer aggregator.Demultiplexer) (Listener, error) {
-	//agg := demultiplexer.Aggregator()
+func startFlowListener(listenerConfig ListenerConfig, demultiplexer aggregator.Demultiplexer) (Listener, error) {
 	sender, err := demultiplexer.GetDefaultSender()
 	if err != nil {
 		return Listener{}, err

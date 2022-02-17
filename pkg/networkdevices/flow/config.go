@@ -9,17 +9,16 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
 func IsEnabled() bool {
 	// TODO: add netflow_enabled to config.go
-	return config.Datadog.GetBool("network_devices.flow.enabled")
+	return coreconfig.Datadog.GetBool("network_devices.flow.enabled")
 }
 
 // Config contains configuration for SNMP trap listeners.
-// YAML field tags provided for test marshalling purposes.
 type Config struct {
 	Configs     []ListenerConfig `mapstructure:"Configs"`
 	StopTimeout int              `mapstructure:"stop_timeout"`
@@ -39,32 +38,34 @@ type ListenerConfig struct {
 
 // ReadConfig builds and returns configuration from Agent configuration.
 func ReadConfig() (*Config, error) {
-	var c Config
-	err := config.Datadog.UnmarshalKey("network_devices.flow", &c)
+	var allConfigs Config
+	err := coreconfig.Datadog.UnmarshalKey("network_devices.flow", &allConfigs)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Configs: %+v", c)
+	log.Infof("Configs: %+v", allConfigs)
 
-	// TODO: Set default Port per Flow Type
-	//       defaultPortNETFLOW = uint16(2055)
-	//		 defaultPortIPFIX   = uint16(4739)
-	//		 defaultPortSFLOW   = uint16(6343)
-	// Set defaults.
-	//if c.Port == 0 {
-	//	c.Port = defaultPortNETFLOW
-	//}
-	// TODO: When bindHost is needed?
-	//if c.BindHost == "" {
-	//	// Default to global bind_host option.
-	//	c.BindHost = config.GetBindHost()
-	//}
-	if c.StopTimeout == 0 {
-		c.StopTimeout = defaultStopTimeout
+	for _, config := range allConfigs.Configs {
+		// TODO: Set default Port per Flow Type
+		//       defaultPortNETFLOW = uint16(2055)
+		//		 defaultPortIPFIX   = uint16(4739)
+		//		 defaultPortSFLOW   = uint16(6343)
+		// Set defaults.
+		//if allConfigs.Port == 0 {
+		//	allConfigs.Port = defaultPortNETFLOW
+		//}
+		if config.BindHost == "" {
+			// Default to global bind_host option.
+			config.BindHost = coreconfig.GetBindHost()
+		}
 	}
 
-	return &c, nil
+	if allConfigs.StopTimeout == 0 {
+		allConfigs.StopTimeout = defaultStopTimeout
+	}
+
+	return &allConfigs, nil
 }
 
 // Addr returns the host:port address to listen on.
