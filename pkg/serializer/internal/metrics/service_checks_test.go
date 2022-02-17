@@ -6,7 +6,7 @@
 //go:build zlib
 // +build zlib
 
-package metricsserializer
+package metrics
 
 import (
 	"fmt"
