@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	_ "github.com/DataDog/datadog-agent/pkg/tagset"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -87,7 +87,7 @@ func (t *tagsetTelemetry) updateTelemetry(tagsetSizes []uint64, atomicCounts []u
 func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metricsserializer.SketchSeriesList) {
 	tagsetSizes := make([]uint64, len(*sketches))
 	for i, s := range *sketches {
-		tagsetSizes[i] = uint64(len(s.Tags))
+		tagsetSizes[i] = uint64(s.Tags.Len())
 	}
 	t.updateTelemetry(tagsetSizes, t.hugeSketchesCount, t.tlmHugeSketches)
 }
@@ -96,7 +96,7 @@ func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metricsserialize
 func (t *tagsetTelemetry) updateHugeSeriesTelemetry(series *metricsserializer.Series) {
 	tagsetSizes := make([]uint64, len(*series))
 	for i, s := range *series {
-		tagsetSizes[i] = uint64(len(s.Tags))
+		tagsetSizes[i] = uint64(s.Tags.Len())
 	}
 	t.updateTelemetry(tagsetSizes, t.hugeSeriesCount, t.tlmHugeSeries)
 }
@@ -104,7 +104,7 @@ func (t *tagsetTelemetry) updateHugeSeriesTelemetry(series *metricsserializer.Se
 // updateHugeSerieTelemetry increments huge and almost-huge counters.
 // Same as updateHugeSeriesTelemetry but for a single serie.
 func (t *tagsetTelemetry) updateHugeSerieTelemetry(serie *metrics.Serie) {
-	tagsetSize := uint64(len(serie.Tags))
+	tagsetSize := uint64(serie.Tags.Len())
 	for i, thresh := range t.sizeThresholds {
 		if tagsetSize > thresh {
 			atomic.AddUint64(&t.hugeSeriesCount[i], 1)

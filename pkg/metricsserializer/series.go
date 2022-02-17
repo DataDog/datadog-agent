@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -46,7 +47,7 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 			serie.MType.String(),
 			strconv.FormatFloat(serie.Points[0].Ts, 'f', 0, 64),
 			strconv.FormatFloat(serie.Points[0].Value, 'f', -1, 64),
-			strings.Join(serie.Tags, ", "),
+			serie.Tags.Join(", "),
 		})
 	}
 
@@ -83,27 +84,24 @@ func populateDeviceField(serie *metrics.Serie) {
 	// make a copy of the tags array. Otherwise the underlying array won't have
 	// the device tag for the Nth iteration (N>1), and the deice field will
 	// be lost
-	filteredTags := make([]string, 0, len(serie.Tags))
+	filteredTags := make([]string, 0, serie.Tags.Len())
 
-	for _, tag := range serie.Tags {
+	serie.Tags.ForEach(func(tag string) {
 		if strings.HasPrefix(tag, "device:") {
 			serie.Device = tag[7:]
 		} else {
 			filteredTags = append(filteredTags, tag)
 		}
-	}
+	})
 
-	serie.Tags = filteredTags
+	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
 }
 
 // hasDeviceTag checks whether a series contains a device tag
 func hasDeviceTag(serie *metrics.Serie) bool {
-	for _, tag := range serie.Tags {
-		if strings.HasPrefix(tag, "device:") {
-			return true
-		}
-	}
-	return false
+	return serie.Tags.Find(func(tag string) bool {
+		return strings.HasPrefix(tag, "device:")
+	})
 }
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
@@ -318,11 +316,11 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 				return err
 			}
 
-			for _, tag := range serie.Tags {
-				err = ps.String(seriesTags, tag)
-				if err != nil {
-					return err
-				}
+			err = serie.Tags.ForEachErr(func(tag string) error {
+				return ps.String(seriesTags, tag)
+			})
+			if err != nil {
+				return err
 			}
 
 			err = ps.Int32(seriesType, serie.MType.SeriesAPIV2Enum())
@@ -467,13 +465,13 @@ func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
 	stream.WriteObjectField("tags")
 	stream.WriteArrayStart()
 	firstTag := true
-	for _, s := range serie.Tags {
+	serie.Tags.ForEach(func(s string) {
 		if !firstTag {
 			stream.WriteMore()
 		}
 		stream.WriteString(s)
 		firstTag = false
-	}
+	})
 	stream.WriteArrayEnd()
 	stream.WriteMore()
 
