@@ -85,6 +85,12 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 		if value := fieldValue.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
 			return errors.New("return value can only be tested against EPERM or EACCES")
 		}
+	case "bpf.map.name", "bpf.prog.name":
+		if value, ok := fieldValue.Value.(string); ok {
+			if len(value) > MaxBpfObjName {
+				return fmt.Errorf("the name provided in %s must be at most %d characters, len(\"%s\") = %d", field, MaxBpfObjName, value, len(value))
+			}
+		}
 	}
 
 	return nil
@@ -101,9 +107,9 @@ type ChmodEvent struct {
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	UID   uint32    `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
+	UID   int64     `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
 	User  string    `field:"file.destination.user,ResolveChownUID"`  // New user of the chown-ed file's owner
-	GID   uint32    `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
+	GID   int64     `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
 	Group string    `field:"file.destination.group,ResolveChownGID"` // New group of the chown-ed file's owner
 }
 
@@ -594,16 +600,17 @@ type BPFEvent struct {
 type BPFMap struct {
 	ID   uint32 `field:"-"`    // ID of the eBPF map
 	Type uint32 `field:"type"` // Type of the eBPF map
-	Name string `field:"-"`    // Name of the eBPF map
+	Name string `field:"name"` // Name of the eBPF map (added in 7.35)
 }
 
 // BPFProgram represents a BPF program
 type BPFProgram struct {
-	ID         uint32   `field:"-"`                // ID of the eBPF program
-	Type       uint32   `field:"type"`             // Type of the eBPF program
-	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
-	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
-	Name       string   `field:"-"`                // Name of the eBPF program
+	ID         uint32   `field:"-"`                      // ID of the eBPF program
+	Type       uint32   `field:"type"`                   // Type of the eBPF program
+	AttachType uint32   `field:"attach_type"`            // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers,ResolveHelpers"` // eBPF helpers used by the eBPF program (added in 7.35)
+	Name       string   `field:"name"`                   // Name of the eBPF program (added in 7.35)
+	Tag        string   `field:"tag"`                    // Hash (sha1) of the eBPF program (added in 7.35)
 }
 
 // PTraceEvent represents a ptrace event

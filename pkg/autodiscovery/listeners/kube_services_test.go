@@ -13,8 +13,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,9 +47,8 @@ func TestProcessService(t *testing.T) {
 		},
 	}
 
-	svc := processService(ksvc, true)
-	assert.Equal(t, "kube_service://default/myservice", svc.GetEntity())
-	assert.Equal(t, integration.Before, svc.GetCreationTime())
+	svc := processService(ksvc)
+	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
 	adID, err := svc.GetADIdentifiers(ctx)
 	assert.NoError(t, err)
@@ -77,9 +74,6 @@ func TestProcessService(t *testing.T) {
 	sort.Strings(expectedTags)
 	sort.Strings(tags)
 	assert.Equal(t, expectedTags, tags)
-
-	svc = processService(ksvc, false)
-	assert.Equal(t, integration.After, svc.GetCreationTime())
 }
 
 func TestServicesDiffer(t *testing.T) {

@@ -71,9 +71,9 @@ SECL operators are used to combine event attributes together into a full express
 | `=~`                  | File             | String matching                          | 7.27          |
 | `!~`                  | File             | String not matching                      | 7.27          |
 | `&`                   | File             | Binary and                               | 7.27          |
-| `|`                   | File             | Binary or                                | 7.27          |
+| `\|`                  | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
-| `||`                  | File             | Logical or                               | 7.27          |
+| `\|\|`                | File             | Logical or                               | 7.27          |
 
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
@@ -241,8 +241,12 @@ A BPF command was executed
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 | `bpf.cmd` | int | BPF command name |
+| `bpf.map.name` | string | Name of the eBPF map (added in 7.35) |
 | `bpf.map.type` | int | Type of the eBPF map |
 | `bpf.prog.attach_type` | int | Attach type of the eBPF program |
+| `bpf.prog.helpers` | int | eBPF helpers used by the eBPF program (added in 7.35) |
+| `bpf.prog.name` | string | Name of the eBPF program (added in 7.35) |
+| `bpf.prog.tag` | string | Hash (sha1) of the eBPF program (added in 7.35) |
 | `bpf.prog.type` | int | Type of the eBPF program |
 | `bpf.retval` | int | Return value of the syscall |
 

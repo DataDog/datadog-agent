@@ -9,44 +9,93 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // batcher batches multiple metrics before submission
 // this struct is not safe for concurrent use
 type batcher struct {
-	samples      []metrics.MetricSample
-	samplesCount int
+	samples      [][]metrics.MetricSample
+	samplesCount []int
 
 	events        []*metrics.Event
 	serviceChecks []*metrics.ServiceCheck
 
 	// output channels
-	choutSamples       chan<- []metrics.MetricSample
 	choutEvents        chan<- []*metrics.Event
 	choutServiceChecks chan<- []*metrics.ServiceCheck
 
 	metricSamplePool *metrics.MetricSamplePool
+
+	demux aggregator.Demultiplexer
+	// buffer slice allocated once per contextResolver to combine and sort
+	// tags, origin detection tags and k8s tags.
+	tagsBuffer    *tagset.HashingTagsAccumulator
+	keyGenerator  *ckey.KeyGenerator
+	pipelineCount int
+}
+
+// Use fastrange instead of a modulo for better performance.
+// See http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/.
+//
+// Note that we shift the context key because it is an actual 64 bits, and
+// the fast range has to operate on 32 bits values, so, we shift it in order
+// to "reduce" its size to 32 bits (i.e. the `key>>32`), we don't mind using
+// only half of the context key for the shard key, it will be unique enough
+// for such purpose.
+func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
+	// return uint32(uint64(key) % uint64(pipelineCount))
+	return uint32((uint64(key>>32) * uint64(pipelineCount)) >> 32)
 }
 
 func newBatcher(demux aggregator.Demultiplexer) *batcher {
 	agg := demux.Aggregator()
-	s, e, sc := agg.GetBufferedChannels()
+
+	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
+
+	e, sc := agg.GetBufferedChannels()
+	samples := make([][]metrics.MetricSample, pipelineCount)
+	samplesCount := make([]int, pipelineCount)
+
+	for i := range samples {
+		samples[i] = demux.GetMetricSamplePool().GetBatch()
+		samplesCount[i] = 0
+	}
+
 	return &batcher{
-		samples:            agg.MetricSamplePool.GetBatch(),
-		metricSamplePool:   agg.MetricSamplePool,
-		choutSamples:       s,
+		samples:            samples,
+		samplesCount:       samplesCount,
+		metricSamplePool:   demux.GetMetricSamplePool(),
 		choutEvents:        e,
 		choutServiceChecks: sc,
+
+		demux:         demux,
+		pipelineCount: pipelineCount,
+		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
+		keyGenerator:  ckey.NewKeyGenerator(),
 	}
 }
 
 func (b *batcher) appendSample(sample metrics.MetricSample) {
-	if b.samplesCount == len(b.samples) {
-		b.flushSamples()
+	var shardKey uint32
+	if b.pipelineCount > 1 {
+		// TODO(remy): re-using this tagsBuffer later in the pipeline (by sharing
+		// it in the sample?) would reduce CPU usage, avoiding to recompute
+		// the tags hashes while generating the context key.
+		b.tagsBuffer.Append(sample.Tags...)
+		h := b.keyGenerator.Generate(sample.Name, sample.Host, b.tagsBuffer)
+		b.tagsBuffer.Reset()
+		shardKey = fastrange(h, b.pipelineCount)
 	}
-	b.samples[b.samplesCount] = sample
-	b.samplesCount++
+
+	if b.samplesCount[shardKey] == len(b.samples[shardKey]) {
+		b.flushSamples(shardKey)
+	}
+
+	b.samples[shardKey][b.samplesCount[shardKey]] = sample
+	b.samplesCount[shardKey]++
 }
 
 func (b *batcher) appendEvent(event *metrics.Event) {
@@ -57,21 +106,24 @@ func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
 	b.serviceChecks = append(b.serviceChecks, serviceCheck)
 }
 
-func (b *batcher) flushSamples() {
-	if b.samplesCount > 0 {
+func (b *batcher) flushSamples(shard uint32) {
+	if b.samplesCount[shard] > 0 {
 		t1 := time.Now()
-		b.choutSamples <- b.samples[:b.samplesCount]
+		b.demux.AddTimeSampleBatch(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
 
-		b.samplesCount = 0
-		b.samples = b.metricSamplePool.GetBatch()
+		b.samplesCount[shard] = 0
+		b.samples[shard] = b.metricSamplePool.GetBatch()
 	}
 }
 
 // flush pushes all batched metrics to the aggregator.
 func (b *batcher) flush() {
-	b.flushSamples()
+	for i := 0; i < b.pipelineCount; i++ {
+		b.flushSamples(uint32(i))
+	}
+
 	if len(b.events) > 0 {
 		t1 := time.Now()
 		b.choutEvents <- b.events

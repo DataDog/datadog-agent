@@ -152,6 +152,10 @@ CWS logs have the following JSON schema:
             "type": "string",
             "description": "Name of the BPF program"
         },
+        "tag": {
+            "type": "string",
+            "description": "Hash (sha1) of the BPF program"
+        },
         "program_type": {
             "type": "string",
             "description": "Type of the BPF program"
@@ -177,6 +181,7 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `name` | Name of the BPF program |
+| `tag` | Hash (sha1) of the BPF program |
 | `program_type` | Type of the BPF program |
 | `attach_type` | Attach type of the BPF program |
 | `helpers` | List of helpers used by the BPF program |

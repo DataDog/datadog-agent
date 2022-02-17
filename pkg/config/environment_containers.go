@@ -62,6 +62,18 @@ func init() {
 	registerFeature(Podman)
 }
 
+// IsAnyContainerFeaturePresent checks if any of known container features is present
+func IsAnyContainerFeaturePresent() bool {
+	return IsFeaturePresent(Docker) ||
+		IsFeaturePresent(Containerd) ||
+		IsFeaturePresent(Cri) ||
+		IsFeaturePresent(Kubernetes) ||
+		IsFeaturePresent(ECSFargate) ||
+		IsFeaturePresent(EKSFargate) ||
+		IsFeaturePresent(CloudFoundry) ||
+		IsFeaturePresent(Podman)
+}
+
 func detectContainerFeatures(features FeatureMap) {
 	detectKubernetes(features)
 	detectDocker(features)
@@ -134,6 +146,11 @@ func detectContainerd(features FeatureMap) {
 			features[Containerd] = struct{}{}
 		}
 	}
+
+	// Merge containerd_namespace with containerd_namespaces
+	namespaces := merge(Datadog.GetStringSlice("containerd_namespaces"), Datadog.GetStringSlice("containerd_namespace"))
+	AddOverride("containerd_namespace", namespaces)
+	AddOverride("containerd_namespaces", namespaces)
 }
 
 func isCriSupported() bool {
@@ -214,4 +231,20 @@ func getDefaultPodmanPaths() []string {
 		paths = append(paths, path.Join(prefix, defaultPodmanContainersStoragePath))
 	}
 	return paths
+}
+
+// merge merges and dedupes 2 slices without changing order
+func merge(s1, s2 []string) []string {
+	dedupe := map[string]struct{}{}
+	merged := []string{}
+
+	for _, elem := range append(s1, s2...) {
+		if _, seen := dedupe[elem]; !seen {
+			merged = append(merged, elem)
+		}
+
+		dedupe[elem] = struct{}{}
+	}
+
+	return merged
 }

@@ -52,6 +52,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
+	processAgentStatus := stats["processAgentStatus"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
@@ -64,6 +65,7 @@ func FormatStatus(data []byte) (string, error) {
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
 	}
+	renderStatusTemplate(b, "/process-agent.tmpl", processAgentStatus)
 	renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"])
 	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
 	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
@@ -133,6 +135,17 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
 	renderComplianceChecksStats(b, runnerStats, complianceChecks, complianceStatus)
+
+	return b.String(), nil
+}
+
+// FormatProcessAgentStatus takes a json bytestring and prints out the formatted status for process-agent
+func FormatProcessAgentStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats) //nolint:errcheck
+	renderStatusTemplate(b, "/process-agent.tmpl", stats)
 
 	return b.String(), nil
 }

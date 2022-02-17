@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -1319,7 +1320,7 @@ func TestFargateStaticTags(t *testing.T) {
 			tt.loadFunc()
 			defer tt.cleanupFunc()
 
-			assert.EqualValues(t, tt.want, fargateStaticTags(context.TODO()))
+			assert.EqualValues(t, tt.want, util.GetStaticTags(context.TODO()))
 		})
 	}
 }

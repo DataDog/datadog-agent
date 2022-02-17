@@ -22,7 +22,7 @@ type SnmpPacket struct {
 // PacketsChannel is the type of channels of trap packets.
 type PacketsChannel = chan *SnmpPacket
 
-// TrapServer manages an SNMPv2 trap listener.
+// TrapServer manages an SNMP trap listener.
 type TrapServer struct {
 	Addr     string
 	config   *Config
@@ -36,8 +36,8 @@ var (
 )
 
 // StartServer starts the global trap server.
-func StartServer() error {
-	server, err := NewTrapServer()
+func StartServer(agentHostname string) error {
+	server, err := NewTrapServer(agentHostname)
 	serverInstance = server
 	startError = err
 	return err
@@ -62,16 +62,24 @@ func GetPacketsChannel() PacketsChannel {
 	return serverInstance.packets
 }
 
+// GetNamespace returns the device namespace for the traps listener.
+func GetNamespace() string {
+	if serverInstance != nil {
+		return serverInstance.config.Namespace
+	}
+	return defaultNamespace
+}
+
 // NewTrapServer configures and returns a running SNMP traps server.
-func NewTrapServer() (*TrapServer, error) {
-	config, err := ReadConfig()
+func NewTrapServer(agentHostname string) (*TrapServer, error) {
+	config, err := ReadConfig(agentHostname)
 	if err != nil {
 		return nil, err
 	}
 
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPv2Listener(config, packets)
+	listener, err := startSNMPTrapListener(config, packets)
 	if err != nil {
 		return nil, err
 	}
@@ -85,12 +93,16 @@ func NewTrapServer() (*TrapServer, error) {
 	return server, nil
 }
 
-func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
+func startSNMPTrapListener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
+	var err error
 	listener := gosnmp.NewTrapListener()
-	listener.Params = c.BuildV2Params()
+	listener.Params, err = c.BuildSNMPParams()
+	if err != nil {
+		return nil, err
+	}
 
 	listener.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		if err := validateCredentials(p, c); err != nil {
+		if err := validatePacket(p, c); err != nil {
 			log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
 			trapsPacketsAuthErrors.Add(1)
 			return

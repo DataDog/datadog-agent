@@ -75,7 +75,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	for _, expired := range expires {
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceECSFargate,
+			Source: workloadmeta.SourceRuntime,
 			Entity: expired,
 		})
 	}
@@ -123,7 +123,7 @@ func (c *collector) parseTask(ctx context.Context, task *v2.Task) []workloadmeta
 
 	events = append(events, containerEvents...)
 	events = append(events, workloadmeta.CollectorEvent{
-		Source: workloadmeta.SourceECSFargate,
+		Source: workloadmeta.SourceRuntime,
 		Type:   workloadmeta.EventTypeSet,
 		Entity: entity,
 	})
@@ -171,8 +171,16 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 			}
 		}
 
+		var createdAt time.Time
+		if container.CreatedAt != "" {
+			createdAt, err = time.Parse(time.RFC3339, container.CreatedAt)
+			if err != nil {
+				log.Debugf("could not parse creation time '%q' for container %q: %s", container.CreatedAt, container.DockerID, err)
+			}
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceECSFargate,
+			Source: workloadmeta.SourceRuntime,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,
@@ -185,7 +193,9 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 				NetworkIPs: ips,
 				State: workloadmeta.ContainerState{
 					StartedAt: startedAt,
+					CreatedAt: createdAt,
 					Running:   container.KnownStatus == "RUNNING",
+					Status:    parseStatus(container.KnownStatus),
 				},
 			},
 		})
@@ -223,4 +233,17 @@ func parseRegion(clusterARN string) string {
 	}
 
 	return region
+}
+
+func parseStatus(status string) workloadmeta.ContainerStatus {
+	switch status {
+	case "RUNNING":
+		return workloadmeta.ContainerStatusRunning
+	case "STOPPED":
+		return workloadmeta.ContainerStatusStopped
+	case "PULLED", "CREATED", "RESOURCES_PROVISIONED":
+		return workloadmeta.ContainerStatusCreated
+	}
+
+	return workloadmeta.ContainerStatusUnknown
 }

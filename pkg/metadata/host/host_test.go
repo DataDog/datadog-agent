@@ -114,15 +114,22 @@ func TestGetLogsMeta(t *testing.T) {
 	// No transport
 	status.CurrentTransport = ""
 	meta := getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: ""}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: false}, meta)
 	// TCP transport
 	status.CurrentTransport = status.TransportTCP
 	meta = getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: "TCP"}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
 	// HTTP transport
 	status.CurrentTransport = status.TransportHTTP
 	meta = getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: "HTTP"}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "HTTP", AutoMultilineEnabled: false}, meta)
+
+	// auto multiline enabled
+	config.Datadog.Set("logs_config.auto_multi_line_detection", true)
+	meta = getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: "HTTP", AutoMultilineEnabled: true}, meta)
+
+	config.Datadog.Set("logs_config.auto_multi_line_detection", false)
 }
 
 func TestGetInstallMethod(t *testing.T) {
@@ -189,11 +196,11 @@ func TestGetProxyMeta(t *testing.T) {
 }
 
 func TestGetOtlpMeta(t *testing.T) {
-	config.Datadog.Set("experimental.otlp.receiver.protocols.grpc.endpoint", "localhost:9999")
+	config.Datadog.Set(config.OTLPReceiverSection+".protocols.grpc.endpoint", "localhost:9999")
 	meta := getOtlpMeta()
 	assert.Equal(t, meta.Enabled, true)
 
-	config.Datadog.Set("experimental", nil)
+	config.Datadog.Set(config.OTLPSection, nil)
 	meta = getOtlpMeta()
 	assert.Equal(t, meta.Enabled, false)
 }

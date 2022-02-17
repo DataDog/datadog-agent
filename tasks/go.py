@@ -309,7 +309,7 @@ def deps_vendored(ctx, verbose=False):
     verbosity = ' -v' if verbose else ''
 
     ctx.run(f"go mod vendor{verbosity}")
-    ctx.run(f"go mod tidy{verbosity}")
+    ctx.run(f"go mod tidy{verbosity} -compat=1.17")
 
     # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
     # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
@@ -466,14 +466,14 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     errors_found = []
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            ctx.run("go mod tidy -compat=1.17")
             res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
             if res.exited is None or res.exited > 0:
                 errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
     generate_dummy_package(ctx, test_folder)
     with ctx.cd(test_folder):
-        ctx.run("go mod tidy")
+        ctx.run("go mod tidy -compat=1.17")
         res = ctx.run("go build main.go", warn=True)
         if res.exited is None or res.exited > 0:
             errors_found.append("could not build test module importing external modules")
@@ -490,4 +490,4 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            ctx.run("go mod tidy -compat=1.17")

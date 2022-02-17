@@ -29,17 +29,16 @@ type dummyService struct {
 	Ports         []listeners.ContainerPort
 	Pid           int
 	Hostname      string
-	CreationTime  integration.CreationTime
 	CheckNames    []string
 	ExtraConfig   map[string]string
 }
 
-// GetEntity returns the service entity name
-func (s *dummyService) GetEntity() string {
+// GetServiceID returns the service entity name
+func (s *dummyService) GetServiceID() string {
 	return s.ID
 }
 
-// GetEntity returns the service entity name
+// GetTaggerEntity returns the tagger entity ID for the entity corresponding to this service
 func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
@@ -72,11 +71,6 @@ func (s *dummyService) GetPid(context.Context) (int, error) {
 // GetHostname return a dummy hostname
 func (s *dummyService) GetHostname(context.Context) (string, error) {
 	return s.Hostname, nil
-}
-
-// GetCreationTime return a dummy creation time
-func (s *dummyService) GetCreationTime() integration.CreationTime {
-	return s.CreationTime
 }
 
 // IsReady returns if the service is ready
@@ -148,7 +142,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -167,7 +161,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.2\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -186,7 +180,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.5\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -205,7 +199,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.3\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -224,7 +218,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.4\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -238,7 +232,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 			errorString: "no network found for container a5901276aed1, ignoring it",
 		},
@@ -259,7 +253,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("port: 3\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -278,7 +272,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("port: 1\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -297,7 +291,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("port: 2\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -360,7 +354,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 				LogsConfig:    integration.Data("host: 127.0.0.1"),
 			},
 		},
@@ -376,7 +370,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
 				LogsConfig:    integration.Data("host: %%host%%"),
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 			errorString: "no network found for container a5901276aed1, ignoring it",
 		},
@@ -397,7 +391,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -446,7 +440,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
 				LogsConfig:    integration.Data("test: test_value"),
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -495,7 +489,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: imhere\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		//// other tags testing
@@ -516,7 +510,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("pid: 1337\ntags: [\"foo\"]")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		//// unknown tag
@@ -600,7 +594,7 @@ func TestResolve(t *testing.T) {
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      "file",
 			},
@@ -623,7 +617,7 @@ func TestResolve(t *testing.T) {
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      "file",
 			},
@@ -644,7 +638,7 @@ func TestResolve(t *testing.T) {
 				Name:          "device",
 				ADIdentifiers: []string{"snmp"},
 				Instances:     []integration.Data{integration.Data("authKey: secret\ntags:\n- foo:bar\nuser: admin\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -664,7 +658,7 @@ func TestResolve(t *testing.T) {
 				Name:          "ksm",
 				ADIdentifiers: []string{"kube-state-metrics"},
 				Instances:     []integration.Data{integration.Data("host: 10.3.2.1\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -684,7 +678,7 @@ func TestResolve(t *testing.T) {
 				Name:          "ksm",
 				ADIdentifiers: []string{"kube-state-metrics"},
 				Instances:     []integration.Data{integration.Data("host: 10.3.2.1")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 		{
@@ -703,7 +697,7 @@ func TestResolve(t *testing.T) {
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n- foo:bar\n")},
-				Entity:        "a5901276aed1",
+				ServiceID:     "a5901276aed1",
 			},
 		},
 	}

@@ -12,9 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
 )
@@ -26,12 +26,14 @@ const (
 )
 
 type collector struct {
-	store workloadmeta.Store
+	store  workloadmeta.Store
+	expire *util.Expire
 
-	expire              *util.Expire
-	dcaClient           clusteragent.DCAClientInterface
-	gardenUtil          cloudfoundry.GardenUtilInterface
-	clusterAgentEnabled bool
+	gardenUtil cloudfoundry.GardenUtilInterface
+	nodeName   string
+
+	dcaClient  clusteragent.DCAClientInterface
+	dcaEnabled bool
 }
 
 func init() {
@@ -55,97 +57,113 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	// if DCA is enabled and can't communicate with the DCA, let the tagger retry.
-	if config.Datadog.GetBool("cluster_agent.enabled") {
-		c.dcaClient, err = clusteragent.GetClusterAgentClient()
-		if err != nil {
-			return fmt.Errorf("Could not initialise the communication with the cluster agent: %w", err)
-		}
-		c.clusterAgentEnabled = true
-	} else {
-		log.Debug("Cluster agent not enabled, tagging CF app with container id only")
-	}
+	c.nodeName = config.Datadog.GetString("bosh_id")
+
+	// Check for Cluster Agent availability (will be retried at each pull)
+	c.dcaEnabled = config.Datadog.GetBool("cluster_agent.enabled")
+	c.dcaClient = c.getDCAClient()
 
 	return nil
 }
 
 func (c *collector) Pull(ctx context.Context) error {
-	var (
-		events []workloadmeta.CollectorEvent
-	)
+	containers, err := c.gardenUtil.ListContainers()
+	if err != nil {
+		return err
+	}
 
-	now := time.Now()
+	handles := cloudfoundry.ContainersToHandles(containers)
+	containersInfo, err := c.gardenUtil.GetContainersInfo(handles)
+	if err != nil {
+		return err
+	}
 
-	if c.clusterAgentEnabled {
-		nodeName := config.Datadog.GetString("bosh_id")
-		gardenContainerTags, err := c.dcaClient.GetCFAppsMetadataForNode(nodeName)
+	containersMetrics, err := c.gardenUtil.GetContainersMetrics(handles)
+	if err != nil {
+		return err
+	}
+
+	var allContainersTags map[string][]string
+	if dcaClient := c.getDCAClient(); dcaClient != nil {
+		allContainersTags, err = c.dcaClient.GetCFAppsMetadataForNode(c.nodeName)
 		if err != nil {
-			return err
+			log.Debugf("Unable to fetch CF tags from cluster agent, CF tags will be missing, err: %v", err)
+		}
+	}
+
+	currentTime := time.Now()
+	events := make([]workloadmeta.CollectorEvent, 0, len(handles))
+	for id, containerInfo := range containersInfo {
+		if containerInfo.Err != nil {
+			log.Debugf("Failed to retrieve info for garden container: %s, err: %w", id, containerInfo.Err.Err)
+			continue
 		}
 
-		events = make([]workloadmeta.CollectorEvent, 0, len(gardenContainerTags))
+		// Not checking if present as only one field is used later on
+		containerMetrics := containersMetrics[id]
 
-		for id, tags := range gardenContainerTags {
-			entityID := workloadmeta.EntityID{
-				Kind: workloadmeta.KindGardenContainer,
-				ID:   id,
+		entityID := workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   id,
+		}
+		c.expire.Update(entityID, currentTime)
+
+		// Create contaier based on containerInfo + containerMetrics
+		containerEntity := &workloadmeta.Container{
+			EntityID: entityID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: id,
+			},
+			Runtime: workloadmeta.ContainerRuntimeGarden,
+			State: workloadmeta.ContainerState{
+				StartedAt: currentTime.Add(-containerMetrics.Metrics.Age),
+				CreatedAt: currentTime.Add(-containerMetrics.Metrics.Age),
+			},
+		}
+
+		// Fill tags
+		if tags, found := allContainersTags[id]; found {
+			containerEntity.CollectorTags = tags
+		} else {
+			containerEntity.CollectorTags = []string{
+				fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, id),
+				fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, id),
 			}
+		}
 
-			c.expire.Update(entityID, now)
+		// Store container state
+		if containerInfo.Info.State == "active" {
+			containerEntity.State.Running = true
+			containerEntity.State.Status = workloadmeta.ContainerStatusRunning
+		} else {
+			containerEntity.State.Running = false
+			containerEntity.State.Status = workloadmeta.ContainerStatusStopped
+		}
 
-			events = append(events, workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceCloudfoundry,
-				Entity: &workloadmeta.GardenContainer{
-					EntityID: entityID,
-					EntityMeta: workloadmeta.EntityMeta{
-						Name: id,
-					},
-					Tags: tags,
-				},
+		// Store IP Adresses + Ports
+		containerEntity.NetworkIPs = map[string]string{
+			"": containerInfo.Info.ExternalIP,
+		}
+
+		for _, port := range containerInfo.Info.MappedPorts {
+			containerEntity.Ports = append(containerEntity.Ports, workloadmeta.ContainerPort{
+				Port:     int(port.HostPort),
+				Protocol: "tcp",
 			})
 		}
 
-	} else {
-		gardenContainers, err := c.gardenUtil.GetGardenContainers()
-		if err != nil {
-			return fmt.Errorf("cannot get container list from local garden API: %w", err)
-		}
-
-		events = make([]workloadmeta.CollectorEvent, 0, len(gardenContainers))
-
-		for _, gardenContainer := range gardenContainers {
-			id := gardenContainer.Handle()
-
-			entityID := workloadmeta.EntityID{
-				Kind: workloadmeta.KindGardenContainer,
-				ID:   id,
-			}
-
-			c.expire.Update(entityID, now)
-
-			events = append(events, workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceCloudfoundry,
-				Entity: &workloadmeta.GardenContainer{
-					EntityID: entityID,
-					EntityMeta: workloadmeta.EntityMeta{
-						Name: id,
-					},
-					Tags: []string{
-						fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, gardenContainer.Handle()),
-						fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, gardenContainer.Handle()),
-					},
-				},
-			})
-		}
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Entity: containerEntity,
+		})
 	}
 
 	expires := c.expire.ComputeExpires()
 	for _, expired := range expires {
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceCloudfoundry,
+			Source: workloadmeta.SourceClusterOrchestrator,
 			Entity: expired,
 		})
 	}
@@ -153,4 +171,23 @@ func (c *collector) Pull(ctx context.Context) error {
 	c.store.Notify(events)
 
 	return nil
+}
+
+func (c *collector) getDCAClient() clusteragent.DCAClientInterface {
+	if !c.dcaEnabled {
+		return nil
+	}
+
+	if c.dcaClient != nil {
+		return c.dcaClient
+	}
+
+	var err error
+	c.dcaClient, err = clusteragent.GetClusterAgentClient()
+	if err != nil {
+		log.Debugf("Could not initialise the communication with the cluster agent, PCF tags may be missing, err: %w", err)
+		return nil
+	}
+
+	return c.dcaClient
 }

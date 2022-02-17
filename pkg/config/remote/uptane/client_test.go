@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/theupdateframework/go-tuf/data"
+	"github.com/theupdateframework/go-tuf/pkg/keys"
 	"github.com/theupdateframework/go-tuf/sign"
 )
 
@@ -30,29 +31,22 @@ func TestClientState(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Testing default state
-	expectedDefaultState := State{
-		ConfigSnapshotVersion: 0,
-		ConfigRootVersion:     meta.RootsConfig().LastVersion(),
-		DirectorRootVersion:   meta.RootsDirector().LastVersion(),
-	}
 	clientState, err := client1.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDefaultState, clientState)
+	assert.Equal(t, meta.RootsConfig().LastVersion(), clientState.ConfigRootVersion())
+	assert.Equal(t, meta.RootsDirector().LastVersion(), clientState.DirectorRootVersion())
 	_, err = client1.TargetsMeta()
 	assert.Error(t, err)
 
 	// Testing state for a simple valid repository
 	err = client1.Update(testRepository1.toUpdate())
 	assert.NoError(t, err)
-	expectedUpdate1State := State{
-		ConfigSnapshotVersion:  uint64(testRepository1.configSnapshotVersion),
-		ConfigRootVersion:      uint64(testRepository1.configRootVersion),
-		DirectorRootVersion:    uint64(testRepository1.directorRootVersion),
-		DirectorTargetsVersion: uint64(testRepository1.directorTargetsVersion),
-	}
 	clientState, err = client1.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedUpdate1State, clientState)
+	assert.Equal(t, uint64(testRepository1.configSnapshotVersion), clientState.ConfigSnapshotVersion())
+	assert.Equal(t, uint64(testRepository1.configRootVersion), clientState.ConfigRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorRootVersion), clientState.DirectorRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorTargetsVersion), clientState.DirectorTargetsVersion())
 	targets1, err := client1.TargetsMeta()
 	assert.NoError(t, err)
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
@@ -62,7 +56,10 @@ func TestClientState(t *testing.T) {
 	assert.NoError(t, err)
 	clientState, err = client2.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedUpdate1State, clientState)
+	assert.Equal(t, uint64(testRepository1.configSnapshotVersion), clientState.ConfigSnapshotVersion())
+	assert.Equal(t, uint64(testRepository1.configRootVersion), clientState.ConfigRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorRootVersion), clientState.DirectorRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorTargetsVersion), clientState.DirectorTargetsVersion())
 	targets1, err = client2.TargetsMeta()
 	assert.NoError(t, err)
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
@@ -72,9 +69,57 @@ func TestClientState(t *testing.T) {
 	assert.NoError(t, err)
 	clientState, err = client3.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDefaultState, clientState)
+	assert.Equal(t, meta.RootsConfig().LastVersion(), clientState.ConfigRootVersion())
+	assert.Equal(t, meta.RootsDirector().LastVersion(), clientState.DirectorRootVersion())
 	_, err = client3.TargetsMeta()
 	assert.Error(t, err)
+}
+
+func TestClientFullState(t *testing.T) {
+	target1content, target1 := generateTarget()
+	_, target2 := generateTarget()
+	configTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+	}
+	directorTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+	}
+	testRepository := newTestRepository(1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot)
+	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
+
+	// Prepare
+	db := getTestDB()
+	client, err := NewClient(db, "testcachekey", 2)
+	assert.NoError(t, err)
+	err = client.Update(testRepository.toUpdate())
+	assert.NoError(t, err)
+	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	assert.NoError(t, err)
+
+	// Check full state
+	state, err := client.State()
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(state.ConfigState))
+	assert.Equal(t, 4, len(state.DirectorState))
+	assert.Equal(t, 1, len(state.TargetFilenames))
+
+	assertMetaVersion(t, state.ConfigState, "root.json", 1)
+	assertMetaVersion(t, state.ConfigState, "timestamp.json", 11)
+	assertMetaVersion(t, state.ConfigState, "targets.json", 101)
+	assertMetaVersion(t, state.ConfigState, "snapshot.json", 1001)
+
+	assertMetaVersion(t, state.DirectorState, "root.json", 1)
+	assertMetaVersion(t, state.DirectorState, "timestamp.json", 21)
+	assertMetaVersion(t, state.DirectorState, "targets.json", 201)
+	assertMetaVersion(t, state.DirectorState, "snapshot.json", 2001)
+}
+
+func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string, version uint64) {
+	metaState, found := state[metaName]
+	assert.True(t, found)
+	assert.Equal(t, version, metaState.Version)
 }
 
 func TestClientVerifyTUF(t *testing.T) {
@@ -196,20 +241,20 @@ func TestClientVerifyOrgID(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func generateKey() *sign.PrivateKey {
-	key, _ := sign.GenerateEd25519Key()
+func generateKey() keys.Signer {
+	key, _ := keys.GenerateEd25519Key()
 	return key
 }
 
 type testRepositories struct {
-	configTimestampKey   *sign.PrivateKey
-	configTargetsKey     *sign.PrivateKey
-	configSnapshotKey    *sign.PrivateKey
-	configRootKey        *sign.PrivateKey
-	directorTimestampKey *sign.PrivateKey
-	directorTargetsKey   *sign.PrivateKey
-	directorSnapshotKey  *sign.PrivateKey
-	directorRootKey      *sign.PrivateKey
+	configTimestampKey   keys.Signer
+	configTargetsKey     keys.Signer
+	configSnapshotKey    keys.Signer
+	configRootKey        keys.Signer
+	directorTimestampKey keys.Signer
+	directorTargetsKey   keys.Signer
+	directorSnapshotKey  keys.Signer
+	directorRootKey      keys.Signer
 
 	configTimestampVersion   int
 	configTargetsVersion     int
@@ -281,7 +326,7 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	}
 }
 
-func generateRoot(key *sign.PrivateKey, version int, timestampKey *sign.PrivateKey, targetsKey *sign.PrivateKey, snapshotKey *sign.PrivateKey) []byte {
+func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -305,40 +350,40 @@ func generateRoot(key *sign.PrivateKey, version int, timestampKey *sign.PrivateK
 		KeyIDs:    snapshotKey.PublicData().IDs(),
 		Threshold: 1,
 	}
-	signedRoot, _ := sign.Marshal(&root, key.Signer())
+	signedRoot, _ := sign.Marshal(&root, key)
 	serializedRoot, _ := json.Marshal(signedRoot)
 	return serializedRoot
 }
 
-func generateTimestamp(key *sign.PrivateKey, version int, snapshotVersion int, snapshot []byte) []byte {
+func generateTimestamp(key keys.Signer, version int, snapshotVersion int, snapshot []byte) []byte {
 	meta := data.NewTimestamp()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Meta["snapshot.json"] = data.TimestampFileMeta{Version: snapshotVersion, FileMeta: data.FileMeta{Length: int64(len(snapshot)), Hashes: data.Hashes{
 		"sha256": hashSha256(snapshot),
 	}}}
-	signed, _ := sign.Marshal(&meta, key.Signer())
+	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
 
-func generateTargets(key *sign.PrivateKey, version int, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Targets = targets
-	signed, _ := sign.Marshal(&meta, key.Signer())
+	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
 
-func generateSnapshot(key *sign.PrivateKey, version int, targetsVersion int) []byte {
+func generateSnapshot(key keys.Signer, version int, targetsVersion int) []byte {
 	meta := data.NewSnapshot()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Meta["targets.json"] = data.SnapshotFileMeta{Version: targetsVersion}
 
-	signed, _ := sign.Marshal(&meta, key.Signer())
+	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
