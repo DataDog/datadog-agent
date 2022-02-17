@@ -350,7 +350,7 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 }
 
 func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	if err := logs.StartServerless(
+	if _, err := logs.StartServerless(
 		func() *autodiscovery.AutoConfig { return common.AC },
 		logChannel, nil,
 	); err != nil {

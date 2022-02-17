@@ -51,12 +51,12 @@ var (
 // instead of directly using it.
 // The parameter serverless indicates whether or not this Logs Agent is running
 // in a serverless environment.
-func Start(getAC func() *autodiscovery.AutoConfig) error {
+func Start(getAC func() *autodiscovery.AutoConfig) (*Agent, error) {
 	return start(getAC, false, nil, nil)
 }
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *config.ChannelMessage, extraTags []string) error {
+func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *config.ChannelMessage, extraTags []string) (*Agent, error) {
 	return start(getAC, true, logsChan, extraTags)
 }
 
@@ -72,9 +72,9 @@ func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 	return config.BuildEndpoints(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
-func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {
+func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) (*Agent, error) {
 	if IsAgentRunning() {
-		return nil
+		return agent, nil
 	}
 
 	// setup the sources and the services
@@ -87,7 +87,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)
-		return errors.New(message)
+		return nil, errors.New(message)
 	}
 	status.CurrentTransport = status.TransportTCP
 	if endpoints.UseHTTP {
@@ -103,7 +103,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
-		return errors.New(message)
+		return nil, errors.New(message)
 	}
 
 	// setup and start the logs agent
@@ -151,7 +151,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 		}()
 	}
 
-	return nil
+	return agent, nil
 }
 
 // BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been run once.

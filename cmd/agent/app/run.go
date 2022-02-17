@@ -421,7 +421,7 @@ func StartAgent() error {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
-		if err := logs.Start(func() *autodiscovery.AutoConfig { return common.AC }); err != nil {
+		if _, err := logs.Start(func() *autodiscovery.AutoConfig { return common.AC }); err != nil {
 			log.Error("Could not start logs-agent: ", err)
 		}
 	} else {
