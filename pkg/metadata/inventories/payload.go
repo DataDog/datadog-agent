@@ -41,4 +41,3 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("Inventories Payload splitting is not implemented")
 }
-
