@@ -751,7 +751,7 @@ type NetworkDeviceContext struct {
 	IfName  string `field:"ifname,ResolveNetworkDeviceIfName"` // interface ifname
 }
 
-type IpPortContext struct {
+type IPPortContext struct {
 	IP   net.IP `field:"-"`
 	Port uint16 `field:"port"` // Port number
 }
@@ -762,8 +762,8 @@ type NetworkContext struct {
 
 	L3Protocol  uint16        `field:"l3_protocol"` // l3 protocol of the network packet
 	L4Protocol  uint16        `field:"l4_protocol"` // l4 protocol of the network packet
-	Source      IpPortContext `field:"source"`      // source of the network packet
-	Destination IpPortContext `field:"destination"` // destination of the network packet
+	Source      IPPortContext `field:"source"`      // source of the network packet
+	Destination IPPortContext `field:"destination"` // destination of the network packet
 	Size        uint32        `field:"size"`        // size in bytes of the network packet
 }
 
