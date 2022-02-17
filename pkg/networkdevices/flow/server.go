@@ -98,7 +98,7 @@ func startSNMPv2Listener(listenerConfig ListenerConfig, demultiplexer aggregator
 	if err != nil {
 		return Listener{}, err
 	}
-	ndmFlowDriver := NewFlowDriver(sender, listenerConfig)
+	ndmFlowDriver := newSenderDriver(sender, listenerConfig)
 
 	// TODO: Match logger with agent logger
 	logger := logrus.StandardLogger()
