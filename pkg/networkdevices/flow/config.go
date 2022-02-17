@@ -7,6 +7,7 @@ package flow
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -20,20 +21,20 @@ func IsEnabled() bool {
 // Config contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type Config struct {
-	configs     []ListenerConfig `mapstructure:"configs" yaml:"configs"`
-	StopTimeout int              `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	Configs     []ListenerConfig `mapstructure:"Configs"`
+	StopTimeout int              `mapstructure:"stop_timeout"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
 type ListenerConfig struct {
 	// TODO: Need both mapstructure and yaml ?
-	FlowType FlowType `mapstructure:"flow_type" yaml:"flow_type"`
-	Port     uint16   `mapstructure:"port" yaml:"port"`
-	BindHost string   `mapstructure:"bind_host" yaml:"bind_host"`
+	FlowType FlowType `mapstructure:"flow_type"`
+	Port     uint16   `mapstructure:"port"`
+	BindHost string   `mapstructure:"bind_host"`
 
 	// TODO: remove after dev stage
-	SendEvents  bool `mapstructure:"send_events" yaml:"send_events"`
-	SendMetrics bool `mapstructure:"send_metrics" yaml:"send_metrics"`
+	SendEvents  bool `mapstructure:"send_events"`
+	SendMetrics bool `mapstructure:"send_metrics"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
@@ -43,6 +44,8 @@ func ReadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Infof("Configs: %+v", c)
 
 	// TODO: Set default Port per Flow Type
 	//       defaultPortNETFLOW = uint16(2055)

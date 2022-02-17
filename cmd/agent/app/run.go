@@ -413,6 +413,7 @@ func StartAgent() error {
 	}
 
 	// Start NDM flow server
+	log.Errorf("flow.IsEnabled(): %v", flow.IsEnabled())
 	if flow.IsEnabled() {
 		err = flow.StartServer(demux)
 		if err != nil {
