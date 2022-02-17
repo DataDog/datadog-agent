@@ -86,6 +86,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "bpf.map.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Map.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "bpf.map.type":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -101,6 +111,41 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).BPF.Program.AttachType)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "bpf.prog.helpers":
+		return &eval.IntArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []int {
+
+				result := make([]int, len((*Event)(ctx.Object).BPF.Program.Helpers))
+				for i, v := range (*Event)(ctx.Object).BPF.Program.Helpers {
+					result[i] = int(v)
+				}
+				return result
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "bpf.prog.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Program.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "bpf.prog.tag":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Program.Tag
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6167,9 +6212,17 @@ func (e *Event) GetFields() []eval.Field {
 
 		"bpf.cmd",
 
+		"bpf.map.name",
+
 		"bpf.map.type",
 
 		"bpf.prog.attach_type",
+
+		"bpf.prog.helpers",
+
+		"bpf.prog.name",
+
+		"bpf.prog.tag",
 
 		"bpf.prog.type",
 
@@ -7122,6 +7175,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.BPF.Cmd), nil
 
+	case "bpf.map.name":
+
+		return e.BPF.Map.Name, nil
+
 	case "bpf.map.type":
 
 		return int(e.BPF.Map.Type), nil
@@ -7129,6 +7186,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "bpf.prog.attach_type":
 
 		return int(e.BPF.Program.AttachType), nil
+
+	case "bpf.prog.helpers":
+
+		result := make([]int, len(e.BPF.Program.Helpers))
+		for i, v := range e.BPF.Program.Helpers {
+			result[i] = int(v)
+		}
+		return result, nil
+
+	case "bpf.prog.name":
+
+		return e.BPF.Program.Name, nil
+
+	case "bpf.prog.tag":
+
+		return e.BPF.Program.Tag, nil
 
 	case "bpf.prog.type":
 
@@ -10609,10 +10682,22 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "bpf.cmd":
 		return "bpf", nil
 
+	case "bpf.map.name":
+		return "bpf", nil
+
 	case "bpf.map.type":
 		return "bpf", nil
 
 	case "bpf.prog.attach_type":
+		return "bpf", nil
+
+	case "bpf.prog.helpers":
+		return "bpf", nil
+
+	case "bpf.prog.name":
+		return "bpf", nil
+
+	case "bpf.prog.tag":
 		return "bpf", nil
 
 	case "bpf.prog.type":
@@ -12040,6 +12125,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "bpf.map.name":
+
+		return reflect.String, nil
+
 	case "bpf.map.type":
 
 		return reflect.Int, nil
@@ -12047,6 +12136,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "bpf.prog.attach_type":
 
 		return reflect.Int, nil
+
+	case "bpf.prog.helpers":
+
+		return reflect.Int, nil
+
+	case "bpf.prog.name":
+
+		return reflect.String, nil
+
+	case "bpf.prog.tag":
+
+		return reflect.String, nil
 
 	case "bpf.prog.type":
 
@@ -13951,6 +14052,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "bpf.map.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Map.Name"}
+		}
+		e.BPF.Map.Name = str
+
+		return nil
+
 	case "bpf.map.type":
 
 		var ok bool
@@ -13970,6 +14082,39 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.AttachType"}
 		}
 		e.BPF.Program.AttachType = uint32(v)
+
+		return nil
+
+	case "bpf.prog.helpers":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Helpers"}
+		}
+		e.BPF.Program.Helpers = append(e.BPF.Program.Helpers, uint32(v))
+
+		return nil
+
+	case "bpf.prog.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Name"}
+		}
+		e.BPF.Program.Name = str
+
+		return nil
+
+	case "bpf.prog.tag":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Tag"}
+		}
+		e.BPF.Program.Tag = str
 
 		return nil
 

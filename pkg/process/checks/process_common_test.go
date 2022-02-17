@@ -7,7 +7,6 @@ package checks
 
 import (
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,56 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
-//nolint:unused
-func makeContainer(id string) *containers.Container {
-	return &containers.Container{
-		ID: id,
-		ContainerMetrics: metrics.ContainerMetrics{
-			CPU:    &metrics.ContainerCPUStats{},
-			Memory: &metrics.ContainerMemStats{},
-			IO:     &metrics.ContainerIOStats{},
-		},
+func makeContainer(id string) *model.Container {
+	return &model.Container{
+		Id: id,
 	}
-}
-
-//nolint:deadcode,unused
-func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*procutil.Process, []*containers.Container) {
-	procs := make([]*procutil.Process, 0, pCount)
-	for i := 0; i < pCount; i++ {
-		procs = append(procs, makeProcess(int32(i), strconv.Itoa(i)))
-	}
-
-	ctrs := make([]*containers.Container, 0, cCount)
-	for i := 0; i < cCount; i++ {
-		ctrs = append(ctrs, makeContainer(strconv.Itoa(i)))
-	}
-
-	// build container process relationship
-	ctrIdx := 0
-	for i := 0; i < containeredProcs; i++ {
-		// reset to 0 if hit the last one
-		if ctrIdx == cCount {
-			ctrIdx = 0
-		}
-		ctrs[ctrIdx].Pids = append(ctrs[ctrIdx].Pids, procs[i].Pid)
-		ctrIdx++
-	}
-
-	return procs, ctrs
-}
-
-func containersByPid(ctrs []*containers.Container) map[int32]string {
-	ctrsByPid := make(map[int32]string)
-	for _, c := range ctrs {
-		for _, p := range c.Pids {
-			ctrsByPid[p] = c.ID
-		}
-	}
-
-	return ctrsByPid
 }
 
 //nolint:deadcode,unused
@@ -207,7 +162,6 @@ func TestFormatIO(t *testing.T) {
 	assert.Equal(t, float32(6), result.WriteRate)
 	assert.Equal(t, float32(7), result.ReadBytesRate)
 	assert.Equal(t, float32(8), result.WriteBytesRate)
-
 }
 
 func TestFormatNetworks(t *testing.T) {

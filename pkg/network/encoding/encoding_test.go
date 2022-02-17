@@ -268,7 +268,8 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slice as empty
+		// fixup: json marshaler encode nil slices and maps as empty
+		result.ConnTelemetryMap = nil
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
@@ -293,7 +294,8 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slice as empty
+		// fixup: json marshaler encode nil slices and maps as empty
+		result.ConnTelemetryMap = nil
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
@@ -319,7 +321,8 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slice as empty
+		// fixup: json marshaler encode nil slices and maps as empty
+		result.ConnTelemetryMap = nil
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
@@ -347,7 +350,8 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slice as empty
+		// fixup: json marshaler encode nil slices and maps as empty
+		result.ConnTelemetryMap = nil
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil

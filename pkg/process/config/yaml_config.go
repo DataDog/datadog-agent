@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -102,18 +101,6 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 	if config.Datadog.GetBool(key(ns, "strip_proc_arguments")) {
 		log.Debug("Strip all process arguments enabled")
 		a.Scrubber.StripAllArguments = true
-	}
-
-	// Used to override container source auto-detection
-	// and to enable multiple collector sources if needed.
-	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
-	containerSourceKey := key(ns, "container_source")
-	if config.Datadog.Get(containerSourceKey) != nil {
-		// container_source can be nil since we're not forcing default values in the main config file
-		// make sure we don't pass nil value to GetStringSlice to avoid spammy warnings
-		if sources := config.Datadog.GetStringSlice(containerSourceKey); len(sources) > 0 {
-			util.SetContainerSources(sources)
-		}
 	}
 
 	// Build transport (w/ proxy if needed)

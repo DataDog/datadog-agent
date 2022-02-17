@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -23,8 +24,8 @@ var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
 	cardinality collectors.TagCardinality
-	series      metrics.Series
-	sketches    metrics.SketchSeriesList
+	series      metricsserializer.Series
+	sketches    metricsserializer.SketchSeriesList
 }
 
 // enrichedTags of a given dimension.
