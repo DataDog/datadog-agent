@@ -11,12 +11,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-// Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
-type Marshaler interface {
-	JSONMarshaler
-	ProtoMarshaler
-}
-
 // JSONMarshaler is a AbstractMarshaler that implement JSON marshaling.
 type JSONMarshaler interface {
 	AbstractMarshaler

@@ -84,8 +84,6 @@ func initExtraHeaders() {
 
 // EventsStreamJSONMarshaler handles two serialization logics.
 type EventsStreamJSONMarshaler interface {
-	marshaler.Marshaler
-
 	// Create a single marshaler.
 	CreateSingleMarshaler() marshaler.StreamJSONMarshaler
 
@@ -171,11 +169,15 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcy
 	return s
 }
 
-func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializePayload(
+	jsonMarshaler marshaler.JSONMarshaler,
+	protoMarshaler marshaler.ProtoMarshaler,
+	compress bool,
+	useV1API bool) (forwarder.Payloads, http.Header, error) {
 	if useV1API {
-		return s.serializePayloadJSON(payload, compress)
+		return s.serializePayloadJSON(jsonMarshaler, compress)
 	}
-	return s.serializePayloadProto(payload, compress)
+	return s.serializePayloadProto(protoMarshaler, compress)
 }
 
 func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compress bool) (forwarder.Payloads, http.Header, error) {
@@ -230,8 +232,8 @@ func (s Serializer) serializeIterableStreamablePayload(payload marshaler.Iterabl
 //
 // If none of the previous methods work, we fallback to the old serialization method (Serializer.serializePayload).
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
-	eventsStreamJSONMarshaler EventsStreamJSONMarshaler, useV1API bool) (forwarder.Payloads, http.Header, error) {
-	marshaler := eventsStreamJSONMarshaler.CreateSingleMarshaler()
+	eventsSerializer metricsserializer.Events, useV1API bool) (forwarder.Payloads, http.Header, error) {
+	marshaler := eventsSerializer.CreateSingleMarshaler()
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, stream.FailOnErrItemTooBig)
 
 	if err == stream.ErrItemTooBig {
@@ -240,10 +242,10 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 		// Do not use CreateMarshalersBySourceType when there are too many source types (Performance issue).
 		if marshaler.Len() > maxItemCountForCreateMarshalersBySourceType {
 			expvarsSendEventsErrItemTooBigsFallback.Add(1)
-			eventPayloads, extraHeaders, err = s.serializePayload(eventsStreamJSONMarshaler, true, useV1API)
+			eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, eventsSerializer, true, useV1API)
 		} else {
 			eventPayloads = nil
-			for _, v := range eventsStreamJSONMarshaler.CreateMarshalersBySourceType() {
+			for _, v := range eventsSerializer.CreateMarshalersBySourceType() {
 				var eventPayloadsForSourceType forwarder.Payloads
 				eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, stream.DropItemOnErrItemTooBig)
 				if err != nil {
@@ -271,7 +273,7 @@ func (s *Serializer) SendEvents(events metrics.Events) error {
 	if s.enableEventsJSONStream {
 		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer, true)
 	} else {
-		eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, true, true)
+		eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, eventsSerializer, true, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
@@ -390,7 +392,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
 
 	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
-	splitSketches, extraHeaders, err := s.serializePayload(sketchesSerializer, compress, useV1API)
+	splitSketches, extraHeaders, err := s.serializePayload(sketchesSerializer, sketchesSerializer, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
