@@ -111,7 +111,7 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target, reposD
 	switch strings.ToLower(target.Distro.Display) {
 	case "fedora":
 		backend, err = rpm.NewFedoraBackend(target, reposDir, logger)
-	case "rhel", "redhat":
+	case "rhel", "redhat", "amazon":
 		backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
 	case "centos":
 		backend, err = rpm.NewCentOSBackend(target, reposDir, logger)
