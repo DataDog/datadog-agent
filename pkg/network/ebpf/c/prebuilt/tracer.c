@@ -678,10 +678,8 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    ssize_t sent = (ssize_t)PT_REGS_RC(ctx);
-    if (sent > 0) {
-        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
-    }
+    size_t sent = (size_t)PT_REGS_RC(ctx);
+    handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
     return 0;
