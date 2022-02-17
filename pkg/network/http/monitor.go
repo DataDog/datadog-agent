@@ -17,8 +17,8 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 )
 
 // Monitor is responsible for:
@@ -54,7 +54,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter"})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: httpSocketFilter})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -75,7 +75,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 
 	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
-	numCPUs := int(notificationMap.MaxEntries())
+	numCPUs := int(notificationMap.ABI().MaxEntries)
 
 	telemetry := newTelemetry()
 	statkeeper := newHTTPStatkeeper(c, telemetry)

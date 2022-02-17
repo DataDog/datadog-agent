@@ -20,32 +20,32 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 )
 
-var openSSLProbes = map[string]string{
-	"uprobe/SSL_set_bio":  "uprobe__SSL_set_bio",
-	"uprobe/SSL_set_fd":   "uprobe__SSL_set_fd",
-	"uprobe/SSL_read":     "uprobe__SSL_read",
-	"uretprobe/SSL_read":  "uretprobe__SSL_read",
-	"uprobe/SSL_write":    "uprobe__SSL_write",
-	"uprobe/SSL_shutdown": "uprobe__SSL_shutdown",
+var openSSLProbes = []string{
+	"uprobe/SSL_set_bio",
+	"uprobe/SSL_set_fd",
+	"uprobe/SSL_read",
+	"uretprobe/SSL_read",
+	"uprobe/SSL_write",
+	"uprobe/SSL_shutdown",
 }
 
-var cryptoProbes = map[string]string{
-	"uprobe/BIO_new_socket":    "uprobe__BIO_new_socket",
-	"uretprobe/BIO_new_socket": "uretprobe__BIO_new_socket",
+var cryptoProbes = []string{
+	"uprobe/BIO_new_socket",
+	"uretprobe/BIO_new_socket",
 }
 
-var gnuTLSProbes = map[string]string{
-	"uprobe/gnutls_transport_set_int2": "uprobe__gnutls_transport_set_int2",
-	"uprobe/gnutls_transport_set_ptr":  "uprobe__gnutls_transport_set_ptr",
-	"uprobe/gnutls_transport_set_ptr2": "uprobe__gnutls_transport_set_ptr2",
-	"uprobe/gnutls_record_recv":        "uprobe__gnutls_record_recv",
-	"uretprobe/gnutls_record_recv":     "uretprobe__gnutls_record_recv",
-	"uprobe/gnutls_record_send":        "uprobe__gnutls_record_send",
-	"uprobe/gnutls_bye":                "uprobe__gnutls_bye",
+var gnuTLSProbes = []string{
+	"uprobe/gnutls_transport_set_int2",
+	"uprobe/gnutls_transport_set_ptr",
+	"uprobe/gnutls_transport_set_ptr2",
+	"uprobe/gnutls_record_recv",
+	"uretprobe/gnutls_record_recv",
+	"uprobe/gnutls_record_send",
+	"uprobe/gnutls_bye",
 }
 
 const (
@@ -98,14 +98,8 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 		})
 
 		m.Probes = append(m.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpen,
-				EBPFFuncName: "kprobe__do_sys_open",
-			}, KProbeMaxActive: maxActive},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpenRet,
-				EBPFFuncName: "kretprobe__do_sys_open",
-			}, KProbeMaxActive: maxActive},
+			&manager.Probe{Section: doSysOpen, KProbeMaxActive: maxActive},
+			&manager.Probe{Section: doSysOpenRet, KProbeMaxActive: maxActive},
 		)
 	}
 }
@@ -125,14 +119,12 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpen,
-					EBPFFuncName: "kprobe__do_sys_open",
+					Section: doSysOpen,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpenRet,
-					EBPFFuncName: "kretprobe__do_sys_open",
+					Section: doSysOpenRet,
 				},
 			},
 		)
@@ -180,15 +172,11 @@ func (o *sslProgram) Stop() {
 	o.perfHandler.Stop()
 }
 
-func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
+func addHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
-		for sec, funcName := range probes {
-			p, found := m.GetProbe(manager.ProbeIdentificationPair{
-				EBPFSection:  sec,
-				EBPFFuncName: funcName,
-				UID:          uid,
-			})
+		for _, sec := range probes {
+			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if found {
 				if !p.IsRunning() {
 					err := p.Attach()
@@ -200,13 +188,10 @@ func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
 				continue
 			}
 
-			newProbe := &manager.Probe{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  sec,
-					EBPFFuncName: funcName,
-					UID:          uid,
-				},
+			newProbe := manager.Probe{
+				Section:    sec,
 				BinaryPath: libPath,
+				UID:        uid,
 			}
 
 			err := m.AddHook("", newProbe)
@@ -219,25 +204,17 @@ func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
 	}
 }
 
-func removeHooks(m *manager.Manager, probes map[string]string) func(string) error {
+func removeHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
-		for sec, funcName := range probes {
-			p, found := m.GetProbe(manager.ProbeIdentificationPair{
-				EBPFSection:  sec,
-				EBPFFuncName: funcName,
-				UID:          uid,
-			})
+		for _, sec := range probes {
+			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if !found {
 				continue
 			}
 
 			program := p.Program()
-			m.DetachHook(manager.ProbeIdentificationPair{
-				EBPFSection:  sec,
-				EBPFFuncName: funcName,
-				UID:          uid,
-			})
+			m.DetachHook(sec, uid)
 			if program != nil {
 				program.Close()
 			}
