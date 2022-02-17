@@ -621,6 +621,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 
+	// NetFlow
+	config.BindEnvAndSetDefault("network_devices.flow.enabled", "false")
+	config.SetKnown("network_devices.flow.config")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("kubernetes_apiserver_ca_path", "")
