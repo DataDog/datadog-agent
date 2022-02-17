@@ -554,17 +554,17 @@ func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
 	return ptes
 }
 
-func newInitModuleEventSerializer(e *Event) *ModuleEventSerializer {
-	loadedFromMemory := e.InitModule.LoadedFromMemory
+func newLoadModuleEventSerializer(e *Event) *ModuleEventSerializer {
+	loadedFromMemory := e.LoadModule.LoadedFromMemory
 	return &ModuleEventSerializer{
-		Name:             e.InitModule.Name,
+		Name:             e.LoadModule.Name,
 		LoadedFromMemory: &loadedFromMemory,
 	}
 }
 
-func newDeleteModuleEventSerializer(e *Event) *ModuleEventSerializer {
+func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
 	return &ModuleEventSerializer{
-		Name: e.DeleteModule.Name,
+		Name: e.UnloadModule.Name,
 	}
 }
 
@@ -777,15 +777,15 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.PTraceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
 		s.PTraceEventSerializer = newPTraceEventSerializer(event)
-	case model.InitModuleEventType:
-		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.InitModule.Retval)
+	case model.LoadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.InitModule.File, event),
+			FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
 		}
-		s.ModuleEventSerializer = newInitModuleEventSerializer(event)
-	case model.DeleteModuleEventType:
-		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.DeleteModule.Retval)
-		s.ModuleEventSerializer = newDeleteModuleEventSerializer(event)
+		s.ModuleEventSerializer = newLoadModuleEventSerializer(event)
+	case model.UnloadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.UnloadModule.Retval)
+		s.ModuleEventSerializer = newUnloadModuleEventSerializer(event)
 	}
 
 	return s

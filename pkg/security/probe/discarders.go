@@ -618,6 +618,6 @@ func init() {
 
 	allDiscarderHandlers["mprotect"] = processDiscarderWrapper(model.MProtectEventType, nil)
 	allDiscarderHandlers["ptrace"] = processDiscarderWrapper(model.PTraceEventType, nil)
-	allDiscarderHandlers["init_module"] = processDiscarderWrapper(model.InitModuleEventType, nil)
-	allDiscarderHandlers["delete_module"] = processDiscarderWrapper(model.DeleteModuleEventType, nil)
+	allDiscarderHandlers["load_module"] = processDiscarderWrapper(model.LoadModuleEventType, nil)
+	allDiscarderHandlers["unload_module"] = processDiscarderWrapper(model.UnloadModuleEventType, nil)
 }

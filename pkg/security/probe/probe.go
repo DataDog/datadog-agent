@@ -576,14 +576,14 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-	case model.InitModuleEventType:
-		if _, err = event.InitModule.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode init_module event: %s (offset %d, len %d)", err, offset, len(data))
+	case model.LoadModuleEventType:
+		if _, err = event.LoadModule.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-	case model.DeleteModuleEventType:
-		if _, err = event.DeleteModule.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode delete_module event: %s (offset %d, len %d)", err, offset, len(data))
+	case model.UnloadModuleEventType:
+		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	default:

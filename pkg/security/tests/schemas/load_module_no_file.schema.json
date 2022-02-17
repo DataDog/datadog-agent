@@ -1,13 +1,13 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "init_module.json",
+    "$id": "load_module_no_file.json",
     "type": "object",
     "anyOf": [
         {
-            "$ref": "/schemas/container_event.json"
+            "$ref": "/schemas/container_event_no_file.json"
         },
         {
-            "$ref": "/schemas/host_event.json"
+            "$ref": "/schemas/host_event_no_file.json"
         }
     ],
     "allOf": [

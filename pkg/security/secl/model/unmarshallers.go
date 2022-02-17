@@ -661,7 +661,7 @@ func (e *MProtectEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *InitModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return 0, err
@@ -680,7 +680,7 @@ func (e *InitModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *DeleteModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+func (e *UnloadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
 		return 0, err

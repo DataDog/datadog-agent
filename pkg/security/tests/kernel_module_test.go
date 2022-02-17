@@ -103,7 +103,7 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 	return modulePath, wasCompressed
 }
 
-func TestInitModule(t *testing.T) {
+func TestLoadModule(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}
@@ -127,12 +127,12 @@ func TestInitModule(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_init_module_from_memory",
-			Expression: fmt.Sprintf(`init_module.name == "%s" && init_module.loaded_from_memory == true`, testModuleName),
+			ID:         "test_load_module_from_memory",
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.loaded_from_memory == true`, testModuleName),
 		},
 		{
-			ID:         "test_init_module",
-			Expression: fmt.Sprintf(`init_module.name == "%s" && init_module.file.path == "%s" && init_module.loaded_from_memory == false`, testModuleName, modulePath),
+			ID:         "test_load_module",
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.file.path == "%s" && load_module.loaded_from_memory == false`, testModuleName, modulePath),
 		},
 	}
 
@@ -163,10 +163,10 @@ func TestInitModule(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, "test_init_module_from_memory", r.ID, "invalid rule triggered")
-			assert.Equal(t, "", event.ResolveFilePath(&event.InitModule.File), "shouldn't get a path")
+			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
+			assert.Equal(t, "", event.ResolveFilePath(&event.LoadModule.File), "shouldn't get a path")
 
-			if !validateInitModuleNoFileSchema(t, event) {
+			if !validateLoadModuleNoFileSchema(t, event) {
 				t.Error(event.String())
 			}
 		})
@@ -187,16 +187,16 @@ func TestInitModule(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, "test_init_module", r.ID, "invalid rule triggered")
+			assert.Equal(t, "test_load_module", r.ID, "invalid rule triggered")
 
-			if !validateInitModuleSchema(t, event) {
+			if !validateLoadModuleSchema(t, event) {
 				t.Error(event.String())
 			}
 		})
 	})
 }
 
-func TestDeleteModule(t *testing.T) {
+func TestUnloadModule(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}
@@ -220,8 +220,8 @@ func TestDeleteModule(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_delete_module",
-			Expression: fmt.Sprintf(`delete_module.name == "%s"`, testModuleName),
+			ID:         "test_unload_module",
+			Expression: fmt.Sprintf(`unload_module.name == "%s"`, testModuleName),
 		},
 	}
 
@@ -252,9 +252,9 @@ func TestDeleteModule(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, "test_delete_module", r.ID, "invalid rule triggered")
+			assert.Equal(t, "test_unload_module", r.ID, "invalid rule triggered")
 
-			if !validateDeleteModuleSchema(t, event) {
+			if !validateUnloadModuleSchema(t, event) {
 				t.Error(event.String())
 			}
 		})
