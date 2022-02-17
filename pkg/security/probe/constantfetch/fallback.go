@@ -146,6 +146,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 416
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		ttyOffset = 416
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		ttyOffset = 368
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19):
 		ttyOffset = 376
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
