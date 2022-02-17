@@ -59,7 +59,8 @@ func FormatStatus(data []byte) (string, error) {
 
 	headerFunc := func() { renderStatusTemplate(b, "/header.tmpl", stats) }
 	checkStatsFunc := func() {
-		renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
+		renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats,
+			inventoriesStats, "")
 	}
 	jmxFetchFunc := func() { renderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
 	forwarderFunc := func() { renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats) }
@@ -86,18 +87,19 @@ func FormatStatus(data []byte) (string, error) {
 	}
 	autodiscoveryFunc := func() {
 		if config.IsContainerized() {
-			renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
+			renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"],
+				stats["filterErrors"])
 		}
 	}
 
 	var renderFuncs []func()
 
 	if config.IsCLCRunner() {
-		renderFuncs = []func(){headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc, 
+		renderFuncs = []func(){headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc,
 			autodiscoveryFunc}
 	} else {
-		renderFuncs = []func(){headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc, 
-			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc, 
+		renderFuncs = []func(){headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc,
+			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc,
 			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}
 	}
 
