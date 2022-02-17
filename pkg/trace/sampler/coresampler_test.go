@@ -44,56 +44,56 @@ func TestSamplerAccessRace(t *testing.T) {
 func TestZeroAndGetMaxBuckets(t *testing.T) {
 	tts := []struct {
 		name            string
-		buckets         [numBuckets]uint32
+		buckets         [numBuckets]float32
 		bucketDistance  int64
 		previousBucket  int64
 		newBucket       int64
-		expectedMax     uint32
-		expectedBuckets [numBuckets]uint32
+		expectedMax     float32
+		expectedBuckets [numBuckets]float32
 	}{
 		{
 			name:            "same bucket",
 			bucketDistance:  0,
-			buckets:         [numBuckets]uint32{10, 11, 12, 13, 14, 15},
+			buckets:         [numBuckets]float32{10, 11, 12, 13, 14, 15},
 			expectedMax:     15,
-			expectedBuckets: [numBuckets]uint32{10, 11, 12, 13, 14, 15},
+			expectedBuckets: [numBuckets]float32{10, 11, 12, 13, 14, 15},
 		},
 		{
 			name:            "zeroes only",
 			bucketDistance:  numBuckets + 1,
-			buckets:         [numBuckets]uint32{10, 11, 12, 13, 14, 15},
+			buckets:         [numBuckets]float32{10, 11, 12, 13, 14, 15},
 			expectedMax:     0,
-			expectedBuckets: [numBuckets]uint32{0, 0, 0, 0, 0, 0},
+			expectedBuckets: [numBuckets]float32{0, 0, 0, 0, 0, 0},
 		},
 		{
 			name:            "max",
-			buckets:         [numBuckets]uint32{10, 11, 0, 13, 14, 0},
+			buckets:         [numBuckets]float32{10, 11, 0, 13, 14, 0},
 			expectedMax:     14,
-			expectedBuckets: [numBuckets]uint32{10, 11, 0, 13, 14, 0},
+			expectedBuckets: [numBuckets]float32{10, 11, 0, 13, 14, 0},
 		},
 		{
 			name:            "3 zeroes",
-			buckets:         [numBuckets]uint32{10, 11, 17, 13, 14, 19},
+			buckets:         [numBuckets]float32{10, 11, 17, 13, 14, 19},
 			previousBucket:  3,
 			newBucket:       7,
 			expectedMax:     17,
-			expectedBuckets: [numBuckets]uint32{0, 0, 17, 13, 0, 0},
+			expectedBuckets: [numBuckets]float32{0, 0, 17, 13, 0, 0},
 		},
 		{
 			name:            "4 zeroes",
-			buckets:         [numBuckets]uint32{10, 11, 10, 13, 14, 19},
+			buckets:         [numBuckets]float32{10, 11, 10, 13, 14, 19},
 			previousBucket:  3,
 			newBucket:       8,
 			expectedMax:     13,
-			expectedBuckets: [numBuckets]uint32{0, 0, 0, 13, 0, 0},
+			expectedBuckets: [numBuckets]float32{0, 0, 0, 13, 0, 0},
 		},
 		{
 			name:            "4 zeroes max is new window",
-			buckets:         [numBuckets]uint32{10, 11, 129191, 13, 14, 19},
+			buckets:         [numBuckets]float32{10, 11, 129191, 13, 14, 19},
 			previousBucket:  3,
 			newBucket:       8,
 			expectedMax:     129191,
-			expectedBuckets: [numBuckets]uint32{0, 0, 0, 13, 0, 0},
+			expectedBuckets: [numBuckets]float32{0, 0, 0, 13, 0, 0},
 		},
 	}
 	for _, tc := range tts {
@@ -124,7 +124,7 @@ func TestRateIncrease(t *testing.T) {
 
 	testSig := Signature(25)
 	testTime := time.Now()
-	s.countWeightedSig(testTime, testSig, uint32(initialTPS*bucketDuration.Seconds()))
+	s.countWeightedSig(testTime, testSig, float32(initialTPS*bucketDuration.Seconds()))
 	// force rate evaluation
 	s.countWeightedSig(testTime.Add(bucketDuration+time.Nanosecond), testSig, 0)
 
@@ -155,7 +155,7 @@ func TestOldSigEviction(t *testing.T) {
 
 	testSig := Signature(25)
 	testTime := time.Now()
-	s.countWeightedSig(testTime, testSig, uint32(initialTPS*bucketDuration.Seconds()))
+	s.countWeightedSig(testTime, testSig, float32(initialTPS*bucketDuration.Seconds()))
 	// force rate evaluation
 	s.countWeightedSig(testTime.Add(bucketDuration+time.Nanosecond), testSig, 0)
 
@@ -185,7 +185,7 @@ func TestMovingMax(t *testing.T) {
 
 	testTime := time.Now()
 
-	steps := []uint32{37, 22, 19, 55, 0, 0, 0, 0, 0, 0}
+	steps := []float32{37, 22, 19, 55, 0, 0, 0, 0, 0, 0}
 	expectedRates := []float64{0, 1 / 37, 1 / 37, 1 / 37, 1 / 55, 1 / 55, 1 / 55, 1 / 55, 1 / 55, 1 / 55}
 
 	for i := range steps {
@@ -216,7 +216,7 @@ func TestTargetTPSUpdate(t *testing.T) {
 
 	testTime := time.Now()
 
-	signaturesInitialCount := []uint32{37, 1, 21, 2921, 5}
+	signaturesInitialCount := []float32{37, 1, 21, 2921, 5}
 
 	for i, c := range signaturesInitialCount {
 		s.countWeightedSig(testTime, Signature(i), c)

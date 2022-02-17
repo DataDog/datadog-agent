@@ -29,7 +29,7 @@ const (
 // of the buffer is used to compute the sampling rates.
 type Sampler struct {
 	// seen maps signatures to scores.
-	seen map[Signature][numBuckets]uint32
+	seen map[Signature][numBuckets]float32
 	// lastBucketID is the index of the last bucket on which traces were counted
 	lastBucketID int64
 	// rates maps sampling rate in %
@@ -56,7 +56,7 @@ type Sampler struct {
 // newSampler returns an initialized Sampler
 func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 	s := &Sampler{
-		seen: make(map[Signature][numBuckets]uint32),
+		seen: make(map[Signature][numBuckets]float32),
 
 		extraRate: extraRate,
 		targetTPS: ddatomic.NewFloat(targetTPS),
@@ -109,7 +109,7 @@ func (s *Sampler) Start() {
 
 // countWeightedSig counts a trace sampled by the sampler and update rates
 // if buckets are rotated
-func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n uint32) bool {
+func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n float32) bool {
 	bucketID := now.Unix() / int64(bucketDuration.Seconds())
 	s.muSeen.Lock()
 	prevBucketID := s.lastBucketID
@@ -123,12 +123,12 @@ func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n uint32)
 
 	buckets, ok := s.seen[signature]
 	if !ok {
-		buckets = [numBuckets]uint32{}
+		buckets = [numBuckets]float32{}
 	}
 	buckets[bucketID%numBuckets] += n
 	s.seen[signature] = buckets
 	s.muSeen.Unlock()
-	atomic.AddInt64(&s.totalSeen, int64(n))
+	atomic.AddInt64(&s.totalSeen, 1)
 	return updateRates
 }
 
@@ -175,8 +175,8 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 }
 
 // zeroAndGetMax zeroes expired buckets and returns the max count
-func zeroAndGetMax(buckets [numBuckets]uint32, previousBucket, newBucket int64) (uint32, [numBuckets]uint32) {
-	maxBucket := uint32(0)
+func zeroAndGetMax(buckets [numBuckets]float32, previousBucket, newBucket int64) (float32, [numBuckets]float32) {
+	maxBucket := float32(0)
 	for i := previousBucket + 1; i <= previousBucket+numBuckets; i++ {
 		index := i % numBuckets
 

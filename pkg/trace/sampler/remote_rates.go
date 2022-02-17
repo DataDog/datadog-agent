@@ -170,14 +170,14 @@ func (r *RemoteRates) initSampler(sig Signature) (*remoteSampler, bool) {
 }
 
 // countWeightedSig counts the number of root span seen matching a signature.
-func (r *RemoteRates) countWeightedSig(now time.Time, sig Signature, weight uint32) {
+func (r *RemoteRates) countWeightedSig(now time.Time, sig Signature, weight float32) {
 	s, ok := r.getSampler(sig)
 	if !ok {
 		if s, ok = r.initSampler(sig); !ok {
 			return
 		}
 	}
-	s.countWeightedSig(now, sig, 1)
+	s.countWeightedSig(now, sig, weight)
 }
 
 // countSample counts the number of sampled root span matching a signature.

@@ -168,7 +168,7 @@ func (s *PrioritySampler) countSampled(now time.Time, root *pb.Span, clientDropp
 	if clientDroppedP0s && rate > 0 && rate < 1 {
 		// removing 1 to not count twice the P1 chunk
 		weight := 1/rate - 1
-		s.localRates.countWeightedSig(now, signature, uint32(weight))
+		s.localRates.countWeightedSig(now, signature, float32(weight))
 	}
 
 	// remoteRates only considers root spans
@@ -177,7 +177,7 @@ func (s *PrioritySampler) countSampled(now time.Time, root *pb.Span, clientDropp
 		if clientDroppedP0s && rate > 0 && rate < 1 {
 			// removing 1 to not count twice the P1 chunk
 			weight := 1/rate - 1
-			s.remoteRates.countWeightedSig(now, signature, uint32(weight))
+			s.remoteRates.countWeightedSig(now, signature, float32(weight))
 		}
 	}
 }
