@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
 )
 
@@ -105,8 +105,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 		},
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg"}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter"}},
+			{Section: httpSocketFilter},
+			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
 		},
 	}
 
@@ -129,7 +129,7 @@ func (e *ebpfProgram) Init() error {
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
-	e.Manager.DumpHandler = dumpMapsHandler
+	setupDumpHandler(e.Manager)
 
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
@@ -146,14 +146,12 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilter,
-					EBPFFuncName: "socket__http_filter",
+					Section: httpSocketFilter,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsgReturn),
-					EBPFFuncName: "kretprobe__tcp_sendmsg",
+					Section: string(probes.TCPSendMsgReturn),
 				},
 			},
 		},
