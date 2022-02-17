@@ -1133,6 +1133,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "dump_timeout",
 			Value: getCgroupDumpTimeout(p),
 		},
+		manager.ConstantEditor{
+			Name:  "net_struct_type",
+			Value: getNetStructType(p),
+		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
@@ -1256,8 +1260,13 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// network related constants
 	constantFetcher.AppendOffsetofRequest("net_device_ifindex_offset", "struct net_device", "ifindex", "linux/netdevice.h")
-	constantFetcher.AppendOffsetofRequest("net_ns_offset", "struct net", "ns", "net/net_namespace.h")
 	constantFetcher.AppendOffsetofRequest("sock_common_skc_net_offset", "struct sock_common", "skc_net", "net/sock.h")
 	constantFetcher.AppendOffsetofRequest("socket_sock_offset", "struct socket", "sk", "linux/net.h")
 	constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
+
+	if getNetStructType(kv) == netStructHasProcINum {
+		constantFetcher.AppendOffsetofRequest("net_proc_inum_offset", "struct net", "proc_inum", "net/net_namespace.h")
+	} else {
+		constantFetcher.AppendOffsetofRequest("net_ns_offset", "struct net", "ns", "net/net_namespace.h")
+	}
 }

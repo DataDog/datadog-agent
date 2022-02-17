@@ -100,6 +100,11 @@ func sanityChecks(cfg *sconfig.Config) error {
 		cfg.ERPCDentryResolutionEnabled = false
 	}
 
+	if m.config.NetworkEnabled && version.IsRH7Kernel() {
+		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+		m.config.NetworkEnabled = false
+	}
+
 	return nil
 }
 

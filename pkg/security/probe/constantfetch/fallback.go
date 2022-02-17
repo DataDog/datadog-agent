@@ -78,6 +78,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
 	case "net_ns_offset":
 		value = getNetNSOffset(f.kernelVersion)
+	case "net_proc_inum_offset":
+		value = getNetProcINumOffset(f.kernelVersion)
 	case "sock_common_skc_net_offset":
 		value = getSockCommonSKCNetOffset(f.kernelVersion)
 	case "socket_sock_offset":
@@ -461,14 +463,23 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	offset := uint64(260)
 
 	switch {
+	case kv.IsRH7Kernel():
+		offset = 192
+	case kv.IsRH8Kernel():
+		offset = 264
+	case kv.IsSLES12Kernel():
+		offset = 264
+	case kv.IsSLES15Kernel():
+		offset = 256
+
 	case kv.Code >= kernel.Kernel4_16 && kv.Code < kernel.Kernel5_8:
-		offset = uint64(264)
+		offset = 264
 	case kv.Code >= kernel.Kernel5_8 && kv.Code < kernel.Kernel5_12:
-		offset = uint64(256)
+		offset = 256
 	case kv.Code >= kernel.Kernel5_12 && kv.Code < kernel.Kernel5_16:
-		offset = uint64(208)
+		offset = 208
 	case kv.Code >= kernel.Kernel5_16:
-		offset = uint64(212)
+		offset = 212
 	}
 
 	return offset
@@ -476,6 +487,10 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 
 func getNetNSOffset(kv *kernel.Version) uint64 {
 	return uint64(120)
+}
+
+func getNetProcINumOffset(kv *kernel.Version) uint64 {
+	return uint64(72)
 }
 
 func getSockCommonSKCNetOffset(kv *kernel.Version) uint64 {
@@ -486,13 +501,29 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 	offset := uint64(32)
 
 	switch {
+	case kv.IsRH7Kernel():
+		offset = 32
+	case kv.IsRH8Kernel():
+		offset = 32
+	case kv.IsSLES12Kernel():
+		offset = 32
+	case kv.IsSLES15Kernel():
+		offset = 24
+
 	case kv.Code >= kernel.Kernel5_3:
-		offset = uint64(24)
+		offset = 24
 	}
 
 	return offset
 }
 
-func getNFConnCTNetOffset(version *kernel.Version) uint64 {
-	return uint64(144)
+func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
+	offset := uint64(144)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 240
+	}
+
+	return offset
 }

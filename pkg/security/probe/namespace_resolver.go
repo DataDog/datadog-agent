@@ -37,6 +37,18 @@ var (
 	flushNamespacesPeriod = 5 * time.Second
 )
 
+const (
+	netStructHasProcINum uint64 = 0
+	netStructHasNS       uint64 = 1
+)
+
+func getNetStructType(p *Probe) uint64 {
+	if p.kernelVersion.IsRH7Kernel() {
+		return netStructHasProcINum
+	}
+	return netStructHasNS
+}
+
 // NetworkNamespace is used to hold a handle to a network namespace
 type NetworkNamespace struct {
 	sync.RWMutex

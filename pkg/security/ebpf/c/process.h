@@ -236,9 +236,22 @@ __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device
     return ifindex;
 }
 
+#define NET_STRUCT_HAS_PROC_INUM 0
+#define NET_STRUCT_HAS_NS        1
+
 __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
+    u64 net_struct_type;
+    LOAD_CONSTANT("net_struct_type", net_struct_type);
+    u64 net_proc_inum_offset;
+    LOAD_CONSTANT("net_proc_inum_offset", net_proc_inum_offset);
     u64 net_ns_offset;
     LOAD_CONSTANT("net_ns_offset", net_ns_offset);
+
+    if (net_struct_type == NET_STRUCT_HAS_PROC_INUM) {
+        u32 inum = 0;
+        bpf_probe_read(&inum, sizeof(inum), (void*)net + net_proc_inum_offset);
+        return inum;
+    }
 
     struct ns_common ns;
     bpf_probe_read(&ns, sizeof(ns), (void*)net + net_ns_offset);
