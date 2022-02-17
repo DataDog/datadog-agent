@@ -103,14 +103,11 @@ func newRemoteStoreDirector(targetStore *targetStore) *remoteStoreDirector {
 	return &remoteStoreDirector{remoteStore: newRemoteStore(targetStore)}
 }
 
-func (sd *remoteStoreDirector) update(update *pbgo.LatestConfigsResponse) {
+func (sd *remoteStoreDirector) update(update *pbgo.DirectorMetas) {
 	if update == nil {
 		return
 	}
-	if update.DirectorMetas == nil {
-		return
-	}
-	metas := update.DirectorMetas
+	metas := update
 	for _, root := range metas.Roots {
 		sd.metas[roleRoot][root.Version] = root.Raw
 	}
@@ -138,54 +135,11 @@ func newRemoteStoreConfig(targetStore *targetStore) *remoteStoreConfig {
 	}
 }
 
-func (sc *remoteStoreConfig) update(update *pbgo.LatestConfigsResponse) {
+func (sc *remoteStoreConfig) update(update *pbgo.ConfigMetas) {
 	if update == nil {
 		return
 	}
-	if update.ConfigMetas == nil {
-		return
-	}
-	metas := update.ConfigMetas
-	for _, root := range metas.Roots {
-		sc.metas[roleRoot][root.Version] = root.Raw
-	}
-	for _, delegatedMeta := range metas.DelegatedTargets {
-		role := role(delegatedMeta.Role)
-		sc.resetRole(role)
-		sc.metas[role][delegatedMeta.Version] = delegatedMeta.Raw
-	}
-	if metas.Timestamp != nil {
-		sc.resetRole(roleTimestamp)
-		sc.metas[roleTimestamp][metas.Timestamp.Version] = metas.Timestamp.Raw
-	}
-	if metas.Snapshot != nil {
-		sc.resetRole(roleSnapshot)
-		sc.metas[roleSnapshot][metas.Snapshot.Version] = metas.Snapshot.Raw
-	}
-	if metas.TopTargets != nil {
-		sc.resetRole(roleTargets)
-		sc.metas[roleTargets][metas.TopTargets.Version] = metas.TopTargets.Raw
-	}
-}
-
-type remoteStoreConfigUser struct {
-	remoteStore
-}
-
-func newRemoteStoreConfigUser(targetStore *targetStore) *remoteStoreConfigUser {
-	return &remoteStoreConfigUser{
-		remoteStore: newRemoteStore(targetStore),
-	}
-}
-
-func (sc *remoteStoreConfigUser) update(update *pbgo.LatestConfigsResponse) {
-	if update == nil {
-		return
-	}
-	if update.ConfigUserMetas == nil {
-		return
-	}
-	metas := update.ConfigUserMetas
+	metas := update
 	for _, root := range metas.Roots {
 		sc.metas[roleRoot][root.Version] = root.Raw
 	}

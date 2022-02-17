@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/pkg/errors"
 	"github.com/theupdateframework/go-tuf/client"
@@ -24,55 +25,44 @@ type Client struct {
 
 	orgID int64
 
-	configLocalStore  *localStore
-	configRemoteStore *remoteStoreConfig
-	configTUFClient   *client.Client
-
-	configUserEnabled     bool
-	configUserLocalStore  *localStore
-	configUserRemoteStore *remoteStoreConfigUser
-	configUserTUFClient   *client.Client
-
-	directorLocalStore  *localStore
-	directorRemoteStore *remoteStoreDirector
-	directorTUFClient   *client.Client
-
-	targetStore *targetStore
+	userConfigEnabled bool
+	datadogConfig     *configRepository
+	userConfig        *configRepository
+	director          *directorRepository
+	targetStore       *targetStore
 }
 
 // NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64, configUserEnabled bool) (*Client, error) {
-	localStoreConfig, err := newLocalStoreConfig(cacheDB, cacheKey)
-	if err != nil {
-		return nil, err
-	}
-	localStoreDirector, err := newLocalStoreDirector(cacheDB, cacheKey)
-	if err != nil {
-		return nil, err
-	}
+func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64, userConfigEnabled bool) (*Client, error) {
 	targetStore, err := newTargetStore(cacheDB, cacheKey)
 	if err != nil {
 		return nil, err
 	}
-	c := &Client{
-		orgID:               orgID,
-		configUserEnabled:   configUserEnabled,
-		configLocalStore:    localStoreConfig,
-		configRemoteStore:   newRemoteStoreConfig(targetStore),
-		directorLocalStore:  localStoreDirector,
-		directorRemoteStore: newRemoteStoreDirector(targetStore),
-		targetStore:         targetStore,
+	director, err := newDirectorRepository(cacheDB, cacheKey, targetStore, meta.RootsDirector())
+	if err != nil {
+		return nil, err
 	}
-	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
-	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
-	if configUserEnabled {
-		configUserLocalStore, err := newLocalStoreConfigUser(cacheDB, cacheKey)
+	datadogConfig, err := newConfigRepository(cacheDB, cacheKey, targetStore, meta.RootsConfig())
+	if err != nil {
+		return nil, err
+	}
+	c := &Client{
+		orgID:             orgID,
+		userConfigEnabled: userConfigEnabled,
+		director:          director,
+		targetStore:       targetStore,
+		datadogConfig:     datadogConfig,
+	}
+	if userConfigEnabled {
+		userRoots, err := meta.RootsConfigUser()
 		if err != nil {
 			return nil, err
 		}
-		c.configUserLocalStore = configUserLocalStore
-		c.configUserRemoteStore = newRemoteStoreConfigUser(targetStore)
-		c.configUserTUFClient = client.NewClient(c.configUserLocalStore, c.configUserRemoteStore)
+		userConfig, err := newConfigRepository(cacheDB, cacheKey, targetStore, userRoots)
+		if err != nil {
+			return nil, err
+		}
+		c.userConfig = userConfig
 	}
 	return c, nil
 }
@@ -100,7 +90,7 @@ func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	root, found, err := c.directorLocalStore.GetRoot(version)
+	root, found, err := c.director.localStore.GetRoot(version)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +105,7 @@ func (c *Client) unsafeTargets() (data.TargetFiles, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.directorTUFClient.Targets()
+	return c.director.tufClient.Targets()
 }
 
 // Targets returns the current targets of this uptane client
@@ -131,7 +121,11 @@ func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	buffer := &bufferDestination{}
-	err = c.configTUFClient.Download(path, buffer)
+	config, err := c.configRepository(path)
+	if err != nil {
+		return nil, err
+	}
+	err = config.tufClient.Download(path, buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +147,7 @@ func (c *Client) TargetsMeta() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	metas, err := c.directorLocalStore.GetMeta()
+	metas, err := c.director.localStore.GetMeta()
 	if err != nil {
 		return nil, err
 	}
@@ -169,19 +163,19 @@ func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
 	if err != nil {
 		return err
 	}
-	c.directorRemoteStore.update(response)
-	c.configRemoteStore.update(response)
-	_, err = c.directorTUFClient.Update()
+	c.director.remoteStore.update(response.DirectorMetas)
+	c.datadogConfig.remoteStore.update(response.ConfigMetas)
+	_, err = c.director.tufClient.Update()
 	if err != nil {
 		return errors.Wrap(err, "failed updating director repository")
 	}
-	_, err = c.configTUFClient.Update()
+	_, err = c.datadogConfig.tufClient.Update()
 	if err != nil {
 		return errors.Wrap(err, "could not update config repository")
 	}
-	if c.configUserEnabled {
-		c.configUserRemoteStore.update(response)
-		_, err = c.configUserTUFClient.Update()
+	if c.userConfigEnabled {
+		c.userConfig.remoteStore.update(response.ConfigUserMetas)
+		_, err = c.userConfig.tufClient.Update()
 		if err != nil {
 			return errors.Wrap(err, "could not update user config repository")
 		}
@@ -189,8 +183,19 @@ func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
 	return nil
 }
 
+func (c *Client) configRepository(path string) (*configRepository, error) {
+	pathMeta, err := rdata.ParseFilePathMeta(path)
+	if err != nil {
+		return nil, err
+	}
+	if c.userConfigEnabled && pathMeta.Source == rdata.SourceUser {
+		return c.userConfig, nil
+	}
+	return c.datadogConfig, nil
+}
+
 func (c *Client) pruneTargetFiles() error {
-	targetFiles, err := c.directorTUFClient.Targets()
+	targetFiles, err := c.director.tufClient.Targets()
 	if err != nil {
 		return err
 	}
@@ -210,7 +215,7 @@ func (c *Client) verify() error {
 }
 
 func (c *Client) verifyOrgID() error {
-	directorTargets, err := c.directorTUFClient.Targets()
+	directorTargets, err := c.director.tufClient.Targets()
 	if err != nil {
 		return err
 	}
@@ -227,20 +232,16 @@ func (c *Client) verifyOrgID() error {
 }
 
 func (c *Client) verifyUptane() error {
-	directorTargets, err := c.directorTUFClient.Targets()
+	directorTargets, err := c.director.tufClient.Targets()
 	if err != nil {
 		return err
 	}
 	for targetPath, targetMeta := range directorTargets {
-		pathMeta, err := rdata.ParseFilePathMeta(targetPath)
+		config, err := c.configRepository(targetPath)
 		if err != nil {
 			return err
 		}
-		selectedConfigClient := c.configTUFClient
-		if pathMeta.Source == rdata.SourceUser && c.configUserEnabled {
-			selectedConfigClient = c.configUserTUFClient
-		}
-		err = verifyUptaneTarget(c.directorTUFClient, selectedConfigClient, targetPath, targetMeta)
+		err = verifyUptaneTarget(c.director.tufClient, config.tufClient, targetPath, targetMeta)
 		if err != nil {
 			return err
 		}

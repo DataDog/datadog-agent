@@ -64,6 +64,11 @@ func RootsConfigUser() (EmbeddedRoots, error) {
 	return nil, fmt.Errorf("missing root for the user self-signed remote-configuration repository")
 }
 
+// First returns the first root the EmbeddedRoots
+func (roots EmbeddedRoots) First() EmbeddedRoot {
+	return roots[1]
+}
+
 // Last returns the last root the EmbeddedRoots
 func (roots EmbeddedRoots) Last() EmbeddedRoot {
 	return roots[roots.LastVersion()]

@@ -79,7 +79,7 @@ func (c *Client) State() (State, error) {
 		TargetFilenames: map[string]string{},
 	}
 
-	configMetas, err := c.configLocalStore.GetMeta()
+	configMetas, err := c.datadogConfig.localStore.GetMeta()
 	if err != nil {
 		return State{}, err
 	}
@@ -89,7 +89,7 @@ func (c *Client) State() (State, error) {
 			s.ConfigState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
 	}
-	directorMetas, err := c.directorLocalStore.GetMeta()
+	directorMetas, err := c.director.localStore.GetMeta()
 	if err != nil {
 		return State{}, err
 	}
@@ -99,8 +99,8 @@ func (c *Client) State() (State, error) {
 			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
 	}
-	if c.configUserEnabled {
-		userConfigMetas, err := c.configUserLocalStore.GetMeta()
+	if c.userConfigEnabled {
+		userConfigMetas, err := c.userConfig.localStore.GetMeta()
 		if err != nil {
 			return State{}, err
 		}

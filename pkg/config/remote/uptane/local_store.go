@@ -36,10 +36,11 @@ type localStore struct {
 }
 
 func newLocalStore(db *bbolt.DB, repository string, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
+	firstRootHash := sha256.Sum256(initialRoots.First())
 	s := &localStore{
 		db:          db,
-		metasBucket: []byte(fmt.Sprintf("%s_%s_metas", cacheKey, repository)),
-		rootsBucket: []byte(fmt.Sprintf("%s_%s_roots", cacheKey, repository)),
+		metasBucket: []byte(fmt.Sprintf("%s_%s_%s_metas", cacheKey, hex.EncodeToString(firstRootHash[:]), repository)),
+		rootsBucket: []byte(fmt.Sprintf("%s_%s_%s_roots", cacheKey, hex.EncodeToString(firstRootHash[:]), repository)),
 	}
 	err := s.init(initialRoots)
 	if err != nil {
@@ -163,21 +164,10 @@ func (s *localStore) GetMetaVersion(metaName string) (uint64, error) {
 	return metaVersion, nil
 }
 
-func newLocalStoreDirector(db *bbolt.DB, cacheKey string) (*localStore, error) {
-	return newLocalStore(db, "director", cacheKey, meta.RootsDirector())
+func newLocalStoreDirector(db *bbolt.DB, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
+	return newLocalStore(db, "director", cacheKey, initialRoots)
 }
 
-func newLocalStoreConfig(db *bbolt.DB, cacheKey string) (*localStore, error) {
-	return newLocalStore(db, "config", cacheKey, meta.RootsConfig())
-}
-
-func newLocalStoreConfigUser(db *bbolt.DB, cacheKey string) (*localStore, error) {
-	userRoots, err := meta.RootsConfigUser()
-	if err != nil {
-		return nil, err
-	}
-	// add the hash of the root key to the cache key to allow smooth rotations of user roots
-	rootHash := sha256.Sum256(userRoots.Last())
-	cacheKey = fmt.Sprintf("%s%s/", cacheKey, hex.EncodeToString(rootHash[:]))
-	return newLocalStore(db, "config_user", cacheKey, userRoots)
+func newLocalStoreConfig(db *bbolt.DB, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
+	return newLocalStore(db, "config", cacheKey, initialRoots)
 }
