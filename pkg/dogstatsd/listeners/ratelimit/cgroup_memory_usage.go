@@ -16,7 +16,7 @@ var _ memoryUsage = (*hostMemoryUsage)(nil)
 
 type cgroupMemoryUsage struct{}
 
-func newCgroupMemory() (*cgroupMemoryUsage, error) {
+func newCgroupMemoryUsage() (*cgroupMemoryUsage, error) {
 	return nil, errors.New("not supported")
 }
 
