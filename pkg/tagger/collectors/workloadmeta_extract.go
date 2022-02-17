@@ -94,6 +94,9 @@ var (
 
 		// Automatically extract git commit sha from image for source code integration
 		"org.opencontainers.image.revision": "git.commit.sha",
+
+		// Automatically extract repository url from image for source code integration
+		"org.opencontainers.image.source": "git.repository_url",
 	}
 
 	highCardOrchestratorLabels = map[string]string{
