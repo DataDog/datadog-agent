@@ -19,7 +19,10 @@ suites:
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
       windows_agent_url: <%= windows_agent_url %>
-      enable_process_agent: true
+      extra_config:
+        process_config:
+          process_collection:
+            enabled: true
 
 - name: "container-collection-test"
   run_list:
