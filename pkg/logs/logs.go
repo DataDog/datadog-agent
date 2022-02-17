@@ -10,10 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -24,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
+	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -122,6 +121,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, err
 	log.Info("logs-agent started")
 
 	agent.AddScheduler(adScheduler.New())
+	agent.AddScheduler(ccaScheduler.New(getAC()))
 
 	// add SNMP traps source forwarding SNMP traps as logs if enabled.
 	if source := config.SNMPTrapsSource(); source != nil {
@@ -129,33 +129,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, err
 		sources.AddSource(source)
 	}
 
-	// adds the source collecting logs from all containers if enabled,
-	// but ensure that it is enabled after the AutoConfig initialization
-	if source := config.ContainerCollectAllSource(); source != nil {
-		go func() {
-			BlockUntilAutoConfigRanOnce(getAC, time.Millisecond*time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
-			log.Debug("Adding ContainerCollectAll source to the Logs Agent")
-			sources.AddSource(source)
-		}()
-	}
-
 	return agent, nil
-}
-
-// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been run once.
-// It also returns after the given timeout.
-func BlockUntilAutoConfigRanOnce(getAC func() *autodiscovery.AutoConfig, timeout time.Duration) {
-	now := time.Now()
-	for {
-		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if getAC().HasRunOnce() {
-			return
-		}
-		if time.Since(now) > timeout {
-			log.Error("BlockUntilAutoConfigRanOnce timeout after", timeout)
-			return
-		}
-	}
 }
 
 // Stop stops properly the logs-agent to prevent data loss,

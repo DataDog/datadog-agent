@@ -59,19 +59,6 @@ var (
 	HTTPConnectivityFailure HTTPConnectivity = false
 )
 
-// ContainerCollectAllSource returns a source to collect all logs from all containers.
-func ContainerCollectAllSource() *LogSource {
-	if coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
-		// source to collect all logs from all containers
-		return NewLogSource(ContainerCollectAll, &LogsConfig{
-			Type:    DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-	}
-	return nil
-}
-
 // SNMPTrapsSource returs a source to forward SNMP traps as logs.
 func SNMPTrapsSource() *LogSource {
 	if traps.IsEnabled() && traps.IsRunning() {
