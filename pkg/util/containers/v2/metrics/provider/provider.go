@@ -49,6 +49,7 @@ var (
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
 		RuntimeNameCRIO,
+		RuntimeNameGarden,
 	}
 	// AllWindowsRuntimes lists all runtimes available on Windows
 	// nolint: deadcode, unused
@@ -141,12 +142,14 @@ func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
 	mp.collectorsLock.Lock()
 	defer mp.collectorsLock.Unlock()
 
+	currentTime := time.Now()
+
 	// Only refresh if last attempt is too old (incl. processing time)
-	if time.Now().Before(mp.lastRetryTimestamp.Add(cacheValidity)) {
+	if currentTime.Sub(mp.lastRetryTimestamp) < cacheValidity {
 		return
 	}
 
-	mp.lastRetryTimestamp = time.Now()
+	mp.lastRetryTimestamp = currentTime
 
 	for _, collectorEntry := range mp.collectors {
 		collector, err := collectorEntry.Factory()

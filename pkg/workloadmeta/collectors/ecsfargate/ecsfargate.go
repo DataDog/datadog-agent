@@ -171,6 +171,14 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 			}
 		}
 
+		var createdAt time.Time
+		if container.CreatedAt != "" {
+			createdAt, err = time.Parse(time.RFC3339, container.CreatedAt)
+			if err != nil {
+				log.Debugf("could not parse creation time '%q' for container %q: %s", container.CreatedAt, container.DockerID, err)
+			}
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceRuntime,
 			Type:   workloadmeta.EventTypeSet,
@@ -185,7 +193,9 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 				NetworkIPs: ips,
 				State: workloadmeta.ContainerState{
 					StartedAt: startedAt,
+					CreatedAt: createdAt,
 					Running:   container.KnownStatus == "RUNNING",
+					Status:    parseStatus(container.KnownStatus),
 				},
 			},
 		})
@@ -223,4 +233,17 @@ func parseRegion(clusterARN string) string {
 	}
 
 	return region
+}
+
+func parseStatus(status string) workloadmeta.ContainerStatus {
+	switch status {
+	case "RUNNING":
+		return workloadmeta.ContainerStatusRunning
+	case "STOPPED":
+		return workloadmeta.ContainerStatusStopped
+	case "PULLED", "CREATED", "RESOURCES_PROVISIONED":
+		return workloadmeta.ContainerStatusCreated
+	}
+
+	return workloadmeta.ContainerStatusUnknown
 }

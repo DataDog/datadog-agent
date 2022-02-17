@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -185,4 +186,73 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	series, sketches := demux.aggregator.checkSamplers[defaultCheckID].flush()
 	require.Len(series, 3)
 	require.Len(sketches, 0)
+}
+
+func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
+	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
+	aa := config.Datadog.GetInt("dogstatsd_pipeline_autoadjust")
+	defer func() {
+		config.Datadog.Set("dogstatsd_pipeline_count", pc)
+		config.Datadog.Set("dogstatsd_pipeline_autoadjust", aa)
+	}()
+
+	assert := assert.New(t)
+
+	// auto-adjust
+
+	config.Datadog.Set("dogstatsd_pipeline_autoadjust", true)
+
+	dsdWorkers, pipelines := getDogStatsDWorkerAndPipelineCount(16)
+	assert.Equal(8, dsdWorkers)
+	assert.Equal(7, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(11)
+	assert.Equal(5, dsdWorkers)
+	assert.Equal(4, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(8)
+	assert.Equal(4, dsdWorkers)
+	assert.Equal(3, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(4)
+	assert.Equal(2, dsdWorkers)
+	assert.Equal(1, pipelines)
+
+	// no auto-adjust
+
+	config.Datadog.Set("dogstatsd_pipeline_autoadjust", false)
+	config.Datadog.Set("dogstatsd_pipeline_count", pc) // default value
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
+	assert.Equal(14, dsdWorkers)
+	assert.Equal(1, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(11)
+	assert.Equal(9, dsdWorkers)
+	assert.Equal(1, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(8)
+	assert.Equal(6, dsdWorkers)
+	assert.Equal(1, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(4)
+	assert.Equal(2, dsdWorkers)
+	assert.Equal(1, pipelines)
+
+	// no auto-adjust + pipeline count
+
+	config.Datadog.Set("dogstatsd_pipeline_autoadjust", false)
+	config.Datadog.Set("dogstatsd_pipeline_count", 4)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
+	assert.Equal(11, dsdWorkers)
+	assert.Equal(4, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(11)
+	assert.Equal(6, dsdWorkers)
+	assert.Equal(4, pipelines)
+
+	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(4)
+	assert.Equal(2, dsdWorkers)
+	assert.Equal(4, pipelines)
 }

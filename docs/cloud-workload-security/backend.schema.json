@@ -94,6 +94,10 @@
           "type": "string",
           "description": "Name of the BPF program"
         },
+        "tag": {
+          "type": "string",
+          "description": "Hash (sha1) of the BPF program"
+        },
         "program_type": {
           "type": "string",
           "description": "Type of the BPF program"
