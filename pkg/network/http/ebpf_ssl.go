@@ -38,6 +38,17 @@ var cryptoProbes = map[string]string{
 	"uretprobe/BIO_new_socket": "uretprobe__BIO_new_socket",
 }
 
+var gnuTLSProbes = map[string]string{
+	"uprobe/gnutls_transport_set_int2": "uprobe__gnutls_transport_set_int2",
+	"uprobe/gnutls_transport_set_ptr":  "uprobe__gnutls_transport_set_ptr",
+	"uprobe/gnutls_transport_set_ptr2": "uprobe__gnutls_transport_set_ptr2",
+	"uprobe/gnutls_record_recv":        "uprobe__gnutls_record_recv",
+	"uretprobe/gnutls_record_recv":     "uretprobe__gnutls_record_recv",
+	"uprobe/gnutls_record_send":        "uprobe__gnutls_record_send",
+	"uprobe/gnutls_bye":                "uprobe__gnutls_bye",
+	"uprobe/gnutls_deinit":             "uprobe__gnutls_deinit",
+}
+
 const (
 	sslSockByCtxMap        = "ssl_sock_by_ctx"
 	sharedLibrariesPerfMap = "shared_libraries"
@@ -47,7 +58,7 @@ const (
 	doSysOpenRet = "kretprobe/do_sys_open"
 )
 
-type openSSLProgram struct {
+type sslProgram struct {
 	cfg         *config.Config
 	sockFDMap   *ebpf.Map
 	perfHandler *ddebpf.PerfHandler
@@ -55,21 +66,21 @@ type openSSLProgram struct {
 	manager     *manager.Manager
 }
 
-var _ subprogram = &openSSLProgram{}
+var _ subprogram = &sslProgram{}
 
-func newOpenSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*openSSLProgram, error) {
+func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*sslProgram, error) {
 	if !c.EnableHTTPSMonitoring {
 		return nil, nil
 	}
 
-	return &openSSLProgram{
+	return &sslProgram{
 		cfg:         c,
 		sockFDMap:   sockFDMap,
 		perfHandler: ddebpf.NewPerfHandler(batchNotificationsChanSize),
 	}, nil
 }
 
-func (o *openSSLProgram) ConfigureManager(m *manager.Manager) {
+func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 	if o == nil {
 		return
 	}
@@ -100,7 +111,7 @@ func (o *openSSLProgram) ConfigureManager(m *manager.Manager) {
 	}
 }
 
-func (o *openSSLProgram) ConfigureOptions(options *manager.Options) {
+func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	if o == nil {
 		return
 	}
@@ -135,7 +146,7 @@ func (o *openSSLProgram) ConfigureOptions(options *manager.Options) {
 	options.MapEditors[string(probes.SockByPidFDMap)] = o.sockFDMap
 }
 
-func (o *openSSLProgram) Start() {
+func (o *sslProgram) Start() {
 	if o == nil {
 		return
 	}
@@ -152,12 +163,17 @@ func (o *openSSLProgram) Start() {
 			registerCB:   addHooks(o.manager, cryptoProbes),
 			unregisterCB: removeHooks(o.manager, cryptoProbes),
 		},
+		soRule{
+			re:           regexp.MustCompile(`libgnutls.so`),
+			registerCB:   addHooks(o.manager, gnuTLSProbes),
+			unregisterCB: removeHooks(o.manager, gnuTLSProbes),
+		},
 	)
 
 	o.watcher.Start()
 }
 
-func (o *openSSLProgram) Stop() {
+func (o *sslProgram) Stop() {
 	if o == nil {
 		return
 	}

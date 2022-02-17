@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -64,7 +65,7 @@ type subprogram interface {
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
 	var bytecode bytecode.AssetReader
 	var err error
-	if c.EnableRuntimeCompiler {
+	if enableRuntimeCompilation(c) {
 		bytecode, err = getRuntimeCompiledHTTP(c)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
@@ -109,14 +110,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	openSSLProgram, _ := newOpenSSLProgram(c, sockFD)
+	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
 		Manager:                mgr,
 		bytecode:               bytecode,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{openSSLProgram},
+		subprograms:            []subprogram{sslProgram},
 	}
 
 	return program, nil
@@ -191,4 +192,20 @@ func (e *ebpfProgram) Close() error {
 		s.Stop()
 	}
 	return err
+}
+
+func enableRuntimeCompilation(c *config.Config) bool {
+	if !c.EnableRuntimeCompiler {
+		return false
+	}
+
+	// The runtime-compiled version of HTTP monitoring requires Kernel 4.6
+	// because we use the `bpf_skb_load_bytes` helper.
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. falling back to pre-compiled program.")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(4, 6, 0)
 }
