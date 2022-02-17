@@ -15,10 +15,10 @@ import (
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/system"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
@@ -33,33 +33,33 @@ func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 
 func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 	return &provider.ContainerCPUStats{
-		Total:            util.UIntToFloatPtr(cpuStats.CPUUsage.TotalUsage),
-		System:           util.UIntToFloatPtr(cpuStats.CPUUsage.UsageInKernelmode),
-		User:             util.UIntToFloatPtr(cpuStats.CPUUsage.UsageInUsermode),
-		ThrottledPeriods: util.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledPeriods),
-		ThrottledTime:    util.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledTime),
+		Total:            pointer.UIntToFloatPtr(cpuStats.CPUUsage.TotalUsage),
+		System:           pointer.UIntToFloatPtr(cpuStats.CPUUsage.UsageInKernelmode),
+		User:             pointer.UIntToFloatPtr(cpuStats.CPUUsage.UsageInUsermode),
+		ThrottledPeriods: pointer.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledPeriods),
+		ThrottledTime:    pointer.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledTime),
 	}
 }
 
 func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
 	containerMemStats := &provider.ContainerMemStats{
-		UsageTotal: util.UIntToFloatPtr(memStats.Usage),
-		Limit:      util.UIntToFloatPtr(memStats.Limit),
-		OOMEvents:  util.UIntToFloatPtr(memStats.Failcnt),
+		UsageTotal: pointer.UIntToFloatPtr(memStats.Usage),
+		Limit:      pointer.UIntToFloatPtr(memStats.Limit),
+		OOMEvents:  pointer.UIntToFloatPtr(memStats.Failcnt),
 	}
 
 	if rss, found := memStats.Stats["rss"]; found {
-		containerMemStats.RSS = util.UIntToFloatPtr(rss)
+		containerMemStats.RSS = pointer.UIntToFloatPtr(rss)
 	}
 
 	if cache, found := memStats.Stats["cache"]; found {
-		containerMemStats.Cache = util.UIntToFloatPtr(cache)
+		containerMemStats.Cache = pointer.UIntToFloatPtr(cache)
 	}
 
 	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2
 	if kernelStack, found := memStats.Stats["kernel_stack"]; found {
 		if slab, found := memStats.Stats["slab"]; found {
-			containerMemStats.KernelMemory = util.UIntToFloatPtr(kernelStack + slab)
+			containerMemStats.KernelMemory = pointer.UIntToFloatPtr(kernelStack + slab)
 		}
 	}
 
@@ -68,10 +68,10 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 
 func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 	containerIOStats := provider.ContainerIOStats{
-		ReadBytes:       util.Float64Ptr(0),
-		WriteBytes:      util.Float64Ptr(0),
-		ReadOperations:  util.Float64Ptr(0),
-		WriteOperations: util.Float64Ptr(0),
+		ReadBytes:       pointer.Float64Ptr(0),
+		WriteBytes:      pointer.Float64Ptr(0),
+		ReadOperations:  pointer.Float64Ptr(0),
+		WriteOperations: pointer.Float64Ptr(0),
 		Devices:         make(map[string]provider.DeviceIOStats),
 	}
 
@@ -91,10 +91,10 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadBytes = util.UIntToFloatPtr(blkioStatEntry.Value)
+			device.ReadBytes = pointer.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.ReadBytes += *device.ReadBytes
 		case "Write":
-			device.WriteBytes = util.UIntToFloatPtr(blkioStatEntry.Value)
+			device.WriteBytes = pointer.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.WriteBytes += *device.WriteBytes
 		}
 
@@ -113,10 +113,10 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadOperations = util.UIntToFloatPtr(blkioStatEntry.Value)
+			device.ReadOperations = pointer.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.ReadOperations += *device.ReadOperations
 		case "Write":
-			device.WriteOperations = util.UIntToFloatPtr(blkioStatEntry.Value)
+			device.WriteOperations = pointer.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.WriteOperations += *device.WriteOperations
 		}
 
@@ -130,7 +130,7 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 func convertPIDStats(pidStats *types.PidsStats) *provider.ContainerPIDStats {
 	return &provider.ContainerPIDStats{
-		ThreadCount: util.UIntToFloatPtr(pidStats.Current),
-		ThreadLimit: util.UIntToFloatPtr(pidStats.Limit),
+		ThreadCount: pointer.UIntToFloatPtr(pidStats.Current),
+		ThreadLimit: pointer.UIntToFloatPtr(pidStats.Limit),
 	}
 }

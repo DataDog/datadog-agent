@@ -134,7 +134,9 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 			Runtime:    workloadmeta.ContainerRuntimePodman,
 			State: workloadmeta.ContainerState{
 				Running:    container.State.State == podman.ContainerStateRunning,
+				Status:     status(container.State.State),
 				StartedAt:  container.State.StartedTime,
+				CreatedAt:  container.State.StartedTime, // CreatedAt not available
 				FinishedAt: container.State.FinishedTime,
 			},
 		},
@@ -229,4 +231,19 @@ func hostname(container *podman.Container) string {
 		return container.Config.ID
 	}
 	return container.Config.ID[:12]
+}
+
+func status(state podman.ContainerStatus) workloadmeta.ContainerStatus {
+	switch state {
+	case podman.ContainerStateConfigured, podman.ContainerStateCreated:
+		return workloadmeta.ContainerStatusCreated
+	case podman.ContainerStateStopping, podman.ContainerStateExited, podman.ContainerStateStopped, podman.ContainerStateRemoving:
+		return workloadmeta.ContainerStatusStopped
+	case podman.ContainerStateRunning:
+		return workloadmeta.ContainerStatusRunning
+	case podman.ContainerStatePaused:
+		return workloadmeta.ContainerStatusPaused
+	}
+
+	return workloadmeta.ContainerStatusUnknown
 }

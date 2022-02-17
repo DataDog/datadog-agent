@@ -88,7 +88,7 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="wait for host tags(~2m)", emoji=":alarm_clock:"):
+        with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
         with Step(msg="upload policies", emoji=":down_arrow:"):
@@ -105,6 +105,12 @@ class TestE2EKubernetes(unittest.TestCase):
                 "system-probe",
                 self.kubernetes_helper,
                 f"Sending event message for rule `{agent_rule_name}`",
+            )
+
+            wait_agent_log(
+                "security-agent",
+                self.kubernetes_helper,
+                "Successfully posted payload to",
             )
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):

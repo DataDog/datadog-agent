@@ -23,6 +23,9 @@ const (
 	// MaxPathDepth defines the maximum depth of a path
 	MaxPathDepth = 1500
 
+	// MaxBpfObjName defines the maximum length of a Bpf object name
+	MaxBpfObjName = 16
+
 	// PathSuffix defines the suffix used for path fields
 	PathSuffix = ".path"
 

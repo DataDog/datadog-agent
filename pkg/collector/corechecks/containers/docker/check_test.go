@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	dockerTypes "github.com/docker/docker/api/types"
@@ -36,9 +36,9 @@ func TestDockerCheckGenericPart(t *testing.T) {
 		generic.CreateContainerMeta("containerd", "cID101"),
 	}
 
-	containersStats := map[string]metrics.MockContainerEntry{
-		"cID100": metrics.GetFullSampleContainerEntry(),
-		"cID101": metrics.GetFullSampleContainerEntry(),
+	containersStats := map[string]mock.ContainerEntry{
+		"cID100": mock.GetFullSampleContainerEntry(),
+		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 
 	// Inject mock processor in check

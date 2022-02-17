@@ -12,9 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestNetworkProcessorExtension(t *testing.T) {
@@ -24,7 +25,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	fakeTagger := local.NewFakeTagger()
 	tagger.SetDefaultTagger(fakeTagger)
 
-	mockCollector := metrics.NewMockCollector("testCollector")
+	mockCollector := mock.NewCollector("testCollector")
 
 	networkProcessor := NewProcessorNetwork()
 
@@ -35,60 +36,60 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	// container5 is using host network (should not report at all)
 	container1 := createContainerMeta("docker", "1")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container1.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container1"}, nil)
-	mockCollector.SetContainerEntry(container1.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
 		NetworkStats: metrics.ContainerNetworkStats{
-			BytesSent:   util.Float64Ptr(12),
-			BytesRcvd:   util.Float64Ptr(12),
-			PacketsSent: util.Float64Ptr(12),
-			PacketsRcvd: util.Float64Ptr(12),
+			BytesSent:   pointer.Float64Ptr(12),
+			BytesRcvd:   pointer.Float64Ptr(12),
+			PacketsSent: pointer.Float64Ptr(12),
+			PacketsRcvd: pointer.Float64Ptr(12),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(12),
-					BytesRcvd:   util.Float64Ptr(12),
-					PacketsSent: util.Float64Ptr(12),
-					PacketsRcvd: util.Float64Ptr(12),
+					BytesSent:   pointer.Float64Ptr(12),
+					BytesRcvd:   pointer.Float64Ptr(12),
+					PacketsSent: pointer.Float64Ptr(12),
+					PacketsRcvd: pointer.Float64Ptr(12),
 				},
 			},
-			NetworkIsolationGroupID: util.UInt64Ptr(100),
-			UsingHostNetwork:        util.BoolPtr(false),
+			NetworkIsolationGroupID: pointer.UInt64Ptr(100),
+			UsingHostNetwork:        pointer.BoolPtr(false),
 		},
 	})
 
 	container2 := createContainerMeta("docker", "2")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container2.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container2"}, nil)
-	mockCollector.SetContainerEntry(container2.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
 		NetworkStats: metrics.ContainerNetworkStats{
-			BytesSent:   util.Float64Ptr(12),
-			BytesRcvd:   util.Float64Ptr(12),
-			PacketsSent: util.Float64Ptr(12),
-			PacketsRcvd: util.Float64Ptr(12),
+			BytesSent:   pointer.Float64Ptr(12),
+			BytesRcvd:   pointer.Float64Ptr(12),
+			PacketsSent: pointer.Float64Ptr(12),
+			PacketsRcvd: pointer.Float64Ptr(12),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(12),
-					BytesRcvd:   util.Float64Ptr(12),
-					PacketsSent: util.Float64Ptr(12),
-					PacketsRcvd: util.Float64Ptr(12),
+					BytesSent:   pointer.Float64Ptr(12),
+					BytesRcvd:   pointer.Float64Ptr(12),
+					PacketsSent: pointer.Float64Ptr(12),
+					PacketsRcvd: pointer.Float64Ptr(12),
 				},
 			},
-			NetworkIsolationGroupID: util.UInt64Ptr(100),
-			UsingHostNetwork:        util.BoolPtr(false),
+			NetworkIsolationGroupID: pointer.UInt64Ptr(100),
+			UsingHostNetwork:        pointer.BoolPtr(false),
 		},
 	})
 
 	container3 := createContainerMeta("docker", "3")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container3.ID), "foo", []string{"low:common"}, []string{"orch:standalone3"}, []string{"id:container3"}, nil)
-	mockCollector.SetContainerEntry(container3.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container3.ID, mock.ContainerEntry{
 		NetworkStats: metrics.ContainerNetworkStats{
-			BytesSent:   util.Float64Ptr(3),
-			BytesRcvd:   util.Float64Ptr(3),
-			PacketsSent: util.Float64Ptr(3),
-			PacketsRcvd: util.Float64Ptr(3),
+			BytesSent:   pointer.Float64Ptr(3),
+			BytesRcvd:   pointer.Float64Ptr(3),
+			PacketsSent: pointer.Float64Ptr(3),
+			PacketsRcvd: pointer.Float64Ptr(3),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(3),
-					BytesRcvd:   util.Float64Ptr(3),
-					PacketsSent: util.Float64Ptr(3),
-					PacketsRcvd: util.Float64Ptr(3),
+					BytesSent:   pointer.Float64Ptr(3),
+					BytesRcvd:   pointer.Float64Ptr(3),
+					PacketsSent: pointer.Float64Ptr(3),
+					PacketsRcvd: pointer.Float64Ptr(3),
 				},
 			},
 		},
@@ -96,43 +97,43 @@ func TestNetworkProcessorExtension(t *testing.T) {
 
 	container4 := createContainerMeta("docker", "4")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container4.ID), "foo", []string{"low:common"}, []string{"orch:standalone4"}, []string{"id:container4"}, nil)
-	mockCollector.SetContainerEntry(container4.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
 		NetworkStats: metrics.ContainerNetworkStats{
-			BytesSent:   util.Float64Ptr(4),
-			BytesRcvd:   util.Float64Ptr(4),
-			PacketsSent: util.Float64Ptr(4),
-			PacketsRcvd: util.Float64Ptr(4),
+			BytesSent:   pointer.Float64Ptr(4),
+			BytesRcvd:   pointer.Float64Ptr(4),
+			PacketsSent: pointer.Float64Ptr(4),
+			PacketsRcvd: pointer.Float64Ptr(4),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(4),
-					BytesRcvd:   util.Float64Ptr(4),
-					PacketsSent: util.Float64Ptr(4),
-					PacketsRcvd: util.Float64Ptr(4),
+					BytesSent:   pointer.Float64Ptr(4),
+					BytesRcvd:   pointer.Float64Ptr(4),
+					PacketsSent: pointer.Float64Ptr(4),
+					PacketsRcvd: pointer.Float64Ptr(4),
 				},
 			},
-			NetworkIsolationGroupID: util.UInt64Ptr(400),
-			UsingHostNetwork:        util.BoolPtr(false),
+			NetworkIsolationGroupID: pointer.UInt64Ptr(400),
+			UsingHostNetwork:        pointer.BoolPtr(false),
 		},
 	})
 
 	container5 := createContainerMeta("docker", "5")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container5.ID), "foo", []string{"low:common"}, []string{"orch:standalone5"}, []string{"id:container5"}, nil)
-	mockCollector.SetContainerEntry(container5.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container5.ID, mock.ContainerEntry{
 		NetworkStats: metrics.ContainerNetworkStats{
-			BytesSent:   util.Float64Ptr(5),
-			BytesRcvd:   util.Float64Ptr(5),
-			PacketsSent: util.Float64Ptr(5),
-			PacketsRcvd: util.Float64Ptr(5),
+			BytesSent:   pointer.Float64Ptr(5),
+			BytesRcvd:   pointer.Float64Ptr(5),
+			PacketsSent: pointer.Float64Ptr(5),
+			PacketsRcvd: pointer.Float64Ptr(5),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(5),
-					BytesRcvd:   util.Float64Ptr(5),
-					PacketsSent: util.Float64Ptr(5),
-					PacketsRcvd: util.Float64Ptr(5),
+					BytesSent:   pointer.Float64Ptr(5),
+					BytesRcvd:   pointer.Float64Ptr(5),
+					PacketsSent: pointer.Float64Ptr(5),
+					PacketsRcvd: pointer.Float64Ptr(5),
 				},
 			},
-			NetworkIsolationGroupID: util.UInt64Ptr(1),
-			UsingHostNetwork:        util.BoolPtr(true),
+			NetworkIsolationGroupID: pointer.UInt64Ptr(1),
+			UsingHostNetwork:        pointer.BoolPtr(true),
 		},
 	})
 

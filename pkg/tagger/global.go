@@ -18,19 +18,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultTagger is the shared tagger instance backing the global Tag and Init functions
-var defaultTagger Tagger
-var initOnce sync.Once
-var initErr error
+var (
+	defaultTagger Tagger
+	initOnce      sync.Once
+	initErr       error
+)
 
 // captureTagger is a tagger instance that contains a tagger that will contain the tagger
 // state when replaying a capture scenario
-var captureTagger Tagger
-var mux sync.RWMutex
+var (
+	captureTagger Tagger
+	mux           sync.RWMutex
+)
 
 // ChecksCardinality defines the cardinality of tags we should send for check metrics
 // this can still be overridden when calling get_tags in python checks.
@@ -96,7 +100,7 @@ func GetEntity(entityID string) (*types.Entity, error) {
 // It can return tags at high cardinality (with tags about individual containers),
 // or at orchestrator cardinality (pod/task level).
 func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	//TODO: defer unlock once performance overhead of defer is negligible
+	// TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
 		tags, err := captureTagger.Tag(entity, cardinality)
@@ -115,7 +119,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
 func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
-	//TODO: defer unlock once performance overhead of defer is negligible
+	// TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
 		err := captureTagger.AccumulateTagsFor(entity, cardinality, tb)
@@ -131,7 +135,6 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 
 // TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
 func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
-
 	tags, err := Tag(entity, cardinality)
 	if err != nil {
 		return tags, "", err
@@ -165,10 +168,13 @@ func StandardTags(entity string) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
-
-	ctrID, err := providers.ContainerImpl().GetAgentCID()
+	ctrID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
+	}
+
+	if ctrID == "" {
+		return nil, nil
 	}
 
 	entityID := containers.BuildTaggerEntityName(ctrID)
@@ -272,7 +278,6 @@ func EnrichTags(tb tagset.TagAccumulator, udsOrigin string, clientOrigin string,
 			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", clientOrigin, err)
 		}
-
 	}
 }
 

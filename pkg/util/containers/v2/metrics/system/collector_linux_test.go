@@ -11,10 +11,11 @@ package system
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	utilsystem "github.com/DataDog/datadog-agent/pkg/util/system"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,79 +37,79 @@ func TestBuildContainerMetrics(t *testing.T) {
 			name: "structs with all stats",
 			cg: &cgroups.MockCgroup{
 				CPU: &cgroups.CPUStats{
-					Total:            util.UInt64Ptr(100),
-					System:           util.UInt64Ptr(200),
-					User:             util.UInt64Ptr(300),
-					Shares:           util.UInt64Ptr(400),
-					ElapsedPeriods:   util.UInt64Ptr(500),
-					ThrottledPeriods: util.UInt64Ptr(0),
-					ThrottledTime:    util.UInt64Ptr(100),
-					CPUCount:         util.UInt64Ptr(10),
-					SchedulerPeriod:  util.UInt64Ptr(100),
-					SchedulerQuota:   util.UInt64Ptr(50),
+					Total:            pointer.UInt64Ptr(100),
+					System:           pointer.UInt64Ptr(200),
+					User:             pointer.UInt64Ptr(300),
+					Shares:           pointer.UInt64Ptr(400),
+					ElapsedPeriods:   pointer.UInt64Ptr(500),
+					ThrottledPeriods: pointer.UInt64Ptr(0),
+					ThrottledTime:    pointer.UInt64Ptr(100),
+					CPUCount:         pointer.UInt64Ptr(10),
+					SchedulerPeriod:  pointer.UInt64Ptr(100),
+					SchedulerQuota:   pointer.UInt64Ptr(50),
 				},
 				Memory: &cgroups.MemoryStats{
-					UsageTotal:   util.UInt64Ptr(100),
-					KernelMemory: util.UInt64Ptr(40),
-					Limit:        util.UInt64Ptr(42000),
-					LowThreshold: util.UInt64Ptr(40000),
-					RSS:          util.UInt64Ptr(300),
-					Cache:        util.UInt64Ptr(200),
-					Swap:         util.UInt64Ptr(0),
-					OOMEvents:    util.UInt64Ptr(10),
+					UsageTotal:   pointer.UInt64Ptr(100),
+					KernelMemory: pointer.UInt64Ptr(40),
+					Limit:        pointer.UInt64Ptr(42000),
+					LowThreshold: pointer.UInt64Ptr(40000),
+					RSS:          pointer.UInt64Ptr(300),
+					Cache:        pointer.UInt64Ptr(200),
+					Swap:         pointer.UInt64Ptr(0),
+					OOMEvents:    pointer.UInt64Ptr(10),
 				},
 				IOStats: &cgroups.IOStats{
-					ReadBytes:       util.UInt64Ptr(100),
-					WriteBytes:      util.UInt64Ptr(200),
-					ReadOperations:  util.UInt64Ptr(10),
-					WriteOperations: util.UInt64Ptr(20),
+					ReadBytes:       pointer.UInt64Ptr(100),
+					WriteBytes:      pointer.UInt64Ptr(200),
+					ReadOperations:  pointer.UInt64Ptr(10),
+					WriteOperations: pointer.UInt64Ptr(20),
 					// Device will be ignored as no matching device name
 					Devices: map[string]cgroups.DeviceIOStats{
 						"foo": {
-							ReadBytes:       util.UInt64Ptr(100),
-							WriteBytes:      util.UInt64Ptr(200),
-							ReadOperations:  util.UInt64Ptr(10),
-							WriteOperations: util.UInt64Ptr(20),
+							ReadBytes:       pointer.UInt64Ptr(100),
+							WriteBytes:      pointer.UInt64Ptr(200),
+							ReadOperations:  pointer.UInt64Ptr(10),
+							WriteOperations: pointer.UInt64Ptr(20),
 						},
 					},
 				},
 				PIDStats: &cgroups.PIDStats{
-					HierarchicalThreadCount: util.UInt64Ptr(10),
-					HierarchicalThreadLimit: util.UInt64Ptr(20),
+					HierarchicalThreadCount: pointer.UInt64Ptr(10),
+					HierarchicalThreadLimit: pointer.UInt64Ptr(20),
 				},
 				PIDs: []int{4, 2},
 			},
 			want: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Total:            util.Float64Ptr(100),
-					System:           util.Float64Ptr(200),
-					User:             util.Float64Ptr(300),
-					Shares:           util.Float64Ptr(400),
-					Limit:            util.Float64Ptr(50),
-					ElapsedPeriods:   util.Float64Ptr(500),
-					ThrottledPeriods: util.Float64Ptr(0),
-					ThrottledTime:    util.Float64Ptr(100),
+					Total:            pointer.Float64Ptr(100),
+					System:           pointer.Float64Ptr(200),
+					User:             pointer.Float64Ptr(300),
+					Shares:           pointer.Float64Ptr(400),
+					Limit:            pointer.Float64Ptr(50),
+					ElapsedPeriods:   pointer.Float64Ptr(500),
+					ThrottledPeriods: pointer.Float64Ptr(0),
+					ThrottledTime:    pointer.Float64Ptr(100),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal:   util.Float64Ptr(100),
-					KernelMemory: util.Float64Ptr(40),
-					Limit:        util.Float64Ptr(42000),
-					Softlimit:    util.Float64Ptr(40000),
-					RSS:          util.Float64Ptr(300),
-					Cache:        util.Float64Ptr(200),
-					Swap:         util.Float64Ptr(0),
-					OOMEvents:    util.Float64Ptr(10),
+					UsageTotal:   pointer.Float64Ptr(100),
+					KernelMemory: pointer.Float64Ptr(40),
+					Limit:        pointer.Float64Ptr(42000),
+					Softlimit:    pointer.Float64Ptr(40000),
+					RSS:          pointer.Float64Ptr(300),
+					Cache:        pointer.Float64Ptr(200),
+					Swap:         pointer.Float64Ptr(0),
+					OOMEvents:    pointer.Float64Ptr(10),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       util.Float64Ptr(100),
-					WriteBytes:      util.Float64Ptr(200),
-					ReadOperations:  util.Float64Ptr(10),
-					WriteOperations: util.Float64Ptr(20),
+					ReadBytes:       pointer.Float64Ptr(100),
+					WriteBytes:      pointer.Float64Ptr(200),
+					ReadOperations:  pointer.Float64Ptr(10),
+					WriteOperations: pointer.Float64Ptr(20),
 				},
 				PID: &provider.ContainerPIDStats{
 					PIDs:        []int{4, 2},
-					ThreadCount: util.Float64Ptr(10),
-					ThreadLimit: util.Float64Ptr(20),
+					ThreadCount: pointer.Float64Ptr(10),
+					ThreadLimit: pointer.Float64Ptr(20),
 				},
 			},
 		},
@@ -116,12 +117,12 @@ func TestBuildContainerMetrics(t *testing.T) {
 			name: "limit cpu count no quota",
 			cg: &cgroups.MockCgroup{
 				CPU: &cgroups.CPUStats{
-					CPUCount: util.UInt64Ptr(10),
+					CPUCount: pointer.UInt64Ptr(10),
 				},
 			},
 			want: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: util.Float64Ptr(1000),
+					Limit: pointer.Float64Ptr(1000),
 				},
 				PID: &provider.ContainerPIDStats{},
 			},
@@ -133,7 +134,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 			},
 			want: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: util.Float64Ptr(float64(utilsystem.HostCPUCount()) * 100),
+					Limit: pointer.Float64Ptr(float64(utilsystem.HostCPUCount()) * 100),
 				},
 				PID: &provider.ContainerPIDStats{},
 			},

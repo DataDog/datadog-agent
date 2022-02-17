@@ -22,8 +22,8 @@ import (
 )
 
 // ReadCgroupReferences returns all cgroups paths for pid
-func ReadCgroupReferences(procPath string, pid int) (string, error) {
-	cgPath := filepath.Join(procPath, strconv.Itoa(pid), procCgroupFile)
+func ReadCgroupReferences(procPath string, pid string) (string, error) {
+	cgPath := filepath.Join(procPath, pid, procCgroupFile)
 	content, err := ioutil.ReadFile(cgPath)
 	if err != nil {
 		return "", err
