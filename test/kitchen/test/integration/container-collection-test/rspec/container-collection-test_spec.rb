@@ -20,5 +20,6 @@ describe 'a Process Agent with Container Collection enabled' do
     end
     it 'is running the container check' do
         expect(check_enabled?("container")).to be_truthy
+        expect(check_enabled?("rtcontainer")).to be_truthy
     end
 end

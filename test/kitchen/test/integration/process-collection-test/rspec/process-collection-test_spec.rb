@@ -20,5 +20,6 @@ describe 'a Process Agent with Process Collection enabled' do
     end
     it 'is running the process check' do
         expect(check_enabled?("process")).to be_truthy
+        expect(check_enabled?("rtprocess")).to be_truthy
     end
 end
