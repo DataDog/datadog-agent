@@ -75,7 +75,7 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	var listeners []Listener
 
 	for _, config := range flowConfigs.configs {
-		listener, err := startSNMPv2Listener(config, demultiplexer)
+		listener, err := startFlowListeners(config, demultiplexer)
 		if err != nil {
 			log.Warn("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d)", config.FlowType, config.BindHost, config.Port)
 		} else {
@@ -91,7 +91,7 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	return server, nil
 }
 
-func startSNMPv2Listener(listenerConfig ListenerConfig, demultiplexer aggregator.Demultiplexer) (Listener, error) {
+func startFlowListeners(listenerConfig ListenerConfig, demultiplexer aggregator.Demultiplexer) (Listener, error) {
 	log.Warn("Starting Netflow Server")
 	//agg := demultiplexer.Aggregator()
 	sender, err := demultiplexer.GetDefaultSender()
