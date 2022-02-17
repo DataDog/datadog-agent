@@ -8,9 +8,8 @@
 ---
 upgrade:
   - |
-    The OTLP ingest endpoint is now considered public beta to be on par with current OpenTelemetry
-    Collector Receiver status. The configuration for it needs no longer be part of the "experimental"
-    config section.
+    The OTLP ingest endpoint is now considered stable for traces.
+    The configuration for it needs no longer be part of the "experimental" config section.
 
     Please note that previously setting "experimental.otlp.grpc_port" together with "apm_config.apm_non_local_traffic"
     would result in the listener being bound to "0.0.0.0" whereas now it will be bound to "localhost" or the value set
