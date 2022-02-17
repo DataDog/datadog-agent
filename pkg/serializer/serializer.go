@@ -82,15 +82,6 @@ func initExtraHeaders() {
 	}
 }
 
-// EventsStreamJSONMarshaler handles two serialization logics.
-type EventsStreamJSONMarshaler interface {
-	// Create a single marshaler.
-	CreateSingleMarshaler() marshaler.StreamJSONMarshaler
-
-	// If the single marshaler cannot serialize, use smaller marshalers.
-	CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler
-}
-
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
 	SendEvents(e metrics.Events) error

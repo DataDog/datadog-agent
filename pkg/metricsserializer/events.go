@@ -128,11 +128,6 @@ func (events Events) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 	return splitPayloads, nil
 }
 
-// MarshalSplitCompress not implemented
-func (events Events) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("Events MarshalSplitCompress is not implemented")
-}
-
 // Implements StreamJSONMarshaler.
 // Each item in StreamJSONMarshaler is composed of all events for a specific source type name.
 type eventsSourceType struct {

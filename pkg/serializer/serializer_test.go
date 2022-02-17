@@ -144,9 +144,6 @@ package serializer
 // func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
 // 	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
 // }
-// func (p *testErrorPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-// 	return nil, fmt.Errorf("some error")
-// }
 
 // func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
 // 	_, err := stream.Write(jsonHeader)

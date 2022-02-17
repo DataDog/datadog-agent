@@ -69,11 +69,6 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.AbstractMarshaler, 
 	return splitPayloads, nil
 }
 
-// MarshalSplitCompress not implemented
-func (sc ServiceChecks) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("ServiceChecks MarshalSplitCompress is not implemented")
-}
-
 //// The following methods implement the StreamJSONMarshaler interface
 //// for support of the enable_service_checks_stream_payload_serialization option.
 
