@@ -8,4 +8,5 @@
 ---
 enhancements:
   - |
-    Tags configured with `DD_TAGS` or `DD_EXTRA_TAGS` in an ECS Fargate or EKS Fargate environment are now attached to Dogstatsd metrics.
+   OTLP ingest: the ``k8s.pod.uid`` and ``container.id`` semantic conventions
+   are now used for enriching tags in OTLP metrics.

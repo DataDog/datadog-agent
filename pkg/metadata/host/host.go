@@ -218,7 +218,10 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 }
 
 func getLogsMeta() *LogsMeta {
-	return &LogsMeta{Transport: string(status.CurrentTransport)}
+	return &LogsMeta{
+		Transport:            string(status.CurrentTransport),
+		AutoMultilineEnabled: config.Datadog.GetBool("logs_config.auto_multi_line_detection"),
+	}
 }
 
 // Expose the value of no_proxy_nonexact_match as well as any warnings of proxy behavior change in the metadata payload.
