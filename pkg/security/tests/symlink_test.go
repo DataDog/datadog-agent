@@ -42,6 +42,18 @@ func TestSymlink(t *testing.T) {
 			ID:         "test_symlink_4",
 			Expression: `open.file.path == "{{.Root}}/test4" && process.ancestors.file.path in ["/usr/bin/python3"]`,
 		},
+		{
+			ID:         "test_symlink_5",
+			Expression: `open.file.path in ["{{.Root}}/test5"] && process.ancestors.file.path in ["/usr/bin/python3"]`,
+		},
+		{
+			ID:         "test_symlink_6",
+			Expression: `open.file.path in [~"{{.Root}}/test678*"] && process.ancestors.file.path in ["/usr/bin/python3"]`,
+		},
+		{
+			ID:         "test_symlink_7",
+			Expression: `open.file.path in [~"{{.Root}}/test789*"] && process.ancestors.file.path in [~"/usr/bin/python3.9"]`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -50,15 +62,19 @@ func TestSymlink(t *testing.T) {
 	}
 	defer test.Close()
 
-	time.Sleep(2 * time.Second)
-
 	cmdWrapper, err := newDockerCmdWrapper(test.Root(), "python:3.9")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cmdWrapper.stop()
 
+	waitSymlinkResolution := func() {
+		time.Sleep(2 * time.Second)
+	}
+
 	cmdWrapper.Run(t, "symlink_1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		waitSymlinkResolution()
+
 		testFile, _, err := test.Path("test1")
 		if err != nil {
 			t.Fatal(err)
@@ -83,6 +99,8 @@ func TestSymlink(t *testing.T) {
 	})
 
 	cmdWrapper.Run(t, "symlink_2", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		waitSymlinkResolution()
+
 		testFile, _, err := test.Path("test2")
 		if err != nil {
 			t.Fatal(err)
@@ -107,6 +125,8 @@ func TestSymlink(t *testing.T) {
 	})
 
 	cmdWrapper.Run(t, "symlink_3", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		waitSymlinkResolution()
+
 		testFile, _, err := test.Path("test3")
 		if err != nil {
 			t.Fatal(err)
@@ -131,6 +151,8 @@ func TestSymlink(t *testing.T) {
 	})
 
 	cmdWrapper.Run(t, "symlink_4", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		waitSymlinkResolution()
+
 		testFile, _, err := test.Path("test4")
 		if err != nil {
 			t.Fatal(err)
@@ -146,6 +168,84 @@ func TestSymlink(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_symlink_4")
 
 			assert.Equal(t, "/usr/bin/python3.9", event.ProcessContext.Ancestor.Ancestor.Ancestor.PathnameStr, "wrong symlink")
+			assert.Equal(t, testFile, event.Open.File.PathnameStr, "wrong symlink")
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
+
+	cmdWrapper.Run(t, "symlink_5", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		waitSymlinkResolution()
+
+		testFile, _, err := test.Path("test5")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		args := []string{"-c", fmt.Sprintf(`import os; os.system("touch %s")`, testFile)}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/usr/bin/python3", args, envs)
+			return cmd.Run()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_symlink_5")
+
+			assert.Equal(t, "/usr/bin/python3.9", event.ProcessContext.Ancestor.Ancestor.Ancestor.PathnameStr, "wrong symlink")
+			assert.Equal(t, testFile, event.Open.File.PathnameStr, "wrong symlink")
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
+
+	cmdWrapper.Run(t, "symlink_6", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		waitSymlinkResolution()
+
+		testFile, _, err := test.Path("test678_1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		args := []string{"-c", fmt.Sprintf(`import os; os.system("touch %s")`, testFile)}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/usr/bin/python3", args, envs)
+			return cmd.Run()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_symlink_6")
+
+			assert.Equal(t, "/usr/bin/python3.9", event.ProcessContext.Ancestor.Ancestor.Ancestor.PathnameStr, "wrong symlink")
+			assert.Equal(t, testFile, event.Open.File.PathnameStr, "wrong symlink")
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
+
+	cmdWrapper.Run(t, "symlink_7", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		waitSymlinkResolution()
+
+		testFile, _, err := test.Path("test789_1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		args := []string{"-c", fmt.Sprintf(`import os; os.system("touch %s")`, testFile)}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/usr/bin/python3", args, envs)
+			return cmd.Run()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_symlink_7")
+
+			assert.Equal(t, "/usr/bin/python3.9", event.ProcessContext.Ancestor.Ancestor.Ancestor.PathnameStr, fmt.Sprintf("wrong symlink: %v", event))
 			assert.Equal(t, testFile, event.Open.File.PathnameStr, "wrong symlink")
 
 			if !validateExecSchema(t, event) {

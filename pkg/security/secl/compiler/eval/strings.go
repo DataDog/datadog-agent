@@ -14,14 +14,24 @@ import (
 
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
-	scalars         []string
-	patternMatchers []StringMatcher
+	scalars        []string
+	stringMatchers []StringMatcher
 
-	// caches
+	// caches, ensure that the Clone method handle all the caches
 	scalarCache map[string]bool
 	fieldValues []FieldValue
+	exists      map[interface{}]bool
+}
 
-	exists map[interface{}]bool
+// Clone returns a copy of the StringValues object
+func (s *StringValues) Clone() *StringValues {
+	var n StringValues
+
+	for _, value := range s.fieldValues {
+		_ = n.AppendFieldValue(value)
+	}
+
+	return &n
 }
 
 // AppendFieldValue append a FieldValue
@@ -40,10 +50,16 @@ func (s *StringValues) AppendFieldValue(value FieldValue) error {
 
 	switch value.Type {
 	case PatternValueType, RegexpValueType:
-		if err := value.Compile(); err != nil {
+		str, ok := value.Value.(string)
+		if !ok {
+			return fmt.Errorf("invalid pattern `%v`", value)
+		}
+
+		matcher, err := NewStringMatcher(value.Type, str)
+		if err != nil {
 			return err
 		}
-		s.patternMatchers = append(s.patternMatchers, value.StringMatcher)
+		s.stringMatchers = append(s.stringMatchers, matcher)
 	default:
 		str := value.Value.(string)
 		s.scalars = append(s.scalars, str)
@@ -61,13 +77,13 @@ func (s *StringValues) GetScalarValues() []string {
 
 // GetStringMatchers return the pattern matchers
 func (s *StringValues) GetStringMatchers() []StringMatcher {
-	return s.patternMatchers
+	return s.stringMatchers
 }
 
 // SetFieldValues apply field values
 func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
-	s.patternMatchers = s.patternMatchers[:0]
+	s.stringMatchers = s.stringMatchers[:0]
 	s.scalarCache = nil
 	s.exists = nil
 
@@ -80,23 +96,31 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	return nil
 }
 
+// GetFieldValues returns FieldValues
+func (s *StringValues) GetFieldValues() []FieldValue {
+	return s.fieldValues
+}
+
 // AppendScalarValue append a scalar string value
-func (s *StringValues) AppendScalarValue(value string) {
+func (s *StringValues) AppendScalarValue(value string) *FieldValue {
 	if s.scalarCache == nil {
 		s.scalarCache = make(map[string]bool)
 	}
 
 	if s.exists[value] {
-		return
+		return nil
 	}
 	if s.exists == nil {
 		s.exists = make(map[interface{}]bool)
 	}
 	s.exists[value] = true
-
 	s.scalars = append(s.scalars, value)
 	s.scalarCache[value] = true
-	s.fieldValues = append(s.fieldValues, FieldValue{Value: value, Type: ScalarValueType})
+
+	fieldValue := FieldValue{Value: value, Type: ScalarValueType}
+	s.fieldValues = append(s.fieldValues, fieldValue)
+
+	return &fieldValue
 }
 
 // AppendStringEvaluator append a string evalutator
@@ -116,7 +140,7 @@ func (s *StringValues) Matches(value string) bool {
 	if s.scalarCache != nil && s.scalarCache[value] {
 		return true
 	}
-	for _, pm := range s.patternMatchers {
+	for _, pm := range s.stringMatchers {
 		if pm.Matches(value) {
 			return true
 		}
@@ -159,6 +183,8 @@ func (r *RegexpStringMatcher) Matches(value string) bool {
 // GlobStringMatcher defines a glob pattern matcher
 type GlobStringMatcher struct {
 	glob *Glob
+
+	pattern string
 }
 
 // Compile a simple pattern
@@ -172,6 +198,7 @@ func (g *GlobStringMatcher) Compile(pattern string) error {
 		return err
 	}
 	g.glob = glob
+	g.pattern = pattern
 
 	return nil
 }

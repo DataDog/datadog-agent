@@ -122,7 +122,7 @@ func newDockerCmdWrapper(root string, image ...string) (*dockerCmdWrapper, error
 		image:      "ubuntu:focal",
 	}
 
-	if len(image) > 0 {
+	if len(image) > 0 && image[0] != "" {
 		dw.image = image[0]
 	}
 

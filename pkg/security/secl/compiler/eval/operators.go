@@ -7,14 +7,14 @@ package eval
 
 // OpOverrides defines operator override functions
 type OpOverrides struct {
-	StringEquals         func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
-	StringValuesContains func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
-	StringArrayContains  func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
-	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+	StringEquals         func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error)
+	StringValuesContains func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error)
+	StringArrayContains  func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error)
+	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error)
 }
 
 // return whether a arithmetic operation is deterministic
-func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
+func isArithmDeterministic(a Evaluator, b Evaluator, state *RuleState) bool {
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
 	if aField := a.GetField(); aField != "" && state.field != "" && aField != state.field {
@@ -28,7 +28,7 @@ func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
 }
 
 // IntNot - ^int operator
-func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
+func IntNot(a *IntEvaluator, opts *Opts, state *RuleState) *IntEvaluator {
 	isDc := a.IsDeterministicFor(state.field)
 
 	if a.EvalFnc != nil {
@@ -53,7 +53,7 @@ func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 }
 
 // StringEquals evaluates string
-func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	var arrayOp func(a string, b string) bool
@@ -100,7 +100,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.EvalFnc, b.Value
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType, StringMatcher: b.stringMatcher}); err != nil {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType}); err != nil {
 				return nil, err
 			}
 		}
@@ -119,7 +119,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, StringMatcher: a.stringMatcher}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType}); err != nil {
 			return nil, err
 		}
 	}
@@ -136,7 +136,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 }
 
 // Not - !true operator
-func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
+func Not(a *BoolEvaluator, opts *Opts, state *RuleState) *BoolEvaluator {
 	isDc := a.IsDeterministicFor(state.field)
 
 	if a.EvalFnc != nil {
@@ -165,7 +165,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 }
 
 // Minus - -int operator
-func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
+func Minus(a *IntEvaluator, opts *Opts, state *RuleState) *IntEvaluator {
 	isDc := a.IsDeterministicFor(state.field)
 
 	if a.EvalFnc != nil {
@@ -190,7 +190,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 }
 
 // StringArrayContains evaluates array of strings against a value
-func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a string, b []string) bool {
@@ -271,7 +271,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, StringMatcher: a.stringMatcher}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType}); err != nil {
 			return nil, err
 		}
 	}
@@ -293,7 +293,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 }
 
 // StringValuesContains evaluates a string against values
-func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -358,7 +358,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 }
 
 // StringArrayMatches weak comparison, a least one element of a should be in b. a can't contain regexp
-func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a []string, b *StringValues) bool {
@@ -430,7 +430,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 }
 
 // IntArrayMatches weak comparison, a least one element of a should be in b
-func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a []int, b []int) bool {
@@ -504,7 +504,7 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 }
 
 // ArrayBoolContains evaluates array of bool against a value
-func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a bool, b []bool) bool {

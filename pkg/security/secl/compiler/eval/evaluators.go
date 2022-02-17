@@ -16,7 +16,7 @@ type Evaluator interface {
 	Eval(ctx *Context) interface{}
 	IsDeterministicFor(field Field) bool
 	GetField() string
-	IsScalar() bool
+	IsStatic() bool
 }
 
 // BoolEvaluator returns a bool as result of the evaluation
@@ -46,8 +46,8 @@ func (b *BoolEvaluator) GetField() string {
 	return b.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (b *BoolEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (b *BoolEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
 }
 
@@ -79,8 +79,8 @@ func (i *IntEvaluator) GetField() string {
 	return i.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (i *IntEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (i *IntEvaluator) IsStatic() bool {
 	return i.EvalFnc == nil
 }
 
@@ -114,8 +114,8 @@ func (s *StringEvaluator) GetField() string {
 	return s.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (s *StringEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
@@ -169,8 +169,8 @@ func (s *StringArrayEvaluator) GetField() string {
 	return s.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (s *StringArrayEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringArrayEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
@@ -204,8 +204,8 @@ func (s *StringValuesEvaluator) GetField() string {
 	return ""
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (s *StringValuesEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringValuesEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
@@ -280,8 +280,8 @@ func (i *IntArrayEvaluator) GetField() string {
 	return i.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (i *IntArrayEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (i *IntArrayEvaluator) IsStatic() bool {
 	return i.EvalFnc == nil
 }
 
@@ -317,7 +317,7 @@ func (b *BoolArrayEvaluator) GetField() string {
 	return b.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (b *BoolArrayEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (b *BoolArrayEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
 }

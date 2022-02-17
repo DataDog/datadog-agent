@@ -107,7 +107,9 @@ func combineBitmasks(bitmasks []int) []int {
 
 func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) {
 	var filterValues []FilterValues
-	for field, fValues := range rule.GetEvaluator().FieldValues {
+	for _, field := range rule.GetFields() {
+		fValues := rule.GetFieldValues(field)
+
 		// case where there is no static value, ex: process.gid == process.uid
 		// so generate fake value in order to be able to get the truth table
 		// note that we want to have the comparison returning true
@@ -235,10 +237,6 @@ func combineFilterValues(filterValues []FilterValues) []FilterValues {
 
 func newTruthTable(rule *eval.Rule, event eval.Event) (*truthTable, error) {
 	ctx := eval.NewContext(event.GetPointer())
-
-	if len(rule.GetEvaluator().FieldValues) == 0 {
-		return nil, nil
-	}
 
 	filterValues, err := genFilterValues(rule, event)
 	if err != nil {

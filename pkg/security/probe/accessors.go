@@ -8682,6 +8682,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "splice.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Splice.File)

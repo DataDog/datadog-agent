@@ -11,8 +11,8 @@ type registerInfo struct {
 	subFields map[Field]bool
 }
 
-// State defines the current state of the rule compilation
-type State struct {
+// RuleState defines the current state of the rule compilation
+type RuleState struct {
 	model         Model
 	field         Field
 	events        map[EventType]bool
@@ -22,14 +22,14 @@ type State struct {
 }
 
 // UpdateFields updates the fields used in the rule
-func (s *State) UpdateFields(field Field) {
+func (s *RuleState) UpdateFields(field Field) {
 	if _, ok := s.fieldValues[field]; !ok {
 		s.fieldValues[field] = []FieldValue{}
 	}
 }
 
 // UpdateFieldValues updates the field values
-func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
+func (s *RuleState) UpdateFieldValues(field Field, value FieldValue) error {
 	values, ok := s.fieldValues[field]
 	if !ok {
 		values = []FieldValue{}
@@ -39,11 +39,27 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	return s.model.ValidateField(field, value)
 }
 
-func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
+// GetFields returns all the Field that the state handles
+func (s *RuleState) GetFields() []Field {
+	fields := make([]Field, len(s.fieldValues))
+	i := 0
+	for key := range s.fieldValues {
+		fields[i] = key
+		i++
+	}
+	return fields
+}
+
+// GetFieldValues returns the values of the given field
+func (s *RuleState) GetFieldValues(field Field) []FieldValue {
+	return s.fieldValues[field]
+}
+
+func newRuleState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *RuleState {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
-	return &State{
+	return &RuleState{
 		field:         field,
 		macros:        macros,
 		model:         model,

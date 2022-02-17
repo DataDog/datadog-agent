@@ -59,7 +59,7 @@ type ident struct {
 	Ident *string
 }
 
-func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+func identToEvaluator(obj *ident, opts *Opts, state *RuleState) (interface{}, lexer.Position, error) {
 	if accessor, ok := opts.Constants[*obj.Ident]; ok {
 		return accessor, obj.Pos, nil
 	}
@@ -147,7 +147,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	return accessor, obj.Pos, nil
 }
 
-func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+func arrayToEvaluator(array *ast.Array, opts *Opts, state *RuleState) (interface{}, lexer.Position, error) {
 	if len(array.Numbers) != 0 {
 		var evaluator IntArrayEvaluator
 		evaluator.AppendValues(array.Numbers...)
@@ -275,7 +275,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 }
 
 // StringEqualsWrapper makes use of operator overrides
-func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -294,7 +294,7 @@ func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, opts *Opts, sta
 }
 
 // StringArrayContainsWrapper makes use of operator overrides
-func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -313,7 +313,7 @@ func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, opt
 }
 
 // StringValuesContainsWrapper makes use of operator overrides
-func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -330,7 +330,7 @@ func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, o
 }
 
 // StringArrayMatchesWrapper makes use of operator overrides
-func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *RuleState) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -346,7 +346,7 @@ func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator
 	return evaluator, nil
 }
 
-func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+func nodeToEvaluator(obj interface{}, opts *Opts, state *RuleState) (interface{}, lexer.Position, error) {
 	var err error
 	var boolEvaluator *BoolEvaluator
 	var pos lexer.Position

@@ -25,7 +25,7 @@ import (
 // Targets defines the mapping between a path field and all its values
 type Targets struct {
 	Field  eval.Field
-	Values eval.StringValues
+	Values *eval.StringValues
 }
 
 // SymlinkResolver defines a SymlinkResolver
@@ -39,17 +39,20 @@ type SymlinkResolver struct {
 	index    map[string][]*Targets
 	added    map[string]bool
 	root     map[uint64]bool
+
+	state *eval.RuleState
 }
 
 // InitStringValues initialize the symlinks resolution, should be called only during the
 // rules compilations
-func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, field eval.Field, paths ...string) {
+func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, field eval.Field, values *eval.StringValues, state *eval.RuleState) error {
 	target := Targets{
-		Field: field,
+		Field:  field,
+		Values: values.Clone(),
 	}
 
-	for _, path := range paths {
-		target.Values.AppendScalarValue(path)
+	// symlink resolver only works on scalar values. It can't resolve symlinks on patterns like /etc/*
+	for _, path := range target.Values.GetScalarValues() {
 		s.added[path] = true
 
 		targets := s.index[path]
@@ -57,7 +60,17 @@ func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, field eval.Field,
 		s.index[path] = targets
 	}
 
-	s.cache[key] = &target.Values
+	// add field values the the rule state
+	for _, value := range values.GetFieldValues() {
+		if err := state.UpdateFieldValues(field, value); err != nil {
+			return err
+		}
+	}
+
+	s.cache[key] = target.Values
+	s.state = state
+
+	return nil
 }
 
 func (s *SymlinkResolver) rootFingerPrint(root string) uint64 {
@@ -110,7 +123,13 @@ func (s *SymlinkResolver) UpdateSymlinks(root string) {
 
 		s.Lock()
 		for _, target := range targets {
-			target.Values.AppendScalarValue(dest)
+			fieldValue := target.Values.AppendScalarValue(dest)
+			if fieldValue != nil {
+				// we need to update the state to updated the values belonging to a field
+				// as this values will be used for the discarders
+				_ = s.state.UpdateFieldValues(target.Field, *fieldValue)
+			}
+
 			s.added[dest] = true
 
 			if s.OnNewSymlink != nil {

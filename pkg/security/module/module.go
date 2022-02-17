@@ -292,8 +292,8 @@ func (m *Module) Reload() error {
 				}, nil)
 			},
 		}).
-		WithLogger(&seclog.PatternLogger{})
-	WithUserContext(m.probe)
+		WithLogger(&seclog.PatternLogger{}).
+		WithUserContext(m.probe)
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)

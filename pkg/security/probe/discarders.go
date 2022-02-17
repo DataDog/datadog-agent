@@ -288,9 +288,9 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
 				if value.Type == eval.PatternValueType {
-					glob, ok := value.StringMatcher.(*eval.GlobStringMatcher)
-					if !ok {
-						return nil, errors.New("unexpected string matcher")
+					var glob eval.GlobStringMatcher
+					if err := glob.Compile(value.Value.(string)); err != nil {
+						return nil, err
 					}
 
 					valueFnc = func(dirname string) (bool, bool, error) {
@@ -381,8 +381,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 		return false, nil
 	}
 
-	found, err := fnc(dirname)
-	if !found || err != nil {
+	if discarder, err := fnc(dirname); !discarder || err != nil {
 		return false, err
 	}
 
