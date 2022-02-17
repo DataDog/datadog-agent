@@ -41,7 +41,7 @@ func (s *State) ConfigUserRootVersion() uint64 {
 	return meta.Version
 }
 
-// ConfigSnapshotVersion returns the version of the user config snapshot.json file
+// ConfigUserSnapshotVersion returns the version of the user config snapshot.json file
 func (s *State) ConfigUserSnapshotVersion() uint64 {
 	meta, found := s.ConfigUserState[metaSnapshot]
 	if !found {
