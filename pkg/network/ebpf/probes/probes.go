@@ -92,6 +92,11 @@ const (
 	// SockMapFdReturn maps a file descriptor to a kernel sock
 	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
 
+	// IPRouteOutputFlow is the kprobe of an ip_route_output_flow call
+	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
+	// IPRouteOutputFlow is the kretprobe of an ip_route_output_flow call
+	IPRouteOutputFlowReturn ProbeName = "kretprobe/ip_route_output_flow"
+
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
 

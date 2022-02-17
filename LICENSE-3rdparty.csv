@@ -28,7 +28,14 @@ core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc"
+core,github.com/DataDog/ebpf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
 core,github.com/DataDog/ebpf-manager,MIT,Authors of Datadog
+core,github.com/DataDog/ebpf/asm,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/internal,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/internal/btf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/internal/unix,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/manager,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/perf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Datadog, Inc"
 core,github.com/DataDog/gohai/cpu,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/filesystem,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
