@@ -259,6 +259,7 @@ type NetworkDeviceSerializer struct {
 	IfName  string `json:"ifname" jsonschema_description:"ifname is the network interface name"`
 }
 
+// IPPortSerializer is used to serialize an IP and Port context to JSON
 type IPPortSerializer struct {
 	IP   string `json:"ip" jsonschema_description:"IP address"`
 	Port uint16 `json:"port" jsonschema_description:"Port number"`

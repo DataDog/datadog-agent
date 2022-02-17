@@ -10,11 +10,17 @@ package probe
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/vishvananda/netlink"
+
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/gopsutil/process"
@@ -471,4 +477,132 @@ func (nr *NamespaceResolver) SendStats() error {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, lonelyNetworkNamespacesCount, []string{}, 1.0)
 	}
 	return nil
+}
+
+func newTmpFile(prefix string) (*os.File, error) {
+	f, err := os.CreateTemp("/tmp", prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = os.Chmod(f.Name(), 0400); err != nil {
+		return nil, err
+	}
+	return f, err
+}
+
+// NetworkDeviceDump is used to dump a network namespace
+type NetworkDeviceDump struct {
+	IfName  string
+	IfIndex int
+}
+
+// NetworkNamespaceDump is used to dump a network namespce
+type NetworkNamespaceDump struct {
+	NsID           uint32
+	HandleFD       int
+	HandlePath     string
+	LonelyTimeout  time.Time
+	Devices        []NetworkDeviceDump
+	DevicesInQueue []NetworkDeviceDump
+}
+
+func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamespaceDump {
+	nr.RLock()
+	defer nr.RUnlock()
+
+	var handle *os.File
+	var ntl *manager.NetlinkSocket
+	var links []netlink.Link
+	var dump []NetworkNamespaceDump
+	var err error
+
+	// iterate over the list of network namespaces
+	for _, netns := range nr.networkNamespaces {
+		netns.Lock()
+
+		netnsDump := NetworkNamespaceDump{
+			NsID:          netns.nsID,
+			HandleFD:      int(netns.handle.Fd()),
+			HandlePath:    netns.handle.Name(),
+			LonelyTimeout: netns.lonelyTimeout,
+		}
+
+		for _, dev := range netns.networkDevicesQueue {
+			netnsDump.DevicesInQueue = append(netnsDump.DevicesInQueue, NetworkDeviceDump{
+				IfName:  dev.Name,
+				IfIndex: int(dev.IfIndex),
+			})
+		}
+
+		if params.GetSnapshotInterfaces() {
+			handle, err = netns.getNamespaceHandleDup()
+			if err != nil {
+				continue
+			}
+
+			ntl, err = nr.probe.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+			if err == nil {
+				links, err = ntl.Sock.LinkList()
+				if err == nil {
+					for _, link := range links {
+						netnsDump.Devices = append(netnsDump.Devices, NetworkDeviceDump{
+							IfName:  link.Attrs().Name,
+							IfIndex: link.Attrs().Index,
+						})
+					}
+				}
+			}
+
+			handle.Close()
+		}
+
+		netns.Unlock()
+		dump = append(dump, netnsDump)
+	}
+
+	return dump
+}
+
+// DumpNetworkNamespaces dumps the network namespaces held by the namespace resolver
+func (nr *NamespaceResolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams) *api.DumpNetworkNamespaceMessage {
+	resp := &api.DumpNetworkNamespaceMessage{}
+	dump := nr.dump(params)
+
+	// create the dump file
+	dumpFile, err := newTmpFile("network-namespace-dump-*.json")
+	if err != nil {
+		resp.Error = fmt.Sprintf("couldn't create temporary file: %v", err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+	defer dumpFile.Close()
+	resp.DumpFilename = dumpFile.Name()
+
+	// dump to JSON file
+	encoder := json.NewEncoder(dumpFile)
+	if err = encoder.Encode(dump); err != nil {
+		resp.Error = fmt.Sprintf("couldn't encode list of network namespace: %v", err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+
+	// create graph file
+	graphFile, err := newTmpFile("network-namespace-graph-*.dot")
+	if err != nil {
+		resp.Error = fmt.Sprintf("couldn't create temporary file: %v", err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+	defer graphFile.Close()
+	resp.GraphFilename = graphFile.Name()
+
+	// generate dot graph
+	if err = nr.generateGraph(dump, graphFile); err != nil {
+		resp.Error = fmt.Sprintf("couldn't generate dot graph: %v", err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+
+	return resp
 }

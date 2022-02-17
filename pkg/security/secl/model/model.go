@@ -751,6 +751,7 @@ type NetworkDeviceContext struct {
 	IfName  string `field:"ifname,ResolveNetworkDeviceIfName"` // interface ifname
 }
 
+// IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
 	IP   net.IP `field:"-"`
 	Port uint16 `field:"port"` // Port number
