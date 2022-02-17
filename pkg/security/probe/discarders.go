@@ -342,7 +342,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 			}
 		}
 
-		return true, nil
+		return len(valueFncs) > 0, nil
 	}
 	id.parentDiscarderFncs[depth-1][field] = fnc
 
