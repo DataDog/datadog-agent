@@ -47,7 +47,6 @@ tailers
 
 The logs agent maintains a collection of *schedulers*, which are responsible for managing logs sources and logs services.
 Schedulers add and remove sources and services dynamically during agent runtime.
-Schedulers can be implemented outside of the logs-agent, but some built-in schedulers are in sub-packages of `pkg/logs/schedulers`.
 
 A *Source* is an integration with LogsConfig that describes a source of log messages to be handled.
 A *Service* is a container, used to support `container_collect_all`.
@@ -55,8 +54,10 @@ A *Service* is a container, used to support `container_collect_all`.
 Sources and services go into separate stores of active sources and active services.
 The remaining components of the logs agent subscribe to these stores and take appropriate action.
 
+Schedulers can be implemented outside of the logs-agent, but some built-in schedulers are in sub-packages of `pkg/logs/schedulers`.
+One particularly important scheduler is the *AD scheduler* in `pkg/logs/schedulers/ad`.
 The Autodiscovery component (`pkg/autodiscovery`) provides a sequence of configs (`integration.Config`) to the AD scheduler.
-This scheduler categorizes each config as either a source or a service and submits it accordingly.
+The AD scheduler categorizes each config as either a source or a service and submits it accordingly.
 
 #### Launchers
 
