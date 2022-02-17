@@ -10,14 +10,13 @@ package http
 
 import (
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 type httpStatKeeper struct {
 	stats      map[Key]RequestStats
-	incomplete *incompleteBuffer
+	incomplete map[Key]httpTX
 	maxEntries int
 	telemetry  *telemetry
 
@@ -35,7 +34,7 @@ type httpStatKeeper struct {
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
 		stats:        make(map[Key]RequestStats),
-		incomplete:   newIncompleteBuffer(c, telemetry),
+		incomplete:   make(map[Key]httpTX),
 		maxEntries:   c.MaxHTTPStatsBuffered,
 		replaceRules: c.HTTPReplaceRules,
 		buffer:       make([]byte, HTTPBufferSize),
@@ -47,22 +46,20 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 func (h *httpStatKeeper) Process(transactions []httpTX) {
 	for _, tx := range transactions {
 		if tx.Incomplete() {
-			h.incomplete.Add(tx)
+			h.handleIncomplete(tx)
 			continue
 		}
 
 		h.add(tx)
 	}
+
+	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {
-	for _, tx := range h.incomplete.Flush(time.Now()) {
-		h.add(*tx)
-	}
-
-	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
 	h.stats = make(map[Key]RequestStats)
+	h.incomplete = make(map[Key]httpTX)
 	h.interned = make(map[string]string)
 	return ret
 }
@@ -83,6 +80,50 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 	stats.AddRequest(tx.StatusClass(), tx.RequestLatency(), tx.Tags())
 	h.stats[key] = stats
+}
+
+// handleIncomplete is responsible for handling incomplete transactions
+// (eg. httpTX objects that have either only the request or response information)
+// this happens only in the context of localhost traffic with NAT and these disjoint
+// parts of the transactions are joined here by src port
+func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
+	key := Key{
+		SrcIPHigh: uint64(tx.tup.saddr_h),
+		SrcIPLow:  uint64(tx.tup.saddr_l),
+		SrcPort:   uint16(tx.tup.sport),
+	}
+
+	otherHalf, ok := h.incomplete[key]
+	if !ok {
+		if len(h.incomplete) >= h.maxEntries {
+			atomic.AddInt64(&h.telemetry.dropped, 1)
+		} else {
+			h.incomplete[key] = tx
+		}
+
+		return
+	}
+
+	request, response := tx, otherHalf
+	if response.StatusClass() == 0 {
+		request, response = response, request
+	}
+
+	if request.request_started == 0 || response.response_status_code == 0 || request.request_started > response.response_last_seen {
+		// This means we can't join these parts as they don't belong to the same transaction.
+		// In this case, as a best-effort we override the incomplete entry with the latest one
+		// we got from eBPF, so it can be joined by it's other half at a later moment.
+		// This can happen because we can get out-of-order half transactions from eBPF
+		atomic.AddInt64(&h.telemetry.dropped, 1)
+		h.incomplete[key] = tx
+		return
+	}
+
+	// Merge response into request
+	request.response_status_code = response.response_status_code
+	request.response_last_seen = response.response_last_seen
+	h.add(request)
+	delete(h.incomplete, key)
 }
 
 func (h *httpStatKeeper) newKey(tx httpTX, path string) Key {
