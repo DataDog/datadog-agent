@@ -14,10 +14,10 @@ import (
 // Driver desc
 type Driver struct {
 	sender aggregator.Sender
-	config *Config
+	config ListenerConfig
 }
 
-func NewFlowDriver(sender aggregator.Sender, config *Config) *Driver {
+func NewFlowDriver(sender aggregator.Sender, config ListenerConfig) *Driver {
 	return &Driver{sender: sender, config: config}
 }
 

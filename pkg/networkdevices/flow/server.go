@@ -19,8 +19,26 @@ import (
 type Server struct {
 	Addr          string
 	config        *Config
-	listener      *utils.StateNetFlow
+	listeners     []Listener
 	demultiplexer aggregator.Demultiplexer
+}
+
+type Listener struct {
+	flowState interface{}
+	config    ListenerConfig
+}
+
+func (l Listener) Shutdown() {
+	switch state := l.flowState.(type) {
+	case utils.StateNetFlow:
+		state.Shutdown()
+	case utils.StateSFlow:
+		state.Shutdown()
+	case utils.StateNFLegacy:
+		state.Shutdown()
+	default:
+		log.Warn("Unknown flow listener state (%v) for %s", state, l.config.Addr())
+	}
 }
 
 var (
@@ -49,33 +67,40 @@ func IsRunning() bool {
 
 // NewNetflowServer configures and returns a running SNMP traps server.
 func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
-	config, err := ReadConfig()
+	flowConfigs, err := ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	listener, err := startSNMPv2Listener(config, demultiplexer)
-	if err != nil {
-		return nil, err
+	var listeners []Listener
+
+	for _, config := range flowConfigs.configs {
+		listener, err := startSNMPv2Listener(config, demultiplexer)
+		if err != nil {
+			log.Warn("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d)", config.FlowType, config.BindHost, config.Port)
+		}
+		listeners = append(listeners, Listener{
+			flowState: listener,
+			config:    config,
+		})
 	}
 
 	server := &Server{
-		listener:      listener,
-		config:        config,
+		listeners:     listeners,
 		demultiplexer: demultiplexer,
 	}
 
 	return server, nil
 }
 
-func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*utils.StateNetFlow, error) {
+func startSNMPv2Listener(listenerConfig ListenerConfig, demultiplexer aggregator.Demultiplexer) (*utils.StateNetFlow, error) {
 	log.Warn("Starting Netflow Server")
 	//agg := demultiplexer.Aggregator()
 	sender, err := demultiplexer.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}
-	ndmFlowDriver := NewFlowDriver(sender, c)
+	ndmFlowDriver := NewFlowDriver(sender, listenerConfig)
 
 	logger := logrus.StandardLogger()
 	logger.SetLevel(logrus.TraceLevel)
@@ -83,8 +108,8 @@ func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*ut
 		Format: ndmFlowDriver,
 		Logger: logger,
 	}
-	hostname := c.BindHost
-	port := c.Port
+	hostname := listenerConfig.BindHost
+	port := listenerConfig.Port
 	reusePort := false
 	go func() {
 		log.Errorf("Starting FlowRoutine...")
@@ -100,18 +125,22 @@ func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*ut
 
 // Stop stops the Server.
 func (s *Server) Stop() {
-	log.Infof("Stop listening on %s", s.config.Addr())
-	stopped := make(chan interface{})
+	for _, listener := range s.listeners {
+		// TODO: shutdown concurrently
 
-	go func() {
-		log.Infof("Stop listening on %s", s.config.Addr())
-		s.listener.Shutdown()
-		close(stopped)
-	}()
+		log.Infof("Stop listening on %s", listener.config.Addr())
+		stopped := make(chan interface{})
 
-	select {
-	case <-stopped:
-	case <-time.After(time.Duration(s.config.StopTimeout) * time.Second):
-		log.Errorf("Stopping server. Timeout after %d seconds", s.config.StopTimeout)
+		go func() {
+			log.Infof("Stop listening on %s", listener.config.Addr())
+			listener.Shutdown()
+			close(stopped)
+		}()
+
+		select {
+		case <-stopped:
+		case <-time.After(time.Duration(s.config.StopTimeout) * time.Second):
+			log.Errorf("Stopping server. Timeout after %d seconds", s.config.StopTimeout)
+		}
 	}
 }

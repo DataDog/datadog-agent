@@ -22,14 +22,18 @@ func IsEnabled() bool {
 type Config struct {
 	configs     []ListenerConfig `mapstructure:"configs" yaml:"configs"`
 	StopTimeout int              `mapstructure:"stop_timeout" yaml:"stop_timeout"`
-	SendEvents  bool             `mapstructure:"send_events" yaml:"send_events"`
-	SendMetrics bool             `mapstructure:"send_metrics" yaml:"send_metrics"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
 type ListenerConfig struct {
+	// TODO: Need both mapstructure and yaml ?
+	FlowType uint16 `mapstructure:"flow_type" yaml:"flow_type"`
 	Port     uint16 `mapstructure:"port" yaml:"port"`
 	BindHost string `mapstructure:"bind_host" yaml:"bind_host"`
+
+	// TODO: remove after dev stage
+	SendEvents  bool `mapstructure:"send_events" yaml:"send_events"`
+	SendMetrics bool `mapstructure:"send_metrics" yaml:"send_metrics"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
@@ -61,6 +65,6 @@ func ReadConfig() (*Config, error) {
 }
 
 // Addr returns the host:port address to listen on.
-func (c *Config) Addr() string {
+func (c *ListenerConfig) Addr() string {
 	return fmt.Sprintf("%s:%d", c.BindHost, c.Port)
 }
