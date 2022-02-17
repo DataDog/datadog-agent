@@ -108,7 +108,7 @@ func (s *PrioritySampler) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.Span, tracerEnv string, clientDroppedP0s bool) bool {
+func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.Span, tracerEnv string, clientDroppedP0sWeight float64) bool {
 	// Extra safety, just in case one trace is empty
 	if len(trace.Spans) == 0 {
 		return false
@@ -129,56 +129,38 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	if samplingPriority > 1 {
 		return sampled
 	}
-	// short-circuiting root P0 trace chunks that the client passed. The sig is already taken in account
-	// in CountWeightedSig below. This chunk will likely be sampled by the ExceptionSampler
-	if clientDroppedP0s && samplingPriority == 0 && root.ParentID == 0 {
-		return sampled
-	}
 
 	signature := s.catalog.register(ServiceSignature{Name: root.Service, Env: toSamplerEnv(tracerEnv, s.agentEnv)})
 
 	// Update sampler state by counting this trace
-	s.countSignature(now, root, signature)
+	s.countSignature(now, root, signature, clientDroppedP0sWeight)
 
 	if sampled {
 		rate := s.applyRate(sampled, root, signature)
-		s.countSampled(now, root, clientDroppedP0s, signature, rate)
+		s.countSampled(now, root, signature, rate)
 	}
 	return sampled
 }
 
 // countSignature counts all chunks received with local chunk root signature.
-func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature) {
-	newRates := s.localRates.countWeightedSig(now, signature, 1)
+func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature, clientDroppedP0Weight float64) {
+	newRates := s.localRates.countWeightedSig(now, signature, 1+float32(clientDroppedP0Weight))
 	if newRates {
 		s.updateRates()
 	}
 
 	// remoteRates only considers root spans
 	if s.remoteRates != nil && root.ParentID == 0 {
-		s.remoteRates.countWeightedSig(now, signature, 1)
+		s.remoteRates.countWeightedSig(now, signature, 1+float32(clientDroppedP0Weight))
 	}
 }
 
 // countSampled counts sampled chunks with local chunk root signature.
-func (s *PrioritySampler) countSampled(now time.Time, root *pb.Span, clientDroppedP0s bool, signature Signature, rate float64) {
+func (s *PrioritySampler) countSampled(now time.Time, root *pb.Span, signature Signature, rate float64) {
 	s.localRates.countSample()
-	// adjust sig score with the expected P0 count for that sig
-	// adjusting this score only matters for root spans
-	if clientDroppedP0s && rate > 0 && rate < 1 {
-		// removing 1 to not count twice the P1 chunk
-		weight := 1/rate - 1
-		s.localRates.countWeightedSig(now, signature, float32(weight))
-	}
-
 	// remoteRates only considers root spans
 	if s.remoteRates != nil && root.ParentID == 0 {
 		s.remoteRates.countSample(root, signature)
-		if clientDroppedP0s && rate > 0 && rate < 1 {
-			// removing 1 to not count twice the P1 chunk
-			weight := 1/rate - 1
-			s.remoteRates.countWeightedSig(now, signature, float32(weight))
-		}
 	}
 }
 

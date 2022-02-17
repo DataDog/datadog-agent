@@ -80,7 +80,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk, root := getTestTraceWithService(t, "my-service", s)
 
 	chunk.Priority = -1
-	sampled := s.Sample(time.Now(), chunk, root, env, false)
+	sampled := s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with negative priority is dropped")
 	assert.Equal(int64(0), s.localRates.totalSeen, "sampling a priority -1 trace should *NOT* impact sampler backend")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority -1 trace should *NOT* impact sampler backend")
@@ -89,7 +89,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk, root = getTestTraceWithService(t, "my-service", s)
 
 	chunk.Priority = 0
-	sampled = s.Sample(time.Now(), chunk, root, env, false)
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with priority 0 is dropped")
 	assert.True(int64(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 0 trace should *NOT* increase sampled score")
@@ -98,7 +98,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk, root = getTestTraceWithService(t, "my-service", s)
 
 	chunk.Priority = 1
-	sampled = s.Sample(time.Now(), chunk, root, env, false)
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 1 is kept")
 	assert.True(int64(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
 	assert.True(int64(0) < s.localRates.totalKept, "sampling a priority 0 trace should increase sampled score")
@@ -107,7 +107,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk, root = getTestTraceWithService(t, "my-service", s)
 
 	chunk.Priority = 2
-	sampled = s.Sample(time.Now(), chunk, root, env, false)
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 2 is kept")
 	assert.Equal(int64(0), s.localRates.totalSeen, "sampling a priority 2 trace should *NOT* increase total score")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 2 trace should *NOT* increase sampled score")
@@ -116,13 +116,13 @@ func TestPrioritySample(t *testing.T) {
 	chunk, root = getTestTraceWithService(t, "my-service", s)
 
 	chunk.Priority = int32(PriorityUserKeep)
-	sampled = s.Sample(time.Now(), chunk, root, env, false)
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with high priority is kept")
 	assert.Equal(int64(0), s.localRates.totalSeen, "sampling a high priority trace should *NOT* increase total score")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a high priority trace should *NOT* increase sampled score")
 
 	chunk.Priority = int32(PriorityNone)
-	sampled = s.Sample(time.Now(), chunk, root, env, false)
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "this should not happen but a trace without priority sampling set should be dropped")
 }
 
@@ -136,7 +136,7 @@ func TestPrioritySamplerWithNilRemote(t *testing.T) {
 	s.updateRates()
 	s.reportStats()
 	chunk, root := getTestTraceWithService(t, "my-service", s)
-	assert.True(t, s.Sample(time.Now(), chunk, root, "", false))
+	assert.True(t, s.Sample(time.Now(), chunk, root, "", 0))
 	s.Stop()
 }
 
@@ -151,13 +151,12 @@ func TestPrioritySamplerWithRemote(t *testing.T) {
 	s.updateRates()
 	s.reportStats()
 	chunk, root := getTestTraceWithService(t, "my-service", s)
-	assert.True(t, s.Sample(time.Now(), chunk, root, "", false))
+	assert.True(t, s.Sample(time.Now(), chunk, root, "", 0))
 	s.Stop()
 }
 
 func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	assert := assert.New(t)
-	rand.Seed(3)
 
 	type testCase struct {
 		targetTPS     float64
@@ -169,18 +168,17 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		expectedTPS   float64
 	}
 	testCases := []testCase{
-		{targetTPS: 5.0, generatedTPS: 50.0, expectedTPS: 5.0, relativeError: 0.2, service: "bim"},
+		{targetTPS: 5.0, generatedTPS: 50.0, expectedTPS: 5.0, relativeError: 0.05, service: "bim"},
 	}
-	/*
-		if !testing.Short() {
-			testCases = append(testCases,
-				testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.2, service: "2"},
-				testCase{targetTPS: 10.0, generatedTPS: 10.0, expectedTPS: 10.0, relativeError: 0.03, service: "4"},
-				testCase{targetTPS: 10.0, generatedTPS: 3.0, expectedTPS: 3.0, relativeError: 0.03, service: "10"},
-				testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.5, service: "0.5"},
-			)
-		}
-	*/
+	if !testing.Short() {
+		testCases = append(testCases,
+			testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.05, service: "2"},
+			testCase{targetTPS: 10.0, generatedTPS: 10.0, expectedTPS: 10.0, relativeError: 0.03, service: "4"},
+			testCase{targetTPS: 10.0, generatedTPS: 3.0, expectedTPS: 3.0, relativeError: 0.03, service: "10"},
+			testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.1, service: "0.5"},
+		)
+	}
+
 	// Duplicate each testcases and use local rates instead of remote rates
 	for i := len(testCases) - 1; i >= 0; i-- {
 		tc := testCases[i]
@@ -188,7 +186,6 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		tc.service = "local" + tc.service
 		testCases = append(testCases, tc)
 	}
-
 	// Duplicate each testcases and consider that agent client drops unsampled spans
 	for i := len(testCases) - 1; i >= 0; i-- {
 		tc := testCases[i]
@@ -206,6 +203,7 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
 	}
 	for _, tc := range testCases {
+		rand.Seed(3)
 		s := getTestPrioritySampler()
 		s.remoteRates = newTestRemoteRates()
 		generatedConfigVersion := uint64(120)
@@ -217,20 +215,24 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		}
 
 		var sampledCount, handledCount int
-		const warmUpDuration, testDuration = 2, 6
+		const warmUpDuration, testDuration = 2, 10
 		testTime := time.Now()
 		for timeElapsed := 0; timeElapsed < warmUpDuration+testDuration; timeElapsed++ {
 			tracesPerPeriod := tc.generatedTPS * bucketDuration.Seconds()
 			testTime = testTime.Add(bucketDuration)
+			var clientDrops int
 			for i := 0; i < int(tracesPerPeriod); i++ {
 				chunk, root := getTestTraceWithService(t, tc.service, s)
 
 				var sampled bool
 				if !tc.clientDrop {
-					sampled = s.Sample(testTime, chunk, root, defaultEnv, false)
+					sampled = s.Sample(testTime, chunk, root, defaultEnv, 0)
 				} else {
 					if prio, _ := GetSamplingPriority(chunk); prio == 1 {
-						sampled = s.Sample(testTime, chunk, root, defaultEnv, true)
+						sampled = s.Sample(testTime, chunk, root, defaultEnv, float64(clientDrops))
+						clientDrops = 0
+					} else {
+						clientDrops++
 					}
 				}
 
@@ -248,6 +250,14 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 
 				if timeElapsed < warmUpDuration {
 					continue
+				}
+
+				// outside of warmUp the rate should match
+				// skipping clientDrop as the feedback loop is different when client drops
+				// seen is actually the last rate sent
+				if !tc.clientDrop {
+					appliedRate := root.Metrics[agentRateKey]
+					assert.InEpsilon(tc.expectedTPS/tc.generatedTPS, appliedRate, 0.0000001)
 				}
 
 				// We track rates stats only when the warm up phase is over

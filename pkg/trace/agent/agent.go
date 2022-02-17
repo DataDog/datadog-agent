@@ -288,12 +288,12 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		pt := traceutil.ProcessedTrace{
-			TraceChunk:       chunk,
-			Root:             root,
-			AppVersion:       p.TracerPayload.AppVersion,
-			TracerEnv:        p.TracerPayload.Env,
-			TracerHostname:   p.TracerPayload.Hostname,
-			ClientDroppedP0s: p.ClientDroppedP0s > 0,
+			TraceChunk:             chunk,
+			Root:                   root,
+			AppVersion:             p.TracerPayload.AppVersion,
+			TracerEnv:              p.TracerPayload.Env,
+			TracerHostname:         p.TracerPayload.Hostname,
+			ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		}
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, pt)
@@ -435,7 +435,7 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
-	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0s) {
+	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 		return true
 	}
 	if traceContainsError(pt.TraceChunk.Spans) {
