@@ -123,18 +123,6 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 
 	agent.AddScheduler(adScheduler.New())
 
-	if serverless {
-		log.Debug("Adding AWS Logs collection source")
-
-		chanSource := config.NewLogSource("AWS Logs", &config.LogsConfig{
-			Type:    config.StringChannelType,
-			Source:  "lambda", // TODO(remy): do we want this to be configurable at some point?
-			Tags:    extraTags,
-			Channel: logsChan,
-		})
-		sources.AddSource(chanSource)
-	}
-
 	// add SNMP traps source forwarding SNMP traps as logs if enabled.
 	if source := config.SNMPTrapsSource(); source != nil {
 		log.Debug("Adding SNMPTraps source to the Logs Agent")
