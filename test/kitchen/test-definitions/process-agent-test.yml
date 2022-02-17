@@ -19,6 +19,7 @@ suites:
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
       windows_agent_url: <%= windows_agent_url %>
+      enable_process_agent: true
 
 - name: "container-collection-test"
   run_list:
@@ -42,3 +43,8 @@ suites:
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
       windows_agent_url: <%= windows_agent_url %>
+      extra_config:
+        # Since the gitlab runner doesn't have any container providers the container check won't run unless
+        # we explicitly override a provider ourselves.
+        autoconfig_include_features:
+          - "docker"
