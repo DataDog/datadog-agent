@@ -10,11 +10,13 @@ import (
 
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Schedulers manages a collection of schedulers.
 type Schedulers struct {
+	// mgr is the SourceManager that will be given to schedulers
+	mgr SourceManager
+
 	// schedulers is the set of running schedulers
 	schedulers []Scheduler
 
@@ -23,26 +25,27 @@ type Schedulers struct {
 }
 
 // NewSchedulers creates a new, empty Schedulers instance
-func NewSchedulers() *Schedulers {
-	return &Schedulers{}
+func NewSchedulers(sources *logsConfig.LogSources, services *service.Services) *Schedulers {
+	return &Schedulers{
+		mgr: &sourceManager{sources, services},
+	}
 }
 
-// AddScheduler adds a scheduler to the collection.  This must be called before Start.
+// AddScheduler adds a scheduler to the collection.  If called after Start(), then the
+// scheduler will be started immediately.
 func (ss *Schedulers) AddScheduler(scheduler Scheduler) {
-	if ss.started {
-		log.Error("Schedulers.AddScheduler called after Start()")
-		return
-	}
 	ss.schedulers = append(ss.schedulers, scheduler)
+	if ss.started {
+		scheduler.Start(ss.mgr)
+	}
 }
 
 // Start starts all schedulers in the collection.
-func (ss *Schedulers) Start(sources *logsConfig.LogSources, services *service.Services) {
-	mgr := &sourceManager{sources, services}
-	ss.started = true
+func (ss *Schedulers) Start() {
 	for _, s := range ss.schedulers {
-		s.Start(mgr)
+		s.Start(ss.mgr)
 	}
+	ss.started = true
 }
 
 // Stop all schedulers and wait until they are complete.

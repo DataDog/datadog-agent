@@ -29,13 +29,13 @@ func (t *testSched) Stop() {
 func TestSchedulers(t *testing.T) {
 	sch := &testSched{}
 
-	ss := NewSchedulers()
+	ss := NewSchedulers(logsConfig.NewLogSources(), service.NewServices())
 	ss.AddScheduler(sch)
 
 	require.False(t, sch.started)
 	require.False(t, sch.stopped)
 
-	ss.Start(logsConfig.NewLogSources(), service.NewServices())
+	ss.Start()
 
 	require.True(t, sch.started)
 	require.False(t, sch.stopped)

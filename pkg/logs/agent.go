@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
@@ -38,6 +39,7 @@ import (
 type Agent struct {
 	sources                   *config.LogSources
 	services                  *service.Services
+	schedulers                *schedulers.Schedulers
 	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
@@ -108,6 +110,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	return &Agent{
 		sources:                   sources,
 		services:                  services,
+		schedulers:                schedulers.NewSchedulers(sources, services),
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
@@ -140,6 +143,7 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	return &Agent{
 		sources:                   sources,
 		services:                  services,
+		schedulers:                schedulers.NewSchedulers(sources, services),
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
@@ -152,7 +156,13 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	starter := restart.NewStarter(a.destinationsCtx, a.auditor, a.pipelineProvider, a.diagnosticMessageReceiver)
+	starter := restart.NewStarter(
+		a.destinationsCtx,
+		a.auditor,
+		a.pipelineProvider,
+		a.diagnosticMessageReceiver,
+		a.schedulers,
+	)
 	for _, input := range a.inputs {
 		starter.Add(input)
 	}
@@ -172,6 +182,7 @@ func (a *Agent) Stop() {
 		inputs.Add(input)
 	}
 	stopper := restart.NewSerialStopper(
+		a.schedulers,
 		inputs,
 		a.pipelineProvider,
 		a.auditor,
@@ -213,4 +224,9 @@ func (a *Agent) Stop() {
 			}
 		}
 	}
+}
+
+// AddScheduler adds the given scheduler to the agent.
+func (a *Agent) AddScheduler(scheduler schedulers.Scheduler) {
+	a.schedulers.AddScheduler(scheduler)
 }

@@ -16,7 +16,6 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,9 +43,6 @@ var (
 	isRunning int32
 	// logs-agent
 	agent *Agent
-
-	// agentSchedulers contains the schedulers active for the running agent
-	agentSchedulers *schedulers.Schedulers
 )
 
 // Start starts logs-agent
@@ -84,11 +80,6 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	// setup the sources and the services
 	sources := config.NewLogSources()
 	services := service.NewServices()
-
-	// setup the config scheduler
-	agentSchedulers = schedulers.NewSchedulers()
-	agentSchedulers.AddScheduler(adScheduler.New())
-	agentSchedulers.Start(sources, services)
 
 	// setup the server config
 	endpoints, err := buildEndpoints(serverless)
@@ -129,6 +120,8 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	agent.Start()
 	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
+
+	agent.AddScheduler(adScheduler.New())
 
 	if serverless {
 		log.Debug("Adding AWS Logs collection source")
@@ -185,10 +178,6 @@ func Stop() {
 		if agent != nil {
 			agent.Stop()
 			agent = nil
-		}
-		if agentSchedulers != nil {
-			agentSchedulers.Stop()
-			agentSchedulers = nil
 		}
 		status.Clear()
 		atomic.StoreInt32(&isRunning, 0)
