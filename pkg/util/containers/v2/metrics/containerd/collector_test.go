@@ -12,6 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetaTesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
+
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	v1 "github.com/containerd/cgroups/stats/v1"
 	v2 "github.com/containerd/cgroups/v2/stats"
@@ -22,16 +28,16 @@ import (
 	"github.com/containerd/typeurl"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetaTesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 type mockedContainer struct {
 	containerd.Container
+
+	id string
+}
+
+func (mc mockedContainer) ID() string {
+	return mc.id
 }
 
 func TestGetContainerStats_Containerd(t *testing.T) {
@@ -201,37 +207,37 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:            util.Float64Ptr(10000),
-					System:           util.Float64Ptr(6000),
-					User:             util.Float64Ptr(4000),
-					ThrottledPeriods: util.Float64Ptr(1),
-					ThrottledTime:    util.Float64Ptr(1000),
+					Total:            pointer.Float64Ptr(10000),
+					System:           pointer.Float64Ptr(6000),
+					User:             pointer.Float64Ptr(4000),
+					ThrottledPeriods: pointer.Float64Ptr(1),
+					ThrottledTime:    pointer.Float64Ptr(1000),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal:   util.Float64Ptr(1000),
-					KernelMemory: util.Float64Ptr(500),
-					Limit:        util.Float64Ptr(2000),
-					RSS:          util.Float64Ptr(100),
-					Cache:        util.Float64Ptr(20),
-					Swap:         util.Float64Ptr(10),
+					UsageTotal:   pointer.Float64Ptr(1000),
+					KernelMemory: pointer.Float64Ptr(500),
+					Limit:        pointer.Float64Ptr(2000),
+					RSS:          pointer.Float64Ptr(100),
+					Cache:        pointer.Float64Ptr(20),
+					Swap:         pointer.Float64Ptr(10),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       util.Float64Ptr(60),
-					WriteBytes:      util.Float64Ptr(20),
-					ReadOperations:  util.Float64Ptr(6),
-					WriteOperations: util.Float64Ptr(3),
+					ReadBytes:       pointer.Float64Ptr(60),
+					WriteBytes:      pointer.Float64Ptr(20),
+					ReadOperations:  pointer.Float64Ptr(6),
+					WriteOperations: pointer.Float64Ptr(3),
 					Devices: map[string]provider.DeviceIOStats{
 						"1:1": {
-							ReadBytes:       util.Float64Ptr(10),
-							WriteBytes:      util.Float64Ptr(15),
-							ReadOperations:  util.Float64Ptr(1),
-							WriteOperations: util.Float64Ptr(2),
+							ReadBytes:       pointer.Float64Ptr(10),
+							WriteBytes:      pointer.Float64Ptr(15),
+							ReadOperations:  pointer.Float64Ptr(1),
+							WriteOperations: pointer.Float64Ptr(2),
 						},
 						"1:2": {
-							ReadBytes:       util.Float64Ptr(50),
-							WriteBytes:      util.Float64Ptr(5),
-							ReadOperations:  util.Float64Ptr(5),
-							WriteOperations: util.Float64Ptr(1),
+							ReadBytes:       pointer.Float64Ptr(50),
+							WriteBytes:      pointer.Float64Ptr(5),
+							ReadOperations:  pointer.Float64Ptr(5),
+							WriteOperations: pointer.Float64Ptr(1),
 						},
 					},
 				},
@@ -245,37 +251,37 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:            util.Float64Ptr(10000),
-					System:           util.Float64Ptr(6000),
-					User:             util.Float64Ptr(4000),
-					ThrottledPeriods: util.Float64Ptr(1),
-					ThrottledTime:    util.Float64Ptr(1000),
+					Total:            pointer.Float64Ptr(10000),
+					System:           pointer.Float64Ptr(6000),
+					User:             pointer.Float64Ptr(4000),
+					ThrottledPeriods: pointer.Float64Ptr(1),
+					ThrottledTime:    pointer.Float64Ptr(1000),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal:   util.Float64Ptr(1000),
-					KernelMemory: util.Float64Ptr(500),
-					Limit:        util.Float64Ptr(2000),
-					RSS:          util.Float64Ptr(100),
-					Cache:        util.Float64Ptr(20),
-					Swap:         util.Float64Ptr(10),
+					UsageTotal:   pointer.Float64Ptr(1000),
+					KernelMemory: pointer.Float64Ptr(500),
+					Limit:        pointer.Float64Ptr(2000),
+					RSS:          pointer.Float64Ptr(100),
+					Cache:        pointer.Float64Ptr(20),
+					Swap:         pointer.Float64Ptr(10),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       util.Float64Ptr(60),
-					WriteBytes:      util.Float64Ptr(20),
-					ReadOperations:  util.Float64Ptr(6),
-					WriteOperations: util.Float64Ptr(3),
+					ReadBytes:       pointer.Float64Ptr(60),
+					WriteBytes:      pointer.Float64Ptr(20),
+					ReadOperations:  pointer.Float64Ptr(6),
+					WriteOperations: pointer.Float64Ptr(3),
 					Devices: map[string]provider.DeviceIOStats{
 						"1:1": {
-							ReadBytes:       util.Float64Ptr(10),
-							WriteBytes:      util.Float64Ptr(15),
-							ReadOperations:  util.Float64Ptr(1),
-							WriteOperations: util.Float64Ptr(2),
+							ReadBytes:       pointer.Float64Ptr(10),
+							WriteBytes:      pointer.Float64Ptr(15),
+							ReadOperations:  pointer.Float64Ptr(1),
+							WriteOperations: pointer.Float64Ptr(2),
 						},
 						"1:2": {
-							ReadBytes:       util.Float64Ptr(50),
-							WriteBytes:      util.Float64Ptr(5),
-							ReadOperations:  util.Float64Ptr(5),
-							WriteOperations: util.Float64Ptr(1),
+							ReadBytes:       pointer.Float64Ptr(50),
+							WriteBytes:      pointer.Float64Ptr(5),
+							ReadOperations:  pointer.Float64Ptr(5),
+							WriteOperations: pointer.Float64Ptr(1),
 						},
 					},
 				},
@@ -289,20 +295,20 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:  util.Float64Ptr(1000),
-					System: util.Float64Ptr(600),
-					User:   util.Float64Ptr(400),
+					Total:  pointer.Float64Ptr(1000),
+					System: pointer.Float64Ptr(600),
+					User:   pointer.Float64Ptr(400),
 				},
 				Memory: &provider.ContainerMemStats{
-					PrivateWorkingSet: util.Float64Ptr(100),
-					CommitBytes:       util.Float64Ptr(1000),
-					CommitPeakBytes:   util.Float64Ptr(1500),
+					PrivateWorkingSet: pointer.Float64Ptr(100),
+					CommitBytes:       pointer.Float64Ptr(1000),
+					CommitPeakBytes:   pointer.Float64Ptr(1500),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       util.Float64Ptr(20),
-					WriteBytes:      util.Float64Ptr(10),
-					ReadOperations:  util.Float64Ptr(2),
-					WriteOperations: util.Float64Ptr(1),
+					ReadBytes:       pointer.Float64Ptr(20),
+					WriteBytes:      pointer.Float64Ptr(10),
+					ReadOperations:  pointer.Float64Ptr(2),
+					WriteOperations: pointer.Float64Ptr(1),
 				},
 			},
 		},
@@ -384,22 +390,22 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 				Data: linuxMetricsAny,
 			},
 			expectedNetworkStats: &provider.ContainerNetworkStats{
-				BytesSent:   util.Float64Ptr(220),
-				BytesRcvd:   util.Float64Ptr(110),
-				PacketsSent: util.Float64Ptr(22),
-				PacketsRcvd: util.Float64Ptr(11),
+				BytesSent:   pointer.Float64Ptr(220),
+				BytesRcvd:   pointer.Float64Ptr(110),
+				PacketsSent: pointer.Float64Ptr(22),
+				PacketsRcvd: pointer.Float64Ptr(11),
 				Interfaces: map[string]provider.InterfaceNetStats{
 					"interface-1": {
-						BytesSent:   util.Float64Ptr(20),
-						BytesRcvd:   util.Float64Ptr(10),
-						PacketsSent: util.Float64Ptr(2),
-						PacketsRcvd: util.Float64Ptr(1),
+						BytesSent:   pointer.Float64Ptr(20),
+						BytesRcvd:   pointer.Float64Ptr(10),
+						PacketsSent: pointer.Float64Ptr(2),
+						PacketsRcvd: pointer.Float64Ptr(1),
 					},
 					"interface-2": {
-						BytesSent:   util.Float64Ptr(200),
-						BytesRcvd:   util.Float64Ptr(100),
-						PacketsSent: util.Float64Ptr(20),
-						PacketsRcvd: util.Float64Ptr(10),
+						BytesSent:   pointer.Float64Ptr(200),
+						BytesRcvd:   pointer.Float64Ptr(100),
+						PacketsSent: pointer.Float64Ptr(20),
+						PacketsRcvd: pointer.Float64Ptr(10),
 					},
 				},
 			},
@@ -442,6 +448,45 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			assert.Empty(t, cmp.Diff(test.expectedNetworkStats, result))
 		})
 	}
+}
+
+func TestGetContainerIDForPID(t *testing.T) {
+	pidMap := map[string][]containerd.ProcessInfo{
+		"cID1": {containerd.ProcessInfo{Pid: 10}},
+	}
+
+	fakeClient := fake.MockedContainerdClient{
+		MockContainers: func() ([]containerd.Container, error) {
+			return []containerd.Container{
+				mockedContainer{id: "cID1"},
+				mockedContainer{id: "cID2"},
+			}, nil
+		},
+
+		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+			return pidMap[ctn.ID()], nil
+		},
+	}
+
+	collector := containerdCollector{
+		client:   &fakeClient,
+		pidCache: provider.NewCache(pidCacheGCInterval),
+	}
+
+	// Cache is empty, will trigger a full refresh
+	cID1, err := collector.GetContainerIDForPID(10, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID1", cID1)
+
+	// Add an entry for PID 20, should not be picked up because full refresh is recent enough
+	pidMap["cID2"] = []containerd.ProcessInfo{{Pid: 20}}
+	cID2, err := collector.GetContainerIDForPID(20, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, "", cID2)
+
+	cID2, err = collector.GetContainerIDForPID(20, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID2", cID2)
 }
 
 // Returns a fake containerd client for testing.

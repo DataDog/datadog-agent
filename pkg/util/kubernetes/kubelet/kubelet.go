@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -405,9 +405,13 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 
 // IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
 func (ku *KubeUtil) IsAgentHostNetwork(ctx context.Context) (bool, error) {
-	cid, err := providers.ContainerImpl().GetAgentCID()
+	cid, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return false, err
+	}
+
+	if cid == "" {
+		return false, fmt.Errorf("unable to determine self container id")
 	}
 
 	pod, err := ku.GetPodForContainerID(ctx, cid)

@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -44,16 +44,16 @@ func TestCollectNetworkStats(t *testing.T) {
 			stat: provider.ContainerNetworkStats{
 				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {
-						BytesRcvd:   util.Float64Ptr(1345),
-						PacketsRcvd: util.Float64Ptr(10),
-						BytesSent:   util.Float64Ptr(0),
-						PacketsSent: util.Float64Ptr(0),
+						BytesRcvd:   pointer.Float64Ptr(1345),
+						PacketsRcvd: pointer.Float64Ptr(10),
+						BytesSent:   pointer.Float64Ptr(0),
+						PacketsSent: pointer.Float64Ptr(0),
 					},
 				},
-				BytesRcvd:   util.Float64Ptr(1345),
-				PacketsRcvd: util.Float64Ptr(10),
-				BytesSent:   util.Float64Ptr(0),
-				PacketsSent: util.Float64Ptr(0),
+				BytesRcvd:   pointer.Float64Ptr(1345),
+				PacketsRcvd: pointer.Float64Ptr(10),
+				BytesSent:   pointer.Float64Ptr(0),
+				PacketsSent: pointer.Float64Ptr(0),
 			},
 		},
 		// Multiple docker networks
@@ -69,22 +69,22 @@ func TestCollectNetworkStats(t *testing.T) {
 			stat: provider.ContainerNetworkStats{
 				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {
-						BytesRcvd:   util.Float64Ptr(648),
-						PacketsRcvd: util.Float64Ptr(8),
-						BytesSent:   util.Float64Ptr(0),
-						PacketsSent: util.Float64Ptr(0),
+						BytesRcvd:   pointer.Float64Ptr(648),
+						PacketsRcvd: pointer.Float64Ptr(8),
+						BytesSent:   pointer.Float64Ptr(0),
+						PacketsSent: pointer.Float64Ptr(0),
 					},
 					"eth1": {
-						BytesRcvd:   util.Float64Ptr(1478),
-						PacketsRcvd: util.Float64Ptr(19),
-						BytesSent:   util.Float64Ptr(182),
-						PacketsSent: util.Float64Ptr(3),
+						BytesRcvd:   pointer.Float64Ptr(1478),
+						PacketsRcvd: pointer.Float64Ptr(19),
+						BytesSent:   pointer.Float64Ptr(182),
+						PacketsSent: pointer.Float64Ptr(3),
 					},
 				},
-				BytesRcvd:   util.Float64Ptr(2126),
-				PacketsRcvd: util.Float64Ptr(27),
-				BytesSent:   util.Float64Ptr(182),
-				PacketsSent: util.Float64Ptr(3),
+				BytesRcvd:   pointer.Float64Ptr(2126),
+				PacketsRcvd: pointer.Float64Ptr(27),
+				BytesSent:   pointer.Float64Ptr(182),
+				PacketsSent: pointer.Float64Ptr(3),
 			},
 		},
 	} {

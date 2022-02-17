@@ -11,8 +11,8 @@ package containerd
 import (
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func getContainerdStatsWindows(windowsStats *wstats.WindowsContainerStatistics) *provider.ContainerStats {
@@ -34,9 +34,9 @@ func getContainerdCPUStatsWindows(procStats *wstats.WindowsContainerProcessorSta
 	}
 
 	return &provider.ContainerCPUStats{
-		Total:  util.UIntToFloatPtr(procStats.TotalRuntimeNS),
-		System: util.UIntToFloatPtr(procStats.RuntimeKernelNS),
-		User:   util.UIntToFloatPtr(procStats.RuntimeUserNS),
+		Total:  pointer.UIntToFloatPtr(procStats.TotalRuntimeNS),
+		System: pointer.UIntToFloatPtr(procStats.RuntimeKernelNS),
+		User:   pointer.UIntToFloatPtr(procStats.RuntimeUserNS),
 	}
 }
 
@@ -46,9 +46,9 @@ func getContainerdMemoryStatsWindows(memStats *wstats.WindowsContainerMemoryStat
 	}
 
 	return &provider.ContainerMemStats{
-		PrivateWorkingSet: util.UIntToFloatPtr(memStats.MemoryUsagePrivateWorkingSetBytes),
-		CommitBytes:       util.UIntToFloatPtr(memStats.MemoryUsageCommitBytes),
-		CommitPeakBytes:   util.UIntToFloatPtr(memStats.MemoryUsageCommitPeakBytes),
+		PrivateWorkingSet: pointer.UIntToFloatPtr(memStats.MemoryUsagePrivateWorkingSetBytes),
+		CommitBytes:       pointer.UIntToFloatPtr(memStats.MemoryUsageCommitBytes),
+		CommitPeakBytes:   pointer.UIntToFloatPtr(memStats.MemoryUsageCommitPeakBytes),
 	}
 }
 
@@ -58,9 +58,9 @@ func getContainerdIOStatsWindows(ioStats *wstats.WindowsContainerStorageStatisti
 	}
 
 	return &provider.ContainerIOStats{
-		ReadBytes:       util.UIntToFloatPtr(ioStats.ReadSizeBytes),
-		WriteBytes:      util.UIntToFloatPtr(ioStats.WriteSizeBytes),
-		ReadOperations:  util.UIntToFloatPtr(ioStats.ReadCountNormalized),
-		WriteOperations: util.UIntToFloatPtr(ioStats.WriteCountNormalized),
+		ReadBytes:       pointer.UIntToFloatPtr(ioStats.ReadSizeBytes),
+		WriteBytes:      pointer.UIntToFloatPtr(ioStats.WriteSizeBytes),
+		ReadOperations:  pointer.UIntToFloatPtr(ioStats.ReadCountNormalized),
+		WriteOperations: pointer.UIntToFloatPtr(ioStats.WriteCountNormalized),
 	}
 }

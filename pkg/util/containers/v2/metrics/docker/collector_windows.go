@@ -13,8 +13,8 @@ import (
 
 	"github.com/docker/docker/api/types"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
@@ -31,33 +31,33 @@ func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 	return &provider.ContainerCPUStats{
 		// ContainerCPUStats expects CPU metrics in nanoseconds
 		// *On Windows* (only) CPUStats units are 100’s of nanoseconds
-		Total:  util.UIntToFloatPtr(100 * cpuStats.CPUUsage.TotalUsage),
-		System: util.UIntToFloatPtr(100 * cpuStats.CPUUsage.UsageInKernelmode),
-		User:   util.UIntToFloatPtr(100 * cpuStats.CPUUsage.UsageInUsermode),
+		Total:  pointer.UIntToFloatPtr(100 * cpuStats.CPUUsage.TotalUsage),
+		System: pointer.UIntToFloatPtr(100 * cpuStats.CPUUsage.UsageInKernelmode),
+		User:   pointer.UIntToFloatPtr(100 * cpuStats.CPUUsage.UsageInUsermode),
 	}
 }
 
 func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
 	return &provider.ContainerMemStats{
-		UsageTotal:        util.UIntToFloatPtr(memStats.Usage),
-		Limit:             util.UIntToFloatPtr(memStats.Limit),
-		PrivateWorkingSet: util.UIntToFloatPtr(memStats.PrivateWorkingSet),
-		CommitBytes:       util.UIntToFloatPtr(memStats.Commit),
-		CommitPeakBytes:   util.UIntToFloatPtr(memStats.CommitPeak),
+		UsageTotal:        pointer.UIntToFloatPtr(memStats.Usage),
+		Limit:             pointer.UIntToFloatPtr(memStats.Limit),
+		PrivateWorkingSet: pointer.UIntToFloatPtr(memStats.PrivateWorkingSet),
+		CommitBytes:       pointer.UIntToFloatPtr(memStats.Commit),
+		CommitPeakBytes:   pointer.UIntToFloatPtr(memStats.CommitPeak),
 	}
 }
 
 func convertIOStats(storageStats *types.StorageStats) *provider.ContainerIOStats {
 	return &provider.ContainerIOStats{
-		ReadBytes:       util.UIntToFloatPtr(storageStats.ReadSizeBytes),
-		WriteBytes:      util.UIntToFloatPtr(storageStats.WriteSizeBytes),
-		ReadOperations:  util.UIntToFloatPtr(storageStats.ReadCountNormalized),
-		WriteOperations: util.UIntToFloatPtr(storageStats.WriteCountNormalized),
+		ReadBytes:       pointer.UIntToFloatPtr(storageStats.ReadSizeBytes),
+		WriteBytes:      pointer.UIntToFloatPtr(storageStats.WriteSizeBytes),
+		ReadOperations:  pointer.UIntToFloatPtr(storageStats.ReadCountNormalized),
+		WriteOperations: pointer.UIntToFloatPtr(storageStats.WriteCountNormalized),
 	}
 }
 
 func convertPIDStats(numProcs uint32) *provider.ContainerPIDStats {
 	return &provider.ContainerPIDStats{
-		ThreadCount: util.UIntToFloatPtr(uint64(numProcs)),
+		ThreadCount: pointer.UIntToFloatPtr(uint64(numProcs)),
 	}
 }

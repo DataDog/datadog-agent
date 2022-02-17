@@ -13,10 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
@@ -56,8 +56,8 @@ func (cext *criCustomMetricsExtension) Process(tags []string, container *workloa
 		return
 	}
 
-	cext.sender(cext.aggSender.Gauge, "cri.disk.used", util.UIntToFloatPtr(criStats.GetWritableLayer().GetUsedBytes().GetValue()), tags)
-	cext.sender(cext.aggSender.Gauge, "cri.disk.inodes", util.UIntToFloatPtr(criStats.GetWritableLayer().GetInodesUsed().GetValue()), tags)
+	cext.sender(cext.aggSender.Gauge, "cri.disk.used", pointer.UIntToFloatPtr(criStats.GetWritableLayer().GetUsedBytes().GetValue()), tags)
+	cext.sender(cext.aggSender.Gauge, "cri.disk.inodes", pointer.UIntToFloatPtr(criStats.GetWritableLayer().GetInodesUsed().GetValue()), tags)
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
