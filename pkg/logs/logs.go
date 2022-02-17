@@ -52,12 +52,12 @@ var (
 // The parameter serverless indicates whether or not this Logs Agent is running
 // in a serverless environment.
 func Start(getAC func() *autodiscovery.AutoConfig) (*Agent, error) {
-	return start(getAC, false, nil, nil)
+	return start(getAC, false)
 }
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *config.ChannelMessage, extraTags []string) (*Agent, error) {
-	return start(getAC, true, logsChan, extraTags)
+func StartServerless(getAC func() *autodiscovery.AutoConfig) (*Agent, error) {
+	return start(getAC, true)
 }
 
 // buildEndpoints builds endpoints for the logs agent
@@ -72,7 +72,7 @@ func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 	return config.BuildEndpoints(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
-func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) (*Agent, error) {
+func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 	if IsAgentRunning() {
 		return agent, nil
 	}

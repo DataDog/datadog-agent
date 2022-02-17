@@ -353,7 +353,6 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
 	agent, err := logs.StartServerless(
 		func() *autodiscovery.AutoConfig { return common.AC },
-		logChannel, nil,
 	)
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
