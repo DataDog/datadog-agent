@@ -1,38 +1,17 @@
 #ifndef __IP_H
 #define __IP_H
 
+#include <linux/kconfig.h>
+
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 
 #include <uapi/linux/if_ether.h>
+#include <uapi/linux/in.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
+#include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
-
-// from uapi/linux/tcp.h
-struct __tcphdr {
-	__be16	source;
-	__be16	dest;
-	__be32	seq;
-	__be32	ack_seq;
-	__u16	res1:4,
-		doff:4,
-		fin:1,
-		syn:1,
-		rst:1,
-		psh:1,
-		ack:1,
-		urg:1,
-		ece:1,
-		cwr:1;
-	__be16	window;
-	__sum16	check;
-	__be16	urg_ptr;
-};
-
-// from uapi/linux/in.h
-#define __IPPROTO_TCP 6
-#define __IPPROTO_UDP 17
 
 static __always_inline void read_ipv6_skb(struct __sk_buff *skb, __u64 off, __u64 *addr_l, __u64 *addr_h) {
     *addr_h |= (__u64)load_word(skb, off) << 32;
@@ -49,7 +28,7 @@ static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u6
     *addr = bpf_ntohll(*addr) >> 32;
 }
 
-static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
+static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info) {
     __builtin_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
 
@@ -63,17 +42,17 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
             return 0;
         }
         l4_proto = load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
-        tup->metadata |= CONN_V4;
-        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, saddr), &tup->saddr_l);
-        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, daddr), &tup->daddr_l);
+        info->tup.metadata |= CONN_V4;
+        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, saddr), &info->tup.saddr_l);
+        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, daddr), &info->tup.daddr_l);
         info->data_off += ipv4_hdr_len;
         break;
     }
     case ETH_P_IPV6:
         l4_proto = load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
-        tup->metadata |= CONN_V6;
-        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, saddr), &tup->saddr_l, &tup->saddr_h);
-        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, daddr), &tup->daddr_l, &tup->daddr_h);
+        info->tup.metadata |= CONN_V6;
+        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, saddr), &info->tup.saddr_l, &info->tup.saddr_h);
+        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, daddr), &info->tup.daddr_l, &info->tup.daddr_h);
         info->data_off += sizeof(struct ipv6hdr);
         break;
     default:
@@ -81,21 +60,20 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
     }
 
     switch (l4_proto) {
-    case __IPPROTO_UDP:
-        tup->metadata |= CONN_TYPE_UDP;
-        tup->sport = load_half(skb, info->data_off + offsetof(struct udphdr, source));
-        tup->dport = load_half(skb, info->data_off + offsetof(struct udphdr, dest));
+    case IPPROTO_UDP:
+        info->tup.metadata |= CONN_TYPE_UDP;
+        info->tup.sport = load_half(skb, info->data_off + offsetof(struct udphdr, source));
+        info->tup.dport = load_half(skb, info->data_off + offsetof(struct udphdr, dest));
         info->data_off += sizeof(struct udphdr);
         break;
-    case __IPPROTO_TCP:
-        tup->metadata |= CONN_TYPE_TCP;
-        tup->sport = load_half(skb, info->data_off + offsetof(struct __tcphdr, source));
-        tup->dport = load_half(skb, info->data_off + offsetof(struct __tcphdr, dest));
+    case IPPROTO_TCP:
+        info->tup.metadata |= CONN_TYPE_TCP;
+        info->tup.sport = load_half(skb, info->data_off + offsetof(struct tcphdr, source));
+        info->tup.dport = load_half(skb, info->data_off + offsetof(struct tcphdr, dest));
 
-        info->tcp_seq = load_word(skb, info->data_off + offsetof(struct __tcphdr, seq));
         info->tcp_flags = load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
         // TODO: Improve readability and explain the bit twiddling below
-        info->data_off += ((load_byte(skb, info->data_off + offsetof(struct __tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
+        info->data_off += ((load_byte(skb, info->data_off + offsetof(struct tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
         break;
     default:
         return 0;
@@ -109,6 +87,7 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
 }
 
 static __always_inline void flip_tuple(conn_tuple_t *t) {
+    // TODO: we can probably replace this by swap operations
     __u16 tmp_port = t->sport;
     t->sport = t->dport;
     t->dport = tmp_port;
