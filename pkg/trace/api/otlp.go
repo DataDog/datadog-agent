@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gogo/protobuf/proto"
-	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	semconv "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
