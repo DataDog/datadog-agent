@@ -590,9 +590,10 @@ func newSignalEventSerializer(e *Event) *SignalEventSerializer {
 
 func serializeSyscallRetval(retval int64) string {
 	switch {
-	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
-		return "Refused"
 	case retval < 0:
+		if syscall.Errno(-retval) == syscall.EACCES || syscall.Errno(-retval) == syscall.EPERM {
+			return "Refused"
+		}
 		return "Error"
 	default:
 		return "Success"
