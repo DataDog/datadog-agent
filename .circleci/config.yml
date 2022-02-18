@@ -32,14 +32,24 @@ templates:
     #      - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
     #      - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-
     #      - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-main-
+    - run: &restore_deps |
+            python3 -m pip install wheel
+            python3 -m pip install -r requirements.txt
+            python3 -m pip install -r .circleci/requirements.txt
+            inv -e deps
+            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.install
+            inv rtloader.format --raise-if-changed
+            inv rtloader.test
+            inv -e install-tools
     #- save_cache: &save_deps
     #    key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
-    #- restore_cache: &restore_source
-    #    keys:
-    #      # Cache retrieval is faster than full git checkout
-    #      - v5-repo-{{ .Revision }}
-    #- save_cache: &save_source
-    #    key: v5-repo-{{ .Revision }}
+    - restore_cache: &restore_source
+        keys:
+          # Cache retrieval is faster than full git checkout
+          - v5-repo-{{ .Revision }}
+    - save_cache: &save_source
+        key: v5-repo-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -48,51 +58,51 @@ jobs:
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
-      #- save_cache:
-      #    <<: *save_source
-      #    paths:
-      #      - /go/src/github.com/DataDog/datadog-agent
+      - save_cache:
+          <<: *save_source
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent
 
   dependencies:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
-      #- restore_cache: *restore_deps
-      - run:
-          name: setup python deps
-          command: |
-            python3 -m pip install wheel
-            python3 -m pip install -r requirements.txt
-            python3 -m pip install -r .circleci/requirements.txt
-      - run:
-          name: grab go deps
-          command: |
-            inv -e deps
-      - run:
-          name: build rtloader
-          command: |
-            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
-            inv rtloader.install
-      - run:
-          name: lint rtloader
-          command: |
-            inv rtloader.format --raise-if-changed
-      - run:
-          name: test rtloader
-          command: |
-            inv rtloader.test
-      - run:
-          name: install go tooling
-          command: |
-            inv -e install-tools
-      #- save_cache:
-      #    <<: *save_deps
-      #    paths:
-      #      - /go/pkg/mod
-      #      - /go/bin
-      #      - /go/src/github.com/DataDog/datadog-agent/dev
-      #      - /usr/local/lib/python3.6/dist-packages
-      #      - /usr/local/bin
+      - restore_cache: *restore_source
+    #  - restore_cache: *restore_deps
+    #  - run:
+    #      name: setup python deps
+    #      command: |
+    #        python3 -m pip install wheel
+    #        python3 -m pip install -r requirements.txt
+    #        python3 -m pip install -r .circleci/requirements.txt
+    #  - run:
+    #      name: grab go deps
+    #      command: |
+    #        inv -e deps
+    #  - run:
+    #      name: build rtloader
+    #      command: |
+    #        inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+    #        inv rtloader.install
+    #  - run:
+    #      name: lint rtloader
+    #      command: |
+    #        inv rtloader.format --raise-if-changed
+    #  - run:
+    #      name: test rtloader
+    #      command: |
+    #        inv rtloader.test
+    #  - run:
+    #      name: install go tooling
+    #      command: |
+    #        inv -e install-tools
+    #  - save_cache:
+    #      <<: *save_deps
+    #      paths:
+    #        - /go/pkg/mod
+    #        - /go/bin
+    #        - /go/src/github.com/DataDog/datadog-agent/dev
+    #        - /usr/local/lib/python3.6/dist-packages
+    #        - /usr/local/bin
 
   unit_tests:
     <<: *job_template
@@ -100,6 +110,7 @@ jobs:
     steps:
       #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: run unit tests
           command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
@@ -111,8 +122,9 @@ jobs:
   integration_tests:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - setup_remote_docker
       - run:
           name: run integration tests
@@ -121,8 +133,9 @@ jobs:
   release_note:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
@@ -130,8 +143,9 @@ jobs:
   team_label:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           command: inv -e lint-teamassignment
           name: run PR check for team assignment labels
@@ -139,8 +153,9 @@ jobs:
   milestone:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
@@ -148,8 +163,9 @@ jobs:
   licenses_linting:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: run license linting
           command: inv -e lint-licenses
@@ -157,8 +173,9 @@ jobs:
   filename_linting:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: run filename linting
           command: inv -e lint-filenames
@@ -166,8 +183,9 @@ jobs:
   shell_linting:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: Install shellcheck
           command: inv -e install-shellcheck
@@ -184,8 +202,9 @@ jobs:
   python_linting:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: setting env vars for click
           command: |
@@ -198,8 +217,9 @@ jobs:
   docker_tests:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - setup_remote_docker
       - run:
           name: run docker image tests
@@ -211,8 +231,9 @@ jobs:
   build_binaries:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
@@ -223,8 +244,9 @@ jobs:
   build_iot_agent:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: build iot agent
           command: inv -e agent.build --flavor iot
@@ -235,8 +257,9 @@ jobs:
   documentation_generation:
     <<: *job_template
     steps:
-      #- restore_cache: *restore_source
+      - restore_cache: *restore_source
       #- restore_cache: *restore_deps
+      - run: *restore_deps
       - run:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
