@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -461,6 +462,8 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 		extraHeaders.Set(headers.HostHeader, hostName)
 		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+		extraHeaders.Set(headers.EVPOriginHeader, "datadog-cluster-agent")
+		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 
 		body, err := processPayloadEncoder(m)
 		if err != nil {
