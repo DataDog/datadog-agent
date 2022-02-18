@@ -10,6 +10,7 @@ package kubelet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,11 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (
 	kubeletPodPath         = "/pods"
 	kubeletMetricsPath     = "/metrics"
+	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
 	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
@@ -364,6 +367,23 @@ func (ku *KubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*Po
 		return ku.GetPodFromUID(ctx, uid)
 	}
 	return ku.GetPodForContainerID(ctx, entityID)
+}
+
+func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
+	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
+	if err != nil {
+		return nil, errors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletStatsSummary, err))
+	}
+	if code != http.StatusOK {
+		return nil, errors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletStatsSummary, string(data)))
+	}
+
+	statsSummary := &kubeletv1alpha1.Summary{}
+	if err := json.Unmarshal(data, statsSummary); err != nil {
+		return nil, err
+	}
+
+	return statsSummary, nil
 }
 
 // QueryKubelet allows to query the KubeUtil registered kubelet API on the parameter path
