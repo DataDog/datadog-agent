@@ -15,6 +15,8 @@ import (
 const (
 	errorsRateKey     = "_dd.errors_sr"
 	noPriorityRateKey = "_dd.no_p_sr"
+	// shrinkCardinality is the max Signature cardinality before shrinking
+	shrinkCardinality = 200
 )
 
 // ErrorsSampler is dedicated to catching traces containing spans with errors.
@@ -29,8 +31,10 @@ type NoPrioritySampler struct{ ScoreSampler }
 // For a set traceID: P(chunk1 kept and chunk2 kept) = min(P(chunk1 kept), P(chunk2 kept))
 type ScoreSampler struct {
 	*Sampler
-	samplingRateKey string
-	disabled        bool
+	samplingRateKey   string
+	disabled          bool
+	shrinked          bool
+	shrinkedAllowList map[Signature]float64
 }
 
 // NewNoPrioritySampler returns an initialized Sampler dedicated to traces with
@@ -59,6 +63,7 @@ func (s ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env s
 		return false
 	}
 	signature := computeSignatureWithRootAndEnv(trace, root, env)
+	signature = s.shrink(signature)
 	// Update sampler state by counting this trace
 	s.countWeightedSig(now, signature, 1)
 
@@ -76,4 +81,26 @@ func (s ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 		setMetric(root, s.samplingRateKey, rate)
 	}
 	return sampled
+}
+
+// shrink limits the number of signatures stored in the sampler.
+// After a cardinality above shrinkCardinality/2 is reached
+// signatures are spread uniformly on a fixed set of values.
+// This ensures that ScoreSamplers are memory capped.
+// When the shrink is triggered, previously active signatures
+// stay unaffected.
+// New signatures may share the same TPS computation.
+func (s ScoreSampler) shrink(sig Signature) Signature {
+	if s.size() < shrinkCardinality/2 {
+		s.shrinkedAllowList = nil
+		return sig
+	}
+	if s.shrinkedAllowList == nil {
+		rates, _ := s.getAllSignatureSampleRates()
+		s.shrinkedAllowList = rates
+	}
+	if _, ok := s.shrinkedAllowList[sig]; ok {
+		return sig
+	}
+	return sig % (shrinkCardinality / 2)
 }

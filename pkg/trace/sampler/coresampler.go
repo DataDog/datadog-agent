@@ -36,7 +36,7 @@ type Sampler struct {
 	rates map[Signature]float64
 
 	// muSeen is a lock protecting seen map
-	muSeen sync.Mutex
+	muSeen sync.RWMutex
 	// muRates is a lock protecting rates map
 	muRates sync.RWMutex
 
@@ -155,7 +155,7 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 		if tpsPerSig < seenTPS && seenTPS > 0 {
 			rate = tpsPerSig / seenTPS
 		}
-		// caping increase rate to 20%
+		// capping increase rate to 20%
 		if prevRate, ok := s.rates[sig]; ok && prevRate != 0 {
 			if rate/prevRate > maxRateIncrease {
 				rate = prevRate * maxRateIncrease
@@ -233,11 +233,18 @@ func (s *Sampler) getAllSignatureSampleRates() (map[Signature]float64, float64) 
 	return rates, defaultRate
 }
 
+func (s *Sampler) size() int64 {
+	s.muSeen.RLock()
+	defer s.muSeen.RUnlock()
+	return int64(len(s.seen))
+}
+
 func (s *Sampler) report() {
 	seen := atomic.SwapInt64(&s.totalSeen, 0)
 	kept := atomic.SwapInt64(&s.totalKept, 0)
 	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
 	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
+	metrics.Count("datadog.trace_agent.sampler.size", s.size(), s.tags, 1)
 }
 
 // Stop stops the main Run loop

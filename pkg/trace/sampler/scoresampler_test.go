@@ -8,6 +8,7 @@ package sampler
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -62,6 +63,20 @@ func TestExtraSampleRate(t *testing.T) {
 	s.extraRate = 0.33
 
 	assert.Equal(s.getSignatureSampleRate(signature), s.extraRate*sRate)
+}
+
+func TestShrink(t *testing.T) {
+	assert := assert.New(t)
+
+	s := getTestErrorsSampler(10)
+	testTime := time.Now()
+
+	for i := 1; i < 3*shrinkCardinality; i++ {
+		trace, root := getTestTrace()
+		trace[1].Service = strconv.FormatInt(int64(i+1000), 10)
+		s.Sample(testTime, trace, root, defaultEnv)
+	}
+	assert.Equal(int64(shrinkCardinality), s.size())
 }
 
 func TestDisable(t *testing.T) {
