@@ -59,3 +59,45 @@ func unionCacheKey(aHash, bHash uint64) uint64 {
 	binary.LittleEndian.PutUint64(buf[8:], bHash)
 	return murmur3.Sum64(buf[:])
 }
+
+// union performs a union operation over two tagsets.  The "easy" cases have already
+// been handled, and the cache has missed.
+func union(a *Tags, b *Tags) *Tags {
+	la := len(a.tags)
+	lb := len(b.tags)
+
+	// ensure a is the larger set
+	if la < lb {
+		a, b = b, a
+		la, lb = lb, la
+	}
+
+	tags := make([]string, la, la+lb)
+	hashes := make([]uint64, la, la+lb)
+	seen := make(map[string]struct{}, la)
+
+	// copy a to tags
+	copy(tags[:la], a.tags)
+	copy(hashes[:la], a.hashes)
+	hash := a.hash
+
+	// update seen with the content of a
+	for _, t := range tags {
+		seen[t] = struct{}{}
+	}
+
+	// iterate over b, adding what has not been seen.  b contains no duplicates,
+	// so it is not necessary to insert into seen again here
+	btags := b.tags
+	bhashes := b.hashes
+	for i, t := range btags {
+		if _, s := seen[t]; !s {
+			h := bhashes[i]
+			tags = append(tags, t)
+			hashes = append(hashes, h)
+			hash ^= h
+		}
+	}
+
+	return &Tags{tags, hashes, hash}
+}

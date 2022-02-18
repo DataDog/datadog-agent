@@ -6,6 +6,7 @@
 package tagset
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 
@@ -65,4 +66,34 @@ func TestUnioncCacheKey_Fuzz(t *testing.T) {
 			}
 		}
 	})
+}
+
+var result *Tags
+
+func BenchmarkUnion(b *testing.B) {
+	b.StopTimer()
+	f, _ := NewCachingFactory(100, 1)
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		rng := rand.New(rand.NewSource(int64(i)))
+
+		n := rng.Intn(15)
+		lBuilder := f.NewBuilder(n)
+		for i := 0; i < n; i++ {
+			t := fmt.Sprintf("tag%d", rng.Intn(30))
+			lBuilder.Add(t)
+		}
+		l := lBuilder.Close()
+
+		n = rng.Intn(15)
+		rBuilder := f.NewBuilder(n)
+		for i := 0; i < n; i++ {
+			t := fmt.Sprintf("tag%d", rng.Intn(30))
+			rBuilder.Add(t)
+		}
+		r := rBuilder.Close()
+		b.StartTimer()
+
+		result = union(l, r)
+	}
 }

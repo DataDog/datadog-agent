@@ -150,14 +150,9 @@ func (f *cachingFactory) Union(a, b *Tags) *Tags {
 
 	key := unionCacheKey(ah, bh)
 	return f.getCachedTags(byUnionHashCache, key, func() *Tags {
-		tags := make(map[string]struct{}, len(a.tags)+len(b.tags))
-		for _, t := range a.tags {
-			tags[t] = struct{}{}
-		}
-		for _, t := range b.tags {
-			tags[t] = struct{}{}
-		}
-		return f.NewTagsFromMap(tags)
+		u := union(a, b)
+		// if the union is a set that already exists, use that
+		return f.getCachedTags(byTagsetHashCache, u.hash, func() *Tags { return u })
 	})
 }
 
