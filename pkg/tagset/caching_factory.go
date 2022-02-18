@@ -132,12 +132,22 @@ func (f *cachingFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
 
 // Union implements Factory.Union
 func (f *cachingFactory) Union(a, b *Tags) *Tags {
+	// if either input is empty, return the other
+	if a.Len() == 0 {
+		return b
+	}
+
+	if b.Len() == 0 {
+		return a
+	}
+
 	ah, bh := a.Hash(), b.Hash()
 	// order a, b by hash, so that Union(a, b) is the same as Union(b, a)
 	if ah > bh {
 		a, b = b, a
 		ah, bh = bh, ah
 	}
+
 	key := unionCacheKey(ah, bh)
 	return f.getCachedTags(byUnionHashCache, key, func() *Tags {
 		tags := make(map[string]struct{}, len(a.tags)+len(b.tags))
