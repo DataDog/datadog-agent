@@ -42,11 +42,7 @@ func (c *Cache) Get(currentTime time.Time, key string, cacheValidity time.Durati
 	entry, found := c.cache[key]
 	c.cacheLock.RUnlock()
 
-	if !found {
-		return nil, false, nil
-	}
-
-	if currentTime.Sub(entry.timestamp) > cacheValidity {
+	if !found || currentTime.Sub(entry.timestamp) > cacheValidity {
 		return nil, false, nil
 	}
 

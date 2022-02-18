@@ -152,8 +152,12 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	var containers []*model.Container
 	var pidToCid map[int]string
 	var lastContainerRates map[string]*util.ContainerRateMetrics
+	cacheValidity := cacheValidityNoRT
+	if collectRealTime {
+		cacheValidity = cacheValidityRT
+	}
 	containerTime := time.Now()
-	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityNoRT, p.lastContainerRates, p.lastContainerRun, containerTime)
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates, p.lastContainerRun, containerTime)
 	if err == nil {
 		p.lastContainerRun = containerTime
 		p.lastContainerRates = lastContainerRates
