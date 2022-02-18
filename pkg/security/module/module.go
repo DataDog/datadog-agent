@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -281,7 +282,11 @@ func (m *Module) Reload() error {
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
 		WithLegacyFields(model.SECLLegacyFields).
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-			"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
 		}).
 		WithLogger(&seclog.PatternLogger{})
 
@@ -291,6 +296,9 @@ func (m *Module) Reload() error {
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
 	opts.WithVariables(sprobe.SECLVariables)
+	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+	})
 
 	ruleSet := m.probe.NewRuleSet(&opts)
 	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
