@@ -10,7 +10,6 @@ package utils
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,7 +38,7 @@ func getActionCallback(action string) (func(), string, error) {
 	case "profile":
 		return func() {
 			tmpDir := os.TempDir()
-			tmpFiles, err := ioutil.ReadDir(tmpDir)
+			tmpFiles, err := os.ReadDir(tmpDir)
 			if err != nil {
 				log.Errorf("Failed to list old memory profiles: %s", err)
 			} else {
@@ -60,7 +59,7 @@ func getActionCallback(action string) (func(), string, error) {
 				}
 			}
 
-			memProfile, err := ioutil.TempFile(tmpDir, "memcg-pprof-heap")
+			memProfile, err := os.CreateTemp(tmpDir, "memcg-pprof-heap")
 			if err != nil {
 				log.Errorf("Failed to generate memory profile: %s", err)
 				return
