@@ -58,7 +58,7 @@ const (
 
 	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
 	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 1000000
+	DefaultBatchMaxContentSize = 5000000
 
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
@@ -86,6 +86,9 @@ const (
 
 	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
 	DefaultInventoriesMaxInterval = 10 * 60
+
+	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
+	maxExternalMetricsProviderChunkSize = 35
 )
 
 // Datadog is the global configuration object
@@ -287,6 +290,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
+	// Remote config unstable features
+	config.BindEnvAndSetDefault("remote_configuration.unstable.self_signed", false)
+	config.BindEnvAndSetDefault("remote_configuration.unstable.self_signed_root", "")
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -490,6 +496,8 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
@@ -623,8 +631,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	// No default as the agent falls back to `network_devices.namespace` if empty.
+	config.BindEnv("snmp_traps_config.namespace")
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
+	config.SetKnown("snmp_traps_config.users")
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -846,6 +857,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)               // value in seconds. Default to 5 minutes
 	config.BindEnvAndSetDefault("external_metrics_provider.config", map[string]string{})  // list of options that can be used to configure the external metrics server
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)  // value in seconds
+	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)               // Maximum number of queries to batch when querying Datadog.
+	AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
@@ -1261,6 +1274,19 @@ func SanitizeAPIKeyConfig(config Config, key string) {
 	config.Set(key, SanitizeAPIKey(config.GetString(key)))
 }
 
+// sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
+func sanitizeExternalMetricsProviderChunkSize(config Config) {
+	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
+	if chunkSize <= 0 {
+		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
+		config.Set("external_metrics_provider.chunk_size", 1)
+	}
+	if chunkSize > maxExternalMetricsProviderChunkSize {
+		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize)
+		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
+	}
+}
+
 // SanitizeAPIKey strips newlines and other control characters from a given string.
 func SanitizeAPIKey(key string) string {
 	return strings.TrimSpace(key)
@@ -1597,7 +1623,10 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-// GetConfiguredTags returns complete list of user configured tags
+// GetConfiguredTags returns complete list of user configured tags.
+//
+// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
+// if includeDogstatsd is true.
 func GetConfiguredTags(includeDogstatsd bool) []string {
 	tags := Datadog.GetStringSlice("tags")
 	extraTags := Datadog.GetStringSlice("extra_tags")

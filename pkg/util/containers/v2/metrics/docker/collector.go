@@ -12,18 +12,24 @@ package docker
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
 	dockerCollectorID = "docker"
+
+	pidCacheGCInterval     = 60 * time.Second
+	pidCacheFullRefreshKey = "refreshTime"
 )
 
 func init() {
@@ -40,7 +46,9 @@ func init() {
 }
 
 type dockerCollector struct {
-	du *docker.DockerUtil
+	du            *docker.DockerUtil
+	pidCache      *provider.Cache
+	metadataStore workloadmeta.Store
 }
 
 func newDockerCollector() (*dockerCollector, error) {
@@ -53,7 +61,11 @@ func newDockerCollector() (*dockerCollector, error) {
 		return nil, provider.ConvertRetrierErr(err)
 	}
 
-	return &dockerCollector{du: du}, nil
+	return &dockerCollector{
+		du:            du,
+		pidCache:      provider.NewCache(pidCacheGCInterval),
+		metadataStore: workloadmeta.GetGlobalStore(),
+	}, nil
 }
 
 func (d *dockerCollector) ID() string {
@@ -80,6 +92,44 @@ func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheVali
 	return convertNetworkStats(stats.Networks), nil
 }
 
+// GetContainerIDForPID returns the container ID for given PID
+func (d *dockerCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	currentTime := time.Now()
+	strPid := strconv.Itoa(pid)
+
+	cID, found, _ := d.pidCache.Get(currentTime, strPid, cacheValidity)
+	if found {
+		return cID.(string), nil
+	}
+
+	if err := d.refreshPIDCache(currentTime, cacheValidity); err != nil {
+		return "", err
+	}
+
+	// Use harcoded cacheValidity as input one could be 0
+	cID, found, _ = d.pidCache.Get(currentTime, strPid, time.Second)
+	if found {
+		return cID.(string), nil
+	}
+
+	return "", nil
+}
+
+// GetSelfContainerID returns current process container ID
+func (d *dockerCollector) GetSelfContainerID() (string, error) {
+	cID, err := d.GetContainerIDForPID(os.Getpid(), pidCacheGCInterval)
+	if err == nil && cID != "" {
+		return cID, err
+	}
+
+	cID, err = d.GetContainerIDForPID(os.Getppid(), pidCacheGCInterval)
+	if err == nil && cID != "" {
+		return cID, err
+	}
+
+	return "", nil
+}
+
 // stats returns stats by container ID
 func (d *dockerCollector) stats(containerID string) (*types.StatsJSON, error) {
 	stats, err := d.du.GetContainerStats(context.TODO(), containerID)
@@ -90,12 +140,38 @@ func (d *dockerCollector) stats(containerID string) (*types.StatsJSON, error) {
 	return stats, nil
 }
 
+func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity time.Duration) error {
+	// If we've done a full refresh within cacheValidity, we do not trigger another full refresh
+	// We're using the cache itself with a dedicated key pidCacheFullRefreshKey to know if
+	// we need to perform a full refresh or not to seamlessly handle cacheValidity and cache GC.
+	_, found, err := d.pidCache.Get(currentTime, pidCacheFullRefreshKey, cacheValidity)
+	if found {
+		return err
+	}
+
+	// Full refresh
+	containers, err := d.metadataStore.ListContainers()
+	if err != nil {
+		d.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
+		return err
+	}
+
+	for _, container := range containers {
+		if container.Runtime == workloadmeta.ContainerRuntimeDocker && container.PID != 0 {
+			d.pidCache.Store(currentTime, strconv.Itoa(container.PID), container.ID, nil)
+		}
+	}
+
+	d.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, nil)
+	return nil
+}
+
 func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
-		BytesSent:   util.Float64Ptr(0),
-		BytesRcvd:   util.Float64Ptr(0),
-		PacketsSent: util.Float64Ptr(0),
-		PacketsRcvd: util.Float64Ptr(0),
+		BytesSent:   pointer.Float64Ptr(0),
+		BytesRcvd:   pointer.Float64Ptr(0),
+		PacketsSent: pointer.Float64Ptr(0),
+		PacketsRcvd: pointer.Float64Ptr(0),
 		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
@@ -106,10 +182,10 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.C
 		*containerNetworkStats.PacketsRcvd += float64(netStats.RxPackets)
 
 		ifNetStats := provider.InterfaceNetStats{
-			BytesSent:   util.UIntToFloatPtr(netStats.TxBytes),
-			BytesRcvd:   util.UIntToFloatPtr(netStats.RxBytes),
-			PacketsSent: util.UIntToFloatPtr(netStats.TxPackets),
-			PacketsRcvd: util.UIntToFloatPtr(netStats.RxPackets),
+			BytesSent:   pointer.UIntToFloatPtr(netStats.TxBytes),
+			BytesRcvd:   pointer.UIntToFloatPtr(netStats.RxBytes),
+			PacketsSent: pointer.UIntToFloatPtr(netStats.TxPackets),
+			PacketsRcvd: pointer.UIntToFloatPtr(netStats.RxPackets),
 		}
 		containerNetworkStats.Interfaces[ifname] = ifNetStats
 	}

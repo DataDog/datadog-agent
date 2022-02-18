@@ -90,6 +90,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "bpf.map.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Map.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "bpf.map.type":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -105,6 +115,41 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).BPF.Program.AttachType)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "bpf.prog.helpers":
+		return &eval.IntArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []int {
+
+				result := make([]int, len((*Event)(ctx.Object).ResolveHelpers(&(*Event)(ctx.Object).BPF.Program)))
+				for i, v := range (*Event)(ctx.Object).ResolveHelpers(&(*Event)(ctx.Object).BPF.Program) {
+					result[i] = int(v)
+				}
+				return result
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "bpf.prog.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Program.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "bpf.prog.tag":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Program.Tag
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -672,6 +717,17 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.envp":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).ResolveProcessEnvp(&(*Event)(ctx.Object).Exec.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 
 	case "exec.envs":
@@ -2242,6 +2298,38 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.envp":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+				if ptr := ctx.Cache[field]; ptr != nil {
+					if result := (*[]string)(ptr); result != nil {
+						return *result
+					}
+				}
+				var results []string
+
+				iterator := &model.ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*model.ProcessCacheEntry)(value)
+
+					result = (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+				ctx.Cache[field] = unsafe.Pointer(&results)
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
 
@@ -3316,6 +3404,17 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "process.envp":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).ResolveProcessEnvp(&(*Event)(ctx.Object).ProcessContext.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
 
@@ -4072,6 +4171,38 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "ptrace.tracee.ancestors.envp":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+				if ptr := ctx.Cache[field]; ptr != nil {
+					if result := (*[]string)(ptr); result != nil {
+						return *result
+					}
+				}
+				var results []string
+
+				iterator := &model.ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*model.ProcessCacheEntry)(value)
+
+					result = (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+				ctx.Cache[field] = unsafe.Pointer(&results)
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 
 	case "ptrace.tracee.ancestors.envs":
@@ -5146,6 +5277,17 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "ptrace.tracee.envp":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).ResolveProcessEnvp(&(*Event)(ctx.Object).PTrace.Tracee.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 
 	case "ptrace.tracee.envs":
@@ -6699,9 +6841,17 @@ func (e *Event) GetFields() []eval.Field {
 
 		"bpf.cmd",
 
+		"bpf.map.name",
+
 		"bpf.map.type",
 
 		"bpf.prog.attach_type",
+
+		"bpf.prog.helpers",
+
+		"bpf.prog.name",
+
+		"bpf.prog.tag",
 
 		"bpf.prog.type",
 
@@ -6814,6 +6964,8 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.egid",
 
 		"exec.egroup",
+
+		"exec.envp",
 
 		"exec.envs",
 
@@ -7069,6 +7221,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.egroup",
 
+		"process.ancestors.envp",
+
 		"process.ancestors.envs",
 
 		"process.ancestors.envs_truncated",
@@ -7156,6 +7310,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.egid",
 
 		"process.egroup",
+
+		"process.envp",
 
 		"process.envs",
 
@@ -7249,6 +7405,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"ptrace.tracee.ancestors.egroup",
 
+		"ptrace.tracee.ancestors.envp",
+
 		"ptrace.tracee.ancestors.envs",
 
 		"ptrace.tracee.ancestors.envs_truncated",
@@ -7336,6 +7494,8 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.egid",
 
 		"ptrace.tracee.egroup",
+
+		"ptrace.tracee.envp",
 
 		"ptrace.tracee.envs",
 
@@ -7654,6 +7814,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.BPF.Cmd), nil
 
+	case "bpf.map.name":
+
+		return e.BPF.Map.Name, nil
+
 	case "bpf.map.type":
 
 		return int(e.BPF.Map.Type), nil
@@ -7661,6 +7825,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "bpf.prog.attach_type":
 
 		return int(e.BPF.Program.AttachType), nil
+
+	case "bpf.prog.helpers":
+
+		result := make([]int, len(e.ResolveHelpers(&e.BPF.Program)))
+		for i, v := range e.ResolveHelpers(&e.BPF.Program) {
+			result[i] = int(v)
+		}
+		return result, nil
+
+	case "bpf.prog.name":
+
+		return e.BPF.Program.Name, nil
+
+	case "bpf.prog.tag":
+
+		return e.BPF.Program.Tag, nil
 
 	case "bpf.prog.type":
 
@@ -7885,6 +8065,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.egroup":
 
 		return e.Exec.Process.Credentials.EGroup, nil
+
+	case "exec.envp":
+
+		return e.ResolveProcessEnvp(&e.Exec.Process), nil
 
 	case "exec.envs":
 
@@ -8646,6 +8830,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "process.ancestors.envp":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
+
+			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "process.ancestors.envs":
 
 		var values []string
@@ -9362,6 +9568,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ProcessContext.Process.Credentials.EGroup, nil
 
+	case "process.envp":
+
+		return e.ResolveProcessEnvp(&e.ProcessContext.Process), nil
+
 	case "process.envs":
 
 		return e.ResolveProcessEnvs(&e.ProcessContext.Process), nil
@@ -9792,6 +10002,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			result := element.ProcessContext.Process.Credentials.EGroup
 
 			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "ptrace.tracee.ancestors.envp":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
+
+			values = append(values, result...)
 
 			ptr = iterator.Next()
 		}
@@ -10514,6 +10746,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.PTrace.Tracee.Process.Credentials.EGroup, nil
 
+	case "ptrace.tracee.envp":
+
+		return e.ResolveProcessEnvp(&e.PTrace.Tracee.Process), nil
+
 	case "ptrace.tracee.envs":
 
 		return e.ResolveProcessEnvs(&e.PTrace.Tracee.Process), nil
@@ -11141,10 +11377,22 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "bpf.cmd":
 		return "bpf", nil
 
+	case "bpf.map.name":
+		return "bpf", nil
+
 	case "bpf.map.type":
 		return "bpf", nil
 
 	case "bpf.prog.attach_type":
+		return "bpf", nil
+
+	case "bpf.prog.helpers":
+		return "bpf", nil
+
+	case "bpf.prog.name":
+		return "bpf", nil
+
+	case "bpf.prog.tag":
 		return "bpf", nil
 
 	case "bpf.prog.type":
@@ -11313,6 +11561,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.egroup":
+		return "exec", nil
+
+	case "exec.envp":
 		return "exec", nil
 
 	case "exec.envs":
@@ -11696,6 +11947,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.egroup":
 		return "*", nil
 
+	case "process.ancestors.envp":
+		return "*", nil
+
 	case "process.ancestors.envs":
 		return "*", nil
 
@@ -11826,6 +12080,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.egroup":
+		return "*", nil
+
+	case "process.envp":
 		return "*", nil
 
 	case "process.envs":
@@ -11966,6 +12223,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.ancestors.egroup":
 		return "ptrace", nil
 
+	case "ptrace.tracee.ancestors.envp":
+		return "ptrace", nil
+
 	case "ptrace.tracee.ancestors.envs":
 		return "ptrace", nil
 
@@ -12096,6 +12356,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 
 	case "ptrace.tracee.egroup":
+		return "ptrace", nil
+
+	case "ptrace.tracee.envp":
 		return "ptrace", nil
 
 	case "ptrace.tracee.envs":
@@ -12572,6 +12835,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "bpf.map.name":
+
+		return reflect.String, nil
+
 	case "bpf.map.type":
 
 		return reflect.Int, nil
@@ -12579,6 +12846,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "bpf.prog.attach_type":
 
 		return reflect.Int, nil
+
+	case "bpf.prog.helpers":
+
+		return reflect.Int, nil
+
+	case "bpf.prog.name":
+
+		return reflect.String, nil
+
+	case "bpf.prog.tag":
+
+		return reflect.String, nil
 
 	case "bpf.prog.type":
 
@@ -12801,6 +13080,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "exec.egroup":
+
+		return reflect.String, nil
+
+	case "exec.envp":
 
 		return reflect.String, nil
 
@@ -13312,6 +13595,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.ancestors.envp":
+
+		return reflect.String, nil
+
 	case "process.ancestors.envs":
 
 		return reflect.String, nil
@@ -13485,6 +13772,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.egroup":
+
+		return reflect.String, nil
+
+	case "process.envp":
 
 		return reflect.String, nil
 
@@ -13672,6 +13963,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "ptrace.tracee.ancestors.envp":
+
+		return reflect.String, nil
+
 	case "ptrace.tracee.ancestors.envs":
 
 		return reflect.String, nil
@@ -13845,6 +14140,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "ptrace.tracee.egroup":
+
+		return reflect.String, nil
+
+	case "ptrace.tracee.envp":
 
 		return reflect.String, nil
 
@@ -14483,6 +14782,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "bpf.map.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Map.Name"}
+		}
+		e.BPF.Map.Name = str
+
+		return nil
+
 	case "bpf.map.type":
 
 		var ok bool
@@ -14502,6 +14812,39 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.AttachType"}
 		}
 		e.BPF.Program.AttachType = uint32(v)
+
+		return nil
+
+	case "bpf.prog.helpers":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Helpers"}
+		}
+		e.BPF.Program.Helpers = append(e.BPF.Program.Helpers, uint32(v))
+
+		return nil
+
+	case "bpf.prog.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Name"}
+		}
+		e.BPF.Program.Name = str
+
+		return nil
+
+	case "bpf.prog.tag":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Tag"}
+		}
+		e.BPF.Program.Tag = str
 
 		return nil
 
@@ -15109,6 +15452,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGroup"}
 		}
 		e.Exec.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "exec.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envp"}
+		}
+		e.Exec.Process.Envp = append(e.Exec.Process.Envp, str)
 
 		return nil
 
@@ -16541,6 +16895,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.ancestors.envp":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envp"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(e.ProcessContext.Ancestor.ProcessContext.Process.Envp, str)
+
+		return nil
+
 	case "process.ancestors.envs":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -17136,6 +17505,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envp"}
+		}
+		e.ProcessContext.Process.Envp = append(e.ProcessContext.Process.Envp, str)
+
+		return nil
+
 	case "process.envs":
 
 		var ok bool
@@ -17686,6 +18066,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "ptrace.tracee.ancestors.envp":
+
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Envp"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp, str)
 
 		return nil
 
@@ -18281,6 +18676,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EGroup"}
 		}
 		e.PTrace.Tracee.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "ptrace.tracee.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Envp"}
+		}
+		e.PTrace.Tracee.Process.Envp = append(e.PTrace.Tracee.Process.Envp, str)
 
 		return nil
 

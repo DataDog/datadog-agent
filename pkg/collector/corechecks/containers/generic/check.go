@@ -6,6 +6,8 @@
 package generic
 
 import (
+	"time"
+
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -18,6 +20,7 @@ import (
 
 const (
 	genericContainerCheckName = "container"
+	cacheValidity             = 2 * time.Second
 )
 
 // ContainerConfig holds the check configuration
@@ -70,5 +73,5 @@ func (c *ContainerCheck) Run() error {
 		return err
 	}
 
-	return c.processor.Run(sender, c.Interval()/2)
+	return c.processor.Run(sender, cacheValidity)
 }

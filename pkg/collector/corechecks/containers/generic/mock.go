@@ -6,8 +6,10 @@
 package generic
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -26,11 +28,11 @@ func (l *MockContainerAccessor) List() ([]*workloadmeta.Container, error) {
 // CreateTestProcessor returns a ready-to-use Processor
 func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	listerError error,
-	metricsContainers map[string]metrics.MockContainerEntry,
+	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
 	containerFilter ContainerFilter) (*mocksender.MockSender, *Processor, ContainerAccessor) {
-	mockProvider := metrics.NewMockMetricsProvider()
-	mockCollector := metrics.NewMockCollector("testCollector")
+	mockProvider := mock.NewMetricsProvider()
+	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
 		mockProvider.RegisterConcreteCollector(runtime, mockCollector)
 	}
@@ -55,5 +57,20 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 func MockSendMetric(senderFunc func(string, float64, string, []string), metricName string, value *float64, tags []string) {
 	if value != nil {
 		senderFunc(metricName, *value, "", tags)
+	}
+}
+
+// CreateContainerMeta returns a dummy workloadmeta.Container
+func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
+	return &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   cID,
+		},
+		Runtime: workloadmeta.ContainerRuntime(runtime),
+		State: workloadmeta.ContainerState{
+			Running:   true,
+			StartedAt: time.Now(),
+		},
 	}
 }

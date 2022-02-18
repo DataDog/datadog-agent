@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -30,7 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -725,6 +728,17 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	return keys, pr.ArgsTruncated || truncated
 }
 
+// GetProcessEnvp returns the envs of the event with their values
+func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
+	if pr.EnvsEntry == nil {
+		return nil, false
+	}
+
+	envp, truncated := pr.EnvsEntry.ToArray()
+
+	return envp, pr.ArgsTruncated || truncated
+}
+
 // SetProcessTTY resolves TTY and cache the result
 func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
@@ -972,6 +986,22 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 // SetState sets the process resolver state
 func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
+}
+
+// NewProcessVariables returns a provider for variables attached to a process cache entry
+func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
+	scoper := func(ctx *eval.Context) unsafe.Pointer {
+		return unsafe.Pointer((*Event)(ctx.Object).processCacheEntry)
+	}
+
+	var variables *eval.ScopedVariables
+	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
+		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
+			variables.ReleaseVariable(key)
+		})
+	})
+
+	return variables
 }
 
 // NewProcessResolver returns a new process resolver

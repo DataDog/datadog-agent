@@ -7,6 +7,7 @@ package ckey
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -38,6 +39,35 @@ func TestGenerateReproductible(t *testing.T) {
 	otherKey := generator.Generate("othername", hostname, tags)
 	assert.NotEqual(t, firstKey, otherKey)
 	assert.Equal(t, ContextKey(0xb059e8f73b4b7ae0), otherKey)
+}
+
+func TestGenerateReproductible2(t *testing.T) {
+	name := "metric.name"
+	hostname := "hostname"
+	tags1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"bar", "foo", "key:value", "key:value2"})
+	tags2 := tagset.NewHashingTagsAccumulatorWithTags([]string{})
+
+	generator := NewKeyGenerator()
+
+	firstKey, tagsKey1, tagsKey2 := generator.GenerateWithTags2(name, hostname, tags1, tags2)
+	assert.Equal(t, ContextKey(0x932f9848b0fb0802), firstKey)
+	assert.Equal(t, TagsKey(0x437b13a371a1c7d3), tagsKey1)
+	assert.Equal(t, TagsKey(0), tagsKey2)
+
+	for n := 0; n < 10; n++ {
+		t.Run(fmt.Sprintf("iteration %d:", n), func(t *testing.T) {
+			key, t1, t2 := generator.GenerateWithTags2(name, hostname, tags1, tags2)
+			assert.Equal(t, firstKey, key)
+			assert.Equal(t, tagsKey1, t1)
+			assert.Equal(t, tagsKey2, t2)
+		})
+	}
+
+	otherKey, otherTagsKey1, otherTagsKey2 := generator.GenerateWithTags2("othername", hostname, tags1, tags2)
+	assert.NotEqual(t, firstKey, otherKey)
+	assert.Equal(t, ContextKey(0xb059e8f73b4b7ae0), otherKey)
+	assert.Equal(t, tagsKey1, otherTagsKey1)
+	assert.Equal(t, tagsKey2, otherTagsKey2)
 }
 
 func TestCompare(t *testing.T) {
@@ -82,5 +112,38 @@ func BenchmarkKeyGeneration(b *testing.B) {
 			}
 		})
 
+	}
+}
+
+func BenchmarkKeyGeneration2(b *testing.B) {
+	name := "testname"
+	host := "myhost"
+
+	variant := os.Getenv("VARIANT")
+	for i := 1; i < 4096; i *= 2 {
+		tags, _ := genTags(i, 1)
+		if variant == "2" {
+			l := tagset.NewHashingTagsAccumulatorWithTags(tags[:i/2])
+			r := tagset.NewHashingTagsAccumulatorWithTags(tags[i/2:])
+			b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+				generator := NewKeyGenerator()
+				l := l.Dup()
+				r := r.Dup()
+				b.ResetTimer()
+				for n := 0; n < b.N; n++ {
+					generator.GenerateWithTags2(name, host, l, r)
+				}
+			})
+		} else {
+			tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(tags)
+			b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+				generator := NewKeyGenerator()
+				tags := tagsBuf.Dup()
+				b.ResetTimer()
+				for n := 0; n < b.N; n++ {
+					generator.GenerateWithTags(name, host, tags)
+				}
+			})
+		}
 	}
 }

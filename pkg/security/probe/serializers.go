@@ -203,6 +203,7 @@ type BPFMapSerializer struct {
 // easyjson:json
 type BPFProgramSerializer struct {
 	Name        string   `json:"name,omitempty" jsonschema_description:"Name of the BPF program"`
+	Tag         string   `json:"tag,omitempty" jsonschema_description:"Hash (sha1) of the BPF program"`
 	ProgramType string   `json:"program_type,omitempty" jsonschema_description:"Type of the BPF program"`
 	AttachType  string   `json:"attach_type,omitempty" jsonschema_description:"Attach type of the BPF program"`
 	Helpers     []string `json:"helpers,omitempty" jsonschema_description:"List of helpers used by the BPF program"`
@@ -218,20 +219,19 @@ type BPFEventSerializer struct {
 
 // MMapEventSerializer serializes a mmap event to JSON
 type MMapEventSerializer struct {
-	Address    string          `json:"address" jsonschema_description:"memory segment address"`
-	Offset     uint64          `json:"offset" jsonschema_description:"file offset"`
-	Len        uint32          `json:"length" jsonschema_description:"memory segment length"`
-	Protection string          `json:"protection" jsonschema_description:"memory segment protection"`
-	Flags      string          `json:"flags" jsonschema_description:"memory segment flags"`
-	File       *FileSerializer `json:"file,omitempty" jsonschema_description:"mmaped file"`
+	Address    string `json:"address" jsonschema_description:"memory segment address"`
+	Offset     uint64 `json:"offset" jsonschema_description:"file offset"`
+	Len        uint32 `json:"length" jsonschema_description:"memory segment length"`
+	Protection string `json:"protection" jsonschema_description:"memory segment protection"`
+	Flags      string `json:"flags" jsonschema_description:"memory segment flags"`
 }
 
 // MProtectEventSerializer serializes a mmap event to JSON
 type MProtectEventSerializer struct {
 	VMStart       string `json:"vm_start" jsonschema_description:"memory segment start address"`
 	VMEnd         string `json:"vm_end" jsonschema_description:"memory segment end address"`
-	VMProtection  string `json:"vm_protection" jsonschema_description:"memory segment protection"`
-	ReqProtection string `json:"new_protection" jsonschema_description:"new memory segment protection"`
+	VMProtection  string `json:"vm_protection" jsonschema_description:"initial memory segment protection"`
+	ReqProtection string `json:"req_protection" jsonschema_description:"new memory segment protection"`
 }
 
 // PTraceEventSerializer serializes a mmap event to JSON
@@ -500,6 +500,7 @@ func newBPFProgramSerializer(e *Event) *BPFProgramSerializer {
 
 	return &BPFProgramSerializer{
 		Name:        e.BPF.Program.Name,
+		Tag:         e.BPF.Program.Tag,
 		ProgramType: model.BPFProgramType(e.BPF.Program.Type).String(),
 		AttachType:  model.BPFAttachType(e.BPF.Program.AttachType).String(),
 		Helpers:     model.StringifyHelpersList(e.BPF.Program.Helpers),
@@ -515,18 +516,12 @@ func newBPFEventSerializer(e *Event) *BPFEventSerializer {
 }
 
 func newMMapEventSerializer(e *Event) *MMapEventSerializer {
-	var fileSerializer *FileSerializer
-	if e.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
-		fileSerializer = newFileSerializer(&e.MMap.File, e)
-	}
-
 	return &MMapEventSerializer{
 		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
 		Offset:     e.MMap.Offset,
 		Len:        e.MMap.Len,
 		Protection: model.Protection(e.MMap.Protection).String(),
 		Flags:      model.MMapFlag(e.MMap.Flags).String(),
-		File:       fileSerializer,
 	}
 }
 
@@ -749,6 +744,11 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.BPFEventSerializer = newBPFEventSerializer(event)
 	case model.MMapEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MMap.Retval)
+		if event.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.MMap.File, event),
+			}
+		}
 		s.MMapEventSerializer = newMMapEventSerializer(event)
 	case model.MProtectEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MProtect.Retval)

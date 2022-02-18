@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestGetContainerStats(t *testing.T) {
@@ -49,8 +49,8 @@ func TestGetContainerStats(t *testing.T) {
 	stats, err := collector.GetContainerStats(containerID, 10*time.Second)
 	assert.NoError(t, err)
 
-	assert.Equal(t, util.UIntToFloatPtr(1000), stats.CPU.Total)
-	assert.Equal(t, util.UIntToFloatPtr(1024), stats.Memory.RSS)
+	assert.Equal(t, pointer.UIntToFloatPtr(1000), stats.CPU.Total)
+	assert.Equal(t, pointer.UIntToFloatPtr(1024), stats.Memory.RSS)
 }
 
 func TestGetContainerNetworkStats(t *testing.T) {

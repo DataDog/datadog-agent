@@ -14,9 +14,9 @@ import (
 	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -67,10 +67,10 @@ func (collector *criCollector) GetContainerStats(containerID string, cacheValidi
 	return &provider.ContainerStats{
 		Timestamp: time.Now(),
 		CPU: &provider.ContainerCPUStats{
-			Total: util.UIntToFloatPtr(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()),
+			Total: pointer.UIntToFloatPtr(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()),
 		},
 		Memory: &provider.ContainerMemStats{
-			RSS: util.UIntToFloatPtr(stats.GetMemory().GetWorkingSetBytes().GetValue()),
+			RSS: pointer.UIntToFloatPtr(stats.GetMemory().GetWorkingSetBytes().GetValue()),
 		},
 	}, nil
 }
@@ -79,6 +79,18 @@ func (collector *criCollector) GetContainerStats(containerID string, cacheValidi
 func (collector *criCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	// Not available
 	return nil, nil
+}
+
+// GetContainerIDForPID returns the container ID for given PID
+func (collector *criCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	// Not available
+	return "", nil
+}
+
+// GetSelfContainerID returns current process container ID
+func (collector *criCollector) GetSelfContainerID() (string, error) {
+	// Not available
+	return "", nil
 }
 
 func (collector *criCollector) getCriContainerStats(containerID string) (*v1alpha2.ContainerStats, error) {

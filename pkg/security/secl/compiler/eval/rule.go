@@ -6,6 +6,7 @@
 package eval
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -194,16 +195,22 @@ func (r *Rule) genMacroPartials() (map[Field]map[MacroID]*MacroEvaluator, error)
 	partials := make(map[Field]map[MacroID]*MacroEvaluator)
 	for _, field := range r.GetFields() {
 		for id, macro := range r.Opts.Macros {
-
-			// NOTE(safchain) this is not working with nested macro. It will be removed once partial
-			// will be generated another way
-			evaluator, err := macroToEvaluator(macro.ast, r.Model, r.Opts, field)
-			if err != nil {
-				if err, ok := err.(*ErrAstToEval); ok {
-					return nil, errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: macro.Expression}, "macro syntax error")
+			var err error
+			var evaluator *MacroEvaluator
+			if macro.ast != nil {
+				// NOTE(safchain) this is not working with nested macro. It will be removed once partial
+				// will be generated another way
+				evaluator, err = macroToEvaluator(macro.ast, r.Model, r.Opts, field)
+				if err != nil {
+					if err, ok := err.(*ErrAstToEval); ok {
+						return nil, fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos})
+					}
+					return nil, fmt.Errorf("macro compilation error: %w", err)
 				}
-				return nil, errors.Wrap(err, "macro compilation error")
+			} else {
+				evaluator = macro.GetEvaluator()
 			}
+
 			macroEvaluators, exists := partials[field]
 			if !exists {
 				macroEvaluators = make(map[MacroID]*MacroEvaluator)

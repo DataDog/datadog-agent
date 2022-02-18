@@ -9,41 +9,21 @@
 package containerd
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/containerd/containerd"
-	apievents "github.com/containerd/containerd/api/events"
-	containerdevents "github.com/containerd/containerd/events"
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
+	containerdcontainers "github.com/containerd/containerd/containers"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-func TestIgnoreEvent(t *testing.T) {
+func TestIgnoreContainer(t *testing.T) {
 	pauseFilter, err := containers.GetPauseContainerFilter()
 	assert.NoError(t, err)
 
 	containerID := "123"
-
-	eventEncoded, err := proto.Marshal(&apievents.ContainerCreate{
-		ID: containerID,
-	})
-	assert.NoError(t, err)
-
-	event := containerdevents.Envelope{
-		Timestamp: time.Now(),
-		Topic:     containerCreationTopic,
-		Event: &types.Any{
-			TypeUrl: "containerd.events.ContainerCreate",
-			Value:   eventEncoded,
-		},
-	}
 
 	container := mockedContainer{
 		mockID: func() string {
@@ -54,44 +34,29 @@ func TestIgnoreEvent(t *testing.T) {
 	tests := []struct {
 		name           string
 		imgName        string
-		getContainerFn func(ctx context.Context, id string) (containerd.Container, error)
+		container      containerd.Container
 		expectsIgnored bool
 	}{
 		{
-			name:    "pause image",
-			imgName: "k8s.gcr.io/pause",
-			getContainerFn: func(ctx context.Context, id string) (containerd.Container, error) {
-				return &container, nil
-			},
+			name:           "pause image",
+			imgName:        "k8s.gcr.io/pause",
+			container:      &container,
 			expectsIgnored: true,
 		},
 		{
-			name:    "non-pause container that exists",
-			imgName: "datadog/agent",
-			getContainerFn: func(ctx context.Context, id string) (containerd.Container, error) {
-				return &container, nil
-			},
+			name:           "non-pause container that exists",
+			imgName:        "datadog/agent",
+			container:      &container,
 			expectsIgnored: false,
-		},
-		{
-			name:    "container that does not exist",
-			imgName: "datadog/agent",
-			getContainerFn: func(ctx context.Context, id string) (containerd.Container, error) {
-				return nil, errors.NewNotFound(id)
-			},
-			expectsIgnored: false, // Because it's a delete event that needs to be handled
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := fake.MockedContainerdClient{
-				MockContainerWithCtx: test.getContainerFn,
-				MockImage: func(ctn containerd.Container) (containerd.Image, error) {
-					return &mockedImage{
-						mockName: func() string {
-							return test.imgName
-						},
+				MockInfo: func(containerd.Container) (containerdcontainers.Container, error) {
+					return containerdcontainers.Container{
+						Image: test.imgName,
 					}, nil
 				},
 			}
@@ -101,7 +66,7 @@ func TestIgnoreEvent(t *testing.T) {
 				filterPausedContainers: pauseFilter,
 			}
 
-			ignored, err := containerdCollector.ignoreEvent(context.TODO(), &event)
+			ignored, err := containerdCollector.ignoreContainer(test.container)
 			assert.NoError(t, err)
 
 			if test.expectsIgnored {

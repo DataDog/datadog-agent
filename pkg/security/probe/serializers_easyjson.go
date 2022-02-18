@@ -2498,7 +2498,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe14(in *jl
 			out.VMEnd = string(in.String())
 		case "vm_protection":
 			out.VMProtection = string(in.String())
-		case "new_protection":
+		case "req_protection":
 			out.ReqProtection = string(in.String())
 		default:
 			in.SkipRecursive()
@@ -2530,7 +2530,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe14(out *j
 		out.String(string(in.VMProtection))
 	}
 	{
-		const prefix string = ",\"new_protection\":"
+		const prefix string = ",\"req_protection\":"
 		out.RawString(prefix)
 		out.String(string(in.ReqProtection))
 	}
@@ -2565,16 +2565,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe13(in *jl
 			out.Protection = string(in.String())
 		case "flags":
 			out.Flags = string(in.String())
-		case "file":
-			if in.IsNull() {
-				in.Skip()
-				out.File = nil
-			} else {
-				if out.File == nil {
-					out.File = new(FileSerializer)
-				}
-				(*out.File).UnmarshalEasyJSON(in)
-			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2613,11 +2603,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(out *j
 		const prefix string = ",\"flags\":"
 		out.RawString(prefix)
 		out.String(string(in.Flags))
-	}
-	if in.File != nil {
-		const prefix string = ",\"file\":"
-		out.RawString(prefix)
-		(*in.File).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -3167,6 +3152,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe21(in *jl
 		switch key {
 		case "name":
 			out.Name = string(in.String())
+		case "tag":
+			out.Tag = string(in.String())
 		case "program_type":
 			out.ProgramType = string(in.String())
 		case "attach_type":
@@ -3213,6 +3200,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe21(out *j
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.Name))
+	}
+	if in.Tag != "" {
+		const prefix string = ",\"tag\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Tag))
 	}
 	if in.ProgramType != "" {
 		const prefix string = ",\"program_type\":"

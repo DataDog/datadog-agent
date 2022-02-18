@@ -88,9 +88,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "process.ancestors.envs",
+          "name": "process.ancestors.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "process.ancestors.envs_truncated",
@@ -308,9 +313,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "process.envs",
+          "name": "process.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "process.envs_truncated",
@@ -472,6 +482,11 @@
           "definition": "BPF command name"
         },
         {
+          "name": "bpf.map.name",
+          "type": "string",
+          "definition": "Name of the eBPF map (added in 7.35)"
+        },
+        {
           "name": "bpf.map.type",
           "type": "int",
           "definition": "Type of the eBPF map"
@@ -480,6 +495,21 @@
           "name": "bpf.prog.attach_type",
           "type": "int",
           "definition": "Attach type of the eBPF program"
+        },
+        {
+          "name": "bpf.prog.helpers",
+          "type": "int",
+          "definition": "eBPF helpers used by the eBPF program (added in 7.35)"
+        },
+        {
+          "name": "bpf.prog.name",
+          "type": "string",
+          "definition": "Name of the eBPF program (added in 7.35)"
+        },
+        {
+          "name": "bpf.prog.tag",
+          "type": "string",
+          "definition": "Hash (sha1) of the eBPF program (added in 7.35)"
         },
         {
           "name": "bpf.prog.type",
@@ -788,9 +818,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "exec.envs",
+          "name": "exec.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "exec.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "exec.envs_truncated",
@@ -1191,8 +1226,8 @@
       "name": "mmap",
       "definition": "A mmap command was executed",
       "type": "Kernel",
-      "from_agent_version": "7.34",
-      "experimental": true,
+      "from_agent_version": "7.35",
+      "experimental": false,
       "properties": [
         {
           "name": "mmap.file.change_time",
@@ -1267,12 +1302,12 @@
         {
           "name": "mmap.flags",
           "type": "int",
-          "definition": ""
+          "definition": "memory segment flags"
         },
         {
           "name": "mmap.protection",
           "type": "int",
-          "definition": ""
+          "definition": "memory segment protection"
         },
         {
           "name": "mmap.retval",
@@ -1285,13 +1320,13 @@
       "name": "mprotect",
       "definition": "A mprotect command was executed",
       "type": "Kernel",
-      "from_agent_version": "7.34",
-      "experimental": true,
+      "from_agent_version": "7.35",
+      "experimental": false,
       "properties": [
         {
           "name": "mprotect.req_protection",
           "type": "int",
-          "definition": ""
+          "definition": "new memory segment protection"
         },
         {
           "name": "mprotect.retval",
@@ -1301,7 +1336,7 @@
         {
           "name": "mprotect.vm_protection",
           "type": "int",
-          "definition": ""
+          "definition": "initial memory segment protection"
         }
       ]
     },
@@ -1403,13 +1438,13 @@
       "name": "ptrace",
       "definition": "A ptrace command was executed",
       "type": "Kernel",
-      "from_agent_version": "7.34",
-      "experimental": true,
+      "from_agent_version": "7.35",
+      "experimental": false,
       "properties": [
         {
           "name": "ptrace.request",
           "type": "int",
-          "definition": ""
+          "definition": "ptrace request"
         },
         {
           "name": "ptrace.retval",
@@ -1487,9 +1522,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "ptrace.tracee.ancestors.envs",
+          "name": "ptrace.tracee.ancestors.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "ptrace.tracee.ancestors.envs_truncated",
@@ -1707,9 +1747,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "ptrace.tracee.envs",
+          "name": "ptrace.tracee.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "ptrace.tracee.envs_truncated",

@@ -152,6 +152,10 @@ CWS logs have the following JSON schema:
             "type": "string",
             "description": "Name of the BPF program"
         },
+        "tag": {
+            "type": "string",
+            "description": "Hash (sha1) of the BPF program"
+        },
         "program_type": {
             "type": "string",
             "description": "Type of the BPF program"
@@ -177,6 +181,7 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `name` | Name of the BPF program |
+| `tag` | Hash (sha1) of the BPF program |
 | `program_type` | Type of the BPF program |
 | `attach_type` | Attach type of the BPF program |
 | `helpers` | List of helpers used by the BPF program |
@@ -553,10 +558,6 @@ CWS logs have the following JSON schema:
         "flags": {
             "type": "string",
             "description": "memory segment flags"
-        },
-        "file": {
-            "$ref": "#/definitions/File",
-            "description": "mmaped file"
         }
     },
     "additionalProperties": false,
@@ -572,11 +573,7 @@ CWS logs have the following JSON schema:
 | `length` | memory segment length |
 | `protection` | memory segment protection |
 | `flags` | memory segment flags |
-| `file` | mmaped file |
 
-| References |
-| ---------- |
-| [File](#file) |
 
 ## `MProtectEvent`
 
@@ -587,7 +584,7 @@ CWS logs have the following JSON schema:
         "vm_start",
         "vm_end",
         "vm_protection",
-        "new_protection"
+        "req_protection"
     ],
     "properties": {
         "vm_start": {
@@ -600,9 +597,9 @@ CWS logs have the following JSON schema:
         },
         "vm_protection": {
             "type": "string",
-            "description": "memory segment protection"
+            "description": "initial memory segment protection"
         },
-        "new_protection": {
+        "req_protection": {
             "type": "string",
             "description": "new memory segment protection"
         }
@@ -617,8 +614,8 @@ CWS logs have the following JSON schema:
 | ----- | ----------- |
 | `vm_start` | memory segment start address |
 | `vm_end` | memory segment end address |
-| `vm_protection` | memory segment protection |
-| `new_protection` | new memory segment protection |
+| `vm_protection` | initial memory segment protection |
+| `req_protection` | new memory segment protection |
 
 
 ## `PTraceEvent`

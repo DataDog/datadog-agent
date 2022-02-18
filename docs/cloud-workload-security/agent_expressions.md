@@ -39,10 +39,10 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `mkdir` | File | A directory was created | 7.27 |
-| `mmap` | Kernel | [Experimental] A mmap command was executed | 7.34 |
-| `mprotect` | Kernel | [Experimental] A mprotect command was executed | 7.34 |
+| `mmap` | Kernel | A mmap command was executed | 7.35 |
+| `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
-| `ptrace` | Kernel | [Experimental] A ptrace command was executed | 7.34 |
+| `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
 | `rmdir` | File | A directory was removed | 7.27 |
@@ -159,7 +159,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `process.ancestors.egid` | int | Effective GID of the process |
 | `process.ancestors.egroup` | string | Effective group of the process |
-| `process.ancestors.envs` | string | Environment variables of the process |
+| `process.ancestors.envp` | string | Environment variables of the process |
+| `process.ancestors.envs` | string | Environment variable names of the process |
 | `process.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.ancestors.euid` | int | Effective UID of the process |
 | `process.ancestors.euser` | string | Effective user of the process |
@@ -203,7 +204,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.created_at` | int | Timestamp of the creation of the process |
 | `process.egid` | int | Effective GID of the process |
 | `process.egroup` | string | Effective group of the process |
-| `process.envs` | string | Environment variables of the process |
+| `process.envp` | string | Environment variables of the process |
+| `process.envs` | string | Environment variable names of the process |
 | `process.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.euid` | int | Effective UID of the process |
 | `process.euser` | string | Effective user of the process |
@@ -241,8 +243,12 @@ A BPF command was executed
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 | `bpf.cmd` | int | BPF command name |
+| `bpf.map.name` | string | Name of the eBPF map (added in 7.35) |
 | `bpf.map.type` | int | Type of the eBPF map |
 | `bpf.prog.attach_type` | int | Attach type of the eBPF program |
+| `bpf.prog.helpers` | int | eBPF helpers used by the eBPF program (added in 7.35) |
+| `bpf.prog.name` | string | Name of the eBPF program (added in 7.35) |
+| `bpf.prog.tag` | string | Hash (sha1) of the eBPF program (added in 7.35) |
 | `bpf.prog.type` | int | Type of the eBPF program |
 | `bpf.retval` | int | Return value of the syscall |
 
@@ -325,7 +331,8 @@ A process was executed or forked
 | `exec.created_at` | int | Timestamp of the creation of the process |
 | `exec.egid` | int | Effective GID of the process |
 | `exec.egroup` | string | Effective group of the process |
-| `exec.envs` | string | Environment variables of the process |
+| `exec.envp` | string | Environment variables of the process |
+| `exec.envs` | string | Environment variable names of the process |
 | `exec.envs_truncated` | bool | Indicator of environment variables truncation |
 | `exec.euid` | int | Effective UID of the process |
 | `exec.euser` | string | Effective user of the process |
@@ -418,8 +425,6 @@ A directory was created
 
 ### Event `mmap`
 
-_This event type is experimental and may change in the future._
-
 A mmap command was executed
 
 | Property | Type | Definition |
@@ -438,21 +443,19 @@ A mmap command was executed
 | `mmap.file.rights` | int | Mode/rights of the file |
 | `mmap.file.uid` | int | UID of the file's owner |
 | `mmap.file.user` | string | User of the file's owner |
-| `mmap.flags` | int |  |
-| `mmap.protection` | int |  |
+| `mmap.flags` | int | memory segment flags |
+| `mmap.protection` | int | memory segment protection |
 | `mmap.retval` | int | Return value of the syscall |
 
 ### Event `mprotect`
-
-_This event type is experimental and may change in the future._
 
 A mprotect command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mprotect.req_protection` | int |  |
+| `mprotect.req_protection` | int | new memory segment protection |
 | `mprotect.retval` | int | Return value of the syscall |
-| `mprotect.vm_protection` | int |  |
+| `mprotect.vm_protection` | int | initial memory segment protection |
 
 ### Event `open`
 
@@ -480,13 +483,11 @@ A file was opened
 
 ### Event `ptrace`
 
-_This event type is experimental and may change in the future._
-
 A ptrace command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `ptrace.request` | int |  |
+| `ptrace.request` | int | ptrace request |
 | `ptrace.retval` | int | Return value of the syscall |
 | `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |
 | `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |
@@ -502,7 +503,8 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |
 | `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |
-| `ptrace.tracee.ancestors.envs` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envp` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envs` | string | Environment variable names of the process |
 | `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |
 | `ptrace.tracee.ancestors.euser` | string | Effective user of the process |
@@ -546,7 +548,8 @@ A ptrace command was executed
 | `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.egid` | int | Effective GID of the process |
 | `ptrace.tracee.egroup` | string | Effective group of the process |
-| `ptrace.tracee.envs` | string | Environment variables of the process |
+| `ptrace.tracee.envp` | string | Environment variables of the process |
+| `ptrace.tracee.envs` | string | Environment variable names of the process |
 | `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.euid` | int | Effective UID of the process |
 | `ptrace.tracee.euser` | string | Effective user of the process |
