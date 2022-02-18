@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -78,8 +79,16 @@ func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity ti
 	if err != nil {
 		return nil, err
 	}
+	outStats := convertContainerStats(&stats.Stats)
 
-	return convertContainerStats(&stats.Stats), nil
+	contSpec, err := d.spec(containerID)
+	if err == nil {
+		fillStatsFromSpec(outStats, contSpec)
+	} else {
+		log.Debugf("Unable to inspect container some metrics will be missing, cid: %s, err: %v", containerID, err)
+	}
+
+	return outStats, nil
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
@@ -140,6 +149,15 @@ func (d *dockerCollector) stats(containerID string) (*types.StatsJSON, error) {
 	return stats, nil
 }
 
+func (d *dockerCollector) spec(containerID string) (*types.ContainerJSON, error) {
+	contSpec, err := d.du.Inspect(context.TODO(), containerID, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return &contSpec, nil
+}
+
 func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity time.Duration) error {
 	// If we've done a full refresh within cacheValidity, we do not trigger another full refresh
 	// We're using the cache itself with a dedicated key pidCacheFullRefreshKey to know if
@@ -164,6 +182,14 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 
 	d.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, nil)
 	return nil
+}
+
+func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || containerStats == nil {
+		return
+	}
+
+	computeCPULimit(containerStats, spec)
 }
 
 func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.ContainerNetworkStats {
