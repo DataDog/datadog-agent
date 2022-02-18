@@ -148,11 +148,13 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 
-	SELinux  SELinuxEvent  `field:"selinux" event:"selinux"`   // [7.30] [Kernel] An SELinux operation was run
-	BPF      BPFEvent      `field:"bpf" event:"bpf"`           // [7.33] [Kernel] A BPF command was executed
-	PTrace   PTraceEvent   `field:"ptrace" event:"ptrace"`     // [7.35] [Kernel] A ptrace command was executed
-	MMap     MMapEvent     `field:"mmap" event:"mmap"`         // [7.35] [Kernel] A mmap command was executed
-	MProtect MProtectEvent `field:"mprotect" event:"mprotect"` // [7.35] [Kernel] A mprotect command was executed
+	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
+	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
+	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace"`               // [7.35] [Kernel] A ptrace command was executed
+	MMap         MMapEvent         `field:"mmap" event:"mmap"`                   // [7.35] [Kernel] A mmap command was executed
+	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
+	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
+	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -655,4 +657,20 @@ type MProtectEvent struct {
 	VMEnd         uint64 `field:"-"`
 	VMProtection  int    `field:"vm_protection"`  // initial memory segment protection
 	ReqProtection int    `field:"req_protection"` // new memory segment protection
+}
+
+// LoadModuleEvent represents a load_module event
+type LoadModuleEvent struct {
+	SyscallEvent
+
+	File             FileEvent `field:"file"`               // Path to the kernel module file
+	LoadedFromMemory bool      `field:"loaded_from_memory"` // Indicates if the kernel module was loaded from memory
+	Name             string    `field:"name"`               // Name of the new kernel module
+}
+
+// UnloadModuleEvent represents an unload_module event
+type UnloadModuleEvent struct {
+	SyscallEvent
+
+	Name string `field:"name"` // Name of the kernel module that was deleted
 }

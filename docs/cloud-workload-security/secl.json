@@ -1129,6 +1129,100 @@
       ]
     },
     {
+      "name": "load_module",
+      "definition": "A new kernel module was loaded",
+      "type": "Kernel",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "load_module.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "load_module.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem"
+        },
+        {
+          "name": "load_module.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "load_module.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "load_module.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "load_module.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "load_module.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "load_module.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "load_module.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "load_module.file.name",
+          "type": "string",
+          "definition": "File's basename"
+        },
+        {
+          "name": "load_module.file.path",
+          "type": "string",
+          "definition": "File's path"
+        },
+        {
+          "name": "load_module.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "load_module.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "load_module.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "load_module.loaded_from_memory",
+          "type": "bool",
+          "definition": "Indicates if the kernel module was loaded from memory"
+        },
+        {
+          "name": "load_module.name",
+          "type": "string",
+          "definition": "Name of the new kernel module"
+        },
+        {
+          "name": "load_module.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
       "name": "mkdir",
       "definition": "A directory was created",
       "type": "File",
@@ -2515,6 +2609,25 @@
         },
         {
           "name": "unlink.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
+      "name": "unload_module",
+      "definition": "A kernel module was deleted",
+      "type": "Kernel",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unload_module.name",
+          "type": "string",
+          "definition": "Name of the kernel module that was deleted"
+        },
+        {
+          "name": "unload_module.retval",
           "type": "int",
           "definition": "Return value of the syscall"
         }

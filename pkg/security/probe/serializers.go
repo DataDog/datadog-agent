@@ -248,6 +248,12 @@ type DDContextSerializer struct {
 	TraceID uint64 `json:"trace_id,omitempty" jsonschema_description:"Trace ID used for APM correlation"`
 }
 
+// ModuleEventSerializer serializes a module event to JSON
+type ModuleEventSerializer struct {
+	Name             string `json:"name" jsonschema_description:"module name"`
+	LoadedFromMemory *bool  `json:"loaded_from_memory,omitempty" jsonschema_description:"indicates if a module was loaded from memory, as opposed to a file"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -258,6 +264,7 @@ type EventSerializer struct {
 	*MMapEventSerializer       `json:"mmap,omitempty"`
 	*MProtectEventSerializer   `json:"mprotect,omitempty"`
 	*PTraceEventSerializer     `json:"ptrace,omitempty"`
+	*ModuleEventSerializer     `json:"module,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -547,6 +554,20 @@ func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
 	return ptes
 }
 
+func newLoadModuleEventSerializer(e *Event) *ModuleEventSerializer {
+	loadedFromMemory := e.LoadModule.LoadedFromMemory
+	return &ModuleEventSerializer{
+		Name:             e.LoadModule.Name,
+		LoadedFromMemory: &loadedFromMemory,
+	}
+}
+
+func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
+	return &ModuleEventSerializer{
+		Name: e.UnloadModule.Name,
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
@@ -756,6 +777,15 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.PTraceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
 		s.PTraceEventSerializer = newPTraceEventSerializer(event)
+	case model.LoadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+		}
+		s.ModuleEventSerializer = newLoadModuleEventSerializer(event)
+	case model.UnloadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.UnloadModule.Retval)
+		s.ModuleEventSerializer = newUnloadModuleEventSerializer(event)
 	}
 
 	return s

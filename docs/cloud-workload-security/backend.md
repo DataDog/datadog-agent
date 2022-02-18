@@ -38,6 +38,9 @@ CWS logs have the following JSON schema:
         "ptrace": {
             "$ref": "#/definitions/PTraceEvent"
         },
+        "module": {
+            "$ref": "#/definitions/ModuleEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -70,6 +73,7 @@ CWS logs have the following JSON schema:
 | `mmap` | $ref | Please see [MMapEvent](#mmapevent) |
 | `mprotect` | $ref | Please see [MProtectEvent](#mprotectevent) |
 | `ptrace` | $ref | Please see [PTraceEvent](#ptraceevent) |
+| `module` | $ref | Please see [ModuleEvent](#moduleevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -616,6 +620,36 @@ CWS logs have the following JSON schema:
 | `vm_end` | memory segment end address |
 | `vm_protection` | initial memory segment protection |
 | `req_protection` | new memory segment protection |
+
+
+## `ModuleEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "name"
+    ],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "module name"
+        },
+        "loaded_from_memory": {
+            "type": "boolean",
+            "description": "indicates if a module was loaded from memory, as opposed to a file"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `name` | module name |
+| `loaded_from_memory` | indicates if a module was loaded from memory, as opposed to a file |
 
 
 ## `PTraceEvent`

@@ -46,6 +46,7 @@
 #include "mmap.h"
 #include "mprotect.h"
 #include "raw_syscalls.h"
+#include "module.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;

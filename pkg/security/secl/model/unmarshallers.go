@@ -659,3 +659,40 @@ func (e *MProtectEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.ReqProtection = int(ByteOrder.Uint32(data[read+24 : read+32]))
 	return read + 32, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 60 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	if err != nil {
+		return 0, err
+	}
+	e.LoadedFromMemory = ByteOrder.Uint32(data[read+56:read+60]) == uint32(1)
+	return read + 60, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *UnloadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 56 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	if err != nil {
+		return 0, err
+	}
+	return read + 56, nil
+}

@@ -169,6 +169,17 @@ struct syscall_cache_t {
             u64 vm_protection;
             u64 req_protection;
         } mprotect;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            char name[MODULE_NAME_LEN];
+            u32 loaded_from_memory;
+        } init_module;
+
+        struct {
+            char *name;
+        } delete_module;
     };
 };
 

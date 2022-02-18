@@ -116,3 +116,15 @@ func validateMProtectSchema(t *testing.T, event *sprobe.Event) bool {
 func validatePTraceSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///schemas/ptrace.schema.json")
 }
+
+func validateLoadModuleSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/load_module.schema.json")
+}
+
+func validateLoadModuleNoFileSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/load_module_no_file.schema.json")
+}
+
+func validateUnloadModuleSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/unload_module.schema.json")
+}

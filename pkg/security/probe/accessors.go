@@ -47,6 +47,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("link"),
 
+		eval.EventType("load_module"),
+
 		eval.EventType("mkdir"),
 
 		eval.EventType("mmap"),
@@ -72,6 +74,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("setxattr"),
 
 		eval.EventType("unlink"),
+
+		eval.EventType("unload_module"),
 
 		eval.EventType("utimes"),
 	}
@@ -1316,6 +1320,176 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).LoadModule.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).LoadModule.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).LoadModule.File.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).LoadModule.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.loaded_from_memory":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).LoadModule.LoadedFromMemory
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).LoadModule.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.SyscallEvent.Retval)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6681,6 +6855,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "unload_module.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).UnloadModule.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unload_module.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).UnloadModule.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "utimes.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7084,6 +7278,40 @@ func (e *Event) GetFields() []eval.Field {
 		"link.file.user",
 
 		"link.retval",
+
+		"load_module.file.change_time",
+
+		"load_module.file.filesystem",
+
+		"load_module.file.gid",
+
+		"load_module.file.group",
+
+		"load_module.file.in_upper_layer",
+
+		"load_module.file.inode",
+
+		"load_module.file.mode",
+
+		"load_module.file.modification_time",
+
+		"load_module.file.mount_id",
+
+		"load_module.file.name",
+
+		"load_module.file.path",
+
+		"load_module.file.rights",
+
+		"load_module.file.uid",
+
+		"load_module.file.user",
+
+		"load_module.loaded_from_memory",
+
+		"load_module.name",
+
+		"load_module.retval",
 
 		"mkdir.file.change_time",
 
@@ -7775,6 +8003,10 @@ func (e *Event) GetFields() []eval.Field {
 
 		"unlink.retval",
 
+		"unload_module.name",
+
+		"unload_module.retval",
+
 		"utimes.file.change_time",
 
 		"utimes.file.filesystem",
@@ -8305,6 +8537,74 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "link.retval":
 
 		return int(e.Link.SyscallEvent.Retval), nil
+
+	case "load_module.file.change_time":
+
+		return int(e.LoadModule.File.FileFields.CTime), nil
+
+	case "load_module.file.filesystem":
+
+		return e.ResolveFileFilesystem(&e.LoadModule.File), nil
+
+	case "load_module.file.gid":
+
+		return int(e.LoadModule.File.FileFields.GID), nil
+
+	case "load_module.file.group":
+
+		return e.ResolveFileFieldsGroup(&e.LoadModule.File.FileFields), nil
+
+	case "load_module.file.in_upper_layer":
+
+		return e.ResolveFileFieldsInUpperLayer(&e.LoadModule.File.FileFields), nil
+
+	case "load_module.file.inode":
+
+		return int(e.LoadModule.File.FileFields.Inode), nil
+
+	case "load_module.file.mode":
+
+		return int(e.LoadModule.File.FileFields.Mode), nil
+
+	case "load_module.file.modification_time":
+
+		return int(e.LoadModule.File.FileFields.MTime), nil
+
+	case "load_module.file.mount_id":
+
+		return int(e.LoadModule.File.FileFields.MountID), nil
+
+	case "load_module.file.name":
+
+		return e.ResolveFileBasename(&e.LoadModule.File), nil
+
+	case "load_module.file.path":
+
+		return e.ResolveFilePath(&e.LoadModule.File), nil
+
+	case "load_module.file.rights":
+
+		return int(e.ResolveRights(&e.LoadModule.File.FileFields)), nil
+
+	case "load_module.file.uid":
+
+		return int(e.LoadModule.File.FileFields.UID), nil
+
+	case "load_module.file.user":
+
+		return e.ResolveFileFieldsUser(&e.LoadModule.File.FileFields), nil
+
+	case "load_module.loaded_from_memory":
+
+		return e.LoadModule.LoadedFromMemory, nil
+
+	case "load_module.name":
+
+		return e.LoadModule.Name, nil
+
+	case "load_module.retval":
+
+		return int(e.LoadModule.SyscallEvent.Retval), nil
 
 	case "mkdir.file.change_time":
 
@@ -11306,6 +11606,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Unlink.SyscallEvent.Retval), nil
 
+	case "unload_module.name":
+
+		return e.UnloadModule.Name, nil
+
+	case "unload_module.retval":
+
+		return int(e.UnloadModule.SyscallEvent.Retval), nil
+
 	case "utimes.file.change_time":
 
 		return int(e.Utimes.File.FileFields.CTime), nil
@@ -11742,6 +12050,57 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "link.retval":
 		return "link", nil
+
+	case "load_module.file.change_time":
+		return "load_module", nil
+
+	case "load_module.file.filesystem":
+		return "load_module", nil
+
+	case "load_module.file.gid":
+		return "load_module", nil
+
+	case "load_module.file.group":
+		return "load_module", nil
+
+	case "load_module.file.in_upper_layer":
+		return "load_module", nil
+
+	case "load_module.file.inode":
+		return "load_module", nil
+
+	case "load_module.file.mode":
+		return "load_module", nil
+
+	case "load_module.file.modification_time":
+		return "load_module", nil
+
+	case "load_module.file.mount_id":
+		return "load_module", nil
+
+	case "load_module.file.name":
+		return "load_module", nil
+
+	case "load_module.file.path":
+		return "load_module", nil
+
+	case "load_module.file.rights":
+		return "load_module", nil
+
+	case "load_module.file.uid":
+		return "load_module", nil
+
+	case "load_module.file.user":
+		return "load_module", nil
+
+	case "load_module.loaded_from_memory":
+		return "load_module", nil
+
+	case "load_module.name":
+		return "load_module", nil
+
+	case "load_module.retval":
+		return "load_module", nil
 
 	case "mkdir.file.change_time":
 		return "mkdir", nil
@@ -12777,6 +13136,12 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "unlink.retval":
 		return "unlink", nil
+
+	case "unload_module.name":
+		return "unload_module", nil
+
+	case "unload_module.retval":
+		return "unload_module", nil
 
 	case "utimes.file.change_time":
 		return "utimes", nil
@@ -13323,6 +13688,74 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "load_module.file.change_time":
+
+		return reflect.Int, nil
+
+	case "load_module.file.filesystem":
+
+		return reflect.String, nil
+
+	case "load_module.file.gid":
+
+		return reflect.Int, nil
+
+	case "load_module.file.group":
+
+		return reflect.String, nil
+
+	case "load_module.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "load_module.file.inode":
+
+		return reflect.Int, nil
+
+	case "load_module.file.mode":
+
+		return reflect.Int, nil
+
+	case "load_module.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "load_module.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "load_module.file.name":
+
+		return reflect.String, nil
+
+	case "load_module.file.path":
+
+		return reflect.String, nil
+
+	case "load_module.file.rights":
+
+		return reflect.Int, nil
+
+	case "load_module.file.uid":
+
+		return reflect.Int, nil
+
+	case "load_module.file.user":
+
+		return reflect.String, nil
+
+	case "load_module.loaded_from_memory":
+
+		return reflect.Bool, nil
+
+	case "load_module.name":
+
+		return reflect.String, nil
+
+	case "load_module.retval":
+
+		return reflect.Int, nil
+
 	case "mkdir.file.change_time":
 
 		return reflect.Int, nil
@@ -14700,6 +15133,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "unlink.retval":
+
+		return reflect.Int, nil
+
+	case "unload_module.name":
+
+		return reflect.String, nil
+
+	case "unload_module.retval":
 
 		return reflect.Int, nil
 
@@ -16100,6 +16541,187 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallEvent.Retval"}
 		}
 		e.Link.SyscallEvent.Retval = int64(v)
+
+		return nil
+
+	case "load_module.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.CTime"}
+		}
+		e.LoadModule.File.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "load_module.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.Filesytem"}
+		}
+		e.LoadModule.File.Filesytem = str
+
+		return nil
+
+	case "load_module.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.GID"}
+		}
+		e.LoadModule.File.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "load_module.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Group"}
+		}
+		e.LoadModule.File.FileFields.Group = str
+
+		return nil
+
+	case "load_module.file.in_upper_layer":
+
+		var ok bool
+		if e.LoadModule.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "load_module.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Inode"}
+		}
+		e.LoadModule.File.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "load_module.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
+		}
+		e.LoadModule.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "load_module.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.MTime"}
+		}
+		e.LoadModule.File.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "load_module.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.MountID"}
+		}
+		e.LoadModule.File.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "load_module.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.BasenameStr"}
+		}
+		e.LoadModule.File.BasenameStr = str
+
+		return nil
+
+	case "load_module.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.PathnameStr"}
+		}
+		e.LoadModule.File.PathnameStr = str
+
+		return nil
+
+	case "load_module.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
+		}
+		e.LoadModule.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "load_module.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.UID"}
+		}
+		e.LoadModule.File.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "load_module.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.User"}
+		}
+		e.LoadModule.File.FileFields.User = str
+
+		return nil
+
+	case "load_module.loaded_from_memory":
+
+		var ok bool
+		if e.LoadModule.LoadedFromMemory, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.LoadedFromMemory"}
+		}
+		return nil
+
+	case "load_module.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Name"}
+		}
+		e.LoadModule.Name = str
+
+		return nil
+
+	case "load_module.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.SyscallEvent.Retval"}
+		}
+		e.LoadModule.SyscallEvent.Retval = int64(v)
 
 		return nil
 
@@ -20189,6 +20811,28 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.SyscallEvent.Retval"}
 		}
 		e.Unlink.SyscallEvent.Retval = int64(v)
+
+		return nil
+
+	case "unload_module.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.Name"}
+		}
+		e.UnloadModule.Name = str
+
+		return nil
+
+	case "unload_module.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.SyscallEvent.Retval"}
+		}
+		e.UnloadModule.SyscallEvent.Retval = int64(v)
 
 		return nil
 

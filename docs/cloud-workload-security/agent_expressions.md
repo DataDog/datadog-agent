@@ -38,6 +38,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chown` | File | A file’s owner was changed | 7.27 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
+| `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
 | `mmap` | Kernel | A mmap command was executed | 7.35 |
 | `mprotect` | Kernel | A mprotect command was executed | 7.35 |
@@ -51,6 +52,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `unlink` | File | A file was deleted | 7.27 |
+| `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
 ## Operators
@@ -399,6 +401,30 @@ Create a new name/alias for a file
 | `link.file.user` | string | User of the file's owner |
 | `link.retval` | int | Return value of the syscall |
 
+### Event `load_module`
+
+A new kernel module was loaded
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `load_module.file.change_time` | int | Change time of the file |
+| `load_module.file.filesystem` | string | File's filesystem |
+| `load_module.file.gid` | int | GID of the file's owner |
+| `load_module.file.group` | string | Group of the file's owner |
+| `load_module.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `load_module.file.inode` | int | Inode of the file |
+| `load_module.file.mode` | int | Mode/rights of the file |
+| `load_module.file.modification_time` | int | Modification time of the file |
+| `load_module.file.mount_id` | int | Mount ID of the file |
+| `load_module.file.name` | string | File's basename |
+| `load_module.file.path` | string | File's path |
+| `load_module.file.rights` | int | Mode/rights of the file |
+| `load_module.file.uid` | int | UID of the file's owner |
+| `load_module.file.user` | string | User of the file's owner |
+| `load_module.loaded_from_memory` | bool | Indicates if the kernel module was loaded from memory |
+| `load_module.name` | string | Name of the new kernel module |
+| `load_module.retval` | int | Return value of the syscall |
+
 ### Event `mkdir`
 
 A directory was created
@@ -744,6 +770,15 @@ A file was deleted
 | `unlink.file.uid` | int | UID of the file's owner |
 | `unlink.file.user` | string | User of the file's owner |
 | `unlink.retval` | int | Return value of the syscall |
+
+### Event `unload_module`
+
+A kernel module was deleted
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `unload_module.name` | string | Name of the kernel module that was deleted |
+| `unload_module.retval` | int | Return value of the syscall |
 
 ### Event `utimes`
 
