@@ -261,6 +261,12 @@ func (ev *Event) ResolveProcessArgv(process *model.Process) []string {
 	return argv
 }
 
+// ResolveProcessEnvp resolves the envp of the event as an array
+func (ev *Event) ResolveProcessEnvp(process *model.Process) []string {
+	envp, _ := ev.resolvers.ProcessResolver.GetProcessEnvp(process)
+	return envp
+}
+
 // ResolveProcessArgsTruncated returns whether the args are truncated
 func (ev *Event) ResolveProcessArgsTruncated(process *model.Process) bool {
 	_, truncated := ev.resolvers.ProcessResolver.GetProcessArgv(process)

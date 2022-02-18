@@ -284,7 +284,8 @@ type Process struct {
 	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                           // Arguments of the process (as a string)
 	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags" field:"args_options,ResolveProcessArgsOptions"` // Arguments of the process (as an array)
 	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                            // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variables of the process
+	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variable names of the process
+	Envp          []string `field:"envp,ResolveProcessEnvp:100"`                                                                                           // Environment variables of the process
 	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
 
 	// cache version
