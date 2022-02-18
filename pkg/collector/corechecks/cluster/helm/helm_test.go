@@ -63,63 +63,134 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	var secrets []runtime.Object
+	// Same order as "releases" array
+	var secretsForReleases []*v1.Secret
 	for _, rel := range releases {
 		secret, err := secretForRelease(&rel)
 		assert.NoError(t, err)
-		secrets = append(secrets, secret)
+		secretsForReleases = append(secretsForReleases, secret)
 	}
 
-	// Add a secret not managed by Helm to verify that it doesn't cause issues.
-	secrets = append(secrets, &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   "some_secret",
-			Labels: map[string]string{"owner": "not-helm"},
+	// Same order as "releases" array
+	var configmapsForReleases []*v1.ConfigMap
+	for _, rel := range releases {
+		configMap, err := configMapForRelease(&rel)
+		assert.NoError(t, err)
+		configmapsForReleases = append(configmapsForReleases, configMap)
+	}
+
+	// Same order as "releases" array
+	expectedTagsForReleases := [][]string{
+		{
+			"helm_release:my_datadog",
+			"helm_chart_name:datadog",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+			"helm_chart_version:2.30.5",
+			"helm_app_version:7",
 		},
-	})
-
-	// Set up mocked k8s client and informer
-	k8sClient := fake.NewSimpleClientset(secrets...)
-	sharedK8sInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute)
-	secretsInformer := sharedK8sInformerFactory.Core().V1().Secrets().Informer()
-	go secretsInformer.Run(make(chan struct{}))
-	err := apiserver.SyncInformers(
-		map[apiserver.InformerName]cache.SharedInformer{"helm": secretsInformer},
-		10*time.Second,
-	)
-	assert.NoError(t, err)
-
-	check := &HelmCheck{
-		CheckBase:         core.NewCheckBase(checkName),
-		runLeaderElection: false,
-		secretLister:      sharedK8sInformerFactory.Core().V1().Secrets().Lister(),
+		{
+			"helm_release:my_app",
+			"helm_chart_name:some_app",
+			"helm_namespace:app",
+			"helm_revision:2",
+			"helm_status:deployed",
+			"helm_chart_version:1.1.0",
+			"helm_app_version:1",
+		},
 	}
 
-	mockedSender := mocksender.NewMockSender(checkName)
-	mockedSender.SetupAcceptAll()
+	tests := []struct {
+		name         string
+		secrets      []*v1.Secret
+		configmaps   []*v1.ConfigMap
+		expectedTags [][]string
+	}{
+		{
+			name:         "using secrets",
+			secrets:      secretsForReleases,
+			expectedTags: expectedTagsForReleases,
+		},
+		{
+			name:         "using configmaps",
+			configmaps:   configmapsForReleases,
+			expectedTags: expectedTagsForReleases,
+		},
+		{
+			name:         "using secrets and configmaps",
+			secrets:      []*v1.Secret{secretsForReleases[0]},
+			configmaps:   []*v1.ConfigMap{configmapsForReleases[1]},
+			expectedTags: expectedTagsForReleases,
+		},
+		{
+			name: "no secrets or configmaps owned by Helm",
+			secrets: []*v1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "some_secret",
+						Labels: map[string]string{"owner": "not-helm"},
+					},
+				},
+			},
+			configmaps: []*v1.ConfigMap{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "some_configmap",
+						Labels: map[string]string{"owner": "not-helm"},
+					},
+				},
+			},
+		},
+	}
 
-	err = check.Run()
-	assert.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stopCh := make(chan struct{})
+			defer close(stopCh)
 
-	mockedSender.AssertMetric(t, "Gauge", "helm.release", 1, "", []string{
-		"helm_release:my_datadog",
-		"helm_chart_name:datadog",
-		"helm_namespace:default",
-		"helm_revision:1",
-		"helm_status:deployed",
-		"helm_chart_version:2.30.5",
-		"helm_app_version:7",
-	})
+			var kubeObjects []runtime.Object
+			for _, secret := range test.secrets {
+				kubeObjects = append(kubeObjects, secret)
+			}
+			for _, configMap := range test.configmaps {
+				kubeObjects = append(kubeObjects, configMap)
+			}
 
-	mockedSender.AssertMetric(t, "Gauge", "helm.release", 1, "", []string{
-		"helm_release:my_app",
-		"helm_chart_name:some_app",
-		"helm_namespace:app",
-		"helm_revision:2",
-		"helm_status:deployed",
-		"helm_chart_version:1.1.0",
-		"helm_app_version:1",
-	})
+			// Set up mocked k8s client and informers
+			k8sClient := fake.NewSimpleClientset(kubeObjects...)
+			sharedK8sInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute)
+			secretsInformer := sharedK8sInformerFactory.Core().V1().Secrets().Informer()
+			go secretsInformer.Run(stopCh)
+			configMapsInformer := sharedK8sInformerFactory.Core().V1().ConfigMaps().Informer()
+			go configMapsInformer.Run(stopCh)
+			err := apiserver.SyncInformers(
+				map[apiserver.InformerName]cache.SharedInformer{
+					"helm-secrets":    secretsInformer,
+					"helm-configmaps": configMapsInformer,
+				},
+				10*time.Second,
+			)
+			assert.NoError(t, err)
+
+			check := &HelmCheck{
+				CheckBase:         core.NewCheckBase(checkName),
+				runLeaderElection: false,
+				secretLister:      sharedK8sInformerFactory.Core().V1().Secrets().Lister(),
+				configmapLister:   sharedK8sInformerFactory.Core().V1().ConfigMaps().Lister(),
+			}
+
+			mockedSender := mocksender.NewMockSender(checkName)
+			mockedSender.SetupAcceptAll()
+
+			err = check.Run()
+			assert.NoError(t, err)
+
+			for _, tags := range test.expectedTags {
+				mockedSender.AssertMetric(t, "Gauge", "helm.release", 1, "", tags)
+			}
+		})
+	}
 }
 
 // secretForRelease returns a Kubernetes secret that contains the info of the
@@ -138,6 +209,25 @@ func secretForRelease(rls *release) (*v1.Secret, error) {
 			Labels: map[string]string{"owner": "helm"},
 		},
 		Data: map[string][]byte{"release": []byte(encodedRel)},
+	}, nil
+}
+
+// configMapForRelease returns a configmap that contains the info of the given
+// Helm release.
+func configMapForRelease(rls *release) (*v1.ConfigMap, error) {
+	encodedRel, err := encodeRelease(rls)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			// The name is not important for this test. We only need to make
+			// sure that there are no collisions.
+			Name:   fmt.Sprintf("%s.%d", rls.Name, rls.Version),
+			Labels: map[string]string{"owner": "helm"},
+		},
+		Data: map[string]string{"release": encodedRel},
 	}, nil
 }
 

@@ -38,18 +38,26 @@ func init() {
 	core.RegisterCheck(checkName, factory)
 }
 
+type helmStorage string
+
+const (
+	k8sSecrets    helmStorage = "secret"
+	k8sConfigmaps helmStorage = "configmap"
+)
+
 // HelmCheck collects information about the Helm releases deployed in the
-// cluster. The check only works for Helm installations configured to use
-// Kubernetes secrets as the storage. K8s secrets are the default in Helm v3.
+// cluster. The check works for Helm installations configured to use Kubernetes
+// secrets or configmaps as the storage. K8s secrets are the default in Helm v3.
 // Helm v2 used config maps by default. Ref:
 // https://helm.sh/docs/faq/changes_since_helm2/#secrets-as-the-default-storage-driver
 type HelmCheck struct {
 	core.CheckBase
 	secretLister      v1.SecretLister
+	configmapLister   v1.ConfigMapLister
 	runLeaderElection bool
 }
 
-var helmSecretsSelector = labels.Set{"owner": "helm"}.AsSelector()
+var helmSelector = labels.Set{"owner": "helm"}.AsSelector()
 
 func factory() check.Check {
 	return &HelmCheck{
@@ -71,12 +79,19 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 	stopCh := make(chan struct{})
 	apiClient.InformerFactory.Start(stopCh)
 
-	informer := apiClient.InformerFactory.Core().V1().Secrets()
-	hc.secretLister = informer.Lister()
-	go informer.Informer().Run(stopCh)
+	secretInformer := apiClient.InformerFactory.Core().V1().Secrets()
+	hc.secretLister = secretInformer.Lister()
+	go secretInformer.Informer().Run(stopCh)
+
+	configmapInformer := apiClient.InformerFactory.Core().V1().ConfigMaps()
+	hc.configmapLister = configmapInformer.Lister()
+	go configmapInformer.Informer().Run(stopCh)
 
 	return apiserver.SyncInformers(
-		map[apiserver.InformerName]cache.SharedInformer{"helm": informer.Informer()},
+		map[apiserver.InformerName]cache.SharedInformer{
+			"helm-secrets":    secretInformer.Informer(),
+			"helm-configmaps": configmapInformer.Informer(),
+		},
 		informerSyncTimeout,
 	)
 }
@@ -101,24 +116,28 @@ func (hc *HelmCheck) Run() error {
 		}
 	}
 
-	secrets, err := hc.secretLister.List(helmSecretsSelector)
+	releasesInSecrets, err := hc.releasesFromSecrets()
 	if err != nil {
-		return fmt.Errorf("error while listing secrets: %s", err)
+		return fmt.Errorf("error while getting Helm releases from secrets: %s", err)
 	}
 
-	for _, secret := range secrets {
-		deployedRelease, err := decodeRelease(string(secret.Data["release"]))
-		if err != nil {
-			return fmt.Errorf("error while decoding Helm release: %s", err)
-		}
+	for _, releaseInSecret := range releasesInSecrets {
+		sender.Gauge("helm.release", 1, "", helmTags(releaseInSecret, k8sSecrets))
+	}
 
-		sender.Gauge("helm.release", 1, "", helmTags(deployedRelease))
+	releasesInConfigMaps, err := hc.releasesFromConfigMaps()
+	if err != nil {
+		return fmt.Errorf("error while getting Helm releases from configmaps: %s", err)
+	}
+
+	for _, releaseInConfigMap := range releasesInConfigMaps {
+		sender.Gauge("helm.release", 1, "", helmTags(releaseInConfigMap, k8sConfigmaps))
 	}
 
 	return nil
 }
 
-func helmTags(release *release) []string {
+func helmTags(release *release, storageDriver helmStorage) []string {
 	return []string{
 		fmt.Sprintf("helm_release:%s", release.Name),
 		fmt.Sprintf("helm_chart_name:%s", release.Chart.Metadata.Name),
@@ -127,7 +146,46 @@ func helmTags(release *release) []string {
 		fmt.Sprintf("helm_status:%s", release.Info.Status),
 		fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
 		fmt.Sprintf("helm_app_version:%s", release.Chart.Metadata.AppVersion),
+		fmt.Sprintf("helm_storage:%s", storageDriver),
 	}
+}
+
+func (hc *HelmCheck) releasesFromSecrets() ([]*release, error) {
+	secrets, err := hc.secretLister.List(helmSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	var releases []*release
+
+	for _, secret := range secrets {
+		deployedRelease, err := decodeRelease(string(secret.Data["release"]))
+		if err != nil {
+			return nil, fmt.Errorf("error while decoding Helm release: %s", err)
+		}
+		releases = append(releases, deployedRelease)
+	}
+
+	return releases, nil
+}
+
+func (hc *HelmCheck) releasesFromConfigMaps() ([]*release, error) {
+	configMaps, err := hc.configmapLister.List(helmSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	var releases []*release
+
+	for _, configMap := range configMaps {
+		deployedRelease, err := decodeRelease(configMap.Data["release"])
+		if err != nil {
+			return nil, fmt.Errorf("error while decoding Helm release: %s", err)
+		}
+		releases = append(releases, deployedRelease)
+	}
+
+	return releases, nil
 }
 
 func isLeader() (bool, error) {
