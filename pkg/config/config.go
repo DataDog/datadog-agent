@@ -1141,6 +1141,7 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 	knownVars := map[string]struct{}{
 		// these variables are used by the agent, but not via the Config struct,
 		// so must be listed separately.
+		"DD_INSIDE_CI":      {},
 		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},

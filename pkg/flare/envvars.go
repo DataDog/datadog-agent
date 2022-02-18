@@ -87,6 +87,9 @@ var allowedEnvvarNames = []string{
 	"DD_PROCESS_AGENT_CONTAINER_SOURCE",
 	"DD_SYSTEM_PROBE_ENABLED",
 	"DD_SYSTEM_PROBE_NETWORK_ENABLED",
+
+	// CI
+	"DD_INSIDE_CI",
 }
 
 func getAllowedEnvvars() []string {
