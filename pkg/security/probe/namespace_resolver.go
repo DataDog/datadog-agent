@@ -13,19 +13,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/vishvananda/netlink"
-
-	"github.com/DataDog/datadog-agent/pkg/security/api"
-
 	"github.com/DataDog/datadog-go/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -295,7 +294,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 		return 0
 	}
 
-	var attachedDeviceCountNoLoopback int
+	var attachedDeviceCountNoLoopbackNoDummy int
 	for _, link := range links {
 		attrs := link.Attrs()
 		if attrs == nil {
@@ -308,12 +307,13 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 		}
 
 		if err = nr.probe.setupNewTCClassifierWithNetNSHandle(device, handle); err == nil {
-			if device.IfIndex > 1 {
-				attachedDeviceCountNoLoopback++
+			// no loopback, no dummy
+			if device.IfIndex > 1 && !strings.HasPrefix(device.Name, "dummy") {
+				attachedDeviceCountNoLoopbackNoDummy++
 			}
 		}
 	}
-	return attachedDeviceCountNoLoopback
+	return attachedDeviceCountNoLoopbackNoDummy
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.
@@ -429,8 +429,8 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 			// snapshot lonely namespace and delete it if it is all alone on earth
 			if now.After(netns.lonelyTimeout) {
 				netns.lonelyTimeout = time.Time{}
-				deviceCountNoLoopback := nr.snapshotNetworkDevices(netns)
-				if deviceCountNoLoopback == 0 {
+				deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
+				if deviceCountNoLoopbackNoDummy == 0 {
 					nr.flushNetworkNamespace(netns)
 					netns.Unlock()
 					continue
