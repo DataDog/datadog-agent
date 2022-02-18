@@ -22,15 +22,20 @@ import (
 // across domain.
 // If there is no traffic during the time period for a domain, no statistic is reported.
 type QueueDurationCapacity struct {
-	accumulators      map[string]*timeIntervalAccumulator
-	optionalDiskSpace diskSpace
-	maxMemSizeInBytes int
-	historyDuration   time.Duration
-	bucketDuration    time.Duration
+	accumulators           map[string]*timeIntervalAccumulator
+	optionalDiskSpace      diskSpace
+	maxMemSizeInBytes      int
+	historyDuration        time.Duration
+	bucketDuration         time.Duration
+	queueDiskSpaceUsedList []QueueDiskSpaceUsed
 }
 
 type diskSpace interface {
 	computeAvailableSpace(extraSize int64) (int64, error)
+}
+
+type QueueDiskSpaceUsed interface {
+	GetDiskSpaceUsed() int64
 }
 
 // NewQueueDurationCapacity creates a new instance of *QueueDurationCapacity.
@@ -41,7 +46,8 @@ func NewQueueDurationCapacity(
 	historyDuration time.Duration,
 	bucketDuration time.Duration,
 	maxMemSizeInBytes int,
-	optionalDiskSpace diskSpace) *QueueDurationCapacity {
+	optionalDiskSpace diskSpace,
+	queueDiskSpaceUsedList []QueueDiskSpaceUsed) *QueueDurationCapacity {
 	if optionalDiskSpace != nil && reflect.ValueOf(optionalDiskSpace).IsNil() {
 		optionalDiskSpace = nil
 	}
@@ -87,7 +93,7 @@ type QueueCapacityStats struct {
 // ComputeCapacity computes the capacity of the retry queue express as a duration.
 // Return statistics by domain name.
 func (r *QueueDurationCapacity) ComputeCapacity(t time.Time) (map[string]QueueCapacityStats, error) {
-	diskAvailableSpace, err := r.getDiskAvailableSpace()
+	diskSpace, err := r.getTotalDiskSpace()
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +109,7 @@ func (r *QueueDurationCapacity) ComputeCapacity(t time.Time) (map[string]QueueCa
 
 		// If there is no traffic during the time period do not report statistics.
 		if bytesPerSec > 0 {
-			availableSpace := r.getAvailableSpace(bytesPerSec, totalBytesPerSec, float64(diskAvailableSpace))
+			availableSpace := r.getAvailableSpace(bytesPerSec, totalBytesPerSec, float64(diskSpace))
 			durations[domain] = QueueCapacityStats{
 				Capacity:       time.Duration(availableSpace/bytesPerSec) * time.Second,
 				BytesPerSec:    bytesPerSec,
@@ -121,7 +127,7 @@ func (r *QueueDurationCapacity) getAvailableSpace(bytesPerSec float64, totalByte
 	return domainDiskSpace + float64(r.maxMemSizeInBytes)
 }
 
-func (r *QueueDurationCapacity) getDiskAvailableSpace() (int64, error) {
+func (r *QueueDurationCapacity) getTotalDiskSpace() (int64, error) {
 	var availableSpace int64
 	if r.optionalDiskSpace != nil {
 		var err error
@@ -129,6 +135,12 @@ func (r *QueueDurationCapacity) getDiskAvailableSpace() (int64, error) {
 		if err != nil {
 			return 0, err
 		}
+
+		// Also count the disk space already used.
+		for _, queueDiskSpaceUsedList := range r.queueDiskSpaceUsedList {
+			availableSpace += queueDiskSpaceUsedList.GetDiskSpaceUsed()
+		}
+
 		// if capacity is exceeded, availableSpace may be negative.
 		if availableSpace < 0 {
 			availableSpace = 0

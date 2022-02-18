@@ -261,6 +261,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+	var queueDiskSpaceUsedList []retry.QueueDiskSpaceUsed
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -285,6 +286,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				transactionContainerSort,
 				resolver)
 			f.domainResolvers[domain] = resolver
+			queueDiskSpaceUsedList = append(queueDiskSpaceUsedList, transactionContainer)
 			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
@@ -304,7 +306,8 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		time.Duration(timeInterval)*time.Second,
 		10*time.Second,
 		options.RetryQueuePayloadsTotalMaxSize,
-		diskUsageLimit)
+		diskUsageLimit,
+		queueDiskSpaceUsedList)
 
 	if optionalRemovalPolicy != nil {
 		filesRemoved, err := optionalRemovalPolicy.RemoveUnknownDomains()
