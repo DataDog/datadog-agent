@@ -264,7 +264,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 				c.contToExitInfo[containerID] = test.exitInfo
 			}
 
-			workloadMetaEvent, err := c.buildCollectorEvent(context.TODO(), &test.event, container.ID(), &container)
+			workloadMetaEvent, err := c.buildCollectorEvent(&test.event, container.ID(), &container)
 
 			if test.expectsError {
 				assert.Error(t, err)

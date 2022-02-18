@@ -9,7 +9,6 @@
 package containerd
 
 import (
-	"context"
 	"testing"
 
 	"github.com/containerd/containerd"
@@ -20,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-func TestIgnoreEvent(t *testing.T) {
+func TestIgnoreContainer(t *testing.T) {
 	pauseFilter, err := containers.GetPauseContainerFilter()
 	assert.NoError(t, err)
 
@@ -67,7 +66,7 @@ func TestIgnoreEvent(t *testing.T) {
 				filterPausedContainers: pauseFilter,
 			}
 
-			ignored, err := containerdCollector.ignoreEvent(context.TODO(), test.container)
+			ignored, err := containerdCollector.ignoreContainer(test.container)
 			assert.NoError(t, err)
 
 			if test.expectsIgnored {

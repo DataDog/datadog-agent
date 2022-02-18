@@ -193,18 +193,18 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 	}
 
 	for _, container := range existingContainers {
-		// if ignoreEvent returns an error, keep the event regardless.
-		// it might've been because of network errors, so it's better
-		// to keep a container we should've ignored than ignoring a
-		// container we should've kept
-		ignore, err := c.ignoreEvent(ctx, container)
+		// if ignoreContainer returns an error, keep the container
+		// regardless.  it might've been because of network errors, so
+		// it's better to keep a container we should've ignored than
+		// ignoring a container we should've kept
+		ignore, err := c.ignoreContainer(container)
 		if err != nil {
 			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
 		} else if ignore {
 			continue
 		}
 
-		ev, err := createSetEvent(ctx, container, namespace, c.containerdClient)
+		ev, err := createSetEvent(container, namespace, c.containerdClient)
 		if err != nil {
 			log.Warnf(err.Error())
 			continue
@@ -225,7 +225,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 	}
 
 	if container != nil {
-		ignore, err := c.ignoreEvent(ctx, container)
+		ignore, err := c.ignoreContainer(container)
 		if err != nil {
 			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
 		} else if ignore {
@@ -233,7 +233,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 		}
 	}
 
-	workloadmetaEvent, err := c.buildCollectorEvent(ctx, containerdEvent, containerID, container)
+	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container)
 	if err != nil {
 		return fmt.Errorf("cannot build collector event: %w", err)
 	}
@@ -243,6 +243,10 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 	return nil
 }
 
+// extractContainerFromEvent extracts a container ID from an envent, and
+// queries for a containerd.Container object. The Container object will always
+// be missing in a delete event, so that's why we return a separate ID and not
+// just an object.
 func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) (string, containerd.Container, error) {
 	var (
 		containerID string
@@ -276,9 +280,9 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 	return containerID, container, nil
 }
 
-// ignoreEvent returns whether a containerd event should be ignored.
+// ignoreContainer returns whether a containerd event should be ignored.
 // The ignored events are the ones that refer to a "pause" container.
-func (c *collector) ignoreEvent(ctx context.Context, container containerd.Container) (bool, error) {
+func (c *collector) ignoreContainer(container containerd.Container) (bool, error) {
 	info, err := c.containerdClient.Info(container)
 	if err != nil {
 		return false, err
