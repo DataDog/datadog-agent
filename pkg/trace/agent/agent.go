@@ -279,11 +279,20 @@ func (a *Agent) Process(p *api.Payload) {
 			// which is not thread-safe while samplers and Concentrator might modify it too.
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
+		if p.TracerPayload.Hostname == "" {
+			// Older tracers set tracer hostname in the root span.
+			p.TracerPayload.Hostname = root.Meta[tagHostname]
+		}
+		if p.TracerPayload.Env == "" {
+			p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
+		}
+		if p.TracerPayload.AppVersion == "" {
+			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
+		}
 
-		env := a.conf.DefaultEnv
-		if v := traceutil.GetEnv(chunk.Spans); v != "" {
-			// this trace has a user defined env.
-			env = v
+		env := p.TracerPayload.Env
+		if env != "" {
+			env = a.conf.DefaultEnv
 		}
 		pt := ProcessedTrace{
 			TraceChunk:       chunk,
