@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metricsserializer
+package metrics
 
 import (
 	"bytes"
@@ -11,9 +11,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"sort"
-	"strconv"
-	"strings"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -44,45 +41,6 @@ func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-// MarshalStrings converts the service checks to a sorted slice of string slices
-func (sc ServiceChecks) MarshalStrings() ([]string, [][]string) {
-	var headers = []string{"Check", "Hostname", "Timestamp", "Status", "Message", "Tags"}
-	var payload = make([][]string, len(sc))
-
-	for _, c := range sc {
-		payload = append(payload, []string{
-			c.CheckName,
-			c.Host,
-			strconv.FormatInt(c.Ts, 10),
-			c.Status.String(),
-			c.Message,
-			strings.Join(c.Tags, ", "),
-		})
-	}
-
-	sort.Slice(payload, func(i, j int) bool {
-		// edge cases
-		if len(payload[i]) == 0 && len(payload[j]) == 0 {
-			return false
-		}
-		if len(payload[i]) == 0 || len(payload[j]) == 0 {
-			return len(payload[i]) == 0
-		}
-		// sort by service check name
-		if payload[i][0] != payload[j][0] {
-			return payload[i][0] < payload[j][0]
-		}
-		// then by timestamp
-		if payload[i][2] != payload[j][2] {
-			return payload[i][2] < payload[j][2]
-		}
-		// finally by tags (last field) as tie breaker
-		return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
-	})
-
-	return headers, payload
-}
-
 // SplitPayload breaks the payload into times number of pieces
 func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	serviceCheckExpvar.Add("TimesSplit", 1)
@@ -109,11 +67,6 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.AbstractMarshaler, 
 		n += batchSize
 	}
 	return splitPayloads, nil
-}
-
-// MarshalSplitCompress not implemented
-func (sc ServiceChecks) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("ServiceChecks MarshalSplitCompress is not implemented")
 }
 
 //// The following methods implement the StreamJSONMarshaler interface

@@ -28,9 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -55,14 +53,14 @@ func initF() {
 	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
-	recurrentSeries = metricsserializer.Series{}
+	recurrentSeries = metrics.Series{}
 	tagsetTlm.reset()
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metricsserializer.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
-	flushedSeries := make([]metricsserializer.Series, 0)
-	flushedSketches := make([]metricsserializer.SketchSeriesList, 0)
+	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
+	flushedSeries := make([]metrics.Series, 0)
+	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
 		trigger: trigger{
@@ -230,7 +228,7 @@ func TestDefaultData(t *testing.T) {
 	agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
-	s.On("SendServiceChecks", metricsserializer.ServiceChecks{{
+	s.On("SendServiceChecks", metrics.ServiceChecks{{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
 		Tags:      []string{},
@@ -238,7 +236,7 @@ func TestDefaultData(t *testing.T) {
 		Host:      agg.hostname,
 	}}).Return(nil).Times(1)
 
-	series := metricsserializer.Series{&metrics.Serie{
+	series := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("version:%s", version.AgentVersion)}),
@@ -318,7 +316,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			// reset telemetry for next tests
 			demux.Stop(false)
-			recurrentSeries = metricsserializer.Series{}
+			recurrentSeries = metrics.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -382,7 +380,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			assert.Equal(t, expMap, gotMap)
 
 			// reset for next tests
-			recurrentSeries = metricsserializer.Series{}
+			recurrentSeries = metrics.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -422,7 +420,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	start := time.Now()
 
-	series := metricsserializer.Series{&metrics.Serie{
+	series := metrics.Series{&metrics.Serie{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
 		Tags:           tagset.NewCompositeTags([]string{"tag:1", "tag:2"}, []string{}),
@@ -453,7 +451,7 @@ func TestRecurrentSeries(t *testing.T) {
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metricsserializer.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
 		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
@@ -583,8 +581,7 @@ type MockSerializerIterableSerie struct {
 	serializer.MockSerializer
 }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableMarshaler) error {
-	iterableSerie := series.(*metricsserializer.IterableSeries)
+func (s *MockSerializerIterableSerie) SendIterableSeries(iterableSerie *metrics.IterableSeries) error {
 	defer iterableSerie.IterationStopped()
 
 	for iterableSerie.MoveNext() {
@@ -593,8 +590,8 @@ func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.Iterab
 	return nil
 }
 
-func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
-	s.series = append(s.series, series.(metricsserializer.Series)...)
+func (s *MockSerializerIterableSerie) SendSeries(series metrics.Series) error {
+	s.series = append(s.series, series...)
 	return nil
 }
 

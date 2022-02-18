@@ -83,3 +83,6 @@ func (e *Event) String() string {
 	}
 	return string(s)
 }
+
+// Events is a collection of Event.
+type Events []*Event

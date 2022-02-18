@@ -6,7 +6,7 @@
 //go:build zlib
 // +build zlib
 
-package metricsserializer
+package metrics
 
 import (
 	"fmt"
@@ -88,9 +88,9 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 	return uncompressedPayloads
 }
 
-func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler) {
+func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler) {
 	payloads := buildPayload(t, m)
-	json, err := m.MarshalJSON()
+	json, err := jsonMarshaler.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(payloads))
 	assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[0]))
@@ -102,16 +102,18 @@ func TestServiceCheckDescribeItem(t *testing.T) {
 }
 
 func TestPayloadsNoServiceCheck(t *testing.T) {
-	assertEqualToMarshalJSON(t, ServiceChecks{})
+	serviceChecks := ServiceChecks{}
+	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
 }
 
 func TestPayloadsSingleServiceCheck(t *testing.T) {
 	serviceChecks := ServiceChecks{createServiceCheck("checkName")}
-	assertEqualToMarshalJSON(t, serviceChecks)
+	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
 }
 
 func TestPayloadsEmptyServiceCheck(t *testing.T) {
-	assertEqualToMarshalJSON(t, ServiceChecks{&metrics.ServiceCheck{}})
+	serviceChecks := ServiceChecks{&metrics.ServiceCheck{}}
+	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {

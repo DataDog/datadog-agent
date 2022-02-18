@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package metricsserializer
+package metrics
 
 import (
 	"bytes"
@@ -126,11 +126,6 @@ func (events Events) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 		n += batchSize
 	}
 	return splitPayloads, nil
-}
-
-// MarshalSplitCompress not implemented
-func (events Events) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("Events MarshalSplitCompress is not implemented")
 }
 
 // Implements StreamJSONMarshaler.
