@@ -464,7 +464,7 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 		extraHeaders.Set(headers.HostHeader, hostName)
 		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
-		extraHeaders.Set(headers.EVPOriginHeader, "datadog-cluster-agent")
+		extraHeaders.Set(headers.EVPOriginHeader, "agent")
 		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
 
