@@ -55,7 +55,7 @@ func promoteExperimentalOTLP(cfg Config) {
 		return
 	}
 	log.Warn(`OTLP ingest configuration is now stable and has been moved out of the "experimental" section. ` +
-		`This section will be deprecated in a future minor Datadog Agent release. Please use the "otlp_config" section instead.`)
+		`This section will be deprecated in the 7.37 Datadog Agent release. Please use the "otlp_config" section instead.`)
 	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
 		for key, val := range cfg.GetStringMap(k) {
 			cfg.Set(OTLPMetrics+"."+key, val)
