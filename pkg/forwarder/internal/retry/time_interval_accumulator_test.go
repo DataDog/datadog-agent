@@ -79,6 +79,29 @@ func TestAccumulatorEmptyBucket(t *testing.T) {
 	expectSumAndDuration(r, sum, duration, 3, 6)
 }
 
+func TestAccumulatorCompareToNaive(t *testing.T) {
+	r := require.New(t)
+
+	// 6 buckets of 1 second
+	a, err := newTimeIntervalAccumulator(time.Duration(6)*time.Second, time.Duration(1)*time.Second)
+	r.NoError(err)
+
+	accumulator := make([]int64, 0)
+	for i := int64(0); i < 100; i++ {
+		sum, duration := addToAccumulator(a, i, i)
+
+		accumulator = append(accumulator, i)
+		if len(accumulator) > 6 {
+			accumulator = accumulator[1:]
+		}
+		expectedSum := int64(0)
+		for _, v := range accumulator {
+			expectedSum += v
+		}
+		expectSumAndDuration(r, sum, duration, expectedSum, len(accumulator))
+	}
+}
+
 func addToAccumulator(a *timeIntervalAccumulator, unixTime int64, value int64) (int64, time.Duration) {
 	t := time.Unix(unixTime, 0)
 	a.add(t, value)
