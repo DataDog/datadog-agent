@@ -148,15 +148,15 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey) {
-	if aggKey.Env == "" {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, origin, env, hostname, containerID string) {
+	if env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s, origin, aggKey)
-	sb.add(s, weight, isTop, aggr)
+	aggr := NewAggregationFromSpan(s.Span, origin, env, hostname, containerID)
+	sb.add(s, aggr)
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation) {
+func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 	var gs *groupedStats
 	var ok bool
 
@@ -164,14 +164,14 @@ func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregatio
 		gs = newGroupedStats()
 		sb.data[aggr] = gs
 	}
-	if isTop {
-		gs.topLevelHits += weight
+	if s.TopLevel {
+		gs.topLevelHits += s.Weight
 	}
-	gs.hits += weight
+	gs.hits += s.Weight
 	if s.Error != 0 {
-		gs.errors += weight
+		gs.errors += s.Weight
 	}
-	gs.duration += float64(s.Duration) * weight
+	gs.duration += float64(s.Duration) * s.Weight
 	// alter resolution of duration distro
 	trundur := nsTimestampToFloat(s.Duration)
 	if s.Error != 0 {

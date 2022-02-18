@@ -10,12 +10,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -115,25 +112,16 @@ func (c *Concentrator) Stop() {
 	c.exitWG.Wait()
 }
 
-// Input specifies a set of traces originating from a certain payload.
-type Input struct {
-	Traces      []traceutil.ProcessedTrace
-	ContainerID string
+// EnvTrace contains input for the concentractor.
+type EnvTrace struct {
+	Trace WeightedTrace
+	Env   string
 }
 
-// NewStatsInput allocates a stats input for an incoming trace payload
-func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, conf *config.AgentConfig) Input {
-	if clientComputedStats {
-		return Input{}
-	}
-	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != fargate.Unknown)
-	if enableContainers && !features.Has("disable_cid_stats") {
-		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
-		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
-		in.ContainerID = containerID
-	}
-	return in
+// Input specifies a set of traces originating from a certain payload.
+type Input struct {
+	Traces      []EnvTrace
+	ContainerID string
 }
 
 // Add applies the given input to the concentrator.
@@ -147,25 +135,13 @@ func (c *Concentrator) Add(t Input) {
 
 // addNow adds the given input into the concentrator.
 // Callers must guard!
-func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) {
-	hostname := pt.TracerHostname
-	if hostname == "" {
-		hostname = c.agentHostname
-	}
-	env := pt.TracerEnv
+func (c *Concentrator) addNow(i *EnvTrace, containerID string) {
+	env := i.Env
 	if env == "" {
 		env = c.agentEnv
 	}
-	weight := weight(pt.Root)
-	aggKey := PayloadAggregationKey{
-		Env:         env,
-		Hostname:    hostname,
-		Version:     pt.AppVersion,
-		ContainerID: containerID,
-	}
-	for _, s := range pt.TraceChunk.Spans {
-		isTop := traceutil.HasTopLevel(s)
-		if !(isTop || traceutil.IsMeasured(s)) {
+	for _, s := range i.Trace.Spans {
+		if !(s.TopLevel || s.Measured) {
 			continue
 		}
 		end := s.Start + s.Duration
@@ -181,7 +157,11 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey)
+		hostname := i.Trace.TracerHostname
+		if hostname == "" {
+			hostname = c.agentHostname
+		}
+		b.HandleSpan(s, i.Trace.Origin, env, hostname, containerID)
 	}
 }
 

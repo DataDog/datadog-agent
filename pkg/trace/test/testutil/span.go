@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -337,6 +338,16 @@ func RandomSpan() *pb.Span {
 	}
 }
 
+// RandomWeightedSpan generates a random weighted span, useful for stats tests
+func RandomWeightedSpan() *stats.WeightedSpan {
+	s := RandomSpan()
+	return &stats.WeightedSpan{
+		Span:     s,
+		Weight:   1,
+		TopLevel: true,
+	}
+}
+
 // GetTestSpan returns a Span with different fields set
 func GetTestSpan() *pb.Span {
 	span := &pb.Span{
@@ -377,5 +388,15 @@ func TestSpan() *pb.Span {
 		},
 		ParentID: 1111,
 		Type:     "http",
+	}
+}
+
+// TestWeightedSpan returns a static test weighted span for reproductive stats tests
+func TestWeightedSpan() *stats.WeightedSpan {
+	s := TestSpan()
+	return &stats.WeightedSpan{
+		Span:     s,
+		Weight:   1,
+		TopLevel: true,
 	}
 }

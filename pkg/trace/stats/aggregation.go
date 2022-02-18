@@ -58,10 +58,15 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin, env, hostname, containerID string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	return Aggregation{
-		PayloadAggregationKey: aggKey,
+		PayloadAggregationKey: PayloadAggregationKey{
+			Env:         env,
+			Hostname:    hostname,
+			Version:     traceutil.GetMetaDefault(s, tagVersion, ""),
+			ContainerID: containerID,
+		},
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:   s.Resource,
 			Service:    s.Service,

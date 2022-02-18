@@ -196,7 +196,7 @@ func TestStateHeaders(t *testing.T) {
 		// this one will return 500, but that's fine, we want to test that all
 		// reponses have the header regardless of status code
 		"/v0.5/traces",
-		"/v0.7/traces",
+		"/v0.6/traces",
 	} {
 		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
 		if err != nil {

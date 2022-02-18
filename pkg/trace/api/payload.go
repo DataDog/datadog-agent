@@ -45,8 +45,3 @@ func (p *Payload) Chunk(i int) *pb.TraceChunk {
 func (p *Payload) RemoveChunk(i int) {
 	p.TracerPayload.RemoveChunk(i)
 }
-
-// ReplaceChunk replaces a chunk in TracerPayload at a given index
-func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
-	p.TracerPayload.Chunks[i] = chunk
-}
