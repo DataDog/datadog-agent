@@ -371,7 +371,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 				log.Debugf("Could not add agent-level tags to instance of %v: %v", fpath, err)
 			}
 		}
-		conf.Instances = append(conf.Instances, rawConf)
+		conf.Instances = append(conf.Instances, dataConf)
 	}
 
 	// If JMX metrics were found, add them to the config
