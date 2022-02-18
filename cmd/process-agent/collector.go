@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type checkResult struct {
@@ -233,8 +232,6 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}
-			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
-			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		}
 
 		payloads = append(payloads, checkPayload{
