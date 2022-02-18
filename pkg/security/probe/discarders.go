@@ -229,6 +229,10 @@ var (
 
 // use a faster version of path.Dir which adds some sanity checks not required here
 func dirname(filename string) string {
+	if len(filename) == 0 {
+		return "/"
+	}
+
 	i := len(filename) - 1
 	for i >= 0 && filename[i] != '/' {
 		i--
@@ -238,7 +242,7 @@ func dirname(filename string) string {
 		return filename
 	}
 
-	if i == 0 {
+	if i <= 0 {
 		return "/"
 	}
 
