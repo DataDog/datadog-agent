@@ -697,6 +697,7 @@ func (e *UnloadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 	return read + 56, nil
 }
 
+// UnmarshalBinary unmarshals a binary representation of itself
 func (e *SignalEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
