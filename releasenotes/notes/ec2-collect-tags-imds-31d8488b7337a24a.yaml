@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    When ``ec2_collect_tags`` is enabled, the Agent now attempts to fetch data
+    from the instance metadata service, falling back to the existing
+    EC2-API-based method of fetching tags.  Support for tags in the instance
+    metadata service is an opt-in EC2 feature, so this functionality will
+    not work automatically.

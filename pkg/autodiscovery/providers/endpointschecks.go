@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package providers
@@ -30,7 +31,7 @@ type EndpointsChecksConfigProvider struct {
 // NewEndpointsChecksConfigProvider returns a new ConfigProvider collecting
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
+func NewEndpointsChecksConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	c := &EndpointsChecksConfigProvider{}
 	var err error
 	c.nodeName, err = getNodename(context.TODO())
@@ -105,7 +106,7 @@ func (c *EndpointsChecksConfigProvider) initClient() error {
 }
 
 func init() {
-	RegisterProvider("endpointschecks", NewEndpointsChecksConfigProvider)
+	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the EndpointsChecksConfigProvider

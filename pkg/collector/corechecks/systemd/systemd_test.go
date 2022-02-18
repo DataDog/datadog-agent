@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build systemd
 // +build systemd
 
 package systemd
@@ -969,8 +970,8 @@ func TestGetPropertyBool(t *testing.T) {
 
 type mockAutoConfig struct{}
 
-func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	return make(map[string]integration.Config)
+func (*mockAutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
+	f(map[string]integration.Config{})
 }
 
 type mockCollector struct{}

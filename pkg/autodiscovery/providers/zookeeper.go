@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build zk
 // +build zk
 
 package providers
@@ -35,21 +36,25 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
-	cache       *ProviderCache
+	cache       *providerCache
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
-	urls := strings.Split(cfg.TemplateURL, ",")
+func NewZookeeperConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+	if providerConfig == nil {
+		providerConfig = &config.ConfigurationProviders{}
+	}
+
+	urls := strings.Split(providerConfig.TemplateURL, ",")
 
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", "), err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", providerConfig.TemplateURL, strings.Join(urls, ", "), err)
 	}
-	cache := NewCPCache()
+	cache := newProviderCache()
 	return &ZookeeperConfigProvider{
 		client:      c,
-		templateDir: cfg.TemplateDir,
+		templateDir: providerConfig.TemplateDir,
 		cache:       cache,
 	}, nil
 }
@@ -86,16 +91,16 @@ func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	outdated := z.cache.LatestTemplateIdx
+	outdated := z.cache.mostRecentMod
 	adListUpdated := false
 
-	if z.cache.NumAdTemplates != len(identifiers) {
-		if z.cache.NumAdTemplates == 0 {
+	if z.cache.count != len(identifiers) {
+		if z.cache.count == 0 {
 			log.Infof("Initializing cache for %v", z.String())
 		}
 		log.Debugf("List of AD Template was modified, updating cache.")
 		adListUpdated = true
-		z.cache.NumAdTemplates = len(identifiers)
+		z.cache.count = len(identifiers)
 	}
 
 	for _, identifier := range identifiers {
@@ -113,9 +118,9 @@ func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) 
 			outdated = math.Max(float64(stat.Mtime), outdated)
 		}
 	}
-	if outdated > z.cache.LatestTemplateIdx || adListUpdated {
-		log.Debugf("Idx was %v and is now %v", z.cache.LatestTemplateIdx, outdated)
-		z.cache.LatestTemplateIdx = outdated
+	if outdated > z.cache.mostRecentMod || adListUpdated {
+		log.Debugf("Idx was %v and is now %v", z.cache.mostRecentMod, outdated)
+		z.cache.mostRecentMod = outdated
 		log.Infof("cache updated for %v", z.String())
 		return false, nil
 	}
@@ -201,7 +206,7 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data
 }
 
 func init() {
-	RegisterProvider("zookeeper", NewZookeeperConfigProvider)
+	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the ZookeeperConfigProvider

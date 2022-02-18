@@ -19,6 +19,8 @@ type Report struct {
 	Passed bool
 	// Aggregated defines whether check was aggregated or not
 	Aggregated bool
+	// Evaluator defines the eval engine that was used to generate this report
+	Evaluator string
 	// Error of th check evaluation
 	Error error
 }

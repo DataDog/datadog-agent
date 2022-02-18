@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -11,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -19,7 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -42,13 +42,6 @@ var (
 	ErrNotFound         = errors.New("entity not found") //nolint:revive
 	ErrIsEmpty          = errors.New("entity is empty")  //nolint:revive
 	ErrNotLeader        = errors.New("not Leader")       //nolint:revive
-	isConnectVerbose    = false
-
-	gvrDDM = &schema.GroupVersionResource{
-		Group:    "datadoghq.com",
-		Version:  "v1alpha1",
-		Resource: "datadogmetrics",
-	}
 )
 
 const (
@@ -99,6 +92,9 @@ type APIClient struct {
 
 	// DiscoveryCl holds kubernetes discovery client
 	DiscoveryCl discovery.DiscoveryInterface
+
+	// VPAClient holds kubernetes VerticalPodAutoscalers client
+	VPAClient vpa.Interface
 
 	// timeoutSeconds defines the kubernetes client timeout
 	timeoutSeconds int64
@@ -191,7 +187,7 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	return clientConfig, nil
 }
 
-func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
 	clientConfig, err := getClientConfig(timeout)
@@ -218,6 +214,15 @@ func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface
 	}
 
 	return discovery.NewDiscoveryClientForConfig(clientConfig)
+}
+
+func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return vpa.NewForConfig(clientConfig)
 }
 
 func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
@@ -253,7 +258,7 @@ func getDDInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
+	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Errorf("Could not get apiserver client: %v", err)
 		return nil, err
@@ -263,7 +268,7 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 
 func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
+	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Errorf("Could not get apiserver client: %v", err)
 		return nil, err
@@ -273,9 +278,15 @@ func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (in
 
 func (c *APIClient) connect() error {
 	var err error
-	c.Cl, err = getKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
+	c.Cl, err = GetKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+
+	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver vpa client: %w", err)
 		return err
 	}
 
@@ -354,11 +365,6 @@ func (c *APIClient) connect() error {
 	}
 	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
-	err = c.checkResourcesAuth()
-	if err != nil {
-		return err
-	}
-	log.Debug("Could successfully collect Pods, Nodes, Services and Events")
 	return nil
 }
 
@@ -373,64 +379,6 @@ func newMetadataMapperBundle() *metadataMapperBundle {
 		Services: apiv1.NewNamespacesPodsStringsSet(),
 		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
 	}
-}
-
-func aggregateCheckResourcesErrors(errorMessages []string) error {
-	if len(errorMessages) == 0 {
-		return nil
-	}
-	return fmt.Errorf("check resources failed: %s", strings.Join(errorMessages, ", "))
-}
-
-// checkResourcesAuth is meant to check that we can query resources from the API server.
-// Depending on the user's config we only trigger an error if necessary.
-// The Event check requires getting Events data.
-// The MetadataMapper case, requires access to Services, Nodes and Pods.
-func (c *APIClient) checkResourcesAuth() error {
-	var errorMessages []string
-
-	// We always want to collect events
-	_, err := c.Cl.CoreV1().Events("").List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-
-	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
-		return aggregateCheckResourcesErrors(errorMessages)
-	}
-
-	_, err = c.Cl.CoreV1().Services("").List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-
-	_, err = c.Cl.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-
-	_, err = c.Cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
-	}
-
-	if c.DDClient != nil {
-		_, err = c.DDClient.Resource(*gvrDDM).List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-		if err != nil {
-			errorMessages = append(errorMessages, fmt.Sprintf("DatadogMetric collection: %q", err.Error()))
-		}
-	}
-
-	return aggregateCheckResourcesErrors(errorMessages)
 }
 
 // ComponentStatuses returns the component status list from the APIServer
@@ -527,6 +475,15 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 		return nil, err
 	}
 	return node.Labels, nil
+}
+
+// NodeAnnotations is used to fetch the annotations attached to a given node.
+func (c *APIClient) NodeAnnotations(nodeName string) (map[string]string, error) {
+	node, err := c.Cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return node.Annotations, nil
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on

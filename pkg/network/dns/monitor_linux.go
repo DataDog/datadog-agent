@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package dns
@@ -9,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 type dnsMonitor struct {
@@ -28,7 +34,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 		return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 	}
 
-	filter, _ := p.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
+	filter, _ := p.GetProbe(manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketDnsFilter), EBPFFuncName: funcName})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}

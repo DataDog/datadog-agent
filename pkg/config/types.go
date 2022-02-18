@@ -85,6 +85,8 @@ type Config interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
-	// GetEnvVars returns a list of the non-sensitive env vars that the config supports
+
+	// GetEnvVars returns a list of the env vars that the config supports.
+	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
 }

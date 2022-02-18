@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package agent
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/stretchr/testify/assert"
@@ -91,7 +93,9 @@ func eventMatcher(m eventMatch) interface{} {
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
 
-	aggregator.InitAggregator(nil, nil, "foo")
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()
@@ -160,6 +164,7 @@ func TestRun(t *testing.T) {
 		reporter,
 		scheduler,
 		e.dir,
+		&config.Endpoints{},
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
@@ -190,7 +195,9 @@ func TestRun(t *testing.T) {
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
 
-	aggregator.InitAggregator(nil, nil, "foo")
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()

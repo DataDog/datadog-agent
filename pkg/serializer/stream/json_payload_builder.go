@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//+build zlib
+//go:build zlib
+// +build zlib
 
 package stream
 
@@ -98,14 +99,15 @@ const (
 
 // Build serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	return b.BuildWithOnErrItemTooBigPolicy(m, DropItemOnErrItemTooBig)
+	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
+	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)
 }
 
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
-	m marshaler.StreamJSONMarshaler,
+	m marshaler.IterableStreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
-
+	defer m.IterationStopped()
 	var input, output *bytes.Buffer
 	if b.shareAndLockBuffers {
 		defer b.mu.Unlock()
@@ -130,8 +132,6 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	}
 
 	var payloads forwarder.Payloads
-	var i int
-	itemCount := m.Len()
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
 	start := time.Now()
@@ -156,14 +156,15 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
-	for i < itemCount {
+	ok := m.MoveNext()
+	for ok {
 		// We keep reusing the same small buffer in the jsoniter stream. Note that we can do so
 		// because compressor.addItem copies given buffer.
 		jsonStream.Reset(nil)
-		err := m.WriteItem(jsonStream, i)
+		err := m.WriteCurrentItem(jsonStream)
 		if err != nil {
 			log.Warnf("error marshalling an item, skipping: %s", err)
-			i++
+			ok = m.MoveNext()
 			expvarsWriteItemErrors.Add(1)
 			tlmWriteItemErrors.Inc()
 			continue
@@ -187,7 +188,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			}
 		case nil:
 			// All good, continue to next item
-			i++
+			ok = m.MoveNext()
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
 			continue
@@ -198,8 +199,8 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			fallthrough
 		default:
 			// Unexpected error, drop the item
-			i++
-			log.Warnf("Dropping an item, %s: %s", m.DescribeItem(i), err)
+			log.Warnf("Dropping an item, %s: %s", m.DescribeCurrentItem(), err)
+			ok = m.MoveNext()
 			expvarsItemDrops.Add(1)
 			tlmItemDrops.Inc()
 			continue

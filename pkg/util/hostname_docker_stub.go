@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build freebsd || netbsd || openbsd || solaris || dragonfly || aix
 // +build freebsd netbsd openbsd solaris dragonfly aix
 
 package util
 
 import "context"
 
-func getContainerHostname(ctx context.Context) (bool, string) {
-	return false, ""
+func getContainerHostname(ctx context.Context) string {
+	return ""
 }

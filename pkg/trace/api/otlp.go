@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
@@ -32,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gogo/protobuf/proto"
-	"go.opentelemetry.io/otel/semconv"
+	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -78,7 +77,7 @@ func (o *OTLPReceiver) Start() {
 				}
 			}
 		}()
-		log.Infof("OpenTelemetry HTTP receiver running on http://%s:%d", o.cfg.BindHost, o.cfg.HTTPPort)
+		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.cfg.BindHost, o.cfg.HTTPPort)
 	}
 	if o.cfg.GRPCPort != 0 {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", o.cfg.BindHost, o.cfg.GRPCPort))
@@ -94,7 +93,7 @@ func (o *OTLPReceiver) Start() {
 					log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 				}
 			}()
-			log.Infof("OpenTelemetry gRPC receiver running on %s:%d", o.cfg.BindHost, o.cfg.GRPCPort)
+			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.cfg.BindHost, o.cfg.GRPCPort)
 		}
 	}
 }
@@ -207,7 +206,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 		for _, attr := range rspans.Resource.Attributes {
 			rattr[attr.Key] = anyValueString(attr.Value)
 		}
-		lang := rattr[string(semconv.TelemetrySDKLanguageKey)]
+		lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
 		if lang == "" {
 			lang = fastHeaderGet(header, headerLang)
 		}
@@ -217,7 +216,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 				LangVersion:     fastHeaderGet(header, headerLangVersion),
 				Interpreter:     fastHeaderGet(header, headerLangInterpreter),
 				LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
-				TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.TelemetrySDKVersionKey)]),
+				TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
 				EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
 			},
 		}
@@ -235,13 +234,29 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 		tags := tagstats.AsTags()
 		metrics.Count("datadog.trace_agent.otlp.spans", int64(len(rspans.InstrumentationLibrarySpans)), tags, 1)
 		metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
+		traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 		p := Payload{
-			Source:        tagstats,
-			ContainerTags: getContainerTags(fastHeaderGet(header, headerContainerID)),
-			Traces:        make(pb.Traces, 0, len(tracesByID)),
+			Source: tagstats,
 		}
-		for _, trace := range tracesByID {
-			p.Traces = append(p.Traces, trace)
+		for _, spans := range tracesByID {
+			traceChunks = append(traceChunks, &pb.TraceChunk{
+				// auto-keep all incoming traces; it was already chosen as a keeper on
+				// the client side.
+				Priority: int32(sampler.PriorityAutoKeep),
+				Spans:    spans,
+			})
+		}
+		p.TracerPayload = &pb.TracerPayload{
+			Chunks:          traceChunks,
+			ContainerID:     fastHeaderGet(header, headerContainerID),
+			LanguageName:    tagstats.Lang,
+			LanguageVersion: tagstats.LangVersion,
+			TracerVersion:   tagstats.TracerVersion,
+		}
+		if ctags := getContainerTags(p.TracerPayload.ContainerID); ctags != "" {
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: ctags,
+			}
 		}
 		o.out <- &p
 	}
@@ -318,23 +333,14 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		ParentID: byteArrayToUint64(in.ParentSpanId),
 		Start:    int64(in.StartTimeUnixNano),
 		Duration: int64(in.EndTimeUnixNano) - int64(in.StartTimeUnixNano),
-		Service:  rattr[string(semconv.ServiceNameKey)],
+		Service:  rattr[string(semconv.AttributeServiceName)],
 		Resource: in.Name,
 		Meta:     rattr,
-		Metrics: map[string]float64{
-			// auto-keep all incoming traces; it was already chosen as a keeper on
-			// the client side.
-			sampler.KeySamplingPriority: float64(sampler.PriorityAutoKeep),
-		},
+		Metrics:  map[string]float64{},
 	}
-	if features.Has("otlp_original_ids") {
-		// keep original IDs
-		span.Meta["otlp_ids.trace"] = hex.EncodeToString(in.TraceId)
-		span.Meta["otlp_ids.span"] = hex.EncodeToString(in.SpanId)
-		span.Meta["otlp_ids.parent"] = hex.EncodeToString(in.ParentSpanId)
-	}
+	span.Meta["otel.trace_id"] = hex.EncodeToString(in.TraceId)
 	if _, ok := span.Meta["version"]; !ok {
-		if ver := rattr[string(semconv.ServiceVersionKey)]; ver != "" {
+		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			span.Meta["version"] = ver
 		}
 	}
@@ -352,7 +358,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		}
 	}
 	if _, ok := span.Meta["env"]; !ok {
-		if env := span.Meta[string(semconv.DeploymentEnvironmentKey)]; env != "" {
+		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
 			span.Meta["env"] = env
 		}
 	}
@@ -365,7 +371,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	if lib.Version != "" {
 		span.Meta["instrumentation_library.version"] = lib.Version
 	}
-	if svc := span.Meta[string(semconv.PeerServiceKey)]; svc != "" {
+	if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
 		span.Service = svc
 	}
 	if r := resourceFromTags(span.Meta); r != "" {
@@ -380,16 +386,16 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 // If this is not possible, it returns an empty string.
 func resourceFromTags(meta map[string]string) string {
 	var r string
-	if m := meta[string(semconv.HTTPMethodKey)]; m != "" {
+	if m := meta[string(semconv.AttributeHTTPMethod)]; m != "" {
 		r = m
-		if route := meta[string(semconv.HTTPRouteKey)]; route != "" {
+		if route := meta[string(semconv.AttributeHTTPRoute)]; route != "" {
 			r += " " + route
 		} else if route := meta["grpc.path"]; route != "" {
 			r += " " + route
 		}
-	} else if m := meta[string(semconv.MessagingOperationKey)]; m != "" {
+	} else if m := meta[string(semconv.AttributeMessagingOperation)]; m != "" {
 		r = m
-		if dest := meta[string(semconv.MessagingDestinationKey)]; dest != "" {
+		if dest := meta[string(semconv.AttributeMessagingDestination)]; dest != "" {
 			r += " " + dest
 		}
 	}
@@ -409,11 +415,11 @@ func status2Error(status *otlppb.Status, events []*otlppb.Span_Event, span *pb.S
 		}
 		for _, attr := range e.Attributes {
 			switch attr.Key {
-			case string(semconv.ExceptionMessageKey):
+			case string(semconv.AttributeExceptionMessage):
 				span.Meta["error.msg"] = anyValueString(attr.Value)
-			case string(semconv.ExceptionTypeKey):
+			case string(semconv.AttributeExceptionType):
 				span.Meta["error.type"] = anyValueString(attr.Value)
-			case string(semconv.ExceptionStacktraceKey):
+			case string(semconv.AttributeExceptionStacktrace):
 				span.Meta["error.stack"] = anyValueString(attr.Value)
 			}
 		}
@@ -428,7 +434,7 @@ func spanKind2Type(kind otlppb.Span_SpanKind, span *pb.Span) string {
 		typ = "web"
 	case otlppb.Span_SPAN_KIND_CLIENT:
 		typ = "http"
-		db, ok := span.Meta[string(semconv.DBSystemKey)]
+		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
 		if !ok {
 			break
 		}

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -10,15 +11,16 @@ package probe
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -84,16 +86,22 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 
 // SendStats sends statistics about the probe to Datadog
 func (m *Monitor) SendStats() error {
+	// delay between to send in order to reduce the statsd pool presure
+	const delay = time.Second
+
 	if m.syscallMonitor != nil {
 		if err := m.syscallMonitor.SendStats(m.client); err != nil {
 			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
+	time.Sleep(delay)
 
 	if resolvers := m.probe.GetResolvers(); resolvers != nil {
 		if err := resolvers.ProcessResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
 		}
+		time.Sleep(delay)
+
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
 		}
@@ -102,6 +110,7 @@ func (m *Monitor) SendStats() error {
 	if err := m.perfBufferMonitor.SendStats(); err != nil {
 		return errors.Wrap(err, "failed to send events stats")
 	}
+	time.Sleep(delay)
 
 	if err := m.loadController.SendStats(); err != nil {
 		return errors.Wrap(err, "failed to send load controller stats")

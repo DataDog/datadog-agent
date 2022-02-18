@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -115,6 +120,34 @@ func TestConnStatsByteKey(t *testing.T) {
 			keyB = string(b)
 		}
 		assert.NotEqual(t, keyA, keyB)
+	}
+}
+
+func TestIsExpired(t *testing.T) {
+	// 10mn
+	var timeout uint64 = 600000000000
+	for _, tc := range []struct {
+		stats      ConnectionStats
+		latestTime uint64
+		expected   bool
+	}{
+		{
+			ConnectionStats{LastUpdateEpoch: 101},
+			100,
+			false,
+		},
+		{
+			ConnectionStats{LastUpdateEpoch: 100},
+			101,
+			false,
+		},
+		{
+			ConnectionStats{LastUpdateEpoch: 100},
+			101 + timeout,
+			true,
+		},
+	} {
+		assert.Equal(t, tc.expected, tc.stats.IsExpired(tc.latestTime, timeout))
 	}
 }
 

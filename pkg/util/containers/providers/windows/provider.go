@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inmetrics.
 
-// +build windows
-// +build docker
+//go:build windows && docker
+// +build windows,docker
 
 package windows
 
@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"net"
 	"os"
 	"os/exec"
@@ -123,16 +122,17 @@ func (mp *provider) fillContainerDetails(cjson types.ContainerJSON, containerBun
 	}
 
 	// Parsing limits
-	var cpuMax float64 = 0
+	var cpuLimit float64 = 0
 	if cjson.HostConfig.NanoCPUs > 0 {
-		cpuMax = float64(cjson.HostConfig.NanoCPUs) / 1e9 / float64(sysinfo.NumCPU()) * 100
+		cpuLimit = float64(cjson.HostConfig.NanoCPUs) / 1e9 * 100
 	} else if cjson.HostConfig.CPUPercent > 0 {
-		cpuMax = float64(cjson.HostConfig.CPUPercent)
+		// HostConfig.CPUPercent is based on total CPU capacity of the system
+		cpuLimit = float64(cjson.HostConfig.CPUPercent) * float64(sysinfo.NumCPU())
 	} else if cjson.HostConfig.CPUCount > 0 {
-		cpuMax = math.Min(float64(cjson.HostConfig.CPUCount), float64(sysinfo.NumCPU())) / float64(sysinfo.NumCPU()) * 100
+		cpuLimit = float64(cjson.HostConfig.CPUCount) * 100
 	}
 	containerBundle.limits = &metrics.ContainerLimits{
-		CPULimit: cpuMax,
+		CPULimit: cpuLimit,
 		MemLimit: uint64(cjson.HostConfig.Memory),
 		//ThreadLimit: 0, // Unknown ?
 	}
@@ -320,6 +320,12 @@ func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	}
 	//
 	return []string{fields[3]}, nil
+}
+
+// GetNumFileDescriptors returns the number of open file descriptors for a given
+// pid
+func (mp *provider) GetNumFileDescriptors(pid int) (int, error) {
+	return 0, fmt.Errorf("not supported on windows")
 }
 
 // Output from route print 0.0.0.0:

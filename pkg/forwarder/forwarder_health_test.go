@@ -12,6 +12,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +31,7 @@ func TestHasValidAPIKey(t *testing.T) {
 		ts2.URL: {"key3"},
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
+	fh := forwarderHealth{domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
@@ -50,6 +51,8 @@ func TestComputeDomainsURL(t *testing.T) {
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
 		"https://app.datadoghq.internal": {"api_key7"},
 		"https://app.myproxy.com":        {"api_key8"},
+		"https://app.ddog-gov.com":       {"api_key9"},
+		"https://custom.ddog-gov.com":    {"api_key10"},
 	}
 
 	expectedMap := map[string][]string{
@@ -58,6 +61,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://api.us2.datadoghq.com":  {"api_key5", "api_key6"},
 		"https://api.datadoghq.internal": {"api_key7"},
 		"https://app.myproxy.com":        {"api_key8"},
+		"https://api.ddog-gov.com":       {"api_key9", "api_key10"},
 	}
 
 	// just sort the expected map for easy comparison
@@ -65,7 +69,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		sort.Strings(keys)
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
+	fh := forwarderHealth{domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 
 	// lexicographical sort for assert

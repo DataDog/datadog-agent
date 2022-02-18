@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -11,9 +12,9 @@ import (
 	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 type onApproverHandler func(probe *Probe, approvers rules.Approvers) (activeApprovers, error)
@@ -82,14 +83,14 @@ func onNewBasenameApprovers(probe *Probe, eventType model.EventType, field strin
 	var basenameApprovers []activeApprover
 	for field, values := range approvers {
 		switch field {
-		case prefix + ".name":
+		case prefix + model.NameSuffix:
 			activeApprovers, err := approveBasenames("basename_approvers", eventType, stringValues(values)...)
 			if err != nil {
 				return nil, err
 			}
 			basenameApprovers = append(basenameApprovers, activeApprovers...)
 
-		case prefix + ".path":
+		case prefix + model.PathSuffix:
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
 				activeApprover, err := approveBasename("basename_approvers", eventType, basename)
@@ -139,4 +140,6 @@ func init() {
 	allApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
 	allApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
 	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
+	allApproversHandlers["mmap"] = mmapOnNewApprovers
+	allApproversHandlers["mprotect"] = mprotectOnNewApprovers
 }

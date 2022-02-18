@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -75,6 +76,8 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	}
 
+	stats["processAgentStatus"] = GetProcessAgentStatus()
+
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		httputils.NoProxyMapMutex.Lock()
 		stats["TransportWarnings"] = len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0
@@ -85,6 +88,7 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if config.IsContainerized() {
+		stats["adEnabledFeatures"] = config.GetDetectedFeatures()
 		if common.AC != nil {
 			stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
 		}
@@ -175,6 +179,12 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
 	}
 
+	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		stats["externalmetrics"] = externalmetrics.GetStatus()
+	} else {
+		stats["externalmetrics"] = apiserver.GetStatus()
+	}
+
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		cchecks, err := clusterchecks.GetStats()
 		if err != nil {
@@ -217,12 +227,13 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus(runtimeStatus map[string]interface{}) ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]interface{}) ([]byte, error) {
 	s, err := GetStatus()
 	if err != nil {
 		return nil, err
 	}
 	s["runtimeSecurityStatus"] = runtimeStatus
+	s["complianceStatus"] = complianceStatus
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {
@@ -252,6 +263,10 @@ func getPartialConfig() map[string]string {
 	conf["log_level"] = config.Datadog.GetString("log_level")
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	conf["additional_checksd"] = config.Datadog.GetString("additional_checksd")
+	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
+	if forwarderStorageMaxSizeInBytes > 0 {
+		conf["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
+	}
 	return conf
 }
 

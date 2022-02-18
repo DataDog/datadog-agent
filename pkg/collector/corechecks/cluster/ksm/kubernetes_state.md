@@ -146,28 +146,28 @@
 : Describes the reason the container is currently in terminated state. Tags:`kube_namespace` `pod_name` `kube_container_name` `reason` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.ready`
-: Describes whether the pod is ready to serve requests. Tags:`kube_namespace` `pod_name` `condition` (`env` `service` `version` from standard labels).
+: Describes whether the pod is ready to serve requests. Tags:`node` `kube_namespace` `pod_name` `condition` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.scheduled`
-: Describes the status of the scheduling process for the pod. Tags:`kube_namespace` `pod_name` `condition` (`env` `service` `version` from standard labels).
+: Describes the status of the scheduling process for the pod. Tags:`node` `kube_namespace` `pod_name` `condition` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.volumes.persistentvolumeclaims_readonly`
-: Describes whether a persistentvolumeclaim is mounted read only. Tags:`kube_namespace` `pod_name` `volume` `persistentvolumeclaim` (`env` `service` `version` from standard labels).
+: Describes whether a persistentvolumeclaim is mounted read only. Tags:`node` `kube_namespace` `pod_name` `volume` `persistentvolumeclaim` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.unschedulable`
 : Describes the unschedulable status for the pod. Tags:`kube_namespace` `pod_name` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.status_phase`
-: The pods current phase. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The pods current phase. Tags:`node` `kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.age`
-: The time in seconds since the creation of the pod. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The time in seconds since the creation of the pod. Tags:`node` `kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.uptime`
-: The time in seconds since the pod has been scheduled and acknowledged by the Kubelet. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The time in seconds since the pod has been scheduled and acknowledged by the Kubelet. Tags:`node` `kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.count`
-: Number of Pods. Tags:`kube_namespace` `kube_<owner kind>`.
+: Number of Pods. Tags:`node` `kube_namespace` `kube_<owner kind>`.
 
 `kubernetes_state.persistentvolumeclaim.status`
 : The phase the persistent volume claim is currently in. Tags:`kube_namespace` `persistentvolumeclaim` `phase` `storageclass`.
@@ -302,13 +302,19 @@
 : The duration since the last time the cronjob was scheduled. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.count`
-: Number of jobs. Tags:`kube_namespace` `owner_cronjob`.
+: Number of jobs. Tags:`kube_namespace` `kube_cronjob`.
 
 `kubernetes_state.job.failed`
 : The number of pods which reached Phase Failed. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.succeeded`
 : The number of pods which reached Phase Succeeded. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
+
+`kubernetes_state.job.completion.succeeded`
+: The job has completed its execution. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
+
+`kubernetes_state.job.completion.failed`
+: The job has failed its execution. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.resourcequota.<resource>.limit`
 : Information about resource quota limits by resource. Tags:`kube_namespace` `resourcequota`.

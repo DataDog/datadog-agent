@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package probes
@@ -58,6 +64,13 @@ const (
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn ProbeName = "kretprobe/udp_recvmsg"
 
+	// UDPv6RecvMsg traces the udpv6_recvmsg() system call
+	UDPv6RecvMsg ProbeName = "kprobe/udpv6_recvmsg"
+	// UDPv6RecvMsgPre410 traces the udpv6_recvmsg() system call on kernels prior to 4.1.0
+	UDPv6RecvMsgPre410 ProbeName = "kprobe/udpv6_recvmsg/pre_4_1_0"
+	// UDPv6RecvMsgReturn traces the return value for the udpv6_recvmsg() system call
+	UDPv6RecvMsgReturn ProbeName = "kretprobe/udpv6_recvmsg"
+
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeName = "kprobe/udp_destroy_sock"
 	// UDPDestroySockrReturn traces the return of the udp_destroy_sock() system call
@@ -86,11 +99,6 @@ const (
 	// SockMapFdReturn maps a file descriptor to a kernel sock
 	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
 
-	// IPRouteOutputFlow is the kprobe of a ip_route_output_flow call
-	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
-	// IPRouteOutputFlow is the kretprobe of a ip_route_output_flow call
-	IPRouteOutputFlowReturn ProbeName = "kretprobe/ip_route_output_flow"
-
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
 
@@ -100,10 +108,10 @@ const (
 	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
 	SockFDLookupRet ProbeName = "kretprobe/sockfd_lookup_light"
 
-	// DoSendfile is the kprobe used used to trace traffic via SENDFILE(2) syscall
+	// DoSendfile is the kprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfile ProbeName = "kprobe/do_sendfile"
 
-	// DoSendfileRet is the kretprobe used used to trace traffic via SENDFILE(2) syscall
+	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
 )
 
@@ -119,13 +127,13 @@ const (
 	UdpPortBindingsMap    BPFMapName = "udp_port_bindings"
 	TelemetryMap          BPFMapName = "telemetry"
 	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
-	GatewayMap            BPFMapName = "ip_route_dest_gateways"
 	ConntrackMap          BPFMapName = "conntrack"
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 	SockFDLookupArgsMap   BPFMapName = "sockfd_lookup_args"
 	DoSendfileArgsMap     BPFMapName = "do_sendfile_args"
 	SockByPidFDMap        BPFMapName = "sock_by_pid_fd"
 	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
+	TagsMap               BPFMapName = "conn_tags"
 )
 
 // SectionName returns the SectionName for the given BPF map

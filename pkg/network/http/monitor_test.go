@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package http
@@ -25,7 +31,17 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
-	testHTTPMonitor(t, targetAddr, serverAddr, 100)
+
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: true,
+		})
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: false,
+		})
+	})
 }
 
 func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
@@ -41,12 +57,60 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
-	testHTTPMonitor(t, targetAddr, serverAddr, 10)
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: true,
+		})
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: false,
+		})
+	})
 }
 
-func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, false)
+func TestUnknownMethodRegression(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
+		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
+	}
+
+	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
+	netlink.SetupDNAT(t)
+	defer netlink.TeardownDNAT(t)
+
+	targetAddr := "2.2.2.2:8080"
+	serverAddr := "1.1.1.1:8080"
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableTLS:        false,
+		EnableKeepAlives: true,
+	})
 	defer srvDoneFn()
+
+	monitor, err := NewMonitor(config.New(), nil, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
+
+	requestFn := requestGenerator(t, targetAddr)
+	for i := 0; i < 100; i++ {
+		requestFn()
+	}
+
+	time.Sleep(10 * time.Millisecond)
+	stats := monitor.GetHTTPStats()
+
+	for key := range stats {
+		if key.Method == MethodUnknown {
+			t.Error("detected HTTP request with method unknown")
+		}
+	}
+}
+
+func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
 	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
@@ -60,6 +124,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
 	for i := 0; i < numReqs; i++ {
 		requests = append(requests, requestFn())
 	}
+	srvDoneFn()
 
 	// Ensure all captured transactions get sent to user-space
 	time.Sleep(10 * time.Millisecond)

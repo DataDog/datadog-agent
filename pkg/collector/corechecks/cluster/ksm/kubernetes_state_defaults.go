@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -23,7 +24,7 @@ var (
 		"job_name":                            "kube_job",
 		"cronjob":                             "kube_cronjob",
 		"pod":                                 "pod_name",
-		"phase":                               "pod_phase",
+		"priority_class":                      "kube_priority_class",
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",
 		"replicaset":                          "kube_replica_set",
@@ -158,7 +159,7 @@ var (
 		},
 		"kube_pod_info": {
 			LabelsToMatch: []string{"pod", "namespace"},
-			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name"},
+			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name", "priority_class"},
 		},
 		"kube_persistentvolume_info": {
 			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced
@@ -208,6 +209,10 @@ var (
 				"label_failure_domain_beta_kubernetes_io_region", // k8s < v1.17
 				"label_failure_domain_beta_kubernetes_io_zone",   // k8s < v1.17
 			},
+		},
+		"kube_node_info": {
+			LabelsToMatch: []string{"node"},
+			LabelsToGet:   []string{"container_runtime_version", "kernel_version", "kubelet_version", "os_image"},
 		},
 	}
 )

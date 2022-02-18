@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package ebpf
 
 import (
@@ -30,6 +35,9 @@ type Config struct {
 
 	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
 	EnableRuntimeCompiler bool
+
+	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
+	EnableKernelHeaderDownload bool
 
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
@@ -69,13 +77,14 @@ func NewConfig() *Config {
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
 		ProcRoot:                 util.GetProcRoot(),
 
-		EnableRuntimeCompiler:    cfg.GetBool(key(spNS, "enable_runtime_compiler")),
-		RuntimeCompilerOutputDir: cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
-		KernelHeadersDirs:        cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir: cfg.GetString(key(spNS, "kernel_header_download_dir")),
-		AptConfigDir:             cfg.GetString(key(spNS, "apt_config_dir")),
-		YumReposDir:              cfg.GetString(key(spNS, "yum_repos_dir")),
-		ZypperReposDir:           cfg.GetString(key(spNS, "zypper_repos_dir")),
-		AllowPrecompiledFallback: true,
+		EnableRuntimeCompiler:      cfg.GetBool(key(spNS, "enable_runtime_compiler")),
+		RuntimeCompilerOutputDir:   cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
+		EnableKernelHeaderDownload: cfg.GetBool(key(spNS, "enable_kernel_header_download")),
+		KernelHeadersDirs:          cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir:   cfg.GetString(key(spNS, "kernel_header_download_dir")),
+		AptConfigDir:               cfg.GetString(key(spNS, "apt_config_dir")),
+		YumReposDir:                cfg.GetString(key(spNS, "yum_repos_dir")),
+		ZypperReposDir:             cfg.GetString(key(spNS, "zypper_repos_dir")),
+		AllowPrecompiledFallback:   true,
 	}
 }

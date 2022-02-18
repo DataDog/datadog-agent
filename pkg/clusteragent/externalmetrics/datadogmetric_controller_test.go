@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -611,6 +612,16 @@ func TestLeaderDeleteCleanup(t *testing.T) {
 	}
 	ddm.SetQueries("metric query0")
 	f.store.Set("default/dd-metric-0", ddm, "utest")
+
+	f.runControllerSync(true, "default/dd-metric-0", nil)
+
+	// Check internal store content has not changed
+	assert.Equal(t, 0, f.store.Count())
+}
+
+// Scenario: Another event comes after Kubernetes object and internal store has been cleaned up
+func TestLeaderDuplicatedDelete(t *testing.T) {
+	f := newFixture(t)
 
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 

@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    CWS uses `**` for subfolder matching instead of `*`.
+    Previously, `*` was used to match files and subfolders. With this
+    release, `*` will match only files and folders at the same level. Use`**`
+    at the end of a path to match files and subfolders. `**` must be
+    used at the end of the path. For example, the rule `open.file.path == "/etc/*"`
+    has to be converted to `open.file.path == "/etc/**"`.

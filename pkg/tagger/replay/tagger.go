@@ -7,7 +7,6 @@ package replay
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -15,15 +14,16 @@ import (
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tagger stores tags to entity as stored in a replay state.
 type Tagger struct {
-	store *tagStore
+	store *tagstore.TagStore
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -36,7 +36,7 @@ type Tagger struct {
 // once the config package is ready.
 func NewTagger() *Tagger {
 	return &Tagger{
-		store: newTagStore(),
+		store: tagstore.NewTagStore(),
 	}
 }
 
@@ -68,53 +68,38 @@ func (t *Tagger) Stop() error {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]string, error) {
-	entity, ok := t.store.getEntity(entityID)
+	tags := t.store.Lookup(entityID, cardinality)
+	return tags, nil
+}
 
-	if !ok {
+// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+	tags := t.store.LookupHashed(entityID, cardinality)
+
+	if tags.Len() == 0 {
 		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
-		return []string{}, fmt.Errorf("Entity not found")
+		return nil
 	}
 
 	telemetry.QueriesByCardinality(cardinality).Success.Inc()
-	return entity.GetTags(cardinality), nil
-}
+	tb.AppendHashed(tags)
 
-// TagBuilder returns tags for a given entity at the desired cardinality.
-func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
-	tags, err := t.Tag(entityID, cardinality)
-	if err == nil {
-		tb.Append(tags...)
-
-	}
-	return err
+	return nil
 }
 
 // Standard returns the standard tags for a given entity.
 func (t *Tagger) Standard(entityID string) ([]string, error) {
-	entity, ok := t.store.getEntity(entityID)
-	if !ok {
-		return []string{}, fmt.Errorf("Entity not found")
+	tags, err := t.store.LookupStandard(entityID)
+	if err != nil {
+		return []string{}, err
 	}
 
-	return entity.StandardTags, nil
+	return tags, nil
 }
 
 // List returns all the entities currently stored by the tagger.
 func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
-	entities := t.store.listEntities()
-	resp := response.TaggerListResponse{
-		Entities: make(map[string]response.TaggerListEntity),
-	}
-
-	for _, e := range entities {
-		resp.Entities[e.ID] = response.TaggerListEntity{
-			Tags: map[string][]string{
-				replaySource: e.GetTags(collectors.HighCardinality),
-			},
-		}
-	}
-
-	return resp
+	return t.store.List()
 }
 
 // Subscribe does nothing in the replay tagger this tagger does not respond to events.
@@ -143,30 +128,21 @@ func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 			continue
 		}
 
-		e := types.Entity{
-			ID:                          entityID,
-			HighCardinalityTags:         entity.HighCardinalityTags,
-			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
-			LowCardinalityTags:          entity.LowCardinalityTags,
-			StandardTags:                entity.StandardTags,
-		}
-
-		err = t.store.addEntity(id, e)
-		if err != nil {
-			log.Errorf("Error storing identity with ID %v in store: %v", id, err)
-		}
+		t.store.ProcessTagInfo([]*collectors.TagInfo{{
+			Source:               "replay",
+			Entity:               entityID,
+			HighCardTags:         entity.HighCardinalityTags,
+			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
+			LowCardTags:          entity.LowCardinalityTags,
+			StandardTags:         entity.StandardTags,
+			ExpiryDate:           time.Time{},
+		}})
 	}
 
-	log.Debugf("Loaded %v elements into tag store", len(t.store.store))
+	log.Debugf("Loaded %v elements into tag store", len(state))
 }
 
-// GetEntity returns the Entity for the supplied entity id..
+// GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-
-	entity, ok := t.store.getEntity(entityID)
-	if !ok {
-		return nil, fmt.Errorf("No entity found for supplied id :%v", entityID)
-	}
-
-	return entity, nil
+	return t.store.GetEntity(entityID)
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package providers
@@ -27,7 +28,7 @@ type PrometheusPodsConfigProvider struct {
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewPrometheusPodsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewPrometheusPodsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err
@@ -79,7 +80,7 @@ func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []in
 }
 
 func init() {
-	RegisterProvider("prometheus_pods", NewPrometheusPodsConfigProvider)
+	RegisterProvider(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the PrometheusPodsConfigProvider

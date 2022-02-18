@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
@@ -38,7 +39,7 @@ type ControllerV1 struct {
 }
 
 // NewControllerV1 returns a new Webhook Controller using admissionregistration/v1.
-func NewControllerV1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, config Config) *ControllerV1 {
+func NewControllerV1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client
 	controller.config = config
@@ -48,6 +49,7 @@ func NewControllerV1(client kubernetes.Interface, secretInformer coreinformers.S
 	controller.webhooksSynced = webhookInformer.Informer().HasSynced
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
+	controller.isLeaderNotif = isLeaderNotif
 	controller.generateTemplates()
 
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -77,10 +79,11 @@ func (c *ControllerV1) Run(stopCh <-chan struct{}) {
 		return
 	}
 
+	go c.enqueueOnLeaderNotif(stopCh)
 	go wait.Until(c.run, time.Second, stopCh)
 
 	// Trigger a reconciliation to create the Webhook if it doesn't exist
-	c.queue.Add(c.config.getWebhookName())
+	c.triggerReconciliation()
 
 	<-stopCh
 }

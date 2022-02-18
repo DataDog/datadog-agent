@@ -46,7 +46,10 @@ func writerTest(t *testing.T, z bool) {
 	writer.RegisterOOBPoolManager(oobManager)
 
 	var wg sync.WaitGroup
-	const iterations = 5
+	const (
+		iterations    = 50
+		sleepInterval = 100 * time.Millisecond
+	)
 
 	start := make(chan struct{})
 
@@ -55,9 +58,10 @@ func writerTest(t *testing.T, z bool) {
 		defer wg.Done()
 
 		close(start)
-		writer.Capture("foo/bar", 5*time.Second, z)
+		writer.Capture("foo/bar", iterations*sleepInterval, z)
 	}(&wg)
 
+	enqueued := 0
 	wg.Add(1)
 	go func(wg *sync.WaitGroup) {
 		defer wg.Done()
@@ -65,6 +69,7 @@ func writerTest(t *testing.T, z bool) {
 		<-start
 
 		for i := 0; i < iterations; i++ {
+			time.Sleep(sleepInterval)
 			buff := CapPool.Get().(*CaptureBuffer)
 			pkt := manager.Get().(*packets.Packet)
 			pkt.Buffer = []byte("foo.bar|5|#some:tag")
@@ -78,8 +83,9 @@ func writerTest(t *testing.T, z bool) {
 			buff.Pb.PayloadSize = int32(len(pkt.Buffer))
 			buff.Pb.Payload = pkt.Buffer // or packet.Buffer[:n] ?
 
-			writer.Enqueue(buff)
-			time.Sleep(500 * time.Millisecond)
+			if writer.Enqueue(buff) {
+				enqueued++
+			}
 		}
 
 		writer.StopCapture()
@@ -134,7 +140,7 @@ func writerTest(t *testing.T, z bool) {
 	for _, err = reader.ReadNext(); err != io.EOF; _, err = reader.ReadNext() {
 		cnt++
 	}
-	assert.Equal(t, cnt, iterations)
+	assert.Equal(t, cnt, enqueued)
 }
 
 func TestWriterUncompressed(t *testing.T) {

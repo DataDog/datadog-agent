@@ -55,6 +55,22 @@ Forwarder
   {{- end}}
 {{- end}}
 
+  On-disk storage
+  ===============
+  {{- if .config.forwarder_storage_max_size_in_bytes }}
+    {{- if .FileStorage.CurrentSizeInBytes }}
+    Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}
+    Current number of files: {{ .FileStorage.FilesCount }}
+    Number of files dropped: {{ .FileStorage.FilesRemovedCount }}
+    Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}
+    Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}
+    {{- else }}
+    Enabled, not in-use.
+    {{- end}}
+  {{- else }}
+    On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.
+  {{- end}}
+
 {{- if .APIKeyStatus }}
 
   API Keys status

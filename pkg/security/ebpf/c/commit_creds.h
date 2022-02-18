@@ -4,6 +4,7 @@
 struct setuid_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     u32 uid;
     u32 euid;
@@ -13,6 +14,7 @@ struct setuid_event_t {
 struct setgid_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     u32 gid;
     u32 egid;
@@ -22,6 +24,7 @@ struct setgid_event_t {
 struct capset_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     u64 cap_effective;
     u64 cap_permitted;
@@ -59,6 +62,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         struct setuid_event_t event = {};
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
+        fill_span_context(&event.span);
 
         event.uid = pid_entry->credentials.uid;
         event.euid = pid_entry->credentials.euid;
@@ -70,6 +74,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         struct setgid_event_t event = {};
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
+        fill_span_context(&event.span);
 
         event.gid = pid_entry->credentials.gid;
         event.egid = pid_entry->credentials.egid;
@@ -81,6 +86,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         struct capset_event_t event = {};
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
+        fill_span_context(&event.span);
 
         event.cap_effective = pid_entry->credentials.cap_effective;
         event.cap_permitted = pid_entry->credentials.cap_permitted;
@@ -375,9 +381,28 @@ int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_e
     return credentials_update_ret(args, args->ret);
 }
 
+struct cred_ids {
+    kuid_t uid;
+    kgid_t gid;
+    kuid_t suid;
+    kgid_t sgid;
+    kuid_t euid;
+    kgid_t egid;
+    kuid_t fsuid;
+    kgid_t fsgid;
+    unsigned securebits;
+    kernel_cap_t cap_inheritable;
+    kernel_cap_t cap_permitted;
+    kernel_cap_t cap_effective;
+    kernel_cap_t cap_bset;
+    kernel_cap_t cap_ambient;
+};
+
 SEC("kprobe/commit_creds")
-int kprobe__commit_creds(struct pt_regs *ctx) {
-    struct cred *credentials = (struct cred *)PT_REGS_PARM1(ctx);
+int kprobe_commit_creds(struct pt_regs *ctx) {
+    u64 creds_uid_offset;
+    LOAD_CONSTANT("creds_uid_offset", creds_uid_offset);
+    struct cred_ids *credentials = (struct cred_ids *)(PT_REGS_PARM1(ctx) + creds_uid_offset);
     struct pid_cache_t new_pid_entry = {};
 
     // update pid_cache entry for the current process

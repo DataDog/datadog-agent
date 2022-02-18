@@ -51,20 +51,28 @@ func (s *LogStatus) Error(err error) {
 
 // IsPending returns whether the current status is not yet determined.
 func (s *LogStatus) IsPending() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.status == isPending
 }
 
 // IsSuccess returns whether the current status is a success.
 func (s *LogStatus) IsSuccess() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.status == isSuccess
 }
 
 // IsError returns whether the current status is an error.
 func (s *LogStatus) IsError() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.status == isError
 }
 
 // GetError returns the error.
 func (s *LogStatus) GetError() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.err
 }

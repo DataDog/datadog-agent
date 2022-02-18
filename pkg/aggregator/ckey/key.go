@@ -6,9 +6,7 @@
 package ckey
 
 import (
-	"math/bits"
-
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/twmb/murmur3"
 )
 
@@ -30,30 +28,14 @@ import (
 // nor did benchmarks with xxhash (slightly slower).
 type ContextKey uint64
 
-// hashSetSize is the size selected for hashset used to deduplicate the tags
-// while generating the hash. This size has been selected to have space for
-// approximately 500 tags since it's not impacting much the performances,
-// even if the backend is truncating after 100 tags.
-//
-// Must be a power of two.
-const hashSetSize = 512
-
-// bruteforceSize is the threshold number of tags below which a bruteforce algorithm is
-// faster than a hashset.
-const bruteforceSize = 4
-
-// blank is a marker value to indicate that hashset slot is vacant.
-const blank = -1
+// TagsKey is a non-cryptographic hash of only the tags in a context. See ContextKey.
+type TagsKey uint64
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
-	g := &KeyGenerator{}
-
-	for i := 0; i < len(g.empty); i++ {
-		g.empty[i] = blank
+	return &KeyGenerator{
+		hg: tagset.NewHashGenerator(),
 	}
-
-	return g
 }
 
 // KeyGenerator generates hash for the given name, hostname and tags.
@@ -61,105 +43,34 @@ func NewKeyGenerator() *KeyGenerator {
 // generating the hash.
 // Not safe for concurrent usage.
 type KeyGenerator struct {
-	// reused buffer to not create a uint64 on the stack every key generation
-	intb uint64
-
-	// seen is used as a hashset to deduplicate the tags when there is more than
-	// 16 and less than 512 tags.
-	seen [hashSetSize]uint64
-	// seenIdx is the index of the tag stored in the hashset
-	seenIdx [hashSetSize]int16
-	// empty is an empty hashset with all values set to `blank`, to reset `seenIdx`
-	empty [hashSetSize]int16
-
-	// idx is used to deduplicate tags when there is less than 16 tags (faster than the
-	// hashset) or more than 512 tags (hashset has been allocated with 512 values max)
-	idx int
+	hg *tagset.HashGenerator
 }
 
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder) ContextKey {
-	// between two generations, we have to set the hash to something neutral, let's
-	// use this big value seed from the murmur3 implementations
-	g.intb = 0xc6a4a7935bd1e995
+func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) ContextKey {
+	key, _ := g.GenerateWithTags(name, hostname, tagsBuf)
+	return key
+}
 
-	g.intb = g.intb ^ murmur3.StringSum64(name)
-	g.intb = g.intb ^ murmur3.StringSum64(hostname)
+// GenerateWithTags returns the ContextKey and TagsKey hashes for the given parameters.
+// tagsBuf is re-arranged in place and truncated to only contain unique tags.
+func (g *KeyGenerator) GenerateWithTags(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) (ContextKey, TagsKey) {
+	tags := g.hg.Hash(tagsBuf)
+	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ tags
+	return ContextKey(hash), TagsKey(tags)
+}
 
-	// This is used to track number of unique tags seen so far in both versions of the algorithm.
-	g.idx = 0
-
-	// There are three implementations used here to deduplicate the tags depending on how
-	// many tags we have to process:
-	//   -  16 < n < hashSetSize:	we use a hashset of `hashSetSize` values.
-	//   -  n < 16:                 we use a simple for loops, which is faster than
-	//                          	the hashset when there is less than 16 tags
-	//   - n > hashSetSize:         sort
-
-	tags := tagsBuf.Get()
-
-	if len(tags) > hashSetSize {
-		tagsBuf.SortUniq()
-		for _, tag := range tagsBuf.Get() {
-			h := murmur3.StringSum64(tag)
-			g.intb = g.intb ^ h
-		}
-	} else if len(tags) > bruteforceSize {
-		// reset the `seen` hashset.
-		// it copies `g.empty` instead of using make because it's faster
-
-		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
-		// close to a power of two, size one up to keep hashset load low.
-		size := 1 << bits.Len(uint(len(tags)+len(tags)/8))
-		if size > hashSetSize {
-			size = hashSetSize
-		}
-		mask := uint64(size - 1)
-		copy(g.seenIdx[:size], g.empty[:size])
-
-		for i := range tags {
-			h := murmur3.StringSum64(tags[i])
-			j := h & mask // address this hash into the hashset
-			for {
-				if g.seenIdx[j] == blank {
-					// not seen, we will add it to the hash
-					g.seen[j] = h
-					g.seenIdx[j] = int16(g.idx)
-					g.intb = g.intb ^ h // add this tag into the hash
-					tags[g.idx] = tags[i]
-					g.idx++
-					break
-				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
-					// already seen, we do not want to xor multiple times the same tag
-					break
-				} else {
-					// move 'right' in the hashset because there is already a value,
-					// in this bucket, which is not the one we're dealing with right now,
-					// we may have already seen this tag
-					j = (j + 1) & mask
-				}
-			}
-		}
-		tagsBuf.Truncate(g.idx)
-	} else {
-	OUTER:
-		for i := range tags {
-			h := murmur3.StringSum64(tags[i])
-			for j := 0; j < g.idx; j++ {
-				if g.seen[j] == h && tags[j] == tags[i] {
-					continue OUTER // we do not want to xor multiple times the same tag
-				}
-			}
-			g.intb = g.intb ^ h
-			g.seen[g.idx] = h
-			tags[g.idx] = tags[i]
-			g.idx++
-		}
-		tagsBuf.Truncate(g.idx)
-	}
-
-	return ContextKey(g.intb)
+// GenerateWithTags2 returns the ContextKey and TagsKey hashes for the given parameters.
+//
+// Tags from l, r are combined to produce the key and deduplicated, but most of the time left in
+// their respective buffers.
+func (g *KeyGenerator) GenerateWithTags2(name, hostname string, l, r *tagset.HashingTagsAccumulator) (ContextKey, TagsKey, TagsKey) {
+	g.hg.Dedup2(l, r)
+	lHash := l.Hash()
+	rHash := r.Hash()
+	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ lHash ^ rHash
+	return ContextKey(hash), TagsKey(lHash), TagsKey(rHash)
 }
 
 // Equals returns whether the two context keys are equal or not.

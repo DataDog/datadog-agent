@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package leaderelection
@@ -50,6 +51,7 @@ type LeaderEngine struct {
 	m       sync.Mutex
 	once    sync.Once
 
+	subscribers         []chan struct{}
 	HolderIdentity      string
 	LeaseDuration       time.Duration
 	LeaseName           string
@@ -72,6 +74,7 @@ func newLeaderEngine() *LeaderEngine {
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
+		subscribers:     []chan struct{}{},
 	}
 }
 
@@ -235,6 +238,19 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 // IsLeader returns true if the last observed leader was this client else returns false.
 func (le *LeaderEngine) IsLeader() bool {
 	return le.GetLeader() == le.HolderIdentity
+}
+
+// Subscribe allows any component to receive a notification
+// when the current process becomes leader.
+// Calling Subscribe is optional, use IsLeader if the client doesn't need an event-based approach.
+func (le *LeaderEngine) Subscribe() <-chan struct{} {
+	c := make(chan struct{}, 5) // buffered channel to avoid blocking in case of stuck subscriber
+
+	le.m.Lock()
+	le.subscribers = append(le.subscribers, c)
+	le.m.Unlock()
+
+	return c
 }
 
 // GetLeaderElectionRecord is used in for the Flare and for the Status commands.

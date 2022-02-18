@@ -3,7 +3,9 @@ syntax = "proto3";
 package datadog.api.v1;
 
 import "datadog/model/v1/model.proto";
+import "datadog/remoteconfig/remoteconfig.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo"; // golang
 
@@ -87,6 +89,20 @@ service AgentSecure {
     rpc DogstatsdSetTaggerState(datadog.model.v1.TaggerState) returns (datadog.model.v1.TaggerStateResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/dogstatsd/capture/state"
+            body: "*"
+        };
+    };
+
+    rpc ClientGetConfigs(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/configs"
+            body: "*"
+        };
+    };
+
+    rpc GetConfigState(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/state"
             body: "*"
         };
     };

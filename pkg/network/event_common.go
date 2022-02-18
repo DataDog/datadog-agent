@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -10,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
-	"go4.org/intern"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -104,13 +108,20 @@ func (e EphemeralPortType) String() string {
 	}
 }
 
+// BufferedData encapsulates data whose underlying memory can be recycled
+type BufferedData struct {
+	Conns  []ConnectionStats
+	buffer *clientBuffer
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
+	BufferedData
 	DNS                         map[util.Address][]string
-	Conns                       []ConnectionStats
 	ConnTelemetry               *ConnectionsTelemetry
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
+	DNSStats                    dns.StatsByKeyByNameByType
 }
 
 // ConnectionsTelemetry stores telemetry from the system probe related to connections collection
@@ -177,23 +188,18 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                       uint16
-	DPort                       uint16
-	Type                        ConnectionType
-	Family                      ConnectionFamily
-	Direction                   ConnectionDirection
-	SPortIsEphemeral            EphemeralPortType
-	IPTranslation               *IPTranslation
-	IntraHost                   bool
-	DNSSuccessfulResponses      uint32
-	DNSFailedResponses          uint32
-	DNSTimeouts                 uint32
-	DNSSuccessLatencySum        uint64
-	DNSFailureLatencySum        uint64
-	DNSCountByRcode             map[uint32]uint32
-	DNSStatsByDomainByQueryType map[*intern.Value]map[dns.QueryType]dns.Stats
+	SPort            uint16
+	DPort            uint16
+	Type             ConnectionType
+	Family           ConnectionFamily
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
+	IPTranslation    *IPTranslation
+	IntraHost        bool
+	Via              *Via
+	Tags             uint64
 
-	Via *Via
+	IsAssured bool
 }
 
 // Via has info about the routing decision for a flow
@@ -218,6 +224,11 @@ func (c ConnectionStats) String() string {
 	return ConnectionSummary(&c, nil)
 }
 
+// IsExpired returns whether the connection is expired according to the provided time and timeout.
+func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
+	return c.LastUpdateEpoch+timeout <= now
+}
+
 // ByteKey returns a unique key for this connection represented as a byte array
 // It's as following:
 //
@@ -239,6 +250,12 @@ func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
 	return buf[:n], nil
+}
+
+// IsShortLived returns true when a connection went through its whole lifecycle
+// between two connection checks
+func (c ConnectionStats) IsShortLived() bool {
+	return c.LastTCPEstablished >= 1 && c.LastTCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"

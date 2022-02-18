@@ -58,6 +58,7 @@ func TestSecrets(t *testing.T) {
 		"DD_SECRET_BACKEND_COMMAND=" + binSecrets,
 		"DD_HOSTNAME=ENC[secret1]",
 		"DD_API_KEY=123",
+		"DD_APM_REMOTE_TAGGER=false",
 	}
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf

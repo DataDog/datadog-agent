@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -12,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestMountResolver(t *testing.T) {
@@ -309,7 +311,7 @@ func TestMountResolver(t *testing.T) {
 	}
 
 	// Create mount resolver
-	mr := NewMountResolver(nil)
+	mr, _ := NewMountResolver(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
@@ -342,6 +344,11 @@ func TestMountResolver(t *testing.T) {
 }
 
 func TestGetParentPath(t *testing.T) {
+	parentPathCache, err := simplelru.NewLRU(256, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	mr := &MountResolver{
 		mounts: map[uint32]*model.MountEvent{
 			1: {
@@ -360,6 +367,7 @@ func TestGetParentPath(t *testing.T) {
 				MountPointStr: "/c",
 			},
 		},
+		parentPathCache: parentPathCache,
 	}
 
 	parentPath := mr.getParentPath(3)
@@ -367,8 +375,14 @@ func TestGetParentPath(t *testing.T) {
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
+	parentPathCache, err := simplelru.NewLRU(256, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	mr := &MountResolver{
-		mounts: make(map[uint32]*model.MountEvent),
+		mounts:          make(map[uint32]*model.MountEvent),
+		parentPathCache: parentPathCache,
 	}
 
 	var parentID uint32

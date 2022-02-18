@@ -18,17 +18,17 @@ type counterExpvar struct {
 	expvar  expvar.Int
 }
 
-func newCounterExpvar(subsystem string, name string, help string, parent *expvar.Map) *counterExpvar {
+func newCounterExpvar(subsystem string, name string, tags []string, help string, parent *expvar.Map) *counterExpvar {
 	c := &counterExpvar{
-		counter: telemetry.NewCounter(subsystem, name, []string{}, help),
+		counter: telemetry.NewCounter(subsystem, name, tags, help),
 	}
 	expvarName := toCamelCase(name)
 	parent.Set(expvarName, &c.expvar)
 	return c
 }
 
-func (c *counterExpvar) add(v float64) {
-	c.counter.Add(v)
+func (c *counterExpvar) add(v float64, tagsValue ...string) {
+	c.counter.Add(v, tagsValue...)
 	c.expvar.Add(int64(v))
 }
 
@@ -37,26 +37,26 @@ type gaugeExpvar struct {
 	expvar expvar.Int
 }
 
-func newGaugeExpvar(subsystem string, name string, help string, parent *expvar.Map) *gaugeExpvar {
+func newGaugeExpvar(subsystem string, name string, tags []string, help string, parent *expvar.Map) *gaugeExpvar {
 	g := &gaugeExpvar{
-		gauge: telemetry.NewGauge(subsystem, name, []string{}, help),
+		gauge: telemetry.NewGauge(subsystem, name, tags, help),
 	}
 	expvarName := toCamelCase(name)
 	parent.Set(expvarName, &g.expvar)
 	return g
 }
 
-func (g *gaugeExpvar) set(v float64) {
-	g.gauge.Set(v)
+func (g *gaugeExpvar) set(v float64, tagsValue ...string) {
+	g.gauge.Set(v, tagsValue...)
 	g.expvar.Set(int64(v))
 }
 
 var (
 	removalPolicyExpvar                  = expvar.Map{}
-	newRemovalPolicyCountTelemetry       *counterExpvar
-	registeredDomainCountTelemetry       *counterExpvar
-	outdatedFilesCountTelemetry          *counterExpvar
-	filesFromUnknownDomainCountTelemetry *counterExpvar
+	newRemovalPolicyCountTelemetry       *gaugeExpvar
+	registeredDomainCountTelemetry       *gaugeExpvar
+	outdatedFilesCountTelemetry          *gaugeExpvar
+	filesFromUnknownDomainCountTelemetry *gaugeExpvar
 
 	transactionContainerExpvar        = expvar.Map{}
 	currentMemSizeInBytesTelemetry    *gaugeExpvar
@@ -64,38 +64,43 @@ var (
 	transactionsDroppedCountTelemetry *counterExpvar
 	errorsCountTelemetry              *counterExpvar
 
-	fileStorageExpvar                     = expvar.Map{}
-	serializeCountTelemetry               *counterExpvar
-	deserializeCountTelemetry             *counterExpvar
-	fileSizeTelemetry                     *gaugeExpvar
-	currentSizeInBytesTelemetry           *gaugeExpvar
-	filesCountTelemetry                   *gaugeExpvar
-	reloadedRetryFilesCountTelemetry      *counterExpvar
-	filesRemovedCountTelemetry            *counterExpvar
-	deserializeErrorsCountTelemetry       *counterExpvar
-	deserializeTransactionsCountTelemetry *counterExpvar
+	fileStorageExpvar                       = expvar.Map{}
+	serializeCountTelemetry                 *counterExpvar
+	deserializeCountTelemetry               *counterExpvar
+	fileSizeTelemetry                       *gaugeExpvar
+	currentSizeInBytesTelemetry             *gaugeExpvar
+	filesCountTelemetry                     *gaugeExpvar
+	startupReloadedRetryFilesCountTelemetry *gaugeExpvar
+	filesRemovedCountTelemetry              *counterExpvar
+	deserializeErrorsCountTelemetry         *counterExpvar
+	deserializeTransactionsCountTelemetry   *counterExpvar
 )
 
 func init() {
 	transaction.ForwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
-	newRemovalPolicyCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	domainTag := []string{"domain"}
+	newRemovalPolicyCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"new_removal_policy_count",
+		nil,
 		"The number of times FileRemovalPolicy is created",
 		&removalPolicyExpvar)
-	registeredDomainCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	registeredDomainCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"registered_domain_count",
+		domainTag,
 		"The number of domains registered by FileRemovalPolicy",
 		&removalPolicyExpvar)
-	outdatedFilesCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	outdatedFilesCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"outdated_files_count",
+		nil,
 		"The number of outdated files removed",
 		&removalPolicyExpvar)
-	filesFromUnknownDomainCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	filesFromUnknownDomainCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"files_from_unknown_domain_count",
+		nil,
 		"The number of files removed from an unknown domain",
 		&removalPolicyExpvar)
 
@@ -103,21 +108,25 @@ func init() {
 	currentMemSizeInBytesTelemetry = newGaugeExpvar(
 		"transaction_container",
 		"current_mem_size_in_bytes",
+		domainTag,
 		"The retry queue size",
 		&transactionContainerExpvar)
 	transactionsCountTelemetry = newGaugeExpvar(
 		"transaction_container",
 		"transactions_count",
+		domainTag,
 		"The number of transactions in the retry queue",
 		&transactionContainerExpvar)
 	transactionsDroppedCountTelemetry = newCounterExpvar(
 		"transaction_container",
 		"transactions_dropped_count",
+		domainTag,
 		"The number of transactions dropped because the retry queue is full",
 		&transactionContainerExpvar)
 	errorsCountTelemetry = newCounterExpvar(
 		"transaction_container",
 		"errors_count",
+		domainTag,
 		"The number of errors",
 		&transactionContainerExpvar)
 
@@ -125,46 +134,55 @@ func init() {
 	serializeCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"serialize_count",
+		domainTag,
 		"The number of times `transactionsFileStorage.Serialize` is called",
 		&fileStorageExpvar)
 	deserializeCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"deserialize_count",
+		domainTag,
 		"The number of times `transactionsFileStorage.Deserialize` is called",
 		&fileStorageExpvar)
 	fileSizeTelemetry = newGaugeExpvar(
 		"file_storage",
 		"file_size",
+		domainTag,
 		"The last file size stored on the disk",
 		&fileStorageExpvar)
 	currentSizeInBytesTelemetry = newGaugeExpvar(
 		"file_storage",
 		"current_size_in_bytes",
+		domainTag,
 		"The number of bytes used to store transactions on the disk",
 		&fileStorageExpvar)
 	filesCountTelemetry = newGaugeExpvar(
 		"file_storage",
 		"files_count",
+		domainTag,
 		"The number of files",
 		&fileStorageExpvar)
-	reloadedRetryFilesCountTelemetry = newCounterExpvar(
+	startupReloadedRetryFilesCountTelemetry = newGaugeExpvar(
 		"file_storage",
-		"reloaded_retry_files_count",
+		"startup_reloaded_retry_files_count",
+		domainTag,
 		"The number of files reloaded from a previous run of the Agent",
 		&fileStorageExpvar)
 	filesRemovedCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"files_removed_count",
+		domainTag,
 		"The number of files removed because the disk limit was reached",
 		&fileStorageExpvar)
 	deserializeErrorsCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"deserialize_errors_count",
+		domainTag,
 		"The number of errors during deserialization",
 		&fileStorageExpvar)
 	deserializeTransactionsCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"deserialize_transactions_count",
+		domainTag,
 		"The number of transactions read from the disk",
 		&fileStorageExpvar)
 }
@@ -172,76 +190,93 @@ func init() {
 // FileRemovalPolicyTelemetry handles the telemetry for FileRemovalPolicy.
 type FileRemovalPolicyTelemetry struct{}
 
-func (FileRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
-	newRemovalPolicyCountTelemetry.add(1)
+func (FileRemovalPolicyTelemetry) setNewRemovalPolicyCount(count int) {
+	newRemovalPolicyCountTelemetry.set(float64(count))
 }
 
-func (FileRemovalPolicyTelemetry) addRegisteredDomainCount() {
-	registeredDomainCountTelemetry.add(1)
+func (FileRemovalPolicyTelemetry) setRegisteredDomainCount(count int, domainName string) {
+	registeredDomainCountTelemetry.set(float64(count), domainName)
 }
-func (FileRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
-	outdatedFilesCountTelemetry.add(float64(count))
+func (FileRemovalPolicyTelemetry) setOutdatedFilesCount(count int) {
+	outdatedFilesCountTelemetry.set(float64(count))
 }
 
-func (FileRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
-	filesFromUnknownDomainCountTelemetry.add(float64(count))
+func (FileRemovalPolicyTelemetry) setFilesFromUnknownDomainCount(count int) {
+	filesFromUnknownDomainCountTelemetry.set(float64(count))
 }
 
 // TransactionRetryQueueTelemetry handles the telemetry for TransactionRetryQueue
-type TransactionRetryQueueTelemetry struct{}
-
-func (TransactionRetryQueueTelemetry) setCurrentMemSizeInBytes(count int) {
-	currentMemSizeInBytesTelemetry.set(float64(count))
+type TransactionRetryQueueTelemetry struct {
+	domainName string
 }
 
-func (TransactionRetryQueueTelemetry) setTransactionsCount(count int) {
-	transactionsCountTelemetry.set(float64(count))
+// NewTransactionRetryQueueTelemetry creates a new TransactionRetryQueueTelemetry
+func NewTransactionRetryQueueTelemetry(domainName string) TransactionRetryQueueTelemetry {
+	return TransactionRetryQueueTelemetry{
+		domainName: domainName,
+	}
 }
 
-func (TransactionRetryQueueTelemetry) addTransactionsDroppedCount(count int) {
-	transactionsDroppedCountTelemetry.add(float64(count))
+func (t TransactionRetryQueueTelemetry) setCurrentMemSizeInBytes(count int) {
+	currentMemSizeInBytesTelemetry.set(float64(count), t.domainName)
 }
 
-func (TransactionRetryQueueTelemetry) incErrorsCount() {
-	errorsCountTelemetry.add(1)
+func (t TransactionRetryQueueTelemetry) setTransactionsCount(count int) {
+	transactionsCountTelemetry.set(float64(count), t.domainName)
 }
 
-type onDiskRetryQueueTelemetry struct{}
-
-func (onDiskRetryQueueTelemetry) addSerializeCount() {
-	serializeCountTelemetry.add(1)
+func (t TransactionRetryQueueTelemetry) addTransactionsDroppedCount(count int) {
+	transactionsDroppedCountTelemetry.add(float64(count), t.domainName)
 }
 
-func (onDiskRetryQueueTelemetry) addDeserializeCount() {
-	deserializeCountTelemetry.add(1)
+func (t TransactionRetryQueueTelemetry) incErrorsCount() {
+	errorsCountTelemetry.add(1, t.domainName)
 }
 
-func (onDiskRetryQueueTelemetry) setFileSize(count int64) {
-	fileSizeTelemetry.set(float64(count))
+type onDiskRetryQueueTelemetry struct {
+	domainName string
 }
 
-func (onDiskRetryQueueTelemetry) setCurrentSizeInBytes(count int64) {
-	currentSizeInBytesTelemetry.set(float64(count))
+func newOnDiskRetryQueueTelemetry(domainName string) onDiskRetryQueueTelemetry {
+	return onDiskRetryQueueTelemetry{
+		domainName: domainName,
+	}
 }
 
-func (onDiskRetryQueueTelemetry) setFilesCount(count int) {
-	filesCountTelemetry.set(float64(count))
+func (t onDiskRetryQueueTelemetry) addSerializeCount() {
+	serializeCountTelemetry.add(1, t.domainName)
 }
 
-func (onDiskRetryQueueTelemetry) addReloadedRetryFilesCount(count int) {
-	reloadedRetryFilesCountTelemetry.add(float64(count))
+func (t onDiskRetryQueueTelemetry) addDeserializeCount() {
+	deserializeCountTelemetry.add(1, t.domainName)
 }
 
-func (onDiskRetryQueueTelemetry) addFilesRemovedCount() {
-	filesRemovedCountTelemetry.add(1)
+func (t onDiskRetryQueueTelemetry) setFileSize(count int64) {
+	fileSizeTelemetry.set(float64(count), t.domainName)
 }
 
-func (onDiskRetryQueueTelemetry) addDeserializeErrorsCount(count int) {
-	deserializeErrorsCountTelemetry.add(float64(count))
+func (t onDiskRetryQueueTelemetry) setCurrentSizeInBytes(count int64) {
+	currentSizeInBytesTelemetry.set(float64(count), t.domainName)
 }
 
-func (onDiskRetryQueueTelemetry) addDeserializeTransactionsCount(count int) {
-	deserializeTransactionsCountTelemetry.add(float64(count))
+func (t onDiskRetryQueueTelemetry) setFilesCount(count int) {
+	filesCountTelemetry.set(float64(count), t.domainName)
+}
+
+func (t onDiskRetryQueueTelemetry) setReloadedRetryFilesCount(count int) {
+	startupReloadedRetryFilesCountTelemetry.set(float64(count), t.domainName)
+}
+
+func (t onDiskRetryQueueTelemetry) addFilesRemovedCount() {
+	filesRemovedCountTelemetry.add(1, t.domainName)
+}
+
+func (t onDiskRetryQueueTelemetry) addDeserializeErrorsCount(count int) {
+	deserializeErrorsCountTelemetry.add(float64(count), t.domainName)
+}
+
+func (t onDiskRetryQueueTelemetry) addDeserializeTransactionsCount(count int) {
+	deserializeTransactionsCountTelemetry.add(float64(count), t.domainName)
 }
 
 func toCamelCase(s string) string {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package leaderelection
@@ -81,6 +82,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		OnStartedLeading: func(ctx context.Context) {
 			le.updateLeaderIdentity(le.HolderIdentity)
 			le.reportLeaderMetric(true)
+			le.notify()
 			log.Infof("Started leading as %q...", le.HolderIdentity)
 		},
 		// OnStoppedLeading shouldn't be called unless the election is lost. This could happen if
@@ -140,4 +142,16 @@ func (le *LeaderEngine) reportLeaderMetric(isLeader bool) {
 	le.leaderMetric.Delete(metrics.JoinLeaderValue, "true")
 
 	le.leaderMetric.Set(1.0, metrics.JoinLeaderValue, strconv.FormatBool(isLeader))
+}
+
+// notify sends a notification to subscribers when the current process becomes leader.
+// notify is a simplistic notifier but can be extended to send different notification
+// kinds (leadership acquisition / loss) in the future if needed.
+func (le *LeaderEngine) notify() {
+	le.m.Lock()
+	defer le.m.Unlock()
+
+	for _, s := range le.subscribers {
+		s <- struct{}{}
+	}
 }

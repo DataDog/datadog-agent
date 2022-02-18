@@ -1,53 +1,62 @@
 #include "stdafx.h"
 #include "PropertyReplacer.h"
 #include "TargetMachine.h"
+#ifndef _CONSOLE
+// install-cmd and uninstall-cmd projects are console projects.
+// skip the decompressing part for those testing projects.
+#include "decompress.h"
+#endif
+#include <array>
+#include <filesystem>
 #include <fstream>
 
-bool ShouldUpdateConfig(std::wstring const &inputConfig)
+bool ShouldUpdateConfig()
 {
-    // If we find an API key entry in the yaml file, don't do anything
-    std::wregex re(L"^api_key:(.*)");
-    std::match_results<std::wstring::const_iterator> results;
-    if (std::regex_search(inputConfig, results, re))
+    std::wifstream inputConfigStream(datadogyamlfile);
+    if (!inputConfigStream.is_open())
     {
-        auto api_key = results[1].str();
-        api_key.erase(api_key.begin(),
-                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
-        if (api_key.length() > 0)
-        {
-            return false;
-        }
+        WcaLog(LOGMSG_STANDARD, "datadog.yaml cannot be opened - trying to update it");
+        return true;
     }
-    return true;
+
+    inputConfigStream.seekg(0, std::ios::end);
+    size_t fileSize = inputConfigStream.tellg();
+    if (fileSize <= 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "datadog.yaml is empty - updating");
+        return true;
+    }
+    WcaLog(LOGMSG_STANDARD, "datadog.yaml exists and is not empty - not modifying it");
+    return false;
 }
 
 bool updateYamlConfig(CustomActionData &customActionData)
 {
-    std::wstring inputConfig;
-
-    // Read config in memory. The config should be small enough
-    // and we control its source - so it's fine to allocate up front.
+    // check if datadog.yaml file needs to be updated.
+    if (!ShouldUpdateConfig())
     {
-        std::wifstream inputConfigStream(datadogyamlfile);
-
-        inputConfigStream.seekg(0, std::ios::end);
-        size_t fileSize = inputConfigStream.tellg();
-        if (fileSize <= 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml file empty !");
-            return false;
-        }
-        inputConfig.reserve(fileSize);
-        inputConfigStream.seekg(0, std::ios::beg);
-
-        inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
-    }
-
-    if (!ShouldUpdateConfig(inputConfig))
-    {
-        WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
         return true;
     }
+
+    // Read example config in memory.
+    std::wifstream inputConfigExampleStream(datadogyamlfile + L".example");
+    if (!inputConfigExampleStream.is_open())
+    {
+        WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml.example cannot be opened !");
+        return false;
+    }
+    inputConfigExampleStream.seekg(0, std::ios::end);
+    size_t fileSize = inputConfigExampleStream.tellg();
+    if (fileSize <= 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml.example is empty !");
+        return true;
+    }
+
+    std::wstring inputConfig;
+    inputConfig.reserve(fileSize);
+    inputConfigExampleStream.seekg(0, std::ios::beg);
+    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigExampleStream), std::istreambuf_iterator<wchar_t>());
 
     std::vector<std::wstring> failedToReplace;
     inputConfig =
@@ -66,13 +75,64 @@ bool updateYamlConfig(CustomActionData &customActionData)
         WcaLog(LOGMSG_STANDARD, "Failed to replace %S in datadog.yaml file", v.c_str());
     }
 
-    {
-        std::wofstream inputConfigStream(datadogyamlfile);
-        inputConfigStream << inputConfig;
-    }
+    std::wofstream outputConfigStream(datadogyamlfile);
+    outputConfigStream << inputConfig;
     return true;
 }
 
+std::optional<std::wstring> GetInstallMethod(const CustomActionData &customActionData)
+{
+    std::wstring customInstallMethod;
+    customActionData.value(L"OVERRIDE_INSTALLATION_METHOD", customInstallMethod);
+
+    if (customInstallMethod.empty())
+    {
+        WcaLog(LOGMSG_VERBOSE, "No override installation method specified, computing using UILevel");
+
+        std::wstring uiLevelStr;
+        customActionData.value(L"UILevel", uiLevelStr);
+
+        std::wstringstream uiLevelStrStream(uiLevelStr);
+        int uiLevel = -1;
+        uiLevelStrStream >> uiLevel;
+        if (uiLevelStrStream.fail())
+        {
+            WcaLog(LOGMSG_STANDARD, "Could not read UILevel from installer: %S", uiLevelStr.c_str());
+            return std::nullopt;
+        }
+
+        // 2 = quiet
+        // > 2 (typically 5) = UI
+        if (uiLevel > 2)
+        {
+            customInstallMethod = L"windows_msi_gui";
+        }
+        else
+        {
+            customInstallMethod = L"windows_msi_quiet";
+        }
+    }
+    return std::optional<std::wstring> (customInstallMethod);
+}
+
+bool writeInstallInfo(const CustomActionData &customActionData)
+{
+    std::optional<std::wstring> installMethod = GetInstallMethod(customActionData);
+    if (installMethod)
+    {
+        WcaLog(LOGMSG_VERBOSE, "Install method: %S", installMethod.value().c_str());
+        std::wofstream installInfoOutputStream(installInfoFile);
+        installInfoOutputStream << L"---" << std::endl
+                                << L"install_method:" << std::endl
+                                << L"  tool: " << installMethod.value() << std::endl
+                                << L"  tool_version: " << installMethod.value() << std::endl
+                                << L"  installer_version: " << installMethod.value() << std::endl;
+        return true;
+    }
+
+    // Prefer logging error in GetInstallMethod to avoid double logging.
+    return false;
+}
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -159,7 +219,7 @@ UINT doFinalizeInstall(CustomActionData &data)
                 goto LExit;
             }
 
-            auto sidResult = GetSidForUser(nullptr, data.Username().c_str());
+            auto sidResult = GetSidForUser(nullptr, data.FullyQualifiedUsername().c_str());
             if (sidResult.Result != ERROR_SUCCESS)
             {
                 WcaLog(LOGMSG_STANDARD, "Failed to lookup account name: %d", GetLastError());
@@ -170,8 +230,8 @@ UINT doFinalizeInstall(CustomActionData &data)
 
             // store that we created the user, and store the username so we can
             // delete on rollback/uninstall
-            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
-            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
+            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.FullyQualifiedUsername().c_str());
+            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.FullyQualifiedUsername().c_str());
             if (data.isUserDomainUser())
             {
                 keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
@@ -186,7 +246,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     hr = -1;
     if ((hLsa = GetPolicyHandle()) == NULL)
     {
-        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.Username().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.FullyQualifiedUsername().c_str());
         goto LExit;
     }
     if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_INTERACTIVE_LOGON_NAME))
@@ -273,6 +333,42 @@ UINT doFinalizeInstall(CustomActionData &data)
         goto LExit;
     }
 
+    if (!writeInstallInfo(data))
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to update install_info");
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
+    }
+
+#ifndef _CONSOLE
+    {
+        std::array<std::filesystem::path, 2> embeddedArchiveLocations =
+        {
+            installdir + L"\\embedded2.7z",
+            installdir + L"\\embedded3.7z",
+        };
+
+        for (const auto path : embeddedArchiveLocations)
+        {
+            if (std::filesystem::exists(path))
+            {
+                WcaLog(LOGMSG_STANDARD, "Found archive %s, decompressing", path.string().c_str());
+                if (decompress_archive(path, installdir) != 0)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Failed to decompress archive %s", path.string().c_str());
+                    er = ERROR_INSTALL_FAILURE;
+                    goto LExit;
+                }
+                else
+                {
+                    // Delete the archive
+                    std::filesystem::remove(path);
+                }
+            }
+        }
+    }
+#endif
+
     er = addDdUserPermsToFile(data.Sid(), programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
     er = addDdUserPermsToFile(data.Sid(), embedded2Dir);
@@ -308,8 +404,8 @@ UINT doFinalizeInstall(CustomActionData &data)
         if (!bRet)
         {
             DWORD lastErr = GetLastError();
-            std::string lastErrStr = GetErrorMessageStr(lastErr);
-            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %s (%d)", lastErrStr.c_str(), lastErr);
+            auto lastErrStr = GetErrorMessageStrW(lastErr);
+            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %S (%d)", lastErrStr.c_str(), lastErr);
         }
         else
         {

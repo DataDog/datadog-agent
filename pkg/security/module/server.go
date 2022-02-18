@@ -3,19 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	easyjson "github.com/mailru/easyjson"
 	"github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
@@ -24,7 +26,7 @@ import (
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -101,7 +103,7 @@ type RuleEvent struct {
 func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
 	resolvers := a.probe.GetResolvers()
 
-	filename, err := resolvers.ProcessResolver.Dump()
+	filename, err := resolvers.ProcessResolver.Dump(params.WithArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -235,9 +237,10 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
-	agentContext := &AgentContext{
-		RuleID:  rule.Definition.ID,
-		Version: version.AgentVersion,
+	agentContext := AgentContext{
+		RuleID:      rule.Definition.ID,
+		RuleVersion: rule.Definition.Version,
+		Version:     version.AgentVersion,
 	}
 
 	ruleEvent := &Signal{
@@ -246,8 +249,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	}
 
 	if policy := rule.Definition.Policy; policy != nil {
-		agentContext.PolicyName = policy.Name
-		agentContext.PolicyVersion = policy.Version
+		ruleEvent.AgentContext.PolicyName = policy.Name
+		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
 	probeJSON, err := json.Marshal(event)
@@ -256,7 +259,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		return
 	}
 
-	ruleEventJSON, err := json.Marshal(ruleEvent)
+	ruleEventJSON, err := easyjson.Marshal(ruleEvent)
 	if err != nil {
 		log.Error(errors.Wrap(err, "failed to marshal event context"))
 		return
@@ -325,6 +328,14 @@ func (a *APIServer) SendStats() error {
 		}
 	}
 	return nil
+}
+
+// ReloadPolicies reloads the policies
+func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
+	if err := a.module.Reload(); err != nil {
+		return nil, err
+	}
+	return &api.ReloadPoliciesResultMessage{}, nil
 }
 
 // Apply a rule set

@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -27,7 +29,7 @@ const SnmpTraps = "snmp_traps"
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."
 	httpEndpointPrefix           = "agent-http-intake.logs."
-	serverlessHTTPEndpointPrefix = "lambda-http-intake.logs."
+	serverlessHTTPEndpointPrefix = "http-intake.logs."
 )
 
 // DefaultIntakeProtocol indicates that no special protocol is in use for the endpoint intake track type.
@@ -35,6 +37,9 @@ const DefaultIntakeProtocol IntakeProtocol = ""
 
 // DefaultIntakeOrigin indicates that no special DD_SOURCE header is in use for the endpoint intake track type.
 const DefaultIntakeOrigin IntakeOrigin = "agent"
+
+// ServerlessIntakeOrigin is the lambda extension origin
+const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
@@ -119,7 +124,7 @@ func BuildEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string,
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
-	if logsConfig.isForceHTTPUse() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	if logsConfig.isForceHTTPUse() || logsConfig.vectorEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -130,9 +135,9 @@ func BuildEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string,
 }
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
-func BuildServerlessEndpoints(intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildServerlessEndpoints(intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
 	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
-	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeys(), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeys(), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
@@ -152,6 +157,7 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		IsReliable:              true,
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -210,6 +216,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
+		IsReliable:              true,
 	}
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
@@ -221,10 +228,40 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.Version = EPIntakeVersion1
 	}
 
-	if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
+	if vectorURL, vectorURLDefined := logsConfig.getVectorURL(); logsConfig.vectorEnabled() && vectorURLDefined {
+		if strings.HasPrefix(vectorURL, "https://") || strings.HasPrefix(vectorURL, "http://") {
+			u, err := url.Parse(vectorURL)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
+			}
+			switch u.Scheme {
+			case "https":
+				main.UseSSL = true
+			case "http":
+				main.UseSSL = false
+			}
+			main.Host = u.Hostname()
+			if u.Port() != "" {
+				port, err := strconv.Atoi(u.Port())
+				if err != nil {
+					return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
+				}
+				main.Port = port
+			}
+		} else {
+			host, port, err := parseAddress(vectorURL)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
+			}
+			main.Host = host
+			main.Port = port
+			main.UseSSL = !defaultNoSSL
+		}
+
+	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, err := parseAddress(logsDDURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsConfig.getConfigKey("logs_dd_url"), err)
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
 		main.Host = host
 		main.Port = port
@@ -238,6 +275,14 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].UseCompression = main.UseCompression
+		additionals[i].CompressionLevel = main.CompressionLevel
+		additionals[i].BackoffBase = main.BackoffBase
+		additionals[i].BackoffMax = main.BackoffMax
+		additionals[i].BackoffFactor = main.BackoffFactor
+		additionals[i].RecoveryInterval = main.RecoveryInterval
+		additionals[i].RecoveryReset = main.RecoveryReset
+
 		if additionals[i].Version == 0 {
 			additionals[i].Version = main.Version
 		}

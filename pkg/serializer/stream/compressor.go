@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-//+build zlib
+//go:build zlib
+// +build zlib
 
 package stream
 
@@ -130,6 +131,11 @@ func (c *Compressor) pack() error {
 	c.zipper.Flush()
 	c.input.Reset()
 	return nil
+}
+
+func (c *Compressor) Write(data []byte) (int, error) {
+	err := c.AddItem(data)
+	return len(data), err
 }
 
 // AddItem will try to add the given item

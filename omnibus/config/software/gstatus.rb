@@ -22,7 +22,10 @@ source :url => "https://github.com/gluster/gstatus/releases/download/v#{version}
        :sha256 => "485b79c42d5623e2593374be3b8d8cde8a00f080ab2fe417c84a2dc3d2a49719",
        :target_filename => "gstatus"
 
+
 build do
+  license "GPL-3.0"
+
   copy "gstatus", "#{install_dir}/embedded/sbin/gstatus"
   command "chmod +x #{install_dir}/embedded/sbin/gstatus"
 end

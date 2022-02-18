@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package telemetry
 
 import (
@@ -12,13 +17,6 @@ const (
 	queryEmptyTags = "empty_tags"
 	// querySuccess refers to a successful query
 	querySuccess = "success"
-
-	// fetchNotFound refers to a tagger fetch that did not find an entity
-	fetchNotFound = "not_found"
-	// fetchError refers to a tagger fetch that returned an error
-	fetchError = "error"
-	// fetchSuccess refers to a tagger fetch that was successful
-	fetchSuccess = "success"
 )
 
 var (
@@ -40,11 +38,6 @@ var (
 	// queries tracks the number of queries made against the tagger.
 	queries = telemetry.NewCounterWithOpts("tagger", "queries",
 		[]string{"cardinality", "status"}, "Queries made against the tagger.",
-		telemetry.Options{NoDoubleUnderscoreSep: true})
-
-	// fetches tracks the number of fetches from the underlying collectors.
-	fetches = telemetry.NewCounterWithOpts("tagger", "fetches",
-		[]string{"collector", "status"}, "Fetches from collectors.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	// ClientStreamErrors tracks how many errors were received when streaming
@@ -81,22 +74,6 @@ var (
 		[]string{}, "Number of of times the tagger has received a notification with a group of events",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
-
-// FetcherTelemetry stores telemetry counters for a single fetcher.
-type FetcherTelemetry struct {
-	Success  telemetry.SimpleCounter
-	NotFound telemetry.SimpleCounter
-	Error    telemetry.SimpleCounter
-}
-
-// NewFetcherTelemetry returns new instance of counters for the given fetcher name.
-func NewFetcherTelemetry(name string) FetcherTelemetry {
-	return FetcherTelemetry{
-		Success:  fetches.WithValues(name, fetchSuccess),
-		NotFound: fetches.WithValues(name, fetchNotFound),
-		Error:    fetches.WithValues(name, fetchError),
-	}
-}
 
 // CardinalityTelemetry contains queries counters for a single cardinality level.
 type CardinalityTelemetry struct {

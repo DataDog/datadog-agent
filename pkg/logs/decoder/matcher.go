@@ -14,15 +14,16 @@ var (
 
 // EndLineMatcher defines the criterion to whether to end a line or not.
 type EndLineMatcher interface {
-	// Match takes the existing bytes and the bytes to be appended, returns
-	// true if the combination matches the end of line condition.
+
+	// Match takes the existing bytes (the entire slice) and the bytes to be
+	// appended (appender[start:end+1]), and returns true if the combination
+	// matches the end of line condition at the end.
 	Match(exists []byte, appender []byte, start int, end int) bool
 	SeparatorLen() int
 }
 
 // NewLineMatcher implements EndLineMatcher for line ending with '\n'
 type NewLineMatcher struct {
-	EndLineMatcher
 }
 
 // Match returns true whenever a '\n' (newline) is met.
@@ -37,20 +38,25 @@ func (n *NewLineMatcher) SeparatorLen() int {
 
 // BytesSequenceMatcher defines the criterion to whether to end a line based on an arbitrary byte sequence
 type BytesSequenceMatcher struct {
-	sequence []byte
+	sequence  []byte
+	alignment int
 }
 
-// NewBytesSequenceMatcher Returns a new matcher based on custom bytes sequence
-func NewBytesSequenceMatcher(sequence []byte) *BytesSequenceMatcher {
-	return &BytesSequenceMatcher{sequence}
+// NewBytesSequenceMatcher Returns a new matcher based on custom bytes sequence.  Only matches
+// that begin at a multiple of `alignment` are considered.
+func NewBytesSequenceMatcher(sequence []byte, alignment int) *BytesSequenceMatcher {
+	return &BytesSequenceMatcher{sequence, alignment}
 }
 
 // Match returns true whenever it finds a matching sequence at the end of append(exists, appender[start:end+1])
 func (b *BytesSequenceMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
 	// Total read message is append(exists,appender[start:end]) and the decoder just read appender[end]
-	// Thus the separator sequence is checked against append(exists, appender[start:end+1])
+	// Thus the separator sequence is checked against append(exists, appender[start:end+1]...)
 	l := len(exists) + ((end + 1) - start)
 	if l < len(b.sequence) {
+		return false
+	}
+	if (l-len(b.sequence))%b.alignment != 0 {
 		return false
 	}
 	seqIdx := len(b.sequence) - 1

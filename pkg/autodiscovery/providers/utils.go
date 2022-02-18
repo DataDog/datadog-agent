@@ -130,7 +130,7 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances [][]
 }
 
 // extractTemplatesFromMap looks for autodiscovery configurations in a given map
-// (either docker labels or kubernetes annotations) and returns them if found.
+// (either container labels or kubernetes annotations) and returns them if found.
 func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, []error) {
 	var configs []integration.Config
 	var errors []error
@@ -212,4 +212,28 @@ func GetPollInterval(cp config.ConfigurationProviders) time.Duration {
 		}
 	}
 	return config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
+}
+
+// providerCache supports monitoring a service for changes either to the number
+// of things being monitored, or to one of those things being modified.  This
+// can be used to determine IsUpToDate() and avoid full Collect() calls when
+// nothing has changed.
+type providerCache struct {
+	// mostRecentMod is the most recent modification timestamp of a
+	// monitored thing
+	mostRecentMod float64
+
+	// count is the number of monitored things
+	count int
+}
+
+// ErrorMsgSet contains a list of unique configuration errors for a provider
+type ErrorMsgSet map[string]struct{}
+
+// newProviderCache instantiate a ProviderCache.
+func newProviderCache() *providerCache {
+	return &providerCache{
+		mostRecentMod: 0,
+		count:         0,
+	}
 }

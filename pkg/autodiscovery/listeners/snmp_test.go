@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 
@@ -42,7 +41,7 @@ func TestSNMPListener(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener()
+	l, err := NewSNMPListener(&config.Listeners{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -141,7 +140,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener()
+	l, err := NewSNMPListener(&config.Listeners{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -163,13 +162,13 @@ func TestExtraConfig(t *testing.T) {
 		Timeout:      5,
 		Retries:      2,
 		OidBatchSize: 10,
+		Namespace:    "my-ns",
 	}
 
 	svc := SNMPService{
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 
@@ -215,10 +214,19 @@ func TestExtraConfig(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "0", string(info))
 
+	svc.config.UseDeviceIDAsHostname = false
+	info, err = svc.GetExtraConfig([]byte("use_device_id_as_hostname"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
 	svc.config.MinCollectionInterval = 60
 	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "60", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("namespace"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "my-ns", string(info))
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {
@@ -237,7 +245,6 @@ func TestExtraConfigExtraTags(t *testing.T) {
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 
@@ -261,7 +268,6 @@ func TestExtraConfigv3(t *testing.T) {
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 

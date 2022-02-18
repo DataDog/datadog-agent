@@ -6,14 +6,14 @@ require 'pathname'
 
 name 'datadog-dogstatsd'
 
-license "Apache-2.0"
-license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
+  license :project_license
+
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   env = {

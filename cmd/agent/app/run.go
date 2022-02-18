@@ -30,20 +30,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -53,12 +54,15 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register core checks
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -69,6 +73,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
@@ -81,8 +86,9 @@ var (
 	// flags variables
 	pidfilePath string
 
-	orchestratorForwarder  *forwarder.DefaultForwarder
-	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	configService *remoteconfig.Service
+
+	demux *aggregator.AgentDemultiplexer
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -199,7 +205,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				jmxLogFile,
 				syslogURI,
 				config.Datadog.GetBool("syslog_rfc"),
@@ -223,7 +228,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				"", // no log file on android
 				"", // no syslog on android,
 				false,
@@ -320,9 +324,19 @@ func StartAgent() error {
 		log.Errorf("Unable to initialize host metadata: %v", err)
 	}
 
+	// start remote configuration management
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		configService, err = remoteconfig.NewService()
+		if err != nil {
+			log.Errorf("Failed to initialize config management service: %s", err)
+		} else if err := configService.Start(context.Background()); err != nil {
+			log.Errorf("Failed to start config management service: %s", err)
+		}
+	}
+
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
-		if err = api.StartServer(); err != nil {
+		if err = api.StartServer(configService); err != nil {
 			return log.Errorf("Error while starting api server, exiting: %v", err)
 		}
 	}
@@ -351,43 +365,47 @@ func StartAgent() error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
 	// Enable core agent specific features like persistence-to-disk
-	options := forwarder.NewOptions(keysPerDomain)
-	options.EnabledFeatures = forwarder.SetFeature(options.EnabledFeatures, forwarder.CoreFeatures)
-
-	common.Forwarder = forwarder.NewDefaultForwarder(options)
-	log.Debugf("Starting forwarder")
-	common.Forwarder.Start() //nolint:errcheck
-	log.Debugf("Forwarder started")
-
-	// setup the orchestrator forwarder (only on cluster check runners)
-	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
-	if orchestratorForwarder != nil {
-		orchestratorForwarder.Start() //nolint:errcheck
-	}
-
-	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
-	eventPlatformForwarder.Start()
-
-	// setup the aggregator
-	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
-	agg := aggregator.InitAggregator(s, eventPlatformForwarder, hostname)
-	agg.AddAgentStartupTelemetry(version.AgentVersion)
+	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
+	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(agg, nil)
+		common.DSD, err = dogstatsd.NewServer(demux, nil)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
+		} else {
+			log.Debugf("dogstatsd started")
 		}
 	}
-	log.Debugf("statsd started")
+
+	// Setup stats telemetry handler
+	if sender, err := demux.GetDefaultSender(); err == nil {
+		telemetry.RegisterStatsSender(sender)
+	}
+
+	// Start OTLP intake
+	otlpEnabled := otlp.IsEnabled(config.Datadog)
+	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
+	if otlpEnabled {
+		var err error
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, demux.Serializer())
+		if err != nil {
+			log.Errorf("Could not start OTLP: %s", err)
+		} else {
+			log.Debug("OTLP pipeline started")
+		}
+	}
 
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		if config.Datadog.GetBool("logs_enabled") {
-			err = traps.StartServer()
+			err = traps.StartServer(hostname)
 			if err != nil {
 				log.Errorf("Failed to start snmp-traps server: %s", err)
 			}
@@ -416,13 +434,13 @@ func StartAgent() error {
 	}
 
 	// Detect Cloud Provider
-	go util.DetectCloudProvider(context.Background())
+	go cloudproviders.DetectCloudProvider(context.Background())
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
@@ -430,7 +448,7 @@ func StartAgent() error {
 	misconfig.ToLog()
 
 	// setup the metadata collector
-	common.MetadataScheduler = metadata.NewScheduler(s)
+	common.MetadataScheduler = metadata.NewScheduler(demux)
 	if err := metadata.SetupMetadataCollection(common.MetadataScheduler, metadata.AllDefaultCollectors); err != nil {
 		return err
 	}
@@ -464,6 +482,9 @@ func StopAgent() {
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}
+	if common.OTLP != nil {
+		common.OTLP.Stop()
+	}
 	if common.AC != nil {
 		common.AC.Stop()
 	}
@@ -474,16 +495,11 @@ func StopAgent() {
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
-	aggregator.StopDefaultAggregator()
-	if common.Forwarder != nil {
-		common.Forwarder.Stop()
+
+	if demux != nil {
+		demux.Stop(true)
 	}
-	if orchestratorForwarder != nil {
-		orchestratorForwarder.Stop()
-	}
-	if eventPlatformForwarder != nil {
-		eventPlatformForwarder.Stop()
-	}
+
 	logs.Stop()
 	gui.StopGUIServer()
 	profiler.Stop()

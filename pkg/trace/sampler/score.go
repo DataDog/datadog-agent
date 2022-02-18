@@ -29,15 +29,15 @@ func SampleByRate(traceID uint64, rate float64) bool {
 // GetSignatureSampleRate gives the sample rate to apply to any signature.
 // For now, only based on count score.
 func (s *Sampler) GetSignatureSampleRate(signature Signature) float64 {
-	return s.loadRate(s.GetCountScore(signature))
+	return s.GetCountScore(signature)
 }
 
-// GetAllSignatureSampleRates gives the sample rate to apply to all signatures.
+// getAllSignatureSampleRates gives the sample rate to apply to all signatures.
 // For now, only based on count score.
-func (s *Sampler) GetAllSignatureSampleRates() map[Signature]float64 {
+func (s *Sampler) getAllSignatureSampleRates() map[Signature]float64 {
 	m := s.GetAllCountScores()
 	for k, v := range m {
-		m[k] = s.loadRate(v)
+		m[k] = v
 	}
 	return m
 }
@@ -45,14 +45,7 @@ func (s *Sampler) GetAllSignatureSampleRates() map[Signature]float64 {
 // GetDefaultSampleRate gives the sample rate to apply to an unknown signature.
 // For now, only based on count score.
 func (s *Sampler) GetDefaultSampleRate() float64 {
-	return s.loadRate(s.GetDefaultCountScore())
-}
-
-func (s *Sampler) loadRate(rate float64) float64 {
-	if rate >= s.rateThresholdTo1 {
-		return 1
-	}
-	return rate
+	return s.GetDefaultCountScore()
 }
 
 func (s *Sampler) backendScoreToSamplerScore(score float64) float64 {

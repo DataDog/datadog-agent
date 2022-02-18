@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	// stdlib
 	"math"
@@ -26,13 +28,13 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	tb := util.NewTagsBuilder()
-	sample.GetTags(tb)
+	tb := tagset.NewHashingTagsAccumulator()
+	sample.GetTags(tb, tb)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
 
-func TestCheckGaugeSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -68,7 +70,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 	expectedSerie1 := &metrics.Serie{
 		Name:           "my.metric.name",
-		Tags:           []string{"bar", "foo"},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Points:         []metrics.Point{{Ts: 12349.0, Value: mSample2.Value}},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
@@ -78,7 +80,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 	expectedSerie2 := &metrics.Serie{
 		Name:           "my.metric.name",
-		Tags:           []string{"bar", "baz", "foo"},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"bar", "baz", "foo"}),
 		Points:         []metrics.Point{{Ts: 12349.0, Value: mSample3.Value}},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
@@ -89,9 +91,12 @@ func TestCheckGaugeSampling(t *testing.T) {
 	expectedSeries := []*metrics.Serie{expectedSerie1, expectedSerie2}
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
+func TestCheckGaugeSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckGaugeSampling)
+}
 
-func TestCheckRateSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckRateSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -127,7 +132,7 @@ func TestCheckRateSampling(t *testing.T) {
 
 	expectedSerie := &metrics.Serie{
 		Name:           "my.metric.name",
-		Tags:           []string{"foo", "bar"},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points:         []metrics.Point{{Ts: 12347.5, Value: 3.6}},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
@@ -138,9 +143,12 @@ func TestCheckRateSampling(t *testing.T) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
 	}
 }
+func TestCheckRateSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckRateSampling)
+}
 
-func TestHistogramCountSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testHistogramCountSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -178,7 +186,7 @@ func TestHistogramCountSampling(t *testing.T) {
 	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
 	expectedCountSerie := &metrics.Serie{
 		Name:           "my.metric.name.count",
-		Tags:           []string{"foo", "bar"},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points:         []metrics.Point{{Ts: 12349.0, Value: 3.}},
 		MType:          metrics.APIRateType,
 		SourceTypeName: checksSourceTypeName,
@@ -199,9 +207,12 @@ func TestHistogramCountSampling(t *testing.T) {
 	checkSampler.commit(12349.0)
 	require.Len(t, checkSampler.contextResolver.expireCountByKey, 0)
 }
+func TestHistogramCountSampling(t *testing.T) {
+	testWithTagsStore(t, testHistogramCountSampling)
+}
 
-func TestCheckHistogramBucketSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -227,7 +238,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
-		Tags: []string{"foo", "bar"},
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
@@ -260,7 +271,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
-		Tags: []string{"foo", "bar"},
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
@@ -272,9 +283,12 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	checkSampler.flush()
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
 }
+func TestCheckHistogramBucketSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketSampling)
+}
 
-func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -316,7 +330,7 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
-		Tags: []string{"foo", "bar"},
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
@@ -324,9 +338,12 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 	}, flushed[0], .03)
 
 }
+func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketDontFlushFirstValue)
+}
 
-func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -348,10 +365,13 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
-		Tags: []string{"foo", "bar"},
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
 		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
+}
+func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
 }

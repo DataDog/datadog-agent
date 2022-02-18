@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package disk
@@ -89,6 +90,7 @@ func TestIoStatsOverflow(t *testing.T) {
 	ioCounters = func(names ...string) (map[string]disk.IOCountersStat, error) {
 		return currentStats, nil
 	}
+	swapMemory = SwapMemory
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -105,6 +107,8 @@ func TestIoStatsOverflow(t *testing.T) {
 	mock.On("Gauge", "system.io.avg_q_sz", 42.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.util", 4.2, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.svctm", 0.5, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+	mock.On("Rate", "system.io.block_in", 23.0, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.io.block_out", 24.0, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 
 	// simulate a 1s interval

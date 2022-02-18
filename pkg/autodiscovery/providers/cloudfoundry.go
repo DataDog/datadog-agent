@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //
+//go:build clusterchecks
 // +build clusterchecks
 
 package providers
@@ -17,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/bhmj/jsonslice"
@@ -31,7 +32,7 @@ type CloudFoundryConfigProvider struct {
 }
 
 // NewCloudFoundryConfigProvider instantiates a new CloudFoundryConfigProvider from given config
-func NewCloudFoundryConfigProvider(conf config.ConfigurationProviders) (ConfigProvider, error) {
+func NewCloudFoundryConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	cfp := CloudFoundryConfigProvider{
 		lastCollected: time.Now(),
 	}
@@ -125,7 +126,7 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP *cloudfoundry.D
 			// mark all checks as cluster checks
 			for i := range parsedConfigs {
 				parsedConfigs[i].ClusterCheck = true
-				parsedConfigs[i].Entity = parsedConfigs[i].ADIdentifiers[0]
+				parsedConfigs[i].ServiceID = parsedConfigs[i].ADIdentifiers[0]
 			}
 			allConfigs = append(allConfigs, parsedConfigs...)
 		}

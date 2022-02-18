@@ -7,25 +7,58 @@ package tags
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	// Environment variables for Unified Service Tagging
+	envEnvVar     = "DD_ENV"
+	versionEnvVar = "DD_VERSION"
+	serviceEnvVar = "DD_SERVICE"
+
+	// Environment variables for the Lambda execution environment info
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
+	runtimeVar      = "AWS_EXECUTION_ENV"
+	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
+
+	// FunctionARNKey is the tag key for a function's arn
+	FunctionARNKey = "function_arn"
+	// FunctionNameKey is the tag key for a function's name
+	FunctionNameKey = "functionname"
+	// ExecutedVersionKey is the tag key for a function's executed version
+	ExecutedVersionKey = "executedversion"
+	// RuntimeKey is the tag key for a function's runtime (e.g node, python)
+	RuntimeKey = "runtime"
+	// MemorySizeKey is the tag key for a function's allocated memory size
+	MemorySizeKey = "memorysize"
+	// ArchitectureKey is the tag key for a function's architecture (e.g. x86_64, arm64)
+	ArchitectureKey = "architecture"
+
+	// EnvKey is the tag key for a function's env environment variable
+	EnvKey = "env"
+	// VersionKey is the tag key for a function's version environment variable
+	VersionKey = "version"
+	// ServiceKey is the tag key for a function's service environment variable
+	ServiceKey = "service"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
-	computeStatsKey          = "_dd.compute_stats"
-	computeStatsValue        = "1"
-	functionARNKey           = "function_arn"
-	functionNameKey          = "functionname"
-	regionKey                = "region"
-	accountIDKey             = "account_id"
-	awsAccountKey            = "aws_account"
-	resourceKey              = "resource"
-	executedVersionKey       = "executedversion"
-	extensionVersionKey      = "dd_extension_version"
+
+	computeStatsKey   = "_dd.compute_stats"
+	computeStatsValue = "1"
+
+	extensionVersionKey = "dd_extension_version"
+
+	regionKey     = "region"
+	accountIDKey  = "account_id"
+	awsAccountKey = "aws_account"
+	resourceKey   = "resource"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -37,6 +70,17 @@ var currentExtensionVersion = "xxx"
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
+	architecture := ResolveRuntimeArch()
+	tags = setIfNotEmpty(tags, ArchitectureKey, architecture)
+
+	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar))
+
+	tags = setIfNotEmpty(tags, MemorySizeKey, os.Getenv(memorySizeVar))
+
+	tags = setIfNotEmpty(tags, EnvKey, os.Getenv(envEnvVar))
+	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
+	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
+
 	for _, tag := range configTags {
 		splitTags := strings.Split(tag, ",")
 		for _, singleTag := range splitTags {
@@ -46,8 +90,8 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
-	tags = setIfNotEmpty(tags, functionARNKey, arn)
-	tags = setIfNotEmpty(tags, extensionVersionKey, currentExtensionVersion)
+	tags = setIfNotEmpty(tags, FunctionARNKey, arn)
+	tags = setIfNotEmpty(tags, extensionVersionKey, GetExtensionVersion())
 
 	parts := strings.Split(arn, ":")
 	if len(parts) < 6 {
@@ -57,14 +101,14 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, regionKey, parts[3])
 	tags = setIfNotEmpty(tags, awsAccountKey, parts[4])
 	tags = setIfNotEmpty(tags, accountIDKey, parts[4])
-	tags = setIfNotEmpty(tags, functionNameKey, parts[6])
+	tags = setIfNotEmpty(tags, FunctionNameKey, parts[6])
 	tags = setIfNotEmpty(tags, resourceKey, parts[6])
 
 	qualifier := os.Getenv(qualifierEnvVar)
 	if len(qualifier) > 0 {
 		if qualifier != "$LATEST" {
 			tags = setIfNotEmpty(tags, resourceKey, fmt.Sprintf("%s:%s", parts[6], qualifier))
-			tags = setIfNotEmpty(tags, executedVersionKey, qualifier)
+			tags = setIfNotEmpty(tags, ExecutedVersionKey, qualifier)
 		}
 	}
 
@@ -107,8 +151,13 @@ func AddColdStartTag(tags []string, coldStart bool) []string {
 	return tags
 }
 
+// GetExtensionVersion returns the extension version which is fed at build time
+func GetExtensionVersion() string {
+	return currentExtensionVersion
+}
+
 func setIfNotEmpty(tagMap map[string]string, key string, value string) map[string]string {
-	if key != "" {
+	if key != "" && value != "" {
 		tagMap[key] = strings.ToLower(value)
 	}
 	return tagMap
@@ -120,4 +169,47 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
+}
+
+func getRuntimeFromOsReleaseFile(osReleasePath string) string {
+	runtime := ""
+	bytesRead, err := ioutil.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
+	if err != nil {
+		log.Debug("could not read os-release file")
+		return ""
+	}
+	regExp := regexp.MustCompile(`PRETTY_NAME="Amazon Linux 2"`)
+	result := regExp.FindAll(bytesRead, -1)
+	if len(result) == 1 {
+		runtime = "provided.al2"
+	}
+	return runtime
+}
+
+func getRuntime(procPath string, osReleasePath string, varName string) string {
+	foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
+	runtime := cleanRuntimes(foundRuntimes)
+	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
+	if len(runtime) == 0 {
+		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
+	}
+	if len(runtime) == 0 {
+		log.Debug("could not find a valid runtime, defaulting to unknown")
+		runtime = "unknown"
+	}
+	return runtime
+}
+
+func cleanRuntimes(runtimes []string) string {
+	filtered := []string{}
+	for i := range runtimes {
+		if runtimes[i] != "AWS_Lambda_rapid" {
+			filtered = append(filtered, runtimes[i])
+		}
+	}
+	if len(filtered) != 1 {
+		log.Debug("could not find a unique value for runtime")
+		return ""
+	}
+	return filtered[0]
 }

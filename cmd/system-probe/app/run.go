@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package app
 
 import (
@@ -20,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -27,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
@@ -36,6 +41,8 @@ var ErrNotEnabled = errors.New("system-probe not enabled")
 var (
 	// flags variables
 	pidfilePath string
+
+	memoryMonitor *utils.MemoryMonitor
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -147,6 +154,17 @@ func StartSystemProbe() error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	if ddconfig.Datadog.GetBool("system_probe_config.memory_controller.enabled") {
+		memoryPressureLevels := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
+		memoryThresholds := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.thresholds")
+		memoryMonitor, err = utils.NewMemoryMonitor(memoryPressureLevels, memoryThresholds)
+		if err != nil {
+			log.Warnf("Can't set up memory controller: %v", err)
+		} else {
+			memoryMonitor.Start()
+		}
+	}
+
 	if err := initRuntimeSettings(); err != nil {
 		log.Warnf("cannot initialize the runtime settings: %v", err)
 	}
@@ -164,8 +182,8 @@ func StartSystemProbe() error {
 		return ErrNotEnabled
 	}
 
-	if cfg.ProfilingEnabled {
-		if err := enableProfiling(cfg); err != nil {
+	if cfg.ProfilingSettings != nil {
+		if err := profiling.Start(*cfg.ProfilingSettings); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		}
 	}
@@ -194,33 +212,9 @@ func StartSystemProbe() error {
 func StopSystemProbe() {
 	module.Close()
 	profiling.Stop()
+	if memoryMonitor != nil {
+		memoryMonitor.Stop()
+	}
 	_ = os.Remove(pidfilePath)
 	log.Flush()
-}
-
-func enableProfiling(cfg *config.Config) error {
-	var site string
-	v, _ := version.Agent()
-
-	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
-	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
-		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
-	} else {
-		site = fmt.Sprintf(profiling.ProfileURLTemplate, cfg.ProfilingSite)
-		if cfg.ProfilingURL != "" {
-			site = cfg.ProfilingURL
-		}
-	}
-
-	return profiling.Start(
-		site,
-		cfg.ProfilingEnvironment,
-		"system-probe",
-		cfg.ProfilingPeriod,
-		cfg.ProfilingCPUDuration,
-		cfg.ProfilingMutexFraction,
-		cfg.ProfilingBlockRate,
-		cfg.ProfilingWithGoroutines,
-		fmt.Sprintf("version:%v", v),
-	)
 }

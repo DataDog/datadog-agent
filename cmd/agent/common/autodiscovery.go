@@ -6,8 +6,13 @@
 package common
 
 import (
+	"context"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
@@ -19,14 +24,15 @@ import (
 // When this is solved, we can remove this check and simplify code below
 var (
 	incompatibleListeners = map[string]map[string]struct{}{
-		"kubelet": {"docker": struct{}{}},
-		"docker":  {"kubelet": struct{}{}},
+		"kubelet":   {"container": struct{}{}},
+		"container": {"kubelet": struct{}{}},
 	}
 )
 
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
-	ad.AddConfigProvider(providers.NewFileConfigProvider(confSearchPaths), false, 0)
+	providers.InitConfigFilesReader(confSearchPaths)
+	ad.AddConfigProvider(providers.NewFileConfigProvider(), false, 0)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
@@ -57,6 +63,15 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 		}
 
+		// The "docker" config provider was replaced with the "container" one
+		// that supports Docker, but also other runtimes. We need this
+		// conversion to avoid breaking configs that included "docker".
+		if options, found := uniqueConfigProviders["docker"]; found {
+			delete(uniqueConfigProviders, "docker")
+			options.Name = names.Container
+			uniqueConfigProviders["container"] = options
+		}
+
 		for _, provider := range extraConfigProviders {
 			if _, found := uniqueConfigProviders[provider.Name]; !found {
 				uniqueConfigProviders[provider.Name] = provider
@@ -77,7 +92,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	for _, cp := range uniqueConfigProviders {
 		factory, found := providers.ProviderCatalog[cp.Name]
 		if found {
-			configProvider, err := factory(cp)
+			configProvider, err := factory(&cp)
 			if err != nil {
 				log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				continue
@@ -101,6 +116,15 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 		// Add extra listeners
 		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
 			listeners = append(listeners, config.Listeners{Name: name})
+		}
+
+		// The "docker" listener was replaced with the "container" one that
+		// supports Docker, but also other runtimes. We need this conversion to
+		// avoid breaking configs that included "docker".
+		for i := range listeners {
+			if listeners[i].Name == "docker" {
+				listeners[i].Name = "container"
+			}
 		}
 
 		for _, listener := range extraConfigListeners {
@@ -140,6 +164,16 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 		}
 
+		// Fill listeners settings
+		providersSet := make(map[string]struct{}, len(uniqueConfigProviders))
+		for provider := range uniqueConfigProviders {
+			providersSet[provider] = struct{}{}
+		}
+
+		for i := range listeners {
+			listeners[i].SetEnabledProviders(providersSet)
+		}
+
 		ad.AddListeners(listeners)
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
@@ -151,4 +185,35 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 // StartAutoConfig starts auto discovery
 func StartAutoConfig() {
 	AC.LoadAndRun()
+}
+
+// WaitForConfigs retries the collection of Autodiscovery configs until the checkMatcher function (which
+// defines whether the list of integration configs collected is sufficient) returns true or the timeout is reached.
+// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
+// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
+// This function improves the resiliency of the check command.
+// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
+func WaitForConfigs(retryInterval, timeout time.Duration, checkMatcher func([]integration.Config) bool) []integration.Config {
+	allConfigs := AC.GetAllConfigs()
+	if checkMatcher(allConfigs) {
+		return allConfigs
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	retryTicker := time.NewTicker(retryInterval)
+	defer retryTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return allConfigs
+		case <-retryTicker.C:
+			allConfigs = AC.GetAllConfigs()
+			if checkMatcher(allConfigs) {
+				return allConfigs
+			}
+		}
+	}
 }

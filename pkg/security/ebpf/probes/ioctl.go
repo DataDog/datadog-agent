@@ -3,17 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // ioctlProbes holds the list of probes used to track ioctl events
 var ioctlProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/do_vfs_ioctl",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_vfs_ioctl",
+			EBPFFuncName: "kprobe_do_vfs_ioctl",
+		},
 	},
 }
 

@@ -6,6 +6,7 @@
 #include "filters.h"
 #include "syscalls.h"
 #include "container.h"
+#include "span.h"
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -43,6 +44,7 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
 struct exec_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct proc_cache_t proc_entry;
     struct pid_cache_t pid_entry;
     u32 args_id;
@@ -54,6 +56,7 @@ struct exec_event_t {
 struct exit_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
 };
 
@@ -68,6 +71,41 @@ struct _tracepoint_sched_process_fork
     pid_t parent_pid;
     char child_comm[16];
     pid_t child_pid;
+};
+
+struct _tracepoint_sched_process_exec {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    int data_loc_filename;
+    pid_t pid;
+    pid_t old_pid;
+};
+
+#define MAX_PATH_LEN 256
+
+struct exec_path {
+    char filename[MAX_PATH_LEN];
+};
+
+struct bpf_map_def SEC("maps/exec_count_fb") exec_count_fb = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct exec_path),
+    .value_size = sizeof(u64),
+    .max_entries = 2048,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct exec_path),
+    .value_size = sizeof(u64),
+    .max_entries = 2048,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
@@ -152,9 +190,8 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
     }
 }
 
-
 SEC("kprobe/parse_args_envs")
-int parse_args_envs(struct pt_regs *ctx) {
+int kprobe_parse_args_envs(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
@@ -168,7 +205,7 @@ int parse_args_envs(struct pt_regs *ctx) {
 
     syscall->exec.next_tail++;
 
-    bpf_tail_call(ctx, &args_envs_progs, syscall->exec.next_tail);
+    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
 
     return 0;
 }
@@ -180,7 +217,7 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
             .args = {
                 .id = bpf_get_prandom_u32(),
                 .array = argv,
-                .index = 1,
+                .index = 0,
             },
             .envs = {
                 .id = bpf_get_prandom_u32(),
@@ -276,29 +313,28 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
+    u64 is_thread = 1;
 
     if (input == DO_FORK_STRUCT_INPUT) {
         void *args = (void *)PT_REGS_PARM1(ctx);
         int exit_signal;
         bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
 
-        // Only insert an entry if this is a thread
         if (exit_signal == SIGCHLD) {
-            return 0;
+            is_thread = 0;
         }
     } else {
         u64 flags = (u64)PT_REGS_PARM1(ctx);
-
         if ((flags & SIGCHLD) == SIGCHLD) {
-            return 0;
+            is_thread = 0;
         }
     }
 
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
-        .clone = {
-            .is_thread = 1,
-        }
+        .fork = {
+            .is_thread = is_thread,
+        },
     };
     cache_syscall(&syscall);
 
@@ -311,7 +347,7 @@ int kprobe_kernel_clone(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/do_fork")
-int krpobe_do_fork(struct pt_regs *ctx) {
+int kprobe_do_fork(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
 }
 
@@ -320,32 +356,100 @@ int kprobe__do_fork(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
 }
 
+SEC("kretprobe/alloc_pid")
+int kretprobe_alloc_pid(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        return 0;
+    }
+
+    // cache the struct pid in the syscall cache, it will be populated by `alloc_pid`
+    struct pid *pid = (struct pid *) PT_REGS_RC(ctx);
+    bpf_probe_read(&syscall->fork.pid, sizeof(syscall->fork.pid), &pid);
+    return 0;
+}
+
+// There is only one use case for this hook point: fetch the nr translation for a long running process in a container,
+// for which we missed the fork, and that finally decides to exec without cloning first.
+// Note that in most cases (except the exec one), bpf_get_current_pid_tgid won't match the input task.
+// TODO(will): replace this hook point by a snapshot
+SEC("kretprobe/__task_pid_nr_ns")
+int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    u32 root_nr = bpf_get_current_pid_tgid();
+    u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
+
+    register_nr(root_nr, namespace_nr);
+    return 0;
+}
+
+SEC("tracepoint/sched/sched_process_exec")
+int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
+    // prepare filename pointer
+    unsigned short __offset = args->data_loc_filename & 0xFFFF;
+    char *filename = (char *)args + __offset;
+
+    struct exec_path key = {};
+    bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
+
+    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
+    if (exec_count == NULL)
+        return 0;
+
+    u64 zero = 0;
+    u64 *count = bpf_map_lookup_or_try_init(exec_count, &key, &zero);
+    if (count == NULL) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(count, 1);
+
+    return 0;
+}
+
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // check if this is a thread first
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_FORK);
-    if (syscall) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        return 0;
+    }
+
+    // cache namespace nr translations
+    cache_nr_translations(syscall->fork.pid);
+
+    // if this is a thread, leave
+    if (syscall->fork.is_thread) {
         return 0;
     }
 
     u32 pid = 0;
-    u32 ppid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
-    u64 ts = bpf_ktime_get_ns();
 
+    u64 ts = bpf_ktime_get_ns();
     struct exec_event_t event = {
         .pid_entry.fork_timestamp = ts,
     };
     bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
     fill_process_context(&event.process);
+    fill_span_context(&event.span);
 
     // the `parent_pid` entry of `sched_process_fork` might point to the TID (and not PID) of the parent. Since we
     // only work with PID, we can't use the TID. This is why we use the PID generated by the eBPF context instead.
-    ppid = event.process.pid;
+    u32 ppid = event.process.pid;
     event.pid_entry.ppid = ppid;
     // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
     event.process.pid = pid;
     event.process.tid = pid;
+
+    // ignore kthreads
+    if (IS_KTHREAD(ppid, pid)) {
+        return 0;
+    }
 
     struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &ppid);
     if (parent_pid_entry) {
@@ -386,15 +490,25 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+
+            // ignore kthreads
+            if (IS_KTHREAD(pid_entry->ppid, pid)) {
+                return 0;
+            }
         }
 
         // send the entry to maintain userspace cache
         struct exit_event_t event = {};
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
         fill_container_context(cache_entry, &event.container);
-
+        fill_span_context(&event.span);
         send_event(ctx, EVENT_EXIT, event);
+
+        unregister_span_memory();
     }
+
+    // remove nr translations
+    remove_nr(pid);
 
     return 0;
 }
@@ -428,7 +542,10 @@ int __attribute__((always_inline)) parse_args_and_env(struct pt_regs *ctx) {
         return 0;
     }
 
-    bpf_tail_call(ctx, &args_envs_progs, syscall->exec.next_tail);
+    // call it here before the memory get replaced
+    fill_span_context(&syscall->exec.span_context);
+
+    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
     return 0;
 }
 
@@ -481,7 +598,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             // add pid / tid context
             fill_process_context(&event.process);
 
-            // fill args and envs
+            copy_span_context(&syscall->exec.span_context, &event.span);
             fill_args_envs(&event, syscall);
 
             // send the entry to maintain userspace cache

@@ -33,6 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 var (
@@ -174,24 +178,28 @@ func runAgent(ctx context.Context) (err error) {
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// setup the forwarder
+	// setup the demultiplexer
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f, nil)
 
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseOrchestratorForwarder = false
+	opts.UseEventPlatformForwarder = false
+	opts.UseContainerLifecycleForwarder = false
 	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
-	metaScheduler = metadata.NewScheduler(s)
+	metaScheduler = metadata.NewScheduler(demux)
 	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return
@@ -205,20 +213,20 @@ func runAgent(ctx context.Context) (err error) {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+		// Start workload metadata store before tagger
+		workloadmeta.GetGlobalStore().Start(context.Background())
+
 		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		tagger.Init()
+		if err := tagger.Init(); err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hname)
-
-	statsd, err = dogstatsd.NewServer(aggregatorInstance, nil)
+	statsd, err = dogstatsd.NewServer(demux, nil)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
 	}
-
-	// send a starting metric and event
-	aggregatorInstance.AddAgentStartupTelemetry(version.AgentVersion)
 	return
 }
 

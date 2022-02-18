@@ -14,19 +14,11 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	apiKey = "foo"
+	mockConfig := config.Mock()
+	mockConfig.Set("api_key", "foo")
+
 	p := GetPayload("hostname")
 	assert.Equal(t, p.APIKey, "foo")
 	assert.Equal(t, p.AgentVersion, version.AgentVersion)
 	assert.Equal(t, p.InternalHostname, "hostname")
-	apiKey = ""
-}
-
-func TestGetAPIKey(t *testing.T) {
-	mockConfig := config.Mock()
-	mockConfig.Set("api_key", "bar,baz")
-	assert.Equal(t, "bar", getAPIKey())
-	assert.Equal(t, "bar", apiKey)
-	apiKey = "foo"
-	assert.Equal(t, "foo", getAPIKey())
 }

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -42,16 +42,18 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 						"ad.datadoghq.com/service.init_configs": "[{}]",
 						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 					},
+					Name:      "svc",
+					Namespace: "ns",
 				},
 			},
 			expectedOut: []integration.Config{
 				{
 					Name:                    "http_check",
-					ADIdentifiers:           []string{"kube_service_uid://test"},
+					ADIdentifiers:           []string{"kube_service://ns/svc"},
 					InitConfig:              integration.Data("{}"),
 					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:            true,
-					Source:                  "kube_services:kube_service_uid://test",
+					Source:                  "kube_services:kube_service://ns/svc",
 					IgnoreAutodiscoveryTags: false,
 				},
 			},
@@ -67,16 +69,18 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 						"ad.datadoghq.com/service.instances":                 "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 						"ad.datadoghq.com/service.ignore_autodiscovery_tags": "true",
 					},
+					Name:      "svc",
+					Namespace: "ns",
 				},
 			},
 			expectedOut: []integration.Config{
 				{
 					Name:                    "http_check",
-					ADIdentifiers:           []string{"kube_service_uid://test"},
+					ADIdentifiers:           []string{"kube_service://ns/svc"},
 					InitConfig:              integration.Data("{}"),
 					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:            true,
-					Source:                  "kube_services:kube_service_uid://test",
+					Source:                  "kube_services:kube_service://ns/svc",
 					IgnoreAutodiscoveryTags: true,
 				},
 			},

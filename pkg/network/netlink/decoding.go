@@ -1,5 +1,10 @@
-// +build linux
-// +build !android
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && !android
+// +build linux,!android
 
 package netlink
 
@@ -40,7 +45,7 @@ const (
 // Con represents a conntrack entry, along with any network namespace info (nsid)
 type Con struct {
 	ct.Con
-	NetNS int32
+	NetNS uint32
 }
 
 func (c Con) String() string {

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//+build !zlib
+//go:build !zlib
+// +build !zlib
 
 package stream
 
@@ -35,6 +36,6 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 }
 
 // BuildWithOnErrItemTooBigPolicy is not implemented when zlib is not available.
-func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.StreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
+func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.IterableStreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 	return nil, fmt.Errorf("not implemented")
 }

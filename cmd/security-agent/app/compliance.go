@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
@@ -33,9 +34,10 @@ var (
 	}
 
 	eventCmd = &cobra.Command{
-		Use:   "event",
-		Short: "Issue logs to test Security Agent compliance events",
-		RunE:  eventRun,
+		Use:    "event",
+		Short:  "Issue logs to test Security Agent compliance events",
+		RunE:   eventRun,
+		Hidden: true,
 	}
 
 	eventArgs = struct {
@@ -59,7 +61,7 @@ func init() {
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.", "compliance", config.DefaultIntakeOrigin)
+	return newLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", config.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
 }
 
 func eventRun(cmd *cobra.Command, args []string) error {
@@ -97,10 +99,10 @@ func eventRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
+func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
-		return nil
+		return nil, nil
 	}
 
 	endpoints, context, err := newLogContextCompliance()
@@ -112,7 +114,7 @@ func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddg
 	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
 	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	runner := runner.NewRunner()
@@ -147,16 +149,17 @@ func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddg
 		reporter,
 		scheduler,
 		configDir,
+		endpoints,
 		options...,
 	)
 	if err != nil {
 		log.Errorf("Compliance agent failed to initialize: %v", err)
-		return err
+		return nil, err
 	}
 	err = agent.Run()
 	if err != nil {
 		log.Errorf("Error starting compliance agent, exiting: %v", err)
-		return err
+		return nil, err
 	}
 	stopper.Add(agent)
 
@@ -166,5 +169,5 @@ func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddg
 	ticker := sendRunningMetrics(statsdClient, "compliance")
 	stopper.Add(ticker)
 
-	return nil
+	return agent, nil
 }

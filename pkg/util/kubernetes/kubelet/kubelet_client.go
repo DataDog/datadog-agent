@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
@@ -123,6 +124,17 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 
 	response, err := kc.client.Do(req)
 	kubeletExpVar.Add(1)
+
+	// telemetry
+	defer func() {
+		code := 0
+		if response != nil {
+			code = response.StatusCode
+		}
+
+		queries.Inc(path, strconv.Itoa(code))
+	}()
+
 	if err != nil {
 		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
 		return nil, 0, err

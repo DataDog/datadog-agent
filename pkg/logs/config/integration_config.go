@@ -8,6 +8,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // Logs source types
@@ -25,6 +27,8 @@ const (
 	UTF16BE string = "utf-16-be"
 	// UTF16LE for UTF-16 Little Endian encoding
 	UTF16LE string = "utf-16-le"
+	// SHIFTJIS for Shift JIS (Japanese) encoding
+	SHIFTJIS string = "shift-jis"
 )
 
 // LogsConfig represents a log source config, which can be for instance
@@ -63,6 +67,10 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+
+	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
+	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
+	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
 }
 
 // TailingMode type
@@ -143,6 +151,16 @@ func (c *LogsConfig) validateTailingMode() error {
 		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
 	}
 	return nil
+}
+
+// AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
+// considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
+// particular log source.
+func (c *LogsConfig) AutoMultiLineEnabled() bool {
+	if c.AutoMultiLine != nil {
+		return *c.AutoMultiLine
+	}
+	return config.Datadog.GetBool("logs_config.auto_multi_line_detection")
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

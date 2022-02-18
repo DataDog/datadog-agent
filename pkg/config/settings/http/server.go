@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package http
 
 import (
@@ -8,6 +13,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 )
@@ -48,7 +54,7 @@ func getFullConfig(namespace string) http.HandlerFunc {
 			return
 		}
 
-		scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
+		scrubbed, err := scrubber.ScrubBytes(runtimeConfig)
 		if err != nil {
 			log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
 			body, _ := json.Marshal(map[string]string{"error": err.Error()})

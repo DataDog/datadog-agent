@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -377,6 +378,58 @@ func Test_labelJoiner(t *testing.T) {
 						{key: "qux_key", value: "qux_value1"},
 						{key: "qux_key", value: "qux_value2"},
 					},
+				},
+			},
+		},
+		{
+			name: "Skip tags with empty value",
+			config: map[string]*JoinsConfig{
+				"kube_pod_info": {
+					LabelsToMatch: []string{"foo_key"},
+					LabelsToGet:   []string{"qux_key"},
+				},
+			},
+			families: map[string][]ksmstore.DDMetricsFam{
+				"uuid1": {
+					{
+						Name: "kube_pod_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{
+									"foo_key": "foo_value1",
+									"qux_key": "qux_value1",
+								},
+							},
+						},
+					},
+				},
+				"uuid2": {
+					{
+						Name: "kube_pod_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{
+									"foo_key": "foo_value2",
+									"qux_key": "",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []struct {
+				inputLabels map[string]string
+				labelsToAdd []label
+			}{
+				{
+					inputLabels: map[string]string{"foo_key": "foo_value1"},
+					labelsToAdd: []label{
+						{key: "qux_key", value: "qux_value1"},
+					},
+				},
+				{
+					inputLabels: map[string]string{"foo_key": "foo_value2"},
+					labelsToAdd: []label{},
 				},
 			},
 		},

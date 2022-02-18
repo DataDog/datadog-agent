@@ -1,5 +1,17 @@
-FROM ubuntu:21.04 AS faccessat
+FROM ubuntu:21.10 AS baseimage
+ARG CIBUILD
+# NOTE about APT mirrorlists:
+# It seems that this feature could use some improvement. If you just get mirrorlist
+# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
+# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
+# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
+# should be reliable enough in combination and also well maintained.
+ RUN if [ "$CIBUILD" = "true" ]; then \
+  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist && \
+  sed -i -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' /etc/apt/sources.list; \
+   fi
 
+FROM baseimage AS faccessat
 COPY faccessat/faccessat.c   /tmp/faccessat.c
 COPY faccessat/faccessat.sym /tmp/faccessat.sym
 ENV DEBIAN_FRONTEND=noninteractive
@@ -11,7 +23,7 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c
 #  Preparation stage: extract and cleanup  #
 ############################################
 
-FROM ubuntu:21.04 AS extract
+FROM baseimage AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_arm64.deb
@@ -86,7 +98,7 @@ COPY install_info etc/datadog-agent/
 #  Actual docker image construction  #
 ######################################
 
-FROM ubuntu:21.04 AS release
+FROM baseimage AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
@@ -133,7 +145,7 @@ COPY --from=extract /output/ /
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
-COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh /
+COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
 
 # Extract s6-overlay
 #
@@ -155,10 +167,8 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh \
- && chown root:root /readsecret.py \
- && chmod 500 /readsecret.py \
- && chown root:root /readsecret.sh \
- && chmod 500 /readsecret.sh
+ && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
+ && chmod 500 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
 
 # Update links to python binaries
 

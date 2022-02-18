@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -48,7 +47,6 @@ type SNMPService struct {
 	adIdentifier string
 	entityID     string
 	deviceIP     string
-	creationTime integration.CreationTime
 	config       snmp.Config
 }
 
@@ -71,7 +69,7 @@ type snmpJob struct {
 }
 
 // NewSNMPListener creates a SNMPListener
-func NewSNMPListener() (ServiceListener, error) {
+func NewSNMPListener(Config) (ServiceListener, error) {
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err
@@ -273,7 +271,6 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
-		creationTime: integration.Before,
 		config:       subnet.config,
 	}
 	l.services[entityID] = svc
@@ -321,8 +318,8 @@ func (l *SNMPListener) Stop() {
 	l.stop <- true
 }
 
-// GetEntity returns the unique entity ID linked to that service
-func (s *SNMPService) GetEntity() string {
+// GetServiceID returns the unique entity ID linked to that service
+func (s *SNMPService) GetServiceID() string {
 	return s.entityID
 }
 
@@ -363,11 +360,6 @@ func (s *SNMPService) GetPid(context.Context) (int, error) {
 // GetHostname returns nothing - not supported
 func (s *SNMPService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime returns the creation time of the Service
-func (s *SNMPService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady returns true
@@ -416,8 +408,12 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
+	case "namespace":
+		return []byte(s.config.Namespace), nil
 	case "collect_device_metadata":
 		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
+	case "use_device_id_as_hostname":
+		return []byte(strconv.FormatBool(s.config.UseDeviceIDAsHostname)), nil
 	case "tags":
 		return []byte(convertToCommaSepTags(s.config.Tags)), nil
 	case "min_collection_interval":

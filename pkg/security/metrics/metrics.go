@@ -64,6 +64,11 @@ var (
 	// Tags: ret
 	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
 
+	// filtering metrics
+
+	// MetricInodeDiscardersAdded is the number of inode discarder added
+	MetricInodeDiscardersAdded = newRuntimeMetric(".discarders.inode.added")
+
 	// Perf buffer metrics
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a
@@ -140,6 +145,17 @@ var (
 	// MetricSecurityAgentFIMContainersRunning is used to report the count of running containers when the security agent
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
+
+	// Runtime Compilaed Constants metrics
+
+	// MetricRuntimeCompiledConstantsEnabled is used to report if the runtime compilation has succeeded
+	MetricRuntimeCompiledConstantsEnabled = newRuntimeCompiledConstantsMetric(".enabled")
+	// MetricRuntimeCompiledConstantsCompilationResult is used to report the result of the runtime compilation
+	MetricRuntimeCompiledConstantsCompilationResult = newRuntimeCompiledConstantsMetric(".compilation_result")
+	// MetricRuntimeCompiledConstantsCompilationDuration is used to report the duration of the runtime compilation
+	MetricRuntimeCompiledConstantsCompilationDuration = newRuntimeCompiledConstantsMetric(".compilation_duration")
+	// MetricRuntimeCompiledConstantsHeaderFetchResult is used to report the result of the header fetching
+	MetricRuntimeCompiledConstantsHeaderFetchResult = newRuntimeCompiledConstantsMetric(".header_fetch_result")
 )
 
 // SetTagsWithCardinality returns the array of tags and set the requested cardinality
@@ -175,4 +191,8 @@ func newRuntimeMetric(name string) string {
 
 func newAgentMetric(name string) string {
 	return MetricAgentPrefix + name
+}
+
+func newRuntimeCompiledConstantsMetric(name string) string {
+	return newRuntimeMetric(".runtime_compilation.constants" + name)
 }

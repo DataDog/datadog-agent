@@ -16,6 +16,12 @@ allowlist:
   - NewBSD
   - FreeBSD
 
+overrides:
+  # https://github.com/bmizerany/pat/blob/master/LICENSE
+  "github.com/bmizerany/pat": MIT
+  # https://github.com/xi2/xz/blob/master/LICENSE
+  "github.com/xi2/xz": Public Domain
+
 exceptions:
   - "golang.org/x/mobile/..."
   - "golang.org/x/tools/..."

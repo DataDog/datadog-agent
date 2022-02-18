@@ -3,16 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg status -prefix templates -o ./templates.go templates/...
-//go:generate go fmt ./templates.go
-
 package status
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
+	"path"
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -30,6 +29,11 @@ func FormatStatus(data []byte) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	forwarderStats := stats["forwarderStats"]
+	if forwarderStatsMap, ok := forwarderStats.(map[string]interface{}); ok {
+		forwarderStatsMap["config"] = stats["config"]
+	} else {
+		log.Warn("The Forwarder status format is invalid. Some parts of the `Forwarder` section may be missing.")
+	}
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
 	pythonInit := stats["pythonInit"]
@@ -48,6 +52,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
+	processAgentStatus := stats["processAgentStatus"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
@@ -60,6 +65,7 @@ func FormatStatus(data []byte) (string, error) {
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
 	}
+	renderStatusTemplate(b, "/process-agent.tmpl", processAgentStatus)
 	renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"])
 	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
 	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
@@ -70,7 +76,7 @@ func FormatStatus(data []byte) (string, error) {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 	}
 	if config.IsContainerized() {
-		renderAutodiscoveryStats(b, stats["adConfigErrors"], stats["filterErrors"])
+		renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
 	}
 
 	return b.String(), nil
@@ -122,12 +128,24 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	runnerStats := stats["runnerStats"]
 	complianceChecks := stats["complianceChecks"]
+	complianceStatus := stats["complianceStatus"]
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
 
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
-	renderComplianceChecksStats(b, runnerStats, complianceChecks)
+	renderComplianceChecksStats(b, runnerStats, complianceChecks, complianceStatus)
+
+	return b.String(), nil
+}
+
+// FormatProcessAgentStatus takes a json bytestring and prints out the formatted status for process-agent
+func FormatProcessAgentStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats) //nolint:errcheck
+	renderStatusTemplate(b, "/process-agent.tmpl", stats)
 
 	return b.String(), nil
 }
@@ -173,9 +191,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	return b.String(), nil
 }
 
-func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks interface{}) {
+func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks, complianceStatus interface{}) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
+	checkStats["ComplianceStatus"] = complianceStatus
 	checkStats["ComplianceChecks"] = complianceChecks
 	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
 }
@@ -186,15 +205,19 @@ func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) 
 	renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
 }
 
-func renderAutodiscoveryStats(w io.Writer, adConfigErrors interface{}, filterErrors interface{}) {
+func renderAutodiscoveryStats(w io.Writer, adEnabledFeatures interface{}, adConfigErrors interface{}, filterErrors interface{}) {
 	autodiscoveryStats := make(map[string]interface{})
+	autodiscoveryStats["adEnabledFeatures"] = adEnabledFeatures
 	autodiscoveryStats["adConfigErrors"] = adConfigErrors
 	autodiscoveryStats["filterErrors"] = filterErrors
 	renderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
 }
 
+//go:embed templates
+var templatesFS embed.FS
+
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
-	tmpl, tmplErr := Asset(templateName)
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {
 		fmt.Println(tmplErr)
 		return

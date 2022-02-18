@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package v1
@@ -181,7 +182,7 @@ func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handl
 
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusPreconditionFailed)
+	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte("Cluster-checks are not enabled"))
 }
 

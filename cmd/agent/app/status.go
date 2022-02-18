@@ -63,6 +63,8 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 
+		_ = common.SetupSystemProbeConfig(sysProbeConfFilePath)
+
 		return requestStatus()
 	},
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -85,13 +86,13 @@ func (d *DockerUtil) ListContainers(ctx context.Context, cfg *ContainerListConfi
 			// in awsvpc networking mode so we try getting IP address from the
 			// ECS container metadata endpoint and port from inspect.Config.ExposedPorts
 			if networkMode == containers.AwsvpcNetworkMode {
-				ecsContainerMetadataURL, err := d.getECSMetadataURL(ctx, container.ID)
+				ecsContainerMetadataURL, ecsMetadataVersion, err := d.getECSMetadataURL(ctx, container.ID)
 				if err != nil {
 					log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
 				}
 
-				addresses, err := GetContainerNetworkAddresses(ecsContainerMetadataURL)
+				addresses, err := GetContainerNetworkAddresses(ecsContainerMetadataURL, ecsMetadataVersion)
 				if err != nil {
 					log.Errorf("Failed to get network addresses for container: %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
@@ -228,7 +229,15 @@ func (d *DockerUtil) dockerContainers(ctx context.Context, cfg *ContainerListCon
 		}
 
 		pauseContainerExcluded := config.Datadog.GetBool("exclude_pause_container") && containers.IsPauseContainer(c.Labels)
-		excluded := pauseContainerExcluded || d.cfg.filter.IsExcluded(c.Names[0], image, c.Labels["io.kubernetes.pod.namespace"])
+
+		// Containers don't have a name when they're stuck in the "Removal in progress" state.
+		// Ref: https://github.com/DataDog/datadog-agent/issues/9516
+		containerName := ""
+		if len(c.Names) > 0 {
+			containerName = c.Names[0]
+		}
+
+		excluded := pauseContainerExcluded || d.cfg.filter.IsExcluded(containerName, image, c.Labels["io.kubernetes.pod.namespace"])
 		if excluded && !cfg.FlagExcluded {
 			continue
 		}
@@ -238,14 +247,14 @@ func (d *DockerUtil) dockerContainers(ctx context.Context, cfg *ContainerListCon
 			Type:        "Docker",
 			ID:          c.ID,
 			EntityID:    entityID,
-			Name:        c.Names[0],
+			Name:        containerName,
 			Image:       image,
 			ImageID:     c.ImageID,
 			Created:     c.Created,
 			State:       c.State,
 			Excluded:    excluded,
 			Health:      parseContainerHealth(c.Status),
-			AddressList: d.parseContainerNetworkAddresses(c.ID, c.Ports, c.NetworkSettings, c.Names[0]),
+			AddressList: d.parseContainerNetworkAddresses(c.ID, c.Ports, c.NetworkSettings, containerName),
 		}
 
 		ret = append(ret, container)
@@ -343,17 +352,19 @@ func isExposed(port types.Port) bool {
 
 // getECSMetadataURL inspects a given container ID and returns its ECS container metadata URI
 // if found in its environment. It returns an empty string and an error on failure.
-func (d *DockerUtil) getECSMetadataURL(ctx context.Context, cID string) (string, error) {
+func (d *DockerUtil) getECSMetadataURL(ctx context.Context, cID string) (string, string, error) {
 	i, err := d.Inspect(ctx, cID, false)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	for _, e := range i.Config.Env {
-		if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI=") {
-			return strings.Split(e, "=")[1], nil
+		if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI_V4=") {
+			return strings.Split(e, "=")[1], "v4", nil
+		} else if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI=") {
+			return strings.Split(e, "=")[1], "v3", nil
 		}
 	}
-	return "", errors.New("ecs container metadata uri not found")
+	return "", "", errors.New("ecs container metadata uri not found")
 }
 
 // cleanupCaches removes cache entries for unknown containers and images

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -56,7 +56,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -267,7 +267,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 			// Set a new entity containing the endpoint's IP
 			entity := apiserver.EntityForEndpoints(namespace, name, kep.Subsets[i].Addresses[j].IP)
 			newConfig := integration.Config{
-				Entity:                  entity,
+				ServiceID:               entity,
 				Name:                    tpl.Name,
 				Instances:               tpl.Instances,
 				InitConfig:              tpl.InitConfig,
@@ -291,7 +291,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 }
 
 func init() {
-	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
+	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the kubeEndpointsConfigProvider

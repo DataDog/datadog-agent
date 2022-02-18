@@ -86,6 +86,12 @@ type Config struct {
 	LogPatterns []string
 	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
 	SelfTestEnabled bool
+	// EnableRemoteConfig defines if configuration should be fetched from the backend
+	EnableRemoteConfig bool
+	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
+	EnableRuntimeCompiledConstants bool
+	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
+	RuntimeCompiledConstantsIsSet bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -125,6 +131,9 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
+		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
+		EnableRuntimeCompiledConstants:     aconfig.Datadog.GetBool("runtime_security_config.enable_runtime_compiled_constants"),
+		RuntimeCompiledConstantsIsSet:      aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -148,8 +157,12 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.EnableKernelFilters = false
 	}
 
-	if c.ERPCDentryResolutionEnabled == false && c.MapDentryResolutionEnabled == false {
+	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
 		c.MapDentryResolutionEnabled = true
+	}
+
+	if !c.Config.EnableRuntimeCompiler {
+		c.EnableRuntimeCompiledConstants = false
 	}
 
 	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))

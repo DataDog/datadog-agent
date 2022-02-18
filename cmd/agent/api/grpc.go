@@ -12,14 +12,17 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
@@ -40,7 +43,8 @@ type server struct {
 }
 
 type serverSecure struct {
-	pb.UnimplementedAgentServer
+	pb.UnimplementedAgentSecureServer
+	configService *remoteconfig.Service
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -91,7 +95,6 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 // progress. An empty state or nil request will result in the Tagger
 // capture state being reset to nil.
 func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
-
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
@@ -116,7 +119,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.Tagg
 	return &pb.TaggerStateResponse{Loaded: true}, nil
 }
 
-// StreamTags subscribes to added, removed, or changed entities in the Tagger
+// TaggerStreamEntities subscribes to added, removed, or changed entities in the Tagger
 // and streams them to clients as pb.StreamTagsResponse events. Filtering is as
 // of yet not implemented.
 func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecure_TaggerStreamEntitiesServer) error {
@@ -134,34 +137,39 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	eventCh := t.Subscribe(cardinality)
 	defer t.Unsubscribe(eventCh)
 
-	for events := range eventCh {
-		responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
-		for _, event := range events {
-			e, err := pbutils.Tagger2PbEntityEvent(event)
-			if err != nil {
-				log.Warnf("can't convert tagger entity to protobuf: %s", err)
-				continue
+	for {
+		select {
+		case events := <-eventCh:
+			responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
+			for _, event := range events {
+				e, err := pbutils.Tagger2PbEntityEvent(event)
+				if err != nil {
+					log.Warnf("can't convert tagger entity to protobuf: %s", err)
+					continue
+				}
+
+				responseEvents = append(responseEvents, e)
 			}
 
-			responseEvents = append(responseEvents, e)
-		}
+			err = grpc.DoWithTimeout(func() error {
+				return out.Send(&pb.StreamTagsResponse{
+					Events: responseEvents,
+				})
+			}, taggerStreamSendTimeout)
 
-		err = grpc.DoWithTimeout(func() error {
-			return out.Send(&pb.StreamTagsResponse{
-				Events: responseEvents,
-			})
-		}, taggerStreamSendTimeout)
-		if err != nil {
-			log.Warnf("error sending tagger event: %s", err)
-			telemetry.ServerStreamErrors.Inc()
-			return err
+			if err != nil {
+				log.Warnf("error sending tagger event: %s", err)
+				telemetry.ServerStreamErrors.Inc()
+				return err
+			}
+
+		case <-out.Context().Done():
+			return nil
 		}
 	}
-
-	return nil
 }
 
-// FetchEntity fetches an entity from the Tagger with the desired cardinality tags.
+// TaggerFetchEntity fetches an entity from the Tagger with the desired cardinality tags.
 func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
 	if in.Id == nil {
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
@@ -183,6 +191,22 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntity
 		Cardinality: in.Cardinality,
 		Tags:        tags,
 	}, nil
+}
+
+func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
+	if s.configService == nil {
+		log.Debug("Remote configuration service not initialized")
+		return nil, errors.New("remote configuration service not initialized")
+	}
+	return s.configService.ClientGetConfigs(in)
+}
+
+func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
+	if s.configService == nil {
+		log.Debug("Remote configuration service not initialized")
+		return nil, errors.New("remote configuration service not initialized")
+	}
+	return s.configService.ConfigGetState()
 }
 
 func init() {

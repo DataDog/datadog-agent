@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -28,8 +29,11 @@ import (
 )
 
 const (
-	autoscalerWatcherStoreID string = "aw"
-	autoscalerReferencesSep  string = ", "
+	autoscalerWatcherStoreID    string = "aw"
+	autoscalerReferencesSep     string = ", "
+	autoscalerReferencesKindSep string = ":"
+	autoscalerWPAKindKey        string = "wpa"
+	autoscalerHPAKindKey        string = "hpa"
 )
 
 type AutoscalerWatcher struct {
@@ -227,7 +231,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 		for _, hpa := range hpaList {
 			for _, metric := range hpa.Spec.Metrics {
 				if metric.Type == autoscaler.ExternalMetricSourceType && metric.External != nil {
-					autoscalerReference := hpa.Namespace + kubernetesNamespaceSep + hpa.Name
+					autoscalerReference := autoscalerHPAKindKey + autoscalerReferencesKindSep + hpa.Namespace + kubernetesNamespaceSep + hpa.Name
 					if datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(metric.External.MetricName); parsed {
 						addAutoscalerReference(datadogMetricID, autoscalerReference, "", nil)
 					} else if !hasPrefix {
@@ -258,7 +262,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 				continue
 			}
 			for _, metric := range wpa.Spec.Metrics {
-				autoscalerReference := wpa.Namespace + kubernetesNamespaceSep + wpa.Name
+				autoscalerReference := autoscalerWPAKindKey + autoscalerReferencesKindSep + wpa.Namespace + kubernetesNamespaceSep + wpa.Name
 				if metric.External != nil {
 					if datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(metric.External.MetricName); parsed {
 						addAutoscalerReference(datadogMetricID, autoscalerReference, "", nil)

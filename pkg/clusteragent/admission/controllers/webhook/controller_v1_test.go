@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
@@ -443,6 +444,7 @@ func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration().V1().MutatingWebhookConfigurations(),
 		func() bool { return true },
+		make(chan struct{}),
 		v1Cfg,
 	)
 

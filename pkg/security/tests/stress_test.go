@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build stresstests
 // +build stresstests
 
 package tests
@@ -13,13 +14,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"syscall"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 var (
@@ -56,7 +55,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 
 	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		f, err := os.Create(testFile)
@@ -71,11 +70,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 			}
 		}
 
-		if err := f.Close(); err != nil {
-			return err
-		}
-
-		return nil
+		return f.Close()
 	}
 
 	opts := StressOpts{
@@ -100,11 +95,11 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
-	report.Print()
+	report.Print(t)
 
 	if report.Delta() < -2.0 {
 		t.Error("unexpected performance degradation")
@@ -202,15 +197,12 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			return err
-		}
-
-		return nil
+		_, err := cmd.CombinedOutput()
+		return err
 	}
 
 	opts := StressOpts{
@@ -237,35 +229,18 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	time.Sleep(2 * time.Second)
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
-	report.Print()
-
-	if report.Delta() < -2.0 {
-		t.Error("unexpected performance degradation")
-
-		cmdOutput, _ := exec.Command("pstree").Output()
-		fmt.Println(string(cmdOutput))
-
-		cmdOutput, _ = exec.Command("ps", "aux").Output()
-		fmt.Println(string(cmdOutput))
-	}
+	report.Print(t)
 }
 
 // goal: measure host abality to handle open syscall without any kprobe, act as a reference
 // this benchmark generate syscall but without having kprobe installed
 
 func TestStress_E2EOExecNoKprobe(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	stressExec(t, nil, "folder1/folder2/folder1/folder2/test", executable)
 }
@@ -273,14 +248,7 @@ func TestStress_E2EOExecNoKprobe(t *testing.T) {
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
 // this benchmark generate event that passs from the kernel to the userspace
 func TestStress_E2EExecEvent(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -288,273 +256,6 @@ func TestStress_E2EExecEvent(t *testing.T) {
 	}
 
 	stressExec(t, rule, "folder1/folder2/test-ancestors", executable)
-}
-
-func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
-	}
-
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer test.Close()
-
-	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
-	if err != nil {
-		b.Fatal(err)
-	}
-	_ = os.MkdirAll(path.Dir(testFile), 0755)
-
-	defer os.Remove(testFile)
-
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
-	err = test.GetSignal(b, func() error {
-		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
-		if err != nil {
-			b.Fatal(err)
-		}
-		return syscall.Close(int(fd))
-	}, func(event *sprobe.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := resolver.Start(test.probe); err != nil {
-		b.Fatal(err)
-	}
-	name, err := resolver.GetNameFromERPC(mountID, inode, pathID)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Log(name)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		name, err = resolver.GetNameFromERPC(mountID, inode, pathID)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if len(name) == 0 || len(name) > 0 && name[0] == 0 {
-			b.Log("couldn't resolve segment")
-		}
-	}
-
-	test.Close()
-}
-
-func BenchmarkERPCDentryResolutionPath(b *testing.B) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
-	}
-
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer test.Close()
-
-	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
-	if err != nil {
-		b.Fatal(err)
-	}
-	_ = os.MkdirAll(path.Dir(testFile), 0755)
-
-	defer os.Remove(testFile)
-
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
-	err = test.GetSignal(b, func() error {
-		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
-		if err != nil {
-			b.Fatal(err)
-		}
-		return syscall.Close(int(fd))
-	}, func(event *sprobe.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
-	})
-
-	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := resolver.Start(test.probe); err != nil {
-		b.Fatal(err)
-	}
-	f, err := resolver.ResolveFromERPC(mountID, inode, pathID)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Log(f)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromERPC(mountID, inode, pathID)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if len(f) == 0 || len(f) > 0 && f[0] == 0 {
-			b.Log("couldn't resolve path")
-		}
-	}
-
-	test.Close()
-}
-
-func BenchmarkMapDentryResolutionSegment(b *testing.B) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
-	}
-
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer test.Close()
-
-	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
-	if err != nil {
-		b.Fatal(err)
-	}
-	_ = os.MkdirAll(path.Dir(testFile), 0755)
-
-	defer os.Remove(testFile)
-
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
-	err = test.GetSignal(b, func() error {
-		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
-		if err != nil {
-			b.Fatal(err)
-		}
-		return syscall.Close(int(fd))
-	}, func(event *sprobe.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
-	})
-
-	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := resolver.Start(test.probe); err != nil {
-		b.Fatal(err)
-	}
-	name, err := resolver.GetNameFromMap(mountID, inode, pathID)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Log(name)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		name, err = resolver.GetNameFromMap(mountID, inode, pathID)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if len(name) == 0 || len(name) > 0 && name[0] == 0 {
-			b.Fatal("couldn't resolve segment")
-		}
-	}
-
-	test.Close()
-}
-
-func BenchmarkMapDentryResolutionPath(b *testing.B) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
-	}
-
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer test.Close()
-
-	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
-	if err != nil {
-		b.Fatal(err)
-	}
-	_ = os.MkdirAll(path.Dir(testFile), 0755)
-
-	defer os.Remove(testFile)
-
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
-	err = test.GetSignal(b, func() error {
-		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
-		if err != nil {
-			b.Fatal(err)
-		}
-		return syscall.Close(int(fd))
-	}, func(event *sprobe.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
-	})
-
-	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := resolver.Start(test.probe); err != nil {
-		b.Fatal(err)
-	}
-	f, err := resolver.ResolveFromMap(mountID, inode, pathID)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Log(f)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromMap(mountID, inode, pathID)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if f[0] == 0 {
-			b.Fatal("couldn't resolve file")
-		}
-	}
-
-	test.Close()
 }
 
 func init() {

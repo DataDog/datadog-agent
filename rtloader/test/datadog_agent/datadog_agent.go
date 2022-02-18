@@ -1,17 +1,23 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testdatadogagent
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
+	"time"
 	"unsafe"
 
-	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
@@ -33,6 +39,7 @@ extern void writePersistentCache(char*, char*);
 extern char* readPersistentCache(char*);
 extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
+extern double getProcessStartTime();
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -50,6 +57,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_read_persistent_cache_cb(rtloader, readPersistentCache);
    set_obfuscate_sql_cb(rtloader, obfuscateSQL);
    set_obfuscate_sql_exec_plan_cb(rtloader, obfuscateSQLExecPlan);
+   set_get_process_start_time_cb(rtloader, getProcessStartTime);
 }
 */
 import "C"
@@ -238,21 +246,48 @@ func readPersistentCache(key *C.char) *C.char {
 	return (*C.char)(helpers.TrackedCString("somevalue"))
 }
 
+// sqlConfig holds the config for the python SQL obfuscator.
+type sqlConfig struct {
+	// TableNames specifies whether the obfuscator should extract and return table names as SQL metadata when obfuscating.
+	TableNames bool `json:"table_names"`
+	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
+	CollectCommands bool `json:"collect_commands"`
+	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
+	CollectComments bool `json:"collect_comments"`
+	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
+	ReplaceDigits bool `json:"replace_digits"`
+	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
+	ReturnJSONMetadata bool `json:"return_json_metadata"`
+}
+
 //export obfuscateSQL
 func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlOpts obfuscate.SQLOptions
-	if opts != nil {
-		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
-		sqlOpts.UnmarshalEasyJSON(jl)
-		if jl.Error() != nil {
-			*errResult = (*C.char)(helpers.TrackedCString("failed to unmarshal options"))
-			return nil
-		}
+	var sqlOpts sqlConfig
+	optStr := C.GoString(opts)
+	if optStr == "" {
+		optStr = "{}"
+	}
+	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+		*errResult = (*C.char)(helpers.TrackedCString(err.Error()))
+		return nil
 	}
 	s := C.GoString(rawQuery)
 	switch s {
 	case "select * from table where id = 1":
-		return (*C.char)(helpers.TrackedCString("select * from table where id = ?"))
+		obfuscatedQuery := obfuscate.ObfuscatedQuery{
+			Query: "select * from table where id = ?",
+			Metadata: obfuscate.SQLMetadata{
+				TablesCSV: "table",
+				Commands:  []string{"SELECT"},
+				Comments:  []string{"-- SQL test comment"},
+			},
+		}
+		out, err := json.Marshal(obfuscatedQuery)
+		if err != nil {
+			*errResult = (*C.char)(helpers.TrackedCString(err.Error()))
+			return nil
+		}
+		return (*C.char)(helpers.TrackedCString(string(out)))
 	// expected error results from obfuscator
 	case "":
 		*errResult = (*C.char)(helpers.TrackedCString("result is empty"))
@@ -269,10 +304,10 @@ func obfuscateSQLExecPlan(rawQuery *C.char, normalize C.bool, errResult **C.char
 	case "raw-json-plan":
 		if bool(normalize) {
 			return (*C.char)(helpers.TrackedCString("obfuscated-and-normalized"))
-		} else {
-			// obfuscate only
-			return (*C.char)(helpers.TrackedCString("obfuscated"))
 		}
+
+		// obfuscate only
+		return (*C.char)(helpers.TrackedCString("obfuscated"))
 	// expected error results from obfuscator
 	case "":
 		*errResult = (*C.char)(helpers.TrackedCString("empty"))
@@ -281,4 +316,11 @@ func obfuscateSQLExecPlan(rawQuery *C.char, normalize C.bool, errResult **C.char
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
 		return nil
 	}
+}
+
+var processStartTime = float64(time.Now().Unix())
+
+//export getProcessStartTime
+func getProcessStartTime() float64 {
+	return processStartTime
 }

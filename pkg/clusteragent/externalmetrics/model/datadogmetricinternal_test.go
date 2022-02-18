@@ -3,13 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package model
 
 import (
 	"errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
+	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
@@ -32,6 +35,7 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 		newSpec               datadoghq.DatadogMetricSpec
 		expectedQuery         string
 		expectedResolvedQuery *string
+		expectedMaxAge        time.Duration
 	}{
 		{
 			name: "same query",
@@ -93,6 +97,50 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         invalidTemplatedQuery,
 			expectedResolvedQuery: nil,
 		},
+		{
+			name: "new max age",
+			ddmInternal: &DatadogMetricInternal{
+				MaxAge:        5 * time.Second,
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+			},
+			newSpec: datadoghq.DatadogMetricSpec{
+				MaxAge: v1.Duration{Duration: 10 * time.Second},
+				Query:  simpleQuery,
+			},
+			expectedMaxAge:        10 * time.Second,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+		},
+		{
+			name: "same max age",
+			ddmInternal: &DatadogMetricInternal{
+				MaxAge:        5 * time.Second,
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+			},
+			newSpec: datadoghq.DatadogMetricSpec{
+				MaxAge: v1.Duration{Duration: 5 * time.Second},
+				Query:  simpleQuery,
+			},
+			expectedMaxAge:        5 * time.Second,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+		},
+		{
+			name: "deleted max age",
+			ddmInternal: &DatadogMetricInternal{
+				MaxAge:        5 * time.Second,
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+			},
+			newSpec: datadoghq.DatadogMetricSpec{
+				Query: simpleQuery,
+			},
+			expectedMaxAge:        0,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -103,6 +151,8 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			} else {
 				assert.Equal(t, *tt.expectedResolvedQuery, *tt.ddmInternal.resolvedQuery)
 			}
+
+			assert.Equal(t, tt.expectedMaxAge, tt.ddmInternal.MaxAge)
 		})
 	}
 }

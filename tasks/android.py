@@ -11,7 +11,6 @@ import yaml
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import generate
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 # constants
@@ -31,9 +30,7 @@ CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 
 
 @task
-def build(
-    ctx, rebuild=False, race=False, major_version='7', python_runtimes='3',
-):
+def build(ctx, rebuild=False, race=False, major_version='7', python_runtimes='3'):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -49,9 +46,6 @@ def build(
     assetconfigs(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
-
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx, mod="vendor")
 
     build_tags = get_default_build_tags(build="android")
 
@@ -93,7 +87,7 @@ def build(
     ctx.run(cmd)
     os.chdir(pwd)
     ver = get_version(ctx, include_git=True, git_sha_length=7, major_version=major_version, include_pipeline_id=True)
-    outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
+    outfile = f"bin/agent/ddagent-{ver}-unsigned.apk"
     shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 
 
@@ -147,13 +141,13 @@ def assetconfigs(_):
     files_list = []
     os.makedirs(CORECHECK_CONFS_DIR)
     for check in ANDROID_CORECHECKS:
-        srcfile = "cmd/agent/dist/conf.d/{}.d/conf.yaml.default".format(check)
-        tgtfile = "{}/{}.yaml".format(CORECHECK_CONFS_DIR, check)
+        srcfile = f"cmd/agent/dist/conf.d/{check}.d/conf.yaml.default"
+        tgtfile = f"{CORECHECK_CONFS_DIR}/{check}.yaml"
         shutil.copyfile(srcfile, tgtfile)
-        files_list.append("{}.yaml".format(check))
+        files_list.append(f"{check}.yaml")
     files["files"] = files_list
 
-    with open("{}/directory_manifest.yaml".format(CORECHECK_CONFS_DIR), 'w') as outfile:
+    with open(f"{CORECHECK_CONFS_DIR}/directory_manifest.yaml", 'w') as outfile:
         yaml.dump(files, outfile, default_flow_style=False)
 
 
@@ -171,9 +165,7 @@ def launchservice(ctx, api_key, hostname=None, tags=None):
         print("Setting tags to owner:db,env:local,role:windows")
         tags = "owner:db,env:local,role:windows"
 
-    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(
-        api_key, hostname, tags
-    )
+    cmd = f"adb shell am startservice --es api_key {api_key} --es hostname {hostname} --es tags {tags} org.datadog.agent/.DDService"
     ctx.run(cmd)
 
 

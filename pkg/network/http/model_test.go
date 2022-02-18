@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package http
@@ -18,6 +24,21 @@ func TestPath(t *testing.T) {
 
 	b := make([]byte, HTTPBufferSize)
 	assert.Equal(t, "/foo/bar", string(tx.Path(b)))
+}
+
+func TestPathHandlesNullTerminator(t *testing.T) {
+	tx := httpTX{
+		request_fragment: requestFragment(
+			// This probably isn't a valid HTTP request
+			// (since it's missing a version before the end),
+			// but if the null byte isn't handled
+			// then the path becomes "/foo/\x00bar"
+			[]byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
+		),
+	}
+
+	b := make([]byte, HTTPBufferSize)
+	assert.Equal(t, "/foo/", string(tx.Path(b)))
 }
 
 func TestLatency(t *testing.T) {

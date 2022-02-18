@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests && !386
 // +build functionaltests,!386
 
 package tests
@@ -16,21 +17,28 @@ import (
 	"golang.org/x/sys/unix"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestChown(t *testing.T) {
-	ruleDef := &rules.RuleDefinition{
+	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
 		Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
-	}
+	},
+		{
+			ID:         "test_rule2",
+			Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
+		},
+		{
+			ID:         "test_rule3",
+			Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid == 104 && chown.file.destination.gid == -1`,
+		},
+		{
+			ID:         "test_rule4",
+			Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid == -1 && chown.file.destination.gid == 204`,
+		}}
 
-	ruleDef2 := &rules.RuleDefinition{
-		ID:         "test_rule2",
-		Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,21 +64,20 @@ func TestChown(t *testing.T) {
 			prevGID = 200
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), 100, 200); errno != 0 {
-				t.Fatal(err)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(100), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(200), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(100), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(200), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -78,9 +85,6 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
@@ -89,20 +93,19 @@ func TestChown(t *testing.T) {
 			prevGID = 201
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, 0, uintptr(testFilePtr), uintptr(101), uintptr(201), 0x100, 0); errno != 0 {
-				t.Fatal(err)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(101), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(201), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(101), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(201), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -110,9 +113,6 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -127,24 +127,23 @@ func TestChown(t *testing.T) {
 
 		defer os.Remove(testSymlink)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testSymlinkPtr), uintptr(102), uintptr(202)); errno != 0 {
 				if errno == unix.ENOSYS {
-					t.Skip("lchown is not supported")
+					return ErrSkipTest{"lchown is not supported"}
 				}
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule2")
-			assert.Equal(t, uint32(102), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(202), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(102), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(202), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testSymlink), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, 0o777, "wrong initial mode")
 			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -152,31 +151,24 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
-		defer func() {
-			prevUID = 103
-			prevGID = 203
-		}()
+		defer func() { prevUID, prevGID = 103, 203 }()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 103, 203); errno != 0 {
-				t.Fatal(err)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(103), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(203), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(103), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(203), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -184,8 +176,47 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
+	}))
+
+	t.Run("chown-no-group", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		defer func() { prevUID = 104 }()
+
+		test.WaitSignal(t, func() error {
+			gid := -1
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 104, uintptr(gid)); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assertTriggeredRule(t, r, "test_rule3")
+			assert.Equal(t, int64(104), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(-1), event.Chown.GID, "wrong group")
+
+			if !validateChownSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	}))
+
+	t.Run("chown-no-user", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		defer func() { prevGID = 204 }()
+
+		test.WaitSignal(t, func() error {
+			uid := -1
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(uid), 204); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assertTriggeredRule(t, r, "test_rule4")
+			assert.Equal(t, int64(-1), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(204), event.Chown.GID, "wrong group")
+
+			if !validateChownSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
 	}))
 }

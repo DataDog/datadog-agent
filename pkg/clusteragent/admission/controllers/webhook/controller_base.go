@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
@@ -31,12 +32,12 @@ type Controller interface {
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, config Config) Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, config)
+		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
 	}
 
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, config)
+	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.
@@ -50,6 +51,28 @@ type controllerBase struct {
 	webhooksSynced cache.InformerSynced //nolint:structcheck
 	queue          workqueue.RateLimitingInterface
 	isLeaderFunc   func() bool
+	isLeaderNotif  <-chan struct{}
+}
+
+// enqueueOnLeaderNotif watches leader notifications and triggers a
+// reconciliation in case the current process becomes leader.
+// This ensures that the latest configuration of the leader
+// is applied to the webhook object. Typically, during a rolling update.
+func (c *controllerBase) enqueueOnLeaderNotif(stop <-chan struct{}) {
+	for {
+		select {
+		case <-c.isLeaderNotif:
+			log.Infof("Got a leader notification, enqueuing a reconciliation for %q", c.config.getWebhookName())
+			c.triggerReconciliation()
+		case <-stop:
+			return
+		}
+	}
+}
+
+// triggerReconciliation forces a reconciliation loop by enqueuing the webhook object name.
+func (c *controllerBase) triggerReconciliation() {
+	c.queue.Add(c.config.getWebhookName())
 }
 
 func (c *controllerBase) getSecret() (*corev1.Secret, error) {

@@ -13,6 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
+func countConfigsForTemplate(s *store, template string) int {
+	return len(s.templateToConfigs[template])
+}
+
+func countConfigsForService(s *store, service string) int {
+	return len(s.serviceToConfigs[service])
+}
+
 func TestServiceToConfig(t *testing.T) {
 	s := newStore()
 	service := dummyService{
@@ -20,12 +28,12 @@ func TestServiceToConfig(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 		Hosts:         map[string]string{"bridge": "127.0.0.1"},
 	}
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "bar"})
-	assert.Equal(t, len(s.getConfigsForService(service.GetEntity())), 2)
-	s.removeConfigsForService(service.GetEntity())
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
-	assert.Equal(t, len(s.getConfigsForService(service.GetEntity())), 1)
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "foo"})
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "bar"})
+	assert.Equal(t, countConfigsForService(s, service.GetServiceID()), 2)
+	s.removeConfigsForService(service.GetServiceID())
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "foo"})
+	assert.Equal(t, countConfigsForService(s, service.GetServiceID()), 1)
 }
 
 func TestTemplateToConfig(t *testing.T) {
@@ -34,14 +42,14 @@ func TestTemplateToConfig(t *testing.T) {
 	s.addConfigForTemplate("digest1", integration.Config{Name: "bar"})
 	s.addConfigForTemplate("digest2", integration.Config{Name: "foo"})
 
-	assert.Len(t, s.getConfigsForTemplate("digest1"), 2)
-	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest1"), 2)
+	assert.Equal(t, countConfigsForTemplate(s, "digest2"), 1)
 
 	s.removeConfigsForTemplate("digest1")
-	assert.Len(t, s.getConfigsForTemplate("digest1"), 0)
-	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest1"), 0)
+	assert.Equal(t, countConfigsForTemplate(s, "digest2"), 1)
 
 	s.addConfigForTemplate("digest1", integration.Config{Name: "foo"})
-	assert.Len(t, s.getConfigsForTemplate("digest1"), 1)
-	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest1"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest2"), 1)
 }

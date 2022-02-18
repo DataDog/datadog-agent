@@ -1,218 +1,273 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/probe/doc_generator -output ../../../docs/cloud-workload-security/backend.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
-	"encoding/json"
+	"fmt"
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-)
+	"golang.org/x/sys/unix"
 
-// Event categories for JSON serialization
-const (
-	FIMCategory     = "File Activity"
-	ProcessActivity = "Process Activity"
-	KernelActivity  = "Kernel Activity"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
-	Path                string     `json:"path,omitempty"`
-	Name                string     `json:"name,omitempty"`
-	PathResolutionError string     `json:"path_resolution_error,omitempty"`
-	Inode               *uint64    `json:"inode,omitempty"`
-	Mode                *uint32    `json:"mode,omitempty"`
-	InUpperLayer        *bool      `json:"in_upper_layer,omitempty"`
-	MountID             *uint32    `json:"mount_id,omitempty"`
-	Filesystem          string     `json:"filesystem,omitempty"`
-	UID                 uint32     `json:"uid"`
-	GID                 uint32     `json:"gid"`
-	User                string     `json:"user,omitempty"`
-	Group               string     `json:"group,omitempty"`
-	XAttrName           string     `json:"attribute_name,omitempty"`
-	XAttrNamespace      string     `json:"attribute_namespace,omitempty"`
-	Flags               []string   `json:"flags,omitempty"`
-	Atime               *time.Time `json:"access_time,omitempty"`
-	Mtime               *time.Time `json:"modification_time,omitempty"`
-	Ctime               *time.Time `json:"change_time,omitempty"`
+	Path                string     `json:"path,omitempty" jsonschema_description:"File path"`
+	Name                string     `json:"name,omitempty" jsonschema_description:"File basename"`
+	PathResolutionError string     `json:"path_resolution_error,omitempty" jsonschema_description:"Error message from path resolution"`
+	Inode               *uint64    `json:"inode,omitempty" jsonschema_description:"File inode number"`
+	Mode                *uint32    `json:"mode,omitempty" jsonschema_description:"File mode"`
+	InUpperLayer        *bool      `json:"in_upper_layer,omitempty" jsonschema_description:"Indicator of file OverlayFS layer"`
+	MountID             *uint32    `json:"mount_id,omitempty" jsonschema_description:"File mount ID"`
+	Filesystem          string     `json:"filesystem,omitempty" jsonschema_description:"File filesystem name"`
+	UID                 int64      `json:"uid" jsonschema_description:"File User ID"`
+	GID                 int64      `json:"gid" jsonschema_description:"File Group ID"`
+	User                string     `json:"user,omitempty" jsonschema_description:"File user"`
+	Group               string     `json:"group,omitempty" jsonschema_description:"File group"`
+	XAttrName           string     `json:"attribute_name,omitempty" jsonschema_description:"File extended attribute name"`
+	XAttrNamespace      string     `json:"attribute_namespace,omitempty" jsonschema_description:"File extended attribute namespace"`
+	Flags               []string   `json:"flags,omitempty" jsonschema_description:"File flags"`
+	Atime               *time.Time `json:"access_time,omitempty" jsonschema_descrition:"File access time"`
+	Mtime               *time.Time `json:"modification_time,omitempty" jsonschema_description:"File modified time"`
+	Ctime               *time.Time `json:"change_time,omitempty" jsonschema_description:"File change time"`
 }
 
 // UserContextSerializer serializes a user context to JSON
 // easyjson:json
 type UserContextSerializer struct {
-	User  string `json:"id,omitempty"`
-	Group string `json:"group,omitempty"`
+	User  string `json:"id,omitempty" jsonschema_description:"User name"`
+	Group string `json:"group,omitempty" jsonschema_description:"Group name"`
 }
 
 // CredentialsSerializer serializes a set credentials to JSON
 // easyjson:json
 type CredentialsSerializer struct {
-	UID          int          `json:"uid"`
-	User         string       `json:"user,omitempty"`
-	GID          int          `json:"gid"`
-	Group        string       `json:"group,omitempty"`
-	EUID         int          `json:"euid"`
-	EUser        string       `json:"euser,omitempty"`
-	EGID         int          `json:"egid"`
-	EGroup       string       `json:"egroup,omitempty"`
-	FSUID        int          `json:"fsuid"`
-	FSUser       string       `json:"fsuser,omitempty"`
-	FSGID        int          `json:"fsgid"`
-	FSGroup      string       `json:"fsgroup,omitempty"`
-	CapEffective JStringArray `json:"cap_effective"`
-	CapPermitted JStringArray `json:"cap_permitted"`
+	UID          int      `json:"uid" jsonschema_description:"User ID"`
+	User         string   `json:"user,omitempty" jsonschema_description:"User name"`
+	GID          int      `json:"gid" jsonschema_description:"Group ID"`
+	Group        string   `json:"group,omitempty" jsonschema_description:"Group name"`
+	EUID         int      `json:"euid" jsonschema_description:"Effective User ID"`
+	EUser        string   `json:"euser,omitempty" jsonschema_description:"Effective User name"`
+	EGID         int      `json:"egid" jsonschema_description:"Effective Group ID"`
+	EGroup       string   `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
+	FSUID        int      `json:"fsuid" jsonschema_description:"Filesystem User ID"`
+	FSUser       string   `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
+	FSGID        int      `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
+	FSGroup      string   `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // SetuidSerializer serializes a setuid event
 // easyjson:json
 type SetuidSerializer struct {
-	UID    int    `json:"uid"`
-	User   string `json:"user,omitempty"`
-	EUID   int    `json:"euid"`
-	EUser  string `json:"euser,omitempty"`
-	FSUID  int    `json:"fsuid"`
-	FSUser string `json:"fsuser,omitempty"`
+	UID    int    `json:"uid" jsonschema_description:"User ID"`
+	User   string `json:"user,omitempty" jsonschema_description:"User name"`
+	EUID   int    `json:"euid" jsonschema_description:"Effective User ID"`
+	EUser  string `json:"euser,omitempty" jsonschema_description:"Effective User name"`
+	FSUID  int    `json:"fsuid" jsonschema_description:"Filesystem User ID"`
+	FSUser string `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
 }
 
 // SetgidSerializer serializes a setgid event
 // easyjson:json
 type SetgidSerializer struct {
-	GID     int    `json:"gid"`
-	Group   string `json:"group,omitempty"`
-	EGID    int    `json:"egid"`
-	EGroup  string `json:"egroup,omitempty"`
-	FSGID   int    `json:"fsgid"`
-	FSGroup string `json:"fsgroup,omitempty"`
-}
-
-// JStringArray handles empty array properly not generating null output but []
-type JStringArray []string
-
-// MarshalJSON custom marshaller to handle empty array
-func (j *JStringArray) MarshalJSON() ([]byte, error) {
-	if len(*j) == 0 {
-		return []byte("[]"), nil
-	}
-	return json.Marshal([]string(*j))
+	GID     int    `json:"gid" jsonschema_description:"Group ID"`
+	Group   string `json:"group,omitempty" jsonschema_description:"Group name"`
+	EGID    int    `json:"egid" jsonschema_description:"Effective Group ID"`
+	EGroup  string `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
+	FSGID   int    `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
+	FSGroup string `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
 }
 
 // CapsetSerializer serializes a capset event
 // easyjson:json
 type CapsetSerializer struct {
-	CapEffective JStringArray `json:"cap_effective"`
-	CapPermitted JStringArray `json:"cap_permitted"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // ProcessCredentialsSerializer serializes the process credentials to JSON
 // easyjson:json
 type ProcessCredentialsSerializer struct {
 	*CredentialsSerializer
-	Destination interface{} `json:"destination,omitempty"`
+	Destination interface{} `json:"destination,omitempty" jsonschema_description:"Credentials after the operation"`
 }
 
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
 // easyjson:json
 type ProcessCacheEntrySerializer struct {
-	Pid                 uint32                        `json:"pid,omitempty"`
-	PPid                uint32                        `json:"ppid,omitempty"`
-	Tid                 uint32                        `json:"tid,omitempty"`
-	UID                 int                           `json:"uid"`
-	GID                 int                           `json:"gid"`
-	User                string                        `json:"user,omitempty"`
-	Group               string                        `json:"group,omitempty"`
-	PathResolutionError string                        `json:"path_resolution_error,omitempty"`
-	Comm                string                        `json:"comm,omitempty"`
-	TTY                 string                        `json:"tty,omitempty"`
-	ForkTime            *time.Time                    `json:"fork_time,omitempty"`
-	ExecTime            *time.Time                    `json:"exec_time,omitempty"`
-	ExitTime            *time.Time                    `json:"exit_time,omitempty"`
-	Credentials         *ProcessCredentialsSerializer `json:"credentials,omitempty"`
-	Executable          *FileSerializer               `json:"executable,omitempty"`
-	Container           *ContainerContextSerializer   `json:"container,omitempty"`
-	Args                []string                      `json:"args,omitempty"`
-	ArgsTruncated       bool                          `json:"args_truncated,omitempty"`
-	Envs                []string                      `json:"envs,omitempty"`
-	EnvsTruncated       bool                          `json:"envs_truncated,omitempty"`
+	Pid                 uint32                        `json:"pid,omitempty" jsonschema_description:"Process ID"`
+	PPid                uint32                        `json:"ppid,omitempty" jsonschema_description:"Parent Process ID"`
+	Tid                 uint32                        `json:"tid,omitempty" jsonschema_description:"Thread ID"`
+	UID                 int                           `json:"uid" jsonschema_description:"User ID"`
+	GID                 int                           `json:"gid" jsonschema_description:"Group ID"`
+	User                string                        `json:"user,omitempty" jsonschema_description:"User name"`
+	Group               string                        `json:"group,omitempty" jsonschema_description:"Group name"`
+	PathResolutionError string                        `json:"path_resolution_error,omitempty" jsonschema_description:"Description of an error in the path resolution"`
+	Comm                string                        `json:"comm,omitempty" jsonschema_description:"Command name"`
+	TTY                 string                        `json:"tty,omitempty" jsonschema_description:"TTY associated with the process"`
+	ForkTime            *time.Time                    `json:"fork_time,omitempty" jsonschema_description:"Fork time of the process"`
+	ExecTime            *time.Time                    `json:"exec_time,omitempty" jsonschema_description:"Exec time of the process"`
+	ExitTime            *time.Time                    `json:"exit_time,omitempty" jsonschema_description:"Exit time of the process"`
+	Credentials         *ProcessCredentialsSerializer `json:"credentials,omitempty" jsonschema_description:"Credentials associated with the process"`
+	Executable          *FileSerializer               `json:"executable,omitempty" jsonschema_description:"File information of the executable"`
+	Container           *ContainerContextSerializer   `json:"container,omitempty" jsonschema_description:"Container context"`
+	Argv0               string                        `json:"argv0,omitempty" jsonschema_description:"First command line argument"`
+	Args                []string                      `json:"args,omitempty" jsonschema_description:"Command line arguments"`
+	ArgsTruncated       bool                          `json:"args_truncated,omitempty" jsonschema_description:"Indicator of arguments truncation"`
+	Envs                []string                      `json:"envs,omitempty" jsonschema_description:"Environment variables of the process"`
+	EnvsTruncated       bool                          `json:"envs_truncated,omitempty" jsonschema_description:"Indicator of environments variable truncation"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
 type ContainerContextSerializer struct {
-	ID string `json:"id,omitempty"`
+	ID string `json:"id,omitempty" jsonschema_description:"Container ID"`
 }
 
 // FileEventSerializer serializes a file event to JSON
 // easyjson:json
 type FileEventSerializer struct {
 	FileSerializer
-	Destination *FileSerializer `json:"destination,omitempty"`
+	Destination *FileSerializer `json:"destination,omitempty" jsonschema_description:"Target file information"`
 
 	// Specific to mount events
-	NewMountID uint32 `json:"new_mount_id,omitempty"`
-	GroupID    uint32 `json:"group_id,omitempty"`
-	Device     uint32 `json:"device,omitempty"`
-	FSType     string `json:"fstype,omitempty"`
+	NewMountID uint32 `json:"new_mount_id,omitempty" jsonschema_description:"New Mount ID"`
+	GroupID    uint32 `json:"group_id,omitempty" jsonschema_description:"Group ID"`
+	Device     uint32 `json:"device,omitempty" jsonschema_description:"Device associated with the file"`
+	FSType     string `json:"fstype,omitempty" jsonschema_description:"Filesystem type"`
 }
 
 // EventContextSerializer serializes an event context to JSON
 // easyjson:json
 type EventContextSerializer struct {
-	Name     string `json:"name,omitempty"`
-	Category string `json:"category,omitempty"`
-	Outcome  string `json:"outcome,omitempty"`
+	Name     string `json:"name,omitempty" jsonschema_description:"Event name"`
+	Category string `json:"category,omitempty" jsonschema_description:"Event category"`
+	Outcome  string `json:"outcome,omitempty" jsonschema_description:"Event outcome"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
 // easyjson:json
 type ProcessContextSerializer struct {
 	*ProcessCacheEntrySerializer
-	Parent    *ProcessCacheEntrySerializer   `json:"parent,omitempty"`
-	Ancestors []*ProcessCacheEntrySerializer `json:"ancestors,omitempty"`
+	Parent    *ProcessCacheEntrySerializer   `json:"parent,omitempty" jsonschema_description:"Parent process"`
+	Ancestors []*ProcessCacheEntrySerializer `json:"ancestors,omitempty" jsonschema_description:"Ancestor processes"`
 }
 
 // easyjson:json
 type selinuxBoolChangeSerializer struct {
-	Name  string `json:"name,omitempty"`
-	State string `json:"state,omitempty"`
+	Name  string `json:"name,omitempty" jsonschema_description:"SELinux boolean name"`
+	State string `json:"state,omitempty" jsonschema_description:"SELinux boolean state ('on' or 'off')"`
 }
 
 // easyjson:json
 type selinuxEnforceStatusSerializer struct {
-	Status string `json:"status,omitempty"`
+	Status string `json:"status,omitempty" jsonschema_description:"SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled')"`
 }
 
 // easyjson:json
 type selinuxBoolCommitSerializer struct {
-	State bool `json:"state,omitempty"`
+	State bool `json:"state,omitempty" jsonschema_description:"SELinux boolean commit operation"`
 }
 
 // SELinuxEventSerializer serializes a SELinux context to JSON
 // easyjson:json
 type SELinuxEventSerializer struct {
-	BoolChange    *selinuxBoolChangeSerializer    `json:"bool,omitempty"`
-	EnforceStatus *selinuxEnforceStatusSerializer `json:"enforce,omitempty"`
-	BoolCommit    *selinuxBoolCommitSerializer    `json:"bool_commit,omitempty"`
+	BoolChange    *selinuxBoolChangeSerializer    `json:"bool,omitempty" jsonschema_description:"SELinux boolean operation"`
+	EnforceStatus *selinuxEnforceStatusSerializer `json:"enforce,omitempty" jsonschema_description:"SELinux enforcement change"`
+	BoolCommit    *selinuxBoolCommitSerializer    `json:"bool_commit,omitempty" jsonschema_description:"SELinux boolean commit"`
+}
+
+// BPFMapSerializer serializes a BPF map to JSON
+// easyjson:json
+type BPFMapSerializer struct {
+	Name    string `json:"name,omitempty" jsonschema_description:"Name of the BPF map"`
+	MapType string `json:"map_type,omitempty" jsonschema_description:"Type of the BPF map"`
+}
+
+// BPFProgramSerializer serializes a BPF map to JSON
+// easyjson:json
+type BPFProgramSerializer struct {
+	Name        string   `json:"name,omitempty" jsonschema_description:"Name of the BPF program"`
+	Tag         string   `json:"tag,omitempty" jsonschema_description:"Hash (sha1) of the BPF program"`
+	ProgramType string   `json:"program_type,omitempty" jsonschema_description:"Type of the BPF program"`
+	AttachType  string   `json:"attach_type,omitempty" jsonschema_description:"Attach type of the BPF program"`
+	Helpers     []string `json:"helpers,omitempty" jsonschema_description:"List of helpers used by the BPF program"`
+}
+
+// BPFEventSerializer serializes a BPF event to JSON
+// easyjson:json
+type BPFEventSerializer struct {
+	Cmd     string                `json:"cmd" jsonschema_description:"BPF command"`
+	Map     *BPFMapSerializer     `json:"map,omitempty" jsonschema_description:"BPF map"`
+	Program *BPFProgramSerializer `json:"program,omitempty" jsonschema_description:"BPF program"`
+}
+
+// MMapEventSerializer serializes a mmap event to JSON
+type MMapEventSerializer struct {
+	Address    string `json:"address" jsonschema_description:"memory segment address"`
+	Offset     uint64 `json:"offset" jsonschema_description:"file offset"`
+	Len        uint32 `json:"length" jsonschema_description:"memory segment length"`
+	Protection string `json:"protection" jsonschema_description:"memory segment protection"`
+	Flags      string `json:"flags" jsonschema_description:"memory segment flags"`
+}
+
+// MProtectEventSerializer serializes a mmap event to JSON
+type MProtectEventSerializer struct {
+	VMStart       string `json:"vm_start" jsonschema_description:"memory segment start address"`
+	VMEnd         string `json:"vm_end" jsonschema_description:"memory segment end address"`
+	VMProtection  string `json:"vm_protection" jsonschema_description:"initial memory segment protection"`
+	ReqProtection string `json:"req_protection" jsonschema_description:"new memory segment protection"`
+}
+
+// PTraceEventSerializer serializes a mmap event to JSON
+type PTraceEventSerializer struct {
+	Request string                    `json:"request" jsonschema_description:"ptrace request"`
+	Address string                    `json:"address" jsonschema_description:"address at which the ptrace request was executed"`
+	Tracee  *ProcessContextSerializer `json:"tracee,omitempty" jsonschema_description:"process context of the tracee"`
+}
+
+// DDContextSerializer serializes a span context to JSON
+// easyjson:json
+type DDContextSerializer struct {
+	SpanID  uint64 `json:"span_id,omitempty" jsonschema_description:"Span ID used for APM correlation"`
+	TraceID uint64 `json:"trace_id,omitempty" jsonschema_description:"Trace ID used for APM correlation"`
+}
+
+// ModuleEventSerializer serializes a module event to JSON
+type ModuleEventSerializer struct {
+	Name             string `json:"name" jsonschema_description:"module name"`
+	LoadedFromMemory *bool  `json:"loaded_from_memory,omitempty" jsonschema_description:"indicates if a module was loaded from memory, as opposed to a file"`
 }
 
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	*EventContextSerializer    `json:"evt,omitempty"`
+	EventContextSerializer     `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
 	*SELinuxEventSerializer    `json:"selinux,omitempty"`
+	*BPFEventSerializer        `json:"bpf,omitempty"`
+	*MMapEventSerializer       `json:"mmap,omitempty"`
+	*MProtectEventSerializer   `json:"mprotect,omitempty"`
+	*PTraceEventSerializer     `json:"ptrace,omitempty"`
+	*ModuleEventSerializer     `json:"module,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
-	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
+	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
+	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
 	Date                       time.Time                   `json:"date,omitempty"`
 }
@@ -226,18 +281,23 @@ func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
 	return &upperLayer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *FileSerializer {
+	inode := fe.Inode
+	if len(forceInode) > 0 {
+		inode = forceInode[0]
+	}
+
 	mode := uint32(fe.FileFields.Mode)
 	return &FileSerializer{
 		Path:                e.ResolveFilePath(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
-		Inode:               getUint64Pointer(&fe.Inode),
+		Inode:               getUint64Pointer(&inode),
 		MountID:             getUint32Pointer(&fe.MountID),
 		Filesystem:          e.ResolveFileFilesystem(fe),
-		Mode:                getUint32Pointer(&mode),
-		UID:                 fe.UID,
-		GID:                 fe.GID,
+		Mode:                getUint32Pointer(&mode), // only used by open events
+		UID:                 int64(fe.UID),
+		GID:                 int64(fe.GID),
 		User:                e.ResolveFileFieldsUser(&fe.FileFields),
 		Group:               e.ResolveFileFieldsGroup(&fe.FileFields),
 		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
@@ -257,8 +317,8 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		Filesystem:          process.Filesystem,
 		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
-		UID:                 process.FileFields.UID,
-		GID:                 process.FileFields.GID,
+		UID:                 int64(process.FileFields.UID),
+		GID:                 int64(process.FileFields.GID),
 		User:                r.ResolveFileFieldsUser(&process.FileFields),
 		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
 		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.MTime))),
@@ -301,44 +361,15 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
 		FSGroup:      ce.FSGroup,
-		CapEffective: JStringArray(model.KernelCapability(ce.CapEffective).StringArray()),
-		CapPermitted: JStringArray(model.KernelCapability(ce.CapPermitted).StringArray()),
+		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
+		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
 	}
-}
-
-func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
-	argv, truncated := e.resolvers.ProcessResolver.GetProcessArgv(pr)
-
-	// scrub args, do not send args if no scrubber instance is passed
-	// can be the case for some custom event
-	if e.scrubber == nil {
-		argv = []string{}
-	} else {
-		if newArgv, changed := e.scrubber.ScrubCommand(argv); changed {
-			argv = newArgv
-		}
-	}
-
-	return argv, truncated
-}
-
-func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {
-	envs, truncated := e.resolvers.ProcessResolver.GetProcessEnvs(pr)
-	if envs == nil {
-		return nil, false
-	}
-
-	result := make([]string, 0, len(envs))
-	for key := range envs {
-		result = append(result, key)
-	}
-
-	return result, truncated
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	argv, argvTruncated := scrubArgs(&pce.Process, e)
-	envs, EnvsTruncated := scrubEnvs(&pce.Process, e)
+	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(&pce.Process)
+	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(&pce.Process)
+	argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(&pce.Process)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		ForkTime: getTimeIfNotZero(pce.ForkTime),
@@ -351,6 +382,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
+		Argv0:         argv0,
 		Args:          argv,
 		ArgsTruncated: argvTruncated,
 		Envs:          envs,
@@ -375,18 +407,25 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 	return pceSerializer
 }
 
-func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
-	var ps *ProcessContextSerializer
+func newDDContextSerializer(e *Event) DDContextSerializer {
+	return DDContextSerializer{
+		SpanID:  e.SpanContext.SpanID,
+		TraceID: e.SpanContext.TraceID,
+	}
+}
+
+func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) ProcessContextSerializer {
+	var ps ProcessContextSerializer
 
 	if e == nil {
-		// custom events call newProcessContextSerializer with an empty Event
+		// custom events create an empty event
 		e = NewEvent(r, nil)
 		e.ProcessContext = model.ProcessContext{
 			Ancestor: entry,
 		}
 	}
 
-	ps = &ProcessContextSerializer{
+	ps = ProcessContextSerializer{
 		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
 	}
 
@@ -451,6 +490,84 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 	}
 }
 
+func newBPFMapSerializer(e *Event) *BPFMapSerializer {
+	if e.BPF.Map.ID == 0 {
+		return nil
+	}
+	return &BPFMapSerializer{
+		Name:    e.BPF.Map.Name,
+		MapType: model.BPFMapType(e.BPF.Map.Type).String(),
+	}
+}
+
+func newBPFProgramSerializer(e *Event) *BPFProgramSerializer {
+	if e.BPF.Program.ID == 0 {
+		return nil
+	}
+
+	return &BPFProgramSerializer{
+		Name:        e.BPF.Program.Name,
+		Tag:         e.BPF.Program.Tag,
+		ProgramType: model.BPFProgramType(e.BPF.Program.Type).String(),
+		AttachType:  model.BPFAttachType(e.BPF.Program.AttachType).String(),
+		Helpers:     model.StringifyHelpersList(e.BPF.Program.Helpers),
+	}
+}
+
+func newBPFEventSerializer(e *Event) *BPFEventSerializer {
+	return &BPFEventSerializer{
+		Cmd:     model.BPFCmd(e.BPF.Cmd).String(),
+		Map:     newBPFMapSerializer(e),
+		Program: newBPFProgramSerializer(e),
+	}
+}
+
+func newMMapEventSerializer(e *Event) *MMapEventSerializer {
+	return &MMapEventSerializer{
+		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
+		Offset:     e.MMap.Offset,
+		Len:        e.MMap.Len,
+		Protection: model.Protection(e.MMap.Protection).String(),
+		Flags:      model.MMapFlag(e.MMap.Flags).String(),
+	}
+}
+
+func newMProtectEventSerializer(e *Event) *MProtectEventSerializer {
+	return &MProtectEventSerializer{
+		VMStart:       fmt.Sprintf("0x%x", e.MProtect.VMStart),
+		VMEnd:         fmt.Sprintf("0x%x", e.MProtect.VMEnd),
+		VMProtection:  model.VMFlag(e.MProtect.VMProtection).String(),
+		ReqProtection: model.VMFlag(e.MProtect.ReqProtection).String(),
+	}
+}
+
+func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
+	ptes := &PTraceEventSerializer{
+		Request: model.PTraceRequest(e.PTrace.Request).String(),
+		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
+	}
+
+	if e.PTrace.TraceeProcessCacheEntry != nil {
+		pcs := newProcessContextSerializer(e.PTrace.TraceeProcessCacheEntry, e, e.resolvers)
+		ptes.Tracee = &pcs
+	}
+	return ptes
+}
+
+func newLoadModuleEventSerializer(e *Event) *ModuleEventSerializer {
+	loadedFromMemory := e.LoadModule.LoadedFromMemory
+	return &ModuleEventSerializer{
+		Name:             e.LoadModule.Name,
+		LoadedFromMemory: &loadedFromMemory,
+	}
+}
+
+func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
+	return &ModuleEventSerializer{
+		Name: e.UnloadModule.Name,
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
@@ -465,11 +582,11 @@ func serializeSyscallRetval(retval int64) string {
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
-		EventContextSerializer: &EventContextSerializer{
-			Name:     model.EventType(event.Type).String(),
-			Category: FIMCategory,
+		EventContextSerializer: EventContextSerializer{
+			Name: model.EventType(event.Type).String(),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(event.ResolveProcessCacheEntry(), event, event.resolvers),
+		DDContextSerializer:      newDDContextSerializer(event),
 		Date:                     event.ResolveEventTimestamp(),
 	}
 
@@ -482,7 +599,11 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	s.UserContextSerializer.User = s.ProcessContextSerializer.User
 	s.UserContextSerializer.Group = s.ProcessContextSerializer.Group
 
-	switch model.EventType(event.Type) {
+	eventType := model.EventType(event.Type)
+
+	s.Category = model.GetEventTypeCategory(eventType.String())
+
+	switch eventType {
 	case model.FileChmodEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chmod.File, event),
@@ -501,9 +622,10 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chown.Retval)
 	case model.FileLinkEventType:
+		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Link.Source, event),
-			Destination:    newFileSerializer(&event.Link.Target, event),
+			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
 	case model.FileOpenEventType:
@@ -539,8 +661,9 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
 	case model.FileRenameEventType:
+		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Rename.Old, event),
+			FileSerializer: *newFileSerializer(&event.Rename.Old, event, event.Rename.New.Inode),
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)
@@ -606,7 +729,6 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			FSUser: event.ResolveSetuidFSUser(&event.SetUID),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.SetgidEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &SetgidSerializer{
 			GID:     int(event.SetGID.GID),
@@ -617,33 +739,53 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			FSGroup: event.ResolveSetgidFSGroup(&event.SetGID),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.CapsetEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &CapsetSerializer{
-			CapEffective: JStringArray(model.KernelCapability(event.Capset.CapEffective).StringArray()),
-			CapPermitted: JStringArray(model.KernelCapability(event.Capset.CapPermitted).StringArray()),
+			CapEffective: model.KernelCapability(event.Capset.CapEffective).StringArray(),
+			CapPermitted: model.KernelCapability(event.Capset.CapPermitted).StringArray(),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.ForkEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.ExitEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newProcessFileSerializerWithResolvers(&event.processCacheEntry.Process, event.resolvers),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.SELinuxEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
 		}
 		s.SELinuxEventSerializer = newSELinuxSerializer(event)
-		s.Category = KernelActivity
+	case model.BPFEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.BPFEventSerializer = newBPFEventSerializer(event)
+	case model.MMapEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MMap.Retval)
+		if event.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.MMap.File, event),
+			}
+		}
+		s.MMapEventSerializer = newMMapEventSerializer(event)
+	case model.MProtectEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MProtect.Retval)
+		s.MProtectEventSerializer = newMProtectEventSerializer(event)
+	case model.PTraceEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
+		s.PTraceEventSerializer = newPTraceEventSerializer(event)
+	case model.LoadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+		}
+		s.ModuleEventSerializer = newLoadModuleEventSerializer(event)
+	case model.UnloadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.UnloadModule.Retval)
+		s.ModuleEventSerializer = newUnloadModuleEventSerializer(event)
 	}
 
 	return s

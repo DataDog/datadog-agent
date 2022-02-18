@@ -13,14 +13,8 @@ directory wrk_dir do
   recursive true
 end
 
-if node['dd-agent-install-script']['agent_flavor'] == "datadog-dogstatsd"
-  cookbook_file "#{wrk_dir}/install-script" do
-    source "dogstatsd_install_script.sh"
-  end
-else
-  remote_file "#{wrk_dir}/install-script" do
-    source node['dd-agent-install-script']['install_script_url']
-  end
+remote_file "#{wrk_dir}/install-script" do
+  source node['dd-agent-install-script']['install_script_url']
 end
 
 # apt-get update fails a LOT on our droplets, so ignore these failures
@@ -41,6 +35,7 @@ kitchen_environment_variables = {
   'TESTING_YUM_URL' => node['dd-agent-install-script']['repo_domain_yum'],
   'TESTING_APT_REPO_VERSION' => "#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}",
   'TESTING_YUM_VERSION_PATH' => node['dd-agent-install-script']['repo_branch_yum'],
+  'ZYPP_RPM_DEBUG' => '1',
 }.compact
 
 # Transform hash into bash syntax for exporting environment variables

@@ -8,7 +8,6 @@ package listeners
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +31,7 @@ func init() {
 }
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener() (ServiceListener, error) {
+func NewEnvironmentListener(Config) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
@@ -66,10 +65,20 @@ func (l *EnvironmentListener) createServices() {
 			l.newService <- &EnvironmentService{adIdentifier: "_" + name}
 		}
 	}
+
+	// Handle generic container check auto-activation.
+	containerFeatures := []config.Feature{config.Docker, config.Containerd, config.Cri, config.ECSFargate, config.Podman, config.Kubernetes}
+	for _, f := range containerFeatures {
+		if config.IsFeaturePresent(f) {
+			log.Infof("Listener created container service from environment")
+			l.newService <- &EnvironmentService{adIdentifier: "_container"}
+			break
+		}
+	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *EnvironmentService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *EnvironmentService) GetServiceID() string {
 	return s.adIdentifier
 }
 
@@ -107,11 +116,6 @@ func (s *EnvironmentService) GetPid(context.Context) (int, error) {
 // GetHostname returns nil and an error because port is not supported in this listener
 func (s *EnvironmentService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime is always before for environment service
-func (s *EnvironmentService) GetCreationTime() integration.CreationTime {
-	return integration.Before
 }
 
 // IsReady is always true

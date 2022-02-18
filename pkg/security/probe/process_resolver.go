@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -11,25 +12,28 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -74,35 +78,6 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 	return manager.ConstantEditor{
 		Name:  "cgroup_write_type",
 		Value: cgroupWriteConst,
-	}
-}
-
-// TTYConstants returns the tty constants
-func TTYConstants(probe *Probe) []manager.ConstantEditor {
-	ttyOffset, nameOffset := uint64(400), uint64(368)
-
-	switch {
-	case probe.kernelVersion.IsRH7Kernel():
-		ttyOffset, nameOffset = 416, 312
-	case probe.kernelVersion.IsRH8Kernel():
-		ttyOffset, nameOffset = 392, 368
-	case probe.kernelVersion.IsSLES12Kernel():
-		ttyOffset, nameOffset = 376, 368
-	case probe.kernelVersion.IsSLES15Kernel():
-		ttyOffset, nameOffset = 408, 368
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel5_3:
-		ttyOffset, nameOffset = 368, 368
-	}
-
-	return []manager.ConstantEditor{
-		{
-			Name:  "tty_offset",
-			Value: ttyOffset,
-		},
-		{
-			Name:  "tty_name_offset",
-			Value: nameOffset,
-		},
 	}
 }
 
@@ -500,8 +475,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	entry, exists := p.entryCache[pid]
-	if exists {
+	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
 		return entry
 	}
@@ -511,13 +485,13 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry = p.resolveWithKernelMaps(pid, tid); entry != nil {
+	if entry := p.resolveWithKernelMaps(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.KernelMapsTag], 1)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry = p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
+	if entry := p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.ProcFSTag], 1)
 		return entry
 	}
@@ -557,7 +531,7 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 
 func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
 	// unmarshal container ID first
-	id, err := model.UnmarshalString(data, 64)
+	id, err := model.UnmarshalPrintableString(data, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -571,6 +545,18 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 	p.ApplyBootTime(entry)
 
 	return read + 64, err
+}
+
+func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+	entry, exists := p.entryCache[pid]
+	if !exists {
+		return nil
+	}
+
+	// make to update the tid with the that triggers the resolution
+	entry.Tid = tid
+
+	return entry
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
@@ -616,6 +602,11 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	return p.insertExecEntry(pid, entry)
 }
 
+// IsKThread returns whether given pids are from kthreads
+func IsKThread(ppid, pid uint32) bool {
+	return ppid == 2 || pid == 2
+}
+
 func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
 	if maxDepth < 1 || pid == 0 {
 		return nil
@@ -628,6 +619,11 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 
 	filledProc := utils.GetFilledProcess(proc)
 	if filledProc == nil {
+		return nil
+	}
+
+	// ignore kthreads
+	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
 		return nil
 	}
 
@@ -664,8 +660,44 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 	}
 
 	argv, truncated := pr.ArgsEntry.ToArray()
+	if len(argv) > 0 {
+		argv = argv[1:]
+	}
 
 	return argv, pr.ArgsTruncated || truncated
+}
+
+// GetProcessArgv0 returns the first arg of the event
+func (p *ProcessResolver) GetProcessArgv0(pr *model.Process) (string, bool) {
+	if pr.ArgsEntry == nil {
+		return "", false
+	}
+
+	argv, truncated := pr.ArgsEntry.ToArray()
+	if len(argv) > 0 {
+		return argv[0], pr.ArgsTruncated || truncated
+	}
+
+	return "", pr.ArgsTruncated || truncated
+}
+
+// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
+func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
+	if pr.ScrubbedArgvResolved {
+		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
+	}
+
+	argv, truncated := p.GetProcessArgv(pr)
+
+	if p.probe.scrubber != nil {
+		argv, _ = p.probe.scrubber.ScrubCommand(argv)
+	}
+
+	pr.ScrubbedArgv = argv
+	pr.ScrubbedArgsTruncated = truncated
+	pr.ScrubbedArgvResolved = true
+
+	return argv, truncated
 }
 
 // SetProcessEnvs set envs to cache entry
@@ -686,14 +718,25 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 }
 
 // GetProcessEnvs returns the envs of the event
-func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) (map[string]string, bool) {
+func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return nil, false
 	}
 
-	envs, truncated := pr.EnvsEntry.ToMap()
+	keys, truncated := pr.EnvsEntry.Keys()
 
-	return envs, pr.EnvsTruncated || truncated
+	return keys, pr.ArgsTruncated || truncated
+}
+
+// GetProcessEnvp returns the envs of the event with their values
+func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
+	if pr.EnvsEntry == nil {
+		return nil, false
+	}
+
+	envp, truncated := pr.EnvsEntry.ToArray()
+
+	return envp, pr.ArgsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
@@ -802,27 +845,25 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 
 	for {
 		select {
-		case _ = <-ticker.C:
-			var pids []uint32
-
-			p.RLock()
-			for pid := range p.entryCache {
-				pids = append(pids, pid)
+		case <-ticker.C:
+			procPids, err := process.Pids()
+			if err != nil {
+				continue
 			}
-			p.RUnlock()
+			procPidsMap := make(map[uint32]bool)
+			for _, pid := range procPids {
+				procPidsMap[uint32(pid)] = true
+			}
 
-			// iterating slowly
-			for _, pid := range pids {
-				if _, err := process.NewProcess(int32(pid)); err != nil {
-					// check start time to ensure to not delete a recent pid
-					p.Lock()
+			p.Lock()
+			for pid := range p.entryCache {
+				if _, exists := procPidsMap[pid]; !exists {
 					if entry := p.entryCache[pid]; entry != nil {
 						p.exitedQueue = append(p.exitedQueue, pid)
 					}
-					p.Unlock()
 				}
-				time.Sleep(50 * time.Millisecond)
 			}
+			p.Unlock()
 		case <-ctx.Done():
 			return
 		}
@@ -871,7 +912,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 	return entry, true
 }
 
-func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool) {
+func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
 		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
 		if _, exists := already[label]; !exists {
@@ -879,7 +920,12 @@ func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheE
 				label = "[" + label + "]"
 			}
 
-			fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
+			if withArgs {
+				argv, _ := p.GetProcessScrubbedArgv(&entry.Process)
+				fmt.Fprintf(writer, `"%d:%s" [label="%s", comment="%s"];`, entry.Pid, entry.Comm, label, strings.Join(argv, " "))
+			} else {
+				fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
+			}
 			fmt.Fprintln(writer)
 
 			already[label] = true
@@ -899,8 +945,8 @@ func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheE
 }
 
 // Dump create a temp file and dump the cache
-func (p *ProcessResolver) Dump() (string, error) {
-	dump, err := ioutil.TempFile("/tmp", "process-cache-dump-")
+func (p *ProcessResolver) Dump(withArgs bool) (string, error) {
+	dump, err := os.CreateTemp("/tmp", "process-cache-dump-")
 	if err != nil {
 		return "", err
 	}
@@ -917,7 +963,7 @@ func (p *ProcessResolver) Dump() (string, error) {
 
 	already := make(map[string]bool)
 	for _, entry := range p.entryCache {
-		p.dumpEntry(dump, entry, already)
+		p.dumpEntry(dump, entry, already, withArgs)
 	}
 
 	fmt.Fprintf(dump, `}`)
@@ -940,6 +986,22 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 // SetState sets the process resolver state
 func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
+}
+
+// NewProcessVariables returns a provider for variables attached to a process cache entry
+func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
+	scoper := func(ctx *eval.Context) unsafe.Pointer {
+		return unsafe.Pointer((*Event)(ctx.Object).processCacheEntry)
+	}
+
+	var variables *eval.ScopedVariables
+	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
+		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
+			variables.ReleaseVariable(key)
+		})
+	})
+
+	return variables
 }
 
 // NewProcessResolver returns a new process resolver

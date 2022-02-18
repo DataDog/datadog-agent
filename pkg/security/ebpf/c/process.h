@@ -5,6 +5,7 @@
 #include <linux/sched.h>
 
 #include "container.h"
+#include "span.h"
 
 struct proc_cache_t {
     struct container_context_t container;
@@ -120,6 +121,98 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     data->tid = pid_tgid;
 
     return get_proc_cache(tgid);
+}
+
+struct bpf_map_def SEC("maps/root_nr_namespace_nr") root_nr_namespace_nr = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 32768,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/namespace_nr_root_nr") namespace_nr_root_nr = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 32768,
+    .pinning = 0,
+    .namespace = "",
+};
+
+void __attribute__((always_inline)) register_nr(u32 root_nr, u64 namespace_nr) {
+    // no namespace
+    if (root_nr == 0 || namespace_nr == 0) {
+        return;
+    }
+
+    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
+    bpf_map_update_elem(&root_nr_namespace_nr, &root_nr, &namespace_nr, BPF_ANY);
+    bpf_map_update_elem(&namespace_nr_root_nr, &namespace_nr, &root_nr, BPF_ANY);
+}
+
+u32 __attribute__((always_inline)) get_root_nr(u32 namespace_nr) {
+    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
+    u32 *pid = bpf_map_lookup_elem(&namespace_nr_root_nr, &namespace_nr);
+    return pid ? *pid : 0;
+}
+
+u32 __attribute__((always_inline)) get_namespace_nr(u32 root_nr) {
+    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
+    u32 *pid = bpf_map_lookup_elem(&root_nr_namespace_nr, &root_nr);
+    return pid ? *pid : 0;
+}
+
+void __attribute__((always_inline)) remove_nr(u32 root_nr) {
+    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
+    u32 namespace_nr = get_namespace_nr(root_nr);
+    if (root_nr == 0 || namespace_nr == 0) {
+        return;
+    }
+
+    bpf_map_delete_elem(&root_nr_namespace_nr, &root_nr);
+    bpf_map_delete_elem(&namespace_nr_root_nr, &namespace_nr);
+}
+
+u64 __attribute__((always_inline)) get_pid_level_offset() {
+    u64 pid_level_offset;
+    LOAD_CONSTANT("pid_level_offset", pid_level_offset);
+    return pid_level_offset;
+}
+
+u64 __attribute__((always_inline)) get_pid_numbers_offset() {
+    u64 pid_numbers_offset;
+    LOAD_CONSTANT("pid_numbers_offset", pid_numbers_offset);
+    return pid_numbers_offset;
+}
+
+u64 __attribute__((always_inline)) get_sizeof_upid() {
+    u64 sizeof_upid;
+    LOAD_CONSTANT("sizeof_upid", sizeof_upid);
+    return sizeof_upid;
+}
+
+void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
+    if (pid == NULL) {
+        return;
+    }
+
+    // read the root namespace nr from &pid->numbers[0].nr
+    u32 root_nr = 0;
+    bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
+
+    // TODO(will): iterate over the list to insert the nr of each namespace, for now get only the deepest one
+    u32 pid_level = 0;
+    bpf_probe_read(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
+
+    // read the namespace nr from &pid->numbers[pid_level].nr
+    u32 namespace_nr = 0;
+    u64 namespace_numbers_offset = pid_level * get_sizeof_upid();
+    bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
+
+    register_nr(root_nr, namespace_nr);
+    return;
 }
 
 #endif

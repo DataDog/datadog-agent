@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build zlib
+//go:build zlib
+// +build zlib
 
 package serializer
 
@@ -14,12 +15,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-func buildSeries(numberOfSeries int) metrics.Series {
-	testSeries := metrics.Series{}
+func buildSeries(numberOfSeries int) metricsserializer.Series {
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < numberOfSeries; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -29,7 +32,7 @@ func buildSeries(numberOfSeries int) metrics.Series {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -55,7 +58,7 @@ func benchmarkSplit(b *testing.B, numberOfSeries int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		results, _ = split.Payloads(series, true, split.MarshalJSON)
+		results, _ = split.Payloads(series, true, split.JSONMarshalFct)
 	}
 }
 

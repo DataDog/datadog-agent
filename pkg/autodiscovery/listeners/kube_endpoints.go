@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -14,7 +14,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,38 +32,39 @@ import (
 const (
 	kubeEndpointsAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
 	leaderAnnotation              = "control-plane.alpha.kubernetes.io/leader"
+	kubeEndpointsName             = "kube_endpoints"
 )
 
 // KubeEndpointsListener listens to kubernetes endpoints creation
 type KubeEndpointsListener struct {
-	endpointsInformer infov1.EndpointsInformer
-	endpointsLister   listv1.EndpointsLister
-	serviceInformer   infov1.ServiceInformer
-	serviceLister     listv1.ServiceLister
-	endpoints         map[k8stypes.UID][]*KubeEndpointService
-	promInclAnnot     types.PrometheusAnnotations
-	newService        chan<- Service
-	delService        chan<- Service
-	m                 sync.RWMutex
+	endpointsInformer  infov1.EndpointsInformer
+	endpointsLister    listv1.EndpointsLister
+	serviceInformer    infov1.ServiceInformer
+	serviceLister      listv1.ServiceLister
+	endpoints          map[k8stypes.UID][]*KubeEndpointService
+	promInclAnnot      types.PrometheusAnnotations
+	newService         chan<- Service
+	delService         chan<- Service
+	targetAllEndpoints bool
+	m                  sync.RWMutex
 }
 
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
 type KubeEndpointService struct {
-	entity       string
-	tags         []string
-	hosts        map[string]string
-	ports        []ContainerPort
-	creationTime integration.CreationTime
+	entity string
+	tags   []string
+	hosts  map[string]string
+	ports  []ContainerPort
 }
 
 // Make sure KubeEndpointService implements the Service interface
 var _ Service = &KubeEndpointService{}
 
 func init() {
-	Register("kube_endpoints", NewKubeEndpointsListener)
+	Register(kubeEndpointsName, NewKubeEndpointsListener)
 }
 
-func NewKubeEndpointsListener() (ServiceListener, error) {
+func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -80,12 +82,13 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	}
 
 	return &KubeEndpointsListener{
-		endpoints:         make(map[k8stypes.UID][]*KubeEndpointService),
-		endpointsInformer: endpointsInformer,
-		endpointsLister:   endpointsInformer.Lister(),
-		serviceInformer:   serviceInformer,
-		serviceLister:     serviceInformer.Lister(),
-		promInclAnnot:     getPrometheusIncludeAnnotations(),
+		endpoints:          make(map[k8stypes.UID][]*KubeEndpointService),
+		endpointsInformer:  endpointsInformer,
+		endpointsLister:    endpointsInformer.Lister(),
+		serviceInformer:    serviceInformer,
+		serviceLister:      serviceInformer.Lister(),
+		promInclAnnot:      getPrometheusIncludeAnnotations(),
+		targetAllEndpoints: conf.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
 	}, nil
 }
 
@@ -110,7 +113,7 @@ func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Serv
 		log.Errorf("Cannot list Kubernetes endpoints: %s", err)
 	}
 	for _, e := range endpoints {
-		l.createService(e, true, true)
+		l.createService(e, true)
 	}
 }
 
@@ -129,7 +132,7 @@ func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 		// Ignore Endpoints objects used for leader election
 		return
 	}
-	l.createService(castedObj, false, true)
+	l.createService(castedObj, true)
 }
 
 func (l *KubeEndpointsListener) endpointsDeleted(obj interface{}) {
@@ -160,12 +163,12 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", old)
-		l.createService(castedObj, false, true)
+		l.createService(castedObj, true)
 		return
 	}
 	if l.endpointsDiffer(castedObj, castedOld) {
 		l.removeService(castedObj)
-		l.createService(castedObj, false, true)
+		l.createService(castedObj, true)
 	}
 }
 
@@ -181,20 +184,20 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %v", old)
-		l.createService(l.endpointsForService(castedObj), true, false)
+		l.createService(l.endpointsForService(castedObj), false)
 		return
 	}
 
 	// Detect if new annotations are added
 	if !isServiceAnnotated(castedOld, kubeEndpointsAnnotationFormat) && isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) {
-		l.createService(l.endpointsForService(castedObj), true, false)
+		l.createService(l.endpointsForService(castedObj), false)
 	}
 
 	// Detect changes of AD labels for standard tags if the Service is annotated
 	if isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) && (standardTagsDigest(castedOld.GetLabels()) != standardTagsDigest(castedObj.GetLabels())) {
 		kep := l.endpointsForService(castedObj)
 		l.removeService(kep)
-		l.createService(kep, true, false)
+		l.createService(kep, false)
 	}
 }
 
@@ -260,12 +263,20 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
-func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {
+func (l *KubeEndpointsListener) shouldIgnore(kep *v1.Endpoints) bool {
+	if l.targetAllEndpoints {
+		return false
+	}
+
+	return !l.isEndpointsAnnotated(kep)
+}
+
+func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnnotations bool) {
 	if kep == nil {
 		return
 	}
 
-	if checkServiceAnnotations && !l.isEndpointsAnnotated(kep) {
+	if checkServiceAnnotations && l.shouldIgnore(kep) {
 		// Ignore endpoints with no AD annotation on their corresponding service if checkServiceAnnotations
 		// Typically we are called with checkServiceAnnotations = false when updates are due to changes on Kube Service object
 		return
@@ -278,21 +289,24 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExisting
 		tags = []string{}
 	}
 
-	eps := processEndpoints(kep, alreadyExistingService, tags)
+	eps := processEndpoints(kep, tags)
 
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
 	l.m.Unlock()
 
+	telemetry.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeService)
+
 	for _, ep := range eps {
 		log.Debugf("Creating a new AD service: %s", ep.entity)
 		l.newService <- ep
+		telemetry.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
 	}
 }
 
 // processEndpoints parses a kubernetes Endpoints object
 // and returns a slice of KubeEndpointService per endpoint
-func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool, tags []string) []*KubeEndpointService {
+func processEndpoints(kep *v1.Endpoints, tags []string) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}
@@ -304,10 +318,9 @@ func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool, tags []str
 		for _, host := range kep.Subsets[i].Addresses {
 			// create a separate AD service per host
 			ep := &KubeEndpointService{
-				entity:       apiserver.EntityForEndpoints(kep.Namespace, kep.Name, host.IP),
-				creationTime: integration.After,
-				hosts:        map[string]string{"endpoint": host.IP},
-				ports:        ports,
+				entity: apiserver.EntityForEndpoints(kep.Namespace, kep.Name, host.IP),
+				hosts:  map[string]string{"endpoint": host.IP},
+				ports:  ports,
 				tags: []string{
 					fmt.Sprintf("kube_service:%s", kep.Name),
 					fmt.Sprintf("kube_namespace:%s", kep.Namespace),
@@ -315,9 +328,6 @@ func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool, tags []str
 				},
 			}
 			ep.tags = append(ep.tags, tags...)
-			if alreadyExistingService {
-				ep.creationTime = integration.Before
-			}
 			eps = append(eps, ep)
 		}
 	}
@@ -335,9 +345,13 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 		l.m.Lock()
 		delete(l.endpoints, kep.UID)
 		l.m.Unlock()
+
+		telemetry.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeService)
+
 		for _, ep := range eps {
 			log.Debugf("Deleting AD service: %s", ep.entity)
 			l.delService <- ep
+			telemetry.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
 		}
 	} else {
 		log.Debugf("Entity %s not found, not removing", kep.UID)
@@ -364,8 +378,8 @@ func (l *KubeEndpointsListener) getStandardTagsForEndpoints(kep *v1.Endpoints) (
 	return getStandardTags(ksvc.GetLabels()), nil
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *KubeEndpointService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeEndpointService) GetServiceID() string {
 	return s.entity
 }
 
@@ -413,17 +427,12 @@ func (s *KubeEndpointService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
-// GetCreationTime returns the creation time of the endpoint compare to the agent start.
-func (s *KubeEndpointService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
-}
-
 // IsReady returns if the service is ready
 func (s *KubeEndpointService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
 // KubeEndpointService doesn't implement this method
 func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 	return nil

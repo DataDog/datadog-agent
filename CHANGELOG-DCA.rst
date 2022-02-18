@@ -2,6 +2,100 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.17.0_dca-1.17.X:
+
+dca-1.17.0
+==========
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-01-26
+Pinned to datadog-agent v7.33.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7330>`_.
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_New Features:
+
+New Features
+------------
+
+- Collect PVC tag on pending pods
+- Add the ability to filter for check names in the cluster checks output.
+
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Add reworked status output for orchestrator section on CLC setups.
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Security:
+
+Security
+--------
+
+- Fix the removal of the "kubectl.kubernetes.io/last-applied-configuration" annotation on new collected resources
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add autoscaler resource kind (hpa,wpa) inside the DatadogMetrics status references.
+
+.. _Release Notes_dca-1.16.0_dca-1.16.X:
+
+dca-1.16.0
+==========
+
+.. _Release Notes_dca-1.16.0_dca-1.16.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-11-10
+Pinned to datadog-agent v7.32.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7320>`_.
+
+.. _Release Notes_dca-1.16.0_dca-1.16.X_New Features:
+
+New Features
+------------
+
+- Introduce the collection of the following resources: ClusterRole, ClusterRoleBinding, Role, RoleBinding, ServiceAccount.
+
+.. _Release Notes_dca-1.16.0_dca-1.16.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix tags for PV resources in the Orchestrator Explorer (type and phase).
+- Fix an edge case in which the Cluster Agent's Admission Controller doesn't update the Webhook object according to specified configuration. 
+
+.. _Release Notes_dca-1.15.0_dca-1.15.X:
+
+dca-1.15.0
+==========
+
+.. _Release Notes_dca-1.15.0_dca-1.15.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-09-13
+Pinned to datadog-agent v7.31.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7310>`_.
+
+.. _Release Notes_dca-1.15.0_dca-1.15.X_New Features:
+
+New Features
+------------
+
+- Enable ``StatefulSet`` collection by default in the orchestrator check.
+- Add ``PV`` and ``PVC`` collection in the orchestrator check.
+- Added possibility to use the `maxAge` attribute defined in the datadogMetric CRD overriding the global `maxAge`.
+
+
 .. _Release Notes_dca-1.14.0_dca-1.14.X:
 
 dca-1.14.0

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -38,7 +38,7 @@ type KubeServiceConfigProvider struct {
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -170,7 +170,7 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 }
 
 func init() {
-	RegisterProvider("kube_services", NewKubeServiceConfigProvider)
+	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the KubeServiceConfigProvider

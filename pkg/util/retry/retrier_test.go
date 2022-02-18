@@ -314,3 +314,30 @@ func TestBackoff(t *testing.T) {
 	expectedNext = now.Add(maxRetryDelay)
 	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
 }
+
+func TestLastError(t *testing.T) {
+	mocked := &DummyLogic{}
+	mocked.On("Attempt").Return(errors.New("nope")).Once()
+	retryDelay := 100 * time.Millisecond
+	config := &Config{
+		Name:          "mocked",
+		AttemptMethod: mocked.Attempt,
+		Strategy:      RetryCount,
+		RetryCount:    5,
+		RetryDelay:    retryDelay,
+	}
+	err := mocked.SetupRetrier(config)
+	assert.Nil(t, err)
+
+	// First call will trigger an attempt
+	_ = mocked.TriggerRetry()
+	err = mocked.LastError()
+	assert.True(t, IsErrWillRetry(err))
+	time.Sleep(retryDelay) // Make sure we expire the delay
+
+	// Second call should return OK
+	mocked.On("Attempt").Return(nil)
+	_ = mocked.TriggerRetry()
+	err = mocked.LastError()
+	assert.Nil(t, err)
+}

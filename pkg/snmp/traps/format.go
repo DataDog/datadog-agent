@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://wwt.datadoghq.com/).
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
 package traps
@@ -19,32 +19,64 @@ const (
 
 // FormatPacketToJSON converts an SNMP trap packet to a JSON-serializable object.
 func FormatPacketToJSON(packet *SnmpPacket) (map[string]interface{}, error) {
-	return formatTrapPDUs(packet.Content.Variables)
+	if packet.Content.Version == gosnmp.Version1 {
+		return formatV1Trap(packet), nil
+	}
+	return formatTrap(packet)
 }
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
 func GetTags(packet *SnmpPacket) []string {
 	return []string{
 		fmt.Sprintf("snmp_version:%s", formatVersion(packet)),
+		fmt.Sprintf("device_namespace:%s", GetNamespace()),
 		fmt.Sprintf("snmp_device:%s", packet.Addr.IP.String()),
 	}
 }
 
 func formatVersion(packet *SnmpPacket) string {
 	switch packet.Content.Version {
+	case gosnmp.Version3:
+		return "3"
 	case gosnmp.Version2c:
 		return "2"
+	case gosnmp.Version1:
+		return "1"
 	default:
 		return "unknown"
 	}
 }
 
-func formatTrapPDUs(variables []gosnmp.SnmpPDU) (map[string]interface{}, error) {
+func formatV1Trap(packet *SnmpPacket) map[string]interface{} {
+	data := make(map[string]interface{})
+	data["uptime"] = uint32(packet.Content.Timestamp)
+	enterpriseOid := normalizeOID(packet.Content.Enterprise)
+	genericTrap := packet.Content.GenericTrap
+	specificTrap := packet.Content.SpecificTrap
+	var trapOID string
+	if genericTrap == 6 {
+		// Vendor-specific trap
+		trapOID = fmt.Sprintf("%s.0.%d", enterpriseOid, specificTrap)
+	} else {
+		// Generic trap
+		trapOID = fmt.Sprintf("%s.%d", genericTrapOid, genericTrap+1)
+	}
+	data["oid"] = trapOID
+	data["enterprise_oid"] = enterpriseOid
+	data["generic_trap"] = genericTrap
+	data["specific_trap"] = specificTrap
+	data["variables"] = parseVariables(packet.Content.Variables)
+
+	return data
+}
+
+func formatTrap(packet *SnmpPacket) (map[string]interface{}, error) {
 	/*
-		An SNMPv2 trap packet consists in the following variables (PDUs):
+		An SNMP v2 or v3 trap packet consists in the following variables (PDUs):
 		{sysUpTime.0, snmpTrapOID.0, additionalDataVariables...}
 		See: https://tools.ietf.org/html/rfc3416#section-4.2.6
 	*/
+	variables := packet.Content.Variables
 	if len(variables) < 2 {
 		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(variables))
 	}

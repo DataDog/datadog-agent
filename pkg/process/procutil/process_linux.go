@@ -1,8 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package procutil
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -53,34 +60,37 @@ type statInfo struct {
 	cpuStat    *CPUTimesStat
 }
 
-// Option is config options callback for system-probe
-type Option func(p *Probe)
-
 // WithReturnZeroPermStats configures whether StatsWithPermByPID() returns StatsWithPerm that
 // has zero values on all fields
 func WithReturnZeroPermStats(enabled bool) Option {
-	return func(p *Probe) {
-		p.returnZeroPermStats = enabled
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.returnZeroPermStats = enabled
+		}
 	}
 }
 
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
 func WithPermission(enabled bool) Option {
-	return func(p *Probe) {
-		p.withPermission = enabled
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.withPermission = enabled
+		}
 	}
 }
 
 // WithBootTimeRefreshInterval configures the boot time refresh interval
 func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
-	return func(p *Probe) {
-		p.bootTimeRefreshInterval = bootTimeRefreshInterval
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.bootTimeRefreshInterval = bootTimeRefreshInterval
+		}
 	}
 }
 
-// Probe is a service that fetches process related info on current host
-type Probe struct {
+// probe is a service that fetches process related info on current host
+type probe struct {
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
 	uid          uint32 // UID
@@ -96,14 +106,14 @@ type Probe struct {
 }
 
 // NewProcessProbe initializes a new Probe object
-func NewProcessProbe(options ...Option) *Probe {
+func NewProcessProbe(options ...Option) Probe {
 	hostProc := util.HostProc()
 	bootTime, err := bootTime(hostProc)
 	if err != nil {
 		log.Errorf("could not parse boot time: %s", err)
 	}
 
-	p := &Probe{
+	p := &probe{
 		procRootLoc:             hostProc,
 		uid:                     uint32(os.Getuid()),
 		euid:                    uint32(os.Geteuid()),
@@ -123,7 +133,7 @@ func NewProcessProbe(options ...Option) *Probe {
 }
 
 // Close cleans up everything related to Probe object
-func (p *Probe) Close() {
+func (p *probe) Close() {
 	close(p.exit)
 	if p.procRootFile != nil {
 		p.procRootFile.Close()
@@ -133,7 +143,7 @@ func (p *Probe) Close() {
 
 // syncBootTime checks bootTime every minute and stores it.
 // Make sure we get the correct boot time if the clock of the host is temporarily drifted but gets corrected later on
-func (p *Probe) syncBootTime() {
+func (p *probe) syncBootTime() {
 	ticker := time.NewTicker(p.bootTimeRefreshInterval)
 	defer ticker.Stop()
 
@@ -151,7 +161,7 @@ func (p *Probe) syncBootTime() {
 }
 
 // StatsForPIDs returns a map of stats info indexed by PID using the given PIDs
-func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
+func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
 	statsByPID := make(map[int32]*Stats, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
@@ -191,7 +201,7 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 }
 
 // ProcessesByPID returns a map of process info indexed by PID
-func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
+func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -214,7 +224,16 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
-		memInfoEx := p.parseStatm(pathForPID)
+
+		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
+		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
+		// createTime to make a bytekey
+		var memInfoEx *MemoryInfoExStat
+		if collectStats {
+			memInfoEx = p.parseStatm(pathForPID)
+		} else {
+			memInfoEx = &MemoryInfoExStat{}
+		}
 
 		proc := &Process{
 			Pid:     pid,                                       // /proc/[pid]
@@ -255,7 +274,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 // StatsWithPermByPID returns the stats that require elevated permission to collect for each process
-func (p *Probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
+func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
 	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
@@ -280,7 +299,7 @@ func (p *Probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 	return statsByPID, nil
 }
 
-func (p *Probe) getRootProcFile() (*os.File, error) {
+func (p *probe) getRootProcFile() (*os.File, error) {
 	if p.procRootFile != nil {
 		return p.procRootFile, nil
 	}
@@ -294,7 +313,7 @@ func (p *Probe) getRootProcFile() (*os.File, error) {
 }
 
 // getActivePIDs retrieves a list of PIDs representing actively running processes.
-func (p *Probe) getActivePIDs() ([]int32, error) {
+func (p *probe) getActivePIDs() ([]int32, error) {
 	procFile, err := p.getRootProcFile()
 	if err != nil {
 		return nil, err
@@ -324,7 +343,7 @@ func (p *Probe) getActivePIDs() ([]int32, error) {
 }
 
 // getCmdline retrieves the command line text from "cmdline" file for a process in procfs
-func (p *Probe) getCmdline(pidPath string) []string {
+func (p *probe) getCmdline(pidPath string) []string {
 	cmdline, err := ioutil.ReadFile(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
 		log.Debugf("Unable to read process command line from %s: %s", pidPath, err)
@@ -339,7 +358,7 @@ func (p *Probe) getCmdline(pidPath string) []string {
 }
 
 // parseIO retrieves io info from "io" file for a process in procfs
-func (p *Probe) parseIO(pidPath string) *IOCountersStat {
+func (p *probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
 
@@ -354,24 +373,21 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 		return io
 	}
 
-	content, err := ioutil.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return io
 	}
+	defer f.Close()
 
-	lineStart := 0
-	for i, r := range content {
-		if r == '\n' {
-			p.parseIOLine(content[lineStart:i], io)
-			lineStart = i + 1
-		}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		p.parseIOLine(scanner.Bytes(), io)
 	}
-
 	return io
 }
 
 // parseIOLine extracts key and value for each line in "io" file
-func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
+func (p *probe) parseIOLine(line []byte, io *IOCountersStat) {
 	for i := range line {
 		// the fields are all having format "field_name: field_value", so we always
 		// look for ": " and skip them
@@ -385,7 +401,7 @@ func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 }
 
 // parseIOKV matches key with a field in IOCountersStat model and fills in the value
-func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
+func (p *probe) parseIOKV(key, value string, io *IOCountersStat) {
 	switch key {
 	case "syscr":
 		v, err := strconv.ParseInt(value, 10, 64)
@@ -411,7 +427,7 @@ func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
 }
 
 // parseStatus retrieves status info from "status" file for a process in procfs
-func (p *Probe) parseStatus(pidPath string) *statusInfo {
+func (p *probe) parseStatus(pidPath string) *statusInfo {
 	path := filepath.Join(pidPath, "status")
 	var err error
 
@@ -440,7 +456,7 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 }
 
 // parseStatusLine takes each line in "status" file and parses info from it
-func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
+func (p *probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
 		// the fields are all having format "field_name:\tfield_value", so we always
 		// look for ":\t" and skip them
@@ -454,7 +470,7 @@ func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 }
 
 // parseStatusKV takes tokens parsed from each line in "status" file and populates statusInfo object
-func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
+func (p *probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 	switch key {
 	case "Name":
 		sInfo.name = strings.Trim(value, " \t")
@@ -520,7 +536,7 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 }
 
 // parseStat retrieves stat info from "stat" file for a process in procfs
-func (p *Probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
+func (p *probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 	path := filepath.Join(pidPath, "stat")
 	var err error
 
@@ -538,7 +554,7 @@ func (p *Probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 }
 
 // parseStatContent takes the content of "stat" file and parses the values we care about
-func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32, now time.Time) *statInfo {
+func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32, now time.Time) *statInfo {
 	// We want to skip past the executable name, which is wrapped in one or more parenthesis
 	startIndex := bytes.LastIndexByte(statContent, byte(')'))
 	if startIndex == -1 || startIndex+1 >= len(statContent) {
@@ -612,7 +628,7 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 }
 
 // parseStatm gets memory info from /proc/(pid)/statm
-func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
+func (p *probe) parseStatm(pidPath string) *MemoryInfoExStat {
 	path := filepath.Join(pidPath, "statm")
 	var err error
 
@@ -659,7 +675,7 @@ func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
 }
 
 // getLinkWithAuthCheck fetches the destination of a symlink with permission check
-func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
+func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	path := filepath.Join(pidPath, file)
 	if err := p.ensurePathReadable(path); err != nil {
 		return ""
@@ -673,7 +689,7 @@ func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
 }
 
 // getFDCount gets num_fds from /proc/(pid)/fd
-func (p *Probe) getFDCount(pidPath string) int32 {
+func (p *probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
 	if err := p.ensurePathReadable(path); err != nil {
@@ -695,7 +711,7 @@ func (p *Probe) getFDCount(pidPath string) int32 {
 
 // getFDCountImproved gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
-func (p *Probe) getFDCountImproved(pidPath string) int32 {
+func (p *probe) getFDCountImproved(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
 	if err := p.ensurePathReadable(path); err != nil {
@@ -733,7 +749,7 @@ func (p *Probe) getFDCountImproved(pidPath string) int32 {
 // 1. If the agent is running as root (real or via sudo), allow the request
 // 2. If the file is a not a symlink and has the other-readable permission bit set, allow the request
 // 3. If the owner of the file/link is the current user or effective user, allow the request.
-func (p *Probe) ensurePathReadable(path string) error {
+func (p *probe) ensurePathReadable(path string) error {
 	// User is (effectively or actually) root
 	if p.euid == 0 {
 		return nil

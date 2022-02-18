@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package appsec
 
 import (
@@ -11,7 +16,7 @@ import (
 const (
 	// defaultIntakeURLTemplate specifies the string template allowing to obtain
 	// the intake URL from a given site.
-	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s"
+	defaultIntakeURLTemplate = "https://appsecevts-intake.%s"
 	// defaultSite is the default intake site.
 	defaultSite = "datadoghq.com"
 	// defaultPayloadSize is the default HTTP payload size (ie. the body size) the proxy can copy and forward.

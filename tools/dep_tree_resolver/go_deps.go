@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -93,7 +98,7 @@ func runGraph(ctx context.Context, rootModule string) ([]ModuleDep, []string, er
 			line := scanner.Text()
 			fields := strings.Split(line, " ")
 			if len(fields) != 2 {
-				return fmt.Errorf("ERROR! Line didn't have 2 fields: %v\n", line)
+				return fmt.Errorf("error: line didn't have 2 fields: %v", line)
 			}
 			handlerFunc(fields[0], fields[1])
 		}
@@ -197,7 +202,7 @@ func resolveActualVersions(ctx context.Context, moduleNames []string) (map[strin
 		if moduleVersion.Path == "" || moduleVersion.Version == "" {
 			return nil,
 				fmt.Errorf(
-					"module %s had an unresolved real version (%v)!",
+					"module %s had an unresolved real version (%v)",
 					moduleVersion.Path,
 					moduleVersion.Version,
 				)

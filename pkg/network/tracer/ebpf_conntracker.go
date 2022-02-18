@@ -1,14 +1,20 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
 
-import "C"
 import (
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,33 +22,29 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cihub/seelog"
+	"github.com/cilium/ebpf"
 	ct "github.com/florianl/go-conntrack"
 	"golang.org/x/sys/unix"
 )
 
-/*
-#include "../ebpf/c/runtime/conntrack-types.h"
-*/
-import "C"
-
 var tuplePool = sync.Pool{
 	New: func() interface{} {
-		return new(ConnTuple)
+		return new(netebpf.ConntrackTuple)
 	},
 }
-
-type conntrackTelemetry C.conntrack_telemetry_t
 
 type ebpfConntracker struct {
 	m            *manager.Manager
 	ctMap        *ebpf.Map
 	telemetryMap *ebpf.Map
+	rootNS       uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
 	decoder  *netlink.Decoder
@@ -85,10 +87,16 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
 	}
 
+	rootNS, err := util.GetNetNsInoFromPid(cfg.ProcRoot, 1)
+	if err != nil {
+		return nil, fmt.Errorf("could not find network root namespace: %w", err)
+	}
+
 	e := &ebpfConntracker{
 		m:            m,
 		ctMap:        ctMap,
 		telemetryMap: telemetryMap,
+		rootNS:       rootNS,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -141,8 +149,8 @@ func (e *ebpfConntracker) processEvent(ev netlink.Event) {
 	for _, c := range conns {
 		if netlink.IsNAT(c) {
 			log.Tracef("initial conntrack %s", c)
-			src := formatKey(uint32(c.NetNS), c.Origin)
-			dst := formatKey(uint32(c.NetNS), c.Reply)
+			src := formatKey(c.NetNS, c.Origin)
+			dst := formatKey(c.NetNS, c.Reply)
 			if src != nil && dst != nil {
 				if err := e.addTranslation(src, dst); err != nil {
 					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
@@ -155,14 +163,14 @@ func (e *ebpfConntracker) processEvent(ev netlink.Event) {
 	}
 }
 
-func (e *ebpfConntracker) addTranslation(src *ConnTuple, dst *ConnTuple) error {
+func (e *ebpfConntracker) addTranslation(src *netebpf.ConntrackTuple, dst *netebpf.ConntrackTuple) error {
 	if err := e.ctMap.Update(unsafe.Pointer(src), unsafe.Pointer(dst), ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 		return err
 	}
 	return nil
 }
 
-func formatKey(netns uint32, tuple *ct.IPTuple) *ConnTuple {
+func formatKey(netns uint32, tuple *ct.IPTuple) *netebpf.ConntrackTuple {
 	var proto network.ConnectionType
 	switch *tuple.Proto.Number {
 	case unix.IPPROTO_TCP:
@@ -173,27 +181,79 @@ func formatKey(netns uint32, tuple *ct.IPTuple) *ConnTuple {
 		return nil
 	}
 
-	return newConnTuple(0,
-		netns,
-		util.AddressFromNetIP(*tuple.Src),
-		util.AddressFromNetIP(*tuple.Dst),
-		*tuple.Proto.SrcPort,
-		*tuple.Proto.DstPort,
-		proto)
+	nct := &netebpf.ConntrackTuple{
+		Netns: netns,
+		Sport: *tuple.Proto.SrcPort,
+		Dport: *tuple.Proto.DstPort,
+	}
+	src := util.AddressFromNetIP(*tuple.Src)
+	nct.Saddr_l, nct.Saddr_h = util.ToLowHigh(src)
+	nct.Daddr_l, nct.Daddr_h = util.ToLowHigh(util.AddressFromNetIP(*tuple.Dst))
+
+	switch len(src.Bytes()) {
+	case net.IPv4len:
+		nct.Metadata |= uint32(netebpf.IPv4)
+	case net.IPv6len:
+		nct.Metadata |= uint32(netebpf.IPv6)
+	default:
+		return nil
+	}
+	switch proto {
+	case network.TCP:
+		nct.Metadata |= uint32(netebpf.TCP)
+	case network.UDP:
+		nct.Metadata |= uint32(netebpf.UDP)
+	}
+
+	return nct
+}
+
+func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.ConnectionStats) {
+	src.Sport = stats.SPort
+	src.Dport = stats.DPort
+	src.Saddr_l, src.Saddr_h = util.ToLowHigh(stats.Source)
+	src.Daddr_l, src.Daddr_h = util.ToLowHigh(stats.Dest)
+	src.Metadata = 0
+	switch stats.Type {
+	case network.TCP:
+		src.Metadata |= uint32(netebpf.TCP)
+	case network.UDP:
+		src.Metadata |= uint32(netebpf.UDP)
+	}
+	switch stats.Family {
+	case network.AFINET:
+		src.Metadata |= uint32(netebpf.IPv4)
+	case network.AFINET6:
+		src.Metadata |= uint32(netebpf.IPv6)
+	}
 }
 
 func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *network.IPTranslation {
 	start := time.Now()
-	src := tuplePool.Get().(*ConnTuple)
+	src := tuplePool.Get().(*netebpf.ConntrackTuple)
 	defer tuplePool.Put(src)
 
-	if err := toConnTupleFromConnectionStats(src, &stats); err != nil {
-		return nil
+	toConntrackTupleFromStats(src, &stats)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
-	src.pid = 0
-	log.Tracef("looking up in conntrack: %s", src)
 
+	// Try the lookup in the root namespace first
+	src.Netns = e.rootNS
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("looking up in conntrack (tuple): %s", src)
+	}
 	dst := e.get(src)
+
+	if dst == nil && stats.NetNS != e.rootNS {
+		// Perform another lookup, this time using the connection namespace
+		src.Netns = stats.NetNS
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("looking up in conntrack (tuple): %s", src)
+		}
+		dst = e.get(src)
+	}
+
 	if dst == nil {
 		return nil
 	}
@@ -204,13 +264,17 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
 		ReplDstIP:   dst.DestAddress(),
-		ReplSrcPort: uint16(dst.sport),
-		ReplDstPort: uint16(dst.dport),
+		ReplSrcPort: dst.Sport,
+		ReplDstPort: dst.Dport,
 	}
 }
 
-func (e *ebpfConntracker) get(src *ConnTuple) *ConnTuple {
-	dst := tuplePool.Get().(*ConnTuple)
+func (*ebpfConntracker) IsSampling() bool {
+	return false
+}
+
+func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
+	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
 	if err := e.ctMap.Lookup(unsafe.Pointer(src), unsafe.Pointer(dst)); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
@@ -221,7 +285,7 @@ func (e *ebpfConntracker) get(src *ConnTuple) *ConnTuple {
 	return dst
 }
 
-func (e *ebpfConntracker) delete(key *ConnTuple) {
+func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	if err := e.ctMap.Delete(unsafe.Pointer(key)); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
@@ -233,13 +297,10 @@ func (e *ebpfConntracker) delete(key *ConnTuple) {
 
 func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	start := time.Now()
-	key := tuplePool.Get().(*ConnTuple)
+	key := tuplePool.Get().(*netebpf.ConntrackTuple)
 	defer tuplePool.Put(key)
 
-	if err := toConnTupleFromConnectionStats(key, &stats); err != nil {
-		return
-	}
-	key.pid = 0
+	toConntrackTupleFromStats(key, &stats)
 
 	dst := e.get(key)
 	e.delete(key)
@@ -255,12 +316,12 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 	m := map[string]int64{
 		"state_size": 0,
 	}
-	telemetry := &conntrackTelemetry{}
+	telemetry := &netebpf.ConntrackTelemetry{}
 	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
-		m["registers_total"] = int64(telemetry.registers)
-		m["registers_dropped"] = int64(telemetry.registers_dropped)
+		m["registers_total"] = int64(telemetry.Registers)
+		m["registers_dropped"] = int64(telemetry.Dropped)
 	}
 
 	gets := atomic.LoadInt64(&e.stats.gets)
@@ -300,7 +361,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			{Section: string(probes.ConntrackHashInsert)},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackHashInsert), EBPFFuncName: "kprobe___nf_conntrack_hash_insert"}},
 		},
 	}
 

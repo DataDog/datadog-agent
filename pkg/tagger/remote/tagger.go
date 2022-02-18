@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -26,13 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	defaultTimeout    = 5 * time.Minute
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
 )
@@ -91,6 +91,9 @@ func (t *Tagger) Init() error {
 		t.ctx,
 		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
+		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+			return net.Dial("tcp", url)
+		}),
 	)
 	if err != nil {
 		return err
@@ -98,7 +101,8 @@ func (t *Tagger) Init() error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	err = t.startTaggerStream(defaultTimeout)
+	timeout := time.Duration(config.Datadog.GetInt("remote_tagger_timeout_seconds")) * time.Second
+	err = t.startTaggerStream(timeout)
 	if err != nil {
 		// tagger stopped before being connected
 		if err == errTaggerStreamNotStarted {
@@ -147,13 +151,14 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	return []string{}, nil
 }
 
-// TagBuilder returns tags for a given entity at the desired cardinality.
-func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	tags, err := t.Tag(entityID, cardinality)
-	if err == nil {
-		tb.Append(tags...)
+	if err != nil {
+		return err
 	}
-	return err
+	tb.Append(tags...)
+	return nil
 }
 
 // Standard returns the standard tags for a given entity.
@@ -194,9 +199,9 @@ func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerList
 	return resp
 }
 
-// Subscribe returns a list of existing entities in the store, alongside a
-// channel that receives events whenever an entity is added, modified or
-// deleted.
+// Subscribe returns a channel that receives a slice of events whenever an entity is
+// added, modified or deleted. It can send an initial burst of events only to the new
+// subscriber, without notifying all of the others.
 func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
 	return t.store.subscribe(cardinality)
 }
@@ -307,7 +312,7 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 	return backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
-			return errTaggerStreamNotStarted
+			return &backoff.PermanentError{Err: errTaggerStreamNotStarted}
 		default:
 		}
 

@@ -56,7 +56,7 @@ shared_examples_for 'Dogstatsd installed by the install script' do
       expect(install_info['install_method']).to match(
         'tool' => 'install_script',
         'tool_version' => 'install_script',
-        'installer_version' => /^install_script-\d+\.\d+\.\d+$/
+        'installer_version' => /^install_script-\d+\.\d+\.\d+(.post)?$/
       )
     end
   end
@@ -64,7 +64,7 @@ end
 
 describe 'dd-agent-installation-script' do
   agent_flavor = get_agent_flavor
-  if agent_flavor == "datadog-agent"
+  if agent_flavor == "datadog-agent" || agent_flavor == "datadog-heroku-agent"
     include_examples 'Agent install'
     include_examples 'Agent behavior'
     include_examples 'Agent installed by the install script'

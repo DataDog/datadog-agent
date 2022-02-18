@@ -26,12 +26,16 @@ type FunctionMap map[string]Function
 // VarMap describes a map of variables
 type VarMap map[string]interface{}
 
+// RegoInputMap describes a datastructure suitable to be passed to Rego as an input
+type RegoInputMap map[string]interface{}
+
 // Instance for evaluation
 type Instance interface {
 	Var(name string) (interface{}, bool)
 	Vars() VarMap
 	Function(name string) (Function, bool)
 	Functions() FunctionMap
+	RegoInput() RegoInputMap
 }
 
 // instance for evaluation
@@ -40,6 +44,8 @@ type instance struct {
 	functions FunctionMap
 	// Vars defined during evaluation.
 	vars VarMap
+	// Rego input
+	regoInput RegoInputMap
 }
 
 func (i *instance) Vars() VarMap {
@@ -72,11 +78,16 @@ func (i *instance) Function(name string) (Function, bool) {
 	return function, ok
 }
 
+func (i *instance) RegoInput() RegoInputMap {
+	return i.regoInput
+}
+
 // NewInstance instantiates a new evaluation instance
-func NewInstance(vars VarMap, functions FunctionMap) Instance {
+func NewInstance(vars VarMap, functions FunctionMap, regoInput RegoInputMap) Instance {
 	return &instance{
 		vars:      vars,
 		functions: functions,
+		regoInput: regoInput,
 	}
 }
 

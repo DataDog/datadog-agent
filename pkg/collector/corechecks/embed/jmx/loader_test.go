@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build jmx
 // +build jmx
 
 package jmx
@@ -51,7 +52,8 @@ func TestLoadCheckConfig(t *testing.T) {
 	d := filepath.Dir(f)
 
 	paths := []string{filepath.Join(d, "fixtures/")}
-	fp := providers.NewFileConfigProvider(paths)
+	providers.ResetReader(paths)
+	fp := providers.NewFileConfigProvider()
 	assert.NotNil(t, fp)
 
 	cfgs, err := fp.Collect(ctx)

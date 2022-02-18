@@ -58,14 +58,14 @@ properties:
     default: false
   datadog.credentials.apiKey:
     title: Datadog API key
-    description: Get your Datadog API key at https://app.datadoghq.com/account/settings#api
+    description: Get your Datadog API key at https://app.datadoghq.com/organization-settings/api-keys
     type: string
     maxLength: 45
     x-google-marketplace:
       type: STRING
   datadog.credentials.appKey:
     title: Datadog Application key (used by Cluster Agent to query external metrics)
-    description: Get your Datadog Application key at https://app.datadoghq.com/account/settings#api
+    description: Get your Datadog Application key at https://app.datadoghq.com/organization-settings/api-keys
     type: string
     maxLength: 45
     x-google-marketplace:

@@ -50,17 +50,22 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
-    sizes = [
-      "Standard_D1_v2",
-      "Standard_A1_v2",
-    ]
+    if ENV['TEST_IMAGE_SIZE'] != ""
+      sizes = [
+        ENV['TEST_IMAGE_SIZE']
+      ]
+    else
+      sizes = [
+        "Standard_D1_v2",
+        "Standard_A1_v2",
+      ]
+    end
 
     windows_sizes = [
-      "Standard_D2_v2"
+      "Standard_D2_v4"
     ]
 
     windows_platforms = []
-    sles11_platforms = []
     sles15_platforms = []
 
     idx = 0
@@ -83,7 +88,6 @@ platforms:
       end
 
       windows = platform_name.include?("win")
-      sles11 = platform_name.include?("sles-11")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
 
@@ -93,9 +97,6 @@ platforms:
       else
         if sles15
           sles15_platforms << platform_name
-        end
-        if sles11
-          sles11_platforms << platform_name
         end
         size = sizes[idx % sizes.length]
       end

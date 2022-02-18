@@ -4,6 +4,9 @@
 #include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/version.h>
+#include <linux/bpf.h>
+#include <linux/filter.h>
+#include <uapi/asm-generic/mman-common.h>
 
 #include "defs.h"
 #include "buffer_selector.h"
@@ -38,7 +41,12 @@
 #include "erpc.h"
 #include "ioctl.h"
 #include "selinux.h"
+#include "bpf.h"
+#include "ptrace.h"
+#include "mmap.h"
+#include "mprotect.h"
 #include "raw_syscalls.h"
+#include "module.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;

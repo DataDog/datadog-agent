@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -23,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
+	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 
 type dockerNetwork struct {
@@ -151,10 +152,10 @@ func GetAgentContainerNetworkMode(ctx context.Context) (string, error) {
 
 // GetContainerNetworkAddresses returns internal container network address
 // representations from the container metadata retrieved at the given URL.
-func GetContainerNetworkAddresses(agentURL string) ([]containers.NetworkAddress, error) {
-	container, err := v3.NewClient(agentURL).GetContainer(context.TODO())
+func GetContainerNetworkAddresses(agentURL, apiVersion string) ([]containers.NetworkAddress, error) {
+	container, err := v3or4.NewClient(agentURL, apiVersion).GetContainer(context.TODO())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task from metadata v3 API: %s", err)
+		return nil, fmt.Errorf("failed to get task from metadata %s API: %s", apiVersion, err)
 	}
 	return parseContainerNetworkAddresses(container.Ports, container.Networks, container.DockerName), nil
 }
@@ -192,7 +193,7 @@ func GetContainerNetworkMode(ctx context.Context, cid string) (string, error) {
 
 // parseContainerNetworkAddresses converts ECS container ports
 // and networks into a list of NetworkAddress
-func parseContainerNetworkAddresses(ports []v3.Port, networks []v3.Network, container string) []containers.NetworkAddress {
+func parseContainerNetworkAddresses(ports []v3or4.Port, networks []v3or4.Network, container string) []containers.NetworkAddress {
 	addrList := []containers.NetworkAddress{}
 	if networks == nil {
 		log.Debugf("No network settings available in ECS metadata")

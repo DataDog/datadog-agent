@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package http
@@ -11,8 +17,8 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 )
 
 // Monitor is responsible for:
@@ -23,12 +29,12 @@ import (
 type Monitor struct {
 	handler func([]httpTX)
 
-	ebpfProgram  *ebpfProgram
-	batchManager *batchManager
-	perfHandler  *ddebpf.PerfHandler
-	telemetry    *telemetry
-	pollRequests chan chan map[Key]RequestStats
-	statkeeper   *httpStatKeeper
+	ebpfProgram            *ebpfProgram
+	batchManager           *batchManager
+	batchCompletionHandler *ddebpf.PerfHandler
+	telemetry              *telemetry
+	pollRequests           chan chan map[Key]RequestStats
+	statkeeper             *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -48,7 +54,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: httpSocketFilter})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter"})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -68,11 +74,11 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, err
 	}
 
-	notificationMap, _, _ := mgr.GetMap(httpNotificationsMap)
-	numCPUs := int(notificationMap.ABI().MaxEntries)
+	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
+	numCPUs := int(notificationMap.MaxEntries())
 
 	telemetry := newTelemetry()
-	statkeeper := newHTTPStatkeeper(c.MaxHTTPStatsBuffered, telemetry)
+	statkeeper := newHTTPStatkeeper(c, telemetry)
 
 	handler := func(transactions []httpTX) {
 		if statkeeper != nil {
@@ -81,14 +87,14 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 
 	return &Monitor{
-		handler:       handler,
-		ebpfProgram:   mgr,
-		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
-		perfHandler:   mgr.perfHandler,
-		telemetry:     telemetry,
-		pollRequests:  make(chan chan map[Key]RequestStats),
-		closeFilterFn: closeFilterFn,
-		statkeeper:    statkeeper,
+		handler:                handler,
+		ebpfProgram:            mgr,
+		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchCompletionHandler: mgr.batchCompletionHandler,
+		telemetry:              telemetry,
+		pollRequests:           make(chan chan map[Key]RequestStats),
+		closeFilterFn:          closeFilterFn,
+		statkeeper:             statkeeper,
 	}, nil
 }
 
@@ -109,7 +115,7 @@ func (m *Monitor) Start() error {
 		defer report.Stop()
 		for {
 			select {
-			case dataEvent, ok := <-m.perfHandler.DataChannel:
+			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
 				if !ok {
 					return
 				}
@@ -118,7 +124,7 @@ func (m *Monitor) Start() error {
 				notification := toHTTPNotification(dataEvent.Data)
 				transactions, err := m.batchManager.GetTransactionsFrom(notification)
 				m.process(transactions, err)
-			case _, ok := <-m.perfHandler.LostChannel:
+			case _, ok := <-m.batchCompletionHandler.LostChannel:
 				if !ok {
 					return
 				}
@@ -132,10 +138,12 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
+				stats := m.statkeeper.GetAndResetAllStats()
+
 				delta := m.telemetry.reset()
 				delta.report()
 
-				reply <- m.statkeeper.GetAndResetAllStats()
+				reply <- stats
 			case <-report.C:
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
@@ -179,7 +187,6 @@ func (m *Monitor) Stop() {
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
-	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
 	m.stopped = true
@@ -191,4 +198,8 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 	if m.handler != nil && len(transactions) > 0 {
 		m.handler(transactions)
 	}
+}
+
+func (m *Monitor) DumpMaps(maps ...string) (string, error) {
+	return m.ebpfProgram.Manager.DumpMaps(maps...)
 }

@@ -17,16 +17,20 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
+  cookbook_file "#{wrk_dir}/nikos.tar.gz" do
+    source "nikos.tar.gz"
+    mode '755'
+  end
+
+  archive_file "nikos.tar.gz" do
+    path "#{wrk_dir}/nikos.tar.gz"
+    destination "/opt/datadog-agent/embedded/nikos/embedded"
+  end
+
   # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
   swap_file '/mnt/swapfile' do
     size 2048
   end
-
-  # To uncomment when gitlab runner are able to build with GOARCH=386
-  # cookbook_file "#{wrk_dir}/testsuite32" do
-  #   source "testsuite32"
-  #   mode '755'
-  # end
 
   kernel_module 'loop' do
     action :load
@@ -58,6 +62,12 @@ if node['platform_family'] != 'windows'
       service 'docker' do
         action [ :enable, :start ]
       end
+    elsif ['ubuntu'].include?(node[:platform])
+      docker_installation_package 'default' do
+        action :create
+        setup_docker_repo false
+        package_name 'docker.io'
+      end
     else
       docker_service 'default' do
         action [:create, :start]
@@ -74,10 +84,20 @@ if node['platform_family'] != 'windows'
       tag '7'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       command "sleep 7200"
-      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc', '/etc/os-release:/host/etc/os-release']
-      env ['HOST_PROC=/host/proc', 'DOCKER_DD_AGENT=yes']
+      volumes [
+        '/tmp/security-agent:/tmp/security-agent',
+        '/proc:/host/proc',
+        '/etc/os-release:/host/etc/os-release',
+        '/:/host/root',
+        '/etc:/host/etc'
+      ]
+      env [
+        'HOST_PROC=/host/proc',
+        'HOST_ROOT=/host/root',
+        'HOST_ETC=/host/etc',
+        'DOCKER_DD_AGENT=yes'
+      ]
       privileged true
-      pid_mode 'host'
     end
 
     docker_exec 'debug_fs' do
@@ -87,26 +107,13 @@ if node['platform_family'] != 'windows'
 
     docker_exec 'install_xfs' do
       container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs', 'glibc.i686']
+      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
     end
 
     for i in 0..7 do
       docker_exec 'create_loop' do
         container 'docker-testsuite'
         command ['bash', '-c', "mknod /dev/loop#{i} b 7 #{i} || true"]
-      end
-    end
-  end
-
-  if not platform_family?('suse') and intel? and _64_bit?
-    package 'Install i386 libc' do
-      case node[:platform]
-      when 'redhat', 'centos', 'fedora', 'oracle'
-        package_name 'glibc.i686'
-      when 'ubuntu', 'debian'
-        package_name 'libc6-i386'
-      # when 'suse'
-      #   package_name 'glibc-32bit'
       end
     end
   end

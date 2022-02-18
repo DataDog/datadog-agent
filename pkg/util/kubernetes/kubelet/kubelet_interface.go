@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet && !orchestrator
 // +build kubelet,!orchestrator
 
 package kubelet
@@ -11,6 +12,8 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+
+	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 // KubeUtilInterface defines the interface for kubelet api
@@ -32,4 +35,5 @@ type KubeUtilInterface interface {
 	IsAgentHostNetwork(ctx context.Context) (bool, error)
 	ListContainers(ctx context.Context) ([]*containers.Container, error)
 	UpdateContainerMetrics(ctrList []*containers.Container) error
+	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
 }

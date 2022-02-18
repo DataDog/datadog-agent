@@ -11,7 +11,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: false
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -22,19 +21,48 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: win-installopts
+  - name: win-upgrade-rollback
     run_list:
-      - "recipe[dd-agent-install::_install_windows_base]"
+      - "recipe[dd-agent-install::_install_windows]"
+      - "recipe[dd-agent-upgrade]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
+        windows_agent_url: https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/
+        windows_version: "<%= ENV['LAST_STABLE_VERSION'] %>"
+        agent_install_options: >
+          APIKEY=<%= api_key %>
+      dd-agent-upgrade:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        <% if ENV['WINDOWS_AGENT_FILE'] %>
+        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+        <% end %>
+        agent_install_options: >
+          APIKEY=<%= api_key %>
+          WIXFAILWHENDEFERRED=1
+      dd-agent-upgrade-rspec:
+        # Used by the rspec test to know the version to which the agent should be upgraded
+        agent_expected_version: "<%= ENV['LAST_STABLE_VERSION'] %>"
+      dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+
+  - name: win-installopts
+    run_list:
+      - "recipe[dd-agent-install::_install_windows_base]"
+    attributes:
+      datadog:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+      dd-agent-install:
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -63,15 +91,11 @@ suites:
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         windows_agent_url: <%= windows_agent_url %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -92,15 +116,11 @@ suites:
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         windows_agent_url: <%= windows_agent_url %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -113,6 +133,7 @@ suites:
           APIKEY=<%= api_key %>
           LOGS_ENABLED=false
           PROCESS_ENABLED=false
+          PROCESS_DISCOVERY_ENABLED=false
           APM_ENABLED=false
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
@@ -121,15 +142,11 @@ suites:
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -149,15 +166,11 @@ suites:
     run_list:
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -178,15 +191,11 @@ suites:
     run_list:
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>

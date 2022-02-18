@@ -32,9 +32,7 @@ const (
 	headerExtID      string = "Lambda-Extension-Identifier"
 	headerExtErrType string = "Lambda-Extension-Function-Error-Type"
 
-	requestTimeout     time.Duration = 5 * time.Second
-	clientReadyTimeout time.Duration = 2 * time.Second
-
+	requestTimeout      time.Duration = 5 * time.Second
 	safetyBufferTimeout time.Duration = 20 * time.Millisecond
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
@@ -163,18 +161,16 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	}
 
 	if payload.EventType == Invoke {
-		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
+		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
+		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
 	}
 	if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
-			metricsChan := daemon.MetricAgent.GetMetricChannel()
-			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
-			if err != nil {
-				log.Error("Unable to persist current state to file while shutting down")
-			}
+			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
+			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
@@ -196,7 +192,8 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		if err != nil {
 			log.Debug("Unable to save the current state")
 		}
-		daemon.FinishInvocation()
+		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
+		daemon.TellDaemonRuntimeDone()
 		return
 	case <-doneChannel:
 		return
@@ -204,36 +201,30 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 }
 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
-	daemon.StartInvocation()
+	daemon.TellDaemonRuntimeStarted()
 	log.Debug("Received invocation event...")
 	daemon.SetExecutionContext(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+
+	if daemon.MetricAgent != nil {
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
+		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
+	} else {
+		log.Error("Could not send the invocation enhanced metric")
+	}
+
 	if daemon.ExecutionContext.Coldstart {
-		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
-		if ready {
-			log.Debug("Client library registered with extension")
-		} else {
-			log.Debug("Timed out waiting for client library to register with extension.")
-		}
 		daemon.UpdateStrategy()
 	}
 
 	// immediately check if we should flush data
-	// note that since we're flushing synchronously here, there is a scenario
-	// where this could be blocking the function if the flush is slow (if the
-	// extension is not quickly going back to listen on the "wait next event"
-	// route). That's why we use a context.Context with a timeout `flushTimeout``
-	// to avoid blocking for too long.
-	// This flushTimeout is re-using the forwarder_timeout value.
 	if daemon.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.LogFlushStategy(), flush.Starting)
-		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-		daemon.TriggerFlush(ctx, false)
-		cancel() // free the resource of the context
+		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
+		daemon.TriggerFlush(false)
 	} else {
-		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.LogFlushStategy(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
 	}
+
 	daemon.WaitForDaemon()
 	doneChannel <- true
 }
@@ -249,4 +240,15 @@ func buildURL(route string) string {
 func computeTimeout(now time.Time, deadlineMs int64, safetyBuffer time.Duration) time.Duration {
 	currentTimeInMs := now.UnixNano() / int64(time.Millisecond)
 	return time.Duration((deadlineMs-currentTimeInMs)*int64(time.Millisecond) - int64(safetyBuffer))
+}
+
+func removeQualifierFromArn(functionArn string) string {
+	functionArnTokens := strings.Split(functionArn, ":")
+	tokenLength := len(functionArnTokens)
+
+	if tokenLength > 7 {
+		functionArnTokens = functionArnTokens[:tokenLength-1]
+		return strings.Join(functionArnTokens, ":")
+	}
+	return functionArn
 }

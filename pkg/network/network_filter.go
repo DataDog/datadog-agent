@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -156,13 +161,16 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 		return false
 	}
 
+	buf := util.IPBufferPool.Get().(*[]byte)
+	defer util.IPBufferPool.Put(buf)
+
 	if len(scf) > 0 && conn.Source != nil {
-		if findMatchingFilter(scf, util.NetIPFromAddress(conn.Source), conn.SPort, conn.Type) {
+		if findMatchingFilter(scf, util.NetIPFromAddress(conn.Source, *buf), conn.SPort, conn.Type) {
 			return true
 		}
 	}
 	if len(dcf) > 0 && conn.Dest != nil {
-		if findMatchingFilter(dcf, util.NetIPFromAddress(conn.Dest), conn.DPort, conn.Type) {
+		if findMatchingFilter(dcf, util.NetIPFromAddress(conn.Dest, *buf), conn.DPort, conn.Type) {
 			return true
 		}
 	}

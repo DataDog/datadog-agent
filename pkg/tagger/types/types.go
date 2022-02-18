@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package types
 
 import (
@@ -30,7 +35,7 @@ func (e Entity) GetTags(cardinality collectors.TagCardinality) []string {
 		tagArrays = append(tagArrays, e.HighCardinalityTags)
 	}
 
-	return utils.ConcatenateTags(tagArrays)
+	return utils.ConcatenateTags(tagArrays...)
 }
 
 // GetHash returns a computed hash of all of the entity's tags.

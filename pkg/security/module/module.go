@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -21,20 +22,27 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/skydive-project/go-debouncer"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/statsd"
+)
+
+const (
+	statsdPoolSize = 64
 )
 
 // Module represents the system-probe module for the runtime security agent
@@ -43,8 +51,7 @@ type Module struct {
 	wg               sync.WaitGroup
 	probe            *sprobe.Probe
 	config           *sconfig.Config
-	ruleSets         [2]*rules.RuleSet
-	currentRuleSet   uint64
+	currentRuleSet   atomic.Value
 	reloading        uint64
 	statsdClient     *statsd.Client
 	apiServer        *APIServer
@@ -58,6 +65,7 @@ type Module struct {
 	policiesVersions []string
 
 	selfTester *SelfTester
+	reloader   *debouncer.Debouncer
 }
 
 // Register the runtime security agent module
@@ -69,8 +77,37 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
+func (m *Module) sanityChecks() error {
+	// make sure debugfs is mounted
+	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+		return err
+	}
+
+	version, err := skernel.NewKernelVersion()
+	if err != nil {
+		return err
+	}
+
+	if version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Confidentiality {
+		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
+	}
+
+	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
+
+	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
+		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
+		m.config.ERPCDentryResolutionEnabled = false
+	}
+
+	return nil
+}
+
 // Init initializes the module
 func (m *Module) Init() error {
+	if err := m.sanityChecks(); err != nil {
+		return err
+	}
+
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -114,13 +151,15 @@ func (m *Module) Start() error {
 		return errors.Wrap(err, "failed to start probe")
 	}
 
-	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
-	// context is ready when we start the probes
-	if err := m.probe.Snapshot(); err != nil {
+	m.reloader.Start()
+
+	if err := m.Reload(); err != nil {
 		return err
 	}
 
-	if err := m.Reload(); err != nil {
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
+	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
 
@@ -134,14 +173,9 @@ func (m *Module) Start() error {
 		defer m.wg.Done()
 
 		for range m.sigupChan {
-			log.Info("Reload configuration")
-
-			if err := m.Reload(); err != nil {
-				log.Errorf("failed to reload configuration: %s", err)
-			}
+			m.triggerReload()
 		}
 	}()
-
 	return nil
 }
 
@@ -164,9 +198,16 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 	}
 
 	if m.config.RuntimeEnabled {
-		if eventTypes, exists := categories[model.RuntimeCategory]; exists {
-			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+		// everything but FIM
+		for _, category := range model.GetAllCategories() {
+			if category == model.FIMCategory {
+				continue
+			}
+
+			if eventTypes, exists := categories[category]; exists {
+				for _, eventType := range eventTypes {
+					enabled[eventType] = true
+				}
 			}
 		}
 	}
@@ -208,6 +249,13 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
+func (m *Module) triggerReload() {
+	log.Info("Reload configuration")
+	if err := m.Reload(); err != nil {
+		log.Errorf("failed to reload configuration: %s", err)
+	}
+}
+
 // Reload the rule set
 func (m *Module) Reload() error {
 	m.Lock()
@@ -219,23 +267,33 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	newRuleSetOpts := func() *rules.Opts {
-		return rules.NewOptsWithParams(
-			model.SECLConstants,
-			sprobe.SupportedDiscarders,
-			m.getEventTypeEnabled(),
-			sprobe.AllCustomRuleIDs(),
-			model.SECLLegacyAttributes,
-			&seclog.PatternLogger{})
+	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
+	for name, value := range model.SECLVariables {
+		probeVariables[name] = value
 	}
 
-	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
-
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
+	var opts rules.Opts
+	opts.
+		WithConstants(model.SECLConstants).
+		WithVariables(probeVariables).
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(m.getEventTypeEnabled()).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+		}).
+		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+
+	// switch SECLVariables to use the real Event structure and not the mock model.Event one
+	opts.WithVariables(sprobe.SECLVariables)
+
+	ruleSet := m.probe.NewRuleSet(&opts)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
@@ -265,9 +323,7 @@ func (m *Module) Reload() error {
 		m.rulesLoaded(ruleSet)
 	}
 
-	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
-	m.ruleSets[currentRuleSet] = ruleSet
-	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
+	m.currentRuleSet.Store(ruleSet)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
@@ -293,6 +349,8 @@ func (m *Module) Reload() error {
 
 // Close the module
 func (m *Module) Close() {
+	m.reloader.Stop()
+
 	close(m.sigupChan)
 	m.cancelFnc()
 
@@ -390,6 +448,10 @@ func (m *Module) metricsSender() {
 	for {
 		select {
 		case <-statsTicker.C:
+			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
+				continue
+			}
+
 			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
@@ -439,7 +501,10 @@ func (m *Module) GetProbe() *sprobe.Probe {
 
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
-	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
+	if ruleSet := m.currentRuleSet.Load(); ruleSet != nil {
+		return ruleSet.(*rules.RuleSet)
+	}
+	return nil
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
@@ -457,7 +522,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 			statsdAddr = cfg.StatsdAddr
 		}
 
-		if statsdClient, err = statsd.New(statsdAddr); err != nil {
+		if statsdClient, err = statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize)); err != nil {
 			return nil, err
 		}
 	} else {
@@ -480,19 +545,19 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	}
 
 	m := &Module{
-		config:         cfg,
-		probe:          probe,
-		statsdClient:   statsdClient,
-		apiServer:      NewAPIServer(cfg, probe, statsdClient),
-		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
-		sigupChan:      make(chan os.Signal, 1),
-		currentRuleSet: 1,
-		ctx:            ctx,
-		cancelFnc:      cancelFnc,
-		selfTester:     selfTester,
+		config:       cfg,
+		probe:        probe,
+		statsdClient: statsdClient,
+		apiServer:    NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:   grpc.NewServer(),
+		rateLimiter:  NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		sigupChan:    make(chan os.Signal, 1),
+		ctx:          ctx,
+		cancelFnc:    cancelFnc,
+		selfTester:   selfTester,
 	}
 	m.apiServer.module = m
+	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
 	seclog.SetPatterns(cfg.LogPatterns)
 

@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -28,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -118,14 +117,18 @@ func initLatencyTelemetry() {
 type Server struct {
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
-	// aggregator is a pointer to the aggregator that the dogstatsd daemon
-	// will send the metrics samples, events and service checks to.
-	aggregator *aggregator.BufferedAggregator
+
+	// demultiplexer will receive the metrics processed by the DogStatsD server,
+	// will take care of processing them concurrently if possible, and will
+	// also take care of forwarding the metrics to the intake.
+	demultiplexer aggregator.Demultiplexer
+
 	// running in their own routine, workers are responsible of parsing the packets
 	// and pushing them to the aggregator
 	workers []*worker
 
 	packetsIn                 chan packets.Packets
+	serverlessFlushChan       chan bool
 	sharedPacketPool          *packets.Pool
 	sharedPacketPoolManager   *packets.PoolManager
 	sharedFloat64List         *float64ListPool
@@ -135,17 +138,18 @@ type Server struct {
 	health                    *health.Handle
 	metricPrefix              string
 	metricPrefixBlacklist     []string
+	metricBlocklist           []string
 	defaultHostname           string
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
+	debugTagsAccumulator      *tagset.HashingTagsAccumulator
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
 	eolTerminationUDS         bool
 	eolTerminationNamedPipe   bool
-	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
 	// of flooding the logger output (e.g. parsing messages error).
@@ -195,7 +199,7 @@ type metricsCountBuckets struct {
 
 // NewServer returns a running DogStatsD server.
 // If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
-func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -268,7 +272,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
+	metricBlocklist := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 
 	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -281,6 +287,13 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	if extraTags == nil {
 		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
 	}
+
+	// if the server is running in a context where static tags are required, add those
+	// to extraTags.
+	if staticTags := util.GetStaticTagsSlice(context.TODO()); staticTags != nil {
+		extraTags = append(extraTags, staticTags...)
+	}
+	util.SortUniqInPlace(extraTags)
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
@@ -308,12 +321,14 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		sharedPacketPool:          sharedPacketPool,
 		sharedPacketPoolManager:   sharedPacketPoolManager,
 		sharedFloat64List:         newFloat64ListPool(),
-		aggregator:                aggregator,
+		demultiplexer:             demultiplexer,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
+		serverlessFlushChan:       make(chan bool),
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
+		metricBlocklist:           metricBlocklist,
 		defaultHostname:           defaultHostname,
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
@@ -321,7 +336,6 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		eolTerminationUDP:         eolTerminationUDP,
 		eolTerminationUDS:         eolTerminationUDS,
 		eolTerminationNamedPipe:   eolTerminationNamedPipe,
-		telemetryEnabled:          telemetry_utils.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: &dsdServerDebug{
@@ -395,12 +409,16 @@ func (s *Server) handleMessages() {
 		go l.Listen()
 	}
 
-	// Run min(2, GoMaxProcs-2) workers, we dedicate a core to the
-	// listener goroutine and another to aggregator + forwarder
-	workersCount := runtime.GOMAXPROCS(-1) - 2
-	if workersCount < 2 {
-		workersCount = 2
+	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
+
+	// undocumented configuration field to force the amount of dogstatsd workers
+	// mainly used for benchmarks or some very specific use-case.
+	if configWC := config.Datadog.GetInt("dogstatsd_workers_count"); configWC != 0 {
+		log.Debug("Forcing the amount of DogStatsD workers to:", configWC)
+		workersCount = configWC
 	}
+
+	log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s)
@@ -433,16 +451,17 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 	}
 }
 
-// Flush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *Server) Flush() {
+// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
+func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
-	// make all workers flush their aggregated data (in the batcher) to the aggregator.
-	for _, w := range s.workers {
-		w.flush()
-	}
+
+	// make all workers flush their aggregated data (in the batchers) to the aggregator.
+	s.serverlessFlushChan <- true
+
+	start := time.Now()
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
 	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
+	s.demultiplexer.ForceFlushToSerializer(start.Add(time.Second*10), true)
 }
 
 // dropCR drops a terminal \r from the data.
@@ -502,6 +521,7 @@ func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
 	return false
 }
 
+// workers are running this function in their goroutine
 func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
@@ -632,7 +652,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
@@ -704,16 +724,21 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
+	if s.debugTagsAccumulator == nil {
+		s.debugTagsAccumulator = tagset.NewHashingTagsAccumulator()
+	}
+
 	// key
-	tags := util.NewTagsBuilderFromSlice(sample.Tags)
-	key := s.Debug.keyGen.Generate(sample.Name, "", tags)
+	defer s.debugTagsAccumulator.Reset()
+	s.debugTagsAccumulator.Append(sample.Tags...)
+	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsAccumulator)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(tags.Get(), " ") // we don't want/need to share the underlying array
+	ms.Tags = strings.Join(s.debugTagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

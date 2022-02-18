@@ -4,11 +4,6 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 
-typedef struct {
-    struct sock *sk;
-    struct msghdr *msg;
-} udp_recv_sock_t;
-
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
  */
@@ -72,6 +67,19 @@ struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
     .namespace = "",
 };
 
+/* This map is used to match the kprobe & kretprobe of udpv6_recvmsg */
+/* This is a key/value store with the keys being a pid
+ * and the values being a udp_recv_sock_t
+ */
+struct bpf_map_def SEC("maps/udpv6_recv_sock") udpv6_recv_sock = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(udp_recv_sock_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This maps tracks listening TCP ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
  * key in the map is the network namespace inode together with the port and the value is a flag that
  * indicates if the port is listening or not. When the socket is destroyed (via tcp_v4_destroy_sock), we set the
@@ -123,34 +131,6 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
     .key_size = sizeof(u32),
     .value_size = sizeof(telemetry_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/*
- * This map is used to store the parameters for a call to ip_route_output_flow
- * to match them later to a kretprobe
- * key is the pid/tid
- * value is ip_route_flow_t
- */
-struct bpf_map_def SEC("maps/ip_route_output_flows") ip_route_output_flows = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(ip_route_flow_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/**
- * This map holds gateway information for destinations. Key is a
- * `ip_route_dest_t`; value is a `ip_route_gateway_t`
-*/
-struct bpf_map_def SEC("maps/ip_route_dest_gateways") ip_route_dest_gateways = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(ip_route_dest_t),
-    .value_size = sizeof(ip_route_gateway_t),
-    .max_entries = 1, // This will get overridden at runtime
     .pinning = 0,
     .namespace = "",
 };

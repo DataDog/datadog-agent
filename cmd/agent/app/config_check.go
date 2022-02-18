@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -27,9 +27,10 @@ func init() {
 }
 
 var configCheckCommand = &cobra.Command{
-	Use:   "configcheck",
-	Short: "Print all configurations loaded & resolved of a running agent",
-	Long:  ``,
+	Use:     "configcheck",
+	Aliases: []string{"checkconfig"},
+	Short:   "Print all configurations loaded & resolved of a running agent",
+	Long:    ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if flagNoColor {
@@ -53,7 +54,7 @@ var configCheckCommand = &cobra.Command{
 			return fmt.Errorf("unable to get config: %v", err)
 		}
 
-		scrubbed, err := log.CredentialsCleanerBytes(b.Bytes())
+		scrubbed, err := scrubber.ScrubBytes(b.Bytes())
 		if err != nil {
 			return fmt.Errorf("unable to scrub sensitive data configcheck output: %v", err)
 		}

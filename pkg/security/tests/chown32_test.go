@@ -3,34 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests && amd64
 // +build functionaltests,amd64
 
 package tests
 
 import (
 	"os"
-	"os/exec"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
-	"gotest.tools/assert"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestChown32(t *testing.T) {
-	isSuseKernel := func() bool {
-		kv, err := kernel.NewKernelVersion()
-		if err != nil {
-			return false
-		}
+	checkKernelCompatibility(t, "SUSE kernel", func(kv *kernel.Version) bool {
 		return kv.IsSuseKernel()
-	}()
-
-	if isSuseKernel {
-		t.Skip("SUSE kernel: skipping chown32 tests")
-	}
+	})
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -48,12 +40,10 @@ func TestChown32(t *testing.T) {
 	}
 	defer test.Close()
 
-	syscallTester, err := loadSyscallTester(test)
+	syscallTester, err := loadSyscallTester(t, test, "syscall_x86_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	checkSyscallTester(t, syscallTester)
 
 	prevUID := 98
 	prevGID := 99
@@ -71,18 +61,17 @@ func TestChown32(t *testing.T) {
 			prevGID = 200
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "chown", testFile, "100", "200")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(100), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(200), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(100), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(200), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -90,10 +79,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchown", func(t *testing.T) {
@@ -102,18 +87,17 @@ func TestChown32(t *testing.T) {
 			prevGID = 201
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchown", testFile, "101", "201")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(101), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(201), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(101), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(201), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -121,10 +105,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
@@ -133,18 +113,17 @@ func TestChown32(t *testing.T) {
 			prevGID = 202
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchownat", testFile, "102", "202")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(102), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(202), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(102), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(202), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -152,10 +131,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lchown", func(t *testing.T) {
@@ -169,18 +144,17 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "lchown", testSymlink, "103", "203")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(103), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(203), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(103), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(203), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testSymlink), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(0o777), "wrong initial mode")
 			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -188,10 +162,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lchown32", func(t *testing.T) {
@@ -205,18 +175,17 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "lchown32", testSymlink, "104", "204")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(104), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(204), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(104), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(204), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testSymlink), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(0o777), "wrong initial mode")
 			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -224,10 +193,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
@@ -237,18 +202,17 @@ func TestChown32(t *testing.T) {
 			prevGID = 205
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchown32", testFile, "105", "205")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(105), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(205), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(105), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(205), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -256,10 +220,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("chown32", func(t *testing.T) {
@@ -268,18 +228,17 @@ func TestChown32(t *testing.T) {
 			prevGID = 206
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "chown32", testFile, "106", "206")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
-			assert.Equal(t, uint32(106), event.Chown.UID, "wrong user")
-			assert.Equal(t, uint32(206), event.Chown.GID, "wrong user")
+			assert.Equal(t, int64(106), event.Chown.UID, "wrong user")
+			assert.Equal(t, int64(206), event.Chown.GID, "wrong user")
 			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -287,53 +246,5 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
-}
-
-func loadSyscallTester(t *testModule) (string, error) {
-	testerBin, err := syscall_tester.Asset("/syscall_x86_tester")
-	if err != nil {
-		return "", err
-	}
-
-	perm := 0o700
-	binPath, _, err := t.CreateWithOptions("syscall_x86_tester", -1, -1, perm)
-
-	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	if _, err = f.Write(testerBin); err != nil {
-		return "", err
-	}
-
-	return binPath, nil
-}
-
-func checkSyscallTester(t *testing.T, path string) {
-	t.Helper()
-	sideTester := exec.Command(path, "check")
-	if _, err := sideTester.CombinedOutput(); err != nil {
-		t.Error("cannot run syscall tester check")
-	}
-}
-
-func runSyscallTesterFunc(t *testing.T, path string, args ...string) error {
-	t.Helper()
-	sideTester := exec.Command(path, args...)
-	output, err := sideTester.CombinedOutput()
-	if err != nil {
-		t.Error(err)
-		output := string(output)
-		if output != "" {
-			t.Error(output)
-		}
-	}
-	return err
 }

@@ -3,6 +3,7 @@
 
 #include "filters.h"
 #include "process.h"
+#include "bpf_const.h"
 
 #define FSTYPE_LEN 16
 
@@ -117,17 +118,19 @@ struct syscall_cache_t {
         } xattr;
 
         struct {
-            u8 is_thread;
-        } clone;
-
-        struct {
             struct dentry *dentry;
             struct file_t file;
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
+            struct span_context_t span_context;
             u32 next_tail;
             u8 is_parsed;
         } exec;
+
+        struct {
+            u32 is_thread;
+            struct pid *pid;
+        } fork;
 
         struct {
             struct dentry *dentry;
@@ -135,6 +138,48 @@ struct syscall_cache_t {
             u32 event_kind;
             union selinux_write_payload_t payload;
         } selinux;
+
+        struct {
+            int cmd;
+            u32 map_id;
+            u32 prog_id;
+            int retval;
+            u64 helpers[3];
+            union bpf_attr_def *attr;
+        } bpf;
+
+        struct {
+            u32 request;
+            u32 pid;
+            u64 addr;
+        } ptrace;
+
+        struct {
+            u64 offset;
+            u32 len;
+            int protection;
+            int flags;
+            struct file_t file;
+            struct dentry *dentry;
+        } mmap;
+
+        struct {
+            u64 vm_start;
+            u64 vm_end;
+            u64 vm_protection;
+            u64 req_protection;
+        } mprotect;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            char name[MODULE_NAME_LEN];
+            u32 loaded_from_memory;
+        } init_module;
+
+        struct {
+            char *name;
+        } delete_module;
     };
 };
 

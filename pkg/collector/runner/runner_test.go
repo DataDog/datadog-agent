@@ -107,7 +107,7 @@ func newScheduler() *scheduler.Scheduler {
 
 func assertAsyncWorkerCount(t *testing.T, count int) {
 	for idx := 0; idx < 75; idx++ {
-		workers := int(expvars.GetWorkerCount())
+		workers := expvars.GetWorkerCount()
 		if workers == count {
 			// This may seem superfluous but we want to ensure that at least one
 			// assertion runs in all cases
@@ -118,7 +118,7 @@ func assertAsyncWorkerCount(t *testing.T, count int) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	require.Equal(t, count, int(expvars.GetWorkerCount()))
+	require.Equal(t, count, expvars.GetWorkerCount())
 }
 
 func assertAsyncBool(t *testing.T, actualValueFunc func() bool, expectedValue bool) {
@@ -214,7 +214,7 @@ func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 
 		for checks := min; checks <= max; checks++ {
 			r.UpdateNumWorkers(int64(checks))
-			require.True(t, int(expvars.GetWorkerCount()) <= expectedWorkers)
+			require.True(t, expvars.GetWorkerCount() <= expectedWorkers)
 		}
 
 		assertAsyncWorkerCount(t, expectedWorkers)

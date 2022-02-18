@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build ignore
 // +build ignore
 
 package main
@@ -41,6 +42,7 @@ type context struct {
 	SystemProbe       bool
 	KubeApiServer     bool
 	TraceAgent        bool
+	ClusterAgent      bool
 	ClusterChecks     bool
 	CloudFoundryBBS   bool
 	CloudFoundryCC    bool
@@ -49,6 +51,7 @@ type context struct {
 	SecurityModule    bool
 	SecurityAgent     bool
 	NetworkModule     bool // Sub-module of System Probe
+	PrometheusScrape  bool
 }
 
 func mkContext(buildType string) context {
@@ -78,6 +81,7 @@ func mkContext(buildType string) context {
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		Compliance:        true,
 		SNMP:              true,
+		PrometheusScrape:  true,
 	}
 
 	switch buildType {
@@ -114,6 +118,7 @@ func mkContext(buildType string) context {
 		}
 	case "dca":
 		return context{
+			ClusterAgent:  true,
 			Common:        true,
 			Logging:       true,
 			KubeApiServer: true,
@@ -121,6 +126,7 @@ func mkContext(buildType string) context {
 		}
 	case "dcacf":
 		return context{
+			ClusterAgent:    true,
 			Common:          true,
 			Logging:         true,
 			ClusterChecks:   true,

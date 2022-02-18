@@ -9,10 +9,12 @@
 # -------------
 
 .kitchen_os_windows:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019"
-    DEFAULT_KITCHEN_OSVERS: "win2019"
+    KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019,win2019cn,win2022"
+    DEFAULT_KITCHEN_OSVERS: "win2022"
   before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
@@ -27,6 +29,8 @@
 # --------------
 
 .kitchen_test_windows_installer:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2012r2"
@@ -36,17 +40,20 @@
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_driver:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2012r2,win2016,win2019,win1903,win1909,win2004,win20h2"
-    DEFAULT_KITCHEN_OSVERS: "win20h2"
+    KITCHEN_OSVERS: "win2012r2,win2016,win2019,win2019cn,win1903,win1909,win2004,win20h2,win2022"
+    DEFAULT_KITCHEN_OSVERS: "win2022"
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-variable --name WINDOWS_DDNPM_DRIVER --version $RELEASE_VERSION)
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
@@ -54,17 +61,20 @@
     - bash -l tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_installer:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2016"
   before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-variable --name WINDOWS_DDNPM_DRIVER --version $RELEASE_VERSION)
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - bash -l tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 
 # Kitchen: Test types (test suite * agent flavor + azure location)

@@ -321,14 +321,12 @@ DWORD AddUserToGroup(PSID userSid, wchar_t *groupSidString, wchar_t *defaultGrou
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
     lmi0.lgrmi0_sid = userSid;
 
-    std::string asciiname;
-
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
     WcaLog(LOGMSG_STANDARD, "Attempting to add to group %S", groupname.c_str());
     nErr = NetLocalGroupAddMembers(NULL, groupname.c_str(), 0, (LPBYTE)&lmi0, 1);
     if (nErr == NERR_Success)
     {
-        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %s", asciiname.c_str());
+        WcaLog(LOGMSG_STANDARD, "Added user to %S", groupname.c_str());
     }
     else if (nErr == ERROR_MEMBER_IN_GROUP || nErr == ERROR_MEMBER_IN_ALIAS)
     {
@@ -352,7 +350,7 @@ DWORD DelUserFromGroup(PSID userSid, wchar_t *groupSidString, wchar_t *defaultGr
     lmi0.lgrmi0_sid = userSid;
 
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
-    WcaLog(LOGMSG_STANDARD, "Attempting to remove from group %s", groupname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Attempting to remove from group %S", groupname.c_str());
     nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
     if (nErr == NERR_Success)
     {

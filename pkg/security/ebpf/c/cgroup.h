@@ -98,22 +98,22 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
 }
 
 SEC("kprobe/cgroup_procs_write")
-int kprobe__cgroup_procs_write(struct pt_regs *ctx) {
+int kprobe_cgroup_procs_write(struct pt_regs *ctx) {
     return trace__cgroup_write(ctx);
 }
 
 SEC("kprobe/cgroup1_procs_write")
-int kprobe__cgroup1_procs_write(struct pt_regs *ctx) {
+int kprobe_cgroup1_procs_write(struct pt_regs *ctx) {
     return trace__cgroup_write(ctx);
 }
 
 SEC("kprobe/cgroup_tasks_write")
-int kprobe__cgroup_tasks_write(struct pt_regs *ctx) {
+int kprobe_cgroup_tasks_write(struct pt_regs *ctx) {
     return trace__cgroup_write(ctx);
 }
 
 SEC("kprobe/cgroup1_tasks_write")
-int kprobe__cgroup1_tasks_write(struct pt_regs *ctx) {
+int kprobe_cgroup1_tasks_write(struct pt_regs *ctx) {
     return trace__cgroup_write(ctx);
 }
 

@@ -5,7 +5,7 @@
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/util"
+import "github.com/DataDog/datadog-agent/pkg/tagset"
 
 // HistogramBucket represents a prometheus/openmetrics histogram bucket
 type HistogramBucket struct {
@@ -33,9 +33,9 @@ func (m *HistogramBucket) GetHost() string {
 }
 
 // GetTags returns the bucket tags.
-func (m *HistogramBucket) GetTags(tb *util.TagsBuilder) {
+func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator) {
 	// Other 'GetTags' methods for metrics support origin detections. Since
 	// HistogramBucket only come, for now, from checks we can simply return
 	// tags.
-	tb.Append(m.Tags...)
+	metricBuffer.Append(m.Tags...)
 }

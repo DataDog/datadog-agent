@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
@@ -5,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,12 +20,12 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -30,13 +34,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	// defaultProxyPort is the default port used for proxies.
-	// This mirrors the configuration for the infrastructure agent.
-	defaultProxyPort = 3128
-
-	defaultGRPCConnectionTimeout = 60 * time.Second
-)
+// defaultProxyPort is the default port used for proxies.
+// This mirrors the configuration for the infrastructure agent.
+const defaultProxyPort = 3128
 
 // Name for check performed by process-agent or system-probe
 const (
@@ -46,69 +46,33 @@ const (
 	RTContainerCheckName = "rtcontainer"
 	ConnectionsCheckName = "connections"
 	PodCheckName         = "pod"
+	DiscoveryCheckName   = "process_discovery"
 
-	NetworkCheckName        = "Network"
-	OOMKillCheckName        = "OOM Kill"
-	TCPQueueLengthCheckName = "TCP queue length"
-	ProcessModuleCheckName  = "Process Module"
-)
-
-var (
-	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
-	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
-
-	moduleCheckMap = map[sysconfig.ModuleName][]string{
-		sysconfig.NetworkTracerModule:        {ConnectionsCheckName, NetworkCheckName},
-		sysconfig.OOMKillProbeModule:         {OOMKillCheckName},
-		sysconfig.TCPQueueLengthTracerModule: {TCPQueueLengthCheckName},
-		sysconfig.ProcessModule:              {ProcessModuleCheckName},
-	}
+	ProcessCheckDefaultInterval          = 10 * time.Second
+	RTProcessCheckDefaultInterval        = 2 * time.Second
+	ContainerCheckDefaultInterval        = 10 * time.Second
+	RTContainerCheckDefaultInterval      = 2 * time.Second
+	ConnectionsCheckDefaultInterval      = 30 * time.Second
+	PodCheckDefaultInterval              = 10 * time.Second
+	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
 type proxyFunc func(*http.Request) (*url.URL, error)
 
 type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
-// WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
-type WindowsConfig struct {
-	// Number of checks runs between refreshes of command-line arguments
-	ArgsRefreshInterval int
-	// Controls getting process arguments immediately when a new process is discovered
-	AddNewArgs bool
-}
-
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
+// AgentConfig is shared across process-agent checks and should only contain shared objects and
+// settings that cannot be read directly from the global Config object.
+// For any other setting, use `pkg/config`.
 type AgentConfig struct {
-	Enabled                   bool
-	HostName                  string
-	APIEndpoints              []apicfg.Endpoint
-	LogFile                   string
-	LogLevel                  string
-	LogToConsole              bool
-	QueueSize                 int // The number of items allowed in each delivery queue.
-	RTQueueSize               int // the number of items allowed in real-time delivery queue
-	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
-	Blacklist                 []*regexp.Regexp
-	Scrubber                  *DataScrubber
-	MaxPerMessage             int
-	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
-	MaxConnsPerMessage        int
-	AllowRealTime             bool
-	Transport                 *http.Transport `json:"-"`
-	DDAgentBin                string
-	StatsdHost                string
-	StatsdPort                int
-	ProcessExpVarPort         int
-	ProfilingEnabled          bool
-	ProfilingSite             string
-	ProfilingURL              string
-	ProfilingEnvironment      string
-	ProfilingPeriod           time.Duration
-	ProfilingCPUDuration      time.Duration
-	ProfilingMutexFraction    int
-	ProfilingBlockRate        int
-	ProfilingWithGoroutines   bool
+	HostName           string
+	Blacklist          []*regexp.Regexp
+	Scrubber           *DataScrubber
+	MaxConnsPerMessage int
+	Transport          *http.Transport `json:"-"`
+
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -120,21 +84,10 @@ type AgentConfig struct {
 	Orchestrator *oconfig.OrchestratorConfig
 
 	// Check config
-	EnabledChecks  []string
 	CheckIntervals map[string]time.Duration
 
 	// Internal store of a proxy used for generating the Transport
 	proxy proxyFunc
-
-	// Windows-specific config
-	Windows WindowsConfig
-
-	grpcConnectionTimeout time.Duration
-}
-
-// CheckIsEnabled returns a bool indicating if the given check name is enabled.
-func (a AgentConfig) CheckIsEnabled(checkName string) bool {
-	return util.StringInSlice(a.EnabledChecks, checkName)
 }
 
 // CheckInterval returns the interval for the given check name, defaulting to 10s if not found.
@@ -146,13 +99,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 	}
 	return d
 }
-
-const (
-	defaultProcessEndpoint         = "https://process.datadoghq.com"
-	maxMessageBatch                = 100
-	defaultMaxCtrProcsMessageBatch = 10000
-	maxCtrProcsMessageBatch        = 30000
-)
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
 func NewDefaultTransport() *http.Transport {
@@ -170,44 +116,13 @@ func NewDefaultTransport() *http.Transport {
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
-func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
-	processEndpoint, err := url.Parse(defaultProcessEndpoint)
-	if err != nil {
-		// This is a hardcoded URL so parsing it should not fail
-		panic(err)
-	}
-
-	var enabledChecks []string
-	if canAccessContainers {
-		enabledChecks = containerChecks
-	}
-
+func NewDefaultAgentConfig() *AgentConfig {
 	ac := &AgentConfig{
-		Enabled:      canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-		LogFile:      defaultLogFilePath,
-		LogLevel:     "info",
-		LogToConsole: false,
+		MaxConnsPerMessage: 600,
+		HostName:           "",
+		Transport:          NewDefaultTransport(),
 
-		// Allow buffering up to 75 megabytes of payload data in total
-		ProcessQueueBytes: 60 * 1000 * 1000,
-		// This can be fairly high as the input should get throttled by queue bytes first.
-		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
-		QueueSize:   256,
-		RTQueueSize: 5, // We set a small queue size for real-time message queue because they get staled very quickly, thus we only keep the latest several payloads
-
-		MaxPerMessage:             maxMessageBatch,
-		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
-		MaxConnsPerMessage:        600,
-		AllowRealTime:             true,
-		HostName:                  "",
-		Transport:                 NewDefaultTransport(),
-		ProcessExpVarPort:         6062,
-		ContainerHostType:         model.ContainerHostType_notSpecified,
-
-		// Statsd for internal instrumentation
-		StatsdHost: "127.0.0.1",
-		StatsdPort: 8125,
+		ContainerHostType: model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration
 		EnableSystemProbe:  false,
@@ -217,27 +132,19 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
-		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:     10 * time.Second,
-			RTProcessCheckName:   2 * time.Second,
-			ContainerCheckName:   10 * time.Second,
-			RTContainerCheckName: 2 * time.Second,
-			ConnectionsCheckName: 30 * time.Second,
-			PodCheckName:         10 * time.Second,
+			ProcessCheckName:     ProcessCheckDefaultInterval,
+			RTProcessCheckName:   RTProcessCheckDefaultInterval,
+			ContainerCheckName:   ContainerCheckDefaultInterval,
+			RTContainerCheckName: RTContainerCheckDefaultInterval,
+			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+			PodCheckName:         PodCheckDefaultInterval,
+			DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 		},
 
 		// DataScrubber to hide command line sensitive words
 		Scrubber:  NewDefaultDataScrubber(),
 		Blacklist: make([]*regexp.Regexp, 0),
-
-		// Windows process config
-		Windows: WindowsConfig{
-			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-			AddNewArgs:          true,
-		},
-
-		grpcConnectionTimeout: defaultGRPCConnectionTimeout,
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -255,7 +162,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	return ac
 }
 
-func loadConfigIfExists(path string) error {
+// LoadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
+// and loads it into ddconfig.Datadog. It does this silently, and does not produce any logs.
+func LoadConfigIfExists(path string) error {
 	if path != "" {
 		if util.PathExists(path) {
 			config.Datadog.AddConfigPath(path)
@@ -275,24 +184,11 @@ func loadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
-	initRuntimeSettings()
-
+func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config) (*AgentConfig, error) {
 	var err error
 
-	// For Agent 6 we will have a YAML config file to use.
-	if err := loadConfigIfExists(yamlPath); err != nil {
-		return nil, err
-	}
-
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready on newly provisioned hosts.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
-
-	cfg := NewDefaultAgentConfig(canAccessContainers)
-
-	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
+	cfg := NewDefaultAgentConfig()
+	if err := cfg.LoadAgentConfig(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -301,32 +197,16 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// (Re)configure the logging from our configuration
-	if err := setupLogger(loggerName, cfg.LogFile, cfg); err != nil {
+	logFile := config.Datadog.GetString("process_config.log_file")
+	if err := setupLogger(loggerName, logFile, cfg); err != nil {
 		log.Errorf("failed to setup configured logger: %s", err)
 		return nil, err
 	}
 
-	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(netYamlPath)
-	if err != nil {
-		return nil, err
-	}
 	if syscfg.Enabled {
 		cfg.EnableSystemProbe = true
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
-
-		// enable corresponding checks to system-probe modules
-		for mod := range syscfg.EnabledModules {
-			if checks, ok := moduleCheckMap[mod]; ok {
-				cfg.EnabledChecks = append(cfg.EnabledChecks, checks...)
-			}
-		}
-
-		if !cfg.Enabled {
-			log.Info("enabling process-agent for connections check as the system-probe is enabled")
-			cfg.Enabled = true
-		}
 	}
 
 	// TODO: Once proxies have been moved to common config util, remove this
@@ -335,14 +215,11 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.proxy = nil
 	}
 
-	// Python-style log level has WARNING vs WARN
-	if strings.ToLower(cfg.LogLevel) == "warning" {
-		cfg.LogLevel = "warn"
-	}
-
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
-		if hostname, err := getHostname(context.TODO(), cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
+		agentBin := config.Datadog.GetString("process_config.dd_agent_bin")
+		connectionTimeout := config.Datadog.GetDuration("process_config.grpc_connection_timeout_secs") * time.Second
+		if hostname, err := getHostname(context.TODO(), agentBin, connectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -355,35 +232,22 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.Transport.Proxy = cfg.proxy
 	}
 
-	// sanity check. This element is used with the modulo operator (%), so it can't be zero.
-	// if it is, log the error, and assume the config was attempting to disable
-	if cfg.Windows.ArgsRefreshInterval == 0 {
-		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
-		cfg.Windows.ArgsRefreshInterval = -1
-	}
-
-	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.Orchestrator.OrchestrationCollectionEnabled {
-		if cfg.Orchestrator.KubeClusterName != "" {
-			cfg.EnabledChecks = append(cfg.EnabledChecks, PodCheckName)
-		} else {
-			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
-		}
-	}
-
 	return cfg, nil
 }
 
-// initRuntimeSettings registers settings to be added to the runtime config.
-func initRuntimeSettings() {
+// InitRuntimeSettings registers settings to be added to the runtime config.
+func InitRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
-	var processRuntimeSettings = []settings.RuntimeSetting{
+	processRuntimeSettings := []settings.RuntimeSetting{
 		settings.LogLevelRuntimeSetting{},
 	}
 
 	// Before we begin listening, register runtime settings
 	for _, setting := range processRuntimeSettings {
-		_ = log.Warn(settings.RegisterRuntimeSetting(setting))
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("cannot initialize the runtime setting %s: %v", setting.Name(), err)
+		}
 	}
 }
 
@@ -398,58 +262,19 @@ func getContainerHostType() model.ContainerHostType {
 	return model.ContainerHostType_notSpecified
 }
 
+// loadEnvVariables reads env variables specific to process-agent and overrides the corresponding settings
+// in the global Config object.
+// This function is used to handle historic process-agent env vars. New settings should be
+// handled directly in the /pkg/config/process.go file
 func loadEnvVariables() {
 	// The following environment variables will be loaded in the order listed, meaning variables
 	// further down the list may override prior variables.
 	for _, variable := range []struct{ env, cfg string }{
-		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
-		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
-		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
-		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
-		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
-		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
-		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
-		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
-		{"DD_HOSTNAME", "hostname"},
-		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
-		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
-		{"DD_PROXY_HTTPS", "proxy.https"},
-
-		{"DD_LOGS_STDOUT", "log_to_console"},
-		{"LOG_TO_CONSOLE", "log_to_console"},
-		{"DD_LOG_TO_CONSOLE", "log_to_console"},
-		{"LOG_LEVEL", "log_level"}, // Support LOG_LEVEL and DD_LOG_LEVEL but prefer DD_LOG_LEVEL
-		{"DD_LOG_LEVEL", "log_level"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
-		}
-	}
-
-	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
-	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
-	if apiKey == "" {
-		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
-	}
-
-	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
-		log.Infof("overriding API key from env %s value", envKey)
-		config.Datadog.Set("api_key", config.SanitizeAPIKey(strings.Split(apiKey, ",")[0]))
-	}
-
-	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
-		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
-	}
-
-	if v := os.Getenv("DD_PROCESS_ADDITIONAL_ENDPOINTS"); v != "" {
-		endpoints := make(map[string][]string)
-		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
-			log.Errorf(`Could not parse DD_PROCESS_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
-		} else {
-			config.Datadog.Set("process_config.additional_endpoints", endpoints)
 		}
 	}
 
@@ -472,14 +297,6 @@ func IsBlacklisted(cmdline []string, blacklist []*regexp.Regexp) bool {
 		}
 	}
 	return false
-}
-
-func isAffirmative(value string) (bool, error) {
-	if value == "" {
-		return false, fmt.Errorf("value is empty")
-	}
-	v := strings.ToLower(value)
-	return v == "true" || v == "yes" || v == "1", nil
 }
 
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
@@ -625,7 +442,7 @@ func constructProxy(host, scheme string, port int, user, password string) (proxy
 func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig) error {
 	return config.SetupLogger(
 		loggerName,
-		cfg.LogLevel,
+		config.Datadog.GetString("log_level"),
 		logFile,
 		config.GetSyslogURI(),
 		config.Datadog.GetBool("syslog_rfc"),

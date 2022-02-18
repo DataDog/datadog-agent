@@ -24,8 +24,11 @@ driver:
   spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
   block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
   tags:
-    created-by: test-kitchen
-    creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "kitchen-user" %>
+    Name: ci-datadog-agent-kitchen
+    Team: agent-platform
+    PipelineId: <%= ENV['DD_PIPELINE_ID'] %>
+    CreatedBy: datadog-agent-kitchen-tests
+    Creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "datadog-agent-kitchen-user" %>
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
@@ -37,7 +40,6 @@ platforms:
     ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
     windows_platforms = []
-    sles11_platforms = []
     sles15_platforms = []
 
     idx = 0
@@ -48,7 +50,6 @@ platforms:
       platform_name = platform[0] + "-#{host}"
 
       windows = platform_name.include?("win")
-      sles11 = platform_name.include?("sles-11")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
 
@@ -57,9 +58,6 @@ platforms:
       else
         if sles15
           sles15_platforms << platform_name
-        end
-        if sles11
-          sles11_platforms << platform_name
         end
       end
 

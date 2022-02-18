@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package flags
@@ -23,6 +24,7 @@ func init() {
 		DefaultConfigPath = filepath.Join(pd, "datadog.yaml")
 	}
 }
+
 func registerOSSpecificFlags() {
 	flag.BoolVar(&Win.InstallService, "install-service", false, "Install the trace agent to the Service Control Manager")
 	flag.BoolVar(&Win.UninstallService, "uninstall-service", false, "Remove the trace agent from the Service Control Manager")

@@ -2,48 +2,6 @@
 # deps_build stage
 # Contains jobs which build various libraries needed for system-probe.
 
-.build_libbcc_common:
-  rules:
-    !reference [.manual]
-  stage: deps_build
-  script:
-    - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
-    # Patch libbcc to remove references to glibc symbols with a too recent version
-    - cd /tmp/bcc
-    - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
-    - mkdir /tmp/bcc/build
-    - cd /tmp/bcc/build
-    - cmake .. -DENABLE_EXAMPLES=OFF -DENABLE_TESTS=OFF -DENABLE_MAN=OFF -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
-    - make -j 4 # "$(nproc)"
-    # Check that libbcc has no references to glibc >= 2.18
-    - objdump -p src/cc/libbcc.so | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
-    - make install
-    - cd /opt/libbcc
-    - chmod go-rwx lib/libbcc*
-    - rm -rf share/bcc/introspection share/bcc/tools lib/python2* lib/python3*
-    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo.so.6* lib
-    - mkdir -p $CI_PROJECT_DIR/.tmp
-    - tar cvaf $CI_PROJECT_DIR/.tmp/libbcc-$ARCH-$BCC_VERSION.tar.xz .
-    - $S3_CP_CMD $CI_PROJECT_DIR/.tmp/libbcc-$ARCH-$BCC_VERSION.tar.xz $S3_PERMANENT_ARTIFACTS_URI/libbcc-$ARCH-$BCC_VERSION.tar.xz
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $CI_PROJECT_DIR/.tmp/libbcc-$ARCH-$BCC_VERSION.tar.xz
-
-build_libbcc_x64:
-  extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
-  variables:
-    ARCH: amd64
-
-build_libbcc_arm64:
-  extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
-  variables:
-    ARCH: arm64
-
 .build_clang_common:
   rules:
     !reference [.manual]
@@ -97,3 +55,45 @@ build_clang_arm64:
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
+
+.build_omnibus-nikos_common:
+  stage: deps_build
+  rules:
+    !reference [.manual]
+  script:
+    - git clone https://github.com/DataDog/omnibus-nikos.git /tmp/omnibus-nikos
+    - cd /tmp/omnibus-nikos
+    - /bin/bash -l -c "bundle install"
+    - /bin/bash -l -c "export NIKOS_INSTALL_DIR=$NIKOS_INSTALL_DIR && bundle exec omnibus build nikos"
+    - cd $NIKOS_EMBEDDED_PATH
+    - cp lib/glib-2.0/include/glibconfig.h include
+    - tar czf nikos.tar.gz *
+    - $S3_CP_CMD nikos.tar.gz $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz
+
+build_omnibus-nikos_x64:
+  extends: .build_omnibus-nikos_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_x64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
+  tags: ["runner:main"]
+  variables:
+    ARCH: amd64
+
+build_omnibus-nikos_arm64:
+  extends: .build_omnibus-nikos_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_arm64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+
+build_vcpkg_deps:
+  stage: deps_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    ARCH: "x64"
+  before_script:
+    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} C:\mnt\tasks\winbuildscripts\build_vcpkg_deps.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

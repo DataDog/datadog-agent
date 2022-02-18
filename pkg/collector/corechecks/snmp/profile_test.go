@@ -1,365 +1,365 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package snmp
 
 import (
-	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
+	"time"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
-func mockProfilesDefinitions() profileDefinitionMap {
-	metrics := []metricsConfig{
-		{Symbol: symbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal"}, ForcedType: "gauge"},
-		{Symbol: symbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
-		{
-			ForcedType: "monotonic_count",
-			Symbols: []symbolConfig{
-				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
-				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
-			},
-			MetricTags: []metricTagConfig{
-				{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-			},
-		},
-		{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-	}
-	return profileDefinitionMap{"f5-big-ip": profileDefinition{
-		Metrics:      metrics,
-		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-		Device:       deviceMeta{Vendor: "f5"},
-		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-		MetricTags: []metricTagConfig{
-			{
-				OID:     "1.3.6.1.2.1.1.5.0",
-				Name:    "sysName",
-				Match:   "(\\w)(\\w+)",
-				pattern: regexp.MustCompile("(\\w)(\\w+)"),
-				Tags: map[string]string{
-					"some_tag": "some_tag_value",
-					"prefix":   "\\1",
-					"suffix":   "\\2",
-				},
-			},
-			{Tag: "snmp_host", Index: 0x0, Column: symbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-		},
-	}}
-}
-
-func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
-	setConfdPathAndCleanProfiles()
-	actualProfileConfig, err := getDefaultProfilesDefinitionFiles()
-	assert.Nil(t, err)
-
-	confdPath := config.Datadog.GetString("confd_path")
-	expectedProfileConfig := profileConfigMap{
-		"f5-big-ip": {
-			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
-		},
-	}
-
-	assert.Equal(t, expectedProfileConfig, actualProfileConfig)
-}
-
-func Test_loadProfiles(t *testing.T) {
-	defaultTestConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
-	config.Datadog.Set("confd_path", defaultTestConfdPath)
-	defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
-	assert.Nil(t, err)
-
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_ext_conf.d"))
-	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_cyclic_conf.d"))
-
-	profileWithInvalidExtends, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
-	invalidYamlProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "invalid_yaml_file.yaml"))
-	validationErrorProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "validation_error.yaml"))
-	type logCount struct {
-		log   string
-		count int
-	}
-	tests := []struct {
-		name                  string
-		confdPath             string
-		inputProfileConfigMap profileConfigMap
-		expectedProfileDefMap profileDefinitionMap
-		expectedIncludeErrors []string
-		expectedLogs          []logCount
-	}{
-		{
-			name:                  "default",
-			confdPath:             defaultTestConfdPath,
-			inputProfileConfigMap: defaultProfilesDef,
-			expectedProfileDefMap: mockProfilesDefinitions(),
-			expectedIncludeErrors: []string{},
-		},
-		{
-			name: "failed to read profile",
-			inputProfileConfigMap: profileConfigMap{
-				"f5-big-ip": {
-					DefinitionFile: filepath.Join(string(filepath.Separator), "does", "not", "exist"),
-				},
-			},
-			expectedProfileDefMap: profileDefinitionMap{},
-			expectedLogs: []logCount{
-				{"[WARN] loadProfiles: failed to read profile definition `f5-big-ip`: failed to read file", 1},
-			},
-		},
-		{
-			name: "invalid extends",
-			inputProfileConfigMap: profileConfigMap{
-				"f5-big-ip": {
-					DefinitionFile: profileWithInvalidExtends,
-				},
-			},
-			expectedProfileDefMap: profileDefinitionMap{},
-			expectedLogs: []logCount{
-				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: failed to read file", 1},
-			},
-		},
-		{
-			name:      "invalid recursive extends",
-			confdPath: profilesWithInvalidExtendConfdPath,
-			inputProfileConfigMap: profileConfigMap{
-				"f5-big-ip": {
-					DefinitionFile: "f5-big-ip.yaml",
-				},
-			},
-			expectedProfileDefMap: profileDefinitionMap{},
-			expectedLogs: []logCount{
-				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`", 1},
-				{"invalid.yaml", 2},
-			},
-		},
-		{
-			name:      "invalid cyclic extends",
-			confdPath: invalidCyclicConfdPath,
-			inputProfileConfigMap: profileConfigMap{
-				"f5-big-ip": {
-					DefinitionFile: "f5-big-ip.yaml",
-				},
-			},
-			expectedProfileDefMap: profileDefinitionMap{},
-			expectedLogs: []logCount{
-				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected, `_extend1.yaml` has already been extended, extendsHistory=`[_extend1.yaml _extend2.yaml]", 1},
-			},
-		},
-		{
-			name: "invalid yaml profile",
-			inputProfileConfigMap: profileConfigMap{
-				"f5-big-ip": {
-					DefinitionFile: invalidYamlProfile,
-				},
-			},
-			expectedProfileDefMap: profileDefinitionMap{},
-			expectedLogs: []logCount{
-				{"failed to read profile definition `f5-big-ip`: failed to unmarshall", 1},
-			},
-		},
-		{
-			name: "validation error profile",
-			inputProfileConfigMap: profileConfigMap{
-				"f5-big-ip": {
-					DefinitionFile: validationErrorProfile,
-				},
-			},
-			expectedProfileDefMap: profileDefinitionMap{},
-			expectedLogs: []logCount{
-				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
-				{"cannot compile `match` (`table_match[\\w)`)", 1},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
-
-			config.Datadog.Set("confd_path", tt.confdPath)
-
-			profiles, err := loadProfiles(tt.inputProfileConfigMap)
-			for _, errorMsg := range tt.expectedIncludeErrors {
-				assert.Contains(t, err.Error(), errorMsg)
-			}
-
-			w.Flush()
-			logs := b.String()
-
-			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
-			}
-
-			for _, profile := range profiles {
-				normalizeMetrics(profile.Metrics)
-			}
-
-			assert.Equal(t, tt.expectedProfileDefMap, profiles)
-		})
-	}
-}
-
-func Test_getMostSpecificOid(t *testing.T) {
-	tests := []struct {
-		name           string
-		oids           []string
-		expectedOid    string
-		expectedErrror error
-	}{
-		{
-			"one",
-			[]string{"1.2.3.4"},
-			"1.2.3.4",
-			nil,
-		},
-		{
-			"error on empty oids",
-			[]string{},
-			"",
-			fmt.Errorf("cannot get most specific oid from empty list of oids"),
-		},
-		{
-			"error on parsing",
-			[]string{"a.1.2.3"},
-			"",
-			fmt.Errorf("error parsing part `a` for pattern `a.1.2.3`: strconv.Atoi: parsing \"a\": invalid syntax"),
-		},
-		{
-			"most lengthy",
-			[]string{"1.3.4", "1.3.4.1.2"},
-			"1.3.4.1.2",
-			nil,
-		},
-		{
-			"wild card 1",
-			[]string{"1.3.4.*", "1.3.4.1"},
-			"1.3.4.1",
-			nil,
-		},
-		{
-			"wild card 2",
-			[]string{"1.3.4.1", "1.3.4.*"},
-			"1.3.4.1",
-			nil,
-		},
-		{
-			"sample oids",
-			[]string{"1.3.6.1.4.1.3375.2.1.3.4.43", "1.3.6.1.4.1.8072.3.2.10"},
-			"1.3.6.1.4.1.3375.2.1.3.4.43",
-			nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			oid, err := getMostSpecificOid(tt.oids)
-			assert.Equal(t, tt.expectedErrror, err)
-			assert.Equal(t, tt.expectedOid, oid)
-		})
-	}
-}
-
-func Test_resolveProfileDefinitionPath(t *testing.T) {
-	setConfdPathAndCleanProfiles()
-
-	absPath, _ := filepath.Abs(filepath.Join("tmp", "myfile.yaml"))
-	tests := []struct {
-		name               string
-		definitionFilePath string
-		expectedPath       string
-	}{
-		{
-			name:               "abs path",
-			definitionFilePath: absPath,
-			expectedPath:       absPath,
-		},
-		{
-			name:               "relative path",
-			definitionFilePath: "myfile.yaml",
-			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "profiles", "myfile.yaml"),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path := resolveProfileDefinitionPath(tt.definitionFilePath)
-			assert.Equal(t, tt.expectedPath, path)
-		})
-	}
-}
-
-func Test_loadDefaultProfiles(t *testing.T) {
-	setConfdPathAndCleanProfiles()
-	globalProfileConfigMap = nil
-	defaultProfiles, err := loadDefaultProfiles()
-	assert.Nil(t, err)
-	defaultProfiles2, err := loadDefaultProfiles()
-	assert.Nil(t, err)
-
-	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
-}
-
-func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
-	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
+func TestProfileMetadata_f5(t *testing.T) {
+	timeNow = common.MockTimeNow
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	invalidPath, _ := filepath.Abs(filepath.Join("test", "metadata_conf.d"))
 	config.Datadog.Set("confd_path", invalidPath)
-	globalProfileConfigMap = nil
 
-	defaultProfiles, err := loadDefaultProfiles()
-	assert.Contains(t, err.Error(), "failed to get default profile definitions: failed to read dir")
-	assert.Nil(t, defaultProfiles)
-}
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{sessionFactory: sessionFactory}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+profile: f5-big-ip
+oid_batch_size: 20
+namespace: profile-metadata
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+`)
 
-func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.NoError(t, err)
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_ext_conf.d"))
-	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	globalProfileConfigMap = nil
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
 
-	defaultProfiles, err := loadDefaultProfiles()
-
-	w.Flush()
-	logs := b.String()
-	assert.Nil(t, err)
-
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to expand profile `f5-big-ip"), logs)
-	assert.Equal(t, profileDefinitionMap{}, defaultProfiles)
-}
-
-func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
-	// Valid profiles should be returned even if some profiles are invalid
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
-
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "valid_invalid_conf.d"))
-	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	globalProfileConfigMap = nil
-
-	defaultProfiles, err := loadDefaultProfiles()
-
-	for _, profile := range defaultProfiles {
-		normalizeMetrics(profile.Metrics)
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3.4",
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.3.0",
+				Type:  gosnmp.TimeTicks,
+				Value: 20,
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.6.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("paris"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("a-serial-num"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.4.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("BIG-IP"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.4.2.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("15.0.1"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.4.4.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("Final"),
+			},
+			{
+				Name: "1.3.6.1.4.1.3375.2.1.4.999999.0",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.6.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("Linux"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.6.2.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("my-linux-f5-server"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.6.4.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("3.10.0-862.14.4.el7.ve.x86_64"),
+			},
+		},
 	}
 
-	w.Flush()
-	logs := b.String()
+	bulkPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.13.1",
+				Type:  gosnmp.Integer,
+				Value: 131,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.14.1",
+				Type:  gosnmp.Integer,
+				Value: 141,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDesc1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.13.2",
+				Type:  gosnmp.Integer,
+				Value: 132,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.14.2",
+				Type:  gosnmp.Integer,
+				Value: 142,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDesc2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+		},
+	}
+
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("Get", []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.6.0",
+		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
+		"1.3.6.1.4.1.3375.2.1.4.1.0",
+		"1.3.6.1.4.1.3375.2.1.4.2.0",
+		"1.3.6.1.4.1.3375.2.1.4.4.0",
+		"1.3.6.1.4.1.3375.2.1.4.999999.0",
+		"1.3.6.1.4.1.3375.2.1.6.1.0",
+		"1.3.6.1.4.1.3375.2.1.6.2.0",
+		"1.3.6.1.4.1.3375.2.1.6.4.0",
+	}).Return(&packet, nil)
+	sess.On("GetBulk", []string{
+		"1.3.6.1.2.1.2.2.1.13",
+		"1.3.6.1.2.1.2.2.1.14",
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+
+	err = chk.Run()
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to read profile definition `f5-big-ip-invalid`"), logs)
-	assert.Equal(t, mockProfilesDefinitions(), defaultProfiles)
+	// language=json
+	event := []byte(fmt.Sprintf(`
+{
+  "subnet": "",
+  "namespace":"profile-metadata",
+  "devices": [
+    {
+      "id": "profile-metadata:1.2.3.4",
+      "id_tags": [
+        "device_namespace:profile-metadata",
+        "snmp_device:1.2.3.4"
+      ],
+      "tags": [
+        "agent_version:%s",
+        "device_namespace:profile-metadata",
+        "device_vendor:f5",
+        "snmp_device:1.2.3.4",
+        "snmp_host:foo_sys_name",
+        "snmp_profile:f5-big-ip"
+      ],
+      "ip_address": "1.2.3.4",
+      "status": 1,
+      "name": "foo_sys_name",
+      "description": "BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11",
+      "sys_object_id": "1.2.3.4",
+      "location": "paris",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "serial_number": "a-serial-num",
+      "version":"15.0.1",
+      "product_name":"BIG-IP",
+      "model":"Final",
+      "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
+      "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
+      "os_hostname":"my-linux-f5-server"
+    }
+  ],
+  "interfaces": [
+    {
+      "device_id": "profile-metadata:1.2.3.4",
+      "id_tags": ["interface:nameRow1"],
+      "index": 1,
+      "name": "nameRow1",
+      "alias": "descRow1",
+      "description": "ifDesc1",
+      "mac_address": "00:00:00:00:00:01",
+      "admin_status": 1,
+      "oper_status": 1
+    },
+    {
+      "device_id": "profile-metadata:1.2.3.4",
+	  "id_tags": ["interface:nameRow2"],
+      "index": 2,
+      "name": "nameRow2",
+      "alias": "descRow2",
+      "description": "ifDesc2",
+      "mac_address": "00:00:00:00:00:02",
+      "admin_status": 1,
+      "oper_status": 1
+    }
+  ],
+  "collect_timestamp":946684800
+}
+`, version.AgentVersion))
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 }

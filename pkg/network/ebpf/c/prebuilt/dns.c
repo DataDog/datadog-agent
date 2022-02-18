@@ -15,10 +15,11 @@ static __always_inline bool dns_stats_enabled() {
 SEC("socket/dns_filter")
 int socket__dns_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
-    if (!read_conn_tuple_skb(skb, &skb_info)) {
+    conn_tuple_t tup;
+    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }
-    if (skb_info.tup.sport != 53 && (!dns_stats_enabled() || skb_info.tup.dport != 53)) {
+    if (tup.sport != 53 && (!dns_stats_enabled() || tup.dport != 53)) {
         return 0;
     }
 

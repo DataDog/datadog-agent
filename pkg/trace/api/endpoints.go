@@ -5,7 +5,12 @@
 
 package api
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+)
 
 // endpoint specifies an API endpoint definition.
 type endpoint struct {
@@ -18,6 +23,10 @@ type endpoint struct {
 	// Hidden reports whether this endpoint should be hidden in the /info
 	// discovery endpoint.
 	Hidden bool
+
+	// IsEnabled specifies a function which reports whether this endpoint should be enabled
+	// based on the given config conf.
+	IsEnabled func(conf *config.AgentConfig) bool
 }
 
 // endpoints specifies the list of endpoints registered for the trace-agent API.
@@ -73,12 +82,27 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v05, r.handleTraces) },
 	},
 	{
+		Pattern: "/v0.7/traces",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v07, r.handleTraces) },
+	},
+	{
 		Pattern: "/profiling/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
 	},
 	{
+		Pattern: "/telemetry/proxy/",
+		Handler: func(r *HTTPReceiver) http.Handler {
+			return http.StripPrefix("/telemetry/proxy", r.telemetryProxyHandler())
+		},
+		IsEnabled: func(cfg *config.AgentConfig) bool { return cfg.TelemetryConfig.Enabled },
+	},
+	{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
+	},
+	{
+		Pattern: "/v0.1/pipeline_stats",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.pipelineStatsProxyHandler() },
 	},
 	{
 		Pattern: "/appsec/proxy/",
@@ -87,5 +111,10 @@ var endpoints = []endpoint{
 	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
+	},
+	{
+		Pattern:   "/v0.7/config",
+		Handler:   func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleGetConfig) },
+		IsEnabled: func(_ *config.AgentConfig) bool { return features.Has("config_endpoint") },
 	},
 }

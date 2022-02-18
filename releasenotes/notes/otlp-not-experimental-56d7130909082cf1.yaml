@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The OTLP ingest endpoint is now considered stable for traces.
+    The configuration for it needs no longer be part of the "experimental" config section.
+
+    Please note that previously setting "experimental.otlp.grpc_port" together with "apm_config.apm_non_local_traffic"
+    would result in the listener being bound to "0.0.0.0" whereas now it will be bound to "localhost" or the value set
+    by "bind_host".

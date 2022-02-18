@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -324,9 +325,10 @@ func Test_jobCompleteTransformer(t *testing.T) {
 
 func Test_jobFailedTransformer(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     args
-		expected *serviceCheck
+		name                 string
+		args                 args
+		expectedServiceCheck *serviceCheck
+		expectedMetric       *metricsExpected
 	}{
 		{
 			name: "nominal case, job_name tag",
@@ -337,14 +339,20 @@ func Test_jobFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
+						"condition": "true",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
-			expected: &serviceCheck{
+			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
 				status: metrics.ServiceCheckCritical,
-				tags:   []string{"job_name:foo", "namespace:default"},
+				tags:   []string{"kube_cronjob:foo", "namespace:default"},
+			},
+			expectedMetric: &metricsExpected{
+				name: "kubernetes_state.job.completion.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -356,14 +364,20 @@ func Test_jobFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
+						"condition": "true",
 					},
 				},
-				tags: []string{"job:foo-1509998340", "namespace:default"},
+				tags: []string{"job:foo-1509998340", "namespace:default", "condition:true"},
 			},
-			expected: &serviceCheck{
+			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
 				status: metrics.ServiceCheckCritical,
-				tags:   []string{"job:foo", "namespace:default"},
+				tags:   []string{"kube_cronjob:foo", "namespace:default"},
+			},
+			expectedMetric: &metricsExpected{
+				name: "kubernetes_state.job.completion.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -375,11 +389,13 @@ func Test_jobFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
+						"condition": "true",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
-			expected: nil,
+			expectedServiceCheck: nil,
+			expectedMetric:       nil,
 		},
 	}
 	for _, tt := range tests {
@@ -387,11 +403,17 @@ func Test_jobFailedTransformer(t *testing.T) {
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			jobFailedTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
-			if tt.expected != nil {
-				s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, tt.args.hostname, tt.args.tags, "")
+			if tt.expectedServiceCheck != nil {
+				s.AssertServiceCheck(t, tt.expectedServiceCheck.name, tt.expectedServiceCheck.status, tt.args.hostname, tt.expectedServiceCheck.tags, "")
 				s.AssertNumberOfCalls(t, "ServiceCheck", 1)
 			} else {
 				s.AssertNotCalled(t, "ServiceCheck")
+			}
+			if tt.expectedMetric != nil {
+				s.AssertMetric(t, "Gauge", tt.expectedMetric.name, tt.expectedMetric.val, tt.args.hostname, tt.expectedMetric.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
 			}
 		})
 	}
@@ -487,14 +509,15 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
 			expected: &metricsExpected{
 				name: "kubernetes_state.job.failed",
 				val:  1,
-				tags: []string{"job_name:foo", "namespace:default"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -506,15 +529,32 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
 					},
 				},
-				tags: []string{"job:foo-1509998340", "namespace:default"},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
 			expected: &metricsExpected{
 				name: "kubernetes_state.job.failed",
 				val:  1,
-				tags: []string{"job:foo", "namespace:default"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
+		},
+		{
+			name: "irrelevant reason",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "Evicted",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
+			},
+			expected: nil,
 		},
 		{
 			name: "inactive",
@@ -529,7 +569,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
-			expected: nil,
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  0,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -538,7 +582,7 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			jobStatusFailedTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
 			if tt.expected != nil {
-				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
 			} else {
 				s.AssertNotCalled(t, "Gauge")
@@ -1146,7 +1190,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:unknown"},
-				status:  metrics.ServiceCheckUnknown,
+				status:  metrics.ServiceCheckWarning,
 				message: "foo is currently reporting Ready = unknown",
 			},
 			expectedMetric: &metricsExpected{
@@ -1419,21 +1463,21 @@ func Test_validateJob(t *testing.T) {
 			name:  "kube_job",
 			val:   1.0,
 			tags:  []string{"foo:bar", "kube_job:foo-1600167000"},
-			want:  []string{"foo:bar", "kube_cronjob:foo"},
+			want:  []string{"foo:bar", "kube_job:foo-1600167000", "kube_cronjob:foo"},
 			want1: true,
 		},
 		{
 			name:  "job",
 			val:   1.0,
 			tags:  []string{"foo:bar", "job:foo-1600167000"},
-			want:  []string{"foo:bar", "kube_cronjob:foo"},
+			want:  []string{"foo:bar", "job:foo-1600167000", "kube_cronjob:foo"},
 			want1: true,
 		},
 		{
 			name:  "job_name and kube_job",
 			val:   1.0,
 			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
-			want:  []string{"foo:bar", "kube_cronjob:foo", "kube_cronjob:foo"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo"},
 			want1: true,
 		},
 		{
@@ -1447,7 +1491,7 @@ func Test_validateJob(t *testing.T) {
 			name:  "invalid",
 			val:   0.0,
 			tags:  []string{"foo:bar", "job_name:foo"},
-			want:  nil,
+			want:  []string{"foo:bar", "job_name:foo"},
 			want1: false,
 		},
 	}

@@ -3,24 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"unsafe"
 
-	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -205,10 +205,10 @@ var (
 // will definitely be initialized by the time one of the python checks runs
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
-		var cfg traceconfig.ObfuscationConfig
+		var cfg obfuscate.Config
 		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
-			cfg = traceconfig.ObfuscationConfig{}
+			cfg = obfuscate.Config{}
 		}
 		if !cfg.SQLExecPlan.Enabled {
 			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
@@ -216,31 +216,63 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		if !cfg.SQLExecPlanNormalize.Enabled {
 			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
 		}
-		obfuscator = obfuscate.NewObfuscator(&cfg)
+		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
 	return obfuscator
+}
+
+// sqlConfig holds the config for the python SQL obfuscator.
+type sqlConfig struct {
+	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
+	DBMS string `json:"dbms"`
+	// TableNames specifies whether the obfuscator should extract and return table names as SQL metadata when obfuscating.
+	TableNames bool `json:"table_names"`
+	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
+	CollectCommands bool `json:"collect_commands"`
+	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
+	CollectComments bool `json:"collect_comments"`
+	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
+	ReplaceDigits bool `json:"replace_digits"`
+	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
+	ReturnJSONMetadata bool `json:"return_json_metadata"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlOpts obfuscate.SQLOptions
-	if opts != nil {
-		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
-		sqlOpts.UnmarshalEasyJSON(jl)
-		if jl.Error() != nil {
-			log.Errorf("Failed to unmarshal obfuscation options: %s", jl.Error())
-			*errResult = TrackedCString(jl.Error().Error())
-			return nil
-		}
+	optStr := C.GoString(opts)
+	if optStr == "" {
+		// ensure we have a valid JSON string before unmarshalling
+		optStr = "{}"
+	}
+	var sqlOpts sqlConfig
+	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+		log.Errorf("Failed to unmarshal obfuscation options: %s", err.Error())
+		*errResult = TrackedCString(err.Error())
 	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, sqlOpts)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
+		DBMS:            sqlOpts.DBMS,
+		TableNames:      sqlOpts.TableNames,
+		CollectCommands: sqlOpts.CollectCommands,
+		CollectComments: sqlOpts.CollectComments,
+		ReplaceDigits:   sqlOpts.ReplaceDigits,
+	})
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
 		return nil
+	}
+	if sqlOpts.ReturnJSONMetadata {
+		out, err := json.Marshal(obfuscatedQuery)
+		if err != nil {
+			// memory will be freed by caller
+			*errResult = TrackedCString(err.Error())
+			return nil
+		}
+		// memory will be freed by caller
+		return TrackedCString(string(out))
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedQuery.Query)
@@ -265,7 +297,7 @@ func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char
 
 // defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
 // execution plans
-var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
+var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	ObfuscateSQLValues: []string{
 		// mysql
@@ -415,7 +447,7 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 
 // defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
 // list
-var defaultSQLPlanObfuscateSettings = traceconfig.JSONObfuscationConfig{
+var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	KeepValues: append([]string{
 		// mysql
@@ -431,4 +463,9 @@ var defaultSQLPlanObfuscateSettings = traceconfig.JSONObfuscationConfig{
 		"Total Cost",
 	}, defaultSQLPlanNormalizeSettings.KeepValues...),
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
+}
+
+//export getProcessStartTime
+func getProcessStartTime() float64 {
+	return float64(config.StartTime.Unix())
 }

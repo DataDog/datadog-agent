@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package model
@@ -131,6 +132,7 @@ func (d *DatadogMetricInternal) UpdateFrom(currentSpec datadoghq.DatadogMetricSp
 		d.resolveQuery(currentSpec.Query)
 	}
 	d.query = currentSpec.Query
+	d.MaxAge = currentSpec.MaxAge.Duration
 }
 
 // shouldResolveQuery returns whether we should try to resolve a new query

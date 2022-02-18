@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build consul
 // +build consul
 
 package providers
@@ -47,12 +48,16 @@ func (c *consulWrapper) KV() consulKVBackend {
 type ConsulConfigProvider struct {
 	Client      consulBackend
 	TemplateDir string
-	cache       *ProviderCache
+	cache       *providerCache
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	consulURL, err := url.Parse(config.TemplateURL)
+func NewConsulConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+	if providerConfig == nil {
+		providerConfig = &config.ConfigurationProviders{}
+	}
+
+	consulURL, err := url.Parse(providerConfig.TemplateURL)
 	if err != nil {
 		return nil, err
 	}
@@ -60,28 +65,28 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	clientCfg := consul.DefaultConfig()
 	clientCfg.Address = consulURL.Host
 	clientCfg.Scheme = consulURL.Scheme
-	clientCfg.Token = config.Token
+	clientCfg.Token = providerConfig.Token
 
 	if consulURL.Scheme == "https" {
 		clientCfg.TLSConfig = consul.TLSConfig{
 			Address:            consulURL.Host,
-			CAFile:             config.CAFile,
-			CAPath:             config.CAPath,
-			CertFile:           config.CertFile,
-			KeyFile:            config.KeyFile,
+			CAFile:             providerConfig.CAFile,
+			CAPath:             providerConfig.CAPath,
+			CertFile:           providerConfig.CertFile,
+			KeyFile:            providerConfig.KeyFile,
 			InsecureSkipVerify: false,
 		}
 	}
 
-	if len(config.Username) > 0 && len(config.Password) > 0 {
-		log.Infof("Using provided consul credentials (username): %s", config.Username)
+	if len(providerConfig.Username) > 0 && len(providerConfig.Password) > 0 {
+		log.Infof("Using provided consul credentials (username): %s", providerConfig.Username)
 		auth := &consul.HttpBasicAuth{
-			Username: config.Username,
-			Password: config.Password,
+			Username: providerConfig.Username,
+			Password: providerConfig.Password,
 		}
 		clientCfg.HttpAuth = auth
 	}
-	cache := NewCPCache()
+	cache := newProviderCache()
 	cli, err := consul.NewClient(clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the consul client: %s", err)
@@ -93,7 +98,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 	return &ConsulConfigProvider{
 		Client:      c,
-		TemplateDir: config.TemplateDir,
+		TemplateDir: providerConfig.TemplateDir,
 		cache:       cache,
 	}, nil
 
@@ -125,7 +130,7 @@ func (p *ConsulConfigProvider) Collect(ctx context.Context) ([]integration.Confi
 func (p *ConsulConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	kv := p.Client.KV()
 	adListUpdated := false
-	dateIdx := p.cache.LatestTemplateIdx
+	dateIdx := p.cache.mostRecentMod
 
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
@@ -133,21 +138,21 @@ func (p *ConsulConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if p.cache.NumAdTemplates != len(identifiers) {
-		if p.cache.NumAdTemplates == 0 {
+	if p.cache.count != len(identifiers) {
+		if p.cache.count == 0 {
 			log.Infof("Initializing cache for %v", p.String())
 		}
 		log.Debugf("List of AD Template was modified, updating cache.")
-		p.cache.NumAdTemplates = len(identifiers)
+		p.cache.count = len(identifiers)
 		adListUpdated = true
 	}
 
 	for _, identifier := range identifiers {
 		dateIdx = math.Max(float64(identifier.ModifyIndex), dateIdx)
 	}
-	if dateIdx > p.cache.LatestTemplateIdx || adListUpdated {
-		log.Debugf("Cache Index was %v and is now %v", p.cache.LatestTemplateIdx, dateIdx)
-		p.cache.LatestTemplateIdx = dateIdx
+	if dateIdx > p.cache.mostRecentMod || adListUpdated {
+		log.Debugf("Cache Index was %v and is now %v", p.cache.mostRecentMod, dateIdx)
+		p.cache.mostRecentMod = dateIdx
 		log.Infof("Cache updated for %v", p.String())
 		return false, nil
 	}
@@ -290,7 +295,7 @@ func isTemplateField(key string) bool {
 }
 
 func init() {
-	RegisterProvider("consul", NewConsulConfigProvider)
+	RegisterProvider(names.ConsulRegisterName, NewConsulConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the ConsulConfigProvider

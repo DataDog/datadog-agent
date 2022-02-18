@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package stats
 
 import (
@@ -10,10 +15,8 @@ import (
 )
 
 const (
-	tagHostname   = "_dd.hostname"
 	tagStatusCode = "http.status_code"
 	tagVersion    = "version"
-	tagOrigin     = "_dd.origin"
 	tagSynthetics = "synthetics"
 )
 
@@ -46,7 +49,7 @@ func getStatusCode(s *pb.Span) uint32 {
 	if strC == "" {
 		return 0
 	}
-	c, err := strconv.Atoi(strC)
+	c, err := strconv.ParseUint(strC, 10, 32)
 	if err != nil {
 		log.Debugf("Invalid status code %s. Using 0.", strC)
 		return 0
@@ -55,19 +58,10 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, env string, agentHostname, containerID string) Aggregation {
-	synthetics := strings.HasPrefix(traceutil.GetMetaDefault(s, tagOrigin, ""), tagSynthetics)
-	hostname := traceutil.GetMetaDefault(s, tagHostname, "")
-	if hostname == "" {
-		hostname = agentHostname
-	}
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey) Aggregation {
+	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	return Aggregation{
-		PayloadAggregationKey: PayloadAggregationKey{
-			Env:         env,
-			Hostname:    hostname,
-			Version:     traceutil.GetMetaDefault(s, tagVersion, ""),
-			ContainerID: containerID,
-		},
+		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:   s.Resource,
 			Service:    s.Service,

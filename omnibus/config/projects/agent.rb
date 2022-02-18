@@ -4,8 +4,17 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 
-name 'agent'
-package_name 'datadog-agent'
+flavor = ENV['AGENT_FLAVOR']
+
+if flavor.nil? || flavor == 'base'
+  name 'agent'
+  package_name 'datadog-agent'
+else
+  name "agent-#{flavor}"
+  package_name "datadog-#{flavor}-agent"
+end
+license "Apache-2.0"
+license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
@@ -20,6 +29,25 @@ if ohai['platform'] == "windows"
 else
   if redhat? || suse?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
+
+    # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
+    # because these would be used in a kickstart during package installation phase.
+    # All of the packages that we depend on in prerm/postrm scripts always have to be
+    # installed on all distros that we support, so we don't have to depend on them
+    # explicitly.
+
+    # postinst and posttrans scripts use a subset of preinst script deps, so we don't
+    # have to list them, because they'll already be there because of preinst
+    runtime_script_dependency :pre, "coreutils"
+    runtime_script_dependency :pre, "findutils"
+    runtime_script_dependency :pre, "grep"
+    if redhat?
+      runtime_script_dependency :pre, "glibc-common"
+      runtime_script_dependency :pre, "shadow-utils"
+    else
+      runtime_script_dependency :pre, "glibc"
+      runtime_script_dependency :pre, "shadow"
+    end
   else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
@@ -101,7 +129,7 @@ compress :dmg do
   pkg_position '10, 10'
 end
 
-# Windows .msi specific flags
+# Windows .zip specific flags
 package :zip do
   if windows_arch_i386?
     skip_packager true
@@ -111,6 +139,7 @@ package :zip do
       "#{Omnibus::Config.source_dir()}\\cf-root",
     ]
 
+    # Always sign everything for binaries zip
     additional_sign_files [
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
@@ -120,6 +149,9 @@ package :zip do
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\uninstall-cmd.exe"
       ]
+    if with_python_runtime? "2"
+      additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
+    end
     if ENV['SIGN_PFX']
       signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
     end
@@ -145,8 +177,12 @@ package :msi do
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
       "#{install_dir}\\bin\\agent\\ddtray.exe"
     ]
+    if with_python_runtime? "2"
+      additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll"
+    end
   #if ENV['SIGN_WINDOWS']
   #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
   #end
@@ -248,12 +284,6 @@ if linux?
     extra_package_file "/etc/init.d/datadog-agent-trace"
     extra_package_file "/etc/init.d/datadog-agent-security"
   end
-  if suse?
-    extra_package_file "/etc/init.d/datadog-agent"
-    extra_package_file "/etc/init.d/datadog-agent-process"
-    extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
-  end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
   extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
@@ -263,6 +293,11 @@ if linux?
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
 end
+
+# default package_scripts_path and resource_path are based on project name,
+# but we change the name based on flavor, so let's hardcode it to "agent"
+package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent"
+resources_path "#{Omnibus::Config.project_root}/resources/agent"
 
 exclude '\.git*'
 exclude 'bundler\/git'

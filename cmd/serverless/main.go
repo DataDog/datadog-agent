@@ -28,7 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -77,8 +79,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 )
 
 const (
-	// loggerName is the name of the serverless agent logger
-	loggerName config.LoggerName = "SAGENT"
+	loggerName config.LoggerName = "DD_EXTENSION"
 
 	runtimeAPIEnvVar = "AWS_LAMBDA_RUNTIME_API"
 
@@ -93,7 +94,7 @@ const (
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
-	logsAPITimeout             = 1000
+	logsAPITimeout             = 25
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
 )
@@ -160,6 +161,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}
+
+	outputDatadogEnvVariablesForDebugging()
 
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
@@ -252,9 +255,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 
-	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 	metricAgent := &metrics.ServerlessMetricAgent{}
-	metricAgent.Start(forwarderTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
@@ -295,6 +297,21 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	wg.Wait()
 
+	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
+	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:           serverlessDaemon.ExtraTags,
+		Demux:               serverlessDaemon.MetricAgent.Demux,
+		ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
+		DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
+	}
+
+	// start the experimental proxy if enabled
+	_ = proxy.Start(
+		"127.0.0.1:9000",
+		"127.0.0.1:9001",
+		serverlessDaemon.InvocationProcessor,
+	)
+
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
@@ -306,6 +323,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}()
 
+	// this log line is used for performance checks during CI
+	// please be careful before modifying/removing it
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
 	return
 }
