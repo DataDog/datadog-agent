@@ -45,7 +45,12 @@ func getActionCallback(action string) (func(), string, error) {
 				var oldProfiles []os.FileInfo
 				for _, tmpFile := range tmpFiles {
 					if strings.HasPrefix(tmpFile.Name(), "memcg-pprof-heap") {
-						oldProfiles = append(oldProfiles, tmpFile)
+						tmpFileInfo, err := tmpFile.Info()
+						if err != nil {
+							log.Errorf("Failed to get file info for: %s", tmpFile.Name())
+							continue
+						}
+						oldProfiles = append(oldProfiles, tmpFileInfo)
 					}
 				}
 
