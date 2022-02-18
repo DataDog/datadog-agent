@@ -128,6 +128,11 @@ struct syscall_cache_t {
         } exec;
 
         struct {
+            u32 is_thread;
+            struct pid *pid;
+        } fork;
+
+        struct {
             struct dentry *dentry;
             struct file_t file;
             u32 event_kind;
