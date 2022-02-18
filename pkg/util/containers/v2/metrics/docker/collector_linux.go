@@ -15,10 +15,12 @@ import (
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/system"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
@@ -133,4 +135,30 @@ func convertPIDStats(pidStats *types.PidsStats) *provider.ContainerPIDStats {
 		ThreadCount: pointer.UIntToFloatPtr(pidStats.Current),
 		ThreadLimit: pointer.UIntToFloatPtr(pidStats.Limit),
 	}
+}
+
+func computeCPULimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || spec.HostConfig == nil || containerStats.CPU == nil {
+		return
+	}
+
+	var cpuLimit float64
+	switch {
+	case spec.HostConfig.NanoCPUs > 0:
+		cpuLimit = float64(spec.HostConfig.NanoCPUs) / 1e9 * 100
+	case spec.HostConfig.CpusetCpus != "":
+		cpuLimit = 100 * float64(cgroups.ParseCPUSetFormat(spec.HostConfig.CpusetCpus))
+	case spec.HostConfig.CPUQuota > 0:
+		period := spec.HostConfig.CPUPeriod
+		if period == 0 {
+			period = 100000 // Default CFS Period
+		}
+		cpuLimit = 100 * float64(spec.HostConfig.CPUQuota) / float64(period)
+	default:
+		// If no limit is available, setting the limit to number of CPUs.
+		// Always reporting a limit allows to compute CPU % accurately.
+		cpuLimit = 100 * float64(systemutils.HostCPUCount())
+	}
+
+	containerStats.CPU.Limit = &cpuLimit
 }

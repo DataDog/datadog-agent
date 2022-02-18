@@ -12,10 +12,12 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func Test_convertCPUStats(t *testing.T) {
@@ -128,6 +130,70 @@ func Test_convetrPIDStats(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, &test.expectedOutput, convertPIDStats(test.input))
+		})
+	}
+}
+
+func Test_computeCPULimit(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          *types.ContainerJSON
+		expectedLimit float64
+	}{
+		{
+			name: "No CPU Limit",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{},
+				},
+			},
+			expectedLimit: 100 * float64(system.HostCPUCount()),
+		},
+		{
+			name: "Nano CPUs",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							NanoCPUs: 5000000000,
+						},
+					},
+				},
+			},
+			expectedLimit: 500,
+		},
+		{
+			name: "CPU Percent",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							CPUPercent: 50,
+						},
+					},
+				},
+			},
+			expectedLimit: 50 * float64(system.HostCPUCount()),
+		},
+		{
+			name: "CPU Count",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							CPUCount: 2,
+						},
+					},
+				},
+			},
+			expectedLimit: 200,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			containerStats := &provider.ContainerStats{CPU: &provider.ContainerCPUStats{}}
+			computeCPULimit(containerStats, tt.spec)
+			assert.Equal(t, tt.expectedLimit, *containerStats.CPU.Limit)
 		})
 	}
 }

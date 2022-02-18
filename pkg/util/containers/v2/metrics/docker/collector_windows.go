@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
@@ -60,4 +61,27 @@ func convertPIDStats(numProcs uint32) *provider.ContainerPIDStats {
 	return &provider.ContainerPIDStats{
 		ThreadCount: pointer.UIntToFloatPtr(uint64(numProcs)),
 	}
+}
+
+func computeCPULimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || spec.HostConfig == nil || containerStats.CPU == nil {
+		return
+	}
+
+	// Compute CPU Limit from spec
+	var cpuLimit float64
+	switch {
+	case spec.HostConfig.NanoCPUs > 0:
+		cpuLimit = float64(spec.HostConfig.NanoCPUs) / 1e9 * 100
+	case spec.HostConfig.CPUPercent > 0:
+		cpuLimit = float64(spec.HostConfig.CPUPercent) * float64(system.HostCPUCount())
+	case spec.HostConfig.CPUCount > 0:
+		cpuLimit = float64(spec.HostConfig.CPUCount) * 100
+	default:
+		// If no limit is available, setting the limit to number of CPUs.
+		// Always reporting a limit allows to compute CPU % accurately.
+		cpuLimit = 100 * float64(system.HostCPUCount())
+	}
+
+	containerStats.CPU.Limit = &cpuLimit
 }

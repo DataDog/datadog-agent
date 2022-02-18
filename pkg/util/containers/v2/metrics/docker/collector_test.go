@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func Test_convertNetworkStats(t *testing.T) {
+func TestConvertNetworkStats(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          map[string]types.NetworkStats
