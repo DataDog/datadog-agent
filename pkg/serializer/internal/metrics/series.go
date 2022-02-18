@@ -35,9 +35,6 @@ var (
 // Series represents a list of metrics.Serie ready to be serialize
 type Series []*metrics.Serie
 
-
-
-
 // populateDeviceField removes any `device:` tag in the series tags and uses the value to
 // populate the Serie.Device field
 //FIXME(olivier): remove this as soon as the v1 API can handle `device` as a regular tag
@@ -67,7 +64,6 @@ func hasDeviceTag(serie *metrics.Serie) bool {
 		return strings.HasPrefix(tag, "device:")
 	})
 }
-
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
 //FIXME(maxime): to be removed when v2 endpoints are available
@@ -287,7 +283,6 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 			if err != nil {
 				return err
 			}
-
 
 			err = ps.Int32(seriesType, serie.MType.SeriesAPIV2Enum())
 			if err != nil {

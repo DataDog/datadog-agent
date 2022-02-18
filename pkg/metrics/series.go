@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -105,7 +104,7 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 			serie.MType.String(),
 			strconv.FormatFloat(serie.Points[0].Ts, 'f', 0, 64),
 			strconv.FormatFloat(serie.Points[0].Value, 'f', -1, 64),
-			strings.Join(serie.Tags, ", "),
+			serie.Tags.Join(", "),
 		})
 	}
 
