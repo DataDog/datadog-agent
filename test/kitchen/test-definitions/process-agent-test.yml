@@ -19,6 +19,8 @@ suites:
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
       windows_agent_url: <%= windows_agent_url %>
+      # Because the windows recipe doesn't use the datadog recipe, and the dd-agent-install recipe doesn't have
+      # enable_process_agent, we need to enable it ourselves
       extra_config:
         process_config:
           process_collection:
@@ -26,6 +28,8 @@ suites:
 
 - name: "container-collection-test"
   run_list:
+    - "recipe[dd-agent-disable-system-repos]"
+    - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
@@ -33,7 +37,7 @@ suites:
       <%= key %>: "<%= value %>"
       <% end %>
       extra_config:
-        # Since the gitlab runner doesn't have any container providers the container check won't run unless
+        # Because the gitlab runner doesn't have any container providers, the container check won't run unless
         # we explicitly override a provider ourselves.
         autoconfig_include_features:
           - "docker"
@@ -47,7 +51,5 @@ suites:
       <% end %>
       windows_agent_url: <%= windows_agent_url %>
       extra_config:
-        # Since the gitlab runner doesn't have any container providers the container check won't run unless
-        # we explicitly override a provider ourselves.
         autoconfig_include_features:
           - "docker"
