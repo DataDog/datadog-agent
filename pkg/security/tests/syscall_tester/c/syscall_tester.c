@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
+#include <errno.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -147,6 +149,48 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
+int test_signal_sigusr(void) {
+    int child = fork();
+    if (child == 0) {
+        sleep(5);
+    } else {
+        kill(child, SIGUSR1);
+        sleep(1);
+    }
+    return EXIT_SUCCESS;
+}
+
+int test_signal_eperm(void) {
+    int ppid = getpid();
+    int child = fork();
+    if (child == 0) {
+        /* switch to user daemon */
+        if (setuid(1)) {
+            fprintf(stderr, "Failed to setuid 1 (%s)\n", strerror(errno));
+            return EXIT_FAILURE;
+        }
+        kill(ppid, SIGKILL);
+        sleep(1);
+    } else {
+        wait(NULL);
+    }
+    return EXIT_SUCCESS;
+}
+
+int test_signal(int argc, char** argv) {
+    if (argc != 2) {
+        fprintf(stderr, "%s: Please pass a test case in: sigusr, eperm.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    if (!strcmp(argv[1], "sigusr"))
+        return test_signal_sigusr();
+    else if (!strcmp(argv[1], "eperm"))
+        return test_signal_eperm();
+    fprintf(stderr, "%s: Unknown argument: %s.\n", __FUNCTION__, argv[1]);
+    return EXIT_FAILURE;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -163,6 +207,8 @@ int main(int argc, char **argv) {
         return ptrace_traceme();
     } else if (strcmp(cmd, "span-open") == 0) {
         return span_open(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "signal") == 0) {
+        return test_signal(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

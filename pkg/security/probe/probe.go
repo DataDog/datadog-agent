@@ -584,7 +584,17 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+		}
+	case model.SignalEventType:
+		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode signal event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+		// resolve target process context
+		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
+		if cacheEntry != nil {
+			event.Signal.TargetProcessCacheEntry = cacheEntry
+			event.Signal.Target = cacheEntry.ProcessContext
 		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)

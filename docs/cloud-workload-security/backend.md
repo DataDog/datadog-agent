@@ -41,6 +41,9 @@ CWS logs have the following JSON schema:
         "module": {
             "$ref": "#/definitions/ModuleEvent"
         },
+        "signal": {
+            "$ref": "#/definitions/SignalEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -74,6 +77,7 @@ CWS logs have the following JSON schema:
 | `mprotect` | $ref | Please see [MProtectEvent](#mprotectevent) |
 | `ptrace` | $ref | Please see [PTraceEvent](#ptraceevent) |
 | `module` | $ref | Please see [ModuleEvent](#moduleevent) |
+| `signal` | $ref | Please see [SignalEvent](#signalevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -1200,6 +1204,45 @@ CWS logs have the following JSON schema:
 | [SELinuxBoolChange](#selinuxboolchange) |
 | [SELinuxEnforceStatus](#selinuxenforcestatus) |
 | [SELinuxBoolCommit](#selinuxboolcommit) |
+
+## `SignalEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "type",
+        "pid"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "description": "signal type"
+        },
+        "pid": {
+            "type": "integer",
+            "description": "signal target pid"
+        },
+        "target": {
+            "$ref": "#/definitions/ProcessContext",
+            "description": "process context of the signal target"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `type` | signal type |
+| `pid` | signal target pid |
+| `target` | process context of the signal target |
+
+| References |
+| ---------- |
+| [ProcessContext](#processcontext) |
 
 ## `UserContext`
 

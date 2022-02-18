@@ -51,6 +51,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setgid` | Process | A process changed its effective gid | 7.27 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
+| `signal` | Process | A signal was sent | 7.35 |
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
@@ -748,6 +749,106 @@ Set exteneded attributes
 | `setxattr.file.uid` | int | UID of the file's owner |
 | `setxattr.file.user` | string | User of the file's owner |
 | `setxattr.retval` | int | Return value of the syscall |
+
+### Event `signal`
+
+A signal was sent
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `signal.pid` | int | Target PID |
+| `signal.retval` | int | Return value of the syscall |
+| `signal.target.ancestors.args` | string | Arguments of the process (as a string) |
+| `signal.target.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `signal.target.ancestors.argv` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.argv0` | string | First argument of the process |
+| `signal.target.ancestors.cap_effective` | int | Effective capability set of the process |
+| `signal.target.ancestors.cap_permitted` | int | Permitted capability set of the process |
+| `signal.target.ancestors.comm` | string | Comm attribute of the process |
+| `signal.target.ancestors.container.id` | string | Container ID |
+| `signal.target.ancestors.cookie` | int | Cookie of the process |
+| `signal.target.ancestors.created_at` | int | Timestamp of the creation of the process |
+| `signal.target.ancestors.egid` | int | Effective GID of the process |
+| `signal.target.ancestors.egroup` | string | Effective group of the process |
+| `signal.target.ancestors.envp` | string | Environment variables of the process |
+| `signal.target.ancestors.envs` | string | Environment variable names of the process |
+| `signal.target.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
+| `signal.target.ancestors.euid` | int | Effective UID of the process |
+| `signal.target.ancestors.euser` | string | Effective user of the process |
+| `signal.target.ancestors.file.change_time` | int | Change time of the file |
+| `signal.target.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `signal.target.ancestors.file.gid` | int | GID of the file's owner |
+| `signal.target.ancestors.file.group` | string | Group of the file's owner |
+| `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `signal.target.ancestors.file.inode` | int | Inode of the file |
+| `signal.target.ancestors.file.mode` | int | Mode/rights of the file |
+| `signal.target.ancestors.file.modification_time` | int | Modification time of the file |
+| `signal.target.ancestors.file.mount_id` | int | Mount ID of the file |
+| `signal.target.ancestors.file.name` | string | Basename of the path of the process executable |
+| `signal.target.ancestors.file.path` | string | Path of the process executable |
+| `signal.target.ancestors.file.rights` | int | Mode/rights of the file |
+| `signal.target.ancestors.file.uid` | int | UID of the file's owner |
+| `signal.target.ancestors.file.user` | string | User of the file's owner |
+| `signal.target.ancestors.fsgid` | int | FileSystem-gid of the process |
+| `signal.target.ancestors.fsgroup` | string | FileSystem-group of the process |
+| `signal.target.ancestors.fsuid` | int | FileSystem-uid of the process |
+| `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |
+| `signal.target.ancestors.gid` | int | GID of the process |
+| `signal.target.ancestors.group` | string | Group of the process |
+| `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
+| `signal.target.ancestors.ppid` | int | Parent process ID |
+| `signal.target.ancestors.tid` | int | Thread ID of the thread |
+| `signal.target.ancestors.tty_name` | string | Name of the TTY associated with the process |
+| `signal.target.ancestors.uid` | int | UID of the process |
+| `signal.target.ancestors.user` | string | User of the process |
+| `signal.target.args` | string | Arguments of the process (as a string) |
+| `signal.target.args_flags` | string | Arguments of the process (as an array) |
+| `signal.target.args_options` | string | Arguments of the process (as an array) |
+| `signal.target.args_truncated` | bool | Indicator of arguments truncation |
+| `signal.target.argv` | string | Arguments of the process (as an array) |
+| `signal.target.argv0` | string | First argument of the process |
+| `signal.target.cap_effective` | int | Effective capability set of the process |
+| `signal.target.cap_permitted` | int | Permitted capability set of the process |
+| `signal.target.comm` | string | Comm attribute of the process |
+| `signal.target.container.id` | string | Container ID |
+| `signal.target.cookie` | int | Cookie of the process |
+| `signal.target.created_at` | int | Timestamp of the creation of the process |
+| `signal.target.egid` | int | Effective GID of the process |
+| `signal.target.egroup` | string | Effective group of the process |
+| `signal.target.envp` | string | Environment variables of the process |
+| `signal.target.envs` | string | Environment variable names of the process |
+| `signal.target.envs_truncated` | bool | Indicator of environment variables truncation |
+| `signal.target.euid` | int | Effective UID of the process |
+| `signal.target.euser` | string | Effective user of the process |
+| `signal.target.file.change_time` | int | Change time of the file |
+| `signal.target.file.filesystem` | string | FileSystem of the process executable |
+| `signal.target.file.gid` | int | GID of the file's owner |
+| `signal.target.file.group` | string | Group of the file's owner |
+| `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `signal.target.file.inode` | int | Inode of the file |
+| `signal.target.file.mode` | int | Mode/rights of the file |
+| `signal.target.file.modification_time` | int | Modification time of the file |
+| `signal.target.file.mount_id` | int | Mount ID of the file |
+| `signal.target.file.name` | string | Basename of the path of the process executable |
+| `signal.target.file.path` | string | Path of the process executable |
+| `signal.target.file.rights` | int | Mode/rights of the file |
+| `signal.target.file.uid` | int | UID of the file's owner |
+| `signal.target.file.user` | string | User of the file's owner |
+| `signal.target.fsgid` | int | FileSystem-gid of the process |
+| `signal.target.fsgroup` | string | FileSystem-group of the process |
+| `signal.target.fsuid` | int | FileSystem-uid of the process |
+| `signal.target.fsuser` | string | FileSystem-user of the process |
+| `signal.target.gid` | int | GID of the process |
+| `signal.target.group` | string | Group of the process |
+| `signal.target.pid` | int | Process ID of the process (also called thread group ID) |
+| `signal.target.ppid` | int | Parent process ID |
+| `signal.target.tid` | int | Thread ID of the thread |
+| `signal.target.tty_name` | string | Name of the TTY associated with the process |
+| `signal.target.uid` | int | UID of the process |
+| `signal.target.user` | string | User of the process |
+| `signal.type` | int | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
 ### Event `unlink`
 
