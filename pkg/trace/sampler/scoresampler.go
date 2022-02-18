@@ -31,10 +31,9 @@ type NoPrioritySampler struct{ ScoreSampler }
 // For a set traceID: P(chunk1 kept and chunk2 kept) = min(P(chunk1 kept), P(chunk2 kept))
 type ScoreSampler struct {
 	*Sampler
-	samplingRateKey   string
-	disabled          bool
-	shrinked          bool
-	shrinkedAllowList map[Signature]float64
+	samplingRateKey string
+	disabled        bool
+	shrinkAllowList map[Signature]float64
 }
 
 // NewNoPrioritySampler returns an initialized Sampler dedicated to traces with
@@ -92,14 +91,14 @@ func (s ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 // New signatures may share the same TPS computation.
 func (s ScoreSampler) shrink(sig Signature) Signature {
 	if s.size() < shrinkCardinality/2 {
-		s.shrinkedAllowList = nil
+		s.shrinkAllowList = nil
 		return sig
 	}
-	if s.shrinkedAllowList == nil {
+	if s.shrinkAllowList == nil {
 		rates, _ := s.getAllSignatureSampleRates()
-		s.shrinkedAllowList = rates
+		s.shrinkAllowList = rates
 	}
-	if _, ok := s.shrinkedAllowList[sig]; ok {
+	if _, ok := s.shrinkAllowList[sig]; ok {
 		return sig
 	}
 	return sig % (shrinkCardinality / 2)
