@@ -14,11 +14,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestDNS(t *testing.T) {
+	var centos7 bool
+
+	kv, err := kernel.NewKernelVersion()
+	if err == nil {
+		centos7 = kv.IsRH7Kernel()
+	}
+
+	if centos7 {
+		t.Skip()
+	}
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
