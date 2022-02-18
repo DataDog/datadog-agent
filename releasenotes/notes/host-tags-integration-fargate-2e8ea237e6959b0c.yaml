@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    On ECS Fargate and EKS Fargate, agent-configured tags (``DD_TAGS``/``DD_EXTRA_TAGS``)
+    On ECS Fargate and EKS Fargate, Agent-configured tags (``DD_TAGS``/``DD_EXTRA_TAGS``)
     are now applied to all integration-collected metrics.
