@@ -68,6 +68,18 @@ func factory() check.Check {
 
 // Configure configures the Helm check
 func (hc *HelmCheck) Configure(config, initConfig integration.Data, source string) error {
+	hc.BuildID(config, initConfig)
+
+	err := hc.CommonConfigure(config, source)
+	if err != nil {
+		return err
+	}
+
+	err = hc.CommonConfigure(initConfig, source)
+	if err != nil {
+		return err
+	}
+
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 
