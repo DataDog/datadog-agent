@@ -18,6 +18,8 @@ const (
 	TimestampHeader = "X-DD-Agent-Timestamp"
 	// ProtobufContentType contains that the content type is protobuf
 	ProtobufContentType = "application/x-protobuf"
+	// ContentTypeHeader contains the content type of the payload
+	ContentTypeHeader = "Content-Type"
 	// EVPOriginHeader is the source/origin sending a request to the intake. This field should be filled with the name of the library sending profiles.
 	EVPOriginHeader = "DD-EVP-ORIGIN"
 	// EVPOriginVersionHeader is the version of above origin

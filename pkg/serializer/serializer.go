@@ -466,7 +466,7 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 		extraHeaders.Set(headers.EVPOriginHeader, "agent")
 		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
+		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
 		body, err := processPayloadEncoder(m)
 		if err != nil {
