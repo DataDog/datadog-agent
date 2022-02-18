@@ -11,6 +11,7 @@ package util
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -20,5 +21,10 @@ func isAgentKubeHostNetwork() (bool, error) {
 		return true, err
 	}
 
-	return ku.IsAgentHostNetwork(context.TODO())
+	cid, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	if err != nil {
+		return false, err
+	}
+
+	return ku.IsAgentHostNetwork(context.TODO(), cid)
 }
