@@ -570,9 +570,10 @@ func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
 
 func serializeSyscallRetval(retval int64) string {
 	switch {
-	case int(syscall.Errno(retval)) == -int(syscall.EACCES) || int(syscall.Errno(retval)) == -int(syscall.EPERM):
-		return "Refused"
 	case retval < 0:
+		if syscall.Errno(-retval) == syscall.EACCES || syscall.Errno(-retval) == syscall.EPERM {
+			return "Refused"
+		}
 		return "Error"
 	default:
 		return "Success"
