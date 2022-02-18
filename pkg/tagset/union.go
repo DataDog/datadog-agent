@@ -63,39 +63,63 @@ func unionCacheKey(aHash, bHash uint64) uint64 {
 // union performs a union operation over two tagsets.  The "easy" cases have already
 // been handled, and the cache has missed.
 func union(a *Tags, b *Tags) *Tags {
+	// the threshold size for the _smaller_ of the two sets being hashed, over
+	// which using a map is faster than a linear search.
+	const mapIsFasterOver = 35
+
 	la := len(a.tags)
 	lb := len(b.tags)
 
-	// ensure a is the larger set
-	if la < lb {
+	// Ensure a is the smaller set.  For the hashset implementation.  For the
+	// linear search, the difference is not so critical.
+	if la > lb {
 		a, b = b, a
 		la, lb = lb, la
 	}
 
+	atags := a.tags
+	btags := b.tags
+	ahashes := a.hashes
+	bhashes := b.hashes
+
 	tags := make([]string, la, la+lb)
 	hashes := make([]uint64, la, la+lb)
-	seen := make(map[string]struct{}, la)
-
-	// copy a to tags
-	copy(tags[:la], a.tags)
-	copy(hashes[:la], a.hashes)
 	hash := a.hash
 
-	// update seen with the content of a
-	for _, t := range tags {
-		seen[t] = struct{}{}
-	}
+	// copy a to the new slices
+	copy(tags[:la], atags)
+	copy(hashes[:la], ahashes)
 
-	// iterate over b, adding what has not been seen.  b contains no duplicates,
-	// so it is not necessary to insert into seen again here
-	btags := b.tags
-	bhashes := b.hashes
-	for i, t := range btags {
-		if _, s := seen[t]; !s {
-			h := bhashes[i]
-			tags = append(tags, t)
-			hashes = append(hashes, h)
-			hash ^= h
+	if la < mapIsFasterOver {
+		// Perform a linear search of a for each element in b, using hashes.
+		for i, bh := range bhashes {
+			seen := false
+			for _, ah := range ahashes {
+				if ah == bh {
+					seen = true
+					break
+				}
+			}
+			if !seen {
+				t := btags[i]
+				tags = append(tags, t)
+				hashes = append(hashes, bh)
+				hash ^= bh
+			}
+		}
+	} else {
+		// use a map, by hash, to detect tags already in a
+		seen := make(map[uint64]struct{}, la)
+		for _, ah := range ahashes {
+			seen[ah] = struct{}{}
+		}
+		for i, bh := range bhashes {
+			if _, s := seen[bh]; !s {
+				t := btags[i]
+				tags = append(tags, t)
+				hashes = append(hashes, bh)
+				hash ^= bh
+			}
 		}
 	}
 

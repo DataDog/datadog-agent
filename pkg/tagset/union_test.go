@@ -68,32 +68,44 @@ func TestUnioncCacheKey_Fuzz(t *testing.T) {
 	})
 }
 
-var result *Tags
+var benchmarkUnionResult *Tags
 
 func BenchmarkUnion(b *testing.B) {
-	b.StopTimer()
-	f, _ := NewCachingFactory(100, 1)
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		rng := rand.New(rand.NewSource(int64(i)))
+	bench := func(size int) func(*testing.B) {
+		return func(b *testing.B) {
+			b.StopTimer()
+			f, _ := NewCachingFactory(100, 1)
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
 
-		n := rng.Intn(15)
-		lBuilder := f.NewBuilder(n)
-		for i := 0; i < n; i++ {
-			t := fmt.Sprintf("tag%d", rng.Intn(30))
-			lBuilder.Add(t)
+				rng := rand.New(rand.NewSource(int64(i)))
+
+				n := size // exactly of the given size
+				lBuilder := f.NewBuilder(n)
+				for i := 0; i < n; i++ {
+					t := fmt.Sprintf("tag%d", i)
+					lBuilder.Add(t)
+				}
+				l := lBuilder.Close()
+				require.Equal(b, size, l.Len())
+
+				n = size + rng.Intn(size/2) // somewhat larger than given size
+				rBuilder := f.NewBuilder(n)
+				for i := 0; i < n; i++ {
+					// 50% of the tags are in l
+					t := fmt.Sprintf("tag%d", rng.Intn(2*size))
+					rBuilder.Add(t)
+				}
+				r := rBuilder.Close()
+
+				b.StartTimer()
+
+				benchmarkUnionResult = union(l, r)
+			}
 		}
-		l := lBuilder.Close()
+	}
 
-		n = rng.Intn(15)
-		rBuilder := f.NewBuilder(n)
-		for i := 0; i < n; i++ {
-			t := fmt.Sprintf("tag%d", rng.Intn(30))
-			rBuilder.Add(t)
-		}
-		r := rBuilder.Close()
-		b.StartTimer()
-
-		result = union(l, r)
+	for size := 20; size < 110; size += 10 {
+		b.Run(fmt.Sprintf("size=%d", size), bench(size))
 	}
 }
