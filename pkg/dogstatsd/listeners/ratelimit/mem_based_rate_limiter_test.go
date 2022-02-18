@@ -7,17 +7,12 @@ package ratelimit
 
 import (
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestMemBasedRateLimiter(t *testing.T) {
-	goDebug := os.Getenv("GODEBUG")
-	os.Setenv("GODEBUG", "madvdontneed=1")
-	defer os.Setenv("GODEBUG", goDebug)
-
 	config := geometricRateLimiterConfig{minRate: 1, maxRate: 1, factor: 1}
 	memoryUsage := &memoryUsageMock{}
 	telemetry := &telemetryMock{}

@@ -6,11 +6,8 @@
 package ratelimit
 
 import (
-	"errors"
-	"os"
 	"runtime"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -91,12 +88,6 @@ func NewMemBasedRateLimiter(
 	//  SetGCPercent, madvdontneed=1 and debug.FreeOSMemory() can be removed.
 	if goGC > 0 {
 		debug.SetGCPercent(goGC)
-	}
-
-	// madvdontneed=1 forces the memory to be released. This allows the RSS to reflect what
-	// is really used by the Agent
-	if !strings.Contains(os.Getenv("GODEBUG"), "madvdontneed=1") {
-		return nil, errors.New("GODEBUG must have `madvdontneed=1` in order to use this feature")
 	}
 
 	return &MemBasedRateLimiter{
