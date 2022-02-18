@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,7 +55,7 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
 	c.sketches = append(c.sketches, metrics.SketchSeries{
 		Name:     dimensions.Name(),
-		Tags:     c.enrichedTags(dimensions),
+		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 		Host:     dimensions.Host(),
 		Interval: 1,
 		Points: []metrics.SketchPoint{{
@@ -79,7 +80,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 		&metrics.Serie{
 			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     c.enrichedTags(dimensions),
+			Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: 1,
@@ -92,7 +93,7 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
 		Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
-		Tags:           []string{},
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		Host:           hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",

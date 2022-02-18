@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -254,7 +255,7 @@ func sendTelemetry(pythonVersion string) {
 	aggregator.AddRecurrentSeries(&metrics.Serie{
 		Name:   "datadog.agent.python.version",
 		Points: []metrics.Point{{Value: 1.0}},
-		Tags:   tags,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
 }

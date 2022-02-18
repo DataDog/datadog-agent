@@ -131,8 +131,9 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	selfSignedEnabled := config.Datadog.GetBool("remote_configuration.unstable.self_signed")
 	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID, selfSignedEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -302,11 +303,12 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	for metaName, metaState := range state.ConfigState {
 		response.ConfigState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
-
+	for metaName, metaState := range state.ConfigUserState {
+		response.ConfigUserState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
 	for metaName, metaState := range state.DirectorState {
 		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
-
 	for targetName, targetHash := range state.TargetFilenames {
 		response.TargetFilenames[targetName] = targetHash
 	}

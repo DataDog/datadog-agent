@@ -22,10 +22,10 @@ func Makeseries(i int) metrics.SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
 	ss := metrics.SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
-		Tags: []string{
+		Tags: tagset.CompositeTagsFromSlice([]string{
 			fmt.Sprintf("a:%d", i),
 			fmt.Sprintf("b:%d", i),
-		},
+		}),
 		Host:     fmt.Sprintf("host.%d", i),
 		Interval: int64(i),
 	}
@@ -39,7 +39,7 @@ func Makeseries(i int) metrics.SketchSeries {
 	}
 
 	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(ss.Tags))
+	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(ss.Tags.UnsafeToReadOnlySliceString()))
 
 	return ss
 }

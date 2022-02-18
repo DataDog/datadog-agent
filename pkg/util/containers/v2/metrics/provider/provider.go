@@ -7,6 +7,7 @@ package provider
 
 import (
 	"errors"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -62,6 +63,7 @@ var (
 // Provider interface allows to mock the metrics provider
 type Provider interface {
 	GetCollector(runtime string) Collector
+	GetMetaCollector() MetaCollector
 	RegisterCollector(collectorMeta CollectorMetadata)
 }
 
@@ -84,12 +86,14 @@ type collectorReference struct {
 
 // GenericProvider offers an interface to retrieve a metrics collector
 type GenericProvider struct {
-	collectors          map[string]CollectorMetadata // key is catalogEntry.id
-	collectorsLock      sync.Mutex
-	effectiveCollectors map[string]*collectorReference // key is runtime
-	effectiveLock       sync.RWMutex
-	lastRetryTimestamp  time.Time
-	remainingCandidates uint32
+	collectors              map[string]CollectorMetadata // key is catalogEntry.id
+	collectorsLock          sync.Mutex
+	effectiveCollectors     map[string]*collectorReference // key is runtime
+	effectiveCollectorsList []*collectorReference
+	effectiveLock           sync.RWMutex
+	lastRetryTimestamp      time.Time
+	remainingCandidates     uint32
+	metaCollector           MetaCollector
 }
 
 var metricsProvider = newProvider()
@@ -100,10 +104,13 @@ func GetProvider() Provider {
 }
 
 func newProvider() *GenericProvider {
-	return &GenericProvider{
+	provider := &GenericProvider{
 		collectors:          make(map[string]CollectorMetadata),
 		effectiveCollectors: make(map[string]*collectorReference),
 	}
+	provider.metaCollector = newMetaCollector(provider.getCollectors)
+
+	return provider
 }
 
 // GetCollector returns the best collector for given runtime.
@@ -112,6 +119,11 @@ func newProvider() *GenericProvider {
 func (mp *GenericProvider) GetCollector(runtime string) Collector {
 	mp.retryCollectors(minRetryInterval)
 	return mp.getCollector(runtime)
+}
+
+// GetMetaCollector returns the meta collector.
+func (mp *GenericProvider) GetMetaCollector() MetaCollector {
+	return mp.metaCollector
 }
 
 // RegisterCollector registers a collector
@@ -132,6 +144,11 @@ func (mp *GenericProvider) getCollector(runtime string) Collector {
 	}
 
 	return nil
+}
+
+func (mp *GenericProvider) getCollectors() []*collectorReference {
+	mp.retryCollectors(minRetryInterval)
+	return mp.effectiveCollectorsList
 }
 
 func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
@@ -191,4 +208,18 @@ func (mp *GenericProvider) updateEffectiveCollectors(newCollector Collector, new
 			mp.effectiveCollectors[runtime] = &newRef
 		}
 	}
+
+	// Compute unique, ordered list of collectors to be used by metaCollector
+	uniqueCollectors := make(map[string]struct{})
+	var effectiveCollectorsList []*collectorReference
+	for _, collector := range mp.effectiveCollectors {
+		if _, found := uniqueCollectors[collector.id]; !found {
+			uniqueCollectors[collector.id] = struct{}{}
+			effectiveCollectorsList = append(effectiveCollectorsList, collector)
+		}
+	}
+	sort.Slice(effectiveCollectorsList, func(i, j int) bool {
+		return effectiveCollectorsList[i].priority < effectiveCollectorsList[j].priority
+	})
+	mp.effectiveCollectorsList = effectiveCollectorsList
 }

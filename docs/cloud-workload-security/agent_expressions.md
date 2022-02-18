@@ -39,10 +39,10 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `mkdir` | File | A directory was created | 7.27 |
-| `mmap` | Kernel | [Experimental] A mmap command was executed | 7.34 |
-| `mprotect` | Kernel | [Experimental] A mprotect command was executed | 7.34 |
+| `mmap` | Kernel | A mmap command was executed | 7.35 |
+| `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
-| `ptrace` | Kernel | [Experimental] A ptrace command was executed | 7.34 |
+| `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
 | `rmdir` | File | A directory was removed | 7.27 |
@@ -422,8 +422,6 @@ A directory was created
 
 ### Event `mmap`
 
-_This event type is experimental and may change in the future._
-
 A mmap command was executed
 
 | Property | Type | Definition |
@@ -442,21 +440,19 @@ A mmap command was executed
 | `mmap.file.rights` | int | Mode/rights of the file |
 | `mmap.file.uid` | int | UID of the file's owner |
 | `mmap.file.user` | string | User of the file's owner |
-| `mmap.flags` | int |  |
-| `mmap.protection` | int |  |
+| `mmap.flags` | int | memory segment flags |
+| `mmap.protection` | int | memory segment protection |
 | `mmap.retval` | int | Return value of the syscall |
 
 ### Event `mprotect`
-
-_This event type is experimental and may change in the future._
 
 A mprotect command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mprotect.req_protection` | int |  |
+| `mprotect.req_protection` | int | new memory segment protection |
 | `mprotect.retval` | int | Return value of the syscall |
-| `mprotect.vm_protection` | int |  |
+| `mprotect.vm_protection` | int | initial memory segment protection |
 
 ### Event `open`
 
@@ -484,13 +480,11 @@ A file was opened
 
 ### Event `ptrace`
 
-_This event type is experimental and may change in the future._
-
 A ptrace command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `ptrace.request` | int |  |
+| `ptrace.request` | int | ptrace request |
 | `ptrace.retval` | int | Return value of the syscall |
 | `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |
 | `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |
