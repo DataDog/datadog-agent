@@ -880,7 +880,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber)
 	}
-	opts.Logger = &seclog.PatternLogger{}
+	opts.WithLogger(&seclog.PatternLogger{})
 
 	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }

@@ -25,16 +25,12 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 		Macros:       make(map[MacroID]*Macro),
 		LegacyFields: legacyFields,
 		Variables: map[string]VariableValue{
-			"pid": {
-				IntFnc: func(ctx *Context) int {
-					return os.Getpid()
-				},
-			},
-			"str": {
-				StringFnc: func(ctx *Context) string {
-					return "aaa"
-				},
-			},
+			"pid": NewIntVariable(func(ctx *Context) int {
+				return os.Getpid()
+			}, nil),
+			"str": NewStringVariable(func(ctx *Context) string {
+				return "aaa"
+			}, nil),
 		},
 	}
 }

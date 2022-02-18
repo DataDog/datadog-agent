@@ -618,6 +618,115 @@ func TestProcessPIDVariable(t *testing.T) {
 	}
 }
 
+func TestProcessMutableVariable(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_set_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var1",
+				Value: true,
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "off",
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var3",
+				Value: []string{"aaa"},
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var3",
+				Value: []string{"aaa"},
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var4",
+				Field: "process.file.name",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var5",
+				Field: "open.file.path",
+			},
+		}},
+	}, {
+		ID:         "test_rule_modify_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open-2"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "on",
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:   "var3",
+				Value:  []string{"bbb"},
+				Scope:  "process",
+				Append: true,
+			},
+		}},
+	}, {
+		ID: "test_rule_test_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open-3"` +
+			`&& ${process.var1} == true` +
+			`&& ${process.var2} == "on"` +
+			`&& "aaa" in ${process.var3}` +
+			`&& "bbb" in ${process.var3}` +
+			`&& process.file.name == "${var4}"` +
+			`&& open.file.path == "${var5}-3"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var filename1, filename2, filename3 string
+
+	test.WaitSignal(t, func() error {
+		filename1, _, err = test.Create("test-open")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_set_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename1)
+
+	test.WaitSignal(t, func() error {
+		filename2, _, err = test.Create("test-open-2")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_modify_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename2)
+
+	test.WaitSignal(t, func() error {
+		filename3, _, err = test.Create("test-open-3")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_test_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename3)
+}
+
 func TestProcessExec(t *testing.T) {
 	executable := which("touch")
 

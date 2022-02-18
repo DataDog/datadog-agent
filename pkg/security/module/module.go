@@ -267,14 +267,22 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
+	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
+	for name, value := range model.SECLVariables {
+		probeVariables[name] = value
+	}
+
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(model.SECLVariables).
+		WithVariables(probeVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
 		WithLegacyFields(model.SECLLegacyFields).
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+		}).
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}

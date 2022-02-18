@@ -289,9 +289,10 @@ type Process struct {
 	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
 
 	// cache version
-	ScrubbedArgvResolved  bool     `field:"-"`
-	ScrubbedArgv          []string `field:"-"`
-	ScrubbedArgsTruncated bool     `field:"-"`
+	ScrubbedArgvResolved  bool           `field:"-"`
+	ScrubbedArgv          []string       `field:"-"`
+	ScrubbedArgsTruncated bool           `field:"-"`
+	Variables             eval.Variables `field:"-"`
 }
 
 // SpanContext describes a span context
@@ -472,17 +473,24 @@ type ProcessCacheEntry struct {
 
 	refCount  uint64                     `field:"-"`
 	onRelease func(_ *ProcessCacheEntry) `field:"-"`
+	releaseCb func()                     `field:"-"`
 }
 
 // Reset the entry
 func (e *ProcessCacheEntry) Reset() {
 	e.ProcessContext = zeroProcessContext
 	e.refCount = 0
+	e.releaseCb = nil
 }
 
 // Retain increment ref counter
 func (e *ProcessCacheEntry) Retain() {
 	e.refCount++
+}
+
+// SetReleaseCallback set the callback called when the entry is released
+func (e *ProcessCacheEntry) SetReleaseCallback(callback func()) {
+	e.releaseCb = callback
 }
 
 // Release decrement and eventually release the entry
@@ -495,13 +503,15 @@ func (e *ProcessCacheEntry) Release() {
 	if e.onRelease != nil {
 		e.onRelease(e)
 	}
+
+	if e.releaseCb != nil {
+		e.releaseCb()
+	}
 }
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		onRelease: onRelease,
-	}
+	return &ProcessCacheEntry{onRelease: onRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

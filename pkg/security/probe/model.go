@@ -36,7 +36,7 @@ type Model struct {
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{Event: model.Event{}}
+	return &Event{}
 }
 
 // Event describes a probe event
