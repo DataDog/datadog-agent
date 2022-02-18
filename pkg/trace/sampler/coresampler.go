@@ -6,6 +6,7 @@
 package sampler
 
 import (
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -132,7 +133,7 @@ func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n float32
 	return updateRates
 }
 
-// updateRates distributes TPS uniformly on each signature and apply it to the moving
+// updateRates distributes TPS on each signature and apply it to the moving
 // max of seen buckets.
 // Rates increase are bounded by 20% increases, it requires 13 evaluations (1.2**13 = 10.6)
 // to increase a sampling rate by 10 fold in about 1min.
@@ -140,17 +141,23 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 	if len(s.seen) == 0 {
 		return
 	}
-	tpsPerSig := s.targetTPS.Load() / float64(len(s.seen))
-
-	s.muRates.Lock()
-	defer s.muRates.Unlock()
-
 	rates := make(map[Signature]float64, len(s.seen))
+
+	seenTPSs := make([]float64, 0, len(s.seen))
+	sigs := make([]Signature, 0, len(s.seen))
 	for sig, buckets := range s.seen {
 		maxBucket, buckets := zeroAndGetMax(buckets, previousBucket, newBucket)
 		s.seen[sig] = buckets
+		seenTPSs = append(seenTPSs, float64(maxBucket)/bucketDuration.Seconds())
+		sigs = append(sigs, sig)
+	}
 
-		seenTPS := float64(maxBucket) / bucketDuration.Seconds()
+	tpsPerSig := computeTPSPerSig(s.targetTPS.Load(), seenTPSs)
+
+	s.muRates.Lock()
+	defer s.muRates.Unlock()
+	for i, sig := range sigs {
+		seenTPS := seenTPSs[i]
 		rate := 1.0
 		if tpsPerSig < seenTPS && seenTPS > 0 {
 			rate = tpsPerSig / seenTPS
@@ -165,13 +172,34 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 			rate = 1.0
 		}
 		// no traffic on this signature, clean it up from the sampler
-		if rate == 1.0 && maxBucket == 0 {
+		if rate == 1.0 && seenTPS == 0 {
 			delete(s.seen, sig)
 			continue
 		}
 		rates[sig] = rate
 	}
 	s.rates = rates
+}
+
+// computeTPSPerSig distributes TPS looking at the seenTPS of all signatures.
+// By default it spreads uniformly the TPS on all signatures. If a signature
+// is low volume and does not use all of its TPS, the remaining is spread uniformly
+// on all other signatures./
+func computeTPSPerSig(targetTPS float64, seen []float64) float64 {
+	sorted := make([]float64, len(seen))
+	copy(sorted, seen)
+	sort.Float64s(sorted)
+
+	sigTarget := targetTPS / float64(len(sorted))
+
+	for i, c := range sorted {
+		if c >= sigTarget || i == len(sorted)-1 {
+			return sigTarget
+		}
+		targetTPS -= c
+		sigTarget = targetTPS / float64((len(sorted) - i - 1))
+	}
+	return sigTarget
 }
 
 // zeroAndGetMax zeroes expired buckets and returns the max count

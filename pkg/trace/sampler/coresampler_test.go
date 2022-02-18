@@ -210,17 +210,73 @@ func TestMovingMax(t *testing.T) {
 	}
 }
 
-func TestTargetTPSUpdate(t *testing.T) {
-	targetTPS := 2.0
+func TestComputeTPSPerSig(t *testing.T) {
+	tts := []struct {
+		name              string
+		targetTPS         float64
+		seenTPS           []float64
+		expectedTPSPerSig float64
+	}{
+		{
+			name:              "zeroes",
+			targetTPS:         0,
+			seenTPS:           []float64{0, 10, 100, 3, 0},
+			expectedTPSPerSig: 0,
+		},
+		{
+			name:              "spread uniformly on active sigs",
+			targetTPS:         2,
+			seenTPS:           []float64{0, 10, 100, 3, 0},
+			expectedTPSPerSig: 2.0 / 3,
+		},
+		{
+			name:              "spread unused",
+			targetTPS:         10,
+			seenTPS:           []float64{0, 10, 100, 3, 0},
+			expectedTPSPerSig: 3.5,
+		},
+		{
+			name:              "spread unused left",
+			targetTPS:         23.5,
+			seenTPS:           []float64{10, 0, 100, 3, 0},
+			expectedTPSPerSig: 10.5,
+		},
+		{
+			name:              "spread unused left",
+			targetTPS:         23.5,
+			seenTPS:           []float64{10, 0, 100, 3, 0},
+			expectedTPSPerSig: 10.5,
+		},
+		{
+			name:              "spread unused left2",
+			targetTPS:         53.5,
+			seenTPS:           []float64{10, 0, 100, 3, 0},
+			expectedTPSPerSig: 40.5,
+		},
+	}
+
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.expectedTPSPerSig == 0 {
+				assert.Equal(t, tc.expectedTPSPerSig, computeTPSPerSig(tc.targetTPS, tc.seenTPS))
+				return
+			}
+			assert.InEpsilon(t, tc.expectedTPSPerSig, computeTPSPerSig(tc.targetTPS, tc.seenTPS), 0.00000001)
+
+		})
+	}
+}
+
+func TestTargetTPSPerSigUpdate(t *testing.T) {
+	targetTPS := 10.0
 	s := newSampler(1, targetTPS, nil)
 
 	testTime := time.Now()
 
-	signaturesInitialCount := []float32{37, 1, 21, 2921, 5}
+	signaturesInitialTPS := []float32{37, 3, 21, 2921, 5}
 
-	for i, c := range signaturesInitialCount {
-		s.countWeightedSig(testTime, Signature(i), c)
-
+	for i, c := range signaturesInitialTPS {
+		s.countWeightedSig(testTime, Signature(i), c*float32(bucketDuration.Seconds()))
 	}
 	// trigger rate computation
 	s.countWeightedSig(testTime.Add(bucketDuration+time.Nanosecond), Signature(0), 0)
@@ -233,9 +289,9 @@ func TestTargetTPSUpdate(t *testing.T) {
 	}{
 		{
 			name:                "increase rates",
-			newTargetTPS:        targetTPS * 1,
+			newTargetTPS:        targetTPS,
 			expectedDefaultRate: 2.0 / 2921,
-			expectedRates:       []float64{2.0 / 37, 1.0, 2.0 / 21, 2.0 / 2921, 2.0 / 5},
+			expectedRates:       []float64{2.0 / 37, 2.0 / 3, 2.0 / 21, 2.0 / 2921, 2.0 / 5},
 		},
 		{
 			name:                "set to 0",
@@ -245,15 +301,9 @@ func TestTargetTPSUpdate(t *testing.T) {
 		},
 		{
 			name:                "set back",
-			newTargetTPS:        targetTPS * 1,
+			newTargetTPS:        targetTPS,
 			expectedDefaultRate: 2.0 / 2921,
-			expectedRates:       []float64{2.0 / 37, 1.0, 2.0 / 21, 2.0 / 2921, 2.0 / 5},
-		},
-		{
-			name:                "tripple",
-			newTargetTPS:        targetTPS * 3,
-			expectedDefaultRate: 6.0 / 2921,
-			expectedRates:       []float64{6.0 / 37, 1.0, 6.0 / 21, 6.0 / 2921, 1.0},
+			expectedRates:       []float64{2.0 / 37, 2.0 / 3, 2.0 / 21, 2.0 / 2921, 2.0 / 5},
 		},
 	}
 	epsilon := 0.0000000001
