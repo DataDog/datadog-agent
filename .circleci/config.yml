@@ -34,12 +34,12 @@ templates:
     #      - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-main-
     #- save_cache: &save_deps
     #    key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
-    - restore_cache: &restore_source
-        keys:
-          # Cache retrieval is faster than full git checkout
-          - v5-repo-{{ .Revision }}
-    - save_cache: &save_source
-        key: v5-repo-{{ .Revision }}
+    #- restore_cache: &restore_source
+    #    keys:
+    #      # Cache retrieval is faster than full git checkout
+    #      - v5-repo-{{ .Revision }}
+    #- save_cache: &save_source
+    #    key: v5-repo-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -48,15 +48,15 @@ jobs:
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
-      - save_cache:
-          <<: *save_source
-          paths:
-            - /go/src/github.com/DataDog/datadog-agent
+      #- save_cache:
+      #    <<: *save_source
+      #    paths:
+      #      - /go/src/github.com/DataDog/datadog-agent
 
   dependencies:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: setup python deps
@@ -98,7 +98,7 @@ jobs:
     <<: *job_template
     resource_class: large
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: run unit tests
@@ -111,7 +111,7 @@ jobs:
   integration_tests:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - setup_remote_docker
       - run:
@@ -121,7 +121,7 @@ jobs:
   release_note:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           command: inv -e lint-releasenote
@@ -130,7 +130,7 @@ jobs:
   team_label:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           command: inv -e lint-teamassignment
@@ -139,7 +139,7 @@ jobs:
   milestone:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           command: inv -e lint-milestone
@@ -148,7 +148,7 @@ jobs:
   licenses_linting:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: run license linting
@@ -157,7 +157,7 @@ jobs:
   filename_linting:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: run filename linting
@@ -166,7 +166,7 @@ jobs:
   shell_linting:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: Install shellcheck
@@ -184,7 +184,7 @@ jobs:
   python_linting:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: setting env vars for click
@@ -198,7 +198,7 @@ jobs:
   docker_tests:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - setup_remote_docker
       - run:
@@ -211,7 +211,7 @@ jobs:
   build_binaries:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: build dogstatsd
@@ -223,7 +223,7 @@ jobs:
   build_iot_agent:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: build iot agent
@@ -235,7 +235,7 @@ jobs:
   documentation_generation:
     <<: *job_template
     steps:
-      - restore_cache: *restore_source
+      #- restore_cache: *restore_source
       #- restore_cache: *restore_deps
       - run:
           name: generate doxygen documentation
