@@ -323,11 +323,17 @@ func (a *Agent) Process(p *api.Payload) {
 			// payload size is getting big; split and flush what we have so far
 			ss.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
+			toFlush := make([]*pb.TraceChunk, len(p.TracerPayload.Chunks))
+			copy(toFlush, p.TracerPayload.Chunks)
+			ss.TracerPayload.Chunks = toFlush
 			a.TraceWriter.In <- ss
 			ss = new(writer.SampledChunks)
 		}
 	}
 	ss.TracerPayload = p.TracerPayload
+	toFlush := make([]*pb.TraceChunk, len(p.TracerPayload.Chunks))
+	copy(toFlush, p.TracerPayload.Chunks)
+	ss.TracerPayload.Chunks = toFlush
 	if ss.Size > 0 {
 		a.TraceWriter.In <- ss
 	}
