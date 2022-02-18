@@ -466,30 +466,35 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	if atomic.LoadUint32(&f.internalState) == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
+	if config.Datadog.GetBool("telemetry.enabled") {
+		f.retryQueueDurationCapacityMutex.Lock()
+		defer f.retryQueueDurationCapacityMutex.Unlock()
 
-	f.retryQueueDurationCapacityMutex.Lock()
-	defer f.retryQueueDurationCapacityMutex.Unlock()
+		now := time.Now()
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
 
-	now := time.Now()
-	for _, t := range transactions {
-		forwarder := f.domainForwarders[t.Domain]
-		forwarder.sendHTTPTransactions(t)
-
-		if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
-			log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+			if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+				log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+			}
 		}
-	}
 
-	if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
-		log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+		if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+			log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+		} else {
+			for domain, t := range capacities {
+				tlmRetryQueueDurationCapacity.Set(t.Capacity.Seconds(), f.agentName, domain)
+				tlmRetryQueueDurationBytesPerSec.Set(t.BytesPerSec, f.agentName, domain)
+				tlmRetryQueueDurationCapacityBytes.Set(float64(t.AvailableSpace), f.agentName, domain)
+			}
+		}
 	} else {
-		for domain, t := range capacities {
-			tlmRetryQueueDurationCapacity.Set(t.Capacity.Seconds(), f.agentName, domain)
-			tlmRetryQueueDurationBytesPerSec.Set(t.BytesPerSec, f.agentName, domain)
-			tlmRetryQueueDurationCapacityBytes.Set(float64(t.AvailableSpace), f.agentName, domain)
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
 		}
 	}
-
 	return nil
 }
 
