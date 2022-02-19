@@ -26,6 +26,24 @@ type Aggregation struct {
 	PayloadAggregationKey
 }
 
+func cleanAggrCopy(a Aggregation) Aggregation {
+	bAggr := BucketsAggregationKey{
+		Service:    string([]byte(a.Service)),
+		Name:       string([]byte(a.Name)),
+		Resource:   string([]byte(a.Resource)),
+		Type:       string([]byte(a.Type)),
+		StatusCode: a.StatusCode,
+		Synthetics: a.Synthetics,
+	}
+	pAggr := PayloadAggregationKey{
+		Env:         string([]byte(a.Env)),
+		Hostname:    string([]byte(a.Hostname)),
+		Version:     string([]byte(a.Version)),
+		ContainerID: string([]byte(a.ContainerID)),
+	}
+	return Aggregation{bAggr, pAggr}
+}
+
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
 	Service    string

@@ -323,23 +323,38 @@ func (a *Agent) Process(p *api.Payload) {
 			// payload size is getting big; split and flush what we have so far
 			ss.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
-			toFlush := make([]*pb.TraceChunk, len(p.TracerPayload.Chunks))
-			copy(toFlush, p.TracerPayload.Chunks)
-			ss.TracerPayload.Chunks = toFlush
-			a.TraceWriter.In <- ss
+			a.TraceWriter.In <- prepareTracesToWriter(ss, ss.TracerPayload)
 			ss = new(writer.SampledChunks)
 		}
 	}
-	ss.TracerPayload = p.TracerPayload
-	toFlush := make([]*pb.TraceChunk, len(p.TracerPayload.Chunks))
-	copy(toFlush, p.TracerPayload.Chunks)
-	ss.TracerPayload.Chunks = toFlush
 	if ss.Size > 0 {
-		a.TraceWriter.In <- ss
+		a.TraceWriter.In <- prepareTracesToWriter(ss, p.TracerPayload)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.In <- statsInput
 	}
+}
+
+func prepareTracesToWriter(s *writer.SampledChunks, p *pb.TracerPayload) *writer.SampledChunks {
+	s.TracerPayload = p
+	toFlush := make([]*pb.TraceChunk, len(p.Chunks))
+	copy(toFlush, p.Chunks)
+	s.TracerPayload.Chunks = toFlush
+
+	s.TracerPayload.ContainerID = string([]byte(p.ContainerID))
+	s.TracerPayload.LanguageName = string([]byte(p.LanguageName))
+	s.TracerPayload.LanguageVersion = string([]byte(p.LanguageVersion))
+	s.TracerPayload.TracerVersion = string([]byte(p.TracerVersion))
+	s.TracerPayload.RuntimeID = string([]byte(p.RuntimeID))
+	s.TracerPayload.Env = string([]byte(p.Env))
+	s.TracerPayload.Hostname = string([]byte(p.Hostname))
+	s.TracerPayload.AppVersion = string([]byte(p.AppVersion))
+	tags := make(map[string]string, len(p.Tags))
+	for k, v := range p.Tags {
+		tags[string([]byte(k))] = string([]byte(v))
+	}
+	s.TracerPayload.Tags = tags
+	return s
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)

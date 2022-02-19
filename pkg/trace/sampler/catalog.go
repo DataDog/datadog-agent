@@ -64,6 +64,10 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 	}
 	// new signature, compute new hash
 	hash := svcSig.Hash()
+	svcSig = ServiceSignature{
+		Env:  string([]byte(svcSig.Env)),
+		Name: string([]byte(svcSig.Name)),
+	}
 	el := cat.ll.PushFront(catalogEntry{key: svcSig, sig: hash})
 	cat.items[svcSig] = el
 	if cat.ll.Len() > cat.maxEntries {

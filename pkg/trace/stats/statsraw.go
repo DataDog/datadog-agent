@@ -162,6 +162,7 @@ func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregatio
 
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
+		cleanAggrCopy(aggr)
 		sb.data[aggr] = gs
 	}
 	if isTop {
