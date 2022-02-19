@@ -412,7 +412,7 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	return module, nil
 }
 
-var FuncMap = map[string]interface{}{
+var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
 }
 
@@ -421,7 +421,7 @@ var accessorsTemplateCode string
 
 func main() {
 	var err error
-	tmpl := template.Must(template.New("header").Funcs(FuncMap).Parse(accessorsTemplateCode))
+	tmpl := template.Must(template.New("header").Funcs(funcMap).Parse(accessorsTemplateCode))
 
 	os.Remove(output)
 
