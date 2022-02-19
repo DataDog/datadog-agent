@@ -29,7 +29,8 @@ const (
 // a targetTPS. The bucket with the maximum counts over the period
 // of the buffer is used to compute the sampling rates.
 type Sampler struct {
-	// seen maps signatures to scores.
+	// seen counts seen signatures. In the case of the PrioritySampler, chunks dropped
+	// in the Client are also taken in account.
 	seen map[Signature][numBuckets]float32
 	// lastBucketID is the index of the last bucket on which traces were counted
 	lastBucketID int64
@@ -137,6 +138,7 @@ func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n float32
 // max of seen buckets.
 // Rates increase are bounded by 20% increases, it requires 13 evaluations (1.2**13 = 10.6)
 // to increase a sampling rate by 10 fold in about 1min.
+// A caller of updateRates must hold a lock on s.muSeen (e.g. as used by countWeightedSig).
 func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 	if len(s.seen) == 0 {
 		return

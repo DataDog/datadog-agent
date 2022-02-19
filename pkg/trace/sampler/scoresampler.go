@@ -6,6 +6,7 @@
 package sampler
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -33,6 +34,7 @@ type ScoreSampler struct {
 	*Sampler
 	samplingRateKey string
 	disabled        bool
+	mu              sync.Mutex
 	shrinkAllowList map[Signature]float64
 }
 
@@ -52,7 +54,7 @@ func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
-func (s ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env string) bool {
+func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env string) bool {
 	if s.disabled {
 		return false
 	}
@@ -71,7 +73,7 @@ func (s ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env s
 	return s.applySampleRate(root, rate)
 }
 
-func (s ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
+func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 	initialRate := GetGlobalRate(root)
 	newRate := initialRate * rate
 	traceID := root.TraceID
@@ -89,7 +91,9 @@ func (s ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 // When the shrink is triggered, previously active signatures
 // stay unaffected.
 // New signatures may share the same TPS computation.
-func (s ScoreSampler) shrink(sig Signature) Signature {
+func (s *ScoreSampler) shrink(sig Signature) Signature {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.size() < shrinkCardinality/2 {
 		s.shrinkAllowList = nil
 		return sig

@@ -71,11 +71,25 @@ func TestShrink(t *testing.T) {
 	s := getTestErrorsSampler(10)
 	testTime := time.Now()
 
+	sigs := []Signature{}
 	for i := 1; i < 3*shrinkCardinality; i++ {
 		trace, root := getTestTrace()
+		sigs = append(sigs, computeSignatureWithRootAndEnv(trace, root, ""))
+
 		trace[1].Service = strconv.FormatInt(int64(i+1000), 10)
 		s.Sample(testTime, trace, root, defaultEnv)
 	}
+
+	// verify that shrink did not apply to first signatures
+	for i := 1; i < shrinkCardinality; i++ {
+		assert.Equal(sigs[i], s.shrink(sigs[i]))
+	}
+
+	// shrunk
+	for i := 2 * shrinkCardinality; i < 3*shrinkCardinality-1; i++ {
+		assert.Equal(sigs[i]%shrinkCardinality, s.shrink(sigs[i]))
+	}
+
 	assert.Equal(int64(shrinkCardinality), s.size())
 }
 
