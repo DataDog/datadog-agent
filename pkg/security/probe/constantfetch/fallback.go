@@ -139,7 +139,9 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 584
-	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		sizeOf = 600
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel5_0):
 		sizeOf = 608
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		sizeOf = 584
@@ -184,7 +186,9 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 368
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		ttyOffset = 400
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		ttyOffset = 368
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
 		ttyOffset = 376
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
 		ttyOffset = 400
@@ -279,6 +283,8 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsSLES12Kernel():
 		nameOffset = 176
 
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
+		nameOffset = 112
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel5_1):
 		nameOffset = 176
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_3):
@@ -316,6 +322,8 @@ func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		auxOffset = 24
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		auxOffset = 24
 	case kv.Code >= kernel.Kernel5_13:
 		auxOffset = 56
 	}
@@ -328,7 +336,8 @@ func getBpfProgTagOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		progTagOffset = 16
-	default:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		progTagOffset = 16
 	}
 
 	return progTagOffset
@@ -357,7 +366,7 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		idOffset = 16
 
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel5_0):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_0):
 		idOffset = 16
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_4):
 		idOffset = 20
@@ -387,6 +396,8 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		nameOffset = 544
 
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
+		nameOffset = 128
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
 		nameOffset = 152
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
