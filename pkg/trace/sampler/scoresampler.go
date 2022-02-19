@@ -79,6 +79,7 @@ func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 	traceID := root.TraceID
 	sampled := SampleByRate(traceID, newRate)
 	if sampled {
+		s.countSample()
 		setMetric(root, s.samplingRateKey, rate)
 	}
 	return sampled
