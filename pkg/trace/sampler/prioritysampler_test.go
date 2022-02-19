@@ -73,7 +73,7 @@ func TestPrioritySample(t *testing.T) {
 
 	s := getTestPrioritySampler()
 
-	assert.Equal(int64(0), s.localRates.totalSeen, "checking fresh backend total score is 0")
+	assert.Equal(float32(0), s.localRates.totalSeen, "checking fresh backend total score is 0")
 	assert.Equal(int64(0), s.localRates.totalKept, "checkeing fresh backend sampled score is 0")
 
 	s = getTestPrioritySampler()
@@ -82,7 +82,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk.Priority = -1
 	sampled := s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with negative priority is dropped")
-	assert.Equal(int64(0), s.localRates.totalSeen, "sampling a priority -1 trace should *NOT* impact sampler backend")
+	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a priority -1 trace should *NOT* impact sampler backend")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority -1 trace should *NOT* impact sampler backend")
 
 	s = getTestPrioritySampler()
@@ -91,7 +91,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk.Priority = 0
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with priority 0 is dropped")
-	assert.True(int64(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
+	assert.True(float32(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 0 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
@@ -100,7 +100,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk.Priority = 1
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 1 is kept")
-	assert.True(int64(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
+	assert.True(float32(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
 	assert.True(int64(0) < s.localRates.totalKept, "sampling a priority 0 trace should increase sampled score")
 
 	s = getTestPrioritySampler()
@@ -109,7 +109,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk.Priority = 2
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 2 is kept")
-	assert.Equal(int64(0), s.localRates.totalSeen, "sampling a priority 2 trace should *NOT* increase total score")
+	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a priority 2 trace should *NOT* increase total score")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 2 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
@@ -118,7 +118,7 @@ func TestPrioritySample(t *testing.T) {
 	chunk.Priority = int32(PriorityUserKeep)
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with high priority is kept")
-	assert.Equal(int64(0), s.localRates.totalSeen, "sampling a high priority trace should *NOT* increase total score")
+	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a high priority trace should *NOT* increase total score")
 	assert.Equal(int64(0), s.localRates.totalKept, "sampling a high priority trace should *NOT* increase sampled score")
 
 	chunk.Priority = int32(PriorityNone)

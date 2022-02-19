@@ -6,6 +6,7 @@
 package sampler
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -26,19 +27,23 @@ func getTestSampler() *Sampler {
 }
 
 func TestSamplerAccessRace(t *testing.T) {
-	// regression test: even though the sampler is channel protected, it
-	// has getters accessing its fields.
 	s := newSampler(1, 2, nil)
 	testTime := time.Now()
-	go func() {
-		for i := 0; i < 10000; i++ {
-			s.countWeightedSig(testTime, Signature(i%3), 5)
-		}
-	}()
-	for i := 0; i < 5000; i++ {
-		s.countSample()
-		s.getSignatureSampleRate(Signature(i % 3))
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for j := 0; j < 5; j++ {
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 10000; i++ {
+				s.countWeightedSig(testTime, Signature(i%3), 5)
+				s.report()
+				s.countSample()
+				s.getSignatureSampleRate(Signature(i % 3))
+				s.getAllSignatureSampleRates()
+			}
+		}()
 	}
+	wg.Wait()
 }
 
 func TestZeroAndGetMaxBuckets(t *testing.T) {

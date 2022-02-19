@@ -37,7 +37,7 @@ type Sampler struct {
 	// rates maps sampling rate in %
 	rates map[Signature]float64
 
-	// muSeen is a lock protecting seen map
+	// muSeen is a lock protecting seen map and totalSeen count
 	muSeen sync.RWMutex
 	// muRates is a lock protecting rates map
 	muRates sync.RWMutex
@@ -47,7 +47,7 @@ type Sampler struct {
 	// extraRate is an extra raw sampling rate to apply on top of the sampler rate
 	extraRate float64
 
-	totalSeen int64
+	totalSeen float32
 	totalKept int64
 
 	tags    []string
@@ -129,8 +129,9 @@ func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n float32
 	}
 	buckets[bucketID%numBuckets] += n
 	s.seen[signature] = buckets
+
+	s.totalSeen += n
 	s.muSeen.Unlock()
-	atomic.AddInt64(&s.totalSeen, 1)
 	return updateRates
 }
 
@@ -186,7 +187,7 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 // computeTPSPerSig distributes TPS looking at the seenTPS of all signatures.
 // By default it spreads uniformly the TPS on all signatures. If a signature
 // is low volume and does not use all of its TPS, the remaining is spread uniformly
-// on all other signatures./
+// on all other signatures.
 func computeTPSPerSig(targetTPS float64, seen []float64) float64 {
 	sorted := make([]float64, len(seen))
 	copy(sorted, seen)
@@ -222,8 +223,8 @@ func zeroAndGetMax(buckets [numBuckets]float32, previousBucket, newBucket int64)
 			maxBucket = value
 		}
 
-		// take in account previous value of the bucket that is overridden
-		// in this rotation
+		// zeroing after taking in account the previous value of the bucket
+		// overridden by this rotation. This allows to take in account all buckets
 		if i == newBucket {
 			buckets[index] = 0
 		}
@@ -270,7 +271,10 @@ func (s *Sampler) size() int64 {
 }
 
 func (s *Sampler) report() {
-	seen := atomic.SwapInt64(&s.totalSeen, 0)
+	s.muSeen.Lock()
+	seen := int64(s.totalSeen)
+	s.totalSeen = 0
+	s.muSeen.Unlock()
 	kept := atomic.SwapInt64(&s.totalKept, 0)
 	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
 	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
