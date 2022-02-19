@@ -323,7 +323,7 @@ func (a *Agent) Process(p *api.Payload) {
 			// payload size is getting big; split and flush what we have so far
 			ss.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
-			ss.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
+			ss.TracerPayload.Chunks = newChunksArray(ss.TracerPayload.Chunks)
 			a.TraceWriter.In <- ss
 			ss = new(writer.SampledChunks)
 		}
