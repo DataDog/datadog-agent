@@ -446,6 +446,10 @@ func getPIDNumbersOffset(kv *kernel.Version) uint64 {
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_0):
 		pidNumbersOffset = 48
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		pidNumbersOffset = 56
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_3):
+		pidNumbersOffset = 48
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_3):
 		pidNumbersOffset = 56
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_7):
