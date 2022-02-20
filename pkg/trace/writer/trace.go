@@ -212,7 +212,7 @@ outer:
 
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
-	w.tracerPayloads = w.tracerPayloads[:0]
+	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
