@@ -323,17 +323,29 @@ func (a *Agent) Process(p *api.Payload) {
 			// payload size is getting big; split and flush what we have so far
 			ss.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
+			ss.TracerPayload.Chunks = newChunksArray(ss.TracerPayload.Chunks)
 			a.TraceWriter.In <- ss
 			ss = new(writer.SampledChunks)
 		}
 	}
 	ss.TracerPayload = p.TracerPayload
+	ss.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	if ss.Size > 0 {
 		a.TraceWriter.In <- ss
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.In <- statsInput
 	}
+}
+
+// newChunksArray creates a new array which will point only to sampled chunks.
+
+// The underlying array behind TracePayload.Chunks points to unsampled chunks
+// preventing them from being collected by the GC.
+func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
+	new := make([]*pb.TraceChunk, len(chunks))
+	copy(new, chunks)
+	return new
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)
