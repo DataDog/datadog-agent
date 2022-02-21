@@ -11,6 +11,5 @@ upgrade:
     The OTLP ingest endpoint is now considered stable for traces.
     The configuration for it needs no longer be part of the "experimental" config section.
 
-    Please note that previously setting "experimental.otlp.grpc_port" together with "apm_config.apm_non_local_traffic"
-    would result in the listener being bound to "0.0.0.0" whereas now it will be bound to "localhost" or the value set
-    by "bind_host".
+    Support for the "experimental.otlp" section and the DD_OTLP_GRPC_PORT and DD_OTLP_HTTP_PORT
+    environment variables will be removed in Agent 7.37.
