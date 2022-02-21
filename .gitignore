@@ -159,3 +159,12 @@ pkg/network/netlink/testdata/message_dump*
 # serverless
 .layers
 .extension
+
+# Emacs
+*~
+
+# etags
+TAGS
+
+# cscope
+cscope.out
