@@ -259,7 +259,13 @@ func parseBytes(bts []byte) ([]byte, []byte, error) {
 
 	switch t {
 	case msgp.BinType:
-		return msgp.ReadBytesZC(bts)
+		unsafeBytes, bts, err := msgp.ReadBytesZC(bts)
+		if err != nil {
+			return nil, bts, err
+		}
+		safeBytes := make([]byte, len(unsafeBytes))
+		copy(safeBytes, unsafeBytes)
+		return safeBytes, bts, nil
 	default:
 		return nil, bts, msgp.TypeError{Encoded: t, Method: msgp.BinType}
 	}
