@@ -16,7 +16,7 @@ import (
 func TestQueueDurationCapacityMemOnly(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil, nil)
 
 	addTransaction(r, capacity, "domain", 5, 1)
 	addTransaction(r, capacity, "domain", 15, 2)
@@ -34,7 +34,7 @@ func TestQueueDurationCapacityMemAndDisk(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
 	mock := &diskSpaceAvailabilityMock{space: 50}
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock, nil)
 
 	addTransaction(r, capacity, "domain", 20, 1)
 	stats, err := capacity.ComputeCapacity(time.Unix(2, 0))
@@ -51,7 +51,7 @@ func TestQueueDurationCapacitySeveralDomains(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
 	mock := &diskSpaceAvailabilityMock{space: 50}
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock, nil)
 
 	addTransaction(r, capacity, "domain1", 5, 1)
 	addTransaction(r, capacity, "domain2", 3, 1)
@@ -74,7 +74,7 @@ func TestQueueDurationCapacitySeveralDomains(t *testing.T) {
 func TestQueueDurationCapacitEmptyTraffic(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil, nil)
 
 	addTransaction(r, capacity, "domain1", 20, 1)
 	addTransaction(r, capacity, "domain2", 0, 1)

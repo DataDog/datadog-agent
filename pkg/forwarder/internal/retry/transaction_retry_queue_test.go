@@ -61,7 +61,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	assertPayloadSizeFromExtractTransactions(a, container, []int{10})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{9})
 	a.Equal(0, q.getFilesCount())
-	a.Equal(int64(0), q.getCurrentSizeInBytes())
+	a.Equal(int64(0), q.GetDiskSpaceUsed())
 }
 
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {

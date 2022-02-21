@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
+// DiskUsageLimit provides `computeAvailableSpace` which returns
+// the amount of disk space that can be used to store transactions.
 type DiskUsageLimit struct {
 	diskPath       string
 	maxSizeInBytes int64
@@ -22,6 +24,7 @@ type diskUsageRetriever interface {
 	GetUsage(path string) (*filesystem.DiskUsage, error)
 }
 
+// NewDiskUsageLimit creates a new instance of NewDiskUsageLimit
 func NewDiskUsageLimit(
 	diskPath string,
 	disk diskUsageRetriever,

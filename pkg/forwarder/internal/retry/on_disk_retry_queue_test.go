@@ -34,13 +34,13 @@ func TestOnDiskRetryQueue(t *testing.T) {
 	transactions, err := q.Deserialize()
 	a.NoError(err)
 	a.Equal([]string{"endpoint3", "endpoint4"}, getEndpointsFromTransactions(transactions))
-	a.Greater(q.getCurrentSizeInBytes(), int64(0))
+	a.Greater(q.GetDiskSpaceUsed(), int64(0))
 
 	transactions, err = q.Deserialize()
 	a.NoError(err)
 	a.Equal([]string{"endpoint1", "endpoint2"}, getEndpointsFromTransactions(transactions))
 	a.Equal(0, q.getFilesCount())
-	a.Equal(int64(0), q.getCurrentSizeInBytes())
+	a.Equal(int64(0), q.GetDiskSpaceUsed())
 }
 
 func TestOnDiskRetryQueueMaxSize(t *testing.T) {
@@ -54,7 +54,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	i := 0
 	err := q.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
 	a.NoError(err)
-	maxNumberOfFiles := int(maxSizeInBytes / q.getCurrentSizeInBytes())
+	maxNumberOfFiles := int(maxSizeInBytes / q.GetDiskSpaceUsed())
 	a.Greaterf(maxNumberOfFiles, 2, "Not enough files for this test, increase maxSizeInBytes")
 
 	fileToDrop := 2
@@ -62,7 +62,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 		err := q.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
 		a.NoError(err)
 	}
-	a.LessOrEqual(q.getCurrentSizeInBytes(), maxSizeInBytes)
+	a.LessOrEqual(q.GetDiskSpaceUsed(), maxSizeInBytes)
 	a.Equal(maxNumberOfFiles, q.getFilesCount())
 
 	for i--; i >= fileToDrop; i-- {
@@ -84,7 +84,7 @@ func TestOnDiskRetryQueueReloadExistingRetryFiles(t *testing.T) {
 	a.NoError(err)
 
 	newRetryQueue := newTestOnDiskRetryQueue(a, path, 1000)
-	a.Equal(retryQueue.getCurrentSizeInBytes(), newRetryQueue.getCurrentSizeInBytes())
+	a.Equal(retryQueue.GetDiskSpaceUsed(), newRetryQueue.GetDiskSpaceUsed())
 	a.Equal(retryQueue.getFilesCount(), newRetryQueue.getFilesCount())
 	transactions, err := newRetryQueue.Deserialize()
 	a.NoError(err)

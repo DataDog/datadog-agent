@@ -34,6 +34,7 @@ type diskSpace interface {
 	computeAvailableSpace(extraSize int64) (int64, error)
 }
 
+// QueueDiskSpaceUsed provides a method to get the disk space used by the retry queue.
 type QueueDiskSpaceUsed interface {
 	GetDiskSpaceUsed() int64
 }
