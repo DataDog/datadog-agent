@@ -1016,12 +1016,12 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 }
 
 // flushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of probes
-// on non-loopback and non-dummy devices indexed by network namespace ID.
+// per network interface (ignoring the interfaces that are lazily deleted).
 func (p *Probe) flushInactiveProbes() map[uint32]int {
 	p.tcProgramsLock.Lock()
 	defer p.tcProgramsLock.Unlock()
 
-	probesCountNoLoopback := make(map[uint32]int)
+	probesCountNoLazyDeletion := make(map[uint32]int)
 
 	var linkName string
 	for tcKey, tcProbe := range p.tcPrograms {
@@ -1035,13 +1035,13 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 			} else {
 				linkName = ""
 			}
-			// no loopback, no dummy
-			if tcKey.IfIndex > 1 && !strings.HasPrefix(linkName, "dummy") {
-				probesCountNoLoopback[tcKey.NetNS]++
+			// ignore interfaces that are lazily deleted
+			if !p.resolvers.NamespaceResolver.IsLazyDeletionInterface(linkName) {
+				probesCountNoLazyDeletion[tcKey.NetNS]++
 			}
 		}
 	}
-	return probesCountNoLoopback
+	return probesCountNoLazyDeletion
 }
 
 // NewProbe instantiates a new runtime security agent probe

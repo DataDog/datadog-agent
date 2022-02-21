@@ -294,7 +294,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 		return 0
 	}
 
-	var attachedDeviceCountNoLoopbackNoDummy int
+	var attachedDeviceCountNoLazyDeletion int
 	for _, link := range links {
 		attrs := link.Attrs()
 		if attrs == nil {
@@ -307,13 +307,24 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 		}
 
 		if err = nr.probe.setupNewTCClassifierWithNetNSHandle(device, handle); err == nil {
-			// no loopback, no dummy
-			if device.IfIndex > 1 && !strings.HasPrefix(device.Name, "dummy") {
-				attachedDeviceCountNoLoopbackNoDummy++
+			// ignore interfaces that are lazily deleted
+			if !nr.IsLazyDeletionInterface(device.Name) {
+				attachedDeviceCountNoLazyDeletion++
 			}
 		}
 	}
-	return attachedDeviceCountNoLoopbackNoDummy
+	return attachedDeviceCountNoLazyDeletion
+}
+
+// IsLazyDeletionInterface returns true if an interface name is in the list of interfaces that aren't explicitly deleted by the
+// container runtime when a container is deleted.
+func (nr *NamespaceResolver) IsLazyDeletionInterface(name string) bool {
+	for _, lazyPrefix := range nr.probe.config.NetworkLazyInterfacePrefixes {
+		if strings.HasPrefix(name, lazyPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.
