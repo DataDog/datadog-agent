@@ -258,7 +258,9 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "MetaStruct", za0006)
 					return
 				}
-				z.MetaStruct[za0005] = za0006
+				safeBytes := make([]byte, len(za0006))
+				copy(safeBytes, za0006)
+				z.MetaStruct[za0005] = safeBytes
 			}
 		default:
 			bts, err = msgp.Skip(bts)
