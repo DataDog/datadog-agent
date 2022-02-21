@@ -39,9 +39,11 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 		},
 	})
 	expectedConfig1 := &APMSamplingConfig{
-		Config: Config{
-			ID:      "config_id1",
-			Version: 1,
+		Configs: map[string]Config{
+			"config_id1": {
+				ID:      "config_id1",
+				Version: 1,
+			},
 		},
 		Rates: []pb.APMSampling{samplingFile1},
 	}
@@ -75,9 +77,11 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 		},
 	})
 	expectedConfig2 := &APMSamplingConfig{
-		Config: Config{
-			ID:      "config_id2",
-			Version: 2,
+		Configs: map[string]Config{
+			"config_id2": {
+				ID:      "config_id2",
+				Version: 2,
+			},
 		},
 		Rates: []pb.APMSampling{samplingFile2},
 	}
