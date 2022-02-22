@@ -57,7 +57,7 @@ func TestThreadSafeFactoryConcurrency(t *testing.T) {
 						tags = f.Union(tags, tag2)
 					case 4:
 						n := r2.Intn(5)
-						bldr := f.NewBuilder(4)
+						bldr := NewBuilder(f, 4)
 						bldr.AddTags(tags)
 						for j := 0; j < n; j++ {
 							bldr.Add(fmt.Sprintf("tag%d", r2.Intn(10)))
@@ -65,7 +65,7 @@ func TestThreadSafeFactoryConcurrency(t *testing.T) {
 						tags = bldr.Close()
 					case 5:
 						n := r2.Intn(8)
-						bldr := f.NewSliceBuilder(2, 4)
+						bldr := NewSliceBuilder(f, 2, 4)
 						for j := 0; j < n; j++ {
 							bldr.Add(r2.Intn(2), fmt.Sprintf("tag%d", r2.Intn(10)))
 						}

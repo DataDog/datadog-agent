@@ -16,24 +16,16 @@ import (
 
 func TestSliceBuilder_Fuzz(t *testing.T) {
 	f := NewNullFactory()
-	var lastSb *SliceBuilder
 	fuzz(t, func(seed int64) {
 		r := rand.New(rand.NewSource(seed))
 		levels := r.Intn(10) + 1
 
-		sb := f.NewSliceBuilder(levels, 0)
-
-		// check that we got the same slicebuilder (so it's being reused, behavior
-		// we want to validate here)
-		if lastSb != nil {
-			require.True(t, sb == lastSb, "factory did not reuse SliceBuilder")
-		}
-		lastSb = sb
+		sb := NewSliceBuilder(f, levels, 0)
 
 		// track the expected values by using an array of builders
 		builders := make([]*Builder, levels)
 		for l := 0; l < levels; l++ {
-			builders[l] = f.NewBuilder(0)
+			builders[l] = NewBuilder(f, 0)
 		}
 
 		// add unique tags to the builders
@@ -72,7 +64,7 @@ func TestSliceBuilder_Fuzz(t *testing.T) {
 
 func TestSliceBuilder_AddKV(t *testing.T) {
 	f := NewNullFactory()
-	sb := f.NewSliceBuilder(3, 4)
+	sb := NewSliceBuilder(f, 3, 4)
 
 	sb.AddKV(0, "host", "123")
 	sb.AddKV(0, "cluster", "k")
@@ -97,7 +89,7 @@ func ExampleSliceBuilder() {
 	datasets := []string{"data.world", "kaggle"}
 	shards := []int{1, 4, 19}
 
-	bldr := DefaultFactory.NewSliceBuilder(3, 5) // stage 1: adding tags
+	bldr := NewSliceBuilder(DefaultFactory, 3, 5) // stage 1: adding tags
 	for _, rgn := range regions {
 		bldr.AddKV(0, "region", rgn)
 	}

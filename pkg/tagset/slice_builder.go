@@ -59,15 +59,21 @@ type SliceBuilder struct {
 	seen map[uint64]struct{}
 }
 
-// newSliceBuilder creates a new builder.
-func newSliceBuilder(factory Factory, levels, capacity int) *SliceBuilder {
+// NewSliceBuilder creates a new slice builder, using the given factory to
+// allocate Tags instances.  The resulting builder has space for the given
+// number of levels, and a total of `capacity` tags.
+//
+// SliceBuilders can be re-used to save allocations, by calling Reset between
+// each use.
+func NewSliceBuilder(factory Factory, levels, capacity int) *SliceBuilder {
 	f := &SliceBuilder{factory: factory}
-	f.reset(levels, capacity)
+	f.Reset(levels, capacity)
 	return f
 }
 
-// reset the builder, preparing it for re-use
-func (bldr *SliceBuilder) reset(levels, capacity int) {
+// Reset the builder, preparing it for re-use.  This will ensure at least the
+// given number of levels, and total capacity, are available.
+func (bldr *SliceBuilder) Reset(levels, capacity int) {
 	bldr.levels = levels
 
 	// expand bldr.offsets to at least length levels+1
@@ -158,7 +164,6 @@ func (bldr *SliceBuilder) Close() {
 	bldr.seen = nil
 	bldr.hashes = nil
 	bldr.tags = nil
-	bldr.factory.sliceBuilderClosed(bldr)
 }
 
 // alreadySeen checks if a tag has already been seen; if not, it records it as seen.

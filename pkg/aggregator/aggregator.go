@@ -436,7 +436,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
-	tb := tagset.NewBuilder(len(sc.Tags) * 2)
+	tb := tagset.NewBuilder(tagset.DefaultFactory, len(sc.Tags)*2)
 	for _, tag := range sc.Tags {
 		tb.Add(tag)
 	}
@@ -452,7 +452,7 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
-	tb := tagset.NewBuilder(len(e.Tags) * 2)
+	tb := tagset.NewBuilder(tagset.DefaultFactory, len(e.Tags)*2)
 	for _, tag := range e.Tags {
 		tb.Add(tag)
 	}

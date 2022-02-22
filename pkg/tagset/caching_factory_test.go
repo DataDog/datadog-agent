@@ -29,10 +29,10 @@ func TestCachingFactory_Union_Fuzz(t *testing.T) {
 	fuzz(t, func(seed int64) {
 		r := rand.New(rand.NewSource(seed))
 
-		bothBuilder := f.NewBuilder(30)
+		bothBuilder := NewBuilder(f, 30)
 
 		n := r.Intn(15)
-		aBuilder := f.NewBuilder(n)
+		aBuilder := NewBuilder(f, n)
 		for i := 0; i < n; i++ {
 			t := fmt.Sprintf("tag%d", r.Intn(30))
 			aBuilder.Add(t)
@@ -41,7 +41,7 @@ func TestCachingFactory_Union_Fuzz(t *testing.T) {
 		a := aBuilder.Close()
 
 		n = r.Intn(15)
-		bBuilder := f.NewBuilder(n)
+		bBuilder := NewBuilder(f, n)
 		for i := 0; i < n; i++ {
 			t := fmt.Sprintf("tag%d", r.Intn(30))
 			bBuilder.Add(t)

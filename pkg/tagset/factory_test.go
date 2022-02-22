@@ -52,7 +52,7 @@ func testFactory(t *testing.T, factoryFactory func() Factory) {
 
 	t.Run("NewBuilder", func(t *testing.T) {
 		f := factoryFactory()
-		b := f.NewBuilder(2)
+		b := NewBuilder(f, 2)
 		b.Add("t1")
 		b.Add("t2")
 		tags := b.Close()
@@ -124,7 +124,7 @@ func testFactoryCaching(t *testing.T, factoryFactory func() Factory) {
 			tags1 := f.NewTags([]string{"t1", "t2"})
 			tags1.validate(t)
 
-			b := f.NewBuilder(2)
+			b := NewBuilder(f, 2)
 			b.Add("t1")
 			b.Add("t2")
 			tags2 := b.Close()

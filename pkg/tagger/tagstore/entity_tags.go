@@ -131,7 +131,7 @@ func (e *EntityTags) computeCache() {
 	numTags := len(tagList[collectors.LowCardinality])
 	numTags += len(tagList[collectors.OrchestratorCardinality])
 	numTags += len(tagList[collectors.HighCardinality])
-	bldr := tagset.NewSliceBuilder(int(collectors.NumCardinalities), numTags)
+	bldr := tagset.NewSliceBuilder(tagset.DefaultFactory, int(collectors.NumCardinalities), numTags)
 	for card, tags := range tagList {
 		for _, tag := range tags {
 			bldr.Add(int(card), tag)

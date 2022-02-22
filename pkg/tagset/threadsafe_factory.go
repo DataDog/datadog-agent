@@ -10,10 +10,6 @@ import "sync"
 // threadSafeFactory wraps another factory and uses a mutex to control
 // access.
 type threadSafeFactory struct {
-	// baseFactory implements newBuilder/builderClosed,
-	// newSliceBuilder/sliceBuilderClosed for us
-	baseFactory
-
 	// mu synchronizes access to all fields
 	mu sync.Mutex
 
@@ -61,22 +57,6 @@ func (f *threadSafeFactory) NewTag(tag string) *Tags {
 	return tags
 }
 
-// NewBuilder implements Factory.NewBuilder
-func (f *threadSafeFactory) NewBuilder(capacity int) *Builder {
-	f.mu.Lock()
-	bldr := f.baseFactory.newBuilder(f, capacity)
-	f.mu.Unlock()
-	return bldr
-}
-
-// NewSliceBuilder implements Factory.NewSliceBuilder
-func (f *threadSafeFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
-	f.mu.Lock()
-	bldr := f.baseFactory.newSliceBuilder(f, levels, capacity)
-	f.mu.Unlock()
-	return bldr
-}
-
 // Union implements Factory.Union
 func (f *threadSafeFactory) Union(a, b *Tags) *Tags {
 	f.mu.Lock()
@@ -99,16 +79,4 @@ func (f *threadSafeFactory) getCachedTagsErr(cacheID cacheID, key uint64, miss f
 	tags, err := f.inner.getCachedTagsErr(cacheID, key, miss)
 	f.mu.Unlock()
 	return tags, err
-}
-
-func (f *threadSafeFactory) builderClosed(builder *Builder) {
-	f.mu.Lock()
-	f.baseFactory.builderClosed(builder)
-	f.mu.Unlock()
-}
-
-func (f *threadSafeFactory) sliceBuilderClosed(builder *SliceBuilder) {
-	f.mu.Lock()
-	f.baseFactory.sliceBuilderClosed(builder)
-	f.mu.Unlock()
 }

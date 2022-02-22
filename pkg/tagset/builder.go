@@ -22,15 +22,20 @@ type Builder struct {
 	seen    map[uint64]struct{}
 }
 
-// newBuilder creates a new builder.
-func newBuilder(factory Factory, capacity int) *Builder {
+// NewBuilder creates a new builder, using the given factory to create Tags
+// instances.
+//
+// Builders can be re-used to save allocations, by calling Reset between
+// each use.
+func NewBuilder(factory Factory, capacity int) *Builder {
 	bldr := &Builder{factory: factory}
-	bldr.reset(capacity)
+	bldr.Reset(capacity)
 	return bldr
 }
 
-// reset the builder, preparing it for re-use
-func (bldr *Builder) reset(capacity int) {
+// Reset the builder, preparing it for re-use.  This ensures that at least the
+// given capacity is available, but will not _shrink_ the capacity.
+func (bldr *Builder) Reset(capacity int) {
 	// ensure at least the requested capacity for bldr.tags
 	if bldr.tags == nil || cap(bldr.tags) < capacity {
 		bldr.tags = make([]string, 0, capacity)
@@ -80,6 +85,8 @@ func (bldr *Builder) Contains(tag string) bool {
 }
 
 // Close builds the resulting *Tags, and frees resources associated with the Builder.
+//
+// If the Builder will be re-used, Reset() must be called first.
 func (bldr *Builder) Close() *Tags {
 	frozen := bldr.factory.getCachedTags(byTagsetHashCache, bldr.hash, func() *Tags {
 
@@ -91,6 +98,5 @@ func (bldr *Builder) Close() *Tags {
 		return &Tags{tags, hashes, hash}
 	})
 	bldr.seen = nil // free unnecessary memory
-	bldr.factory.builderClosed(bldr)
 	return frozen
 }

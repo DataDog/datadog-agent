@@ -37,7 +37,7 @@ func TestNewTagsFromMap(t *testing.T) {
 }
 
 func TestNewBuilder(t *testing.T) {
-	b := NewBuilder(10)
+	b := NewBuilder(DefaultFactory, 10)
 	b.Add("a")
 	b.Add("b")
 	tags := b.Close()
@@ -84,7 +84,7 @@ func TestDefaultFactoryConcurrency(t *testing.T) {
 						tags = Union(tags, tag2)
 					case 4:
 						n := r2.Intn(5)
-						bldr := NewBuilder(4)
+						bldr := NewBuilder(DefaultFactory, 4)
 						bldr.AddTags(tags)
 						for j := 0; j < n; j++ {
 							bldr.Add(fmt.Sprintf("tag%d", r2.Intn(10)))
@@ -92,7 +92,7 @@ func TestDefaultFactoryConcurrency(t *testing.T) {
 						tags = bldr.Close()
 					case 5:
 						n := r2.Intn(8)
-						bldr := NewSliceBuilder(2, 4)
+						bldr := NewSliceBuilder(DefaultFactory, 2, 4)
 						for j := 0; j < n; j++ {
 							bldr.Add(r2.Intn(2), fmt.Sprintf("tag%d", r2.Intn(10)))
 						}

@@ -81,7 +81,7 @@ func BenchmarkUnion(b *testing.B) {
 				rng := rand.New(rand.NewSource(int64(i)))
 
 				n := size // exactly of the given size
-				lBuilder := f.NewBuilder(n)
+				lBuilder := NewBuilder(f, n)
 				for i := 0; i < n; i++ {
 					t := fmt.Sprintf("tag%d", i)
 					lBuilder.Add(t)
@@ -90,7 +90,7 @@ func BenchmarkUnion(b *testing.B) {
 				require.Equal(b, size, l.Len())
 
 				n = size + rng.Intn(size/2) // somewhat larger than given size
-				rBuilder := f.NewBuilder(n)
+				rBuilder := NewBuilder(f, n)
 				for i := 0; i < n; i++ {
 					// 50% of the tags are in l
 					t := fmt.Sprintf("tag%d", rng.Intn(2*size))

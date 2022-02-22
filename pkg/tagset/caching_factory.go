@@ -14,8 +14,6 @@ import (
 // A cachingFactory is a Factory implementation that caches Tags instances.
 // See NewCachingFactory for usage.
 type cachingFactory struct {
-	baseFactory
-
 	// Tags instances are cached by 64-bit cache keys that can have a range of
 	// meanings; each CacheID identifies a different meaning. Caches with
 	// different CacheIDs are stored independently.
@@ -118,16 +116,6 @@ func (f *cachingFactory) NewTag(tag string) *Tags {
 	return f.getCachedTags(byTagsetHashCache, hash, func() *Tags {
 		return &Tags{[]string{tag}, []uint64{hash}, hash}
 	})
-}
-
-// NewBuilder implements Factory.NewBuilder
-func (f *cachingFactory) NewBuilder(capacity int) *Builder {
-	return f.baseFactory.newBuilder(f, capacity)
-}
-
-// NewSliceBuilder implements Factory.NewSliceBuilder
-func (f *cachingFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
-	return f.baseFactory.newSliceBuilder(f, levels, capacity)
 }
 
 // Union implements Factory.Union

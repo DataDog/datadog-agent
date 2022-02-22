@@ -14,7 +14,7 @@ import (
 )
 
 func testBuilder() *Builder {
-	bldr := newBuilder(NewNullFactory(), 10)
+	bldr := NewBuilder(NewNullFactory(), 10)
 	return bldr
 }
 
@@ -70,7 +70,7 @@ func TestBuilder_Contains(t *testing.T) {
 func ExampleBuilder() {
 	shards := []int{1, 4, 19}
 
-	bldr := DefaultFactory.NewBuilder(5)
+	bldr := NewBuilder(DefaultFactory, 5)
 	for _, shard := range shards {
 		bldr.AddKV("shard", strconv.Itoa(shard))
 	}

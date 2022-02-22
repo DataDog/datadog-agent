@@ -51,7 +51,7 @@ func TestCompare(t *testing.T) {
 }
 
 func genTags(count int, div int) *tagset.Tags {
-	bldr := tagset.NewBuilder(count)
+	bldr := tagset.NewBuilder(tagset.DefaultFactory, count)
 	for i := 0; i < count; i++ {
 		bldr.Add(fmt.Sprintf("tag%d:value%d", i/div, i/div))
 	}

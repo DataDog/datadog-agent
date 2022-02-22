@@ -23,8 +23,6 @@ package tagset
 // This interface contains un-exported methods, so it cannot be implemented outside
 // of this package.
 type Factory interface {
-	// Tags constructors
-
 	// NewTags creates a new *Tags with the given tags. The provided slice is
 	// not used after the function returns, and may be re-used by the
 	// caller.
@@ -41,16 +39,6 @@ type Factory interface {
 	// NewTag creates a new *Tags with a single tag in it
 	NewTag(tag string) *Tags
 
-	// Builder constructors
-
-	// NewBuilder returns a fresh Builder
-	NewBuilder(capacity int) *Builder
-
-	// NewSliceBuilder returns a fresh Builder
-	NewSliceBuilder(levels, capacity int) *SliceBuilder
-
-	// Combination
-
 	// Union combines two *Tags instances that are not known to be
 	// disjoint. That is, there may exist tags that are in both tagsets.
 	Union(a, b *Tags) *Tags
@@ -63,14 +51,6 @@ type Factory interface {
 	// getCachedTagsErr is like getCachedTags, but for a function that can
 	// return an error.
 	getCachedTagsErr(cacheID cacheID, key uint64, miss func() (*Tags, error)) (*Tags, error)
-
-	// builderClosed returns the given builder to the factory for reuse.
-	// Builder.Close() calls this.
-	builderClosed(builder *Builder)
-
-	// builderClosed returns the given slice builder to the factory for reuse.
-	// SliceBuilder.Close() calls this.
-	sliceBuilderClosed(builder *SliceBuilder)
 }
 
 // cacheId is an identifier for a cache keying Tags instances by a particular key.

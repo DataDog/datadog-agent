@@ -10,9 +10,7 @@ import (
 )
 
 // A nullFactory caches nothing. It is useful for tests that need a factory.
-type nullFactory struct {
-	baseFactory
-}
+type nullFactory struct{}
 
 var _ Factory = (*nullFactory)(nil)
 
@@ -52,16 +50,6 @@ func (f *nullFactory) NewTag(tag string) *Tags {
 	tags := []string{tag}
 	hashes := []uint64{hash}
 	return &Tags{tags, hashes, hash}
-}
-
-// NewBuilder implements Factory.NewBuilder
-func (f *nullFactory) NewBuilder(capacity int) *Builder {
-	return f.baseFactory.newBuilder(f, capacity)
-}
-
-// NewBuilder implements Factory.NewBuilder
-func (f *nullFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
-	return f.baseFactory.newSliceBuilder(f, levels, capacity)
 }
 
 // Union implements Factory.Union

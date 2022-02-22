@@ -43,7 +43,7 @@ func newContextResolver(cache *tags.Store) *contextResolver {
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	tb := tagset.NewBuilder(10)
+	tb := tagset.NewBuilder(tagset.DefaultFactory, 10)
 	metricSampleContext.GetTags(tb) // tags here are not sorted and can contain duplicates
 	tags := tb.Close()
 	contextKey := cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags)
