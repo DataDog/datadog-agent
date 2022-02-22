@@ -78,7 +78,7 @@ if node['platform_family'] != 'windows'
       content <<-EOF
       FROM centos:7
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
-      RUN yum -y install xfsprogs e2fsprogs glibc.i686'
+      RUN yum -y install xfsprogs e2fsprogs
       CMD sleep 7200
       EOF
       action :create
@@ -113,11 +113,6 @@ if node['platform_family'] != 'windows'
     docker_exec 'debug_fs' do
       container 'docker-testsuite'
       command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
-    end
-
-    docker_exec 'install_xfs' do
-      container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
     end
 
     for i in 0..7 do
