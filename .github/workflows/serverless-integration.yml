@@ -11,10 +11,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 2
-      matrix:
-        architecture: [amd64]
+    # strategy:
+    #   max-parallel: 1
+    #   matrix:
+    #     architecture: [amd64]
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v2
@@ -39,5 +39,5 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }} 
-        run: ARCHITECTURE=${{ matrix.architecture }} ./test/integration/serverless/run.sh
+        run: ARCHITECTURE=arm64 ./test/integration/serverless/run.sh
         working-directory: go/src/github.com/DataDog/datadog-agent
