@@ -651,7 +651,6 @@ func newSpliceEventSerializer(e *Event) *SpliceEventSerializer {
 	}
 }
 
-func newDNSEventSerializer(e *Event) *DNSEventSerializer {
 func newDNSQuestionSerializer(d *model.DNSEvent) *DNSQuestionSerializer {
 	return &DNSQuestionSerializer{
 		Class: model.QClass(d.Class).String(),

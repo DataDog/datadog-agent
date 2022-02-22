@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -47,8 +48,8 @@ const (
 	netStructHasNS       uint64 = 1
 )
 
-func getNetStructType(p *Probe) uint64 {
-	if p.kernelVersion.IsRH7Kernel() {
+func getNetStructType(kv *kernel.Version) uint64 {
+	if kv.IsRH7Kernel() {
 		return netStructHasProcINum
 	}
 	return netStructHasNS

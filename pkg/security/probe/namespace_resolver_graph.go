@@ -27,25 +27,6 @@ var (
 	activeDeviceColor = "white"
 )
 
-type node struct {
-	ID        string
-	Label     string
-	Size      int
-	Color     string
-	FillColor string
-}
-
-type edge struct {
-	Link  string
-	Color string
-}
-
-type graph struct {
-	Title string
-	Nodes map[string]node
-	Edges []edge
-}
-
 func (nr *NamespaceResolver) generateGraph(dump []NetworkNamespaceDump, graphFile *os.File) error {
 	if graphFile == nil {
 		return nil

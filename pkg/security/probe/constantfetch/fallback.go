@@ -457,6 +457,8 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_8:
 		offset = 152
 	}
+
+	return offset
 }
 
 func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {

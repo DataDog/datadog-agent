@@ -1154,7 +1154,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
-			Value: getNetStructType(p),
+			Value: getNetStructType(p.kernelVersion),
 		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)

@@ -64,6 +64,10 @@ static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flag
  */
 static int (*bpf_tail_call_compat)(void* ctx, void* map, int key) = (void*)BPF_FUNC_tail_call;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+static long (*bpf_skb_load_bytes)(const void *skb, u32 offset, void *to, u32 len) = (void*)BPF_FUNC_skb_load_bytes;
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;
 static int (*bpf_probe_write_user)(void *dst, const void *src, int size) = (void *) BPF_FUNC_probe_write_user;
