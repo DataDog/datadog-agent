@@ -33,6 +33,10 @@ fi
 curl -Lo ./kind "https://kind.sigs.k8s.io/dl/$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/kubernetes-sigs/kind/releases | jq -r '.[0].name')/kind-linux-amd64"
 sudo install kind /usr/local/bin/kind
 
-sudo usermod -a -G docker core
+
+if id -u core >/dev/null 2>&1; then
+    # skip the usermod step if needless
+    sudo usermod -a -G docker core
+fi
 
 echo "Kind setup finished"
