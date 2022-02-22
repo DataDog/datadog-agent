@@ -19,7 +19,6 @@ type Builder struct {
 	tags    []string
 	hashes  []uint64
 	hash    uint64
-	seen    map[uint64]struct{}
 }
 
 // NewBuilder creates a new builder, using the given factory to create Tags
@@ -51,19 +50,19 @@ func (bldr *Builder) Reset(capacity int) {
 	}
 
 	bldr.hash = 0
-	bldr.seen = map[uint64]struct{}{}
 }
 
 // Add adds the given tag to the builder
 func (bldr *Builder) Add(tag string) {
 	h := murmur3.StringSum64(tag)
-	if _, seen := bldr.seen[h]; seen {
-		return
+	for _, sh := range bldr.hashes {
+		if sh == h {
+			return
+		}
 	}
 	bldr.tags = append(bldr.tags, tag)
 	bldr.hashes = append(bldr.hashes, h)
 	bldr.hash ^= h
-	bldr.seen[h] = struct{}{}
 }
 
 // AddTags adds the contents of another Tags instance to this builder.
@@ -80,8 +79,12 @@ func (bldr *Builder) AddKV(k, v string) {
 // Contains checks whether the given tag is in the builder
 func (bldr *Builder) Contains(tag string) bool {
 	h := murmur3.StringSum64(tag)
-	_, has := bldr.seen[h]
-	return has
+	for _, sh := range bldr.hashes {
+		if sh == h {
+			return true
+		}
+	}
+	return false
 }
 
 // Close builds the resulting *Tags, and frees resources associated with the Builder.
@@ -97,6 +100,5 @@ func (bldr *Builder) Close() *Tags {
 
 		return &Tags{tags, hashes, hash}
 	})
-	bldr.seen = nil // free unnecessary memory
 	return frozen
 }

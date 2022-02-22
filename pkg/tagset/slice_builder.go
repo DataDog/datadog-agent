@@ -54,9 +54,6 @@ type SliceBuilder struct {
 
 	// Hashes of all tags at each level. This slice has length levels.
 	levelHashes []uint64
-
-	// all seen tags (regardless of level)
-	seen map[uint64]struct{}
 }
 
 // NewSliceBuilder creates a new slice builder, using the given factory to
@@ -100,7 +97,6 @@ func (bldr *SliceBuilder) Reset(levels, capacity int) {
 
 	bldr.tags = make([]string, 0, capacity)
 	bldr.hashes = make([]uint64, 0, capacity)
-	bldr.seen = map[uint64]struct{}{}
 }
 
 // Add adds the given tag to the builder at the given level. If the tag is
@@ -108,8 +104,12 @@ func (bldr *SliceBuilder) Reset(levels, capacity int) {
 // tag's level).
 func (bldr *SliceBuilder) Add(level int, tag string) {
 	h := murmur3.StringSum64(tag)
-	if bldr.alreadySeen(h) {
-		return
+
+	// check if this tag has been seen
+	for _, sh := range bldr.hashes {
+		if sh == h {
+			return
+		}
 	}
 
 	// insert this element into tags/hashes
@@ -133,9 +133,6 @@ func (bldr *SliceBuilder) AddKV(level int, k, v string) {
 // FreezeSlice "freezes" the builder and returns the requested slice of levels.
 // The Add methods cannot be called after freezing.
 func (bldr *SliceBuilder) FreezeSlice(a, b int) *Tags {
-	// free unnecessary memory
-	bldr.seen = nil
-
 	hash := uint64(0)
 	for _, lh := range bldr.levelHashes[a:b] {
 		hash ^= lh
@@ -161,18 +158,8 @@ func (bldr *SliceBuilder) FreezeSlice(a, b int) *Tags {
 
 // Close closes the builder, freeing its resources.
 func (bldr *SliceBuilder) Close() {
-	bldr.seen = nil
 	bldr.hashes = nil
 	bldr.tags = nil
-}
-
-// alreadySeen checks if a tag has already been seen; if not, it records it as seen.
-func (bldr *SliceBuilder) alreadySeen(h uint64) bool {
-	if _, seen := bldr.seen[h]; seen {
-		return true
-	}
-	bldr.seen[h] = struct{}{}
-	return false
 }
 
 // allocate allocates space to insert a new tag in bldr.tags and bldr.hashes at
@@ -184,7 +171,9 @@ func (bldr *SliceBuilder) allocate(level, insertAt int) {
 	newLen := len(bldr.tags) + 1
 
 	// reallocate the storage if there is not enough room in the existing
-	// array, and copy the existing data into the new array
+	// array, and copy the existing data into the new array.  This is similar
+	// to the automatic re-allocation that the `append` built-in would do, but
+	// `append` does not leave a hole at `insertAt`.
 	if cap(bldr.tags) < newLen {
 		newTags = make([]string, newLen, newLen*2)
 		newHashes = make([]uint64, newLen, newLen*2)
@@ -210,8 +199,8 @@ func (bldr *SliceBuilder) allocate(level, insertAt int) {
 		// slice.  For example:
 		//       ↓ insertAt
 		// 0a 0b 1a 1b 1c 2a 2b 2c 3a 3b
-		// || ||  ↓ || || ↓  || ||  ↓ ||
-		// || ||   →→→→→→→  →→→→→→→  →→→→
+		// || ||  ↘ || ||  ↘ || ||  ↓ ||
+		// || ||   →→→→→→↘  →→→→→→↘  →→→→
 		// || ||    || || ↓  || || ↓  || ↓
 		// 0a 0b    1b 1c 1a 2b 2c 2a 3b 3a
 		for l := bldr.levels - 1; l > level; l-- {
