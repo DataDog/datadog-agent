@@ -19,7 +19,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,7 +35,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -955,78 +953,6 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	}
 
 	return testFile, testPtr, err
-}
-
-//nolint:unused
-type tracePipeLogger struct {
-	*TracePipe
-	stop       chan struct{}
-	executable string
-}
-
-//nolint:unused
-func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
-	// for some reason, the event task is resolved to "<...>"
-	// so we check that event.PID is the ID of a task of the running process
-	taskPath := filepath.Join(util.HostProc(), strconv.Itoa(int(utils.Getpid())), "task", event.PID)
-	_, err := os.Stat(taskPath)
-
-	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
-		log.Debug(event.Raw)
-	}
-}
-
-//nolint:unused
-func (l *tracePipeLogger) Start() {
-	channelEvents, channelErrors := l.Channel()
-
-	go func() {
-		for {
-			select {
-			case <-l.stop:
-				for len(channelEvents) > 0 {
-					l.handleEvent(<-channelEvents)
-				}
-				return
-			case event := <-channelEvents:
-				l.handleEvent(event)
-			case err := <-channelErrors:
-				log.Error(err)
-			}
-		}
-	}()
-}
-
-//nolint:unused
-func (l *tracePipeLogger) Stop() {
-	time.Sleep(time.Millisecond * 200)
-
-	l.stop <- struct{}{}
-	l.Close()
-}
-
-//nolint:unused
-func (tm *testModule) startTracing() (*tracePipeLogger, error) {
-	tracePipe, err := NewTracePipe()
-	if err != nil {
-		return nil, err
-	}
-
-	executable, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-
-	logger := &tracePipeLogger{
-		TracePipe:  tracePipe,
-		stop:       make(chan struct{}),
-		executable: filepath.Base(executable),
-	}
-	logger.Start()
-
-	time.Sleep(time.Millisecond * 200)
-
-	return logger, nil
 }
 
 func (tm *testModule) cleanup() {
