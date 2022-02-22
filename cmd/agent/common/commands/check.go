@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -136,7 +137,9 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-			opts := aggregator.DefaultDemultiplexerOptions(nil)
+			forwarderOpts := forwarder.NewOptions(nil)
+			forwarderOpts.DisableAPIKeyChecking = true
+			opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 			opts.FlushInterval = 0
 			opts.UseNoopEventPlatformForwarder = true
 			opts.UseOrchestratorForwarder = false
