@@ -141,8 +141,8 @@ github.com/DataDog/kube-state-metrics/v2 v2.1.2-0.20211109105526-c17162ee2798 h1
 github.com/DataDog/kube-state-metrics/v2 v2.1.2-0.20211109105526-c17162ee2798/go.mod h1:Hv8GpzWpCMxmmsqBt7ZZs6qrKbp/XimuDTCexS+4xhY=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/nikos v1.7.2 h1:xTAPgGoCLilLS1ouVx0UDU3ocD4Yz07xs3kLW5GSlIE=
-github.com/DataDog/nikos v1.7.2/go.mod h1:r20vNQr3wTDrMZWLjOZBCJNWeuTB/rBO30ST5ywIfqw=
+github.com/DataDog/nikos v1.7.4 h1:eAkQId72tPMaNLozjHrR5e+i8RLDTlVwfihiRBaFb24=
+github.com/DataDog/nikos v1.7.4/go.mod h1:kK2wHo4SMa+qDP7cNQWzS3Ol9uJK46zPLPtK1C37ZWA=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/sketches-go v1.2.1 h1:qTBzWLnZ3kM2kw39ymh6rMcnN+5VULwFs++lEYUUsro=
 github.com/DataDog/sketches-go v1.2.1/go.mod h1:1xYmPLY1So10AwxV6MJV0J53XVH+WL9Ad1KetxVivVI=
