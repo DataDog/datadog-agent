@@ -161,6 +161,23 @@ func IsAnalyzedSpan(s *pb.Span) bool {
 	return v == 1
 }
 
+func weightRoot(s *pb.Span) float32 {
+	if s == nil {
+		return 1
+	}
+	clientRate, ok := s.Metrics[KeySamplingRateGlobal]
+	if !ok || clientRate <= 0.0 || clientRate > 1.0 {
+		clientRate = 1
+	}
+	preSamplerRate, ok := s.Metrics[KeySamplingRatePreSampler]
+	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
+		preSamplerRate = 1
+	}
+
+	return float32(1.0 / (preSamplerRate * clientRate))
+
+}
+
 func getMetric(s *pb.Span, k string) (float64, bool) {
 	if s.Metrics == nil {
 		return 0, false
