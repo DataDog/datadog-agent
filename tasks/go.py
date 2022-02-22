@@ -227,7 +227,7 @@ def ineffassign(ctx, targets):
 
 
 @task
-def staticcheck(ctx, targets, build_tags=None, arch="x64"):
+def staticcheck(ctx, targets, build_tags=None, checks="SA1027", arch="x64"):
     """
     Run staticcheck on targets.
 
@@ -249,7 +249,14 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     if "jmx" in tags:
         tags.remove("jmx")
 
-    ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
+    checks = checks.strip()
+    if checks != "":
+        checks = f"-checks {checks}"
+
+    tags_arg = ",".join(tags)
+    pkgs_arg = " ".join(pkgs)
+
+    ctx.run(f"staticcheck {checks} -tags={tags_arg} {pkgs_arg}")
     # staticcheck exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("staticcheck found no issues")
