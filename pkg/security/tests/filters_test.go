@@ -140,10 +140,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 			return false
 		}
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-		return false
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
@@ -202,10 +199,7 @@ func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
 			return false
 		}
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-		return false
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
@@ -401,10 +395,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 			return false
 		}
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-		return false
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
@@ -470,12 +461,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		}
 
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-
-		return false
-
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
