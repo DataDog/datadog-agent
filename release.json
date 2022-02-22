@@ -41,7 +41,7 @@
         "WINDOWS_DDNPM_SHASUM": "a14514beb952f3aaa09de4df43c5e439044a90aaddf05b1ade459778c1d255d3"
     },
     "release-a7": {
-        "INTEGRATIONS_CORE_VERSION": "alex.barksdale/mysql-deobfuscated-samples",
+        "INTEGRATIONS_CORE_VERSION": "6d2bde6912953e6c4c27d1c76cf78e2b45e7bb3e",
         "OMNIBUS_SOFTWARE_VERSION": "7.34.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.34.0-rc.5",
         "JMXFETCH_VERSION": "0.44.6",
