@@ -1284,7 +1284,7 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 		config.Set("external_metrics_provider.chunk_size", 1)
 	}
 	if chunkSize > maxExternalMetricsProviderChunkSize {
-		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize)
+		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
 		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
 	}
 }
