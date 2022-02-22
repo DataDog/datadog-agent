@@ -1,0 +1,7 @@
+[log] {"message":{"message":"/var/task/bootstrap: line 3: ./src/bin/log: cannot execute binary file\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
+[log] {"message":{"message":"START XXX"}}
+[log] {"message":{"message":"/var/task/bootstrap: line 3: ./src/bin/log: cannot execute binary file\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
+[log] {"message":{"message":"END XXX"}}
+[log] {"message":{"message":"REPORT XXX"}}
+[log] {"message":{"message":"START XXX"}}
+[log] {"message":{"message":"/var/task/bootstrap: line 3: ./src/bin/log: cannot execute binary file\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}

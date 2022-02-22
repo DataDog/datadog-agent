@@ -17,11 +17,13 @@
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
 # DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
+# ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is arm64
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
 DEFAULT_DOTNET_TRACE_LAYER_VERSION=1
+DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -59,7 +61,7 @@ if [ "$BUILD_EXTENSION" != "false" ]; then
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
     echo "Skipping extension build, reusing previously built extension"
 fi
@@ -87,6 +89,12 @@ if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
     export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
 fi
 
+if [ -z "$ARCHITECTURE" ]; then
+    export ARCHITECTURE=$DEFAULT_ARCHITECTURE
+fi
+
+echo "Testing $ARCHITECTURE architecture"
+
 echo "Using dd-lambda-js layer version: $NODE_LAYER_VERSION"
 echo "Using dd-lambda-python version: $PYTHON_LAYER_VERSION"
 echo "Using dd-trace-java layer version: $JAVA_TRACE_LAYER_VERSION"
@@ -104,7 +112,22 @@ function remove_stack() {
 trap remove_stack EXIT
 
 # deploy the stack
-serverless deploy --stage "${stage}"
+if [ "$ARCHITECTURE" == "amd64" ]; then
+    export DEPLOYMENT_REGION=sa-east-1
+    export DEPLOYMENT_BUCKET=integration-tests-deployment-bucket
+    echo "Deploying stack with $ARCHITECTURE architecture to $DEPLOYMENT_REGION, using the $DEPLOYMENT_BUCKET"
+
+    # we use the architecture name amd64, while AWS requires it to be listed as x86_64
+    export DEPLOYMENT_ARCHITECTURE=x86_64
+    serverless deploy --stage "${stage}"
+else 
+    export DEPLOYMENT_REGION=eu-west-1
+    export DEPLOYMENT_BUCKET=integration-tests-deployment-bucket-arm
+    echo "Deploying stack with $ARCHITECTURE architecture to $DEPLOYMENT_REGION, using the $DEPLOYMENT_BUCKET"
+
+    export DEPLOYMENT_ARCHITECTURE=$ARCHITECTURE
+    serverless deploy --stage "${stage}"
+fi
 
 metric_functions=(
     "metric-node"
@@ -262,7 +285,7 @@ for function_name in "${all_functions[@]}"; do
         )
     fi
 
-    function_snapshot_path="./snapshots/${function_name}"
+    function_snapshot_path="./snapshots/${ARCHITECTURE}/${function_name}"
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"

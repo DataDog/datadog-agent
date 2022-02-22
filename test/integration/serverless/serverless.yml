@@ -6,7 +6,7 @@ resources:
 
 provider:
   name: aws
-  region: sa-east-1
+  region: ${env:DEPLOYMENT_REGION}
   tracing:
     lambda: true
     apiGateway: true
@@ -24,13 +24,15 @@ provider:
     DD_SERVICE: integration-tests-service
     DD_TAGS: tagA:valueA tagB:valueB
     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+    DD_ARCHITECTURE: ${env:ARCHITECTURE}
   lambdaHashingVersion: 20201221
   timeout: 15
   deploymentBucket:
-    name: integration-tests-deployment-bucket
+    name: ${env:DEPLOYMENT_BUCKET}
   iam:
     # IAM permissions require that all functions are deployed with this role
     role: "arn:aws:iam::601427279990:role/serverless-integration-test-lambda-role"
+  architecture: ${env:DEPLOYMENT_ARCHITECTURE}
 
 package:
   patterns:
@@ -41,10 +43,10 @@ package:
 layers:
   recorderExtension:
     package:
-      artifact: ./recorder-extension/ext.zip
+      artifact: ./recorder-extension/ext-${env:ARCHITECTURE}.zip
   datadogExtensionIntegrationTest:
     package:
-      artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-amd64.zip
+      artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-${env:ARCHITECTURE}.zip
 
 functions:
   metric-node:

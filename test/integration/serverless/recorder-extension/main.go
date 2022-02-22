@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
-const extensionName = "recorder-extension" // extension name has to match the filename
+var extensionName = "recorder-extension-" + os.Getenv("DD_ARCHITECTURE") // extension name has to match the filename
 var extensionClient = NewClient(os.Getenv("AWS_LAMBDA_RUNTIME_API"))
 
 func main() {
