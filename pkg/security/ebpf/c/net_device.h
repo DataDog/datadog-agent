@@ -276,6 +276,21 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
 
             // delete state machine entry
             bpf_map_delete_elem(&veth_state_machine, &id);
+
+            // veth pairs can be created with an existing peer netns, if this is the case, send the veth_pair event now
+            if (peer_device->netns != device.netns) {
+                // send event
+                struct veth_pair_event_t evt = {
+                    .host_device = device,
+                    .peer_device = *peer_device,
+                };
+
+                struct proc_cache_t *proc_entry = fill_process_context(&evt.process);
+                fill_container_context(proc_entry, &evt.container);
+                fill_span_context(&evt.span);
+
+                send_event(ctx, EVENT_VETH_PAIR, evt);
+            }
             break;
         }
     }

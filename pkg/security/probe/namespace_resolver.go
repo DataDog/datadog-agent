@@ -37,9 +37,9 @@ var (
 	ErrNoNetworkNamespaceHandle = fmt.Errorf("no network namespace handle")
 
 	// lonelyTimeout is the timeout past which a lonely network namespace is expired
-	lonelyTimeout = 5 * time.Second
+	lonelyTimeout = 30 * time.Second
 	// flushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
-	flushNamespacesPeriod = 5 * time.Second
+	flushNamespacesPeriod = 30 * time.Second
 )
 
 const (
