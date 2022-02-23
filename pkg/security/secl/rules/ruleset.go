@@ -7,6 +7,7 @@ package rules
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -63,13 +64,14 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID          RuleID            `yaml:"id"`
-	Version     string            `yaml:"version"`
-	Expression  string            `yaml:"expression"`
-	Description string            `yaml:"description"`
-	Tags        map[string]string `yaml:"tags"`
-	Disabled    bool              `yaml:"disabled"`
-	Combine     CombinePolicy     `yaml:"combine"`
+	ID          RuleID             `yaml:"id"`
+	Version     string             `yaml:"version"`
+	Expression  string             `yaml:"expression"`
+	Description string             `yaml:"description"`
+	Tags        map[string]string  `yaml:"tags"`
+	Disabled    bool               `yaml:"disabled"`
+	Combine     CombinePolicy      `yaml:"combine"`
+	Actions     []ActionDefinition `yaml:"actions"`
 	Policy      *Policy
 }
 
@@ -98,6 +100,40 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	return nil
 }
 
+// ActionDefinition describes a rule action section
+type ActionDefinition struct {
+	Set *SetDefinition `yaml:"set"`
+}
+
+// Check returns an error if the action in invalid
+func (a *ActionDefinition) Check() error {
+	if a.Set == nil {
+		return errors.New("missing 'set' section in action")
+	}
+
+	if a.Set.Name == "" {
+		return errors.New("action name is empty")
+	}
+
+	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+		return errors.New("either 'value' or 'field' must be specified")
+	}
+
+	return nil
+}
+
+// Scope describes the scope variables
+type Scope string
+
+// SetDefinition describes the 'set' section of a rule action
+type SetDefinition struct {
+	Name   string      `yaml:"name"`
+	Value  interface{} `yaml:"value"`
+	Field  string      `yaml:"field"`
+	Append bool        `yaml:"append"`
+	Scope  Scope       `yaml:"scope"`
+}
+
 // Rule describes a rule of a ruleset
 type Rule struct {
 	*eval.Rule
@@ -118,9 +154,12 @@ type RuleSet struct {
 	loadedPolicies   map[string]string
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
+	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
 	listeners        []RuleSetListener
+	globalVariables  eval.GlobalVariables
+	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger Logger
@@ -295,6 +334,19 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 
 	rs.rules[ruleDef.ID] = rule
 
+	// Generate evaluator for fields that are used in variables
+	for _, action := range rule.Definition.Actions {
+		if action.Set != nil && action.Set.Field != "" {
+			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
+				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+				if err != nil {
+					return nil, err
+				}
+				rs.fieldEvaluators[action.Set.Field] = evaluator
+			}
+		}
+	}
+
 	return rule.Rule, nil
 }
 
@@ -401,6 +453,45 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	return true, nil
 }
 
+func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
+	for _, action := range rule.Definition.Actions {
+		switch {
+		case action.Set != nil:
+			name := string(action.Set.Scope)
+			if name != "" {
+				name += "."
+			}
+			name += action.Set.Name
+
+			variable, found := rs.opts.Variables[name]
+			if !found {
+				return fmt.Errorf("unknown variable: %s", name)
+			}
+
+			if mutable, ok := variable.(eval.MutableVariable); ok {
+				value := action.Set.Value
+				if field := action.Set.Field; field != "" {
+					if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
+						value = evaluator.Eval(ctx)
+					}
+				}
+
+				if action.Set.Append {
+					if err := mutable.Append(ctx, value); err != nil {
+						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
+					}
+				} else {
+					if err := mutable.Set(ctx, value); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event.GetPointer())
@@ -421,6 +512,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
+
+			if err := rs.runRuleActions(ctx, rule); err != nil {
+				rs.logger.Errorf("Error while executing rule actions: %s", err)
+			}
 		}
 	}
 
@@ -512,5 +607,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		loadedPolicies:   make(map[string]string),
 		logger:           logger,
 		pool:             eval.NewContextPool(),
+		fieldEvaluators:  make(map[string]eval.Evaluator),
+		scopedVariables:  make(map[Scope]VariableProvider),
 	}
 }

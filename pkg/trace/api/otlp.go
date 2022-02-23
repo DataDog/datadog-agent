@@ -77,7 +77,7 @@ func (o *OTLPReceiver) Start() {
 				}
 			}
 		}()
-		log.Debugf("OpenTelemetry HTTP receiver running on http://%s:%d (internal use only)", o.cfg.BindHost, o.cfg.HTTPPort)
+		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.cfg.BindHost, o.cfg.HTTPPort)
 	}
 	if o.cfg.GRPCPort != 0 {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", o.cfg.BindHost, o.cfg.GRPCPort))
@@ -93,7 +93,7 @@ func (o *OTLPReceiver) Start() {
 					log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 				}
 			}()
-			log.Debugf("OpenTelemetry gRPC receiver running on %s:%d (internal use only)", o.cfg.BindHost, o.cfg.GRPCPort)
+			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.cfg.BindHost, o.cfg.GRPCPort)
 		}
 	}
 }

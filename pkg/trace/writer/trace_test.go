@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"io/ioutil"
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -187,6 +188,42 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		assert.Equal(t, 1, srv.Accepted())
 		payloadsContain(t, srv.Payloads(), testSpans)
 	})
+}
+
+func TestResetBuffer(t *testing.T) {
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: true,
+	}
+
+	w := NewTraceWriter(cfg)
+
+	runtime.GC()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
+
+	bigPayload := &pb.TracerPayload{
+		ContainerID: string(make([]byte, 50*1e6)),
+	}
+
+	w.tracerPayloads = append(w.tracerPayloads, bigPayload)
+
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
+
+	w.resetBuffer()
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
 }
 
 func TestTraceWriterSyncStop(t *testing.T) {

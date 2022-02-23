@@ -404,7 +404,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 @task
 def generate_protobuf(ctx):
     """
-    Generates protobuf defintions in pkg/proto
+    Generates protobuf definitions in pkg/proto
     """
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))

@@ -210,30 +210,21 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 type EnvsEntry struct {
 	*ArgsEnvsCacheEntry
 
-	Values    map[string]string
+	Values    []string
 	Truncated bool
 
 	parsed bool
 	keys   []string
+	kv     map[string]string
 }
 
-// ToMap returns envs as map
-func (p *EnvsEntry) ToMap() (map[string]string, bool) {
-	if p.Values != nil || p.parsed {
+// ToArray returns envs as an array
+func (p *EnvsEntry) ToArray() ([]string, bool) {
+	if p.parsed {
 		return p.Values, p.Truncated
 	}
 
-	values, truncated := p.toArray()
-
-	envs := make(map[string]string, len(values))
-
-	for _, env := range values {
-		if els := strings.SplitN(env, "=", 2); len(els) == 2 {
-			key := els[0]
-			envs[key] = els[1]
-		}
-	}
-	p.Values, p.Truncated = envs, truncated
+	p.Values, p.Truncated = p.toArray()
 	p.parsed = true
 
 	// now we have the cache we can free
@@ -247,29 +238,49 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 
 // Keys returns only keys
 func (p *EnvsEntry) Keys() ([]string, bool) {
-	if len(p.keys) > 0 {
+	if p.keys != nil {
 		return p.keys, p.Truncated
 	}
 
-	if !p.parsed {
-		p.ToMap()
+	values, _ := p.ToArray()
+	if len(values) == 0 {
+		return nil, p.Truncated
 	}
 
-	p.keys = make([]string, len(p.Values))
+	p.keys = make([]string, len(values))
 
 	var i int
-	for key := range p.Values {
-		p.keys[i] = key
+	for _, value := range values {
+		kv := strings.SplitN(value, "=", 2)
+		p.keys[i] = kv[0]
 		i++
 	}
 
 	return p.keys, p.Truncated
 }
 
+func (p *EnvsEntry) toMap() {
+	if p.kv != nil {
+		return
+	}
+
+	values, _ := p.ToArray()
+	p.kv = make(map[string]string, len(values))
+
+	for _, value := range values {
+		kv := strings.SplitN(value, "=", 2)
+		k := kv[0]
+
+		if len(kv) == 2 {
+			p.kv[k] = kv[1]
+		} else {
+			p.kv[k] = ""
+		}
+	}
+}
+
 // Get returns the value for the given key
 func (p *EnvsEntry) Get(key string) string {
-	if !p.parsed {
-		p.ToMap()
-	}
-	return p.Values[key]
+	p.toMap()
+	return p.kv[key]
 }

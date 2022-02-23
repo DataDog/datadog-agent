@@ -12,10 +12,12 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func Test_convertCPUStats(t *testing.T) {
@@ -34,9 +36,9 @@ func Test_convertCPUStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerCPUStats{
-				Total:  util.Float64Ptr(4200),
-				System: util.Float64Ptr(4300),
-				User:   util.Float64Ptr(4400),
+				Total:  pointer.Float64Ptr(4200),
+				System: pointer.Float64Ptr(4300),
+				User:   pointer.Float64Ptr(4400),
 			},
 		},
 	}
@@ -64,11 +66,11 @@ func Test_convertMemoryStats(t *testing.T) {
 				PrivateWorkingSet: 46,
 			},
 			expectedOutput: provider.ContainerMemStats{
-				UsageTotal:        util.Float64Ptr(42),
-				Limit:             util.Float64Ptr(43),
-				PrivateWorkingSet: util.Float64Ptr(46),
-				CommitBytes:       util.Float64Ptr(44),
-				CommitPeakBytes:   util.Float64Ptr(45),
+				UsageTotal:        pointer.Float64Ptr(42),
+				Limit:             pointer.Float64Ptr(43),
+				PrivateWorkingSet: pointer.Float64Ptr(46),
+				CommitBytes:       pointer.Float64Ptr(44),
+				CommitPeakBytes:   pointer.Float64Ptr(45),
 			},
 		},
 	}
@@ -95,10 +97,10 @@ func Test_convertIOStats(t *testing.T) {
 				WriteSizeBytes:       45,
 			},
 			expectedOutput: provider.ContainerIOStats{
-				ReadBytes:       util.Float64Ptr(43),
-				WriteBytes:      util.Float64Ptr(45),
-				ReadOperations:  util.Float64Ptr(42),
-				WriteOperations: util.Float64Ptr(44),
+				ReadBytes:       pointer.Float64Ptr(43),
+				WriteBytes:      pointer.Float64Ptr(45),
+				ReadOperations:  pointer.Float64Ptr(42),
+				WriteOperations: pointer.Float64Ptr(44),
 			},
 		},
 	}
@@ -120,7 +122,7 @@ func Test_convetrPIDStats(t *testing.T) {
 			name:  "basic",
 			input: 42,
 			expectedOutput: provider.ContainerPIDStats{
-				ThreadCount: util.Float64Ptr(42),
+				ThreadCount: pointer.Float64Ptr(42),
 			},
 		},
 	}
@@ -128,6 +130,70 @@ func Test_convetrPIDStats(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, &test.expectedOutput, convertPIDStats(test.input))
+		})
+	}
+}
+
+func Test_computeCPULimit(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          *types.ContainerJSON
+		expectedLimit float64
+	}{
+		{
+			name: "No CPU Limit",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{},
+				},
+			},
+			expectedLimit: 100 * float64(system.HostCPUCount()),
+		},
+		{
+			name: "Nano CPUs",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							NanoCPUs: 5000000000,
+						},
+					},
+				},
+			},
+			expectedLimit: 500,
+		},
+		{
+			name: "CPU Percent",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							CPUPercent: 50,
+						},
+					},
+				},
+			},
+			expectedLimit: 50 * float64(system.HostCPUCount()),
+		},
+		{
+			name: "CPU Count",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							CPUCount: 2,
+						},
+					},
+				},
+			},
+			expectedLimit: 200,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			containerStats := &provider.ContainerStats{CPU: &provider.ContainerCPUStats{}}
+			computeCPULimit(containerStats, tt.spec)
+			assert.Equal(t, tt.expectedLimit, *containerStats.CPU.Limit)
 		})
 	}
 }
