@@ -70,7 +70,7 @@ func (collector *criCollector) GetContainerStats(containerID string, cacheValidi
 			Total: pointer.UIntToFloatPtr(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()),
 		},
 		Memory: &provider.ContainerMemStats{
-			RSS: pointer.UIntToFloatPtr(stats.GetMemory().GetWorkingSetBytes().GetValue()),
+			UsageTotal: pointer.UIntToFloatPtr(stats.GetMemory().GetWorkingSetBytes().GetValue()),
 		},
 	}, nil
 }
