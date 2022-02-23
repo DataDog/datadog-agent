@@ -41,6 +41,9 @@ jobs:
           docker buildx create --name mybuilder --use
           docker buildx inspect --bootstrap
 
+      - name: Debug go env
+        run: go env
+
       - name: Run tests if AWS credentials are available
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
