@@ -167,6 +167,7 @@ func TestIsSectionSet(t *testing.T) {
 
 	config.BindEnv("test.key")
 	config.BindEnv("othertest.key")
+	config.SetKnown("yetanothertest_key")
 	config.SetConfigType("yaml")
 
 	yamlExample := []byte(`
@@ -186,4 +187,8 @@ test:
 
 	res = config.IsSectionSet("othertest")
 	assert.Equal(t, true, res)
+
+	config.Set("yetanothertest_key", "value")
+	res = config.IsSectionSet("yetanothertest")
+	assert.Equal(t, false, res)
 }
