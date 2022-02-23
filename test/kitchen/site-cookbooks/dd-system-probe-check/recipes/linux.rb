@@ -11,8 +11,7 @@ kernel_version = `uname -r`.strip
 package 'kernel headers' do
   case node[:platform]
   when 'redhat', 'centos', 'fedora'
-    # package_name "kernel-devel-#{kernel_version}"
-    nil
+    package_name "conntrack" # tmp pkg
   when 'ubuntu', 'debian'
     package_name "linux-headers-#{kernel_version}"
   end
