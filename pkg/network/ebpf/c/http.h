@@ -5,6 +5,7 @@
 #include "http-types.h"
 #include "http-maps.h"
 
+#include <linux/kconfig.h>
 #include <uapi/linux/ptrace.h>
 
 static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, http_batch_state_t *batch_state) {
