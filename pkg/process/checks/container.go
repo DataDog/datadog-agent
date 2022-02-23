@@ -108,7 +108,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 
 	numContainers := float64(len(containers))
 	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
-	log.Debugf("collected %d containers in %s", numContainers, time.Now().Sub(startTime))
+	log.Debugf("collected %d containers in %s", int(numContainers), time.Now().Sub(startTime))
 	return messages, nil
 }
 
