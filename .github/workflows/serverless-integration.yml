@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: DataDog/datadog-lambda-extension
+          ref: david.lee/extension-integration-test-debugging
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Setup docker builder
