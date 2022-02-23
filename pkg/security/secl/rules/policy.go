@@ -31,10 +31,10 @@ type Policy struct {
 	Macros  []*MacroDefinition `yaml:"macros"`
 }
 
-var ruleIDPattern = `^[a-zA-Z0-9_]*$`
+var macroIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
+var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-]*$`)
 
-func checkRuleID(ruleID string) bool {
-	pattern := regexp.MustCompile(ruleIDPattern)
+func checkRuleID(ruleID string, pattern *regexp.Regexp) bool {
 	return pattern.MatchString(ruleID)
 }
 
@@ -51,8 +51,8 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			result = multierror.Append(result, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
 			continue
 		}
-		if !checkRuleID(macroDef.ID) {
-			result = multierror.Append(result, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !checkRuleID(macroDef.ID, macroIDPattern) {
+			result = multierror.Append(result, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", macroIDPattern)})
 			continue
 		}
 
@@ -66,7 +66,7 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
 			continue
 		}
-		if !checkRuleID(ruleDef.ID) {
+		if !checkRuleID(ruleDef.ID, ruleIDPattern) {
 			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
 			continue
 		}
