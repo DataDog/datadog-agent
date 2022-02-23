@@ -99,7 +99,7 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 		// Add trailing . to make sure we don't take into account unrelated
 		// settings, eg. IsSectionSet("section") shouldn't return true
 		// if "section_key" is set.
-		if strings.HasPrefix(key, section + ".") && c.IsSet(key) {
+		if strings.HasPrefix(key, section+".") && c.IsSet(key) {
 			return true
 		}
 	}
