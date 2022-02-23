@@ -481,7 +481,7 @@ func StopAgent() {
 	}
 
 	if common.ExpvarServer != nil {
-		if err := common.ExpvarServer.Shutdown(context.TODO()); err != nil {
+		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
 			log.Errorf("Error shutdown expvar server: %v", err)
 		}
 	}
