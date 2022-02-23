@@ -47,6 +47,16 @@ func SetupOTLP(config Config) {
 	config.SetKnown(OTLPReceiverSection)
 	// Set all subkeys of otlp.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
+
+	// TODO: Remove SetKnown for experimental variables
+	// once support for the experimental.otlp section is removed.
+	config.SetKnown("experimental.otlp.metrics")
+	// Set all subkeys of experimental.otlp.metrics as known
+	config.SetKnown("experimental.otlp.metrics.*")
+	config.SetKnown("experimental.otlp.receiver")
+	// Set all subkeys of experimental.otlp.receiver as known
+	config.SetKnown("experimental.otlp.receiver.*")
+
 	// set environment variables for selected fields
 	setupOTLPEnvironmentVariables(config)
 }
