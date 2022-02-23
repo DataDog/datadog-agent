@@ -1,8 +1,8 @@
 [log] {"message":{"message":"START XXX"}}
 [log] {"message":{"message":"Unable to load assembly 'CsharpHandlers'.: LambdaException\n\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
-[log] {"message":{"message":"22 Feb 2022 17:06:24,480 [WARN] (invoke@invoke.c:331 errno: None) run_dotnet(dotnet_path, \u0026args) failed\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
+[log] {"message":{"message":"23 Feb 2022 19:53:33,823 [WARN] (invoke@invoke.c:331 errno: None) run_dotnet(dotnet_path, \u0026args) failed\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
 [log] {"message":{"message":"END XXX"}}
 [log] {"message":{"message":"REPORT XXX"}}
 [log] {"message":{"message":"START XXX"}}
 [log] {"message":{"message":"Unable to load assembly 'CsharpHandlers'.: LambdaException\n\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
-[log] {"message":{"message":"22 Feb 2022 17:07:24,766 [WARN] (invoke@invoke.c:331 errno: None) run_dotnet(dotnet_path, \u0026args) failed\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
+[log] {"message":{"message":"23 Feb 2022 19:54:36,042 [WARN] (invoke@invoke.c:331 errno: None) run_dotnet(dotnet_path, \u0026args) failed\n","lambda":{"arn":""}},"status":"info","timestamp":TIMESTAMP,"hostname":"","service":"integration-tests-service","ddsource":"lambda","ddtags":""}
