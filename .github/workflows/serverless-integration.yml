@@ -11,10 +11,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # strategy:
-    #   max-parallel: 1
-    #   matrix:
-    #     architecture: [amd64]
+    strategy:
+      max-parallel: 1
+      matrix:
+        architecture: [arm64]
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v2
@@ -35,9 +35,14 @@ jobs:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
+      - name: Setup docker builder
+        run: |
+          docker buildx create --name mybuilder 
+          docker buildx use mybuilder
+
       - name: Run tests if AWS credentials are available
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }} 
-        run: ARCHITECTURE=arm64 ./test/integration/serverless/run.sh
+        run: ARCHITECTURE=${{ matrix.architecture }} ./test/integration/serverless/run.sh
         working-directory: go/src/github.com/DataDog/datadog-agent
