@@ -59,7 +59,7 @@ Note: Adding GitHub labels is only possible for contributors with write access.
 - [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
 - [ ] Changed code has automated tests for its functionality.
 - [ ] Adequate QA/testing plan information is provided if the `qa/skip-qa` label is not applied.
-- [ ] At least one `team/..` label has been applied, indicating the team(s) that should QA this change.  Note that this is required even if `qa/skip-qa` is applied.
+- [ ] At least one `team/..` label has been applied, indicating the team(s) that should QA this change.
 - [ ] If applicable, docs team has been notified or [an issue has been opened on the documentation repo](https://github.com/DataDog/documentation/issues/new).
 - [ ] If applicable, the `need-change/operator` and `need-change/helm` labels have been applied.
 - [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
