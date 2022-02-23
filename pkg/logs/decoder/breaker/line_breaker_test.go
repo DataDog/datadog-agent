@@ -1,4 +1,9 @@
-package decoder
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package breaker
 
 import (
 	"strings"
@@ -10,18 +15,26 @@ import (
 
 const contentLenLimit = 100
 
-func lineBreakerChans() (func(*DecodedInput), chan *DecodedInput) {
-	ch := make(chan *DecodedInput, 10)
-	return func(di *DecodedInput) { ch <- di }, ch
+// brokenLine represents a decoded line and the raw length
+type brokenLine struct {
+	content    []byte
+	rawDataLen int
+}
+
+// lineBreakerOutput returns an outputFn for use with a LineBreaker, and
+// a channel containing the broken lines passed to that outputFn.
+func lineBreakerOutput() (func([]byte, int), chan brokenLine) {
+	ch := make(chan brokenLine, 10)
+	return func(content []byte, rawDataLen int) { ch <- brokenLine{content, rawDataLen} }, ch
 }
 
 func TestLineBreaking(t *testing.T) {
 	test := func(chunks [][]byte) func(*testing.T) {
 		return func(t *testing.T) {
-			outputFn, outputChan := lineBreakerChans()
+			outputFn, outputChan := lineBreakerOutput()
 			lb := NewLineBreaker(outputFn, &NewLineMatcher{}, contentLenLimit)
 			for _, chunk := range chunks {
-				lb.process(chunk)
+				lb.Process(chunk)
 			}
 			require.Equal(t, "line1", string((<-outputChan).content))
 			require.Equal(t, "line2", string((<-outputChan).content))
@@ -49,20 +62,20 @@ func TestLineBreaking(t *testing.T) {
 }
 
 func TestLineBreakIncomingData(t *testing.T) {
-	outputFn, outputChan := lineBreakerChans()
+	outputFn, outputChan := lineBreakerOutput()
 	lb := NewLineBreaker(outputFn, &NewLineMatcher{}, contentLenLimit)
 
-	var line *DecodedInput
+	var line brokenLine
 
 	// one line in one raw should be sent
-	lb.process([]byte("helloworld\n"))
+	lb.Process([]byte("helloworld\n"))
 	line = <-outputChan
 	assert.Equal(t, "helloworld", string(line.content))
 	assert.Equal(t, len("helloworld\n"), line.rawDataLen)
 	assert.Equal(t, "", lb.lineBuffer.String())
 
 	// multiple lines in one raw should be sent
-	lb.process([]byte("helloworld\nhowayou\ngoodandyou"))
+	lb.Process([]byte("helloworld\nhowayou\ngoodandyou"))
 	l := 0
 	line = <-outputChan
 	l += line.rawDataLen
@@ -76,12 +89,12 @@ func TestLineBreakIncomingData(t *testing.T) {
 	lb.rawDataLen, l = 0, 0
 
 	// multiple lines in multiple rows should be sent
-	lb.process([]byte("helloworld\nthisisa"))
+	lb.Process([]byte("helloworld\nthisisa"))
 	line = <-outputChan
 	l += line.rawDataLen
 	assert.Equal(t, "helloworld", string(line.content))
 	assert.Equal(t, "thisisa", lb.lineBuffer.String())
-	lb.process([]byte("longinput\nindeed"))
+	lb.Process([]byte("longinput\nindeed"))
 	line = <-outputChan
 	l += line.rawDataLen
 	assert.Equal(t, "thisisalonginput", string(line.content))
@@ -91,14 +104,14 @@ func TestLineBreakIncomingData(t *testing.T) {
 	lb.rawDataLen = 0
 
 	// one line in multiple rows should be sent
-	lb.process([]byte("hello world"))
-	lb.process([]byte("!\n"))
+	lb.Process([]byte("hello world"))
+	lb.Process([]byte("!\n"))
 	line = <-outputChan
 	assert.Equal(t, "hello world!", string(line.content))
 	assert.Equal(t, len("hello world!\n"), line.rawDataLen)
 
 	// excessively long line in one row should be sent by chunks
-	lb.process([]byte(strings.Repeat("a", contentLenLimit+10) + "\n"))
+	lb.Process([]byte(strings.Repeat("a", contentLenLimit+10) + "\n"))
 	line = <-outputChan
 	assert.Equal(t, contentLenLimit, len(line.content))
 	assert.Equal(t, contentLenLimit, line.rawDataLen)
@@ -107,8 +120,8 @@ func TestLineBreakIncomingData(t *testing.T) {
 	assert.Equal(t, 11, line.rawDataLen)
 
 	// excessively long line in multiple rows should be sent by chunks
-	lb.process([]byte(strings.Repeat("a", contentLenLimit-5)))
-	lb.process([]byte(strings.Repeat("a", 15) + "\n"))
+	lb.Process([]byte(strings.Repeat("a", contentLenLimit-5)))
+	lb.Process([]byte(strings.Repeat("a", 15) + "\n"))
 	line = <-outputChan
 	assert.Equal(t, contentLenLimit, len(line.content))
 	assert.Equal(t, contentLenLimit, line.rawDataLen)
@@ -117,32 +130,32 @@ func TestLineBreakIncomingData(t *testing.T) {
 	assert.Equal(t, 11, line.rawDataLen)
 
 	// empty lines should be sent
-	lb.process([]byte("\n"))
+	lb.Process([]byte("\n"))
 	line = <-outputChan
 	assert.Equal(t, "", string(line.content))
 	assert.Equal(t, "", lb.lineBuffer.String())
 	assert.Equal(t, 1, line.rawDataLen)
 
 	// empty message should not change anything
-	lb.process([]byte(""))
+	lb.Process([]byte(""))
 	assert.Equal(t, "", lb.lineBuffer.String())
 	assert.Equal(t, 0, lb.rawDataLen)
 }
 
 func TestLineBreakIncomingDataWithCustomSequence(t *testing.T) {
-	outputFn, outputChan := lineBreakerChans()
+	outputFn, outputChan := lineBreakerOutput()
 	lb := NewLineBreaker(outputFn, NewBytesSequenceMatcher([]byte("SEPARATOR"), 1), contentLenLimit)
 
-	var line *DecodedInput
+	var line brokenLine
 
 	// one line in one raw should be sent
-	lb.process([]byte("helloworldSEPARATOR"))
+	lb.Process([]byte("helloworldSEPARATOR"))
 	line = <-outputChan
 	assert.Equal(t, "helloworld", string(line.content))
 	assert.Equal(t, "", lb.lineBuffer.String())
 
 	// multiple lines in one raw should be sent
-	lb.process([]byte("helloworldSEPARATORhowayouSEPARATORgoodandyou"))
+	lb.Process([]byte("helloworldSEPARATORhowayouSEPARATORgoodandyou"))
 	line = <-outputChan
 	assert.Equal(t, "helloworld", string(line.content))
 	line = <-outputChan
@@ -151,9 +164,9 @@ func TestLineBreakIncomingDataWithCustomSequence(t *testing.T) {
 	lb.lineBuffer.Reset()
 
 	// Line separartor may be cut by sending party
-	lb.process([]byte("helloworldSEPAR"))
-	lb.process([]byte("ATORhowayouSEPARATO"))
-	lb.process([]byte("Rgoodandyou"))
+	lb.Process([]byte("helloworldSEPAR"))
+	lb.Process([]byte("ATORhowayouSEPARATO"))
+	lb.Process([]byte("Rgoodandyou"))
 	line = <-outputChan
 	assert.Equal(t, "helloworld", string(line.content))
 	line = <-outputChan
@@ -162,30 +175,30 @@ func TestLineBreakIncomingDataWithCustomSequence(t *testing.T) {
 	lb.lineBuffer.Reset()
 
 	// empty lines should be sent
-	lb.process([]byte("SEPARATOR"))
+	lb.Process([]byte("SEPARATOR"))
 	line = <-outputChan
 	assert.Equal(t, "", string(line.content))
 	assert.Equal(t, "", lb.lineBuffer.String())
 
 	// empty message should not change anything
-	lb.process([]byte(""))
+	lb.Process([]byte(""))
 	assert.Equal(t, "", lb.lineBuffer.String())
 }
 
 func TestLineBreakIncomingDataWithSingleByteCustomSequence(t *testing.T) {
-	outputFn, outputChan := lineBreakerChans()
+	outputFn, outputChan := lineBreakerOutput()
 	lb := NewLineBreaker(outputFn, NewBytesSequenceMatcher([]byte("&"), 1), contentLenLimit)
-	var line *DecodedInput
+	var line brokenLine
 
 	// one line in one raw should be sent
-	lb.process([]byte("helloworld&"))
+	lb.Process([]byte("helloworld&"))
 	line = <-outputChan
 	assert.Equal(t, "helloworld", string(line.content))
 	assert.Equal(t, "", lb.lineBuffer.String())
 
 	// multiple blank lines
 	n := 10
-	lb.process([]byte(strings.Repeat("&", n)))
+	lb.Process([]byte(strings.Repeat("&", n)))
 	for i := 0; i < n; i++ {
 		line = <-outputChan
 		assert.Equal(t, "", string(line.content))
@@ -194,8 +207,8 @@ func TestLineBreakIncomingDataWithSingleByteCustomSequence(t *testing.T) {
 	lb.lineBuffer.Reset()
 
 	// Mix empty & non-empty lines
-	lb.process([]byte("helloworld&&"))
-	lb.process([]byte("&howayou&"))
+	lb.Process([]byte("helloworld&&"))
+	lb.Process([]byte("&howayou&"))
 	line = <-outputChan
 	assert.Equal(t, "helloworld", string(line.content))
 	line = <-outputChan
@@ -208,20 +221,20 @@ func TestLineBreakIncomingDataWithSingleByteCustomSequence(t *testing.T) {
 	lb.lineBuffer.Reset()
 
 	// empty message should not change anything
-	lb.process([]byte(""))
+	lb.Process([]byte(""))
 	assert.Equal(t, "", lb.lineBuffer.String())
 }
 
 func TestLinBreakerInputNotDockerHeader(t *testing.T) {
-	outputFn, outputChan := lineBreakerChans()
+	outputFn, outputChan := lineBreakerOutput()
 	lb := NewLineBreaker(outputFn, &NewLineMatcher{}, 100)
 
 	input := []byte("hello")
 	input = append(input, []byte{1, 0, 0, 0, 0, 10, 0, 0}...) // docker header
 	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
-	lb.process(input)
+	lb.Process(input)
 
-	var output *DecodedInput
+	var output brokenLine
 	output = <-outputChan
 	expected1 := append([]byte("hello"), []byte{1, 0, 0, 0, 0}...)
 	assert.Equal(t, expected1, output.content)

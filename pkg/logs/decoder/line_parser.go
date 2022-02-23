@@ -17,7 +17,7 @@ import (
 // an embedded parsers.Parser.
 type LineParser interface {
 	// process handles a new line (message)
-	process(*DecodedInput)
+	process(content []byte, rawDataLen int)
 
 	// flushChan returns a channel which will deliver a message when `flush` should be called.
 	flushChan() <-chan time.Time
@@ -52,13 +52,13 @@ func (p *SingleLineParser) flush() {
 	// do nothing
 }
 
-func (p *SingleLineParser) process(input *DecodedInput) {
+func (p *SingleLineParser) process(content []byte, rawDataLen int) {
 	// Just parse an pass to the next step
-	msg, err := p.parser.Parse(input.content)
+	msg, err := p.parser.Parse(content)
 	if err != nil {
 		log.Debug(err)
 	}
-	p.outputFn(NewMessage(msg.Content, msg.Status, input.rawDataLen, msg.Timestamp))
+	p.outputFn(NewMessage(msg.Content, msg.Status, rawDataLen, msg.Timestamp))
 }
 
 // MultiLineParser makes sure that chunked lines are properly put together.
@@ -103,20 +103,20 @@ func (p *MultiLineParser) flush() {
 }
 
 // process buffers and aggregates partial lines
-func (p *MultiLineParser) process(input *DecodedInput) {
+func (p *MultiLineParser) process(content []byte, rawDataLen int) {
 	if p.flushTimer != nil && p.buffer.Len() > 0 {
 		// stop the flush timer, as we now have data
 		if !p.flushTimer.Stop() {
 			<-p.flushTimer.C
 		}
 	}
-	msg, err := p.parser.Parse(input.content)
+	msg, err := p.parser.Parse(content)
 	if err != nil {
 		log.Debug(err)
 	}
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
-	p.rawDataLen += input.rawDataLen
+	p.rawDataLen += rawDataLen
 	p.timestamp = msg.Timestamp
 	p.status = msg.Status
 	p.buffer.Write(msg.Content)

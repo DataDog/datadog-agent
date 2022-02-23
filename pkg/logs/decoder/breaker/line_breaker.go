@@ -1,11 +1,17 @@
-package decoder
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package breaker supports efficiently breaking chunks of binary data into lines.
+package breaker
 
 import (
 	"bytes"
 	"sync/atomic"
 )
 
-// LineBreaker gets chunks of bytes (via process(..)) and uses an
+// LineBreaker gets chunks of bytes (via Process(..)) and uses an
 // EndLineMatcher to break those into lines, passing the results to its
 // outputFn.
 type LineBreaker struct {
@@ -14,7 +20,7 @@ type LineBreaker struct {
 	linesDecoded int64
 
 	// outputFn is called with each complete "line"
-	outputFn func(*DecodedInput)
+	outputFn func(content []byte, rawDatatLen int)
 
 	matcher         EndLineMatcher
 	lineBuffer      *bytes.Buffer
@@ -22,8 +28,18 @@ type LineBreaker struct {
 	rawDataLen      int
 }
 
-// NewLineBreaker initializes a LineBreaker
-func NewLineBreaker(outputFn func(*DecodedInput), matcher EndLineMatcher, contentLenLimit int) *LineBreaker {
+// NewLineBreaker initializes a LineBreaker.
+//
+// The breaker will use the given matcher to match newlines.  Content longer
+// than the given limit will be broken into lines at that length, regardless of
+// matching a newline.  Each line will be passed to outputFn, including both
+// the content of the line itself and the number of raw bytes matched to
+// represent that line.
+func NewLineBreaker(
+	outputFn func(content []byte, rawDataLen int),
+	matcher EndLineMatcher,
+	contentLenLimit int,
+) *LineBreaker {
 	return &LineBreaker{
 		linesDecoded:    0,
 		outputFn:        outputFn,
@@ -34,8 +50,15 @@ func NewLineBreaker(outputFn func(*DecodedInput), matcher EndLineMatcher, conten
 	}
 }
 
-// process splits raw data based on '\n', creates and processes new lines
-func (lb *LineBreaker) process(inBuf []byte) {
+// GetLineCount gets the number of lines this breaker has processed.  This is safe to
+// call from any goroutine.
+func (lb *LineBreaker) GetLineCount() int64 {
+	return atomic.LoadInt64(&lb.linesDecoded)
+}
+
+// Process handles an incoming chunk of data.  It will call outputFn for any recognized lines.  Partial
+// lines are maintained between calls to Process.  The passed buffer is not used after return.
+func (lb *LineBreaker) Process(inBuf []byte) {
 	i, j := 0, 0
 	n := len(inBuf)
 	maxj := lb.contentLenLimit - lb.lineBuffer.Len()
@@ -67,7 +90,7 @@ func (lb *LineBreaker) sendLine() {
 	content := make([]byte, lb.lineBuffer.Len()-(lb.matcher.SeparatorLen()-1))
 	copy(content, lb.lineBuffer.Bytes())
 	lb.lineBuffer.Reset()
-	lb.outputFn(NewDecodedInput(content, lb.rawDataLen))
+	lb.outputFn(content, lb.rawDataLen)
 	lb.rawDataLen = 0
 	atomic.AddInt64(&lb.linesDecoded, 1)
 }

@@ -62,13 +62,13 @@ func TestSingleLineParser(t *testing.T) {
 	line := header
 
 	inputLen := len(line) + 1
-	lineParser.process(&DecodedInput{[]byte(line), inputLen})
+	lineParser.process([]byte(line), inputLen)
 	message = <-outputChan
 	assert.Equal(t, "", string(message.Content))
 	assert.Equal(t, inputLen, message.RawDataLen)
 
 	inputLen = len(line+"one message") + 1
-	lineParser.process(&DecodedInput{[]byte(line + "one message"), inputLen})
+	lineParser.process([]byte(line+"one message"), inputLen)
 	message = <-outputChan
 	assert.Equal(t, "one message", string(message.Content))
 	assert.Equal(t, inputLen, message.RawDataLen)
@@ -80,7 +80,7 @@ func TestSingleLineParserSendsRawInvalidMessages(t *testing.T) {
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewSingleLineParser(outputFn, p)
 
-	lineParser.process(&DecodedInput{[]byte("one message"), 12})
+	lineParser.process([]byte("one message"), 12)
 	message := <-outputChan
 	assert.Equal(t, "one message", string(message.Content))
 }
@@ -93,9 +93,9 @@ func TestMultilineParser(t *testing.T) {
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
-	lineParser.process(&DecodedInput{[]byte(header + "one "), 11})
-	lineParser.process(&DecodedInput{[]byte(header + "long "), 12})
-	lineParser.process(&DecodedInput{[]byte(header + "line\\n"), 14})
+	lineParser.process([]byte(header+"one "), 11)
+	lineParser.process([]byte(header+"long "), 12)
+	lineParser.process([]byte(header+"line\\n"), 14)
 
 	message := <-outputChan
 
@@ -111,7 +111,7 @@ func TestMultilineParserTimeout(t *testing.T) {
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
-	lineParser.process(&DecodedInput{[]byte(header + "message"), 14})
+	lineParser.process([]byte(header+"message"), 14)
 
 	// shouldn't be anything here yet
 	select {
@@ -140,9 +140,9 @@ func TestMultilineParserLimit(t *testing.T) {
 	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
 	for i := 0; i < 10; i++ {
-		lineParser.process(&DecodedInput{[]byte(header + line), 7 + len(line)})
+		lineParser.process([]byte(header+line), 7+len(line))
 	}
-	lineParser.process(&DecodedInput{[]byte(header + "aaaa\\n"), 13})
+	lineParser.process([]byte(header+"aaaa\\n"), 13)
 
 	for i := 0; i < 10; i++ {
 		message = <-outputChan

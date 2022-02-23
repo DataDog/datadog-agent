@@ -14,29 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-func readToClose(c chan *Message) {
-	for range c {
-	}
-}
-
 func benchmarkSingleLineHandler(b *testing.B, logs int) {
 	messages := make([]*Message, logs)
 	for i := 0; i < logs; i++ {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("This is a log test line to benchmark the logs agent %d", i))
 	}
 
-	inputChan, outputChan := lineHandlerChans()
-	h := NewSingleLineHandler(inputChan, outputChan, defaultContentLenLimit)
-	h.Start()
+	h := NewSingleLineHandler(func(*Message) {}, defaultContentLenLimit)
 
-	go readToClose(outputChan)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for _, v := range messages {
-			inputChan <- v
+			h.process(v)
 		}
 	}
-	close(inputChan)
 }
 
 func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
@@ -45,19 +36,15 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
-	inputChan, outputChan := lineHandlerChans()
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(inputChan, outputChan, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
-	h.Start()
+	h := NewAutoMultilineHandler(func(*Message) {}, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
-	go readToClose(outputChan)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for _, v := range messages {
-			inputChan <- v
+			h.process(v)
 		}
 	}
-	close(inputChan)
 }
 
 func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
@@ -66,18 +53,14 @@ func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
-	inputChan, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(inputChan, outputChan, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100)
-	h.Start()
+	h := NewMultiLineHandler(func(*Message) {}, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100)
 
-	go readToClose(outputChan)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for _, v := range messages {
-			inputChan <- v
+			h.process(v)
 		}
 	}
-	close(inputChan)
 }
 
 func BenchmarkSingleLineHandler1(b *testing.B)      { benchmarkSingleLineHandler(b, 1) }

@@ -48,15 +48,14 @@ func (d *DetectedPattern) Get() *regexp.Regexp {
 type AutoMultilineHandler struct {
 	multiLineHandler  *MultiLineHandler
 	singleLineHandler *SingleLineHandler
-	inputChan         chan *Message
-	outputChan        chan *Message
+	outputFn          func(*Message)
 	isRunning         bool
 	linesToAssess     int
 	linesTested       int
 	lineLimit         int
 	matchThreshold    float64
 	scoredMatches     []*scoredPattern
-	processsingFunc   func(message *Message)
+	processFunc       func(message *Message)
 	flushTimeout      time.Duration
 	source            *config.LogSource
 	timeoutTimer      *time.Timer
@@ -65,8 +64,7 @@ type AutoMultilineHandler struct {
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
 func NewAutoMultilineHandler(
-	inputChan chan *Message,
-	outputChan chan *Message,
+	outputFn func(*Message),
 	lineLimit, linesToAssess int,
 	matchThreshold float64,
 	matchTimeout time.Duration,
@@ -87,8 +85,7 @@ func NewAutoMultilineHandler(
 		}
 	}
 	h := &AutoMultilineHandler{
-		inputChan:       inputChan,
-		outputChan:      outputChan,
+		outputFn:        outputFn,
 		isRunning:       true,
 		lineLimit:       lineLimit,
 		matchThreshold:  matchThreshold,
@@ -100,36 +97,28 @@ func NewAutoMultilineHandler(
 		detectedPattern: detectedPattern,
 	}
 
-	// This single-line handler is never started. Instead, we call its `process`
-	// method directly.  So, it does not need an input channel.
-	h.singleLineHandler = NewSingleLineHandler(nil, outputChan, lineLimit)
-	h.processsingFunc = h.processAndTry
+	h.singleLineHandler = NewSingleLineHandler(outputFn, lineLimit)
+	h.processFunc = h.processAndTry
 
 	return h
 }
 
-// Stop stops the handler.
-func (h *AutoMultilineHandler) Stop() {
-	close(h.inputChan)
+func (h *AutoMultilineHandler) process(message *Message) {
+	h.processFunc(message)
 }
 
-// Start starts the handler.
-func (h *AutoMultilineHandler) Start() {
-	go h.run()
+func (h *AutoMultilineHandler) flushChan() <-chan time.Time {
+	if h.singleLineHandler != nil {
+		return h.singleLineHandler.flushChan()
+	}
+	return h.multiLineHandler.flushChan()
 }
 
-// run consumes new lines and processes them.
-func (h *AutoMultilineHandler) run() {
-	for {
-		if !h.isRunning {
-			return
-		}
-		line, isOpen := <-h.inputChan
-		if !isOpen {
-			close(h.outputChan)
-			return
-		}
-		h.processsingFunc(line)
+func (h *AutoMultilineHandler) flush() {
+	if h.singleLineHandler != nil {
+		h.singleLineHandler.flush()
+	} else {
+		h.multiLineHandler.flush()
 	}
 }
 
@@ -177,7 +166,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 			log.Debug("No pattern met the line match threshold during multiline autosensing - using single line handler")
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:false"})
 			// Stay with the single line handler and no longer attempt to detect multiline matches.
-			h.processsingFunc = h.singleLineHandler.process
+			h.processFunc = h.singleLineHandler.process
 		}
 	}
 }
@@ -187,10 +176,9 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
-	h.multiLineHandler = NewMultiLineHandler(h.inputChan, h.outputChan, r, h.flushTimeout, h.lineLimit)
-	h.multiLineHandler.Start()
-
-	// At this point control is handed over to the multiline handler and the AutoMultilineHandler read loop has stopped.
+	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit)
+	// stay with the multiline handler
+	h.processFunc = h.multiLineHandler.process
 }
 
 // Originally referenced from https://github.com/egnyte/ax/blob/master/pkg/heuristic/timestamp.go
