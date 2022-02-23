@@ -83,7 +83,7 @@ func TestCriCheck(t *testing.T) {
 
 	mockSender.AssertMetricInRange(t, "Gauge", "cri.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "cri.cpu.usage", 100, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "cri.mem.rss", 300, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "cri.mem.rss", 42000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "cri.disk.used", 10, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "cri.disk.inodes", 20, "", expectedTags)
 }
