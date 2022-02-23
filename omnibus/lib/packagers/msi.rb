@@ -10,6 +10,33 @@ module Omnibus
       "#{staging_dir}\\install_dir"
     end
 
+    setup do
+      # Create a copy of the install directory
+      FileUtils.copy_entry windows_safe_path(project.install_dir), windows_safe_path(install_dir)
+
+      # Render the localization
+      write_localization_file
+
+      # Render the msi parameters
+      write_parameters_file
+
+      # Render the source file
+      write_source_file
+
+      # Copy all the staging assets from vendored Omnibus into the resources
+      # directory.
+      create_directory("#{resources_dir}/assets")
+      FileSyncer.glob("#{Omnibus.source_root}/resources/#{id}/assets/*").each do |file|
+        copy_file(file, "#{resources_dir}/assets/#{File.basename(file)}")
+      end
+
+      # Copy all assets in the user's project directory - this may overwrite
+      # files copied in the previous step, but that's okay :)
+      FileSyncer.glob("#{resources_path}/assets/*").each do |file|
+        copy_file(file, "#{resources_dir}/assets/#{File.basename(file)}")
+      end
+    end
+
     def generate_embedded_archive(version)
       safe_embedded_path = windows_safe_path(install_dir, "embedded#{version}")
       safe_embedded_archive_path = windows_safe_path(install_dir, "embedded#{version}.7z")
@@ -23,11 +50,7 @@ module Omnibus
     end
 
     def heat_command
-      safe_source_install_dir = windows_safe_path(project.install_dir)
       safe_install_dir = windows_safe_path(install_dir)
-
-      # Create a copy of the install directory
-      FileUtils.copy_entry safe_source_install_dir, safe_install_dir
 
       # Create the embedded zips and delete their folders
       generate_embedded_archive(3)
