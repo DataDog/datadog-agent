@@ -7,11 +7,9 @@
 #include "ReplaceYamlProperties.h"
 #include "ReplaceYamlProperties_IntegrationTests.h"
 
-
 TEST_F(ReplaceYamlPropertiesIntegrationTests, dd_agent_installopts_spec)
 {
-    value_map values =
-    {
+    value_map values = {
         {L"APIKEY", L"testapikey"},
         {L"TAGS", L"k1:v1,k2:v2"},
         {L"CMD_PORT", L"4999"},
@@ -91,6 +89,8 @@ TEST_F(ReplaceYamlPropertiesIntegrationTests, dd_agent_no_subservices)
 
     // 'an Agent with process disabled'
     EXPECT_TRUE(node["process_config"].IsDefined());
-    EXPECT_TRUE(node["process_config"]["enabled"].IsDefined());
-    EXPECT_EQ(node["process_config"]["enabled"].as<std::string>(), "disabled");
+    EXPECT_FALSE(node["process_config"]["enabled"].IsDefined());
+    EXPECT_TRUE(node["process_config"]["process_collection"].IsDefined());
+    EXPECT_TRUE(node["process_config"]["process_collection"]["enabled"].IsDefined());
+    EXPECT_EQ(node["process_config"]["process_collection"]["enabled"].as<std::string>(), "false");
 }
