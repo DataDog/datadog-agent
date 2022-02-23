@@ -56,7 +56,7 @@ func TestPopulateDeviceField(t *testing.T) {
 
 			// Run a few times to ensure stability
 			for i := 0; i < 4; i++ {
-				populateDeviceField(s)
+				s.PopulateDeviceField()
 				assert.Equal(t, strings.Join(tc.ExpectedTags, ","), s.Tags.Join(","))
 				assert.Equal(t, tc.ExpectedDevice, s.Device)
 			}
