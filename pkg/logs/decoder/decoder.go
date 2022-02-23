@@ -73,9 +73,9 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // whole as a single actor with InputChan of type *decoder.Input and OutputChan of type
 // *decoder.Message.
 //
-// Internally, it has three running actors:
+// Internally, it runs as an actor, with two running actors:
 //
-// LineBreaker.run() takes data from InputChan, uses an EndlineMatcher to break it into lines,
+// The Decoder's run() takes data from InputChan, uses a LineBreaker to break it into lines,
 // and passes those to the next actor via lineParser.Handle, which internally uses a channel.
 //
 // LineParser.run() takes data from its input channel, invokes the parser to convert it to
@@ -86,8 +86,9 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // lines, multiple lines, or auto-detecting the two), and sends the result to its output
 // channel, which is the same channel as decoder.OutputChan.
 type Decoder struct {
-	InputChan  chan *Input
-	OutputChan chan *Message
+	InputChan      chan *Input
+	brokenLineChan chan *DecodedInput
+	OutputChan     chan *Message
 
 	lineBreaker *LineBreaker
 	lineParser  LineParser
@@ -113,8 +114,8 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parse
 	lineLimit := defaultContentLenLimit
 	detectedPattern := &DetectedPattern{}
 
-	// construct the lineBreaker actor, wrapping the matcher
-	lineBreaker := NewLineBreaker(inputChan, brokenLineChan, matcher, lineLimit)
+	// construct the lineBreaker, wrapping the matcher
+	lineBreaker := NewLineBreaker(func(di *DecodedInput) { brokenLineChan <- di }, matcher, lineLimit)
 
 	// construct the lineParser actor, wrapping the parser
 	var lineParser LineParser
@@ -162,7 +163,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parse
 		}
 	}
 
-	return New(inputChan, outputChan, lineBreaker, lineParser, lineHandler, detectedPattern)
+	return New(inputChan, brokenLineChan, outputChan, lineBreaker, lineParser, lineHandler, detectedPattern)
 }
 
 func buildAutoMultilineHandlerFromConfig(inputChan chan *Message, outputChan chan *Message, lineLimit int, source *config.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
@@ -199,9 +200,10 @@ func buildAutoMultilineHandlerFromConfig(inputChan chan *Message, outputChan cha
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Message, lineBreaker *LineBreaker, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
+func New(InputChan chan *Input, brokenLineChan chan *DecodedInput, OutputChan chan *Message, lineBreaker *LineBreaker, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
 	return &Decoder{
 		InputChan:       InputChan,
+		brokenLineChan:  brokenLineChan,
 		OutputChan:      OutputChan,
 		lineBreaker:     lineBreaker,
 		lineParser:      lineParser,
@@ -212,7 +214,7 @@ func New(InputChan chan *Input, OutputChan chan *Message, lineBreaker *LineBreak
 
 // Start starts the Decoder
 func (d *Decoder) Start() {
-	d.lineBreaker.Start()
+	go d.run()
 	d.lineParser.Start()
 	d.lineHandler.Start()
 }
@@ -222,6 +224,13 @@ func (d *Decoder) Stop() {
 	// stop the entire decoder by closing the input.  All of the wrapped actors will detect this
 	// and stop.
 	close(d.InputChan)
+}
+
+func (d *Decoder) run() {
+	for data := range d.InputChan {
+		d.lineBreaker.process(data.content)
+	}
+	close(d.brokenLineChan)
 }
 
 // GetLineCount returns the number of decoded lines
