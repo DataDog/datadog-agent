@@ -1,3 +1,5 @@
+deprecations:
+  - Remove `DD_PROCESS_AGENT_CONTAINER_SOURCE` environment variable from the process agent. The list of container sources now entirely depends on the activated features.
 enhancements:
   - |
     Add the `DD_PROCESS_CONFIG_SCRUB_ARGS` and `DD_PROCESS_AGENT_SCRUB_ARGS` env variables to set the `process_config.scrub_args`.
