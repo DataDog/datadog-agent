@@ -11,10 +11,10 @@ import (
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
-	TraceChunk       *pb.TraceChunk
-	Root             *pb.Span
-	TracerEnv        string
-	AppVersion       string
-	TracerHostname   string
-	ClientDroppedP0s bool
+	TraceChunk             *pb.TraceChunk
+	Root                   *pb.Span
+	TracerEnv              string
+	AppVersion             string
+	TracerHostname         string
+	ClientDroppedP0sWeight float64
 }

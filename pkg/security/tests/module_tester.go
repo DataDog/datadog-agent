@@ -37,6 +37,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -63,6 +64,7 @@ log_level: DEBUG
 system_probe_config:
   enabled: true
   sysprobe_socket: /tmp/test-sysprobe.sock
+  enable_kernel_header_download: true
 
 runtime_security_config:
   enabled: true
@@ -104,6 +106,20 @@ rules:
   - id: {{$Rule.ID}}
     expression: >-
       {{$Rule.Expression}}
+    actions:
+{{- range $Action := .Actions}}
+{{- if $Action.Set}}
+      - set:
+          name: {{$Action.Set.Name}}
+		  {{- if $Action.Set.Value}}
+          value: {{$Action.Set.Value}}
+          {{- else if $Action.Set.Field}}
+          field: {{$Action.Set.Field}}
+          {{- end}}
+          scope: {{$Action.Set.Scope}}
+          append: {{$Action.Set.Append}}
+{{- end}}
+{{- end}}
 {{end}}
 `
 
@@ -1201,4 +1217,17 @@ func randStringRunes(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+//nolint:deadcode,unused
+func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		t.Errorf("failed to get kernel version: %w", err)
+		return
+	}
+
+	if skipCheck(kv) {
+		t.Skipf("kernel version not supported: %s", why)
+	}
 }

@@ -35,7 +35,7 @@ type RoleBindingCollector struct {
 func NewRoleBindingCollector() *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "rolebindings",
 			NodeType: orchestrator.K8sRoleBinding,
 		},
@@ -53,6 +53,9 @@ func (c *RoleBindingCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().RoleBindings()
 	c.lister = c.informer.Lister()
 }
+
+// IsAvailable returns whether the collector is available.
+func (c *RoleBindingCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *RoleBindingCollector) Metadata() *collectors.CollectorMetadata {

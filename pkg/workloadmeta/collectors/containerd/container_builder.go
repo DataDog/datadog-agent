@@ -21,11 +21,6 @@ import (
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
-	labels, err := containerdClient.Labels(container)
-	if err != nil {
-		return workloadmeta.Container{}, err
-	}
-
 	info, err := containerdClient.Info(container)
 	if err != nil {
 		return workloadmeta.Container{}, err
@@ -41,15 +36,9 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		return workloadmeta.Container{}, err
 	}
 
-	containerdImage, err := containerdClient.Image(container)
+	image, err := workloadmeta.NewContainerImage(info.Image)
 	if err != nil {
-		return workloadmeta.Container{}, err
-	}
-
-	imageName := containerdImage.Name()
-	image, err := workloadmeta.NewContainerImage(imageName)
-	if err != nil {
-		log.Debugf("cannot split image name %q: %s", imageName, err)
+		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
 	status, err := containerdClient.Status(container)
@@ -61,7 +50,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		// The container exists, but there isn't a task associated to it. That
 		// means that the container is not running, which is all we need to know
 		// in this function (we can set any status != containerd.Running).
-		status = ""
+		status = containerd.Unknown
 	}
 
 	// Some attributes in workloadmeta.Container cannot be fetched from
@@ -73,7 +62,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:   "", // Not available
-			Labels: labels,
+			Labels: info.Labels,
 		},
 		Image:   image,
 		EnvVars: envs,
@@ -81,11 +70,28 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		Runtime: workloadmeta.ContainerRuntimeContainerd,
 		State: workloadmeta.ContainerState{
 			Running:    status == containerd.Running,
-			StartedAt:  info.CreatedAt,
-			FinishedAt: time.Time{}, // Not available
+			Status:     extractStatus(status),
+			CreatedAt:  info.CreatedAt,
+			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
+			FinishedAt: time.Time{},    // Not available
 		},
 		NetworkIPs: make(map[string]string), // Not available
 		Hostname:   spec.Hostname,
 		PID:        0, // Not available
 	}, nil
+}
+
+func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus {
+	switch status {
+	case containerd.Paused, containerd.Pausing:
+		return workloadmeta.ContainerStatusPaused
+	case containerd.Created:
+		return workloadmeta.ContainerStatusCreated
+	case containerd.Running:
+		return workloadmeta.ContainerStatusRunning
+	case containerd.Stopped:
+		return workloadmeta.ContainerStatusStopped
+	}
+
+	return workloadmeta.ContainerStatusUnknown
 }

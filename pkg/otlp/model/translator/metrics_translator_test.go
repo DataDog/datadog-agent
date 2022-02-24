@@ -136,38 +136,36 @@ type mockTimeSeriesConsumer struct {
 
 func (m *mockTimeSeriesConsumer) ConsumeTimeSeries(
 	_ context.Context,
-	name string,
+	dimensions *Dimensions,
 	typ MetricDataType,
 	ts uint64,
 	val float64,
-	tags []string,
-	host string,
 ) {
 	m.metrics = append(m.metrics,
 		metric{
-			name:      name,
+			name:      dimensions.Name(),
 			typ:       typ,
 			timestamp: ts,
 			value:     val,
-			tags:      tags,
-			host:      host,
+			tags:      dimensions.Tags(),
+			host:      dimensions.Host(),
 		},
 	)
 }
 
-func newDims(name string) metricsDimensions {
-	return metricsDimensions{name: name, tags: []string{}}
+func newDims(name string) *Dimensions {
+	return &Dimensions{name: name, tags: []string{}}
 }
 
-func newGauge(dims metricsDimensions, ts uint64, val float64) metric {
+func newGauge(dims *Dimensions, ts uint64, val float64) metric {
 	return metric{name: dims.name, typ: Gauge, timestamp: ts, value: val, tags: dims.tags}
 }
 
-func newCount(dims metricsDimensions, ts uint64, val float64) metric {
+func newCount(dims *Dimensions, ts uint64, val float64) metric {
 	return metric{name: dims.name, typ: Count, timestamp: ts, value: val, tags: dims.tags}
 }
 
-func newSketch(dims metricsDimensions, ts uint64, s summary.Summary) sketch {
+func newSketch(dims *Dimensions, ts uint64, s summary.Summary) sketch {
 	return sketch{name: dims.name, basic: s, timestamp: ts, tags: dims.tags}
 }
 
@@ -198,7 +196,7 @@ func TestMapIntMetrics(t *testing.T) {
 
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
-	dims = metricsDimensions{name: "int64.test", tags: []string{"attribute_tag:attribute_value"}}
+	dims = &Dimensions{name: "int64.test", tags: []string{"attribute_tag:attribute_value"}}
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -233,7 +231,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
-	dims = metricsDimensions{name: "float64.test", tags: []string{"attribute_tag:attribute_value"}}
+	dims = &Dimensions{name: "float64.test", tags: []string{"attribute_tag:attribute_value"}}
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -502,24 +500,26 @@ func TestMapDoubleMonotonicOutOfOrder(t *testing.T) {
 	)
 }
 
+var _ SketchConsumer = (*mockFullConsumer)(nil)
+
 type mockFullConsumer struct {
 	mockTimeSeriesConsumer
 	sketches []sketch
 }
 
-func (c *mockFullConsumer) ConsumeSketch(_ context.Context, name string, ts uint64, sk *quantile.Sketch, tags []string, host string) {
+func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensions, ts uint64, sk *quantile.Sketch) {
 	c.sketches = append(c.sketches,
 		sketch{
-			name:      name,
+			name:      dimensions.Name(),
 			basic:     sk.Basic,
 			timestamp: ts,
-			tags:      tags,
-			host:      host,
+			tags:      dimensions.Tags(),
+			host:      dimensions.Host(),
 		},
 	)
 }
 
-func dimsWithBucket(dims metricsDimensions, lowerBound string, upperBound string) metricsDimensions {
+func dimsWithBucket(dims *Dimensions, lowerBound string, upperBound string) *Dimensions {
 	dims = dims.WithSuffix("bucket")
 	return dims.AddTags(
 		fmt.Sprintf("lower_bound:%s", lowerBound),
@@ -563,9 +563,9 @@ func TestMapDeltaHistogramMetrics(t *testing.T) {
 		newSketch(dims, uint64(ts), summary.Summary{
 			Min: 0,
 			Max: 0,
-			Sum: 0,
-			Avg: 0,
-			Cnt: 20,
+			Sum: point.Sum(),
+			Avg: point.Sum() / float64(point.Count()),
+			Cnt: int64(point.Count()),
 		}),
 	}
 
@@ -573,8 +573,8 @@ func TestMapDeltaHistogramMetrics(t *testing.T) {
 		newSketch(dimsTags, uint64(ts), summary.Summary{
 			Min: 0,
 			Max: 0,
-			Sum: 0,
-			Avg: 0,
+			Sum: point.Sum(),
+			Avg: point.Sum() / float64(point.Count()),
 			Cnt: 20,
 		}),
 	}
@@ -677,7 +677,7 @@ func TestMapDeltaHistogramMetrics(t *testing.T) {
 			tr.cfg.HistMode = testInstance.histogramMode
 			tr.cfg.SendCountSum = testInstance.sendCountSum
 			consumer := &mockFullConsumer{}
-			dims := metricsDimensions{name: "doubleHist.test", tags: testInstance.tags}
+			dims := &Dimensions{name: "doubleHist.test", tags: testInstance.tags}
 			tr.mapHistogramMetrics(ctx, consumer, dims, slice, delta)
 			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
 			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
@@ -716,8 +716,8 @@ func TestMapCumulativeHistogramMetrics(t *testing.T) {
 		newSketch(dims, uint64(seconds(2)), summary.Summary{
 			Min: 0,
 			Max: 0,
-			Sum: 0,
-			Avg: 0,
+			Sum: 20,
+			Avg: 20.0 / 30.0,
 			Cnt: 30,
 		}),
 	}
@@ -795,7 +795,7 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointOne.SetExplicitBounds([]float64{0})
 	pointOne.SetTimestamp(seconds(0))
 	consumer := &mockTimeSeriesConsumer{}
-	dims := metricsDimensions{name: "test.histogram.one", tags: tags}
+	dims := &Dimensions{name: "test.histogram.one", tags: tags}
 	tr.getLegacyBuckets(ctx, consumer, dims, pointOne, true)
 	seriesOne := consumer.metrics
 
@@ -804,7 +804,7 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointTwo.SetExplicitBounds([]float64{1})
 	pointTwo.SetTimestamp(seconds(0))
 	consumer = &mockTimeSeriesConsumer{}
-	dims = metricsDimensions{name: "test.histogram.two", tags: tags}
+	dims = &Dimensions{name: "test.histogram.two", tags: tags}
 	tr.getLegacyBuckets(ctx, consumer, dims, pointTwo, true)
 	seriesTwo := consumer.metrics
 
@@ -868,8 +868,8 @@ func TestMapSummaryMetrics(t *testing.T) {
 
 	newTranslator := func(tags []string, quantiles bool) *Translator {
 		c := newTestCache()
-		c.cache.Set((&metricsDimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		c.cache.Set((&metricsDimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
+		c.cache.Set((&Dimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
+		c.cache.Set((&Dimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
 		options := []Option{WithFallbackHostnameProvider(testProvider("fallbackHostname"))}
 		if quantiles {
 			options = append(options, WithQuantiles())
@@ -1183,8 +1183,8 @@ func TestMapMetrics(t *testing.T) {
 				newSketchWithHostname("double.histogram", summary.Summary{
 					Min: 0,
 					Max: 0,
-					Sum: 0,
-					Avg: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, attrTags),
 			},
@@ -1213,8 +1213,8 @@ func TestMapMetrics(t *testing.T) {
 				newSketchWithHostname("double.histogram", summary.Summary{
 					Min: 0,
 					Max: 0,
-					Sum: 0,
-					Avg: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20.0,
 					Cnt: 20,
 				}, attrTags),
 			},
@@ -1243,8 +1243,8 @@ func TestMapMetrics(t *testing.T) {
 				newSketchWithHostname("double.histogram", summary.Summary{
 					Min: 0,
 					Max: 0,
-					Sum: 0,
-					Avg: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
 			},
@@ -1273,8 +1273,8 @@ func TestMapMetrics(t *testing.T) {
 				newSketchWithHostname("double.histogram", summary.Summary{
 					Min: 0,
 					Max: 0,
-					Sum: 0,
-					Avg: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
 			},
@@ -1428,5 +1428,5 @@ func TestNaNMetrics(t *testing.T) {
 	})
 
 	// One metric type was unknown or unsupported
-	assert.Equal(t, observed.FilterMessage("Unsupported metric value").Len(), 6)
+	assert.Equal(t, observed.FilterMessage("Unsupported metric value").Len(), 7)
 }

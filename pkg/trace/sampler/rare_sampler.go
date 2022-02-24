@@ -67,11 +67,7 @@ func NewRareSampler() *RareSampler {
 }
 
 // Sample a trace and returns true if trace was sampled (should be kept)
-func (e *RareSampler) Sample(t *pb.TraceChunk, env string) bool {
-	return e.sample(time.Now(), env, t)
-}
-
-func (e *RareSampler) sample(now time.Time, env string, t *pb.TraceChunk) bool {
+func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
 	if priority, ok := GetSamplingPriority(t); priority > 0 && ok {
 		e.handlePriorityTrace(now, env, t)
 		return false

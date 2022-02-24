@@ -34,7 +34,7 @@ type RoleCollector struct {
 func NewRoleCollector() *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "roles",
 			NodeType: orchestrator.K8sRole,
 		},
@@ -52,6 +52,9 @@ func (c *RoleCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().Roles()
 	c.lister = c.informer.Lister()
 }
+
+// IsAvailable returns whether the collector is available.
+func (c *RoleCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *RoleCollector) Metadata() *collectors.CollectorMetadata {

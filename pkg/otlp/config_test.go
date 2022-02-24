@@ -421,3 +421,98 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestFromExperimentalEnvironmentVariables(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		cfg  PipelineConfig
+		err  string
+	}{
+		{
+			name: "only gRPC",
+			env: map[string]string{
+				"DD_OTLP_GRPC_PORT": "4317",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "localhost:4317",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			name: "only HTTP",
+			env: map[string]string{
+				"DD_OTLP_HTTP_PORT": "1234",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"http": map[string]interface{}{
+							"endpoint": "localhost:1234",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			name: "HTTP and gRPC",
+			env: map[string]string{
+				"DD_OTLP_GRPC_PORT": "4317",
+				"DD_OTLP_HTTP_PORT": "1234",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "localhost:4317",
+						},
+						"http": map[string]interface{}{
+							"endpoint": "localhost:1234",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+	}
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			for env, val := range testInstance.env {
+				t.Setenv(env, val)
+			}
+			cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+			require.NoError(t, err)
+			pcfg, err := FromAgentConfig(cfg)
+			if err != nil || testInstance.err != "" {
+				assert.Equal(t, testInstance.err, err.Error())
+			} else {
+				assert.Equal(t, testInstance.cfg, pcfg)
+			}
+		})
+	}
+}

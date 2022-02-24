@@ -115,6 +115,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_ancestors_args",
 			Expression: `open.file.path == "{{.Root}}/test-ancestors-args" && process.ancestors.args_flags == "c" && process.ancestors.args_flags == "x"`,
 		},
+		{
+			ID:         "test_rule_envp",
+			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"]`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -251,6 +255,24 @@ func TestProcessContext(t *testing.T) {
 			if strings.Contains(str, "secret") || strings.Contains(str, "/tmp/lib") {
 				t.Error("secret or env values exposed")
 			}
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
+
+	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+		envs := []string{"ENVP=test"}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("ls", args, envs)
+			// we need to ignore the error because "--password" is not a valid option for ls
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_rule_envp", rule.ID, "wrong rule triggered")
 
 			if !validateExecSchema(t, event) {
 				t.Error(event.String())
@@ -594,6 +616,115 @@ func TestProcessPIDVariable(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+}
+
+func TestProcessMutableVariable(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_set_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var1",
+				Value: true,
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "off",
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var3",
+				Value: []string{"aaa"},
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var3",
+				Value: []string{"aaa"},
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var4",
+				Field: "process.file.name",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var5",
+				Field: "open.file.path",
+			},
+		}},
+	}, {
+		ID:         "test_rule_modify_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open-2"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "on",
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:   "var3",
+				Value:  []string{"bbb"},
+				Scope:  "process",
+				Append: true,
+			},
+		}},
+	}, {
+		ID: "test_rule_test_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open-3"` +
+			`&& ${process.var1} == true` +
+			`&& ${process.var2} == "on"` +
+			`&& "aaa" in ${process.var3}` +
+			`&& "bbb" in ${process.var3}` +
+			`&& process.file.name == "${var4}"` +
+			`&& open.file.path == "${var5}-3"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var filename1, filename2, filename3 string
+
+	test.WaitSignal(t, func() error {
+		filename1, _, err = test.Create("test-open")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_set_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename1)
+
+	test.WaitSignal(t, func() error {
+		filename2, _, err = test.Create("test-open-2")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_modify_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename2)
+
+	test.WaitSignal(t, func() error {
+		filename3, _, err = test.Create("test-open-3")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_test_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename3)
 }
 
 func TestProcessExec(t *testing.T) {

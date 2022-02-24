@@ -9,9 +9,9 @@
 package containerd
 
 import (
-	"context"
 	"fmt"
 
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/gogo/protobuf/proto"
@@ -21,67 +21,51 @@ import (
 )
 
 // buildCollectorEvent generates a CollectorEvent from a containerdevents.Envelope
-func (c *collector) buildCollectorEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) (workloadmeta.CollectorEvent, error) {
+func (c *collector) buildCollectorEvent(
+	containerdEvent *containerdevents.Envelope,
+	containerID string,
+	container containerd.Container,
+) (workloadmeta.CollectorEvent, error) {
 	switch containerdEvent.Topic {
 	case containerCreationTopic, containerUpdateTopic:
-		ID, hasID := containerdEvent.Field([]string{"event", "id"})
-		if !hasID {
-			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
-		}
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
 
-		return createSetEvent(ctx, ID, containerdEvent.Namespace, c.containerdClient)
 	case containerDeletionTopic:
-		ID, hasID := containerdEvent.Field([]string{"event", "id"})
-		if !hasID {
-			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
-		}
+		exitInfo := c.getExitInfo(containerID)
+		defer c.deleteExitInfo(containerID)
 
-		exitInfo := c.getExitInfo(ID)
-		defer c.deleteExitInfo(ID)
+		return createDeletionEvent(containerID, exitInfo), nil
 
-		return createDeletionEvent(ID, exitInfo), nil
 	case TaskExitTopic:
 		exited := &events.TaskExit{}
 		if err := proto.Unmarshal(containerdEvent.Event.Value, exited); err != nil {
 			return workloadmeta.CollectorEvent{}, err
 		}
 
-		c.cacheExitInfo(exited.ContainerID, &exited.ExitStatus, exited.ExitedAt)
-		return createSetEventFromTask(ctx, containerdEvent.Namespace, containerdEvent, c.containerdClient)
+		c.cacheExitInfo(containerID, &exited.ExitStatus, exited.ExitedAt)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+
 	case TaskDeleteTopic:
 		deleted := &events.TaskDelete{}
 		if err := proto.Unmarshal(containerdEvent.Event.Value, deleted); err != nil {
 			return workloadmeta.CollectorEvent{}, err
 		}
 
-		c.cacheExitInfo(deleted.ContainerID, &deleted.ExitStatus, deleted.ExitedAt)
-		return createSetEventFromTask(ctx, containerdEvent.Namespace, containerdEvent, c.containerdClient)
+		c.cacheExitInfo(containerID, &deleted.ExitStatus, deleted.ExitedAt)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic:
-		return createSetEventFromTask(ctx, containerdEvent.Namespace, containerdEvent, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+
 	default:
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
 	}
 }
 
-func createSetEventFromTask(ctx context.Context, namespace string, containerdEvent *containerdevents.Envelope, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
-	// Notice that the ID field in this case is stored in "ContainerID".
-	ID, hasID := containerdEvent.Field([]string{"event", "container_id"})
-	if !hasID {
-		return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
-	}
-
-	return createSetEvent(ctx, ID, namespace, containerdClient)
-}
-
-func createSetEvent(ctx context.Context, containerID string, namespace string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
-	container, err := containerdClient.ContainerWithContext(ctx, containerID)
-	if err != nil {
-		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch container %s: %s", containerID, err)
-	}
-
+func createSetEvent(container containerd.Container, namespace string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
 	entity, err := buildWorkloadMetaContainer(container, containerdClient)
 	if err != nil {
-		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", containerID, err)
+		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", container.ID(), err)
 	}
 
 	// The namespace cannot be obtained from a container instance. That's why we

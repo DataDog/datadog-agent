@@ -83,12 +83,12 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessMaxPerMessage,
 		},
 		{
-			key:          "process_config.max_ctr_procs_per_message",
-			defaultValue: DefaultProcessMaxCtrProcsPerMessage,
-		},
-		{
 			key:          "process_config.expvar_port",
 			defaultValue: DefaultProcessExpVarPort,
+		},
+		{
+			key:          "process_config.max_message_bytes",
+			defaultValue: DefaultProcessMaxMessageBytes,
 		},
 		{
 			key:          "process_config.cmd_port",
@@ -150,6 +150,7 @@ func TestEnvVarOverride(t *testing.T) {
 
 	for _, tc := range []struct {
 		key, env, value string
+		expType         string
 		expected        interface{}
 	}{
 		{
@@ -273,10 +274,10 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: 10,
 		},
 		{
-			key:      "process_config.max_ctr_procs_per_message",
-			env:      "DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE",
-			value:    "20",
-			expected: 20,
+			key:      "process_config.max_message_bytes",
+			env:      "DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES",
+			value:    "100000",
+			expected: 100000,
 		},
 		{
 			key:      "process_config.expvar_port",
@@ -290,10 +291,66 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "1235",
 			expected: 1235,
 		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.scrub_args has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.strip_proc_arguments has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)
-			assert.Equal(t, tc.expected, cfg.Get(tc.key))
+			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 			reset()
 		})
 
@@ -302,7 +359,7 @@ func TestEnvVarOverride(t *testing.T) {
 			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 			t.Run(env, func(t *testing.T) {
 				reset := setEnvForTest(env, tc.value)
-				assert.Equal(t, tc.expected, cfg.Get(tc.key))
+				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 				reset()
 			})
 		}
@@ -318,6 +375,50 @@ func TestEnvVarOverride(t *testing.T) {
 		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
 		reset()
 	})
+}
+
+func readCfgWithType(cfg Config, key, expType string) interface{} {
+	switch expType {
+	case "stringSlice":
+		return cfg.GetStringSlice(key)
+	case "boolean":
+		return cfg.GetBool(key)
+	default:
+		return cfg.Get(key)
+	}
+}
+
+func TestEnvVarCustomSensitiveWords(t *testing.T) {
+	cfg := setupConf()
+	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
+
+	for i, tc := range []struct {
+		words    string
+		expected []string
+	}{
+		{
+			words:    "pass*,word,secret",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[\"pass*\", \"word\",\"secret\"]",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[pass],word,user",
+			expected: []string{"[pass]", "word", "user"},
+		},
+	} {
+		for _, envPrefix := range expectedPrefixes {
+			e := envPrefix + "CUSTOM_SENSITIVE_WORDS"
+			t.Run(fmt.Sprintf("scrub sensitive words/%d/%s", i, e), func(t *testing.T) {
+				reset := setEnvForTest(e, tc.words)
+				args := cfg.GetStringSlice("process_config.custom_sensitive_words")
+				assert.Equal(t, tc.expected, args)
+				reset()
+			})
+		}
+	}
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {

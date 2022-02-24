@@ -87,9 +87,19 @@ func GetPort(t *testing.T) uint16 {
 
 // Configure sets Datadog Agent configuration from a config object.
 func Configure(t *testing.T, trapConfig Config) {
+	ConfigureWithGlobalNamespace(t, trapConfig, "")
+}
+
+// ConfigureWithGlobalNamespace sets Datadog Agent configuration from a config object and a namespace
+func ConfigureWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamespace string) {
 	datadogYaml := map[string]interface{}{
 		"snmp_traps_enabled": true,
 		"snmp_traps_config":  trapConfig,
+	}
+	if globalNamespace != "" {
+		datadogYaml["network_devices"] = map[string]interface{}{
+			"namespace": globalNamespace,
+		}
 	}
 
 	config.Datadog.SetConfigType("yaml")
