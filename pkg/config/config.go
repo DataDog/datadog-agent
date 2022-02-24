@@ -413,7 +413,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
-	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
+	config.BindEnvAndSetDefault("aggregator_use_tags_store", false)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel", true)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
