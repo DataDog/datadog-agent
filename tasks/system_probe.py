@@ -427,9 +427,11 @@ def get_linux_header_dirs():
     return dirs
 
 
-def get_ebpf_build_flags():
+def get_ebpf_build_flags(target=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
+    if not target:
+        target = ['-emit-llvm']
 
     flags = [
         '-D__KERNEL__',
@@ -442,9 +444,11 @@ def get_ebpf_build_flags():
         '-Wunused',
         '-Wall',
         '-Werror',
+    ]
+    flags.extend(target)
+    flags.extend([
         f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
         '-O2',
-        '-emit-llvm',
         # Some linux distributions enable stack protector by default which is not available on eBPF
         '-fno-stack-protector',
         '-fno-color-diagnostics',
@@ -453,6 +457,7 @@ def get_ebpf_build_flags():
         '-fno-jump-tables',
         f"-I{c_dir}",
     ]
+    )
 
     header_dirs = get_linux_header_dirs()
     for d in header_dirs:
