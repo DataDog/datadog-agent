@@ -842,7 +842,7 @@ shared_examples_for 'an Agent with process enabled' do
     confYaml = read_conf_file()
     expect(confYaml).to have_key("process_config")
     expect(confYaml["process_config"]).to have_key("process_collection")
-    expect(confYaml["process_collection"]).to have_key("enabled")
+    expect(confYaml["process_config"]["process_collection"]).to have_key("enabled")
     expect(confYaml["process_config"]["process_collection"]["enabled"]).to be_truthy
   end
   it 'has the process agent running' do
