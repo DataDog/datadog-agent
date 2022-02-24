@@ -530,7 +530,9 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
 
         struct tty_struct *tty;
         bpf_probe_read(&tty, sizeof(tty), (char *)signal + tty_offset);
-        bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
+        if (tty) {
+            bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
+        }
     }
 
     return 0;
