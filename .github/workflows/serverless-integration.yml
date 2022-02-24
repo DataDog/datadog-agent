@@ -35,14 +35,11 @@ jobs:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
-      - name: Setup docker builder
+      - name: Setup docker buildx
         run: |
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
           docker buildx create --name mybuilder --use
           docker buildx inspect --bootstrap
-
-      - name: Debug go env
-        run: go env
 
       - name: Run tests if AWS credentials are available
         env:
