@@ -446,17 +446,18 @@ def get_ebpf_build_flags(target=None):
         '-Werror',
     ]
     flags.extend(target)
-    flags.extend([
-        f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
-        '-O2',
-        # Some linux distributions enable stack protector by default which is not available on eBPF
-        '-fno-stack-protector',
-        '-fno-color-diagnostics',
-        '-fno-unwind-tables',
-        '-fno-asynchronous-unwind-tables',
-        '-fno-jump-tables',
-        f"-I{c_dir}",
-    ]
+    flags.extend(
+        [
+            f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
+            '-O2',
+            # Some linux distributions enable stack protector by default which is not available on eBPF
+            '-fno-stack-protector',
+            '-fno-color-diagnostics',
+            '-fno-unwind-tables',
+            '-fno-asynchronous-unwind-tables',
+            '-fno-jump-tables',
+            f"-I{c_dir}",
+        ]
     )
 
     header_dirs = get_linux_header_dirs()
