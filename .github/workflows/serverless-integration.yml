@@ -36,11 +36,18 @@ jobs:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
-      - name: Setup docker buildx
-        run: |
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-          docker buildx create --name mybuilder --use
-          docker buildx inspect --bootstrap
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v1
+        with:
+          image: tonistiigi/binfmt:latest
+          platforms: all
+  
+      - name: Available platforms
+        run: echo ${{ steps.qemu.outputs.platforms }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
 
       - name: Run tests if AWS credentials are available
         env:
