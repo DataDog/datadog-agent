@@ -269,7 +269,7 @@ def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
   return windows_service_status(service) != "NOTINSTALLED"
 end
-  
+
 def is_flavor_running?(flavor)
   is_service_running?(get_service_name(flavor))
 end
@@ -841,8 +841,9 @@ shared_examples_for 'an Agent with process enabled' do
   it 'has process enabled' do
     confYaml = read_conf_file()
     expect(confYaml).to have_key("process_config")
-    expect(confYaml["process_config"]).to have_key("enabled")
-    expect(confYaml["process_config"]["enabled"]).to be_truthy
+    expect(confYaml["process_config"]).to have_key("process_collection")
+    expect(confYaml["process_collection"]).to have_key("enabled")
+    expect(confYaml["process_config"]["process_collection"]["enabled"]).to be_truthy
   end
   it 'has the process agent running' do
     expect(is_process_running?("process-agent.exe")).to be_truthy
@@ -878,7 +879,7 @@ shared_examples_for 'an upgraded Agent with the expected version' do
     # Match the first line of the manifest file
     expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "agent #{agent_expected_version}"
   end
-end 
+end
 
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
