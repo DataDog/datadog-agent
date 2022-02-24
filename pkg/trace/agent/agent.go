@@ -7,7 +7,6 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -197,7 +196,6 @@ func (a *Agent) Process(p *api.Payload) {
 		log.Debugf("Skipping received empty payload")
 		return
 	}
-	fmt.Println(p.Chunks())
 	now := time.Now()
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
