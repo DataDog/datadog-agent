@@ -7,9 +7,11 @@
 #include "ReplaceYamlProperties.h"
 #include "ReplaceYamlProperties_IntegrationTests.h"
 
+
 TEST_F(ReplaceYamlPropertiesIntegrationTests, dd_agent_installopts_spec)
 {
-    value_map values = {
+    value_map values =
+    {
         {L"APIKEY", L"testapikey"},
         {L"TAGS", L"k1:v1,k2:v2"},
         {L"CMD_PORT", L"4999"},
