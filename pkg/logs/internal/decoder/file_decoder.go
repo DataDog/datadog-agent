@@ -10,7 +10,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/breaker"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
@@ -28,7 +28,7 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var lineParser parsers.Parser
-	framing := breaker.UTF8Newline
+	framing := framer.UTF8Newline
 	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
 		lineParser = kubernetes.New()
@@ -44,16 +44,16 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 		switch source.Config.Encoding {
 		case config.UTF16BE:
 			lineParser = encodedtext.New(encodedtext.UTF16BE)
-			framing = breaker.UTF16LENewline
+			framing = framer.UTF16LENewline
 		case config.UTF16LE:
 			lineParser = encodedtext.New(encodedtext.UTF16LE)
-			framing = breaker.UTF16LENewline
+			framing = framer.UTF16LENewline
 		case config.SHIFTJIS:
 			lineParser = encodedtext.New(encodedtext.SHIFTJIS)
-			framing = breaker.SHIFTJISNewline
+			framing = framer.SHIFTJISNewline
 		default:
 			lineParser = noop.New()
-			framing = breaker.UTF8Newline
+			framing = framer.UTF8Newline
 		}
 	}
 

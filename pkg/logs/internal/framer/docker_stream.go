@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package breaker
+package framer
 
 const (
 	headerPrefixLength = 4
@@ -15,18 +15,20 @@ const (
 // Well, sort-of.  It ignores the size in the headers, and groups multiple "frames",
 // including their headers, into a single log message, based on a search for newlines.
 type dockerStreamMatcher struct {
-	EndLineMatcher
+	// contentLenLimit is the maximum content length that will be returned.
+	// Lines longer than this value will be split into multiple frames, without regard
+	// for the header framing.
+	contentLenLimit int
 }
 
-// SeparatorLen returns the number of byte to skip at the end of each line
-func (s *dockerStreamMatcher) SeparatorLen() int {
-	return 1
-}
-
-// Match does an extra checking on matching docker header. The header should be
-// ignored for determine weather it's a end of line or not.
-func (s *dockerStreamMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
-	return appender[end] == '\n' && !s.matchHeader(exists, appender[start:end])
+// FindFrame implements EndLineMatcher#FindFrame.
+func (s *dockerStreamMatcher) FindFrame(buf []byte, seen int) ([]byte, int) {
+	for i := seen; i < len(buf); i++ {
+		if buf[i] == '\n' && !s.matchHeader([]byte{}, buf[:i]) {
+			return buf[:i], i + 1
+		}
+	}
+	return nil, 0
 }
 
 // When a newline (in byte is 10) is matching, an additional check need to

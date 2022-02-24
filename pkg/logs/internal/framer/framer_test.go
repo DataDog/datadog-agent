@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package breaker
+package framer
 
 import (
 	"bytes"
@@ -24,9 +24,9 @@ type brokenLine struct {
 	rawDataLen int
 }
 
-// lineBreakerOutput returns an outputFn for use with a LineBreaker, and
+// framerOutput returns an outputFn for use with a Framer, and
 // a channel containing the broken lines passed to that outputFn.
-func lineBreakerOutput() (func([]byte, int), chan brokenLine) {
+func framerOutput() (func([]byte, int), chan brokenLine) {
 	ch := make(chan brokenLine, 10)
 	return func(content []byte, rawDataLen int) { ch <- brokenLine{content, rawDataLen} }, ch
 }
@@ -55,9 +55,9 @@ func TestLineBreaking(t *testing.T) {
 				gotContent = append(gotContent, string(content))
 				gotLens = append(gotLens, rawDataLen)
 			}
-			lb := NewLineBreaker(outputFn, framing, contentLenLimit)
+			framer := NewFramer(outputFn, framing, contentLenLimit)
 			for _, chunk := range chunks {
-				lb.Process(chunk)
+				framer.Process(chunk)
 			}
 			require.Equal(t, lines, gotContent)
 			require.Equal(t, rawLens, gotLens)
@@ -220,9 +220,9 @@ func TestContentLenLimit(t *testing.T) {
 				gotContent = append(gotContent, string(content))
 				gotLens = append(gotLens, rawDataLen)
 			}
-			lb := NewLineBreaker(outputFn, UTF8Newline, contentLenLimit)
+			fr := NewFramer(outputFn, UTF8Newline, contentLenLimit)
 			for _, chunk := range chunks {
-				lb.Process(chunk)
+				fr.Process(chunk)
 			}
 			require.Equal(t, lines, gotContent)
 			require.Equal(t, rawLens, gotLens)
@@ -242,9 +242,8 @@ func TestContentLenLimit(t *testing.T) {
 	t.Run("exact", func(t *testing.T) {
 		input := []byte("abcdabcdabcdabcd\nabcdabcdabcdabcd\n") // 16 bytes + newline
 		contentLenLimit := 16
-		// XXX BUG:
-		lines := []string{"abcdabcdabcdabcd", "\nabcdabcdabcdabc", "d"}
-		lens := []int{16, 16, 2}
+		lines := []string{"abcdabcdabcdabcd", "abcdabcdabcdabcd"}
+		lens := []int{17, 17}
 		t.Run("one chunk", test(contentLenLimit, chunk(input, len(input)), lines, lens))
 		t.Run("two-byte chunks", test(contentLenLimit, chunk(input, 2), lines, lens))
 		t.Run("one-byte chunks", test(contentLenLimit, chunk(input, 1), lines, lens))
@@ -262,20 +261,20 @@ func TestContentLenLimit(t *testing.T) {
 }
 
 func TestLineBreakIncomingData(t *testing.T) {
-	outputFn, outputChan := lineBreakerOutput()
-	lb := NewLineBreaker(outputFn, UTF8Newline, contentLenLimit)
+	outputFn, outputChan := framerOutput()
+	framer := NewFramer(outputFn, UTF8Newline, contentLenLimit)
 
 	var line brokenLine
 
 	// one line in one raw should be sent
-	lb.Process([]byte("helloworld\n"))
+	framer.Process([]byte("helloworld\n"))
 	line = <-outputChan
 	assert.Equal(t, "helloworld", string(line.content))
 	assert.Equal(t, len("helloworld\n"), line.rawDataLen)
-	assert.Equal(t, "", lb.lineBuffer.String())
+	assert.Equal(t, "", framer.buffer.String())
 
 	// multiple lines in one raw should be sent
-	lb.Process([]byte("helloworld\nhowayou\ngoodandyou"))
+	framer.Process([]byte("helloworld\nhowayou\ngoodandyou"))
 	l := 0
 	line = <-outputChan
 	l += line.rawDataLen
@@ -283,35 +282,33 @@ func TestLineBreakIncomingData(t *testing.T) {
 	line = <-outputChan
 	l += line.rawDataLen
 	assert.Equal(t, "howayou", string(line.content))
-	assert.Equal(t, "goodandyou", lb.lineBuffer.String())
 	assert.Equal(t, len("helloworld\nhowayou\n"), l)
-	lb.lineBuffer.Reset()
-	lb.rawDataLen, l = 0, 0
+
+	framer.reset()
+	l = 0
 
 	// multiple lines in multiple rows should be sent
-	lb.Process([]byte("helloworld\nthisisa"))
+	framer.Process([]byte("helloworld\nthisisa"))
 	line = <-outputChan
 	l += line.rawDataLen
 	assert.Equal(t, "helloworld", string(line.content))
-	assert.Equal(t, "thisisa", lb.lineBuffer.String())
-	lb.Process([]byte("longinput\nindeed"))
+	framer.Process([]byte("longinput\nindeed"))
 	line = <-outputChan
 	l += line.rawDataLen
 	assert.Equal(t, "thisisalonginput", string(line.content))
-	assert.Equal(t, "indeed", lb.lineBuffer.String())
 	assert.Equal(t, len("helloworld\nthisisalonginput\n"), l)
-	lb.lineBuffer.Reset()
-	lb.rawDataLen = 0
+
+	framer.reset()
 
 	// one line in multiple rows should be sent
-	lb.Process([]byte("hello world"))
-	lb.Process([]byte("!\n"))
+	framer.Process([]byte("hello world"))
+	framer.Process([]byte("!\n"))
 	line = <-outputChan
 	assert.Equal(t, "hello world!", string(line.content))
 	assert.Equal(t, len("hello world!\n"), line.rawDataLen)
 
 	// excessively long line in one row should be sent by chunks
-	lb.Process([]byte(strings.Repeat("a", contentLenLimit+10) + "\n"))
+	framer.Process([]byte(strings.Repeat("a", contentLenLimit+10) + "\n"))
 	line = <-outputChan
 	assert.Equal(t, contentLenLimit, len(line.content))
 	assert.Equal(t, contentLenLimit, line.rawDataLen)
@@ -320,8 +317,8 @@ func TestLineBreakIncomingData(t *testing.T) {
 	assert.Equal(t, 11, line.rawDataLen)
 
 	// excessively long line in multiple rows should be sent by chunks
-	lb.Process([]byte(strings.Repeat("a", contentLenLimit-5)))
-	lb.Process([]byte(strings.Repeat("a", 15) + "\n"))
+	framer.Process([]byte(strings.Repeat("a", contentLenLimit-5)))
+	framer.Process([]byte(strings.Repeat("a", 15) + "\n"))
 	line = <-outputChan
 	assert.Equal(t, contentLenLimit, len(line.content))
 	assert.Equal(t, contentLenLimit, line.rawDataLen)
@@ -330,26 +327,28 @@ func TestLineBreakIncomingData(t *testing.T) {
 	assert.Equal(t, 11, line.rawDataLen)
 
 	// empty lines should be sent
-	lb.Process([]byte("\n"))
+	framer.Process([]byte("\n"))
 	line = <-outputChan
 	assert.Equal(t, "", string(line.content))
-	assert.Equal(t, "", lb.lineBuffer.String())
 	assert.Equal(t, 1, line.rawDataLen)
 
 	// empty message should not change anything
-	lb.Process([]byte(""))
-	assert.Equal(t, "", lb.lineBuffer.String())
-	assert.Equal(t, 0, lb.rawDataLen)
+	framer.Process([]byte(""))
+	select {
+	case <-outputChan:
+		assert.Fail(t, "should not have produced a frame")
+	default:
+	}
 }
 
-func TestLinBreakerInputNotDockerHeader(t *testing.T) {
-	outputFn, outputChan := lineBreakerOutput()
-	lb := NewLineBreaker(outputFn, UTF8Newline, 100)
+func TestFramerInputNotDockerHeader(t *testing.T) {
+	outputFn, outputChan := framerOutput()
+	framer := NewFramer(outputFn, UTF8Newline, 100)
 
 	input := []byte("hello")
 	input = append(input, []byte{1, 0, 0, 0, 0, 10, 0, 0}...) // docker header
 	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
-	lb.Process(input)
+	framer.Process(input)
 
 	var output brokenLine
 	output = <-outputChan
