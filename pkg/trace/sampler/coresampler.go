@@ -32,10 +32,14 @@ type Sampler struct {
 	// seen counts seen signatures. In the case of the PrioritySampler, chunks dropped
 	// in the Client are also taken in account.
 	seen map[Signature][numBuckets]float32
+	// allSigsSeen counts all signatures
+	allSigsSeen [numBuckets]float32
 	// lastBucketID is the index of the last bucket on which traces were counted
 	lastBucketID int64
 	// rates maps sampling rate in %
 	rates map[Signature]float64
+	// minRate is the lowest rate of all signatures
+	minRate float64
 
 	// muSeen is a lock protecting seen map and totalSeen count
 	muSeen sync.RWMutex
@@ -127,6 +131,7 @@ func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n float32
 	if !ok {
 		buckets = [numBuckets]float32{}
 	}
+	s.allSigsSeen[bucketID%numBuckets] += n
 	buckets[bucketID%numBuckets] += n
 	s.seen[signature] = buckets
 
@@ -154,11 +159,14 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 		seenTPSs = append(seenTPSs, float64(maxBucket)/bucketDuration.Seconds())
 		sigs = append(sigs, sig)
 	}
+	_, allSigsSeen := zeroAndGetMax(s.allSigsSeen, previousBucket, newBucket)
+	s.allSigsSeen = allSigsSeen
 
 	tpsPerSig := computeTPSPerSig(s.targetTPS.Load(), seenTPSs)
 
 	s.muRates.Lock()
 	defer s.muRates.Unlock()
+	s.minRate = 1
 	for i, sig := range sigs {
 		seenTPS := seenTPSs[i]
 		rate := 1.0
@@ -178,6 +186,9 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 		if rate == 1.0 && seenTPS == 0 {
 			delete(s.seen, sig)
 			continue
+		}
+		if rate < s.minRate {
+			s.minRate = rate
 		}
 		rates[sig] = rate
 	}
@@ -243,7 +254,7 @@ func (s *Sampler) getSignatureSampleRate(sig Signature) float64 {
 	defer s.muRates.RUnlock()
 	rate, ok := s.rates[sig]
 	if !ok {
-		return s.extraRate
+		return s.defaultRate()
 	}
 	return rate * s.extraRate
 }
@@ -253,15 +264,39 @@ func (s *Sampler) getAllSignatureSampleRates() (map[Signature]float64, float64) 
 	s.muRates.RLock()
 	defer s.muRates.RUnlock()
 	rates := make(map[Signature]float64, len(s.rates))
-	defaultRate := s.extraRate
 	for sig, val := range s.rates {
-		val *= s.extraRate
-		if val < defaultRate {
-			defaultRate = val
-		}
-		rates[sig] = val
+		rates[sig] = val * s.extraRate
 	}
-	return rates, defaultRate
+	return rates, s.defaultRate()
+}
+
+// defaultRate returns the rate to apply to unknown signatures. It's computed by considering
+// the moving max of all Sigs seen by the sampler, and the lowest rate stored.
+// Callers of defaultRate must hold a RLock on s.muRates
+func (s *Sampler) defaultRate() float64 {
+	targetTPS := s.targetTPS.Load()
+	if targetTPS == 0 {
+		return 0
+	}
+
+	var maxSeen float32
+	s.muSeen.RLock()
+	for _, c := range s.allSigsSeen {
+		if c > maxSeen {
+			maxSeen = c
+		}
+	}
+	seenTPS := float64(maxSeen) / bucketDuration.Seconds()
+
+	rate := 1.0
+	if targetTPS < seenTPS && seenTPS > 0 {
+		rate = targetTPS / seenTPS
+	}
+	s.muSeen.RUnlock()
+	if s.minRate < rate && s.minRate != 0 {
+		return s.minRate
+	}
+	return rate
 }
 
 func (s *Sampler) size() int64 {

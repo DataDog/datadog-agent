@@ -133,7 +133,7 @@ func TestPrioritySample(t *testing.T) {
 func TestPrioritySamplerWithNilRemote(t *testing.T) {
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
-		TargetTPS:       0.0,
+		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
 	s.Start()
@@ -147,7 +147,7 @@ func TestPrioritySamplerWithNilRemote(t *testing.T) {
 func TestPrioritySamplerWithRemote(t *testing.T) {
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
-		TargetTPS:       0.0,
+		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
 	s.remoteRates = newRemoteRates(10)
