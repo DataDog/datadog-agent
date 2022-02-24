@@ -146,13 +146,14 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature, clientDroppedP0Weight float64) {
 	rootWeight := weightRoot(root)
 	newRates := s.localRates.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
-	if newRates {
-		s.updateRates()
-	}
 
 	// remoteRates only considers root spans
 	if s.remoteRates != nil && root.ParentID == 0 {
 		s.remoteRates.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
+	}
+
+	if newRates {
+		s.updateRates()
 	}
 }
 
