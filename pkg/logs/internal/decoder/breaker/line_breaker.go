@@ -29,6 +29,14 @@ const (
 
 	// Newline-termianted text in SHIFT-JIS.
 	SHIFTJISNewline
+
+	// Docker log-stream format.
+	//
+	// WARNING: This bundles multiple docker frames together into a single "log
+	// frame", looking for a utf-8 newline in the output.  All 8-byte binary
+	// headers are included in the log frame.  The size in those headers is not
+	// consulted.  The result does not include the trailing newlines.
+	DockerStream
 )
 
 // LineBreaker gets chunks of bytes (via Process(..)) and uses an
@@ -75,6 +83,8 @@ func NewLineBreaker(
 		// No special handling required for the newline matcher since Shift JIS does not use
 		// newline characters (0x0a) as the second byte of a multibyte sequence.
 		matcher = &NewLineMatcher{}
+	case DockerStream:
+		matcher = &dockerStreamMatcher{}
 	default:
 		panic(fmt.Sprintf("unknown framing %d", framing))
 	}

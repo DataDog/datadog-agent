@@ -6,6 +6,9 @@
 package breaker
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -107,6 +110,104 @@ func TestLineBreaking(t *testing.T) {
 		t.Run("three-byte chunks", test(framing, chunk(utf16, 3), lines, lens))
 		t.Run("two-byte chunks", test(framing, chunk(utf16, 2), lines, lens))
 		t.Run("one-byte chunks", test(framing, chunk(utf16, 1), lines, lens))
+	})
+
+	dockerChunk := func(stream byte, data []byte) []byte {
+		header := [8]byte{stream}
+		binary.BigEndian.PutUint32(header[4:8], uint32(len(data)))
+		return append(header[:], data...)
+	}
+
+	t.Run("DockerStream(no headers)", func(t *testing.T) {
+		input := []byte{}
+		lines := []string{}
+		lens := []int{}
+		for i := 0; i < 15; i++ {
+			b := []byte("noheader\n")
+			input = append(input, b...)
+			lines = append(lines, string(b[:len(b)-1]))
+			lens = append(lens, len(b))
+		}
+		framing := DockerStream
+		t.Run("one chunk", test(framing, chunk(input, len(input)), lines, lens))
+		for size := 0; size < 20; size++ {
+			t.Run(fmt.Sprintf("%d-byte chunks", size), test(framing, chunk(input, size), lines, lens))
+		}
+	})
+
+	t.Run("DockerStream(headers)", func(t *testing.T) {
+		input := []byte{}
+		lines := []string{}
+		lens := []int{}
+		for i := 0; i < 15; i++ {
+			b := dockerChunk(1, []byte("has-a-header\n"))
+			input = append(input, b...)
+			lines = append(lines, string(b[:len(b)-1]))
+			lens = append(lens, len(b))
+		}
+		framing := DockerStream
+		t.Run("one chunk", test(framing, chunk(input, len(input)), lines, lens))
+		for size := 0; size < 20; size++ {
+			t.Run(fmt.Sprintf("%d-byte chunks", size), test(framing, chunk(input, size), lines, lens))
+		}
+	})
+
+	t.Run("DockerStream(multi-chunk-headers)", func(t *testing.T) {
+		lines := []string{}
+		lens := []int{}
+
+		// all of these chunks will appear together as the first line
+		input := bytes.Join([][]byte{
+			dockerChunk(1, []byte("has-")),
+			dockerChunk(1, []byte("a-")),
+			dockerChunk(1, []byte("header-")),
+			dockerChunk(1, []byte("in-")),
+			dockerChunk(1, []byte("chunks\n")),
+		}, []byte{})
+		// ..but without the newline
+		firstLine := input[:len(input)-1]
+		lines = append(lines, string(firstLine))
+		lens = append(lens, len(input))
+
+		another := dockerChunk(2, []byte("another line\n"))
+		input = append(input, another...)
+		lines = append(lines, string(another[:len(another)-1]))
+		lens = append(lens, len(another))
+
+		framing := DockerStream
+		t.Run("one chunk", test(framing, chunk(input, len(input)), lines, lens))
+		for size := 0; size < 20; size++ {
+			t.Run(fmt.Sprintf("%d-byte chunks", size), test(framing, chunk(input, size), lines, lens))
+		}
+	})
+
+	t.Run("DockerStream(big-multi-chunk-headers)", func(t *testing.T) {
+		lines := []string{}
+		lens := []int{}
+
+		// all of these chunks will appear together as the first "line"
+		input := bytes.Join([][]byte{
+			dockerChunk(1, bytes.Repeat([]byte{0x41}, 16384)),
+			dockerChunk(1, bytes.Repeat([]byte{0x41}, 16384)),
+			dockerChunk(1, bytes.Repeat([]byte{0x41}, 16384)),
+			dockerChunk(1, bytes.Repeat([]byte{0x41}, 16384)),
+			dockerChunk(1, []byte("the end\n")),
+		}, []byte{})
+		// ..but without the newline
+		firstLine := input[:len(input)-1]
+		lines = append(lines, string(firstLine))
+		lens = append(lens, len(input))
+
+		another := dockerChunk(2, []byte("another line\n"))
+		input = append(input, another...)
+		lines = append(lines, string(another[:len(another)-1]))
+		lens = append(lens, len(another))
+
+		framing := DockerStream
+		t.Run("one chunk", test(framing, chunk(input, len(input)), lines, lens))
+		for size := 0; size < 20; size++ {
+			t.Run(fmt.Sprintf("%d-byte chunks", size), test(framing, chunk(input, size), lines, lens))
+		}
 	})
 }
 

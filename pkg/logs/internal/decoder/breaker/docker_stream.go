@@ -2,40 +2,30 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build docker
-// +build docker
 
-package docker
-
-import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/breaker"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
-)
-
-// InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *config.LogSource, containerID string) *decoder.Decoder {
-	// TODO! (next commit...)
-	return decoder.NewDecoderWithEndLineMatcher(source, dockerstream.New(containerID), &headerMatcher{}, nil)
-}
+package breaker
 
 const (
 	headerPrefixLength = 4
 )
 
-type headerMatcher struct {
-	breaker.EndLineMatcher
+// dockerStreamMatcher matches the stream format documented here:
+// https://pkg.go.dev/github.com/moby/moby/client?utm_source=godoc#Client.ContainerLogs
+//
+// Well, sort-of.  It ignores the size in the headers, and groups multiple "frames",
+// including their headers, into a single log message, based on a search for newlines.
+type dockerStreamMatcher struct {
+	EndLineMatcher
 }
 
 // SeparatorLen returns the number of byte to skip at the end of each line
-func (s *headerMatcher) SeparatorLen() int {
+func (s *dockerStreamMatcher) SeparatorLen() int {
 	return 1
 }
 
 // Match does an extra checking on matching docker header. The header should be
 // ignored for determine weather it's a end of line or not.
-func (s *headerMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
+func (s *dockerStreamMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
 	return appender[end] == '\n' && !s.matchHeader(exists, appender[start:end])
 }
 
@@ -47,7 +37,7 @@ func (s *headerMatcher) Match(exists []byte, appender []byte, start int, end int
 // case [1|2 0 0 0 size1 10 size3 size4]
 // case [1|2 0 0 0 size1 size2 10 size4]
 // case [1|2 0 0 0 size1 size2 size3 10]
-func (s *headerMatcher) matchHeader(exists []byte, bs []byte) bool {
+func (s *dockerStreamMatcher) matchHeader(exists []byte, bs []byte) bool {
 	l := len(exists) + len(bs)
 	if l < headerPrefixLength {
 		return false
@@ -72,7 +62,7 @@ func (s *headerMatcher) matchHeader(exists []byte, bs []byte) bool {
 	return false
 }
 
-func (s *headerMatcher) checkByte(exists []byte, bs []byte, i int, val byte) bool {
+func (s *dockerStreamMatcher) checkByte(exists []byte, bs []byte, i int, val byte) bool {
 	l := len(exists) + len(bs)
 	if i < l {
 		if i < len(exists) {
