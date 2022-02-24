@@ -103,7 +103,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			blacklist:          []string{"foo"},
 			expectedChunks:     1,
 			expectedProcs:      2,
-			expectedContainers: 0,
+			expectedContainers: 1,
 		},
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
