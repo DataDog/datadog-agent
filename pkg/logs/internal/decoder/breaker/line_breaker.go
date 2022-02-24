@@ -8,7 +8,27 @@ package breaker
 
 import (
 	"bytes"
+	"fmt"
 	"sync/atomic"
+)
+
+// Framing describes the kind of framing applied to the byte stream being broken.
+type Framing int
+
+// Framing values.
+const (
+	// Newline-terminated text in UTF-8.  This also applies to ASCII and
+	// single-byte extended ASCII encodings such as latin-1.
+	UTF8Newline Framing = iota
+
+	// Newline-terminated text in UTF-16-BE.
+	UTF16BENewline
+
+	// Newline-terminated text in UTF-16-LE.
+	UTF16LENewline
+
+	// Newline-termianted text in SHIFT-JIS.
+	SHIFTJISNewline
 )
 
 // LineBreaker gets chunks of bytes (via Process(..)) and uses an
@@ -30,16 +50,35 @@ type LineBreaker struct {
 
 // NewLineBreaker initializes a LineBreaker.
 //
-// The breaker will use the given matcher to match newlines.  Content longer
-// than the given limit will be broken into lines at that length, regardless of
-// matching a newline.  Each line will be passed to outputFn, including both
-// the content of the line itself and the number of raw bytes matched to
-// represent that line.
+// The breaker will break the input stream into messages using the given framing.
+//
+// Content longer than the given limit will be broken into lines at
+// that length, regardless of framing.
+//
+// Each frame will be passed to outputFn, including both the content of the frame
+// itself and the number of raw bytes matched to represent that frame.  In general,
+// the content does not contain framing data like newlines.
 func NewLineBreaker(
 	outputFn func(content []byte, rawDataLen int),
-	matcher EndLineMatcher,
+	framing Framing,
 	contentLenLimit int,
 ) *LineBreaker {
+	var matcher EndLineMatcher
+	switch framing {
+	case UTF8Newline:
+		matcher = &NewLineMatcher{}
+	case UTF16BENewline:
+		matcher = NewBytesSequenceMatcher(Utf16beEOL, 2)
+	case UTF16LENewline:
+		matcher = NewBytesSequenceMatcher(Utf16leEOL, 2)
+	case SHIFTJISNewline:
+		// No special handling required for the newline matcher since Shift JIS does not use
+		// newline characters (0x0a) as the second byte of a multibyte sequence.
+		matcher = &NewLineMatcher{}
+	default:
+		panic(fmt.Sprintf("unknown framing %d", framing))
+	}
+
 	return &LineBreaker{
 		linesDecoded:    0,
 		outputFn:        outputFn,

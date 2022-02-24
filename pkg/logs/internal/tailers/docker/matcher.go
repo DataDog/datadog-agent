@@ -16,6 +16,7 @@ import (
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, containerID string) *decoder.Decoder {
+	// TODO! (next commit...)
 	return decoder.NewDecoderWithEndLineMatcher(source, dockerstream.New(containerID), &headerMatcher{}, nil)
 }
 

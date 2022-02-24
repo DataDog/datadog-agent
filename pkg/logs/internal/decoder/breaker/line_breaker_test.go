@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const contentLenLimit = 100
+const contentLenLimit = 256000
 
 // brokenLine represents a decoded line and the raw length
 type brokenLine struct {
@@ -27,6 +27,7 @@ func lineBreakerOutput() (func([]byte, int), chan brokenLine) {
 	ch := make(chan brokenLine, 10)
 	return func(content []byte, rawDataLen int) { ch <- brokenLine{content, rawDataLen} }, ch
 }
+
 func chunk(input []byte, size int) [][]byte {
 	rv := [][]byte{}
 	iter := input
@@ -43,7 +44,7 @@ func chunk(input []byte, size int) [][]byte {
 }
 
 func TestLineBreaking(t *testing.T) {
-	test := func(matcher EndLineMatcher, chunks [][]byte, lines []string, rawLens []int) func(*testing.T) {
+	test := func(framing Framing, chunks [][]byte, lines []string, rawLens []int) func(*testing.T) {
 		return func(t *testing.T) {
 			gotContent := []string{}
 			gotLens := []int{}
@@ -51,7 +52,7 @@ func TestLineBreaking(t *testing.T) {
 				gotContent = append(gotContent, string(content))
 				gotLens = append(gotLens, rawDataLen)
 			}
-			lb := NewLineBreaker(outputFn, matcher, contentLenLimit)
+			lb := NewLineBreaker(outputFn, framing, contentLenLimit)
 			for _, chunk := range chunks {
 				lb.Process(chunk)
 			}
@@ -60,53 +61,65 @@ func TestLineBreaking(t *testing.T) {
 		}
 	}
 
-	t.Run("NewLineMatcher", func(t *testing.T) {
+	t.Run("UTF8", func(t *testing.T) {
 		utf8 := []byte("line1\nline2\nline3\nline4\n")
 		lines := []string{"line1", "line2", "line3", "line4"}
 		lens := []int{6, 6, 6, 6}
-		matcher := &NewLineMatcher{}
-		t.Run("one chunk", test(matcher, chunk(utf8, len(utf8)), lines, lens))
-		t.Run("one-line chunks", test(matcher, chunk(utf8, 6), lines, lens))
-		t.Run("two-line chunks", test(matcher, chunk(utf8, 12), lines, lens))
-		t.Run("one-byte chunks", test(matcher, chunk(utf8, 1), lines, lens))
+		framing := UTF8Newline
+		t.Run("one chunk", test(framing, chunk(utf8, len(utf8)), lines, lens))
+		t.Run("one-line chunks", test(framing, chunk(utf8, 6), lines, lens))
+		t.Run("two-line chunks", test(framing, chunk(utf8, 12), lines, lens))
+		t.Run("one-byte chunks", test(framing, chunk(utf8, 1), lines, lens))
 	})
 
-	t.Run("BytesSequenceMatcher-UTF-16-LE", func(t *testing.T) {
+	t.Run("SHIFTJIS", func(t *testing.T) {
+		shiftjis := []byte("line1-\x93\xfa\x96{\nline2-\x93\xfa\x96{\nline3-\x93\xfa\x96{\nline4-\x93\xfa\x96{\n")
+		lines := []string{"line1-\x93\xfa\x96{", "line2-\x93\xfa\x96{", "line3-\x93\xfa\x96{", "line4-\x93\xfa\x96{"}
+		lens := []int{11, 11, 11, 11}
+		framing := SHIFTJISNewline
+		t.Run("one chunk", test(framing, chunk(shiftjis, len(shiftjis)), lines, lens))
+		t.Run("one-line chunks", test(framing, chunk(shiftjis, 11), lines, lens))
+		t.Run("two-line chunks", test(framing, chunk(shiftjis, 22), lines, lens))
+		t.Run("one-byte chunks", test(framing, chunk(shiftjis, 1), lines, lens))
+		t.Run("two-byte chunks", test(framing, chunk(shiftjis, 2), lines, lens))
+		t.Run("three-byte chunks", test(framing, chunk(shiftjis, 3), lines, lens))
+	})
+
+	t.Run("UTF-16-LE", func(t *testing.T) {
 		utf16 := []byte("l\x00i\x00n\x00e\x001\x00\n\x00l\x00i\x00n\x00e\x002\x00\n\x00l\x00i\x00n\x00e\x003\x00\n\x00l\x00i\x00n\x00e\x004\x00\n\x00")
 		lines := []string{"l\x00i\x00n\x00e\x001\x00", "l\x00i\x00n\x00e\x002\x00", "l\x00i\x00n\x00e\x003\x00", "l\x00i\x00n\x00e\x004\x00"}
 		lens := []int{12, 12, 12, 12}
-		matcher := NewBytesSequenceMatcher(Utf16leEOL, 2)
-		t.Run("one chunk", test(matcher, chunk(utf16, len(utf16)), lines, lens))
-		t.Run("one-line chunks", test(matcher, chunk(utf16, 12), lines, lens))
-		t.Run("three-byte chunks", test(matcher, chunk(utf16, 3), lines, lens))
-		t.Run("two-byte chunks", test(matcher, chunk(utf16, 2), lines, lens))
-		t.Run("one-byte chunks", test(matcher, chunk(utf16, 1), lines, lens))
+		framing := UTF16LENewline
+		t.Run("one chunk", test(framing, chunk(utf16, len(utf16)), lines, lens))
+		t.Run("one-line chunks", test(framing, chunk(utf16, 12), lines, lens))
+		t.Run("three-byte chunks", test(framing, chunk(utf16, 3), lines, lens))
+		t.Run("two-byte chunks", test(framing, chunk(utf16, 2), lines, lens))
+		t.Run("one-byte chunks", test(framing, chunk(utf16, 1), lines, lens))
 	})
 
-	t.Run("BytesSequenceMatcher-UTF-16-BE", func(t *testing.T) {
+	t.Run("UTF-16-BE", func(t *testing.T) {
 		utf16 := []byte("\x00l\x00i\x00n\x00e\x001\x00\n\x00l\x00i\x00n\x00e\x002\x00\n\x00l\x00i\x00n\x00e\x003\x00\n\x00l\x00i\x00n\x00e\x004\x00\n")
 		lines := []string{"\x00l\x00i\x00n\x00e\x001", "\x00l\x00i\x00n\x00e\x002", "\x00l\x00i\x00n\x00e\x003", "\x00l\x00i\x00n\x00e\x004"}
 		lens := []int{12, 12, 12, 12}
-		matcher := NewBytesSequenceMatcher(Utf16beEOL, 2)
-		t.Run("one chunk", test(matcher, chunk(utf16, len(utf16)), lines, lens))
-		t.Run("one-line chunks", test(matcher, chunk(utf16, 12), lines, lens))
-		t.Run("three-byte chunks", test(matcher, chunk(utf16, 3), lines, lens))
-		t.Run("two-byte chunks", test(matcher, chunk(utf16, 2), lines, lens))
-		t.Run("one-byte chunks", test(matcher, chunk(utf16, 1), lines, lens))
+		framing := UTF16BENewline
+		t.Run("one chunk", test(framing, chunk(utf16, len(utf16)), lines, lens))
+		t.Run("one-line chunks", test(framing, chunk(utf16, 12), lines, lens))
+		t.Run("three-byte chunks", test(framing, chunk(utf16, 3), lines, lens))
+		t.Run("two-byte chunks", test(framing, chunk(utf16, 2), lines, lens))
+		t.Run("one-byte chunks", test(framing, chunk(utf16, 1), lines, lens))
 	})
 }
 
 func TestContentLenLimit(t *testing.T) {
 	test := func(contentLenLimit int, chunks [][]byte, lines []string, rawLens []int) func(*testing.T) {
 		return func(t *testing.T) {
-			matcher := &NewLineMatcher{}
 			gotContent := []string{}
 			gotLens := []int{}
 			outputFn := func(content []byte, rawDataLen int) {
 				gotContent = append(gotContent, string(content))
 				gotLens = append(gotLens, rawDataLen)
 			}
-			lb := NewLineBreaker(outputFn, matcher, contentLenLimit)
+			lb := NewLineBreaker(outputFn, UTF8Newline, contentLenLimit)
 			for _, chunk := range chunks {
 				lb.Process(chunk)
 			}
@@ -149,7 +162,7 @@ func TestContentLenLimit(t *testing.T) {
 
 func TestLineBreakIncomingData(t *testing.T) {
 	outputFn, outputChan := lineBreakerOutput()
-	lb := NewLineBreaker(outputFn, &NewLineMatcher{}, contentLenLimit)
+	lb := NewLineBreaker(outputFn, UTF8Newline, contentLenLimit)
 
 	var line brokenLine
 
@@ -228,92 +241,9 @@ func TestLineBreakIncomingData(t *testing.T) {
 	assert.Equal(t, 0, lb.rawDataLen)
 }
 
-func TestLineBreakIncomingDataWithCustomSequence(t *testing.T) {
-	outputFn, outputChan := lineBreakerOutput()
-	lb := NewLineBreaker(outputFn, NewBytesSequenceMatcher([]byte("SEPARATOR"), 1), contentLenLimit)
-
-	var line brokenLine
-
-	// one line in one raw should be sent
-	lb.Process([]byte("helloworldSEPARATOR"))
-	line = <-outputChan
-	assert.Equal(t, "helloworld", string(line.content))
-	assert.Equal(t, "", lb.lineBuffer.String())
-
-	// multiple lines in one raw should be sent
-	lb.Process([]byte("helloworldSEPARATORhowayouSEPARATORgoodandyou"))
-	line = <-outputChan
-	assert.Equal(t, "helloworld", string(line.content))
-	line = <-outputChan
-	assert.Equal(t, "howayou", string(line.content))
-	assert.Equal(t, "goodandyou", lb.lineBuffer.String())
-	lb.lineBuffer.Reset()
-
-	// Line separartor may be cut by sending party
-	lb.Process([]byte("helloworldSEPAR"))
-	lb.Process([]byte("ATORhowayouSEPARATO"))
-	lb.Process([]byte("Rgoodandyou"))
-	line = <-outputChan
-	assert.Equal(t, "helloworld", string(line.content))
-	line = <-outputChan
-	assert.Equal(t, "howayou", string(line.content))
-	assert.Equal(t, "goodandyou", lb.lineBuffer.String())
-	lb.lineBuffer.Reset()
-
-	// empty lines should be sent
-	lb.Process([]byte("SEPARATOR"))
-	line = <-outputChan
-	assert.Equal(t, "", string(line.content))
-	assert.Equal(t, "", lb.lineBuffer.String())
-
-	// empty message should not change anything
-	lb.Process([]byte(""))
-	assert.Equal(t, "", lb.lineBuffer.String())
-}
-
-func TestLineBreakIncomingDataWithSingleByteCustomSequence(t *testing.T) {
-	outputFn, outputChan := lineBreakerOutput()
-	lb := NewLineBreaker(outputFn, NewBytesSequenceMatcher([]byte("&"), 1), contentLenLimit)
-	var line brokenLine
-
-	// one line in one raw should be sent
-	lb.Process([]byte("helloworld&"))
-	line = <-outputChan
-	assert.Equal(t, "helloworld", string(line.content))
-	assert.Equal(t, "", lb.lineBuffer.String())
-
-	// multiple blank lines
-	n := 10
-	lb.Process([]byte(strings.Repeat("&", n)))
-	for i := 0; i < n; i++ {
-		line = <-outputChan
-		assert.Equal(t, "", string(line.content))
-	}
-	assert.Equal(t, "", lb.lineBuffer.String())
-	lb.lineBuffer.Reset()
-
-	// Mix empty & non-empty lines
-	lb.Process([]byte("helloworld&&"))
-	lb.Process([]byte("&howayou&"))
-	line = <-outputChan
-	assert.Equal(t, "helloworld", string(line.content))
-	line = <-outputChan
-	assert.Equal(t, "", string(line.content))
-	line = <-outputChan
-	assert.Equal(t, "", string(line.content))
-	line = <-outputChan
-	assert.Equal(t, "howayou", string(line.content))
-	assert.Equal(t, "", lb.lineBuffer.String())
-	lb.lineBuffer.Reset()
-
-	// empty message should not change anything
-	lb.Process([]byte(""))
-	assert.Equal(t, "", lb.lineBuffer.String())
-}
-
 func TestLinBreakerInputNotDockerHeader(t *testing.T) {
 	outputFn, outputChan := lineBreakerOutput()
-	lb := NewLineBreaker(outputFn, &NewLineMatcher{}, 100)
+	lb := NewLineBreaker(outputFn, UTF8Newline, 100)
 
 	input := []byte("hello")
 	input = append(input, []byte{1, 0, 0, 0, 0, 10, 0, 0}...) // docker header

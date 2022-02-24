@@ -81,11 +81,11 @@ type Decoder struct {
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parsers.Parser) *Decoder {
-	return NewDecoderWithEndLineMatcher(source, parser, &breaker.NewLineMatcher{}, nil)
+	return NewDecoderWithFraming(source, parser, breaker.UTF8Newline, nil)
 }
 
-// NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
-func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parser, matcher breaker.EndLineMatcher, multiLinePattern *regexp.Regexp) *Decoder {
+// NewDecoderWithFraming initialize a decoder with given endline strategy.
+func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, framing breaker.Framing, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
@@ -139,8 +139,8 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parse
 		lineParser = NewSingleLineParser(lineHandler.process, parser)
 	}
 
-	// construct the lineBreaker, wrapping the matcher
-	lineBreaker := breaker.NewLineBreaker(lineParser.process, matcher, lineLimit)
+	// construct the lineBreaker
+	lineBreaker := breaker.NewLineBreaker(lineParser.process, framing, lineLimit)
 
 	return New(inputChan, outputChan, lineBreaker, lineParser, lineHandler, detectedPattern)
 }
