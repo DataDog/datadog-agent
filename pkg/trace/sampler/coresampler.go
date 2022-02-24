@@ -208,7 +208,7 @@ func computeTPSPerSig(targetTPS float64, seen []float64) float64 {
 
 	for i, c := range sorted {
 		if c >= sigTarget || i == len(sorted)-1 {
-			return sigTarget
+			break
 		}
 		targetTPS -= c
 		sigTarget = targetTPS / float64((len(sorted) - i - 1))
