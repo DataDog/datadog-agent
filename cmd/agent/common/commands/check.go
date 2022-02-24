@@ -620,6 +620,7 @@ func getMetricsData(demux aggregator.Demultiplexer) map[string]interface{} {
 		metrics := make([]interface{}, len(series))
 		// Workaround to get the sequence of metrics as plain interface{}
 		for i, serie := range series {
+			serie.PopulateDeviceField()
 			sj, _ := json.Marshal(serie)
 			json.Unmarshal(sj, &metrics[i]) //nolint:errcheck
 		}
