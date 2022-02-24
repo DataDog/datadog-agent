@@ -67,7 +67,7 @@ shared_examples_for 'a Windows Agent with NPM running' do
     if !confYaml.key("process_config")
       confYaml["process_config"] = {}
     end
-    confYaml["process_config"]["process_collection"]["enabled"] = true
+    confYaml["process_config"]["process_collection"] = { "enabled": true }
     File.write(conf_path, confYaml.to_yaml)
 
     if os != :windows
