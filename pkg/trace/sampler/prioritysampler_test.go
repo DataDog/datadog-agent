@@ -53,7 +53,7 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 
 	serviceRate, ok := rates[key.String()]
 	if !ok {
-		serviceRate, ok = rates[ServiceSignature{}.String()]
+		serviceRate, _ = rates[ServiceSignature{}.String()]
 	}
 	rate := float64(1)
 	if serviceRate != nil {
