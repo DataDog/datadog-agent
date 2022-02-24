@@ -14,7 +14,8 @@ jobs:
     strategy:
       max-parallel: 2
       matrix:
-        architecture: [amd64, arm64]
+        # architecture: [amd64, arm64]
+        architecture: [arm64]
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v2
