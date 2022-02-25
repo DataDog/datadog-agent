@@ -84,16 +84,17 @@ func (f JSONFormatter) formatV1Trap(packet *gosnmp.SnmpPacket) map[string]interf
 		// Generic trap
 		trapOID = fmt.Sprintf("%s.%d", genericTrapOid, genericTrap+1)
 	}
-	data["trap_oid"] = trapOID
+	data["snmpTrapOID"] = trapOID
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
 		log.Debugf("unable to resolve OID: %s", err)
 	} else {
-		data["trap_name"] = trapMetadata.Name
+		data["snmpTrapName"] = trapMetadata.Name
+		data["snmpTrapMIB"] = trapMetadata.MIBName
 	}
-	data["enterprise_oid"] = enterpriseOid
-	data["generic_trap"] = genericTrap
-	data["specific_trap"] = specificTrap
+	data["enterpriseOID"] = enterpriseOid
+	data["genericTrap"] = genericTrap
+	data["specificTrap"] = specificTrap
 	variables := parseVariables(packet.Variables)
 	data["variables_raw"] = variables
 	for _, variable := range variables {
@@ -130,13 +131,14 @@ func (f JSONFormatter) formatTrap(packet *gosnmp.SnmpPacket) (map[string]interfa
 	if err != nil {
 		return nil, err
 	}
-	data["trap_oid"] = trapOID
+	data["snmpTrapOID"] = trapOID
 
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
 		log.Debugf("unable to resolve OID: %s", err)
 	} else {
-		data["trap_name"] = trapMetadata.Name
+		data["snmpTrapName"] = trapMetadata.Name
+		data["snmpTrapMIB"] = trapMetadata.MIBName
 	}
 
 	parsedVariables := parseVariables(variables[2:])

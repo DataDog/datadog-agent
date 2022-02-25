@@ -55,20 +55,20 @@ func TestFormatPacketV1Generic(t *testing.T) {
 	err = json.Unmarshal(formattedPacket, &data)
 	require.NoError(t, err)
 
-	assert.Equal(t, "1.3.6.1.6.3.1.1.5.3", data["trap_oid"])
+	assert.Equal(t, "1.3.6.1.6.3.1.1.5.3", data["snmpTrapOID"])
 	assert.NotNil(t, data["uptime"])
-	assert.NotNil(t, data["enterprise_oid"])
-	assert.NotNil(t, data["generic_trap"])
-	assert.NotNil(t, data["specific_trap"])
+	assert.NotNil(t, data["enterpriseOID"])
+	assert.NotNil(t, data["genericTrap"])
+	assert.NotNil(t, data["specificTrap"])
 
 	variables := make([]map[string]interface{}, 3)
 	for i := 0; i < 3; i++ {
 		variables[i] = data["variables_raw"].([]interface{})[i].(map[string]interface{})
 	}
 
-	assert.Equal(t, "1.3.6.1.6.3.1.1.5", data["enterprise_oid"])
-	assert.EqualValues(t, 2, data["generic_trap"])
-	assert.EqualValues(t, 0, data["specific_trap"])
+	assert.Equal(t, "1.3.6.1.6.3.1.1.5", data["enterpriseOID"])
+	assert.EqualValues(t, 2, data["genericTrap"])
+	assert.EqualValues(t, 0, data["specificTrap"])
 
 	ifIndex := variables[0]
 	assert.EqualValues(t, ifIndex["oid"], "1.3.6.1.2.1.2.2.1.1")
@@ -94,20 +94,20 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	err = json.Unmarshal(formattedPacket, &data)
 	require.NoError(t, err)
 
-	assert.Equal(t, "1.3.6.1.2.1.118.0.2", data["trap_oid"])
+	assert.Equal(t, "1.3.6.1.2.1.118.0.2", data["snmpTrapOID"])
 	assert.NotNil(t, data["uptime"])
-	assert.NotNil(t, data["enterprise_oid"])
-	assert.NotNil(t, data["generic_trap"])
-	assert.NotNil(t, data["specific_trap"])
+	assert.NotNil(t, data["enterpriseOID"])
+	assert.NotNil(t, data["genericTrap"])
+	assert.NotNil(t, data["specificTrap"])
 
 	variables := make([]map[string]interface{}, 2)
 	for i := 0; i < 2; i++ {
 		variables[i] = data["variables_raw"].([]interface{})[i].(map[string]interface{})
 	}
 
-	assert.Equal(t, "1.3.6.1.2.1.118", data["enterprise_oid"])
-	assert.EqualValues(t, 6, data["generic_trap"])
-	assert.EqualValues(t, 2, data["specific_trap"])
+	assert.Equal(t, "1.3.6.1.2.1.118", data["enterpriseOID"])
+	assert.EqualValues(t, 6, data["genericTrap"])
+	assert.EqualValues(t, 2, data["specificTrap"])
 
 	alarmActiveModelPointer := variables[0]
 	assert.Equal(t, alarmActiveModelPointer["oid"], "1.3.6.1.2.1.118.1.2.2.1.13")
@@ -130,7 +130,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 	err = json.Unmarshal(formattedPacket, &data)
 	require.NoError(t, err)
 
-	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", data["trap_oid"])
+	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", data["snmpTrapOID"])
 	assert.NotNil(t, data["uptime"])
 
 	variables := make([]map[string]interface{}, 2)
@@ -159,7 +159,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	require.Error(t, err)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
-		// sysUpTimeInstance and data, but no snmpTrapOID
+		// sysUpTimeInstance and data, but no snmpsnmpTrapOID
 		{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
@@ -168,7 +168,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	require.Error(t, err)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
-		// snmpTrapOID and data, but no sysUpTimeInstance
+		// snmpsnmpTrapOID and data, but no sysUpTimeInstance
 		{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
@@ -217,7 +217,8 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 	content := make(map[string]interface{})
 	json.Unmarshal(data, &content)
 
-	assert.EqualValues(t, "netSnmpExampleHeartbeatNotification", content["trap_name"])
+	assert.EqualValues(t, "netSnmpExampleHeartbeatNotification", content["snmpTrapName"])
+	assert.EqualValues(t, "NET-SNMP-EXAMPLES-MIB", content["snmpTrapMIB"])
 	assert.EqualValues(t, 1024, content["netSnmpExampleHeartbeatRate"])
 
 	tags := formatter.GetTags(packet)
@@ -236,7 +237,8 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	content := make(map[string]interface{})
 	json.Unmarshal(data, &content)
 
-	assert.EqualValues(t, "ifDown", content["trap_name"])
+	assert.EqualValues(t, "ifDown", content["snmpTrapName"])
+	assert.EqualValues(t, "IF-MIB", content["snmpTrapMIB"])
 	assert.EqualValues(t, 2, content["ifIndex"])
 	assert.EqualValues(t, 1, content["ifAdminStatus"])
 	assert.EqualValues(t, 2, content["ifOperStatus"])

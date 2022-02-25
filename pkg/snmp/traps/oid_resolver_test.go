@@ -18,8 +18,8 @@ import (
 
 var dummyTrapDB = trapDBFileContent{
 	Traps: TrapSpec{
-		"1.3.6.1.6.3.1.1.5.3":      TrapMetadata{Name: "ifDown"},                              // v1 Trap
-		"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeatNotification"}, // v2+
+		"1.3.6.1.6.3.1.1.5.3":      TrapMetadata{Name: "ifDown", MIBName: "IF-MIB"},                                             // v1 Trap
+		"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeatNotification", MIBName: "NET-SNMP-EXAMPLES-MIB"}, // v2+
 	},
 	Variables: variableSpec{
 		"1.3.6.1.2.1.2.2.1.1":      VariableMetadata{Name: "ifIndex"},
@@ -76,7 +76,8 @@ func TestDecoding(t *testing.T) {
 	trapDBFile := &trapDBFileContent{
 		Traps: TrapSpec{
 			"foo": TrapMetadata{
-				Name: "xx",
+				Name:    "xx",
+				MIBName: "yy",
 			},
 		},
 		Variables: variableSpec{
@@ -88,7 +89,7 @@ func TestDecoding(t *testing.T) {
 	}
 	data, err := json.Marshal(trapDBFile)
 	require.NoError(t, err)
-	require.Equal(t, []byte("{\"traps\":{\"foo\":{\"name\":\"xx\",\"descr\":\"\"}},\"vars\":{\"bar\":{\"name\":\"yy\",\"descr\":\"dummy description\"}}}"), data)
+	require.Equal(t, []byte("{\"traps\":{\"foo\":{\"name\":\"xx\",\"mib\":\"yy\",\"descr\":\"\"}},\"vars\":{\"bar\":{\"name\":\"yy\",\"descr\":\"dummy description\"}}}"), data)
 	err = json.Unmarshal([]byte("{\"traps\": {\"1.2\": {\"name\": \"dd\"}}}"), &trapDBFile)
 	require.NoError(t, err)
 }

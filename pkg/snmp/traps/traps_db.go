@@ -20,6 +20,7 @@ type variableSpec map[string]VariableMetadata
 // in the same trap db file as the trap.
 type TrapMetadata struct {
 	Name            string `yaml:"name" json:"name"`
+	MIBName         string `yaml:"mib" json:"mib"`
 	Description     string `yaml:"descr" json:"descr"`
 	variableSpecPtr variableSpec
 }
