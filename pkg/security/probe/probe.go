@@ -1088,6 +1088,7 @@ func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64,
 func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, probe *Probe) (map[string]uint64, error) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("dentry_sb_offset", "struct dentry", "d_sb", "linux/dcache.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
@@ -1108,5 +1109,6 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("pid_level_offset", "struct pid", "level", "linux/pid.h")
 	constantFetcher.AppendOffsetofRequest("pid_numbers_offset", "struct pid", "numbers", "linux/pid.h")
 	constantFetcher.AppendSizeofRequest("sizeof_upid", "struct upid", "linux/pid.h")
+
 	return constantFetcher.FinishAndGetResults()
 }
