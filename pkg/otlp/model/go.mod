@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.3
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.7.0
-	go.opentelemetry.io/collector/model v0.44.0
+	go.opentelemetry.io/collector/model v0.45.0
 	go.uber.org/zap v1.20.0
 )
 
