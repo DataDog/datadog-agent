@@ -38,8 +38,8 @@ type Sampler struct {
 	lastBucketID int64
 	// rates maps sampling rate in %
 	rates map[Signature]float64
-	// minRate is the lowest rate of all signatures
-	minRate float64
+	// lowestRate is the lowest rate of all signatures
+	lowestRate float64
 
 	// muSeen is a lock protecting seen map and totalSeen count
 	muSeen sync.RWMutex
@@ -166,7 +166,7 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 
 	s.muRates.Lock()
 	defer s.muRates.Unlock()
-	s.minRate = 1
+	s.lowestRate = 1
 	for i, sig := range sigs {
 		seenTPS := seenTPSs[i]
 		rate := 1.0
@@ -187,8 +187,8 @@ func (s *Sampler) updateRates(previousBucket, newBucket int64) {
 			delete(s.seen, sig)
 			continue
 		}
-		if rate < s.minRate {
-			s.minRate = rate
+		if rate < s.lowestRate {
+			s.lowestRate = rate
 		}
 		rates[sig] = rate
 	}
@@ -293,8 +293,8 @@ func (s *Sampler) defaultRate() float64 {
 		rate = targetTPS / seenTPS
 	}
 	s.muSeen.RUnlock()
-	if s.minRate < rate && s.minRate != 0 {
-		return s.minRate
+	if s.lowestRate < rate && s.lowestRate != 0 {
+		return s.lowestRate
 	}
 	return rate
 }
