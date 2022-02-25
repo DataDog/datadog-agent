@@ -55,7 +55,7 @@ func ContainerFilter(path, name string) (string, error) {
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
 	// While existing, no process is attached to it and thus holds no stats
 	if match != "" {
-		if strings.HasSuffix(name, ".mount") {
+		if strings.HasSuffix(name, ".mount") || strings.HasPrefix(name, "crio-conmon-") {
 			return "", nil
 		}
 
