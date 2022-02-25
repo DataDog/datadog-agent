@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ddlambda "github.com/DataDog/datadog-lambda-go"
 	"github.com/aws/aws-lambda-go/events"
@@ -20,9 +21,13 @@ type testResponse struct {
 }
 
 func testHandler(ctx context.Context, ev events.APIGatewayProxyRequest) (testResponse, error) {
+	time.Sleep(250 * time.Millisecond)
 	fmt.Printf("XXX LOG 0 XXX\n")
+	time.Sleep(250 * time.Millisecond)
 	fmt.Printf("XXX LOG 1 XXX\n")
+	time.Sleep(250 * time.Millisecond)
 	fmt.Printf("XXX LOG 2 XXX\n")
+	time.Sleep(250 * time.Millisecond)
 	return testResponse{
 		StatusCode: 200,
 		Body:       "ok",

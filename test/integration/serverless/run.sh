@@ -161,6 +161,7 @@ trace_functions=(
     "trace-python"
     "trace-java"
     "trace-go"
+    # traces are not supported for .net lambda function on ARM64 architecture (snapshot is empty)
     "trace-csharp"
     "trace-proxy"
 )
