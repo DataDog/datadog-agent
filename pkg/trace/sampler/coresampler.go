@@ -29,10 +29,10 @@ const (
 // a targetTPS. The bucket with the maximum counts over the period
 // of the buffer is used to compute the sampling rates.
 type Sampler struct {
-	// seen counts seen signatures. In the case of the PrioritySampler, chunks dropped
-	// in the Client are also taken in account.
+	// seen counts seen signatures by Signature in a circular buffer of numBuckets of bucketDuration.
+	// In the case of the PrioritySampler, chunks dropped in the Client are also taken in account.
 	seen map[Signature][numBuckets]float32
-	// allSigsSeen counts all signatures
+	// allSigsSeen counts all signatures in a circular buffer of numBuckets of bucketDuration
 	allSigsSeen [numBuckets]float32
 	// lastBucketID is the index of the last bucket on which traces were counted
 	lastBucketID int64

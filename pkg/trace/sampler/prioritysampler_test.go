@@ -250,7 +250,6 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 						assert.True(ok)
 						require.Equal(t, rate, remoteRate.r)
 					}
-
 				}
 
 				if !tc.localRate && sampled {

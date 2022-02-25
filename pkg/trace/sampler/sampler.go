@@ -173,9 +173,7 @@ func weightRoot(s *pb.Span) float32 {
 	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
 		preSamplerRate = 1
 	}
-
 	return float32(1.0 / (preSamplerRate * clientRate))
-
 }
 
 func getMetric(s *pb.Span, k string) (float64, bool) {
