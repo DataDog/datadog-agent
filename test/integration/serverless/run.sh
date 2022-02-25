@@ -179,7 +179,7 @@ functions_to_skip=(
     "timeout-csharp"
     "timeout-proxy"
     # Skip log-csharp for now, test that everything else works
-    "log-csharp"
+    # "log-csharp"
 )
 
 echo "Invoking functions for the first time..."
