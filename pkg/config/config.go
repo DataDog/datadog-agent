@@ -795,6 +795,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)

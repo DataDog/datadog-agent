@@ -30,6 +30,9 @@ const (
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
+
+	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
+	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -71,6 +74,15 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:                     EventTypeNetworkDevicesNetFlow,
+		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
+		hostnameEndpointPrefix:        "ndmnetflow-intake.",
+		intakeTrackType:               "ndmnetflow",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,  // max 20Mb uncompressed size per payload
+		defaultBatchMaxSize:           10000, // max 10k events per payload
 	},
 }
 
