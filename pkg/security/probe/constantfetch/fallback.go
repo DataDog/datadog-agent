@@ -66,6 +66,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPIDNumbersOffset(f.kernelVersion)
 	case "sizeof_upid":
 		value = getSizeOfUpid(f.kernelVersion)
+	case "dentry_sb_offset":
+		value = getDentrySuperBlockOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -385,4 +387,15 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 		sizeOfUpid = 32
 	}
 	return sizeOfUpid
+}
+
+func getDentrySuperBlockOffset(kv *kernel.Version) uint64 {
+	offset := uint64(104)
+
+	switch {
+	case kv.IsCOSKernel():
+		offset = 128
+	}
+
+	return offset
 }
