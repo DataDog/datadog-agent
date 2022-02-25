@@ -14,6 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// httpClients should be reused instead of created as needed. They keep cached TCP connections
+// that may leak otherwise
+var httpClient = apiutil.GetClient(false)
+
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
 	AgentVersion string       `json:"version"`
@@ -115,7 +119,6 @@ func getCoreStatus() (s CoreStatus) {
 }
 
 func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
-	httpClient := apiutil.GetClient(false)
 	b, err := apiutil.DoGet(httpClient, expVarURL)
 	if err != nil {
 		return s, ConnectionError{err}

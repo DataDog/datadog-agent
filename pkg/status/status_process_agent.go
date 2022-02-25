@@ -16,10 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// httpClients should be reused instead of created as needed. They keep cached TCP connections
+// that may leak otherwise
+var httpClient = apiutil.GetClient(false)
+
 // GetProcessAgentStatus fetches the process-agent status from the process-agent API server
 func GetProcessAgentStatus() map[string]interface{} {
-	httpClient := apiutil.GetClient(false)
-
 	s := make(map[string]interface{})
 	addressPort, err := api.GetAPIAddressPort()
 	if err != nil {
@@ -63,8 +65,6 @@ func marshalError(err error) []byte {
 // Since the api_key has been obfuscated with *, we're not able to unmarshal the response as YAML because *
 // is not a valid YAML character
 func GetProcessAgentRuntimeConfig(statusURL string) []byte {
-	httpClient := apiutil.GetClient(false)
-
 	b, err := apiutil.DoGet(httpClient, statusURL)
 	if err != nil {
 		return marshalError(fmt.Errorf("process-agent is not running or is unreachable"))
