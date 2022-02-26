@@ -537,7 +537,7 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 	}
 	entry.ContainerID = id
 
-	read, err := entry.UnmarshalBinary(data[64:])
+	read, err := entry.Process.UnmarshalBinary(data[64:])
 	if err != nil {
 		return read + 64, err
 	}
@@ -557,6 +557,20 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 	entry.Tid = tid
 
 	return entry
+}
+
+// ResolveNewProcessCacheEntryContext resolves the context fields of a new process cache entry parsed from kernel data
+func (p *ProcessResolver) ResolveNewProcessCacheEntryContext(entry *model.ProcessCacheEntry) error {
+	p.SetProcessArgs(entry)
+	p.SetProcessEnvs(entry)
+	if _, err := p.SetProcessPath(entry); err != nil {
+		return fmt.Errorf("failed to resolve exec path: %w", err)
+	}
+	p.SetProcessFilesystem(entry)
+	p.SetProcessTTY(entry)
+	p.SetProcessUsersGroups(entry)
+	p.ApplyBootTime(entry)
+	return nil
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
@@ -582,6 +596,11 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 	entry.Pid = pid
 	entry.Tid = tid
+
+	// resolve paths and other context fields
+	if err = p.ResolveNewProcessCacheEntryContext(entry); err != nil {
+		return nil
+	}
 
 	// If we fall back to the kernel maps for a process in a container that was already running when the agent
 	// started, the kernel space container ID will be empty even though the process is inside a container. Since there
