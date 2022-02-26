@@ -15,21 +15,18 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/gopsutil/process"
-	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -46,45 +43,50 @@ var (
 
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags
 type ActivityDump struct {
-	Tags                []string                        `json:"tags,omitempty"`
-	Comm                string                          `json:"comm,omitempty"`
-	Start               time.Time                       `json:"start"`
-	Timeout             time.Duration                   `json:"duration"`
-	End                 time.Time                       `json:"end"`
-	CookiesNode         map[uint32]*ProcessActivityNode `json:"-"`
-	ProcessActivityTree []*ProcessActivityNode          `json:"tree"`
+	sync.Mutex
+	adm *ActivityDumpManager
+
+	processedCount     map[model.EventType]*uint64
+	addedRuntimeCount  map[model.EventType]*uint64
+	addedSnapshotCount map[model.EventType]*uint64
+
+	ProcessActivityTree []*ProcessActivityNode `json:"tree"`
+	CookiesNode         map[uint32]*ProcessActivityNode
+	DifferentiateArgs   bool
+	WithGraph           bool
 
 	OutputFile string `json:"-"`
 	outputFile *os.File
 	GraphFile  string `json:"-"`
 	graphFile  *os.File
-	tracedPIDs *ebpf.Map
-	resolvers  *Resolvers
-	scrubber   *config.DataScrubber
 
-	differentiateArgs  bool
-	processedCount     map[model.EventType]*uint64
-	addedRuntimeCount  map[model.EventType]*uint64
-	addedSnapshotCount map[model.EventType]*uint64
+	Comm        string        `json:"comm,omitempty"`
+	ContainerID string        `json:"container_id,omitempty"`
+	Tags        []string      `json:"tags,omitempty"`
+	Start       time.Time     `json:"start"`
+	Timeout     time.Duration `json:"duration"`
+	End         time.Time     `json:"end"`
+	timeoutRaw  int64
 }
 
+// WithDumpOption can be used to configure an ActivityDump
+type WithDumpOption func(ad *ActivityDump)
+
 // NewActivityDump returns a new instance of an ActivityDump
-func NewActivityDump(params *api.DumpActivityParams, tracedPIDs *ebpf.Map, resolvers *Resolvers, scrubber *config.DataScrubber) (*ActivityDump, error) {
+func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) (*ActivityDump, error) {
 	var err error
 
 	ad := ActivityDump{
-		Tags:               params.Tags,
-		Comm:               params.Comm,
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
 		Start:              time.Now(),
-		Timeout:            time.Duration(params.Timeout) * time.Minute,
-		tracedPIDs:         tracedPIDs,
-		resolvers:          resolvers,
-		scrubber:           scrubber,
-		differentiateArgs:  params.DifferentiateArgs,
+		adm:                adm,
 		processedCount:     make(map[model.EventType]*uint64),
 		addedRuntimeCount:  make(map[model.EventType]*uint64),
 		addedSnapshotCount: make(map[model.EventType]*uint64),
+	}
+
+	for _, option := range options {
+		option(&ad)
 	}
 
 	// generate counters
@@ -98,24 +100,28 @@ func NewActivityDump(params *api.DumpActivityParams, tracedPIDs *ebpf.Map, resol
 	}
 
 	// generate random output file
-	ad.outputFile, err = os.CreateTemp("/tmp", "activity-dump-")
+	_ = os.MkdirAll("/tmp/activity_dumps", 0400)
+	ad.outputFile, err = os.CreateTemp("/tmp/activity_dumps", "activity-dump-*.json")
 	if err != nil {
 		return nil, err
 	}
 
 	if err = os.Chmod(ad.outputFile.Name(), 0400); err != nil {
+		ad.close()
 		return nil, err
 	}
 	ad.OutputFile = ad.outputFile.Name()
 
 	// generate random graph file
-	if params.WithGraph {
-		ad.graphFile, err = os.CreateTemp("/tmp", "graph-dump-")
+	if ad.WithGraph {
+		ad.graphFile, err = os.CreateTemp("/tmp/activity_dumps", "graph-dump-*.dot")
 		if err != nil {
+			ad.close()
 			return nil, err
 		}
 
 		if err = os.Chmod(ad.graphFile.Name(), 0400); err != nil {
+			ad.close()
 			return nil, err
 		}
 		ad.GraphFile = ad.graphFile.Name()
@@ -123,27 +129,49 @@ func NewActivityDump(params *api.DumpActivityParams, tracedPIDs *ebpf.Map, resol
 	return &ad, nil
 }
 
-// TagsListMatches returns true if the ActivityDump tags list matches the provided list of tags
-func (ad *ActivityDump) TagsListMatches(tags []string) bool {
-	var found bool
-	for _, adTag := range ad.Tags {
-		found = false
-		for _, tag := range tags {
-			if adTag == tag {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
+// Close closes all file descriptors of the activity dump
+func (ad *ActivityDump) Close() {
+	ad.Lock()
+	defer ad.Unlock()
+	ad.close()
+}
+
+// close thread unsafe version of Close
+func (ad *ActivityDump) close() {
+	if ad.graphFile != nil {
+		_ = ad.graphFile.Close()
 	}
-	return true
+	if ad.outputFile != nil {
+		_ = ad.outputFile.Close()
+	}
+}
+
+// GetTimeoutRawTimestamp returns the timeout timestamp of the current activity dump as a monolitic kernel timestamp
+func (ad *ActivityDump) GetTimeoutRawTimestamp() int64 {
+	if ad.timeoutRaw == 0 {
+		ad.timeoutRaw = ad.adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(ad.Start.Add(ad.Timeout))
+	}
+	return ad.timeoutRaw
+}
+
+// UpdateTracedPidTimeout updates the timeout of a traced pid in kernel space
+func (ad *ActivityDump) UpdateTracedPidTimeout(pid uint32) {
+	// start by looking up any existing entry
+	var timeout int64
+	_ = ad.adm.tracedPIDsMap.Lookup(pid, &timeout)
+	if timeout < ad.GetTimeoutRawTimestamp() {
+		_ = ad.adm.tracedPIDsMap.Put(pid, ad.GetTimeoutRawTimestamp())
+	}
 }
 
 // CommMatches returns true if the ActivityDump comm matches the provided comm
 func (ad *ActivityDump) CommMatches(comm string) bool {
 	return ad.Comm == comm
+}
+
+// ContainerIDMatches returns true if the ActivityDump container ID matches the provided container ID
+func (ad *ActivityDump) ContainerIDMatches(containerID string) bool {
+	return ad.ContainerID == containerID
 }
 
 // Matches returns true if the provided list of tags and / or the provided comm match the current ActivityDump
@@ -152,14 +180,14 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 		return false
 	}
 
-	if len(ad.Comm) > 0 {
-		if !ad.CommMatches(entry.Comm) {
+	if len(ad.ContainerID) > 0 {
+		if !ad.ContainerIDMatches(entry.ContainerID) {
 			return false
 		}
 	}
 
-	if len(ad.Tags) > 0 {
-		if !ad.TagsListMatches(ad.resolvers.ResolvePCEContainerTags(entry)) {
+	if len(ad.Comm) > 0 {
+		if !ad.CommMatches(entry.Comm) {
 			return false
 		}
 	}
@@ -169,24 +197,42 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 
 // Done stops an active dump
 func (ad *ActivityDump) Done() {
+	ad.Lock()
+	defer ad.Unlock()
+
+	// remove comm from kernel space
+	if len(ad.Comm) > 0 {
+		commB := make([]byte, 16)
+		copy(commB, ad.Comm)
+		err := ad.adm.tracedCommsMap.Delete(commB)
+		if err != nil {
+			seclog.Debugf("couldn't delete activity dump filter comm(%s): %v", ad.Comm, err)
+		}
+	}
+
+	// remove container ID from kernel space
+	if len(ad.ContainerID) > 0 {
+		containerIDB := make([]byte, model.ContainerIDLen)
+		copy(containerIDB, ad.ContainerID)
+		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
+		if err != nil {
+			seclog.Debugf("couldn't delete activity dump filter containerID(%s): %v", ad.ContainerID, err)
+		}
+	}
+
 	ad.End = time.Now()
 	//ad.debug()
 	ad.dump()
-	_ = ad.outputFile.Close()
 	if ad.graphFile != nil {
-		title := "Activity tree"
-		if len(ad.Tags) > 0 {
-			title = fmt.Sprintf("%s [%s]", title, strings.Join(ad.Tags, " "))
-		}
-		if len(ad.Comm) > 0 {
-			title = fmt.Sprintf("%s Comm(%s)", title, ad.Comm)
-		}
+		title := fmt.Sprintf("Activity tree: %s", ad.GetSelectorStr())
 		err := ad.generateGraph(title)
 		if err != nil {
 			seclog.Errorf("couldn't generate activity graph: %s", err)
+		} else {
+			seclog.Infof("activity graph for [%s] written at: %s", ad.GetSelectorStr(), ad.GraphFile)
 		}
 	}
-	_ = ad.graphFile.Close()
+	ad.close()
 
 	// release all shared resources
 	for _, p := range ad.ProcessActivityTree {
@@ -200,11 +246,20 @@ func (ad *ActivityDump) dump() {
 		seclog.Errorf("couldn't marshal ActivityDump: %s\n", err)
 		return
 	}
-	_, err = ad.outputFile.Write(raw)
+	n, err := ad.outputFile.Write(raw)
 	if err != nil {
 		seclog.Errorf("couldn't write ActivityDump: %s\n", err)
 		return
 	}
+
+	// send dump size
+	if n > 0 {
+		var tags []string
+		if err = ad.adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpSizeInBytes, float64(n), tags, 1.0); err != nil {
+			seclog.Warnf("couldn't send %s metric: %w", metrics.MetricActivityDumpSizeInBytes, err)
+		}
+	}
+	seclog.Infof("activity dump for [%s] written at: %s", ad.GetSelectorStr(), ad.OutputFile)
 }
 
 // nolint: unused
@@ -217,6 +272,9 @@ func (ad *ActivityDump) debug() {
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
 func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
+	ad.Lock()
+	defer ad.Unlock()
+
 	// ignore fork events for now
 	if event.GetEventType() == model.ForkEventType {
 		return false
@@ -234,6 +292,17 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	node := ad.FindOrCreateProcessActivityNode(event.ResolveProcessCacheEntry(), Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
+		return false
+	}
+
+	// check if this event type is traced
+	var traced bool
+	for _, evtType := range ad.adm.tracedEventTypes {
+		if evtType == event.GetEventType() {
+			traced = true
+		}
+	}
+	if !traced {
 		return false
 	}
 
@@ -282,7 +351,7 @@ func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(entry, ad.differentiateArgs, ad.resolvers) {
+			if root.Matches(entry, ad.DifferentiateArgs, ad.adm.probe.resolvers) {
 				return root
 			}
 		}
@@ -297,7 +366,7 @@ func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCach
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
-			if child.Matches(entry, ad.differentiateArgs, ad.resolvers) {
+			if child.Matches(entry, ad.DifferentiateArgs, ad.adm.probe.resolvers) {
 				return child
 			}
 		}
@@ -322,7 +391,7 @@ func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCach
 	}
 
 	// set the pid of the input ProcessCacheEntry as traced
-	_ = ad.tracedPIDs.Put(entry.Pid, uint64(0))
+	ad.UpdateTracedPidTimeout(entry.Pid)
 
 	return node
 }
@@ -419,17 +488,6 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	if len(ad.Comm) > 0 {
 		p.Selector = fmt.Sprintf("process.comm = \"%s\"", ad.Comm)
 	}
-	if len(ad.Tags) > 0 {
-		if len(p.Selector) > 0 {
-			p.Selector += " && "
-		}
-		for i, tag := range ad.Tags {
-			if i >= 1 {
-				p.Selector += " && "
-			}
-			p.Selector += fmt.Sprintf("\"%s\" in container.tags", tag)
-		}
-	}
 
 	// Add rules
 	for _, node := range ad.ProcessActivityTree {
@@ -442,34 +500,43 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 
 // GetSelectorStr returns a string representation of the profile selector
 func (ad *ActivityDump) GetSelectorStr() string {
-	return fmt.Sprintf("tags: %s, comm: %s", strings.Join(ad.Tags, ", "), ad.Comm)
+	if len(ad.Tags) > 0 {
+		return strings.Join(ad.Tags, ",")
+	}
+	if len(ad.ContainerID) > 0 {
+		return fmt.Sprintf("container_id:%s", ad.ContainerID)
+	}
+	if len(ad.Comm) > 0 {
+		return fmt.Sprintf("comm:%s", ad.Comm)
+	}
+	return "empty_selector"
 }
 
 // SendStats sends activity dump stats
-func (ad *ActivityDump) SendStats(client *statsd.Client) error {
+func (ad *ActivityDump) SendStats() error {
 	for evtType, count := range ad.processedCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := atomic.LoadUint64(count); value > 0 {
-			if err := client.Gauge(metrics.MetricActivityDumpProcessed, float64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpProcessed)
+		if value := atomic.SwapUint64(count, 0); value > 0 {
+			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
+				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventProcessed)
 			}
 		}
 	}
 
 	for evtType, count := range ad.addedRuntimeCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
-		if value := atomic.LoadUint64(count); value > 0 {
-			if err := client.Gauge(metrics.MetricActivityDumpAdded, float64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpAdded)
+		if value := atomic.SwapUint64(count, 0); value > 0 {
+			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
+				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
 		}
 	}
 
 	for evtType, count := range ad.addedSnapshotCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
-		if value := atomic.LoadUint64(count); value > 0 {
-			if err := client.Gauge(metrics.MetricActivityDumpAdded, float64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpAdded)
+		if value := atomic.SwapUint64(count, 0); value > 0 {
+			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
+				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
 		}
 	}
@@ -479,6 +546,9 @@ func (ad *ActivityDump) SendStats(client *statsd.Client) error {
 
 // Snapshot snapshots the processes in the activity dump to capture all the
 func (ad *ActivityDump) Snapshot() error {
+	ad.Lock()
+	defer ad.Unlock()
+
 	for _, pan := range ad.ProcessActivityTree {
 		if err := pan.snapshot(ad); err != nil {
 			return err
@@ -486,7 +556,48 @@ func (ad *ActivityDump) Snapshot() error {
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}
+
+	// try to resolve the tags now
+	_ = ad.resolveTags()
 	return nil
+}
+
+// ResolveTags tries to resolve the activity dump tags
+func (ad *ActivityDump) ResolveTags() error {
+	ad.Lock()
+	defer ad.Unlock()
+	return ad.resolveTags()
+}
+
+// resolveTags thread unsafe version ot ResolveTags
+func (ad *ActivityDump) resolveTags() error {
+	if len(ad.Tags) > 0 {
+		return nil
+	}
+
+	var err error
+	ad.Tags, err = ad.adm.probe.resolvers.TagsResolver.ResolveWithErr(ad.ContainerID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve %s: %w", ad.ContainerID, err)
+	}
+	return nil
+}
+
+// ToSecurityActivityDumpMessage returns a pointer to a SecurityActivityDumpMessage struct populated with current dump
+// information.
+func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.SecurityActivityDumpMessage {
+	return &api.SecurityActivityDumpMessage{
+		OutputFilename:    ad.OutputFile,
+		GraphFilename:     ad.GraphFile,
+		Comm:              ad.Comm,
+		ContainerID:       ad.ContainerID,
+		Tags:              ad.Tags,
+		WithGraph:         ad.WithGraph,
+		DifferentiateArgs: ad.DifferentiateArgs,
+		Timeout:           ad.Timeout.String(),
+		Start:             ad.Start.String(),
+		Left:              ad.Start.Add(ad.Timeout).Sub(time.Now()).String(),
+	}
 }
 
 // ProcessActivityNode holds the activity of a process
@@ -643,14 +754,25 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 		return nil
 	}
 
-	var files []string
+	for _, eventType := range ad.adm.tracedEventTypes {
+		switch eventType {
+		case model.FileOpenEventType:
+			if err = pan.snapshotFiles(p, ad); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
+func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDump) error {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
 		return err
 	}
 
+	var files []string
 	for _, fd := range fileFDs {
 		files = append(files, fd.Path)
 	}
@@ -685,7 +807,7 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 		if !ok {
 			continue
 		}
-		evt := NewEvent(ad.resolvers, ad.scrubber)
+		evt := NewEvent(ad.adm.probe.resolvers, ad.adm.probe.scrubber)
 		evt.Event.Type = uint64(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
@@ -699,8 +821,8 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 		evt.Open.File.FileFields.Inode = stat.Ino
 		evt.Open.File.FileFields.UID = stat.Uid
 		evt.Open.File.FileFields.GID = stat.Gid
-		evt.Open.File.FileFields.MTime = uint64(ad.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)))
-		evt.Open.File.FileFields.CTime = uint64(ad.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec)))
+		evt.Open.File.FileFields.MTime = uint64(ad.adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)))
+		evt.Open.File.FileFields.CTime = uint64(ad.adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec)))
 
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs

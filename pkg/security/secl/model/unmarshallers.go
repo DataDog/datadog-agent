@@ -19,13 +19,13 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, 64)
+	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
 	e.ID = FindContainerID(id)
 
-	return 64, nil
+	return ContainerIDLen, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -737,4 +737,19 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.PipeEntryFlag = ByteOrder.Uint32(data[read : read+4])
 	e.PipeExitFlag = ByteOrder.Uint32(data[read+4 : read+8])
 	return read + 4, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.TimeoutRaw = ByteOrder.Uint64(data[read : read+8])
+	return read + 8, nil
 }

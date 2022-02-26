@@ -6,6 +6,7 @@
 package model
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math"
 	"math/bits"
@@ -22,7 +23,7 @@ const (
 
 	// MaxPathDepth defines the maximum depth of a path
 	// see pkg/security/ebpf/c/dentry_resolver.h: DR_MAX_TAIL_CALL * DR_MAX_ITERATION_DEPTH
-	MaxPathDepth = 1380
+	MaxPathDepth = 1500
 
 	// MaxBpfObjName defines the maximum length of a Bpf object name
 	MaxBpfObjName = 16
@@ -32,6 +33,9 @@ const (
 
 	// NameSuffix defines the suffix used for name fields
 	NameSuffix = ".name"
+
+	// ContainerIDLen defines the length of a container ID
+	ContainerIDLen = sha256.Size * 2
 )
 
 var (

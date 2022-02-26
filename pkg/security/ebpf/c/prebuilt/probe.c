@@ -12,6 +12,7 @@
 #include "defs.h"
 #include "buffer_selector.h"
 #include "filters.h"
+#include "activity_dump.h"
 #include "approvers.h"
 #include "discarders.h"
 #include "dentry.h"

@@ -996,6 +996,11 @@ func InitConfig(config Config) {
 	config.BindEnv("runtime_security_config.enable_runtime_compiled_constants")
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.cleanup_period", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.tags_resolution_period", 60)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.traced_cgroups_count", -1)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.traced_event_types", []string{"exec", "open"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.default_dump_timeout", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.cgroups_wait_list_size", 10)
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)

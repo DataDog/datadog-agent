@@ -162,6 +162,7 @@ type Event struct {
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
+	CgroupTracing    CgroupTracingEvent    `field:"-"`
 }
 
 // GetType returns the event type
@@ -692,4 +693,10 @@ type SpliceEvent struct {
 	File          FileEvent `field:"file"`            // File modified by the splice syscall
 	PipeEntryFlag uint32    `field:"pipe_entry_flag"` // Entry flag of the "fd_out" pipe passed to the splice syscall
 	PipeExitFlag  uint32    `field:"pipe_exit_flag"`  // Exit flag of the "fd_out" pipe passed to the splice syscall
+}
+
+// CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
+type CgroupTracingEvent struct {
+	ContainerContext ContainerContext
+	TimeoutRaw       uint64
 }

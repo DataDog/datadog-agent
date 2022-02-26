@@ -16,7 +16,7 @@
 #define FAKE_INODE_MSW 0xdeadc001UL
 
 #define DR_MAX_TAIL_CALL          30
-#define DR_MAX_ITERATION_DEPTH    46
+#define DR_MAX_ITERATION_DEPTH    50
 #define DR_MAX_SEGMENT_LENGTH     255
 
 struct path_leaf_t {
@@ -98,7 +98,7 @@ struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_progs") dentry_resolver_
     .max_entries = 1,
 };
 
-int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolver_input_t *input) {
+int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct dentry_resolver_input_t *input) {
     struct path_leaf_t map_value = {};
     struct path_key_t key = input->key;
     struct path_key_t next_key = input->key;
@@ -112,11 +112,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
         .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
     };
-    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &params.tgid);
-    if (tgid_exec_ts != NULL) {
-        params.tgid_is_traced = 1;
-        params.tgid_exec_ts = *tgid_exec_ts;
-    }
+    // check if we should ignore the normal discarder check because of an activity dump
+    fill_activity_dump_discarder_state(ctx, &params);
 
     if (key.ino == 0 || key.mount_id == 0) {
         return DENTRY_INVALID;
@@ -194,7 +191,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
         return 0;                                                                                                      \
                                                                                                                        \
     syscall->resolver.iteration++;                                                                                     \
-    syscall->resolver.ret = resolve_dentry_tail_call(&syscall->resolver);                                              \
+    syscall->resolver.ret = resolve_dentry_tail_call(ctx, &syscall->resolver);                                         \
                                                                                                                        \
     if (syscall->resolver.ret > 0) {                                                                                   \
         if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {                        \

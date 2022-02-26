@@ -113,8 +113,19 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+const (
+	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
+	MaxTracedCgroupsCount = 1000
+)
+
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupsWaitListSize int) map[string]manager.MapSpecEditor {
+	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
+		tracedCgroupsCount = MaxTracedCgroupsCount
+	}
+	if cgroupsWaitListSize <= 0 || cgroupsWaitListSize > MaxTracedCgroupsCount {
+		tracedCgroupsCount = MaxTracedCgroupsCount
+	}
 	return map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: uint32(4096 * numCPU),
@@ -127,6 +138,15 @@ func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
 		"pathnames": {
 			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~27 MB
 			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 96000)),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"traced_cgroups": {
+			MaxEntries: uint32(tracedCgroupsCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"cgroups_wait_list": {
+			MaxEntries: uint32(cgroupsWaitListSize),
+			EditorFlag: manager.EditMaxEntries,
 		},
 	}
 }

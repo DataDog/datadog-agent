@@ -229,33 +229,39 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
 
 // DumpActivity handles an activity dump request
-func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (string, string, error) {
+func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return "", "", ErrActivityDumpManagerDisabled
+		return nil, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.DumpActivity(params)
 }
 
 // ListActivityDumps returns the list of active dumps
-func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) ([]string, error) {
+func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return nil, ErrActivityDumpManagerDisabled
+		return &api.SecurityActivityDumpListMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
-	return m.activityDumpManager.ListActivityDumps(params), nil
+	return m.activityDumpManager.ListActivityDumps(params)
 }
 
 // StopActivityDump stops an active activity dump
-func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) error {
+func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return ErrActivityDumpManagerDisabled
+		return &api.SecurityActivityDumpStoppedMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.StopActivityDump(params)
 }
 
 // GenerateProfile returns a profile from the provided activity dump
-func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (string, error) {
+func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return "", ErrActivityDumpManagerDisabled
+		return &api.SecurityProfileGeneratedMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.GenerateProfile(params)
 }

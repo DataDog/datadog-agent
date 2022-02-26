@@ -116,67 +116,54 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 
 // DumpActivity handle an activity dump request
 func (a *APIServer) DumpActivity(ctx context.Context, params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
-	var filename, graph string
-	var err error
-
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		filename, graph, err = monitor.DumpActivity(params)
+		msg, err := monitor.DumpActivity(params)
 		if err != nil {
-			return nil, err
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityActivityDumpMessage{
-		OutputFilename: filename,
-		GraphFilename:  graph,
-	}, nil
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
-	var activeDumps []string
-	var err error
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		activeDumps, err = monitor.ListActivityDumps(params)
+		msg, err := monitor.ListActivityDumps(params)
 		if err != nil {
-			return nil, err
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityActivityDumpListMessage{
-		DumpTags: activeDumps,
-	}, nil
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 // StopActivityDump stops an active activity dump if it exists
 func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
-	var msg string
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		err := monitor.StopActivityDump(params)
+		msg, err := monitor.StopActivityDump(params)
 		if err != nil {
-			msg = fmt.Sprintf("couldn't stop activity dump: %s", err)
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityActivityDumpStoppedMessage{
-		Error: msg,
-	}, nil
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 // GenerateProfile generates a profile from an activity dump
 func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
-	var output string
-	var err error
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		output, err = monitor.GenerateProfile(params)
+		msg, err := monitor.GenerateProfile(params)
 		if err != nil {
-			return nil, err
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityProfileGeneratedMessage{
-		ProfilePath: output,
-	}, nil
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 func (a *APIServer) enqueue(msg *pendingMsg) {

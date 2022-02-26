@@ -40,26 +40,34 @@ message SecuritySelfTestResultMessage {
 }
 
 message DumpActivityParams {
-    repeated string Tags = 1;
-    string comm = 2;
-    int32 timeout = 3;
-    bool with_graph = 4;
-    bool differentiate_args = 5;
+    string comm = 1;
+    int32 timeout = 2;
+    bool WithGraph = 3;
+    bool DifferentiateArgs = 4;
 }
 
 message SecurityActivityDumpMessage {
     string OutputFilename = 1;
     string GraphFilename = 2;
+    string Comm = 3;
+    string ContainerID = 4;
+    repeated string Tags = 5;
+    bool WithGraph = 6;
+    bool DifferentiateArgs = 7;
+    string Timeout = 8;
+    string Start = 9;
+    string Left = 10;
+    string Error = 11;
 }
 
 message ListActivityDumpsParams {}
 
 message SecurityActivityDumpListMessage {
-    repeated string DumpTags = 1;
+    repeated SecurityActivityDumpMessage Dumps = 1;
+    string Error = 2;
 }
 
 message StopActivityDumpParams {
-    repeated string Tags = 1;
     string Comm = 2;
 }
 
@@ -73,6 +81,7 @@ message GenerateProfileParams {
 
 message SecurityProfileGeneratedMessage {
     string ProfilePath = 1;
+    string Error = 2;
 }
 
 service SecurityModule {

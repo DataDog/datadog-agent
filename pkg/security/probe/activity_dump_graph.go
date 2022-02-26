@@ -92,7 +92,7 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) {
 	processID := fmt.Sprintf("%s_%s_%d", p.Process.PathnameStr, p.Process.ExecTime, p.Process.Tid)
 	var args []string
-	args, _ = ad.resolvers.ProcessResolver.GetProcessArgv(&p.Process)
+	args, _ = ad.adm.probe.resolvers.ProcessResolver.GetProcessArgv(&p.Process)
 	pan := node{
 		ID:    generateNodeID(processID),
 		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, strings.Join(args, " ")),

@@ -348,6 +348,16 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		p.resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
 
 		return
+	case model.CgroupTracingEventType:
+		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		if p.config.ActivityDumpEnabled {
+			p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
+		}
+		return
 	}
 
 	read, err = p.unmarshalContexts(data[offset:], event)
@@ -899,7 +909,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
 	}
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU)
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupsWaitListSize)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -963,6 +973,14 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",
 			Value: getCheckHelperCallInputType(p),
+		},
+		manager.ConstantEditor{
+			Name:  "traced_cgroups_count",
+			Value: getTracedCgroupsCount(p),
+		},
+		manager.ConstantEditor{
+			Name:  "dump_timeout",
+			Value: getDefaultDumpTimeout(p),
 		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
