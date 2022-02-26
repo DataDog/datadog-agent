@@ -14,9 +14,13 @@ public class LogHandler implements RequestHandler<APIGatewayV2ProxyRequestEvent,
 		res.put("statusCode", 200);
 		res.put("body", "ok");
 
+		Thread.sleep(250);
 		System.out.println("XXX Log 0 XXX");
+		Thread.sleep(250);
 		System.out.println("XXX Log 1 XXX");
+		Thread.sleep(250);
 		System.out.println("XXX Log 2 XXX");
+		Thread.sleep(250);
 
 		ddl.finish();
 		return res;

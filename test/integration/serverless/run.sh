@@ -178,8 +178,6 @@ functions_to_skip=(
     "timeout-go"
     "timeout-csharp"
     "timeout-proxy"
-    # Skip log-csharp for now, test that everything else works
-    # "log-csharp"
 )
 
 echo "Invoking functions for the first time..."
@@ -266,7 +264,10 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g"
+                perl -p -e "s/[ ]$//g" |
+                # ignore a Lambda error that occurs sporratically for log-csharp
+                # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
+                perl -n -e 'print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/'
         )
     else
         # Normalize traces
