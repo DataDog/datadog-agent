@@ -147,7 +147,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ExecTime = time.Unix(0, int64(ByteOrder.Uint64(data[read:read+8])))
+	e.ExecTime = unmarshalTime(data[read : read+8])
 	read += 8
 
 	var ttyRaw [64]byte
@@ -170,7 +170,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += 16
 
 	// Unmarshal pid_cache_t
-	e.Cookie = ByteOrder.Uint32(data[read : read+4])
+	cookie := ByteOrder.Uint32(data[read : read+4])
+	if cookie > 0 {
+		e.Cookie = cookie
+	}
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
 	e.ForkTime = unmarshalTime(data[read+8 : read+16])
