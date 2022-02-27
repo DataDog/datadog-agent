@@ -77,7 +77,8 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
         }
         if ('0' < curr && curr <= '9') {
             return 1;
-        } else if (curr != '0') {
+        }
+        if (curr != '0') {
             return 0;
         }
     }

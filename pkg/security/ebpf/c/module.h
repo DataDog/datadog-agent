@@ -61,13 +61,13 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
 
 SEC("kprobe/security_kernel_module_from_file")
 int kprobe_security_kernel_module_from_file(struct pt_regs *ctx) {
-    struct file *f = (struct file*) PT_REGS_PARM1(ctx);
+    struct file *f = (struct file *)PT_REGS_PARM1(ctx);
     return trace_kernel_file(ctx, f);
 }
 
 SEC("kprobe/security_kernel_read_file")
 int kprobe_security_kernel_read_file(struct pt_regs *ctx) {
-    struct file *f = (struct file*) PT_REGS_PARM1(ctx);
+    struct file *f = (struct file *)PT_REGS_PARM1(ctx);
     return trace_kernel_file(ctx, f);
 }
 
@@ -146,7 +146,7 @@ struct delete_module_event_t {
     char name[MODULE_NAME_LEN];
 };
 
-SYSCALL_KPROBE1(delete_module, const const const char *, name_user) {
+SYSCALL_KPROBE1(delete_module, const char *, name_user) {
     struct policy_t policy = fetch_policy(EVENT_DELETE_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_DELETE_MODULE)) {
         return 0;
