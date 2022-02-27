@@ -77,8 +77,9 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
 
 void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
-    if (entry == NULL)
+    if (entry == NULL) {
         return NULL;
+    }
 
     struct discarder_params_t *params = (struct discarder_params_t *)entry;
 
@@ -368,8 +369,9 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
 
     if (mode != NO_FILTER) {
         // try with pid first
-        if (is_discarded_by_pid(event_type, tgid))
+        if (is_discarded_by_pid(event_type, tgid)) {
             return 1;
+        }
 
         struct proc_cache_t *entry = get_proc_cache(tgid);
         if (entry != NULL) {

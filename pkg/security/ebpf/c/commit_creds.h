@@ -45,11 +45,13 @@ int __attribute__((always_inline)) credentials_predicate(u64 type) {
 
 int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (retval < 0)
+    if (retval < 0) {
         return 0;
+    }
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);

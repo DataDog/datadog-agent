@@ -519,8 +519,9 @@ struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
 static __attribute__((always_inline)) u64 get_enabled_events(void) {
     u32 key = 0;
     u64 *mask = bpf_map_lookup_elem(&enabled_events, &key);
-    if (mask)
+    if (mask) {
         return *mask;
+    }
     return 0;
 }
 

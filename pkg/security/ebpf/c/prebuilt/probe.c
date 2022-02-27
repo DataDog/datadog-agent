@@ -59,8 +59,9 @@ struct invalidate_dentry_event_t {
 };
 
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event) {
-    if (!inode || !mount_id)
+    if (!inode || !mount_id) {
         return;
+    }
 
     if (!is_flushing_discarders()) {
         // remove both regular and parent discarders

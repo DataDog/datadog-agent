@@ -62,10 +62,11 @@ void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *fla
     bpf_printk("get_overlayfs_ino lower: %d upper: %d\n", lower_inode, upper_inode);
 #endif
 
-    if (upper_inode)
+    if (upper_inode) {
         *flags |= UPPER_LAYER;
-    else if (lower_inode)
+    } else if (lower_inode) {
         *flags |= LOWER_LAYER;
+    }
 
     if (lower_inode) {
         *ino = lower_inode;
