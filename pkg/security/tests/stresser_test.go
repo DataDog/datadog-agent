@@ -286,7 +286,7 @@ LOOP:
 		}
 	}
 
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 
 	pprof.StopCPUProfile()
 	proCPUFile.Close()

@@ -64,7 +64,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		}
 
 		if size > 0 {
-			data := make([]byte, size, size)
+			data := make([]byte, size)
 			if n, err := f.Write(data); err != nil || n != 1024 {
 				return err
 			}

@@ -6,6 +6,8 @@
 //go:build functionaltests || stresstests
 // +build functionaltests stresstests
 
+//lint:file-ignore U1000 Trace Pipe Logger is useful for debugging
+
 package tests
 
 import (
