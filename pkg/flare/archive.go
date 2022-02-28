@@ -139,7 +139,7 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/block",
 		},
 	} {
-		b, err := apiutil.DoGet(c, prof.URL, util.LeaveConnectionOpen)
+		b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
 		if err != nil {
 			return err
 		}
