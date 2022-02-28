@@ -39,7 +39,7 @@ func debugRuntime(_ *cobra.Command, args []string) error {
 	}
 
 	// TODO rather than allowing arbitrary query params, use cobra flags
-	r, err := util.DoGet(c, "http://localhost/debug/"+args[0], util.LeaveConnectionOpen)
+	r, err := util.DoGet(c, "http://localhost/debug/"+args[0], util.CloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
