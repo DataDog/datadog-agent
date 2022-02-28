@@ -157,25 +157,14 @@ class App:
             print(f"Exception when calling CloudWorkloadSecurityApi->delete_cloud_workload_security_agent_rule: {e}")
 
     def download_policies(self):
-        site = os.environ["DD_SITE"]
-        api_key = os.environ["DD_API_KEY"]
-        app_key = os.environ["DD_APP_KEY"]
-
-        url = f"https://api.{site}/api/v2/security/cloud_workload/policy/download"
-        with requests.get(
-            url,
-            headers={
-                "Content-Type": "application/json",
-                "DD-API-KEY": api_key,
-                "DD-APPLICATION-KEY": app_key,
-            },
-            stream=True,
-        ) as response:
-            with tempfile.NamedTemporaryFile(prefix="e2e-test-", mode="wb", delete=False) as fp:
-                for chunk in response.iter_content(chunk_size=4096):
-                    fp.write(chunk)
-
-                return fp.name
+        # TODO: launch the downlaod directly from the docker/kube-pod?
+        dd_security_agent_path = os.getenv('DD_SECURITY_AGENT_PATH')
+        if not dd_security_agent_path:
+            dd_security_agent_path = "./bin/security-agent/security-agent"
+        policy = tempfile.NamedTemporaryFile(prefix="e2e-test-", mode="wb", delete=False)
+        dl_cmd = dd_security_agent_path + " runtime policy download --output-path " + policy.name + " 2>/dev/null"
+        os.system(dl_cmd)
+        return policy.name
 
     def wait_app_log(self, query, tries=30, delay=10):
         return retry_call(get_app_log, fargs=[self.api_client, query], tries=tries, delay=delay)

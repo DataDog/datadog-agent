@@ -23,3 +23,5 @@ python3 tests/test_e2e_cspm_docker.py
 ```
 
 Please change `DD_AGENT_IMAGE` to a branch specific tag if you need to test a specific branch.
+
+NOTE: You can specify the security-agent path by passing it with `DD_SECURITY_AGENT_PATH`

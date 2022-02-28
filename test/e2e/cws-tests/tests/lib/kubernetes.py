@@ -49,8 +49,8 @@ class KubernetesHelper(LogGetter):
             tty=False,
         )
 
-    def kill_agent(self, agent_name, signal):
-        command = ['pkill', signal, agent_name]
+    def reload_policies(self, agent_name):
+        command = ['/opt/datadog-agent/embedded/bin/security-agent', 'runtime', 'policy', 'reload']
         self.exec_command(agent_name, command=command)
 
     def cp_to_agent(self, agent_name, src_file, dst_file):

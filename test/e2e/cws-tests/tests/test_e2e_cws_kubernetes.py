@@ -95,7 +95,7 @@ class TestE2EKubernetes(unittest.TestCase):
             self.kubernetes_helper.cp_to_agent("system-probe", self.policies, "/tmp/runtime-security.d/default.policy")
 
         with Step(msg="restart system-probe", emoji=":rocket:"):
-            self.kubernetes_helper.kill_agent("system-probe", "-HUP")
+            self.kubernetes_helper.reload_policies("system-probe")
             time.sleep(60)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
