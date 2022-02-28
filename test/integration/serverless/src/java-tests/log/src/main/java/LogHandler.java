@@ -14,6 +14,7 @@ public class LogHandler implements RequestHandler<APIGatewayV2ProxyRequestEvent,
 		res.put("statusCode", 200);
 		res.put("body", "ok");
 
+		// Sleep to ensure correct log ordering
 		sleepHelper();
 		System.out.println("XXX Log 0 XXX");
 		sleepHelper();

@@ -1,6 +1,7 @@
 const { datadog } = require("datadog-lambda-js");
 
 async function myHandler(event, context) {
+  // Sleep to ensure correct log ordering
   await sleep();
   console.error("XXX LOG 0 XXX");
   await sleep();
