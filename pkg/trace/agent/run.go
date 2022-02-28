@@ -223,7 +223,7 @@ func (corelogger) Info(v ...interface{}) { log.Info(v...) }
 func (corelogger) Infof(format string, params ...interface{}) { log.Infof(format, params...) }
 
 // Warn implements Logger.
-func (corelogger) Warn(v ...interface{}) error { return log.Warn(v) }
+func (corelogger) Warn(v ...interface{}) error { return log.Warn(v...) }
 
 // Warnf implements Logger.
 func (corelogger) Warnf(format string, params ...interface{}) error {

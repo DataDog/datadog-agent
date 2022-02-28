@@ -19,9 +19,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewIntakeReverseProxy returns the AppSec Intake Proxy handler according to
@@ -71,7 +70,7 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 		}
 	}
 	proxy.Transport = withMetrics(transport, maxPayloadSize)
-	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "Appsec backend proxy: ", 0)
+	proxy.ErrorLog = stdlog.New(log.NewThrottled(5, 10*time.Second), "Appsec backend proxy: ", 0)
 	return proxy
 }
 
