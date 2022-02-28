@@ -5,18 +5,9 @@
 # Copyright (C) 2020-present Datadog
 #
 
-if azure? && !platform?('windows')
-  directory '/mnt/system-probe-tests' do
-    owner 'root'
-    group 'root'
-    mode '0777'
-    action :create
-  end
-  link '/tmp/system-probe-tests' do
-    to '/mnt/system-probe-tests'
-  end
+if !platform?('windows')
+  include_recipe "::linux_use_azure_mnt"
 end
-
 
 # This will copy the whole file tree from COOKBOOK_NAME/files/default/tests
 # to the directory where RSpec is expecting them.
