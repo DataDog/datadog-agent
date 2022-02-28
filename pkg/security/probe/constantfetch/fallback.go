@@ -107,6 +107,10 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 704
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 704
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		sizeOf = 584
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		sizeOf = 584
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
 		sizeOf = 608
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
@@ -148,6 +152,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 416
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		ttyOffset = 368
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		ttyOffset = 400
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19):
 		ttyOffset = 376
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
@@ -248,6 +254,8 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 80
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
 		nameOffset = 80
+	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
+		return ErrorSentinel
 	}
 
 	return nameOffset
@@ -261,6 +269,8 @@ func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	auxOffset := uint64(32)
 
 	switch {
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		auxOffset = 24
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
 		auxOffset = 56
 	}
@@ -269,7 +279,14 @@ func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 }
 
 func getBpfProgTagOffset(kv *kernel.Version) uint64 {
-	return uint64(20)
+	progTagOffset := uint64(20)
+	switch {
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		progTagOffset = 16
+	default:
+	}
+
+	return progTagOffset
 }
 
 func getBpfProgTypeOffset(kv *kernel.Version) uint64 {
@@ -291,6 +308,8 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 	case kv.IsSLES15Kernel():
 		idOffset = 28
 	case kv.IsSLES12Kernel():
+		idOffset = 16
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		idOffset = 16
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel5_0):
@@ -386,6 +405,8 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 	case kv.IsSLES12Kernel():
 		sizeOfUpid = 16
 	case kv.IsSLES15Kernel():
+		sizeOfUpid = 32
+	case kv.IsAmazonLinuxKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		sizeOfUpid = 32
 	}
 	return sizeOfUpid

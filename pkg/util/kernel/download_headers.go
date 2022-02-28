@@ -87,7 +87,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 func (h *headerDownloader) verifyReposDir(target types.Target) (string, error) {
 	var reposDir string
 	switch strings.ToLower(target.Distro.Display) {
-	case "fedora", "rhel", "redhat", "centos":
+	case "fedora", "rhel", "redhat", "centos", "amazon":
 		reposDir = h.yumReposDir
 	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic", "suse", "sles", "sled", "caasp":
 		reposDir = h.zypperReposDir
