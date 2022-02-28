@@ -299,15 +299,11 @@ func chunkProcessesAndContainers(
 
 	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], nil, maxChunkSize, maxChunkWeight, chunker)
 
-	totalContainers := 0
+	totalContainers := len(containers)
 	for _, ctr := range containers {
 		procs := procsByCtr[ctr.Id]
-		if len(procs) == 0 {
-			// can happen if a process is skipped (e.g. disallowlisted)
-			continue
-		}
 		totalProcs += len(procs)
-		totalContainers++
+
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
 	return chunker.collectorProcs, totalProcs, totalContainers

@@ -272,6 +272,16 @@ func TestComputeTPSPerSig(t *testing.T) {
 	}
 }
 
+func TestDefaultRate(t *testing.T) {
+	targetTPS := 10.0
+	s := newSampler(1, targetTPS, nil)
+	s.countWeightedSig(time.Now(), Signature(0), 1000)
+
+	_, defaultRate := s.getAllSignatureSampleRates()
+	assert.Equal(t, 1.0/20, defaultRate)
+	assert.Equal(t, 1.0/20, s.getSignatureSampleRate(Signature(100)))
+}
+
 func TestTargetTPSPerSigUpdate(t *testing.T) {
 	targetTPS := 10.0
 	s := newSampler(1, targetTPS, nil)
