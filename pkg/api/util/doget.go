@@ -13,10 +13,14 @@ import (
 	"net/http"
 )
 
+// ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
+// connection after reading the response
 type ShouldCloseConnection int
 
 const (
+	// LeaveConnectionOpen keeps the underlying connection open after reading the request response
 	LeaveConnectionOpen ShouldCloseConnection = iota
+	// CloseConnection closes the underlying connection after reading the request response
 	CloseConnection
 )
 
