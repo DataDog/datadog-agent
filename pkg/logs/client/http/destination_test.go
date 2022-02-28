@@ -68,9 +68,33 @@ func TestDestinationSend200(t *testing.T) {
 }
 
 func TestRetries(t *testing.T) {
+	// We retry more than just these status codes - testing these to spot check retry works correctly.
 	retryTest(t, 500)
 	retryTest(t, 429)
 	retryTest(t, 404)
+}
+
+func TestNoRetries(t *testing.T) {
+	testNoRetry(t, 400)
+	testNoRetry(t, 401)
+	testNoRetry(t, 403)
+	testNoRetry(t, 413)
+}
+
+func testNoRetry(t *testing.T, statusCode int) {
+	server := NewTestServer(statusCode)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	server.Destination.Start(input, output, nil)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	<-output
+
+	// Should not retry this request - no error reported back (because it's not retryable) so input should be unblocked
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	<-output
+
+	server.Stop()
 }
 
 func retryTest(t *testing.T, statusCode int) {
@@ -124,22 +148,6 @@ func TestDestinationContextCancel(t *testing.T) {
 	// has been canceled and the payload will be dropped. In the real agent, this channel would be closed
 	// by the caller while the agent is shutting down
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	server.Stop()
-}
-
-func TestDestinationSend400(t *testing.T) {
-	server := NewTestServer(400)
-	input := make(chan *message.Payload)
-	output := make(chan *message.Payload)
-	server.Destination.Start(input, output, nil)
-
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	<-output
-
-	// Should not retry 400 - no error reported back (because it's not retryable) so input should be unblocked
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	<-output
-
 	server.Stop()
 }
 

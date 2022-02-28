@@ -298,15 +298,17 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if resp.StatusCode >= 400 {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}
-	if resp.StatusCode == 404 || resp.StatusCode == 429 || resp.StatusCode >= 500 {
-		// the server could not serve the request, most likely because of an
-		// internal error or, (429) because it is overwhelmed, (404) on
-		// endpoints that don't exist in a DD region, or a http proxy.
-		return client.NewRetryableError(errServer)
-	} else if resp.StatusCode >= 400 {
+	if resp.StatusCode == 400 ||
+		resp.StatusCode == 401 ||
+		resp.StatusCode == 403 ||
+		resp.StatusCode == 413 {
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
 		return errClient
+	} else if resp.StatusCode > 400 {
+		// the server could not serve the request, most likely because of an
+		// internal error. We should retry these requests.
+		return client.NewRetryableError(errServer)
 	} else {
 		return nil
 	}

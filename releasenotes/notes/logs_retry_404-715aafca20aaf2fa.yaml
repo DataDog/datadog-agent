@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Retry logs HTTP transaction when the HTTP status code is 404 (Not found).
+    Retry more HTTP status codes for the logs agent HTTP destination. 
