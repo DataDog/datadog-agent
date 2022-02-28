@@ -105,7 +105,6 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	err = CompileProcessingRules(rules)
 	if err != nil {
 		return nil, err
