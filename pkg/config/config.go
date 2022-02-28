@@ -282,7 +282,6 @@ func InitConfig(config Config) {
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
-	config.BindEnvAndSetDefault("remote_configuration.endpoint", "")
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
