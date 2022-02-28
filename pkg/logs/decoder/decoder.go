@@ -87,7 +87,7 @@ func InitializeDecoder(source *config.LogSource, parser parsers.Parser) *Decoder
 // NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
 func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parser, matcher breaker.EndLineMatcher, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
-	outputChan := make(chan *Message, 10)
+	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
 	detectedPattern := &DetectedPattern{}
 
