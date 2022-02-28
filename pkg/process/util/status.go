@@ -23,10 +23,12 @@ var (
 	clientInitOnce sync.Once
 )
 
-func initHTTPClient() {
+func getHTTPClient() *http.Client {
 	clientInitOnce.Do(func() {
 		httpClient = apiutil.GetClient(false)
 	})
+
+	return httpClient
 }
 
 // CoreStatus holds core info about the process-agent
@@ -130,8 +132,8 @@ func getCoreStatus() (s CoreStatus) {
 }
 
 func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
-	initHTTPClient()
-	b, err := apiutil.DoGet(httpClient, expVarURL, apiutil.CloseConnection)
+	client := getHTTPClient()
+	b, err := apiutil.DoGet(client, expVarURL, apiutil.CloseConnection)
 	if err != nil {
 		return s, ConnectionError{err}
 	}

@@ -25,10 +25,12 @@ var (
 	clientInitOnce sync.Once
 )
 
-func initHTTPClient() {
+func getHTTPClient() *http.Client {
 	clientInitOnce.Do(func() {
 		httpClient = apiutil.GetClient(false)
 	})
+
+	return httpClient
 }
 
 // GetProcessAgentStatus fetches the process-agent status from the process-agent API server
@@ -40,9 +42,9 @@ func GetProcessAgentStatus() map[string]interface{} {
 		return s
 	}
 
-	initHTTPClient()
+	client := getHTTPClient()
 	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
-	b, err := apiutil.DoGet(httpClient, statusEndpoint, apiutil.CloseConnection)
+	b, err := apiutil.DoGet(client, statusEndpoint, apiutil.CloseConnection)
 	if err != nil {
 		s["error"] = fmt.Sprintf("%v", err.Error())
 		return s
@@ -77,8 +79,8 @@ func marshalError(err error) []byte {
 // Since the api_key has been obfuscated with *, we're not able to unmarshal the response as YAML because *
 // is not a valid YAML character
 func GetProcessAgentRuntimeConfig(statusURL string) []byte {
-	initHTTPClient()
-	b, err := apiutil.DoGet(httpClient, statusURL, apiutil.CloseConnection)
+	client := getHTTPClient()
+	b, err := apiutil.DoGet(client, statusURL, apiutil.CloseConnection)
 	if err != nil {
 		return marshalError(fmt.Errorf("process-agent is not running or is unreachable"))
 	}
