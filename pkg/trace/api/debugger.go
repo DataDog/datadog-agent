@@ -16,10 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -62,7 +61,7 @@ func debuggerErrorHandler(err error) http.Handler {
 
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
 func newDebuggerProxy(rt http.RoundTripper, target *url.URL, key string, tags string) *httputil.ReverseProxy {
-	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	director := func(req *http.Request) {
 		ddtags := tags
 		containerID := req.Header.Get(headerContainerID)

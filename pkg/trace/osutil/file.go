@@ -10,7 +10,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // Exists reports whether the given path exists.

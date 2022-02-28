@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -34,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -1171,7 +1171,7 @@ func BenchmarkThroughput(b *testing.B) {
 		b.SkipNow()
 	}
 
-	ddlog.SetupLogger(seelog.Disabled, "") // disable logging
+	log.SetLogger(log.NoopLogger) // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {

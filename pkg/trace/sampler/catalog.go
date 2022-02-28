@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultServiceRateKey specifies the key for the default rate to be used by any service that

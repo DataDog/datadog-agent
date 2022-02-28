@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
@@ -88,6 +89,7 @@ func Run(ctx context.Context) {
 	); err != nil {
 		osutil.Exitf("Cannot create logger: %v", err)
 	}
+	tracelog.SetLogger(corelogger{})
 	defer log.Flush()
 
 	if !cfg.Enabled {
@@ -199,3 +201,50 @@ func Run(ctx context.Context) {
 		f.Close()
 	}
 }
+
+type corelogger struct{}
+
+// Trace implements Logger.
+func (corelogger) Trace(v ...interface{}) { log.Trace(v...) }
+
+// Tracef implements Logger.
+func (corelogger) Tracef(format string, params ...interface{}) { log.Tracef(format, params...) }
+
+// Debug implements Logger.
+func (corelogger) Debug(v ...interface{}) { log.Debug(v...) }
+
+// Debugf implements Logger.
+func (corelogger) Debugf(format string, params ...interface{}) { log.Debugf(format, params...) }
+
+// Info implements Logger.
+func (corelogger) Info(v ...interface{}) { log.Info(v...) }
+
+// Infof implements Logger.
+func (corelogger) Infof(format string, params ...interface{}) { log.Infof(format, params...) }
+
+// Warn implements Logger.
+func (corelogger) Warn(v ...interface{}) error { return log.Warn(v) }
+
+// Warnf implements Logger.
+func (corelogger) Warnf(format string, params ...interface{}) error {
+	return log.Warnf(format, params...)
+}
+
+// Error implements Logger.
+func (corelogger) Error(v ...interface{}) error { return log.Error(v...) }
+
+// Errorf implements Logger.
+func (corelogger) Errorf(format string, params ...interface{}) error {
+	return log.Errorf(format, params...)
+}
+
+// Critical implements Logger.
+func (corelogger) Critical(v ...interface{}) error { return log.Critical(v...) }
+
+// Criticalf implements Logger.
+func (corelogger) Criticalf(format string, params ...interface{}) error {
+	return log.Criticalf(format, params...)
+}
+
+// Flush implements Logger.
+func (corelogger) Flush() { log.Flush() }

@@ -9,8 +9,8 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/golang/protobuf/proto"

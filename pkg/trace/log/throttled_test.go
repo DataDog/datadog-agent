@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logutil
+package log
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,12 +19,12 @@ func TestThrottled(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
+
 	t.Run("basic", func(t *testing.T) {
 		l := NewThrottled(2, 10*time.Millisecond)
 		var out bytes.Buffer
-		logFunc := func(format string, params ...interface{}) error {
+		logFunc := func(format string, params ...interface{}) {
 			out.WriteString(fmt.Sprintf(format, params...))
-			return nil
 		}
 		for i := 0; i < 10; i++ {
 			l.log(logFunc, "%d\n", i)
@@ -40,9 +39,8 @@ func TestThrottled(t *testing.T) {
 	t.Run("resets", func(t *testing.T) {
 		l := NewThrottled(2, 10*time.Millisecond)
 		var out bytes.Buffer
-		logFunc := func(format string, params ...interface{}) error {
+		logFunc := func(format string, params ...interface{}) {
 			out.WriteString(fmt.Sprintf(format, params...))
-			return nil
 		}
 		l.log(logFunc, "1\n")
 		time.Sleep(20 * time.Millisecond) // reset
@@ -61,10 +59,7 @@ func TestThrottled(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := seelog.ReplaceLogger(logger); err != nil {
-			t.Fatal(err)
-		}
-		log.SetupLogger(logger, "INFO")
+		SetLogger(logger)
 		l := NewThrottled(2, 10*time.Millisecond)
 		l.Write([]byte("1\n"))
 		time.Sleep(20 * time.Millisecond) // reset
@@ -78,6 +73,6 @@ func TestThrottled(t *testing.T) {
 		l.Write([]byte("8\n"))
 		l.Write([]byte("9\n"))
 		logger.Flush()
-		assert.Equal(t, "[Error] 1[Error] 2[Error] 3[Error] 4[Error] 5[Error] Too many similar messages, pausing up to 10ms...", out.String())
+		assert.Equal(t, "[Error] 1\n[Error] 2\n[Error] 3\n[Error] 4\n[Error] 5\n[Error] Too many similar messages, pausing up to 10ms...", out.String())
 	})
 }

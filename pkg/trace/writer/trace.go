@@ -16,11 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
@@ -68,7 +67,7 @@ type TraceWriter struct {
 	syncMode  bool
 	flushChan chan chan struct{}
 
-	easylog *logutil.ThrottledLogger
+	easylog *log.ThrottledLogger
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -85,7 +84,7 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 		flushChan: make(chan chan struct{}),
 		syncMode:  cfg.SynchronousFlushing,
 		tick:      5 * time.Second,
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		easylog:   log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {

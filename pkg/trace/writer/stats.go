@@ -18,11 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -53,7 +52,7 @@ type StatsWriter struct {
 	payloads  []pb.StatsPayload // payloads buffered for sync mode
 	flushChan chan chan struct{}
 
-	easylog *logutil.ThrottledLogger
+	easylog *log.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
@@ -64,7 +63,7 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload) *StatsWr
 		stop:      make(chan struct{}),
 		flushChan: make(chan chan struct{}),
 		syncMode:  cfg.SynchronousFlushing,
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		easylog:   log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {

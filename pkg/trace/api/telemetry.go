@@ -13,9 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
@@ -61,7 +60,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		Transport: r.conf.NewHTTPTransport(),
 		Endpoints: endpoints,
 	}
-	limitedLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	limitedLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))

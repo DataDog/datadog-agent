@@ -18,17 +18,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const testAPIKey = "123"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Disabled, "error")
+	log.SetLogger(log.NoopLogger)
 	os.Exit(m.Run())
 }
 

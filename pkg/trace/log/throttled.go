@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logutil
+package log
 
 import (
 	"sync/atomic"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewThrottled returns a new throttled logger. The returned logger will allow up to n calls in
@@ -26,7 +24,7 @@ type ThrottledLogger struct {
 	d time.Duration
 }
 
-type loggerFunc func(format string, params ...interface{}) error
+type loggerFunc func(format string, params ...interface{})
 
 func (tl *ThrottledLogger) log(logFunc loggerFunc, format string, params ...interface{}) {
 	c := atomic.AddUint64(&tl.c, 1) - 1
@@ -45,12 +43,12 @@ func (tl *ThrottledLogger) log(logFunc loggerFunc, format string, params ...inte
 
 // Error logs the message at the error level.
 func (tl *ThrottledLogger) Error(format string, params ...interface{}) {
-	tl.log(log.Errorf, format, params...)
+	tl.log(Errorf, format, params...)
 }
 
 // Warn logs the message at the warning level.
 func (tl *ThrottledLogger) Warn(format string, params ...interface{}) {
-	tl.log(log.Warnf, format, params...)
+	tl.log(Warnf, format, params...)
 }
 
 // Write implements io.Writer.

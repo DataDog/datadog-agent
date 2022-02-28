@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.

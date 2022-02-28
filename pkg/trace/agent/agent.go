@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -103,7 +103,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	return agnt
 }
 
-// Run starts routers routines and individual pieces then stop them when the exit order is received
+// Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,

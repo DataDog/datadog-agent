@@ -19,10 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -121,7 +120,7 @@ func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []str
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 		// URL, Host and key are set in the transport for each outbound request
 	}
-	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
