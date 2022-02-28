@@ -30,7 +30,7 @@ func NewFallbackConstantFetcher(kv *kernel.Version) *FallbackConstantFetcher {
 }
 
 func (f *FallbackConstantFetcher) appendRequest(id string) {
-	var value = errorSentinel
+	var value = ErrorSentinel
 	switch id {
 	case "sizeof_inode":
 		value = getSizeOfStructInode(f.kernelVersion)
