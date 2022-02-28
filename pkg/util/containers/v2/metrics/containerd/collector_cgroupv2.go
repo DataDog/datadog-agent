@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build containerd
-// +build containerd
+//go:build containerd && linux
+// +build containerd,linux
 
 package containerd
 
@@ -13,15 +13,12 @@ import (
 	"time"
 
 	v2 "github.com/containerd/cgroups/v2/stats"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/oci"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-func getContainerdStatsV2(metrics *v2.Metrics, container containers.Container, OCISpec *oci.Spec, processes []containerd.ProcessInfo) *provider.ContainerStats {
+func getContainerdStatsV2(metrics *v2.Metrics) *provider.ContainerStats {
 	if metrics == nil {
 		return nil
 	}
@@ -30,13 +27,13 @@ func getContainerdStatsV2(metrics *v2.Metrics, container containers.Container, O
 
 	return &provider.ContainerStats{
 		Timestamp: currentTime,
-		CPU:       getCPUStatsCgroupV2(metrics.CPU, currentTime, container.CreatedAt, OCISpec),
+		CPU:       getCPUStatsCgroupV2(metrics.CPU),
 		Memory:    getMemoryStatsCgroupV2(metrics.Memory, metrics.MemoryEvents),
 		IO:        getIOStatsCgroupV2(metrics.Io),
 	}
 }
 
-func getCPUStatsCgroupV2(cpuStat *v2.CPUStat, currentTime time.Time, startTime time.Time, OCISpec *oci.Spec) *provider.ContainerCPUStats {
+func getCPUStatsCgroupV2(cpuStat *v2.CPUStat) *provider.ContainerCPUStats {
 	if cpuStat == nil {
 		return nil
 	}
@@ -48,7 +45,6 @@ func getCPUStatsCgroupV2(cpuStat *v2.CPUStat, currentTime time.Time, startTime t
 		User:             pointer.UIntToFloatPtr(cpuStat.UserUsec * uint64(time.Microsecond)),
 		ThrottledTime:    pointer.UIntToFloatPtr(cpuStat.ThrottledUsec * uint64(time.Microsecond)),
 		ThrottledPeriods: pointer.UIntToFloatPtr(cpuStat.NrThrottled),
-		Limit:            getContainerdCPULimit(currentTime, startTime, OCISpec),
 	}
 }
 
