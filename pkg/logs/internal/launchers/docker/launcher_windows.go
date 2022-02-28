@@ -18,13 +18,13 @@ const (
 	basePath = "c:\\programdata\\docker\\containers"
 )
 
-func checkReadAccess() error {
+func (l *Launcher) checkContainerLogfileAccess() error {
 	// We need read access to the docker folder
 	_, err := ioutil.ReadDir(basePath)
 	return err
 }
 
-// getPath returns the file path of the container log to tail.
-func getPath(id string) string {
+// checkContainerLogfileAccess returns the file path of the container log to tail.
+func (l *Launcher) getContainerLogfilePath(id string) string {
 	return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 }
