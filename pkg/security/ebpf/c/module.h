@@ -172,7 +172,7 @@ int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval
     struct delete_module_event_t event = {
         .syscall.retval = retval,
     };
-    bpf_probe_read_str(&event.name, sizeof(event.name), syscall->delete_module.name);
+    bpf_probe_read_str(&event.name, sizeof(event.name), (void *)syscall->delete_module.name);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
