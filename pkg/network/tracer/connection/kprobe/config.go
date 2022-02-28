@@ -17,20 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
-	if fn, ok := mainProbes[name]; ok {
-		enabled[name] = fn
-		return
-	}
-	if fn, ok := altProbes[name]; ok {
-		enabled[name] = fn
-	}
-}
-
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]string, error) {
-	enabled := make(map[probes.ProbeName]string, 0)
+func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]struct{}, error) {
+	enabled := make(map[probes.ProbeName]struct{}, 0)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -40,55 +30,55 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 
 	if c.CollectTCPConns {
 		if !runtimeTracer && pre410Kernel {
-			enableProbe(enabled, probes.TCPSendMsgPre410)
+			enabled[probes.TCPSendMsgPre410] = struct{}{}
 		} else {
-			enableProbe(enabled, probes.TCPSendMsg)
+			enabled[probes.TCPSendMsg] = struct{}{}
 		}
-		enableProbe(enabled, probes.TCPCleanupRBuf)
-		enableProbe(enabled, probes.TCPClose)
-		enableProbe(enabled, probes.TCPCloseReturn)
-		enableProbe(enabled, probes.InetCskAcceptReturn)
-		enableProbe(enabled, probes.InetCskListenStop)
-		enableProbe(enabled, probes.TCPSetState)
+		enabled[probes.TCPCleanupRBuf] = struct{}{}
+		enabled[probes.TCPClose] = struct{}{}
+		enabled[probes.TCPCloseReturn] = struct{}{}
+		enabled[probes.InetCskAcceptReturn] = struct{}{}
+		enabled[probes.InetCskListenStop] = struct{}{}
+		enabled[probes.TCPSetState] = struct{}{}
 
 		if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
-			enableProbe(enabled, probes.TCPRetransmitPre470)
+			enabled[probes.TCPRetransmitPre470] = struct{}{}
 		} else {
-			enableProbe(enabled, probes.TCPRetransmit)
+			enabled[probes.TCPRetransmit] = struct{}{}
 		}
 
 		missing, err := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"})
 		if err == nil && len(missing) == 0 {
-			enableProbe(enabled, probes.SockFDLookup)
-			enableProbe(enabled, probes.SockFDLookupRet)
-			enableProbe(enabled, probes.DoSendfile)
-			enableProbe(enabled, probes.DoSendfileRet)
+			enabled[probes.SockFDLookup] = struct{}{}
+			enabled[probes.SockFDLookupRet] = struct{}{}
+			enabled[probes.DoSendfile] = struct{}{}
+			enabled[probes.DoSendfileRet] = struct{}{}
 		}
 	}
 
 	if c.CollectUDPConns {
-		enableProbe(enabled, probes.UDPRecvMsgReturn)
-		enableProbe(enabled, probes.UDPDestroySock)
-		enableProbe(enabled, probes.UDPDestroySockReturn)
-		enableProbe(enabled, probes.IPMakeSkb)
-		enableProbe(enabled, probes.InetBind)
-		enableProbe(enabled, probes.InetBindRet)
+		enabled[probes.UDPRecvMsgReturn] = struct{}{}
+		enabled[probes.UDPDestroySock] = struct{}{}
+		enabled[probes.UDPDestroySockReturn] = struct{}{}
+		enabled[probes.IPMakeSkb] = struct{}{}
+		enabled[probes.InetBind] = struct{}{}
+		enabled[probes.InetBindRet] = struct{}{}
 
 		if c.CollectIPv6Conns {
 			if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
-				enableProbe(enabled, probes.IP6MakeSkbPre470)
+				enabled[probes.IP6MakeSkbPre470] = struct{}{}
 			} else {
-				enableProbe(enabled, probes.IP6MakeSkb)
+				enabled[probes.IP6MakeSkb] = struct{}{}
 			}
 
-			enableProbe(enabled, probes.Inet6Bind)
-			enableProbe(enabled, probes.Inet6BindRet)
+			enabled[probes.Inet6Bind] = struct{}{}
+			enabled[probes.Inet6BindRet] = struct{}{}
 		}
 
 		if !runtimeTracer && pre410Kernel {
-			enableProbe(enabled, probes.UDPRecvMsgPre410)
+			enabled[probes.UDPRecvMsgPre410] = struct{}{}
 		} else {
-			enableProbe(enabled, probes.UDPRecvMsg)
+			enabled[probes.UDPRecvMsg] = struct{}{}
 		}
 	}
 
