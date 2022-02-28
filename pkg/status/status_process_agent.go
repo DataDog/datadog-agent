@@ -30,7 +30,7 @@ func GetProcessAgentStatus() map[string]interface{} {
 	}
 
 	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
-	b, err := apiutil.DoGet(httpClient, statusEndpoint)
+	b, err := apiutil.DoGetWithOptions(httpClient, statusEndpoint, true)
 	if err != nil {
 		s["error"] = fmt.Sprintf("%v", err.Error())
 		return s
@@ -65,7 +65,7 @@ func marshalError(err error) []byte {
 // Since the api_key has been obfuscated with *, we're not able to unmarshal the response as YAML because *
 // is not a valid YAML character
 func GetProcessAgentRuntimeConfig(statusURL string) []byte {
-	b, err := apiutil.DoGet(httpClient, statusURL)
+	b, err := apiutil.DoGetWithOptions(httpClient, statusURL, true)
 	if err != nil {
 		return marshalError(fmt.Errorf("process-agent is not running or is unreachable"))
 	}
