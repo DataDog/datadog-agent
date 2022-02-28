@@ -105,6 +105,13 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	for _, rule := range rules {
+		if rule.Type == MultiLine {
+			log.Warn("multi_line processing rules are not supported as global processing rules.")
+		}
+	}
+
 	err = CompileProcessingRules(rules)
 	if err != nil {
 		return nil, err
