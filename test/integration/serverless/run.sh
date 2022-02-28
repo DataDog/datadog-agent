@@ -17,7 +17,7 @@
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
 # DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
-# ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is arm64
+# ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
