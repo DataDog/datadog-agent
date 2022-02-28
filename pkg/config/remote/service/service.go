@@ -123,8 +123,7 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	backendURL := config.Datadog.GetString("remote_configuration.endpoint")
-	http := api.NewHTTPClient(backendURL, apiKey, remoteConfigKey.AppKey)
+	http := api.NewHTTPClient(apiKey, remoteConfigKey.AppKey)
 
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
