@@ -13,6 +13,13 @@ import (
 	"net/http"
 )
 
+type ShouldCloseConnection int
+
+const (
+	LeaveConnectionOpen ShouldCloseConnection = iota
+	CloseConnection
+)
+
 // GetClient is a convenience function returning an http client
 // `GetClient(false)` must be used only for HTTP requests whose destination is
 // localhost (ie, for Agent commands).
@@ -29,20 +36,14 @@ func GetClient(verify bool) *http.Client {
 }
 
 // DoGet is a wrapper around performing HTTP GET requests
-// By default, the underlying connection is kept open after reading the response
-func DoGet(c *http.Client, url string) (body []byte, e error) {
-	return DoGetWithOptions(c, url, false)
-}
-
-// DoGetWithOptions is a wrapper around performing HTTP GET requests with additional options
-func DoGetWithOptions(c *http.Client, url string, close bool) (body []byte, e error) {
+func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
 	req, e := http.NewRequest("GET", url, nil)
 	if e != nil {
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
-	if close {
+	if conn == CloseConnection {
 		req.Close = true
 	}
 

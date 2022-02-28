@@ -139,7 +139,7 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/block",
 		},
 	} {
-		b, err := apiutil.DoGet(c, prof.URL)
+		b, err := apiutil.DoGet(c, prof.URL, util.LeaveConnectionOpen)
 		if err != nil {
 			return err
 		}
@@ -719,7 +719,7 @@ func zipTaggerList(tempDir, hostname string) error {
 
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, taggerListURL)
+	r, err := apiutil.DoGet(c, taggerListURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return err
 	}
@@ -758,7 +758,7 @@ func zipWorkloadList(tempDir, hostname string) error {
 
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, workloadListURL)
+	r, err := apiutil.DoGet(c, workloadListURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return err
 	}

@@ -119,7 +119,7 @@ func getCoreStatus() (s CoreStatus) {
 }
 
 func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
-	b, err := apiutil.DoGetWithOptions(httpClient, expVarURL, true)
+	b, err := apiutil.DoGet(httpClient, expVarURL, apiutil.CloseConnection)
 	if err != nil {
 		return s, ConnectionError{err}
 	}
