@@ -339,7 +339,14 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     security_flags.append(f"-I{security_agent_c_dir}")
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
     security_checks = ["-readability-function-cognitive-complexity"]
-    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix, fail_on_issue=fail_on_issue, checks=security_checks)
+    run_tidy(
+        ctx,
+        files=security_files,
+        build_flags=security_flags,
+        fix=fix,
+        fail_on_issue=fail_on_issue,
+        checks=security_checks,
+    )
 
 
 def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=None):
