@@ -106,17 +106,20 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 		return nil, err
 	}
 
-	for _, rule := range rules {
-		if rule.Type == MultiLine {
-			log.Warn("multi_line processing rules are not supported as global processing rules.")
-		}
-	}
-
 	err = CompileProcessingRules(rules)
 	if err != nil {
 		return nil, err
 	}
 	return rules, nil
+}
+
+func HasMultiLineRule(rules []*ProcessingRule) bool {
+	for _, rule := range rules {
+		if rule.Type == MultiLine {
+			return true
+		}
+	}
+	return false
 }
 
 // BuildEndpoints returns the endpoints to send logs.

@@ -108,6 +108,12 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 		return errors.New(message)
 	}
 
+	if config.HasMultiLineRule(processingRules) {
+		message := "multi_line processing rules are not supported as global processing rules."
+		log.Warn(message)
+		status.AddGlobalWarning(invalidProcessingRules, message)
+	}
+
 	// setup and start the logs agent
 	if !serverless {
 		// regular logs agent
