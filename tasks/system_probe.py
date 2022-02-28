@@ -338,17 +338,21 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     security_flags = list(build_flags)
     security_flags.append(f"-I{security_agent_c_dir}")
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
-    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix, fail_on_issue=fail_on_issue)
+    security_checks = ["-readability-function-cognitive-complexity"]
+    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix, fail_on_issue=fail_on_issue, checks=security_checks)
 
 
-def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
+def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=None):
     flags = ["--quiet"]
     if fix:
         flags.append("--fix")
     if fail_on_issue:
         flags.append("--warnings-as-errors='*'")
 
-    ctx.run(f"clang-tidy {' '.join(flags)} {' '.join(files)} -- {' '.join(build_flags)}")
+    if checks is not None:
+        flags.append(f"--checks={','.join(checks)}")
+
+    ctx.run(f"clang-tidy {' '.join(flags)} {' '.join(files)} -- {' '.join(build_flags)}", warn=True)
 
 
 @task
