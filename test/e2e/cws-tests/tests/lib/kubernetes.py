@@ -5,7 +5,7 @@ from tempfile import TemporaryFile
 from kubernetes import client, config
 from kubernetes.stream import stream
 from lib.log import LogGetter
-
+from lib.const import SEC_AGENT_PATH
 
 class KubernetesHelper(LogGetter):
     def __init__(self, namespace, in_cluster=False):
@@ -50,8 +50,17 @@ class KubernetesHelper(LogGetter):
         )
 
     def reload_policies(self, agent_name):
-        command = ['/opt/datadog-agent/embedded/bin/security-agent', 'runtime', 'policy', 'reload']
+        command = [SEC_AGENT_PATH, 'runtime', 'policy', 'reload']
         self.exec_command(agent_name, command=command)
+
+    # Inside download disabled for now. It will replace the app.download_policies
+    # once we figure out:
+    # . how to check the presence of the wanted test rule
+    # . how to pass env variables (app/api_key and site) to download the policy
+    # def download_policies(self, agent_name):
+    #     command = [SEC_AGENT_PATH, 'runtime', 'policy', 'download', '--output-path',
+    #                '/etc/datadog-agent/runtime-security.d/default.policy']
+    #     self.exec_command(agent_name, command=command)
 
     def cp_to_agent(self, agent_name, src_file, dst_file):
         command = ['tar', 'xvf', '-', '-C', '/tmp']
