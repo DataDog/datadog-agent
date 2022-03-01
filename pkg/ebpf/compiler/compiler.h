@@ -16,6 +16,8 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Support/TargetRegistry.h>
 
+#include "files.h"
+
 class ClangCompiler {
 protected:
     llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diagOpts;
@@ -48,7 +50,7 @@ public:
 private:
     static const std::string main_path;
     static std::once_flag llvm_initialized;
-    static std::map<std::string, std::unique_ptr<llvm::MemoryBuffer> > remapped_files;
+    static std::vector<FileContent<std::unique_ptr<llvm::MemoryBuffer> > > remapped_files;
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
 

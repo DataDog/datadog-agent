@@ -12,7 +12,7 @@
 #include <clang/Lex/PreprocessorOptions.h>
 
 std::once_flag ClangCompiler::llvm_initialized;
-std::map<std::string, std::unique_ptr<llvm::MemoryBuffer> > ClangCompiler::remapped_files;
+std::vector<FileContent<std::unique_ptr<llvm::MemoryBuffer> > > ClangCompiler::remapped_files;
 const std::string ClangCompiler::main_path = "/virtual/main.c";
 
 enum Architecture
@@ -50,7 +50,10 @@ ClangCompiler::ClangCompiler(const char *name)
         LLVMInitializeBPFAsmParser();
 
         for (auto f : MappedFiles::files) {
-            remapped_files[f.first] = llvm::MemoryBuffer::getMemBuffer(f.second);
+            remapped_files.push_back({
+                f.path,
+                llvm::MemoryBuffer::getMemBuffer(f.content),
+            });
         }
     });
 
@@ -167,7 +170,7 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
         invocation->getPreprocessorOpts().addRemappedFile(main_path, &*main_buf);
     }
     for (const auto &f : remapped_files) {
-        invocation->getPreprocessorOpts().addRemappedFile(f.first, &*f.second);
+        invocation->getPreprocessorOpts().addRemappedFile(f.path, &*f.content);
     }
 
     if (outputFile) {

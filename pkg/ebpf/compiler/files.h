@@ -1,12 +1,18 @@
 #ifndef __FILES_H
 #define __FILES_H
 
-#include <map>
+#include <vector>
 #include <string>
+
+template <class T>
+struct FileContent {
+    std::string path;
+    T content;
+};
 
 class MappedFiles {
 public:
-  static const std::map<std::string, const char *> files;
+    static const std::vector<FileContent<const char *> > files;
 };
 
 #endif
