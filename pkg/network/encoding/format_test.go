@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 
@@ -150,6 +151,40 @@ func TestFormatHTTPStats(t *testing.T) {
 	aggregationKey.Method = http.MethodUnknown
 	aggregations := result[aggregationKey].EndpointAggregations
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations)
+}
+
+func BenchmarkFormatHTTPStats(b *testing.B) {
+	b.ReportAllocs()
+
+	var (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		localhost  = util.AddressFromString("127.0.0.1")
+	)
+
+	in := map[http.Key]http.RequestStats{}
+	for i := 0; i < 1000; i++ {
+		httpKey := http.NewKey(
+			localhost,
+			localhost,
+			clientPort,
+			serverPort,
+			fmt.Sprintf("/testpath-%d", i),
+			http.MethodGet,
+		)
+		var httpStats http.RequestStats
+		for i := range httpStats {
+			httpStats[i].Count = 1
+			httpStats[i].FirstLatencySample = 10
+		}
+
+		in[httpKey] = httpStats
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		FormatHTTPStats(in)
+	}
 }
 
 func BenchmarkConnectionReset(b *testing.B) {
