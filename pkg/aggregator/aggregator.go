@@ -235,7 +235,6 @@ type BufferedAggregator struct {
 }
 
 type flushAndSerializeInParallel struct {
-	enabled     bool
 	channelSize int
 	bufferSize  int
 }
@@ -290,7 +289,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
 		agentTags:               tagger.AgentTags,
 		flushAndSerializeInParallel: flushAndSerializeInParallel{
-			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && s != nil && s.IsIterableSeriesSupported(),
 			bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
 			channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
 		},
@@ -523,24 +521,11 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
-	if !agg.flushAndSerializeInParallel.enabled {
+	sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
+	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 
-		series, sketches := agg.GetSeriesAndSketches(trigger.time)
-		agg.appendDefaultSeries(trigger.time, &series)
-
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
-		agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
-
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
+	if len(sketches) > 0 {
+		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 	}
 }
 

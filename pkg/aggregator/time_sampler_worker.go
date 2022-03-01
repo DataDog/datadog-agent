@@ -91,20 +91,9 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	if w.parallelSerialization.enabled {
-		sketches := w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink)
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		var series metrics.Series
-		sketches := w.sampler.flush(float64(trigger.time.Unix()), &series)
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
+	sketches := w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink)
+	if len(sketches) > 0 {
+		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 	}
 	trigger.blockChan <- struct{}{}
 }

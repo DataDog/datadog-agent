@@ -102,7 +102,7 @@ func (series IterableSeries) SplitPayload(times int) ([]marshaler.AbstractMarsha
 		seriesExpvar.Add("SplitMetricsTooBig", 1)
 		tlmSeries.Inc("split_metrics_too_big")
 		var metricName string
-		for k, _ := range metricsPerName {
+		for k := range metricsPerName {
 			metricName = k
 		}
 		return nil, fmt.Errorf("Cannot split metric '%s' into %d payload (it contains %d series)", metricName, times, serieCount)
