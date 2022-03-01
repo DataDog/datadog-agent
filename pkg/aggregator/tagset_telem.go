@@ -91,15 +91,6 @@ func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSe
 	t.updateTelemetry(tagsetSizes, t.hugeSketchesCount, t.tlmHugeSketches)
 }
 
-// updateHugeSeriesTelemetry counts huge and almost-huge series in the given value
-func (t *tagsetTelemetry) updateHugeSeriesTelemetry(series *metrics.Series) {
-	tagsetSizes := make([]uint64, len(*series))
-	for i, s := range *series {
-		tagsetSizes[i] = uint64(s.Tags.Len())
-	}
-	t.updateTelemetry(tagsetSizes, t.hugeSeriesCount, t.tlmHugeSeries)
-}
-
 // updateHugeSerieTelemetry increments huge and almost-huge counters.
 // Same as updateHugeSeriesTelemetry but for a single serie.
 func (t *tagsetTelemetry) updateHugeSerieTelemetry(serie *metrics.Serie) {

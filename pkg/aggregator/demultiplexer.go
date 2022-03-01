@@ -164,7 +164,6 @@ type trigger struct {
 type flushTrigger struct {
 	trigger
 
-	flushedSeries   *[]metrics.Series
 	flushedSketches *[]metrics.SketchSeriesList
 	seriesSink      metrics.SerieSink
 }
@@ -499,7 +498,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
 	// only used when we're using flush/serialize in parallel feature
@@ -522,7 +520,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				time:      start,
 				blockChan: make(chan struct{}),
 			},
-			flushedSeries:   &flushedSeries,
 			flushedSketches: &flushedSketches,
 			seriesSink:      seriesSink,
 		}
@@ -541,7 +538,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				blockChan:         make(chan struct{}),
 				waitForSerializer: waitForSerializer,
 			},
-			flushedSeries:   &flushedSeries,
 			flushedSketches: &flushedSketches,
 			seriesSink:      seriesSink,
 		}
@@ -555,12 +551,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	// collect the series and sketches that the multiple samplers may have reported
 	// ------------------------------------------------------
 
-	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	for _, s := range flushedSeries {
-		series = append(series, s...)
-	}
 	for _, s := range flushedSketches {
 		sketches = append(sketches, s...)
 	}
@@ -569,11 +561,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	// --------------------------
 
 	if logPayloads {
-		log.Debug("Flushing the following Series:")
-		for _, s := range series {
-			log.Debugf("%s", s)
-		}
-
 		log.Debug("Flushing the following Sketches:")
 		for _, s := range sketches {
 			log.Debugf("%s", s)
@@ -582,14 +569,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	// send these to the serializer
 	// ----------------------------
-
-	addFlushCount("Series", int64(len(series)))
-	if len(series) > 0 {
-		log.Debugf("Flushing %d series to the serializer", len(series))
-		err := d.sharedSerializer.SendSeries(series)
-		updateSerieTelemetry(start, uint64(len(series)), err)
-		tagsetTlm.updateHugeSeriesTelemetry(&series)
-	}
 
 	addFlushCount("Sketches", int64(len(sketches)))
 	if len(sketches) > 0 {
@@ -865,7 +844,6 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 		logPayloads,
 		start)
 
-	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
 	trigger := flushTrigger{
@@ -874,7 +852,6 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 			blockChan:         make(chan struct{}),
 			waitForSerializer: waitForSerializer,
 		},
-		flushedSeries:   &flushedSeries,
 		flushedSketches: &flushedSketches,
 		seriesSink:      seriesSink,
 	}
@@ -884,16 +861,11 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 
 	stopIterableSeries(seriesSink, done)
 
-	var series metrics.Series
-	for _, s := range flushedSeries {
-		series = append(series, s...)
-	}
 	var sketches metrics.SketchSeriesList
 	for _, s := range flushedSketches {
 		sketches = append(sketches, s...)
 	}
 
-	d.serializer.SendSeries(series) //nolint:errcheck
 	log.DebugfServerless("Sending sketches payload : %+v", sketches)
 	if len(sketches) > 0 {
 		d.serializer.SendSketch(sketches) //nolint:errcheck
