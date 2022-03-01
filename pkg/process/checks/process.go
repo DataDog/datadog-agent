@@ -164,6 +164,8 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
 	}
+	log.Debugf("containers = %#v\n", containers)
+	log.Debugf("pidToCid = %#v\n", pidToCid)
 
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(containers, pidToCid)
