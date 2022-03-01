@@ -26,7 +26,7 @@ protected:
     std::unique_ptr<clang::driver::Driver> clangDriver;
     llvm::Triple targetTriple;
     std::unique_ptr<llvm::TargetMachine> targetMachine;
-    const llvm::Target *theTarget;
+    const llvm::Target *llvmTarget;
     std::vector<const char *> defaultCflags;
 
     llvm::raw_string_ostream errStream;

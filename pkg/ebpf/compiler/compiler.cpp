@@ -61,16 +61,15 @@ ClangCompiler::ClangCompiler(const char *name)
     std::string arch = "bpf";
     std::string Error;
 
-    theTarget = llvm::TargetRegistry::lookupTarget(targetTriple.getTriple(), Error);
-    if (!theTarget) {
+    llvmTarget = llvm::TargetRegistry::lookupTarget(targetTriple.getTriple(), Error);
+    if (!llvmTarget) {
         errString = "could not lookup target";
         return;
     }
 
     llvm::TargetOptions targetOptions;
-    auto RM = llvm::Optional<llvm::Reloc::Model>();
-    targetMachine = std::unique_ptr<llvm::TargetMachine>(theTarget->createTargetMachine(
-        targetTriple.getTriple(), "generic", "", targetOptions, RM, llvm::None, llvm::CodeGenOpt::Aggressive));
+    targetMachine = std::unique_ptr<llvm::TargetMachine>(llvmTarget->createTargetMachine(
+        targetTriple.getTriple(), "generic", "", targetOptions, {}, llvm::None, llvm::CodeGenOpt::Aggressive));
 
     if (!targetMachine) {
         errString = "could not allocate target machine";
