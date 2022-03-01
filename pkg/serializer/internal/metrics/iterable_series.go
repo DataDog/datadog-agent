@@ -63,7 +63,7 @@ func (series IterableSeries) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing a Series
 	type SeriesAlias Series
 
-	var seriesAlias SeriesAlias
+	seriesAlias := make(SeriesAlias, 0)
 	for series.MoveNext() {
 		serie := series.Current()
 		serie.PopulateDeviceField()
