@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
@@ -29,45 +29,59 @@ func TestConfig(t *testing.T) {
 	}
 	tests := []struct {
 		name           string
-		prepareArg     func() *config.MockConfig
+		prepareArg     func() *config.AgentConfig
 		expectedConfig *Config
 		expectedError  bool
 	}{
 		{
 			name: "default configuration",
-			prepareArg: func() *config.MockConfig {
-				return config.Mock()
+			prepareArg: func() *config.AgentConfig {
+				return config.New()
 			},
 			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
+				Enabled:        true,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "",
-				MaxPayloadSize: config.DefaultAppSecMaxPayloadSize,
+				MaxPayloadSize: 5 * 1024 * 1024,
 			},
 		},
 		{
 			name: "disabled",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("appsec_config.enabled", false)
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.AppSec.Enabled = false
 				return cfg
 			},
 			expectedConfig: &Config{
 				Enabled:        false,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "",
-				MaxPayloadSize: config.DefaultAppSecMaxPayloadSize,
+				MaxPayloadSize: 5 * 1024 * 1024,
 			},
 		},
 		{
 			name: "max payload size",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("appsec_config.max_payload_size", -1)
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.AppSec.MaxPayloadSize = -1
 				return cfg
 			},
 			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
+				Enabled:        true,
+				IntakeURL:      defaultIntakeURL,
+				APIKey:         "",
+				MaxPayloadSize: 5 * 1024 * 1024,
+			},
+		},
+		{
+			name: "max payload size",
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.AppSec.MaxPayloadSize = 0
+				return cfg
+			},
+			expectedConfig: &Config{
+				Enabled:        true,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "",
 				MaxPayloadSize: defaultPayloadSize,
@@ -75,27 +89,13 @@ func TestConfig(t *testing.T) {
 		},
 		{
 			name: "max payload size",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("appsec_config.max_payload_size", 0)
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.AppSec.MaxPayloadSize = 1024
 				return cfg
 			},
 			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
-				IntakeURL:      defaultIntakeURL,
-				APIKey:         "",
-				MaxPayloadSize: defaultPayloadSize,
-			},
-		},
-		{
-			name: "max payload size",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("appsec_config.max_payload_size", 1024)
-				return cfg
-			},
-			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
+				Enabled:        true,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "",
 				MaxPayloadSize: 1024,
@@ -103,51 +103,51 @@ func TestConfig(t *testing.T) {
 		},
 		{
 			name: "api key",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("api_key", "secret token")
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.AppSec.APIKey = "secret token"
 				return cfg
 			},
 			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
+				Enabled:        true,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "secret token",
-				MaxPayloadSize: config.DefaultAppSecMaxPayloadSize,
+				MaxPayloadSize: 5 * 1024 * 1024,
 			},
 		},
 		{
 			name: "intake url from site",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("site", "my.site.com")
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.Site = "my.site.com"
 				return cfg
 			},
 			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
+				Enabled:        true,
 				IntakeURL:      intakeURL("my.site.com"),
 				APIKey:         "",
-				MaxPayloadSize: config.DefaultAppSecMaxPayloadSize,
+				MaxPayloadSize: 5 * 1024 * 1024,
 			},
 		},
 		{
 			name: "intake url from empty site",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("site", "")
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.Site = ""
 				return cfg
 			},
 			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
+				Enabled:        true,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "",
-				MaxPayloadSize: config.DefaultAppSecMaxPayloadSize,
+				MaxPayloadSize: 5 * 1024 * 1024,
 			},
 		},
 		{
 			name: "config with bad site",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("site", "not a site")
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.Site = "not a site"
 				return cfg
 			},
 			expectedConfig: nil,
@@ -155,23 +155,23 @@ func TestConfig(t *testing.T) {
 		},
 		{
 			name: "intake url enforced by config",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("appsec_config.appsec_dd_url", "my.site/url")
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.AppSec.DDURL = "my.site/url"
 				return cfg
 			},
 			expectedConfig: &Config{
-				Enabled:        config.DefaultAppSecEnabled,
+				Enabled:        true,
 				IntakeURL:      mustParseURL("my.site/url"),
 				APIKey:         "",
-				MaxPayloadSize: config.DefaultAppSecMaxPayloadSize,
+				MaxPayloadSize: 5 * 1024 * 1024,
 			},
 		},
 		{
 			name: "bad intake url enforced by config",
-			prepareArg: func() *config.MockConfig {
-				cfg := config.Mock()
-				cfg.Set("appsec_config.appsec_dd_url", "http://my bad url")
+			prepareArg: func() *config.AgentConfig {
+				cfg := config.New()
+				cfg.AppSec.DDURL = "http://my bad url"
 				return cfg
 			},
 			expectedConfig: nil,

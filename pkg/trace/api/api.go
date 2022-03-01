@@ -31,8 +31,6 @@ import (
 	"github.com/tinylib/msgp/msgp"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -44,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -73,14 +70,13 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out             chan *Payload
-	conf            *config.AgentConfig
-	dynConf         *sampler.DynamicConfig
-	server          *http.Server
-	statsProcessor  StatsProcessor
-	appsecHandler   http.Handler
-	coreClient      pbgo.AgentSecureClient // gRPC client to core agent process
-	coreClientToken string
+	out            chan *Payload
+	conf           *config.AgentConfig
+	dynConf        *sampler.DynamicConfig
+	server         *http.Server
+	statsProcessor StatsProcessor
+	appsecHandler  http.Handler
+	coreClient     pbgo.AgentSecureClient // gRPC client to core agent process
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -95,17 +91,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	appsecHandler, err := appsec.NewIntakeReverseProxy(conf.NewHTTPTransport())
+	appsecHandler, err := appsec.NewIntakeReverseProxy(conf)
 	if err != nil {
 		log.Errorf("Could not instantiate AppSec: %v", err)
 	}
 	var coreClient pbgo.AgentSecureClient
-	var coreClientToken string
 	if features.Has("config_endpoint") {
-		coreClientToken, err = security.FetchAuthToken()
-		if err != nil {
-			killProcess("could obtain the auth token for the tracer remote config client: %v", err)
-		}
 		coreClient, err = grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
 			killProcess("could not instantiate the tracer remote config client: %v", err)
@@ -115,13 +106,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:             out,
-		statsProcessor:  statsProcessor,
-		coreClient:      coreClient,
-		coreClientToken: coreClientToken,
-		conf:            conf,
-		dynConf:         dynConf,
-		appsecHandler:   appsecHandler,
+		out:            out,
+		statsProcessor: statsProcessor,
+		coreClient:     coreClient,
+		conf:           conf,
+		dynConf:        dynConf,
+		appsecHandler:  appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -195,10 +185,10 @@ func (r *HTTPReceiver) Start() {
 		log.Infof("Listening for traces at unix://%s", path)
 	}
 
-	if path := mainconfig.Datadog.GetString("apm_config.windows_pipe_name"); path != "" {
+	if path := r.conf.WindowsPipeName; path != "" {
 		pipepath := `\\.\pipe\` + path
-		bufferSize := mainconfig.Datadog.GetInt("apm_config.windows_pipe_buffer_size")
-		secdec := mainconfig.Datadog.GetString("apm_config.windows_pipe_security_descriptor")
+		bufferSize := r.conf.PipeBufferSize
+		secdec := r.conf.PipeSecurityDescriptor
 		ln, err := listenPipe(pipepath, secdec, bufferSize)
 		if err != nil {
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
@@ -250,7 +240,7 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 
 	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// allow the GUI to call this endpoint so that the status can be reported
-		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+mainconfig.Datadog.GetString("GUI_port"))
+		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+r.conf.GUIPort)
 		expvar.Handler().ServeHTTP(w, req)
 	}))
 }
@@ -541,7 +531,7 @@ func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request)
 		return
 	}
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", r.coreClientToken)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", r.conf.AuthToken)},
 	}
 	ctx := metadata.NewOutgoingContext(req.Context(), md)
 	cfg, err := r.coreClient.ClientGetConfigs(ctx, &configsRequest)
@@ -744,7 +734,10 @@ func (r *HTTPReceiver) loop() {
 }
 
 // killProcess exits the process with the given msg; replaced in tests.
-var killProcess = func(format string, a ...interface{}) { osutil.Exitf(format, a...) }
+var killProcess = func(format string, a ...interface{}) {
+	log.Criticalf(format, a...)
+	os.Exit(1)
+}
 
 // watchdog checks the trace-agent's heap and CPU usage and updates the rate limiter using a correct
 // sampling rate to maintain resource usage within set thresholds. These thresholds are defined by

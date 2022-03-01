@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -351,7 +350,7 @@ func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 var _ api.StatsProcessor = (*Agent)(nil)
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != fargate.Unknown)
+	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if !enableContainers || features.Has("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.

@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -552,7 +551,7 @@ func TestConcentratorInput(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			if tc.withFargate {
-				cfg.FargateOrchestrator = fargate.ECS
+				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
 			agent := NewAgent(context.TODO(), cfg)
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})

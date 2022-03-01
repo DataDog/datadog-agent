@@ -21,11 +21,11 @@ const maxRemoteTPS = 12377
 func TestRemoteConfInit(t *testing.T) {
 	assert := assert.New(t)
 	// disabled by default
-	assert.Nil(newRemoteRates(0))
+	assert.Nil(newRemoteRates(0, "6.0.0"))
 	// subscription to subscriber fails
 	old := os.Getenv("DD_APM_FEATURES")
 	os.Setenv("DD_APM_FEATURES", "remote_rates")
-	assert.Nil(newRemoteRates(0))
+	assert.Nil(newRemoteRates(0, "6.0.0"))
 	os.Setenv("DD_APM_FEATURES", old)
 	// todo:raphael mock grpc server
 }

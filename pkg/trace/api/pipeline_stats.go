@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -47,7 +46,7 @@ func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 		return pipelineStatsErrorHandler(err)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
-	if orch := r.conf.FargateOrchestrator; orch != fargate.Unknown {
+	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
 	}

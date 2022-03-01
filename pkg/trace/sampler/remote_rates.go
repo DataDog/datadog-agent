@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -49,11 +48,11 @@ type remoteSampler struct {
 	target pb.TargetTPS
 }
 
-func newRemoteRates(maxTPS float64) *RemoteRates {
+func newRemoteRates(maxTPS float64, agentVersion string) *RemoteRates {
 	if !features.Has("remote_rates") {
 		return nil
 	}
-	client, err := remote.NewClient(remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []data.Product{data.ProductAPMSampling})
+	client, err := remote.NewClient(remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: agentVersion}, []data.Product{data.ProductAPMSampling})
 	if err != nil {
 		log.Errorf("Error when subscribing to remote config management %v", err)
 		return nil

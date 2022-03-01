@@ -18,30 +18,23 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
 func TestIntakeReverseProxy(t *testing.T) {
-	defer func(old coreconfig.Config) { coreconfig.Datadog = old }(coreconfig.Datadog)
-
 	t.Run("appsec enabled by default", func(t *testing.T) {
-		config := coreconfig.Mock()
-		coreconfig.Datadog = config
-
-		proxy, err := NewIntakeReverseProxy(http.DefaultTransport)
+		proxy, err := NewIntakeReverseProxy(config.New())
 		require.NoError(t, err)
 		require.NotNil(t, proxy)
 	})
 
 	t.Run("appsec disabled", func(t *testing.T) {
-		config := coreconfig.Mock()
-		coreconfig.Datadog = config
-
-		config.Set("appsec_config.enabled", false)
-		proxy, err := NewIntakeReverseProxy(http.DefaultTransport)
+		cfg := config.New()
+		cfg.AppSec.Enabled = false
+		proxy, err := NewIntakeReverseProxy(cfg)
 		require.NoError(t, err)
 		require.NotNil(t, proxy)
 
@@ -51,11 +44,9 @@ func TestIntakeReverseProxy(t *testing.T) {
 	})
 
 	t.Run("configuration error", func(t *testing.T) {
-		config := coreconfig.Mock()
-		coreconfig.Datadog = config
-
-		config.Set("site", "not a site")
-		proxy, err := NewIntakeReverseProxy(http.DefaultTransport)
+		cfg := config.New()
+		cfg.Site = "not a site"
+		proxy, err := NewIntakeReverseProxy(cfg)
 		require.Error(t, err)
 		require.NotNil(t, proxy)
 
@@ -65,8 +56,6 @@ func TestIntakeReverseProxy(t *testing.T) {
 	})
 
 	t.Run("proxy handler", func(t *testing.T) {
-		// Helper value and functions
-
 		const (
 			expectedAPIKey         = "an api key"
 			expectedServerEndpoint = "/server/endpoint"

@@ -59,9 +59,9 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 	s := &PrioritySampler{
 		agentEnv:      conf.DefaultEnv,
 		localRates:    newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
-		remoteRates:   newRemoteRates(conf.MaxRemoteTPS),
+		remoteRates:   newRemoteRates(conf.MaxRemoteTPS, conf.AgentVersion),
 		rateByService: &dynConf.RateByService,
-		catalog:       newServiceLookup(),
+		catalog:       newServiceLookup(conf.MaxCatalogEntries),
 		exit:          make(chan struct{}),
 	}
 	return s

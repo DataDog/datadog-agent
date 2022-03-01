@@ -14,11 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -30,13 +29,13 @@ const (
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
 func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
-	if orch := r.conf.FargateOrchestrator; orch != fargate.Unknown {
+	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		tags = tags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
 	}
-	intake := fmt.Sprintf(logsIntakeURLTemplate, config.DefaultSite)
-	if v := config.Datadog.GetString("apm_config.debugger_dd_url"); v != "" {
+	intake := fmt.Sprintf(logsIntakeURLTemplate, r.conf.Site)
+	if v := r.conf.DebuggerProxy.DDURL; v != "" {
 		intake = v
-	} else if site := config.Datadog.GetString("site"); site != "" {
+	} else if site := r.conf.Site; site != "" {
 		intake = fmt.Sprintf(logsIntakeURLTemplate, site)
 	}
 	target, err := url.Parse(intake)
@@ -45,10 +44,10 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 		return debuggerErrorHandler(fmt.Errorf("error parsing debugger intake URL %q: %v", intake, err))
 	}
 	apiKey := r.conf.APIKey()
-	if k := config.Datadog.GetString("apm_config.debugger_api_key"); k != "" {
+	if k := r.conf.DebuggerProxy.APIKey; k != "" {
 		apiKey = k
 	}
-	return newDebuggerProxy(r.conf.NewHTTPTransport(), target, config.SanitizeAPIKey(apiKey), tags)
+	return newDebuggerProxy(r.conf.NewHTTPTransport(), target, strings.TrimSpace(apiKey), tags)
 }
 
 // debuggerErrorHandler always returns http.StatusInternalServerError with a clarifying message.

@@ -15,25 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
-
-func mockConfig(k string, v interface{}) func() {
-	oldConfig := config.Datadog
-	config.Mock().Set(k, v)
-	return func() { config.Datadog = oldConfig }
-}
-
-func mockConfigMap(m map[string]interface{}) func() {
-	oldConfig := config.Datadog
-	mockConfig := config.Mock()
-	for k, v := range m {
-		mockConfig.Set(k, v)
-	}
-	return func() { config.Datadog = oldConfig }
-}
 
 func makeURLs(t *testing.T, ss ...string) []*url.URL {
 	var urls []*url.URL
@@ -77,7 +61,7 @@ func TestProfileProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	c := &traceconfig.AgentConfig{}
+	c := &config.AgentConfig{}
 	newProfileProxy(c.NewHTTPTransport(), []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
 	slurp, err := ioutil.ReadAll(rec.Result().Body)
 	if err != nil {
@@ -88,7 +72,7 @@ func TestProfileProxy(t *testing.T) {
 	}
 }
 
-func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
+func printEndpoints(endpoints []*config.Endpoint) []string {
 	ss := []string{}
 	for _, e := range endpoints {
 		ss = append(ss, e.Host+"|"+e.APIKey)
@@ -98,37 +82,47 @@ func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
 
 func TestProfilingEndpoints(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
-		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/api/v2/profile")()
-		urls, keys, err := profilingEndpoints("test_api_key")
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test_api_key"
+		cfg.ProfilingProxy = config.ProfilingProxyConfig{
+			DDURL: "https://intake.profile.datadoghq.fr/api/v2/profile",
+		}
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("site", func(t *testing.T) {
-		defer mockConfig("site", "datadoghq.eu")()
-		urls, keys, err := profilingEndpoints("test_api_key")
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test_api_key"
+		cfg.Site = "datadoghq.eu"
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("default", func(t *testing.T) {
-		urls, keys, err := profilingEndpoints("test_api_key")
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test_api_key"
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("multiple", func(t *testing.T) {
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/api/v2/profile",
-			"apm_config.profiling_additional_endpoints": map[string][]string{
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "api_key_0"
+		cfg.ProfilingProxy = config.ProfilingProxyConfig{
+			DDURL: "https://intake.profile.datadoghq.jp/api/v2/profile",
+			AdditionalEndpoints: map[string][]string{
 				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
 				"https://dd.datad0g.com":          {"api_key_3"},
 			},
-		})()
-		urls, keys, err := profilingEndpoints("api_key_0")
+		}
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		expectedURLs := makeURLs(t,
 			"https://intake.profile.datadoghq.jp/api/v2/profile",
@@ -178,12 +172,13 @@ func TestProfileProxyHandler(t *testing.T) {
 			}
 			called = true
 		}))
-		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		conf := newTestReceiverConfig()
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
 		conf.Hostname = "myhost"
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
@@ -196,9 +191,10 @@ func TestProfileProxyHandler(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
 		}))
-		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
+		conf := newTestReceiverConfig()
+		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
 		req, _ := http.NewRequest("POST", "/some/path", nil)
-		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		receiver := newTestReceiverFromConfig(conf)
 		rec := httptest.NewRecorder()
 		receiver.profileProxyHandler().ServeHTTP(rec, req)
 		resp := rec.Result()
@@ -214,14 +210,14 @@ func TestProfileProxyHandler(t *testing.T) {
 			}
 			called = true
 		}))
-		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
+		conf := newTestReceiverConfig()
+		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
+		conf.Hostname = "myhost"
+		conf.FargateOrchestrator = "orchestrator"
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		conf := newTestReceiverConfig()
-		conf.Hostname = "myhost"
-		conf.FargateOrchestrator = "orchestrator"
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		if !called {
@@ -230,13 +226,14 @@ func TestProfileProxyHandler(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		defer mockConfig("site", "asd:\r\n")()
+		conf := newTestReceiverConfig()
+		conf.Site = "asd:\r\n"
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		rec := httptest.NewRecorder()
-		r := newTestReceiverFromConfig(newTestReceiverConfig())
+		r := newTestReceiverFromConfig(conf)
 		r.profileProxyHandler().ServeHTTP(rec, req)
 		res := rec.Result()
 		if res.StatusCode != http.StatusInternalServerError {
@@ -258,26 +255,27 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 		srv1 := httptest.NewServer(http.HandlerFunc(handler))
 		srv2 := httptest.NewServer(http.HandlerFunc(handler))
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.profiling_dd_url": srv1.URL,
-			"apm_config.profiling_additional_endpoints": map[string][]string{
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "api_key_0"
+		cfg.Hostname = "myhost"
+		cfg.ProfilingProxy = config.ProfilingProxyConfig{
+			DDURL: srv1.URL,
+			AdditionalEndpoints: map[string][]string{
 				srv2.URL: {"dummy_api_key_1", "dummy_api_key_2"},
 				// this should be ignored
 				"foobar": {"invalid_url"},
 			},
-		})()
+		}
 
 		req, err := http.NewRequest("POST", "/some/path", bytes.NewBuffer([]byte("abc")))
 		if err != nil {
 			t.Fatal(err)
 		}
-		conf := newTestReceiverConfig()
-		conf.Hostname = "myhost"
-		receiver := newTestReceiverFromConfig(conf)
+		receiver := newTestReceiverFromConfig(cfg)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 
 		expected := map[string]bool{
-			srv1.URL + "|test":            true,
+			srv1.URL + "|api_key_0":       true,
 			srv2.URL + "|dummy_api_key_1": true,
 			srv2.URL + "|dummy_api_key_2": true,
 		}

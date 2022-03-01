@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -127,7 +126,7 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 		return Input{}
 	}
 	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != fargate.Unknown)
+	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if enableContainers && !features.Has("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.

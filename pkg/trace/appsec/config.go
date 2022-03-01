@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+
 	"github.com/pkg/errors"
 )
 
@@ -37,30 +38,30 @@ type Config struct {
 
 // newConfig creates and returns the AppSec config from the overall agent
 // config.
-func newConfig(cfg config.Config) (*Config, error) {
+func newConfig(cfg *config.AgentConfig) (*Config, error) {
 	intakeURL, err := intakeURL(cfg)
 	if err != nil {
 		return nil, errors.Wrap(err, "config")
 	}
-	maxPayloadSize := cfg.GetInt64("appsec_config.max_payload_size")
+	maxPayloadSize := cfg.AppSec.MaxPayloadSize
 	if maxPayloadSize <= 0 {
 		maxPayloadSize = defaultPayloadSize
 	}
 	return &Config{
-		Enabled:        cfg.GetBool("appsec_config.enabled"),
+		Enabled:        cfg.AppSec.Enabled,
 		IntakeURL:      intakeURL,
-		APIKey:         cfg.GetString("api_key"),
+		APIKey:         cfg.AppSec.APIKey,
 		MaxPayloadSize: maxPayloadSize,
 	}, nil
 }
 
 // intakeURL returns the appsec intake URL.
-func intakeURL(cfg config.Config) (*url.URL, error) {
+func intakeURL(cfg *config.AgentConfig) (*url.URL, error) {
 	var main string
-	if url := cfg.GetString("appsec_config.appsec_dd_url"); url != "" {
+	if url := cfg.AppSec.DDURL; url != "" {
 		main = url
 	} else {
-		site := cfg.GetString("site")
+		site := cfg.Site
 		if site == "" {
 			site = defaultSite
 		}

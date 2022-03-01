@@ -15,6 +15,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -40,7 +40,8 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
-			osutil.Exitf("Invalid host endpoint: %q", endpoint.Host)
+			log.Criticalf("Invalid host endpoint: %q", endpoint.Host)
+			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
 			client:    client,

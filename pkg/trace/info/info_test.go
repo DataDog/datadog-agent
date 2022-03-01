@@ -119,6 +119,7 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.Endpoints[0].APIKey = "key1"
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
+	conf.Proxy = nil
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)

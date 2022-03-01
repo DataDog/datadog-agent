@@ -9,7 +9,6 @@ import (
 	"container/list"
 	"sync"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -41,11 +40,12 @@ type rm struct {
 	m pb.SamplingMechanism
 }
 
-// newServiceLookup returns a new serviceKeyCatalog.
-func newServiceLookup() *serviceKeyCatalog {
+// newServiceLookup returns a new serviceKeyCatalog with maxEntries maximum number of entries.
+// If maxEntries is 0, a default of 5000 (maxCatalogEntries) will be used.
+func newServiceLookup(maxEntries int) *serviceKeyCatalog {
 	entries := maxCatalogEntries
-	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
-		entries = v
+	if maxEntries > 0 {
+		entries = maxEntries
 	}
 	return &serviceKeyCatalog{
 		items:      make(map[ServiceSignature]*list.Element),

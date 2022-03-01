@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agent
+package main
 
 import (
 	"context"
@@ -15,19 +15,21 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/flags"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,8 +51,9 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	cfg, err := config.Load(flags.ConfigPath)
+	cfg, err := loadConfigFile(flags.ConfigPath)
 	if err != nil {
+		fmt.Println(err) // TODO: remove me
 		if err == config.ErrMissingAPIKey {
 			fmt.Println(config.ErrMissingAPIKey)
 
@@ -64,16 +67,22 @@ func Run(ctx context.Context) {
 			// attempt to restart the process.
 			return
 		}
-		osutil.Exitf("%v", err)
+		Exitf("%v", err)
+	}
+	if features.Has("config_endpoint") {
+		cfg.AuthToken, err = security.FetchAuthToken()
+		if err != nil {
+			Exitf("could obtain the auth token for the tracer remote config client: %v", err)
+		}
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
-		osutil.Exitf("%v", err)
+		Exitf("%v", err)
 	}
 
 	if flags.Info {
 		if err := info.Info(os.Stdout, cfg); err != nil {
-			osutil.Exitf("Failed to print info: %s", err)
+			Exitf("Failed to print info: %s", err)
 		}
 		return
 	}
@@ -87,7 +96,7 @@ func Run(ctx context.Context) {
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
 	); err != nil {
-		osutil.Exitf("Cannot create logger: %v", err)
+		Exitf("Cannot create logger: %v", err)
 	}
 	tracelog.SetLogger(corelogger{})
 	defer log.Flush()
@@ -131,13 +140,13 @@ func Run(ctx context.Context) {
 
 	err = manager.ConfigureAutoExit(ctx)
 	if err != nil {
-		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
+		Exitf("Unable to configure auto-exit, err: %v", err)
 		return
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})
 	if err != nil {
-		osutil.Exitf("cannot configure dogstatsd: %v", err)
+		Exitf("cannot configure dogstatsd: %v", err)
 	}
 	defer metrics.Flush()
 	defer timing.Stop()
@@ -174,7 +183,7 @@ func Run(ctx context.Context) {
 		}
 	}()
 
-	agnt := NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	if cfg.ProfilingSettings != nil {
 		cfg.ProfilingSettings.Tags = []string{fmt.Sprintf("version:%s", info.Version)}

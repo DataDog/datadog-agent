@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -227,7 +226,7 @@ func (w *TraceWriter) flush() {
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
 	p := pb.AgentPayload{
-		AgentVersion:   version.AgentVersion,
+		AgentVersion:   info.Version,
 		HostName:       w.hostname,
 		Env:            w.env,
 		TargetTPS:      w.targetTPS,

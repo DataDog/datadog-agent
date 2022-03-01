@@ -16,8 +16,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -25,7 +25,7 @@ import (
 
 // NewIntakeReverseProxy returns the AppSec Intake Proxy handler according to
 // the agent configuration.
-func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
+func NewIntakeReverseProxy(conf *config.AgentConfig) (http.Handler, error) {
 	disabled := func(reason string) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", "application/json")
@@ -35,7 +35,7 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 			}
 		})
 	}
-	cfg, err := newConfig(coreconfig.Datadog)
+	cfg, err := newConfig(conf)
 	if err != nil {
 		return disabled(fmt.Sprintf("appsec agent disabled due to a configuration error: %v", err)), errors.Wrap(err, "configuration: ")
 	}
@@ -43,7 +43,7 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 		log.Info("AppSec proxy disabled by configuration")
 		return disabled("appsec agent disabled by configuration"), nil
 	}
-	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, transport), nil
+	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, conf.NewHTTPTransport()), nil
 }
 
 // newIntakeReverseProxy creates a reverse proxy to the intake backend using the

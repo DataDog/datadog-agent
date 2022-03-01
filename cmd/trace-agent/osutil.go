@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package osutil
+package main
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
