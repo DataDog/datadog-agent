@@ -31,9 +31,9 @@ type Tailer struct {
 	decodedOffset int64
 	bytesRead     int64
 
-	// File contains the logs configuration for the File to parse (path, source, ...)
-	// If you are looking for the os.File use to read on the FS, see osFile.
-	File *File
+	// file contains the logs configuration for the file to parse (path, source, ...)
+	// If you are looking for the os.file use to read on the FS, see osFile.
+	file *File
 
 	fullpath string
 	osFile   *os.File
@@ -75,7 +75,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
 
 	return &Tailer{
-		File:           file,
+		file:           file,
 		OutputChan:     outputChan,
 		decoder:        decoder,
 		tagProvider:    tagProvider,
@@ -96,18 +96,18 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 // where the dead container still has a tailer running on the log file, and the tailer
 // of the freshly spawned container starts tailing this file as well.
 func (t *Tailer) Identifier() string {
-	return fmt.Sprintf("file:%s", t.File.Path)
+	return fmt.Sprintf("file:%s", t.file.Path)
 }
 
 // Start let's the tailer open a file and tail from whence
 func (t *Tailer) Start(offset int64, whence int) error {
 	err := t.setup(offset, whence)
 	if err != nil {
-		t.File.Source.Status.Error(err)
+		t.file.Source.Status.Error(err)
 		return err
 	}
-	t.File.Source.Status.Success()
-	t.File.Source.AddInput(t.File.Path)
+	t.file.Source.Status.Success()
+	t.file.Source.AddInput(t.file.Path)
 
 	go t.forwardMessages()
 	t.decoder.Start()
@@ -131,7 +131,7 @@ func (t *Tailer) readForever() {
 	defer func() {
 		t.osFile.Close()
 		t.decoder.Stop()
-		log.Info("Closed", t.File.Path, "for tailer key", t.File.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
+		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 
 	for {
@@ -159,9 +159,9 @@ func (t *Tailer) readForever() {
 
 // buildTailerTags groups the file tag, directory (if wildcard path) and user tags
 func (t *Tailer) buildTailerTags() []string {
-	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.File.Path))}
-	if t.File.IsWildcardPath {
-		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.File.Path)))
+	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.file.Path))}
+	if t.file.IsWildcardPath {
+		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)))
 	}
 	return tags
 }
@@ -175,7 +175,7 @@ func (t *Tailer) StartFromBeginning() error {
 // Stop stops the tailer and returns only when the decoder is flushed
 func (t *Tailer) Stop() {
 	t.stop <- struct{}{}
-	t.File.Source.RemoveInput(t.File.Path)
+	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed
 	<-t.done
 }
@@ -189,7 +189,7 @@ func (t *Tailer) StopAfterFileRotation() {
 		t.stopForward()
 		t.stop <- struct{}{}
 	}()
-	t.File.Source.RemoveInput(t.File.Path)
+	t.file.Source.RemoveInput(t.file.Path)
 }
 
 // IsFinished returns true if the tailer is in the process of stopping.  Specifically,
@@ -214,7 +214,7 @@ func (t *Tailer) forwardMessages() {
 			identifier = ""
 		}
 		t.decodedOffset = offset
-		origin := message.NewOrigin(t.File.Source)
+		origin := message.NewOrigin(t.file.Source)
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
@@ -277,8 +277,8 @@ func (t *Tailer) wait() {
 
 func (t *Tailer) recordBytes(n int64) {
 	t.bytesRead += n
-	t.File.Source.BytesRead.Add(n)
-	if t.File.Source.ParentSource != nil {
-		t.File.Source.ParentSource.BytesRead.Add(n)
+	t.file.Source.BytesRead.Add(n)
+	if t.file.Source.ParentSource != nil {
+		t.file.Source.ParentSource.BytesRead.Add(n)
 	}
 }

@@ -110,9 +110,9 @@ func (s *Launcher) run() {
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	stopper := restart.NewParallelStopper()
-	for _, tailer := range s.tailers {
+	for scanKey, tailer := range s.tailers {
 		stopper.Add(tailer)
-		delete(s.tailers, tailer.File.GetScanKey())
+		delete(s.tailers, scanKey)
 	}
 	stopper.Stop()
 }
@@ -175,11 +175,11 @@ func (s *Launcher) scan() {
 		filesTailed[tailerKey] = true
 	}
 
-	for _, tailer := range s.tailers {
+	for scanKey, tailer := range s.tailers {
 		// stop all tailers which have not been selected
-		_, shouldTail := filesTailed[tailer.File.GetScanKey()]
+		_, shouldTail := filesTailed[scanKey]
 		if !shouldTail {
-			s.stopTailer(tailer)
+			s.stopTailer(scanKey, tailer)
 		}
 	}
 }
@@ -273,7 +273,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	s.tailers[tailer.File.GetScanKey()] = tailer
+	s.tailers[file.GetScanKey()] = tailer
 	return true
 }
 
@@ -363,9 +363,9 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 }
 
 // stopTailer stops the tailer
-func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
+func (s *Launcher) stopTailer(scanKey string, tailer *tailer.Tailer) {
 	go tailer.Stop()
-	delete(s.tailers, tailer.File.GetScanKey())
+	delete(s.tailers, scanKey)
 }
 
 // restartTailer safely stops tailer and starts a new one
