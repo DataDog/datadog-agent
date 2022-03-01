@@ -141,6 +141,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			forwarderOpts.DisableAPIKeyChecking = true
 			opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 			opts.FlushInterval = 0
+			opts.UseNoopForwarder = true
 			opts.UseNoopEventPlatformForwarder = true
 			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
