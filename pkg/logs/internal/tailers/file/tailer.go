@@ -25,7 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
 
-// Tailer tails one file and sends messages to an output channel
+// Tailer tails a file, decodes the messages it contains, and passes them to a
+// supplied output channel for further processing.
 type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
@@ -61,7 +62,15 @@ type Tailer struct {
 	stopForward    context.CancelFunc
 }
 
-// NewTailer returns an initialized Tailer
+// NewTailer returns an initialized Tailer, read to be started.
+//
+// The resulting Tailer will read from the given `file`, decode the content
+// with the given `decoder`, and send the resulting log messages to outputChan.
+// The Tailer takes ownership of the decoder and will start and stop it as
+// necessary.
+//
+// The Tailer must poll for content in the file.  The `sleepDuration` parameter
+// specifies how long the tailer should wait between polls.
 func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder) *Tailer {
 
 	var tagProvider tag.Provider
@@ -89,23 +98,25 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	}
 }
 
-// NewRotatedTailer creates a new tailer that replaces this one, writing messages to the same channel but using
-// an updated file and decoder.
+// NewRotatedTailer creates a new tailer that replaces this one, writing
+// messages to the same channel but using an updated file and decoder.
 func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder) *Tailer {
 	return NewTailer(t.outputChan, file, t.sleepDuration, decoder)
 }
 
-// Identifier returns a string that uniquely identifies a source.
-// This is the identifier used in the registry.
-// FIXME(remy): during container rotation, this Identifier() method could return
-// the same value for different tailers. It is happening during container rotation
-// where the dead container still has a tailer running on the log file, and the tailer
-// of the freshly spawned container starts tailing this file as well.
+// Identifier returns a string that identifies this tailer in the registry.
 func (t *Tailer) Identifier() string {
+	// FIXME(remy): during container rotation, this Identifier() method could return
+	// the same value for different tailers. It is happening during container rotation
+	// where the dead container still has a tailer running on the log file, and the tailer
+	// of the freshly spawned container starts tailing this file as well.
+	//
+	// This is the identifier used in the registry, so changing it will invalidate existing
+	// registry entries on upgrade.
 	return fmt.Sprintf("file:%s", t.file.Path)
 }
 
-// Start let's the tailer open a file and tail from whence
+// Start begins the tailer's operation in a dedicated goroutine.
 func (t *Tailer) Start(offset int64, whence int) error {
 	err := t.setup(offset, whence)
 	if err != nil {
@@ -122,17 +133,40 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	return nil
 }
 
+// StartFromBeginning is a shortcut to start the tailer at the beginning of the
+// file.
+func (t *Tailer) StartFromBeginning() error {
+	return t.Start(0, io.SeekStart)
+}
+
+// Stop stops the tailer and returns only after all in-flight messages have
+// been flushed to the output channel.
+func (t *Tailer) Stop() {
+	t.stop <- struct{}{}
+	t.file.Source.RemoveInput(t.file.Path)
+	// wait for the decoder to be flushed
+	<-t.done
+}
+
+// StopAfterFileRotation prepares the tailer to stop after a timeout
+// to finish reading its file that has been log-rotated
+func (t *Tailer) StopAfterFileRotation() {
+	t.fileHasRotated()
+	go func() {
+		time.Sleep(t.closeTimeout)
+		t.stopForward()
+		t.stop <- struct{}{}
+	}()
+	t.file.Source.RemoveInput(t.file.Path)
+}
+
 // DidRotate returns true if the tailer's file has been log-rotated.
-// When a log rotation occurs, the file can be either:
-// - renamed and recreated
-// - removed and recreated
-// - truncated
-// readForever lets the tailer tail the content of a file
-// until it is closed or the tailer is stopped.
 func (t *Tailer) DidRotate() (bool, error) {
 	return DidRotate(t.osFile, t.GetReadOffset())
 }
 
+// readForever lets the tailer tail the content of a file
+// until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
 	defer func() {
 		t.osFile.Close()
@@ -172,35 +206,9 @@ func (t *Tailer) buildTailerTags() []string {
 	return tags
 }
 
-// StartFromBeginning lets the tailer start tailing its file
-// from the beginning
-func (t *Tailer) StartFromBeginning() error {
-	return t.Start(0, io.SeekStart)
-}
-
-// Stop stops the tailer and returns only when the decoder is flushed
-func (t *Tailer) Stop() {
-	t.stop <- struct{}{}
-	t.file.Source.RemoveInput(t.file.Path)
-	// wait for the decoder to be flushed
-	<-t.done
-}
-
-// StopAfterFileRotation prepares the tailer to stop after a timeout
-// to finish reading its file that has been log-rotated
-func (t *Tailer) StopAfterFileRotation() {
-	t.fileHasRotated()
-	go func() {
-		time.Sleep(t.closeTimeout)
-		t.stopForward()
-		t.stop <- struct{}{}
-	}()
-	t.file.Source.RemoveInput(t.file.Path)
-}
-
-// IsFinished returns true if the tailer is in the process of stopping.  Specifically,
-// this may be true if the tailer has completed handling all messages, but has not
-// yet had its Stop method called.
+// IsFinished returns true if the tailer has flushed all messages to the output
+// channel, either because it has been stopped or because of an error reading from
+// the input file.
 func (t *Tailer) IsFinished() bool {
 	return atomic.LoadInt32(&t.isFinished) != 0
 }
@@ -260,7 +268,7 @@ func (t *Tailer) SetDecodedOffset(off int64) {
 	atomic.StoreInt64(&t.decodedOffset, off)
 }
 
-// GetDetectedPattern returns a regexp if a pattern was detected
+// GetDetectedPattern returns the decoder's detected pattern.
 func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
 }
