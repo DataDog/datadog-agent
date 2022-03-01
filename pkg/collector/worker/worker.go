@@ -115,11 +115,11 @@ func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
 	if err := w.utilizationTracker.Start(); err != nil {
-		log.Warnf("Runner %d, worker %d: %s", err)
+		log.Warnf("Runner %d, worker %d: %s", w.runnerID, w.ID, err)
 	}
 	defer func() {
 		if err := w.utilizationTracker.Stop(); err != nil {
-			log.Warnf("Runner %d, worker %d: %s", err)
+			log.Warnf("Runner %d, worker %d: %s", w.runnerID, w.ID, err)
 		}
 	}()
 

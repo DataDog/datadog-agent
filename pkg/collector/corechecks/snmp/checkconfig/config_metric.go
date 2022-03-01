@@ -178,7 +178,7 @@ func (mtc *MetricTagConfig) GetTags(value string) []string {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
 				replacedVal := RegexReplaceValue(value, mtc.pattern, normalizedTemplate)
 				if replacedVal == "" {
-					log.Debugf("pattern `%v` failed to match `%v` with template `%v`", value, normalizedTemplate)
+					log.Debugf("pattern `%v` failed to match `%v` with template `%v`", value, mtc.pattern, normalizedTemplate)
 					continue
 				}
 				tags = append(tags, key+":"+replacedVal)

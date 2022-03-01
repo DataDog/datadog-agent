@@ -84,7 +84,7 @@ func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.
 func NewDefaultContainerProvider() ContainerProvider {
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	return NewContainerProvider(metrics.GetProvider(), workloadmeta.GetGlobalStore(), containerFilter)
@@ -118,7 +118,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		entityID := containers.BuildTaggerEntityName(container.ID)
 		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
-			log.Debugf("Could not collect tags for container %q, err: %w", container.ID[:12], err)
+			log.Debugf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 		}
 		tags = append(tags, container.CollectorTags...)
 
@@ -151,7 +151,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 
 		containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
 		if err != nil || containerStats == nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %w", container, collector.ID(), err)
+			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
 			// If main container stats are missing, we skip the container
 			continue
 		}
@@ -166,7 +166,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 
 		containerNetworkStats, err := collector.GetContainerNetworkStats(container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container network stats for: %v not available through collector %q, err: %w", container, collector.ID(), err)
+			log.Debugf("Container network stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
 		}
 		computeContainerNetworkStats(currentTime, previousTime, containerNetworkStats, previousContainerRates, &outPreviousStats, processContainer)
 

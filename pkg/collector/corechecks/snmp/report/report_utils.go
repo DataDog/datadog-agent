@@ -48,7 +48,7 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol checkcon
 	if symbol.MatchPatternCompiled != nil {
 		strValue, err := value.ToString()
 		if err != nil {
-			log.Debugf("error converting value to string (value=%v):", value, err)
+			log.Debugf("error converting value to string (value=%v):%v", value, err)
 			return valuestore.ResultValue{}, err
 		}
 
