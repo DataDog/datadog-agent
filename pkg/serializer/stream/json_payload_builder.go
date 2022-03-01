@@ -107,7 +107,6 @@ func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.P
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
-	defer m.IterationStopped()
 	var input, output *bytes.Buffer
 	if b.shareAndLockBuffers {
 		defer b.mu.Unlock()

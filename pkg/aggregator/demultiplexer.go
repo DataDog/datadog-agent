@@ -637,6 +637,7 @@ func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time,
 	err := serializer.SendIterableSeries(series)
 	// if err == nil, SenderStopped was called and it is safe to read the number of series.
 	count := series.SeriesCount()
+	series.IterationStopped()
 	addFlushCount("Series", int64(count))
 	updateSerieTelemetry(start, count, err)
 	close(done)
