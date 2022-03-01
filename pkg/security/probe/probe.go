@@ -506,19 +506,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
-		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
-
-		if _, err = p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
-			log.Debugf("failed to resolve exec path: %s", err)
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.processCacheEntry); err != nil {
+			log.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
-		p.resolvers.ProcessResolver.SetProcessFilesystem(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.SetProcessTTY(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.SetProcessUsersGroups(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
 
