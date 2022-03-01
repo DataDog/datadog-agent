@@ -44,7 +44,6 @@ public:
         bool inMemory = true);
     int bytecodeToObjectFile(llvm::Module &module, const char *outputFile);
     const std::string &getErrors() const;
-    ~ClangCompiler();
 
 private:
     static const std::string main_path;

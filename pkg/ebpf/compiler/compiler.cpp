@@ -280,6 +280,3 @@ int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *output
 const std::string &ClangCompiler::getErrors() const {
     return errString;
 }
-
-ClangCompiler::~ClangCompiler() {
-}
