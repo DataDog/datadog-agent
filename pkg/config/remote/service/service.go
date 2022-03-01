@@ -138,9 +138,9 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 
-	clientsTTL := time.Second * config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
+	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
 	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
-		log.Warnf("Configured clients ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
+		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
 		clientsTTL = defaultClientsTTL
 	}
 	clock := clock.New()
