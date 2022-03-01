@@ -27,6 +27,15 @@ import (
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
 // supplied output channel for further processing.
+//
+// Operational Overview
+//
+// Tailers have three components, organized as a pipeline.  The first,
+// readForever, polls the file, trying to read more data.  That data is passed
+// to the second component, the decoder.  The decoder produces
+// decoder.Messages, which are passed to the third component, forwardMessages.
+// This component translates the decoder.Messages into message.Messages and
+// sends them to the tailer's output channel.
 type Tailer struct {
 	// lastReadOffset is the last file offset that was read.  This value must be
 	// accessed atomically.
@@ -36,22 +45,42 @@ type Tailer struct {
 	// ends.  TODO(dustin): this field is accessed both atomically and non-atomically.
 	decodedOffset int64
 
+	// bytesRead is the number of bytes successfully read from the file by this
+	// tailer.  This may be smaller than lastReadOffset if the tailer did not
+	// begin at the start of the file.
 	bytesRead int64
 
 	// file contains the logs configuration for the file to parse (path, source, ...)
 	// If you are looking for the os.file use to read on the FS, see osFile.
 	file *File
 
+	// fullpath is the absolute path to file.Path.
 	fullpath string
-	osFile   *os.File
-	tags     []string
 
-	outputChan  chan *message.Message
-	decoder     *decoder.Decoder
+	// osFile is the os.File object from which log data is read.  The read implementation
+	// is platform-specific.
+	osFile *os.File
+
+	// tags are the tags to be attached to each log message, excluding tags provided
+	// by the tag provider.
+	tags []string
+
+	// tagProvider provides additional tags to be attached to each log message.  It
+	// is called once for each log message.
 	tagProvider tag.Provider
 
+	// outputChan is the channel to which fully-decoded messages are written.
+	outputChan chan *message.Message
+
+	// decoder handles decoding the raw bytes read from the file into log messages.
+	decoder *decoder.Decoder
+
+	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
 
+	// closeTimeout is the duration the tailer will remain active after its file
+	// has been rotated.  This allows the tailer to complete reading and processing
+	// any remaining log lines in the file.
 	closeTimeout time.Duration
 
 	// isFinished is an atomic value, set to 1 when the tailer has closed its input
@@ -61,11 +90,20 @@ type Tailer struct {
 	// didFileRotate is an atomic value, used to determine hasFileRotated.
 	didFileRotate int32
 
+	// stop is monitored by the readForever component, and causes it to stop reading
+	// and close the channel to the decoder.
 	stop chan struct{}
+
+	// done is closed when the forwardMessages component has forwarded all messages.
 	done chan struct{}
 
+	// forwardContext is the context for attempts to send completed messages to
+	// the tailer's output channel.  Once this context is finished, messages may
+	// be discarded.
 	forwardContext context.Context
-	stopForward    context.CancelFunc
+
+	// stopForward is the cancellation function for forwardContext.
+	stopForward context.CancelFunc
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
