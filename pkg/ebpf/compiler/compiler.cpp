@@ -41,7 +41,7 @@ ClangCompiler::ClangCompiler(const char *name)
           "-nostdinc",
           "-isystem/virtual/lib/clang/include",
           "-x", "c" })
-    , theTriple("bpf") {
+    , targetTriple("bpf") {
     std::call_once(llvmInitialized, [] {
         LLVMInitializeBPFTarget();
         LLVMInitializeBPFTargetMC();
@@ -54,14 +54,14 @@ ClangCompiler::ClangCompiler(const char *name)
         }
     });
 
-    theDriver = std::make_unique<clang::driver::Driver>(
+    clangDriver = std::make_unique<clang::driver::Driver>(
         name, getArch(), *diagnosticsEngine,
         llvm::vfs::getRealFileSystem());
 
     std::string arch = "bpf";
     std::string Error;
 
-    theTarget = llvm::TargetRegistry::lookupTarget(theTriple.getTriple(), Error);
+    theTarget = llvm::TargetRegistry::lookupTarget(targetTriple.getTriple(), Error);
     if (!theTarget) {
         errString = "could not lookup target";
         return;
@@ -70,7 +70,7 @@ ClangCompiler::ClangCompiler(const char *name)
     llvm::TargetOptions targetOptions;
     auto RM = llvm::Optional<llvm::Reloc::Model>();
     targetMachine = std::unique_ptr<llvm::TargetMachine>(theTarget->createTargetMachine(
-        theTriple.getTriple(), "generic", "", targetOptions, RM, llvm::None, llvm::CodeGenOpt::Aggressive));
+        targetTriple.getTriple(), "generic", "", targetOptions, RM, llvm::None, llvm::CodeGenOpt::Aggressive));
 
     if (!targetMachine) {
         errString = "could not allocate target machine";
@@ -105,9 +105,9 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
 
     // Build
     if (inMemory) {
-        theDriver->setCheckInputsExist(false);
+        clangDriver->setCheckInputsExist(false);
     }
-    std::unique_ptr<clang::driver::Compilation> compilation(theDriver->BuildCompilation(cflags));
+    std::unique_ptr<clang::driver::Compilation> compilation(clangDriver->BuildCompilation(cflags));
 
     // expect exactly 1 job, otherwise error
     const clang::driver::JobList &jobs = compilation->getJobs();
@@ -256,7 +256,7 @@ int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *output
     }
 
     module.setDataLayout(getDataLayout());
-    module.setTargetTriple(theTriple.getTriple());
+    module.setTargetTriple(targetTriple.getTriple());
 
     std::error_code EC;
     llvm::raw_fd_ostream dest(outputFile, EC, llvm::sys::fs::OF_None);

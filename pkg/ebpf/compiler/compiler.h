@@ -23,8 +23,8 @@ protected:
     std::unique_ptr<clang::TextDiagnosticPrinter> textDiagnosticPrinter;
     llvm::IntrusiveRefCntPtr<clang::DiagnosticsEngine> diagnosticsEngine;
     llvm::LLVMContext llvmContext;
-    std::unique_ptr<clang::driver::Driver> theDriver;
-    llvm::Triple theTriple;
+    std::unique_ptr<clang::driver::Driver> clangDriver;
+    llvm::Triple targetTriple;
     std::unique_ptr<llvm::TargetMachine> targetMachine;
     const llvm::Target *theTarget;
     std::vector<const char *> defaultCflags;
