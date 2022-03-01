@@ -2,6 +2,202 @@
 Release Notes
 =============
 
+.. _Release Notes_7.34.0:
+
+7.34.0 / 6.34.0
+======
+
+.. _Release Notes_7.34.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-02-29
+
+- Please refer to the `7.34.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7340>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.34.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- CWS uses `**` for subfolder matching instead of `*`.
+  Previously, `*` was used to match files and subfolders. With this
+  release, `*` will match only files and folders at the same level. Use`**`
+  at the end of a path to match files and subfolders. `**` must be
+  used at the end of the path. For example, the rule `open.file.path == "/etc/*"`
+  has to be converted to `open.file.path == "/etc/**"`.
+
+- `additional_endpoints` in the `logs_config` now uses the same compression
+  configuration as the main endpoint when sending to HTTP destinations. Agents 
+  that relied on using different compression settings for `additional_endpoints`
+  may need to be reconfigured. 
+
+
+.. _Release Notes_7.34.0_New Features:
+
+New Features
+------------
+
+- Autodiscovery of integrations now works with Podman containers. The minimum
+  Podman version supported is 3.0.0.
+
+- Cloud provider detection now support Oracle Cloud. This includes cloud provider detection, host aliases and NTP
+  servers.
+
+- APM: Add proxy endpoint to allow Instrumentation Libraries to submit telemetry data.
+
+- CWS now allows to write SECL rule based on process ancestor args.
+
+- CWS now exposes the first argument of exec event. Usually the
+  name of the executed program.
+
+- Add a new `runtime reload` command to the `security-agent`
+  to dynamically reload CWS policies.
+
+- Enables process discovery check to run by default in the process agent.
+  Process discovery is a lightweight process metadata collection check enabling
+  users to see recommendations for integrations running in their environments.
+
+- APM: Adds a new endpoint to the Datadog Agent to forward pipeline stats to the Datadog backend.
+
+- The Cloud Workload Security agent can now monitor and evaluate rules on mmap, mprotect and ptrace.
+
+- Add support for Shift JIS (Japanese) encoding.
+  It should be manually enabled in a log configuration using
+  ``encoding: shift-jis``.
+
+- Extend SNMP profile syntax to support metadata definitions
+
+- When running inside a container with the host `/etc` folder mounted to `/host/etc`, the agent will now report the
+  distro informations of the host instead of the one from the container.
+
+- Added telemetry for the workloadmeta store.
+
+
+.. _Release Notes_7.34.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add Autodiscovery telemetry.
+
+- APM: Add the option to collect SQL comments and commands during obfuscation.
+
+- Adds the process_config.disable_realtime_checks config setting in the process
+  Agent allowing users to disable realtime process and container checks. Note:
+  This prevents refresh of stats in the Live Processes and Live Containers pages
+  for processes and containers reported by the Agent.
+
+- [corechecks/snmp] Add additional metadata fields
+
+- Reduce the memory usage when flushing series.
+
+- Specifying ``auto_multi_line_detection: false`` in an integration's
+  ``logs_config`` will now disable detection for that integration, even if
+  detection is enabled globally.
+
+- Make ``agent checkconfig`` an alias of ``agent configcheck``
+
+- Added possibility to watch all the namespaces when running on containerd
+  outside Kubernetes. By default, the agent will report events and metrics
+  from all the namespaces. In order to select a specific one, please set the
+  `containerd_namespace` option.
+
+- The container check now works for containers managed by runtimes that
+  implement the CRI interface such as CRI-O.
+
+- ``cri.*`` and ``container.*`` metrics can now be collected from the CRI API
+  on Windows.
+
+- When using ``site: ddog-gov.com``, the agent now uses Agent-version-based
+  URLs and ``api.ddog-gov.com`` as it has previously done for other Datadog
+  domains.
+
+- Add telemetry for ECS queries.
+
+- Agents are now built with Go 1.16.12.
+
+- Add Kubelet queries telemetry.
+
+- Add the ``kubernetes_node_annotations_as_host_aliases`` parameter to specify a list
+  of Kubernetes node annotations that should be used as host aliases.
+  If not set, it defaults to ``cluster.k8s.io/machine``.
+
+- The experimental OTLP endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.41.0.
+
+- OTLP metrics tags are enriched when ``experimental.otlp.metrics.tag_cardinality`` is set to ``orchestrator``.
+  This can also be controlled via the ``DD_OTLP_TAG_CARDINALITY`` environment variable.
+
+- Make the Prometheus auto-discovery be able to schedule OpenMetrics V2 checks instead of legacy V1 ones.
+  
+  By default, the Prometheus annotations based auto-discovery will keep on scheduling openmetrics v1 check.
+  But the agent now has a `prometheus_scrape.version` parameter that can be set to ``2`` to schedule the v2.
+  
+  The changes between the two versions of the check are described in
+  https://datadoghq.dev/integrations-core/legacy/prometheus/#config-changes-between-versions
+
+- Raised the max batch size of logs and events from `100` to `1000` elements. Improves
+  performance in high volume scenarios. 
+
+- Add saturation metrics for network and memory.
+
+- The Agent no longer logs spurious warnings regarding proxy-related environment variables
+  ``DD_PROXY_NO_PROXY``, ``DD_PROXY_HTTP``, and ``DD_PROXY_HTTPS``.
+
+- [corechecks/snmp] Add agent host as tag when ``use_device_id_as_hostname`` is enabled.
+
+- [corechecks/snmp] Add profile metadata match syntax
+
+- [corechecks/snmp] Support multiple symbols for profile metadata
+
+- On Windows, the installer now uses a zipped Python integration folder, which
+  should result in faster install times.
+
+- Add support for Windows 2022 in published Docker images
+
+
+.. _Release Notes_7.34.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix SQL obfuscation error on statements using bind variables starting with digits
+
+- Adds Windows NPM driver 1.3.1, which contains a fix for the system crash on system-probe shutdown under heavy load.
+
+- ``DD_CLUSTER_NAME`` can be used to define the ``kube_cluster_name`` on EKS Fargate.
+
+- On Windows the Agent now correctly detects Windows 11.
+
+- Fixes an issue where the Docker check would undercount the number of
+  stopped containers in the `docker.containers.stopped` and
+  `docker.containers.stopped.total` metrics, accompanied by a "Cannot split
+  the image name" error in the logs.
+
+- Fixed a bug that caused a panic when running the docker check in cases
+  where there are containers stuck in the "Removal in Progress" state.
+
+- On EKS Fargate, the `container` check is scheduled while no suitable metrics collector is available, leading to excessive logging. Also fixes an issue with Liveness/Readiness probes failing regularly.
+
+- Allow Prometheus scrape `tls_verify` to be set to `false` and 
+  change `label_to_hostname` type to `string`.
+
+- Fixes truncated queries using temp tables in SQL Server.
+
+- Fixes an NPM issue on Windows where if the first packet on a UDP flow
+  is inbound, it is not counted correctly.
+
+- On macOS, fix a bug where the Agent would not gracefully stop when sent a SIGTERM signal.
+
+- Fix missing tags with eBPF checks (OOM Kill/TCP Queue Length) with some container runtimes (for instance, containerd 1.5).
+
+- The experimental OTLP endpoint now ignores hostname attributes with localhost-like names for hostname resolution.
+
+- Fixes an issue where cumulative-to-delta OTLP metrics conversion did not take the hostname into account.
+
+
 .. _Release Notes_7.33.1:
 
 7.33.1 / 6.33.1
