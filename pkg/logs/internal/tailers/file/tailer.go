@@ -28,7 +28,10 @@ import (
 // Tailer tails a file, decodes the messages it contains, and passes them to a
 // supplied output channel for further processing.
 type Tailer struct {
-	readOffset    int64
+	// lastReadOffset is the last file offset that was read.  This value must be
+	// accessed atomically.
+	lastReadOffset int64
+
 	decodedOffset int64
 	bytesRead     int64
 
@@ -88,7 +91,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		outputChan:     outputChan,
 		decoder:        decoder,
 		tagProvider:    tagProvider,
-		readOffset:     0,
+		lastReadOffset: 0,
 		sleepDuration:  sleepDuration,
 		closeTimeout:   closeTimeout,
 		stop:           make(chan struct{}, 1),
@@ -162,7 +165,7 @@ func (t *Tailer) StopAfterFileRotation() {
 
 // DidRotate returns true if the tailer's file has been log-rotated.
 func (t *Tailer) DidRotate() (bool, error) {
-	return DidRotate(t.osFile, t.GetReadOffset())
+	return DidRotate(t.osFile, t.getLastReadOffset())
 }
 
 // readForever lets the tailer tail the content of a file
@@ -247,19 +250,19 @@ func (t *Tailer) forwardMessages() {
 	}
 }
 
-func (t *Tailer) incrementReadOffset(n int) {
-	atomic.AddInt64(&t.readOffset, int64(n))
+// incrementLastReadOffset increments the lastReadOffset field, atomically.
+func (t *Tailer) incrementLastReadOffset(n int) {
+	atomic.AddInt64(&t.lastReadOffset, int64(n))
 }
 
-// SetReadOffset sets the position of the last byte read in the
-// file
-func (t *Tailer) SetReadOffset(off int64) {
-	atomic.StoreInt64(&t.readOffset, off)
+// setLastReadOffset sets the value of lastReadOffset, atomically.
+func (t *Tailer) setLastReadOffset(off int64) {
+	atomic.StoreInt64(&t.lastReadOffset, off)
 }
 
-// GetReadOffset returns the position of the last byte read in file
-func (t *Tailer) GetReadOffset() int64 {
-	return atomic.LoadInt64(&t.readOffset)
+// getLastReadOffset gets the value of lastReadOffset, atomically.
+func (t *Tailer) getLastReadOffset() int64 {
+	return atomic.LoadInt64(&t.lastReadOffset)
 }
 
 // SetDecodedOffset sets the position of the last byte decoded in the

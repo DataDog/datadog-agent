@@ -35,7 +35,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 
 	t.osFile = f
 	ret, _ := f.Seek(offset, whence)
-	t.readOffset = ret
+	t.lastReadOffset = ret
 	t.decodedOffset = ret
 
 	return nil
@@ -56,6 +56,6 @@ func (t *Tailer) read() (int, error) {
 		return 0, nil
 	}
 	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-	t.incrementReadOffset(n)
+	t.incrementLastReadOffset(n)
 	return n, nil
 }

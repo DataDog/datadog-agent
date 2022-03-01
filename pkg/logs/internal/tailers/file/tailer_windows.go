@@ -56,17 +56,17 @@ func (t *Tailer) readAvailable() (int, error) {
 	}
 
 	sz := st.Size()
-	offset := t.GetReadOffset()
+	offset := t.getLastReadOffset()
 	if sz == 0 {
 		log.Debug("File size now zero, resetting offset")
-		t.SetReadOffset(0)
+		t.setLastReadOffset(0)
 		t.SetDecodedOffset(0)
 	} else if sz < offset {
 		log.Debug("Offset off end of file, resetting")
-		t.SetReadOffset(0)
+		t.setLastReadOffset(0)
 		t.SetDecodedOffset(0)
 	}
-	f.Seek(t.GetReadOffset(), io.SeekStart)
+	f.Seek(offset, io.SeekStart)
 	bytes := 0
 
 	for {
@@ -77,7 +77,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			return bytes, err
 		}
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementReadOffset(n)
+		t.incrementLastReadOffset(n)
 	}
 }
 
