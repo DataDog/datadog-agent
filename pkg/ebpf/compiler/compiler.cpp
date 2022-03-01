@@ -11,7 +11,7 @@
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Lex/PreprocessorOptions.h>
 
-std::once_flag ClangCompiler::llvmInitialized;
+std::once_flag ClangCompiler::llvm_initialized;
 std::map<std::string, std::unique_ptr<llvm::MemoryBuffer> > ClangCompiler::remapped_files;
 const std::string ClangCompiler::main_path = "/virtual/main.c";
 
@@ -42,7 +42,7 @@ ClangCompiler::ClangCompiler(const char *name)
           "-isystem/virtual/lib/clang/include",
           "-x", "c" })
     , targetTriple("bpf") {
-    std::call_once(llvmInitialized, [] {
+    std::call_once(llvm_initialized, [] {
         LLVMInitializeBPFTarget();
         LLVMInitializeBPFTargetMC();
         LLVMInitializeBPFTargetInfo();

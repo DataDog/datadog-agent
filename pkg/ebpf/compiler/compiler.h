@@ -47,10 +47,11 @@ public:
 
 private:
     static const std::string main_path;
-    static std::once_flag llvmInitialized;
+    static std::once_flag llvm_initialized;
     static std::map<std::string, std::unique_ptr<llvm::MemoryBuffer> > remapped_files;
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
+
     std::unique_ptr<clang::CompilerInvocation> buildCompilation(
         const char *inputFile,
         const char *outputFile,
