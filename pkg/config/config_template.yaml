@@ -958,15 +958,17 @@ api_key:
 
   ## @param use_http - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_USE_HTTP - boolean - optional - default: false
-  ## By default, logs are sent through TCP, use this parameter
-  ## to send logs in HTTPS batches to port 443
+  ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
+  ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to true to
+  ## always send logs with HTTPS (recommended).
   #
   # use_http: true
 
   ## @param use_tcp - boolean - optional - default: false
   ## @env DD_USE_TCP - boolean - optional - default: false
-  ## By default, logs are sent through HTTP if possible, use this parameter
-  ## to send logs in TCP
+  ## By default, logs are sent through HTTPS if possible, set this parameter
+  ## to true to send always logs in TCP. If `use_http` is set to `true`, this parameter
+  ## is ignored.
   #
   # use_tcp: true
 
@@ -980,7 +982,8 @@ api_key:
   ## @param compression_level - integer - optional - default: 6
   ## @env DD_LOGS_CONFIG_COMPRESSION_LEVEL - boolean - optional - default: false
   ## The compression_level parameter accepts values from 0 (no compression)
-  ## to 9 (maximum compression but higher resource usage).
+  ## to 9 (maximum compression but higher resource usage). Only takes effect if
+  ## `use_compression` is set to `true`.
   #
   # compression_level: 6
 
