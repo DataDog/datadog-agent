@@ -59,15 +59,19 @@ func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buffe
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
 //FIXME(maxime): to be removed when v2 endpoints are available
-func (series Series) MarshalJSONCopy() ([]byte, error) {
+func (series IterableSeries) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing a Series
 	type SeriesAlias Series
-	for _, serie := range series {
+
+	var seriesAlias SeriesAlias
+	for series.MoveNext() {
+		serie := series.Current()
 		serie.PopulateDeviceField()
+		seriesAlias = append(seriesAlias, serie)
 	}
 
 	data := map[string][]*metrics.Serie{
-		"series": SeriesAlias(series),
+		"series": seriesAlias,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
@@ -75,14 +79,17 @@ func (series Series) MarshalJSONCopy() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into, at least, "times" number of pieces
-func (series Series) SplitPayloadCopy(times int) ([]marshaler.AbstractMarshaler, error) {
+func (series IterableSeries) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	seriesExpvar.Add("TimesSplit", 1)
 	tlmSeries.Inc("times_split")
 
 	// We need to split series without splitting metrics across multiple
 	// payload. So we first group series by metric name.
 	metricsPerName := map[string]Series{}
-	for _, s := range series {
+	serieCount := 0
+	for series.MoveNext() {
+		s := series.Current()
+		serieCount++
 		if _, ok := metricsPerName[s.Name]; ok {
 			metricsPerName[s.Name] = append(metricsPerName[s.Name], s)
 		} else {
@@ -94,10 +101,14 @@ func (series Series) SplitPayloadCopy(times int) ([]marshaler.AbstractMarshaler,
 	if len(metricsPerName) == 1 {
 		seriesExpvar.Add("SplitMetricsTooBig", 1)
 		tlmSeries.Inc("split_metrics_too_big")
-		return nil, fmt.Errorf("Cannot split metric '%s' into %d payload (it contains %d series)", series[0].Name, times, len(series))
+		var metricName string
+		for k, _ := range metricsPerName {
+			metricName = k
+		}
+		return nil, fmt.Errorf("Cannot split metric '%s' into %d payload (it contains %d series)", metricName, times, serieCount)
 	}
 
-	nbSeriesPerPayload := len(series) / times
+	nbSeriesPerPayload := serieCount / times
 
 	payloads := []marshaler.AbstractMarshaler{}
 	current := Series{}
