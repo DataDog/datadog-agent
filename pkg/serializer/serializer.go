@@ -87,7 +87,6 @@ func initExtraHeaders() {
 type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
-	SendSeries(series metrics.Series) error
 	SendIterableSeries(series *metrics.IterableSeries) error
 	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.JSONMarshaler) error
@@ -313,38 +312,6 @@ func (s *Serializer) SendIterableSeries(series *metrics.IterableSeries) error {
 
 	if useV1API && s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
-	} else if useV1API && !s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
-	} else {
-		seriesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
-		extraHeaders = protobufExtraHeadersWithCompression
-	}
-
-	if err != nil {
-		return fmt.Errorf("dropping series payload: %s", err)
-	}
-
-	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
-	}
-	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
-}
-
-// SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(series metrics.Series) error {
-	if !s.enableSeries {
-		log.Debug("series payloads are disabled: dropping it")
-		return nil
-	}
-	seriesSerializer := metricsserializer.Series(series)
-	useV1API := !config.Datadog.GetBool("use_v2_api.series")
-
-	var seriesPayloads forwarder.Payloads
-	var extraHeaders http.Header
-	var err error
-
-	if useV1API && s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 	} else if useV1API && !s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {

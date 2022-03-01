@@ -35,11 +35,6 @@ func (s *MockSerializer) SendIterableSeries(series *metrics.IterableSeries) erro
 	return s.Called(series).Error(0)
 }
 
-// SendSeries serializes a list of series and sends the payload to the forwarder
-func (s *MockSerializer) SendSeries(series metrics.Series) error {
-	return s.Called(series).Error(0)
-}
-
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *MockSerializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	return s.Called(sketches).Error(0)

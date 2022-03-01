@@ -582,11 +582,6 @@ func (s *MockSerializerIterableSerie) SendIterableSeries(iterableSerie *metrics.
 	return nil
 }
 
-func (s *MockSerializerIterableSerie) SendSeries(series metrics.Series) error {
-	s.series = append(s.series, series...)
-	return nil
-}
-
 func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 	timeSamplerBucketSize := float64(10)
 	timestamps := []float64{10, 10 + timeSamplerBucketSize}
