@@ -793,7 +793,12 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel{enabled: false}, tagsStore)
+	flushAndSerializeInParallel := flushAndSerializeInParallel{
+		enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && serializer != nil && serializer.IsIterableSeriesSupported(),
+		bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
+		channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
+	}
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
 		aggregator:       aggregator,
@@ -852,6 +857,20 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
+	// only used when we're using flush/serialize in parallel feature
+	logPayloads := config.Datadog.GetBool("log_payloads")
+
+	var seriesSink *metrics.IterableSeries
+	var done chan struct{}
+
+	if d.aggregator.flushAndSerializeInParallel.enabled {
+		seriesSink, done = startSendingIterableSeries(
+			d.serializer,
+			&d.aggregator.flushAndSerializeInParallel,
+			logPayloads,
+			start)
+	}
+
 	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
@@ -863,10 +882,15 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 		},
 		flushedSeries:   &flushedSeries,
 		flushedSketches: &flushedSketches,
+		seriesSink:      seriesSink,
 	}
 
 	d.statsdWorker.flushChan <- trigger
 	<-trigger.blockChan
+
+	if d.aggregator.flushAndSerializeInParallel.enabled {
+		stopIterableSeries(seriesSink, done)
+	}
 
 	var series metrics.Series
 	for _, s := range flushedSeries {
