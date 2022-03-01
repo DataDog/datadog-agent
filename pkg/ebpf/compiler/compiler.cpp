@@ -12,33 +12,37 @@
 #include <clang/Lex/PreprocessorOptions.h>
 
 std::once_flag ClangCompiler::llvmInitialized;
-std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> ClangCompiler::remapped_files;
+std::map<std::string, std::unique_ptr<llvm::MemoryBuffer> > ClangCompiler::remapped_files;
 const std::string ClangCompiler::main_path = "/virtual/main.c";
 
-enum Architecture { PPC, PPCLE, S390X, ARM64, X86 };
-
-ClangCompiler::ClangCompiler(const char *name) :
-    llvmContext(std::make_unique<llvm::LLVMContext>()),
-    diagOpts(new clang::DiagnosticOptions()),
-    errStream(errString),
-    textDiagnosticPrinter(std::make_unique<clang::TextDiagnosticPrinter>(errStream, diagOpts.get())),
-    diagnosticsEngine(new clang::DiagnosticsEngine(diagID, diagOpts, textDiagnosticPrinter.get(), false)),
-    defaultCflags({
-        "clang", // DO NOT REMOVE, first flag is ignored
-        "-emit-llvm",
-        "-O2",
-        "-D__KERNEL__",
-        "-fno-color-diagnostics",
-        "-fno-unwind-tables",
-        "-fno-asynchronous-unwind-tables",
-        "-fno-stack-protector",
-        "-nostdinc",
-        "-isystem/virtual/lib/clang/include",
-        "-x", "c"
-    }),
-    theTriple("bpf")
+enum Architecture
 {
-    std::call_once(llvmInitialized, []{
+    PPC,
+    PPCLE,
+    S390X,
+    ARM64,
+    X86
+};
+
+ClangCompiler::ClangCompiler(const char *name)
+    : llvmContext()
+    , diagOpts(new clang::DiagnosticOptions())
+    , errStream(errString)
+    , textDiagnosticPrinter(std::make_unique<clang::TextDiagnosticPrinter>(errStream, diagOpts.get()))
+    , diagnosticsEngine(new clang::DiagnosticsEngine(diagID, diagOpts, textDiagnosticPrinter.get(), false))
+    , defaultCflags({ "clang", // DO NOT REMOVE, first flag is ignored
+          "-emit-llvm",
+          "-O2",
+          "-D__KERNEL__",
+          "-fno-color-diagnostics",
+          "-fno-unwind-tables",
+          "-fno-asynchronous-unwind-tables",
+          "-fno-stack-protector",
+          "-nostdinc",
+          "-isystem/virtual/lib/clang/include",
+          "-x", "c" })
+    , theTriple("bpf") {
+    std::call_once(llvmInitialized, [] {
         LLVMInitializeBPFTarget();
         LLVMInitializeBPFTargetMC();
         LLVMInitializeBPFTargetInfo();
@@ -52,8 +56,7 @@ ClangCompiler::ClangCompiler(const char *name) :
 
     theDriver = std::make_unique<clang::driver::Driver>(
         name, getArch(), *diagnosticsEngine,
-        llvm::vfs::getRealFileSystem()
-    );
+        llvm::vfs::getRealFileSystem());
 
     std::string arch = "bpf";
     std::string Error;
@@ -80,10 +83,9 @@ ClangCompiler::ClangCompiler(const char *name) :
 std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     const char *inputFile,
     const char *outputFile,
-    const std::vector<const char*> &extraCflags,
+    const std::vector<const char *> &extraCflags,
     bool verbose,
-    bool inMemory)
-{
+    bool inMemory) {
     auto cflags = defaultCflags;
     cflags.insert(cflags.end(), extraCflags.begin(), extraCflags.end());
 
@@ -143,10 +145,9 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
 std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
     const char *input,
     const char *outputFile,
-    const std::vector<const char*> &cflags,
+    const std::vector<const char *> &cflags,
     bool verbose,
-    bool inMemory)
-{
+    bool inMemory) {
     std::unique_ptr<llvm::MemoryBuffer> main_buf;
     const char *inputFile;
 
@@ -186,7 +187,7 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
         return nullptr;
     }
 
-    std::unique_ptr<clang::CodeGenAction> emitLLVMAction(new clang::EmitLLVMAction(llvmContext.get()));
+    auto emitLLVMAction = std::make_unique<clang::EmitLLVMAction>(&llvmContext);
     if (!compiler.ExecuteAction(*emitLLVMAction)) {
         return nullptr;
     }
@@ -194,8 +195,7 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
     return emitLLVMAction->takeModule();
 }
 
-llvm::StringRef ClangCompiler::getDataLayout()
-{
+llvm::StringRef ClangCompiler::getDataLayout() {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     return "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
 #else
@@ -213,7 +213,7 @@ llvm::StringRef ClangCompiler::getArch() {
         arch = Architecture::PPCLE;
 #else
         arch = Architecture::PPC;
-    #endif
+#endif
 #elif defined(__s390x__)
         arch = Architecture::S390X;
 #elif defined(__aarch64__)
@@ -235,7 +235,7 @@ llvm::StringRef ClangCompiler::getArch() {
         arch = Architecture::X86;
     }
 
-    switch(arch) {
+    switch (arch) {
     case Architecture::PPCLE:
         return "powerpc64le-unknown-linux-gnu";
     case Architecture::PPC:
@@ -249,8 +249,7 @@ llvm::StringRef ClangCompiler::getArch() {
     }
 }
 
-int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *outputFile)
-{
+int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *outputFile) {
     if (!outputFile) {
         diagnosticsEngine->Report(clang::diag::err_cannot_open_file) << "Invalid output file";
         return -1;
@@ -279,11 +278,9 @@ int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *output
     return 0;
 }
 
-const std::string& ClangCompiler::getErrors() const
-{
+const std::string &ClangCompiler::getErrors() const {
     return errString;
 }
 
-ClangCompiler::~ClangCompiler()
-{
+ClangCompiler::~ClangCompiler() {
 }
