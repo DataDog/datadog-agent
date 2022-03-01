@@ -50,8 +50,8 @@ type ActivityDump struct {
 	addedRuntimeCount  map[model.EventType]*uint64
 	addedSnapshotCount map[model.EventType]*uint64
 
-	ProcessActivityTree []*ProcessActivityNode `json:"tree"`
-	CookiesNode         map[uint32]*ProcessActivityNode
+	ProcessActivityTree []*ProcessActivityNode          `json:"tree"`
+	CookiesNode         map[uint32]*ProcessActivityNode `json:"-"`
 	DifferentiateArgs   bool
 	WithGraph           bool
 
@@ -697,17 +697,21 @@ func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArg
 }
 
 func extractFirstParent(path string) (string, int) {
-	var prefix string
-	var prefixLen int
-	prefixes := strings.Split(path, "/")
-	if len(prefixes) > 1 && len(prefixes[0]) == 0 {
-		prefix = prefixes[1]
-		prefixLen = len(prefix) + 1
-	} else {
-		prefix = prefixes[0]
-		prefixLen = len(prefix)
+	if len(path) == 0 {
+		return "", 0
 	}
-	return prefix, prefixLen
+
+	if path[0] == '/' {
+		path = path[1:]
+	}
+
+	for i := 0; i < len(path); i++ {
+		if path[i] == '/' {
+			return path[0:i], i
+		}
+	}
+
+	return path, len(path)
 }
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was

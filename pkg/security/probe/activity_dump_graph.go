@@ -95,6 +95,8 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	args, _ = ad.adm.probe.resolvers.ProcessResolver.GetProcessArgv(&p.Process)
 	sanitizedArgs := strings.ReplaceAll(strings.Join(args, " "), "\"", "\\\"")
 	sanitizedArgs = strings.ReplaceAll(sanitizedArgs, "\n", " ")
+	sanitizedArgs = strings.ReplaceAll(sanitizedArgs, ">", "\\>")
+	sanitizedArgs = strings.ReplaceAll(sanitizedArgs, "|", "\\|")
 	pan := node{
 		ID:    generateNodeID(processID),
 		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, sanitizedArgs),
