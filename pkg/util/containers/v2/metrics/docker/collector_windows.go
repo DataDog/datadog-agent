@@ -40,8 +40,7 @@ func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 
 func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
 	return &provider.ContainerMemStats{
-		UsageTotal:        pointer.UIntToFloatPtr(memStats.Usage),
-		Limit:             pointer.UIntToFloatPtr(memStats.Limit),
+		UsageTotal:        pointer.UIntToFloatPtr(memStats.Commit),
 		PrivateWorkingSet: pointer.UIntToFloatPtr(memStats.PrivateWorkingSet),
 		CommitBytes:       pointer.UIntToFloatPtr(memStats.Commit),
 		CommitPeakBytes:   pointer.UIntToFloatPtr(memStats.CommitPeak),

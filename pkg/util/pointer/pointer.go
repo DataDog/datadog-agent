@@ -5,6 +5,16 @@
 
 package pointer
 
+// Int64Ptr returns a pointer from a value. It will allocate a new heap object for it.
+func Int64Ptr(v int64) *int64 {
+	return &v
+}
+
+// UInt16Ptr returns a pointer from a value. It will allocate a new heap object for it.
+func UInt16Ptr(v uint16) *uint16 {
+	return &v
+}
+
 // UInt64Ptr returns a pointer from a value. It will allocate a new heap object for it.
 func UInt64Ptr(v uint64) *uint64 {
 	return &v
