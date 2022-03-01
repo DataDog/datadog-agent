@@ -32,8 +32,11 @@ type Tailer struct {
 	// accessed atomically.
 	lastReadOffset int64
 
+	// decodedOffset is the offset in the file at which the latest decoded message
+	// ends.  TODO(dustin): this field is accessed both atomically and non-atomically.
 	decodedOffset int64
-	bytesRead     int64
+
+	bytesRead int64
 
 	// file contains the logs configuration for the file to parse (path, source, ...)
 	// If you are looking for the os.file use to read on the FS, see osFile.
@@ -265,9 +268,11 @@ func (t *Tailer) getLastReadOffset() int64 {
 	return atomic.LoadInt64(&t.lastReadOffset)
 }
 
-// SetDecodedOffset sets the position of the last byte decoded in the
-// file
-func (t *Tailer) SetDecodedOffset(off int64) {
+// setDecodedOffset sets decodedOffset, atomically.
+//
+// NOTE: other access to this field is not made atomically, so calling this
+// method may lead to undefined behavior.
+func (t *Tailer) setDecodedOffset(off int64) {
 	atomic.StoreInt64(&t.decodedOffset, off)
 }
 

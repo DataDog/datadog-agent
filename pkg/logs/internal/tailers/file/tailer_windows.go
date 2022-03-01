@@ -60,11 +60,11 @@ func (t *Tailer) readAvailable() (int, error) {
 	if sz == 0 {
 		log.Debug("File size now zero, resetting offset")
 		t.setLastReadOffset(0)
-		t.SetDecodedOffset(0)
+		t.setDecodedOffset(0)
 	} else if sz < offset {
 		log.Debug("Offset off end of file, resetting")
 		t.setLastReadOffset(0)
-		t.SetDecodedOffset(0)
+		t.setDecodedOffset(0)
 	}
 	f.Seek(offset, io.SeekStart)
 	bytes := 0
