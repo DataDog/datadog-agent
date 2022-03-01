@@ -57,7 +57,7 @@ func newSystemCollector() (*systemCollector, error) {
 	}
 
 	reader, err := cgroups.NewReader(
-		cgroups.WithCgroupV1BaseController("freezer"),
+		cgroups.WithCgroupV1BaseController("memory"),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
 		cgroups.WithReaderFilter(cgroups.ContainerFilter),
