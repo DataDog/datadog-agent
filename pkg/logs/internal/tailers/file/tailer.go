@@ -39,7 +39,7 @@ type Tailer struct {
 	osFile   *os.File
 	tags     []string
 
-	OutputChan  chan *message.Message
+	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
 	tagProvider tag.Provider
 
@@ -76,7 +76,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 
 	return &Tailer{
 		file:           file,
-		OutputChan:     outputChan,
+		outputChan:     outputChan,
 		decoder:        decoder,
 		tagProvider:    tagProvider,
 		readOffset:     0,
@@ -87,6 +87,12 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		forwardContext: forwardContext,
 		stopForward:    stopForward,
 	}
+}
+
+// NewRotatedTailer creates a new tailer that replaces this one, writing messages to the same channel but using
+// an updated file and decoder.
+func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder) *Tailer {
+	return NewTailer(t.outputChan, file, t.sleepDuration, decoder)
 }
 
 // Identifier returns a string that uniquely identifies a source.
@@ -227,7 +233,7 @@ func (t *Tailer) forwardMessages() {
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.OutputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
 		case <-t.forwardContext.Done():
 		}
 	}
