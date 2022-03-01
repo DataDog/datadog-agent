@@ -93,9 +93,11 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	processID := fmt.Sprintf("%s_%s_%d", p.Process.PathnameStr, p.Process.ExecTime, p.Process.Tid)
 	var args []string
 	args, _ = ad.adm.probe.resolvers.ProcessResolver.GetProcessArgv(&p.Process)
+	sanitizedArgs := strings.ReplaceAll(strings.Join(args, " "), "\"", "\\\"")
+	sanitizedArgs = strings.ReplaceAll(sanitizedArgs, "\n", " ")
 	pan := node{
 		ID:    generateNodeID(processID),
-		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, strings.Join(args, " ")),
+		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, sanitizedArgs),
 		Size:  60,
 		Color: processColor,
 	}

@@ -235,6 +235,10 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 	adm.Lock()
 	defer adm.Unlock()
 
+	if len(event.ContainerContext.ID) == 0 {
+		seclog.Errorf("received a cgroup tracing event with an empty container ID")
+		return
+	}
 	newDump, err := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.ContainerID = event.ContainerContext.ID
 		ad.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
