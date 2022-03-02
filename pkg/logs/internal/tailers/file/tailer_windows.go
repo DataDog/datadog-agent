@@ -43,6 +43,12 @@ func (t *Tailer) setup(offset int64, whence int) error {
 }
 
 func (t *Tailer) readAvailable() (int, error) {
+	// If the file has already rotated, there is nothing to be done. Unlike on *nix,
+	// there is no open file handle from which remaining data might be read.
+	if t.hasFileRotated() {
+		return 0, io.EOF
+	}
+
 	f, err := openFile(t.fullpath)
 	if err != nil {
 		return 0, err
