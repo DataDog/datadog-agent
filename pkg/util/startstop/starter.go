@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package restart
+package startstop
 
 // Starter implements the logic to start different components from a data pipeline in series
 type starter struct {

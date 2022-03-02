@@ -20,11 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )
@@ -123,7 +123,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 
 	options = append(options, checks.WithHostname(hostname))
 
-	stopper = restart.NewSerialStopper()
+	stopper = startstop.NewSerialStopper()
 	defer stopper.Stop()
 
 	reporter, err := NewCheckReporter(stopper, checkArgs.report, checkArgs.dumpReports)
@@ -195,7 +195,7 @@ type RunCheckReporter struct {
 	dumpReportsPath string
 }
 
-func NewCheckReporter(stopper restart.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
+func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
 	if report {

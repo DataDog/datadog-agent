@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
@@ -73,7 +73,7 @@ func (l *TCPListener) Stop() {
 	defer l.mu.Unlock()
 	l.stop <- struct{}{}
 	l.listener.Close()
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
 	}
