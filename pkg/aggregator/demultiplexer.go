@@ -887,7 +887,7 @@ func (d *ServerlessDemultiplexer) Serializer() serializer.MetricSerializer {
 	return d.serializer
 }
 
-// Aggregator returns the main buffered aggregator
+// Aggregator returns nil since the Serverless Agent doesn't run an Aggregator.
 func (d *ServerlessDemultiplexer) Aggregator() *BufferedAggregator {
 	return nil
 }
