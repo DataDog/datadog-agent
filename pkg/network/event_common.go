@@ -125,23 +125,24 @@ type Connections struct {
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
+// The string name of each telemetry type is the metric name which will be emitted
 type ConnTelemetryType string
 
-//revive:disable
+//revive:disable:exported
 const (
-	MonotonicKprobesTriggered          ConnTelemetryType = "MonotonicKprobesTriggered"
-	MonotonicKprobesMissed                               = "MonotonicKprobesMissed"
-	MonotonicConnsClosed                                 = "MonotonicConnsClosed"
-	MonotonicConntrackRegisters                          = "MonotonicConntrackRegisters"
-	MonotonicConntrackRegistersDropped                   = "MonotonicConntrackRegistersDropped"
-	MonotonicDNSPacketsProcessed                         = "MonotonicDNSPacketsProcessed"
-	MonotonicUDPSendsProcessed                           = "MonotonicUDPSendsProcessed"
-	MonotonicUDPSendsMissed                              = "MonotonicUDPSendsMissed"
-	DNSStatsDropped                                      = "DNSStatsDropped"
-	ConnsBpfMapSize                                      = "ConnsBpfMapSize"
-	ConntrackSamplingPercent                             = "ConntrackSamplingPercent"
-	NPMDriverFlowsMissedMaxExceeded                      = "NPMDriverFlowsMissedMaxExceeded"
-	MonotonicDNSPacketsDropped                           = "MonotonicDNSPacketsDropped"
+	MonotonicKprobesTriggered          ConnTelemetryType = "kprobes_triggered"
+	MonotonicKprobesMissed                               = "kprobes_missed"
+	MonotonicConnsClosed                                 = "conntrack_registers"
+	MonotonicConntrackRegisters                          = "conntrack_registers_dropped"
+	MonotonicConntrackRegistersDropped                   = "dns_packets_processed"
+	MonotonicDNSPacketsProcessed                         = "conns_closed"
+	MonotonicUDPSendsProcessed                           = "udp_sends_processed"
+	MonotonicUDPSendsMissed                              = "udp_sends_missed"
+	DNSStatsDropped                                      = "dns_packets_dropped"
+	ConnsBpfMapSize                                      = "conns_bpf_map_size"
+	ConntrackSamplingPercent                             = "conntrack_sampling_percent"
+	NPMDriverFlowsMissedMaxExceeded                      = "dns_stats_dropped"
+	MonotonicDNSPacketsDropped                           = "driver_flows_missed_max_exceeded"
 )
 
 //revive:enable

@@ -138,63 +138,57 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
 	if c.lastTelemetry == nil {
 		c.lastTelemetry = make(map[string]int64)
-		c.saveMonotonicTelemetry(tel)
+		c.saveMonotonicTelemetry(nil, tel)
 		return nil
 	}
 
 	cct := map[string]int64{}
 
-	metricNameForTelemetryType := map[string]string{
-		"conns_bpf_map_size":               string(network.ConnsBpfMapSize),
-		"conntrack_sampling_percent":       string(network.ConntrackSamplingPercent),
-		"dns_stats_dropped":                string(network.DNSStatsDropped),
-		"driver_flows_missed_max_exceeded": string(network.NPMDriverFlowsMissedMaxExceeded),
+	telemetryTypes := []string{
+		string(network.ConnsBpfMapSize),
+		string(network.ConntrackSamplingPercent),
+		string(network.DNSStatsDropped),
+		string(network.NPMDriverFlowsMissedMaxExceeded),
 	}
 
 	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
-	// report the telemetry which is actually provided the currently running version of the system-probe
-	for metricName, telemetryTypeName := range metricNameForTelemetryType {
-		if _, ok := tel[telemetryTypeName]; ok {
-			cct[metricName] = tel[telemetryTypeName]
+	// report the telemetry which is actually provided by the currently running version of the system-probe
+	for _, telemetryName := range telemetryTypes {
+		if _, ok := tel[telemetryName]; ok {
+			cct[telemetryName] = tel[telemetryName]
 		}
 	}
 
-	metricNameForMonotonicTelemetryType := map[string]string{
-		"kprobes_triggered":           string(network.MonotonicKprobesTriggered),
-		"kprobes_missed":              string(network.MonotonicKprobesMissed),
-		"conntrack_registers":         string(network.MonotonicConntrackRegisters),
-		"conntrack_registers_dropped": string(network.MonotonicConntrackRegistersDropped),
-		"dns_packets_processed":       string(network.MonotonicDNSPacketsProcessed),
-		"conns_closed":                string(network.MonotonicConnsClosed),
-		"udp_sends_processed":         string(network.MonotonicUDPSendsProcessed),
-		"udp_sends_missed":            string(network.MonotonicUDPSendsMissed),
-		"dns_packets_dropped":         string(network.MonotonicDNSPacketsDropped),
+	monotonicTelemetryTypes := []string{
+		string(network.MonotonicKprobesTriggered),
+		string(network.MonotonicKprobesMissed),
+		string(network.MonotonicConntrackRegisters),
+		string(network.MonotonicConntrackRegistersDropped),
+		string(network.MonotonicDNSPacketsProcessed),
+		string(network.MonotonicConnsClosed),
+		string(network.MonotonicUDPSendsProcessed),
+		string(network.MonotonicUDPSendsMissed),
+		string(network.MonotonicDNSPacketsDropped),
 	}
 
-	for metricName, telemetryTypeName := range metricNameForMonotonicTelemetryType {
-		if _, ok := tel[telemetryTypeName]; ok {
-			cct[metricName] = tel[telemetryTypeName] - c.lastTelemetry[telemetryTypeName]
+	for _, telemetryName := range monotonicTelemetryTypes {
+		if _, ok := tel[telemetryName]; ok {
+			cct[telemetryName] = tel[telemetryName] - c.lastTelemetry[telemetryName]
 		}
 	}
 
-	c.saveMonotonicTelemetry(tel)
+	c.saveMonotonicTelemetry(monotonicTelemetryTypes, tel)
 	return cct
 }
 
-func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
+func (c *ConnectionsCheck) saveMonotonicTelemetry(monotonicTelemetryTypes []string, tel map[string]int64) {
 	if tel == nil || c.lastTelemetry == nil {
 		return
 	}
 
-	c.lastTelemetry[string(network.MonotonicKprobesTriggered)] = tel[string(network.MonotonicKprobesTriggered)]
-	c.lastTelemetry[string(network.MonotonicKprobesMissed)] = tel[string(network.MonotonicKprobesMissed)]
-	c.lastTelemetry[string(network.MonotonicConntrackRegisters)] = tel[string(network.MonotonicConntrackRegisters)]
-	c.lastTelemetry[string(network.MonotonicConntrackRegistersDropped)] = tel[string(network.MonotonicConntrackRegistersDropped)]
-	c.lastTelemetry[string(network.MonotonicDNSPacketsProcessed)] = tel[string(network.MonotonicDNSPacketsProcessed)]
-	c.lastTelemetry[string(network.MonotonicConnsClosed)] = tel[string(network.MonotonicConnsClosed)]
-	c.lastTelemetry[string(network.MonotonicUDPSendsProcessed)] = tel[string(network.MonotonicUDPSendsProcessed)]
-	c.lastTelemetry[string(network.MonotonicUDPSendsMissed)] = tel[string(network.MonotonicUDPSendsMissed)]
-	c.lastTelemetry[string(network.MonotonicDNSPacketsDropped)] = tel[string(network.MonotonicDNSPacketsDropped)]
+	for _, telemetryName := range monotonicTelemetryTypes {
+		c.lastTelemetry[telemetryName] = tel[telemetryName]
+	}
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
