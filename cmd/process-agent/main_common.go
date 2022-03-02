@@ -311,12 +311,12 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Run a profile & telemetry server.
+	if ddconfig.Datadog.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
+	srv := &http.Server{Addr: fmt.Sprintf("localhost:%d", expVarPort), Handler: http.DefaultServeMux}
 	go func() {
-		if ddconfig.Datadog.GetBool("telemetry.enabled") {
-			http.Handle("/telemetry", telemetry.Handler())
-		}
-		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", expVarPort), nil)
-		if err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error creating expvar server on port %v: %v", expVarPort, err)
 		}
 	}()
@@ -340,6 +340,10 @@ func runAgent(exit chan struct{}) {
 	}
 
 	for range exit {
+	}
+
+	if err := srv.Shutdown(context.Background()); err != nil {
+		log.Errorf("Error shutdowning expvar server on port %v: %v", expVarPort, err)
 	}
 }
 
