@@ -6,18 +6,18 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package probe
+package http
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/stretchr/testify/require"
 )
 
-func TestProbeCompile(t *testing.T) {
-	cfg := ebpf.NewConfig()
-	_, err := getRuntimeCompiledProbe(cfg, false)
+func TestHttpCompile(t *testing.T) {
+	cfg := config.New()
+	cfg.BPFDebug = true
+	_, err := getRuntimeCompiledHTTP(cfg)
 	require.NoError(t, err)
 }
