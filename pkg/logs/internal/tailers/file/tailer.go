@@ -296,22 +296,9 @@ func (t *Tailer) incrementLastReadOffset(n int) {
 	atomic.AddInt64(&t.lastReadOffset, int64(n))
 }
 
-// setLastReadOffset sets the value of lastReadOffset, atomically.
-func (t *Tailer) setLastReadOffset(off int64) {
-	atomic.StoreInt64(&t.lastReadOffset, off)
-}
-
 // getLastReadOffset gets the value of lastReadOffset, atomically.
 func (t *Tailer) getLastReadOffset() int64 {
 	return atomic.LoadInt64(&t.lastReadOffset)
-}
-
-// setDecodedOffset sets decodedOffset, atomically.
-//
-// NOTE: other access to this field is not made atomically, so calling this
-// method may lead to undefined behavior.
-func (t *Tailer) setDecodedOffset(off int64) {
-	atomic.StoreInt64(&t.decodedOffset, off)
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.
