@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package serializer
 
@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func generateData(points int, items int, tags int) metricsserializer.Series {
-	series := metricsserializer.Series{}
+func generateData(points int, items int, tags int) metrics.Series {
+	series := metrics.Series{}
 	for i := 0; i < items; i++ {
 		series = append(series, &metrics.Serie{
 			Points: func() []metrics.Point {
@@ -51,7 +51,7 @@ func generateData(points int, items int, tags int) metricsserializer.Series {
 var payloads forwarder.Payloads
 
 func BenchmarkSeries(b *testing.B) {
-	bench := func(points, items, tags int, build func(series metricsserializer.Series) (forwarder.Payloads, error)) func(b *testing.B) {
+	bench := func(points, items, tags int, build func(series metrics.Series) (forwarder.Payloads, error)) func(b *testing.B) {
 		return func(b *testing.B) {
 			series := generateData(points, items, tags)
 
@@ -74,13 +74,15 @@ func BenchmarkSeries(b *testing.B) {
 		}
 	}
 	bufferContext := marshaler.DefaultBufferContext()
-	pb := func(series metricsserializer.Series) (forwarder.Payloads, error) {
-		return series.MarshalSplitCompress(bufferContext)
+	pb := func(series metrics.Series) (forwarder.Payloads, error) {
+		iterableSeries := &metricsserializer.IterableSeries{IterableSeries: metricsserializer.CreateIterableSeries(series)}
+		return iterableSeries.MarshalSplitCompress(bufferContext)
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true)
-	json := func(series metricsserializer.Series) (forwarder.Payloads, error) {
-		return payloadBuilder.Build(series)
+	json := func(series metrics.Series) (forwarder.Payloads, error) {
+		iterableSeries := &metricsserializer.IterableSeries{IterableSeries: metricsserializer.CreateIterableSeries(series)}
+		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 
 	for _, items := range []int{5, 10, 100, 500, 1000, 10000, 100000} {
