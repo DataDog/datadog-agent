@@ -143,15 +143,15 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 	}
 
 	cct := map[string]int64{
-		"kprobes_triggered":           tel[string(network.MonotonicKprobesTriggered)] - c.lastTelemetry[network.KprobesTriggered],
-		"kprobes_missed":              tel[string(network.MonotonicKprobesMissed)] - c.lastTelemetry[network.KprobesMissed],
-		"conntrack_registers":         tel[string(network.MonotonicConntrackRegisters)] - c.lastTelemetry[network.ConntrackRegisters],
-		"conntrack_registers_dropped": tel[string(network.MonotonicConntrackRegistersDropped)] - c.lastTelemetry[network.ConntrackRegistersDropped],
-		"dns_packets_processed":       tel[string(network.MonotonicDNSPacketsProcessed)] - c.lastTelemetry[network.DNSPacketsProcessed],
-		"conns_closed":                tel[string(network.MonotonicConnsClosed)] - c.lastTelemetry[network.ConnsClosed],
+		"kprobes_triggered":           tel[string(network.MonotonicKprobesTriggered)] - c.lastTelemetry[network.MonotonicKprobesTriggered],
+		"kprobes_missed":              tel[string(network.MonotonicKprobesMissed)] - c.lastTelemetry[network.MonotonicKprobesMissed],
+		"conntrack_registers":         tel[string(network.MonotonicConntrackRegisters)] - c.lastTelemetry[network.MonotonicConntrackRegisters],
+		"conntrack_registers_dropped": tel[string(network.MonotonicConntrackRegistersDropped)] - c.lastTelemetry[network.MonotonicConntrackRegistersDropped],
+		"dns_packets_processed":       tel[string(network.MonotonicDNSPacketsProcessed)] - c.lastTelemetry[network.MonotonicDNSPacketsProcessed],
+		"conns_closed":                tel[string(network.MonotonicConnsClosed)] - c.lastTelemetry[network.MonotonicConnsClosed],
 		"conns_bpf_map_size":          tel[string(network.ConnsBpfMapSize)],
-		"udp_sends_processed":         tel[string(network.MonotonicUDPSendsProcessed)] - c.lastTelemetry[network.UDPSendsProcessed],
-		"udp_sends_missed":            tel[string(network.MonotonicUDPSendsMissed)] - c.lastTelemetry[network.UDPSendsMissed],
+		"udp_sends_processed":         tel[string(network.MonotonicUDPSendsProcessed)] - c.lastTelemetry[network.MonotonicUDPSendsProcessed],
+		"udp_sends_missed":            tel[string(network.MonotonicUDPSendsMissed)] - c.lastTelemetry[network.MonotonicUDPSendsMissed],
 		"conntrack_sampling_percent":  tel[string(network.ConntrackSamplingPercent)],
 		"dns_stats_dropped":           tel[string(network.DNSStatsDropped)],
 	}
@@ -164,14 +164,14 @@ func (c *ConnectionsCheck) saveTelemetry(tel map[string]int64) {
 		return
 	}
 
-	c.lastTelemetry[network.KprobesTriggered] = tel[string(network.MonotonicKprobesTriggered)]
-	c.lastTelemetry[network.KprobesMissed] = tel[string(network.MonotonicKprobesMissed)]
-	c.lastTelemetry[network.ConntrackRegisters] = tel[string(network.MonotonicConntrackRegisters)]
-	c.lastTelemetry[network.ConntrackRegistersDropped] = tel[string(network.MonotonicConntrackRegistersDropped)]
-	c.lastTelemetry[network.DNSPacketsProcessed] = tel[string(network.MonotonicDNSPacketsProcessed)]
-	c.lastTelemetry[network.ConnsClosed] = tel[string(network.MonotonicConnsClosed)]
-	c.lastTelemetry[network.UDPSendsProcessed] = tel[string(network.MonotonicUDPSendsProcessed)]
-	c.lastTelemetry[network.UDPSendsMissed] = tel[string(network.MonotonicUDPSendsMissed)]
+	c.lastTelemetry[network.MonotonicKprobesTriggered] = tel[string(network.MonotonicKprobesTriggered)]
+	c.lastTelemetry[network.MonotonicKprobesMissed] = tel[string(network.MonotonicKprobesMissed)]
+	c.lastTelemetry[network.MonotonicConntrackRegisters] = tel[string(network.MonotonicConntrackRegisters)]
+	c.lastTelemetry[network.MonotonicConntrackRegistersDropped] = tel[string(network.MonotonicConntrackRegistersDropped)]
+	c.lastTelemetry[network.MonotonicDNSPacketsProcessed] = tel[string(network.MonotonicDNSPacketsProcessed)]
+	c.lastTelemetry[network.MonotonicConnsClosed] = tel[string(network.MonotonicConnsClosed)]
+	c.lastTelemetry[network.MonotonicUDPSendsProcessed] = tel[string(network.MonotonicUDPSendsProcessed)]
+	c.lastTelemetry[network.MonotonicUDPSendsMissed] = tel[string(network.MonotonicUDPSendsMissed)]
 	c.lastTelemetry[network.DNSStatsDropped] = tel[string(network.DNSStatsDropped)]
 }
 
