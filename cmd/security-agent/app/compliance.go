@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
@@ -70,7 +70,7 @@ func eventRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	stopper := restart.NewSerialStopper()
+	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
 	endpoints, dstContext, err := newLogContextCompliance()
@@ -99,7 +99,7 @@ func eventRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
+func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil, nil

@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -40,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -454,7 +454,7 @@ func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
@@ -483,7 +483,7 @@ func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, err
 	return newLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
 }
 
-func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
+func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")

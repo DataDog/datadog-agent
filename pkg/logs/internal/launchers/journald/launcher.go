@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Launcher is in charge of starting and stopping new journald tailers
@@ -67,7 +67,7 @@ func (l *Launcher) run() {
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for identifier, tailer := range l.tailers {
 		stopper.Add(tailer)
 		delete(l.tailers, identifier)

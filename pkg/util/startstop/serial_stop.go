@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package restart
+package startstop
 
 // serialStopper implements the logic to stop different components from a data pipeline in series
 type serialStopper struct {
