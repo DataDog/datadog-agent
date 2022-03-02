@@ -346,6 +346,8 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 		return HostnameData{}, err
 	}
 
+	// we have a hostname, cache it and return it
+
 	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
 	return hostnameData, nil
 }
