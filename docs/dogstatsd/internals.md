@@ -72,23 +72,23 @@ Input: MetricSample from the Worker
 
 Output: slices of MetricSample sent to the Agent Demultiplexer (which is distributing them to the TimeSamplerWorkers)
 
-The role of the Batcher is to accumulate multiple MetricSamples before sending them to the Agent Demultiplexer. Every time it has accumulated 32 MetricSample, it sends them to the Demultiplexer. These 32 MetricSamples are sent in a channel buffering 100 sets, there is one channel per TimeSampler.
+The role of the Batcher is to accumulate multiple MetricSamples before sending them to the Agent Demultiplexer. Every time it accumulates 32 MetricSamples, the Batcher sends them to the Demultiplexer. The Batcher sends 32 MetricSamples in a channel buffering 100 sets. There is one channel per TimeSampler.
 
-The size of a MetricSample depends on the size of the host hostname, its metric name, and its amount of tags. Based on hostname = 20 chars, metric name = 40 chars and tags = 200 chars, a MetricSample has a size of approximately 264 bytes. In theory, a `Batcher` can use 844kb of memory.
+The size of a MetricSample depends on the size of the host's hostname, its metric name, and its number of tags. An example MetricSample with a 20 character hostname, 40 character metric name, and 200 characters of tags has a size of approximately 264 bytes. A Batcher can use a maximum of 844kb of memory.
 
 ## TimeSamplerWorker
 
 Input: slice of MetricSamples
 
-The TimeSamplerWorker runs an infinite loop in a routine, it is responsible of:
+The TimeSamplerWorker runs in an infinite loop. It is responsible for the following:
 
-  * processing slices of MetricSample sent by the `Batcher` (through the `AgentDemultiplexer`). It is embedding a `TimeSampler` to actually do the sampling.
-  * flushing on a signal
-  * stopping on a signal
+  * Process slices of MetricSamples sent by the Batcher (through the AgentDemultiplexer). A TimeSampler embedded in the TimeSamplerWorker actually does the sampling.
+  * Flush on a signal.
+  * Stop on a signal.
 
-The amount of `TimeSamplerWorker` (and `TimeSampler`) is:
+The following calculations determine the number of TimeSamplerWorker and TimeSampler instances:
 
-    * if `dogstatsd_pipeline_autoadjust` is `true`, there will be `(number of core/2) - 1` time sampler running
-    * if `dogstatsd_pipeline_count` is set to a value, it will be the amount of time sampler pipeline running
-    * otherwise, only one will be running.
+    * If `dogstatsd_pipeline_autoadjust` is `true`, there are `(number of core/2) - 1` instances of TimeSampler.
+    * If `dogstatsd_pipeline_count` has a value, the number of TimeSampler pipelines equals that value.
+    * If neither condition above is true, one TimeSampler pipeline runs.
 
