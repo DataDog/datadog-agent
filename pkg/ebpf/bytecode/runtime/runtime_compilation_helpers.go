@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/statsd"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -104,7 +106,7 @@ func (tm *RuntimeCompilationTelemetry) SendMetrics(client *statsd.Client) error 
 
 type RuntimeCompilationFileProvider interface {
 	GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error)
-	GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *RuntimeCompilationTelemetry) (string, error)
+	GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *RuntimeCompilationTelemetry) (string, error)
 }
 
 type RuntimeCompiler struct {
@@ -128,8 +130,10 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 		rc.telemetry.compilationEnabled = true
 	}()
 
-	kv, err := kernel.HostVersion()
-	if err != nil {
+	// we use the raw uname instead of the kernel version, because some kernel versions
+	// can be clamped to 255 thus causing collisions
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
 		rc.telemetry.compilationResult = kernelVersionErr
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
 	}
@@ -146,7 +150,7 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 
 	flags, flagHash := ComputeFlagsAndHash(cflags)
 
-	outputFile, err := provider.GetOutputFilePath(config, kv, flagHash, &rc.telemetry)
+	outputFile, err := provider.GetOutputFilePath(config, &uname, flagHash, &rc.telemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -183,4 +187,14 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 		rc.telemetry.compilationResult = resultReadErr
 	}
 	return out, err
+}
+
+// Sha256hex returns the hex string of the sha256 of the provided buffer
+func Sha256hex(buf []byte) (string, error) {
+	hasher := sha256.New()
+	if _, err := hasher.Write(buf); err != nil {
+		return "", err
+	}
+	cCodeHash := hasher.Sum(nil)
+	return hex.EncodeToString(cCodeHash), nil
 }

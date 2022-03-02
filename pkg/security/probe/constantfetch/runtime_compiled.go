@@ -10,9 +10,7 @@ package constantfetch
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"debug/elf"
-	"encoding/base32"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -23,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-go/statsd"
 	"golang.org/x/sys/unix"
 )
@@ -182,34 +179,18 @@ func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runt
 	return strings.NewReader(p.cCode), nil
 }
 
-func sha256base32(buf []byte) (string, error) {
-	hasher := sha256.New()
-	if _, err := hasher.Write(buf); err != nil {
-		return "", err
-	}
-	cCodeHash := hasher.Sum(nil)
-	// base32 is only [A-V0-9]+
-	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash), nil
-}
-
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
-	cCodeHashB32, err := sha256base32([]byte(a.cCode))
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+	cCodeHash, err := runtime.Sha256hex([]byte(a.cCode))
 	if err != nil {
 		return "", err
 	}
 
-	// we use the raw uname instead of the kernel version, because some kernel versions
-	// can be clamped to 255 thus causing collisions
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return "", fmt.Errorf("error calling uname: %w", err)
-	}
-	unameRHashB32, err := sha256base32(uname.Release[:])
+	unameRHash, err := runtime.Sha256hex(uname.Release[:])
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameRHashB32, cCodeHashB32, flagHash)), nil
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameRHash, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {
