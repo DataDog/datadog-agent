@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-go/statsd"
+	"golang.org/x/sys/unix"
 )
 
 type rcSymbolPair struct {
@@ -181,16 +182,34 @@ func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runt
 	return strings.NewReader(p.cCode), nil
 }
 
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+func sha256base32(buf []byte) (string, error) {
 	hasher := sha256.New()
-	if _, err := hasher.Write([]byte(a.cCode)); err != nil {
+	if _, err := hasher.Write(buf); err != nil {
 		return "", err
 	}
 	cCodeHash := hasher.Sum(nil)
 	// base32 is only [A-V0-9]+
-	cCodeHashB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash)
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash), nil
+}
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHashB32, flagHash)), nil
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+	cCodeHashB32, err := sha256base32([]byte(a.cCode))
+	if err != nil {
+		return "", err
+	}
+
+	// we use the raw uname instead of the kernel version, because some kernel versions
+	// can be clamped to 255 thus causing collisions
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
+		return "", fmt.Errorf("error calling uname: %w", err)
+	}
+	unameRHashB32, err := sha256base32(uname.Release[:])
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameRHashB32, cCodeHashB32, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {
