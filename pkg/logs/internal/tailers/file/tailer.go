@@ -102,7 +102,9 @@ type Tailer struct {
 	// be discarded.
 	forwardContext context.Context
 
-	// stopForward is the cancellation function for forwardContext.
+	// stopForward is the cancellation function for forwardContext.  This will
+	// force the forwardMessages goroutine to stop, even if it is currently
+	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 }
 
