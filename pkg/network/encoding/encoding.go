@@ -27,6 +27,28 @@ var (
 
 	cfgOnce  = sync.Once{}
 	agentCfg *model.AgentConfiguration
+
+	httpAggregationsPool = sync.Pool{
+		New: func() interface{} {
+			return &model.HTTPAggregations{
+				EndpointAggregations: make([]*model.HTTPStats, 0, 5),
+			}
+		},
+	}
+
+	httpStatsPool = sync.Pool{
+		New: func() interface{} {
+			ms := &model.HTTPStats{
+				StatsByResponseStatus: make([]*model.HTTPStats_Data, http.NumStatusClasses),
+			}
+
+			for i := range ms.StatsByResponseStatus {
+				ms.StatsByResponseStatus[i] = &model.HTTPStats_Data{}
+			}
+
+			return ms
+		},
+	}
 )
 
 // Marshaler is an interface implemented by all Connections serializers
@@ -83,6 +105,12 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		agentConns[i] = FormatConnection(conn, routeIndex, httpAggregations, dnsFormatter, ipc)
 	}
 
+	// return HTTPAggregation objects to pool
+	for _, aggr := range httpIndex {
+		resetHTTPAggregations(aggr)
+		httpAggregationsPool.Put(aggr)
+	}
+
 	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
 		log.Debugf(
 			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
@@ -105,4 +133,21 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Routes = routes
 
 	return payload
+}
+
+func resetHTTPAggregations(aggr *model.HTTPAggregations) {
+	for _, e := range aggr.EndpointAggregations {
+		resetHTTPStats(e)
+	}
+	aggr.EndpointAggregations = aggr.EndpointAggregations[:0]
+}
+
+func resetHTTPStats(stats *model.HTTPStats) {
+	for _, es := range stats.StatsByResponseStatus {
+		es.Count = 0
+		es.Latencies = nil
+		es.FirstLatencySample = 0
+	}
+
+	httpStatsPool.Put(stats)
 }

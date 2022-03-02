@@ -126,11 +126,6 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*model.HTTPAggregations {
 	var (
 		aggregationsByKey = make(map[http.Key]*model.HTTPAggregations, len(httpData))
-
-		// Pre-allocate some of the objects
-		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		poolIdx  = 0
 	)
 
 	for key, stats := range httpData {
@@ -141,24 +136,16 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 
 		httpAggregations, ok := aggregationsByKey[key]
 		if !ok {
-			httpAggregations = &model.HTTPAggregations{
-				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
-			}
-
+			httpAggregations = httpAggregationsPool.Get().(*model.HTTPAggregations)
 			aggregationsByKey[key] = httpAggregations
 		}
 
-		ms := &model.HTTPStats{
-			Path:                  path,
-			Method:                model.HTTPMethod(method),
-			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
-		}
-
+		ms := httpStatsPool.Get().(*model.HTTPStats)
+		ms.Path = path
+		ms.Method = model.HTTPMethod(method)
 		for i := 0; i < len(stats); i++ {
-			data := &dataPool[poolIdx+i]
-			ms.StatsByResponseStatus[i] = data
+			data := ms.StatsByResponseStatus[i]
 			data.Count = uint32(stats[i].Count)
-
 			if latencies := stats[i].Latencies; latencies != nil {
 				blob, _ := proto.Marshal(latencies.ToProto())
 				data.Latencies = blob
@@ -167,7 +154,6 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 			}
 		}
 
-		poolIdx += http.NumStatusClasses
 		httpAggregations.EndpointAggregations = append(httpAggregations.EndpointAggregations, ms)
 	}
 
