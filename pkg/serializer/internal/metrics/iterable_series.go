@@ -27,10 +27,6 @@ type IterableSeries struct {
 
 // WriteHeader writes the payload header for this type
 func (series IterableSeries) WriteHeader(stream *jsoniter.Stream) error {
-	return writeHeader(stream)
-}
-
-func writeHeader(stream *jsoniter.Stream) error {
 	stream.WriteObjectStart()
 	stream.WriteObjectField("series")
 	stream.WriteArrayStart()
@@ -39,10 +35,6 @@ func writeHeader(stream *jsoniter.Stream) error {
 
 // WriteFooter writes the payload footer for this type
 func (series IterableSeries) WriteFooter(stream *jsoniter.Stream) error {
-	return writeFooter(stream)
-}
-
-func writeFooter(stream *jsoniter.Stream) error {
 	stream.WriteArrayEnd()
 	stream.WriteObjectEnd()
 	return stream.Flush()
@@ -54,12 +46,9 @@ func (series IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
 	if current == nil {
 		return errors.New("nil serie")
 	}
-	return writeItem(stream, current)
-}
 
-func writeItem(stream *jsoniter.Stream, serie *metrics.Serie) error {
-	serie.PopulateDeviceField()
-	encodeSerie(serie, stream)
+	current.PopulateDeviceField()
+	encodeSerie(current, stream)
 	return stream.Flush()
 }
 
@@ -69,24 +58,14 @@ func (series IterableSeries) DescribeCurrentItem() string {
 	if current == nil {
 		return "nil serie"
 	}
-	return describeItem(current)
-}
 
-func describeItem(serie *metrics.Serie) string {
-	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
+	return fmt.Sprintf("name %q, %d points", current.Name, len(current.Points))
 }
 
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
 func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return marshalSplitCompress(series, bufferContext)
-}
-
-// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled MetricPayload objects.
-func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
@@ -161,8 +140,8 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 		return nil, err
 	}
 
-	for iterator.MoveNext() {
-		serie = iterator.Current()
+	for series.MoveNext() {
+		serie = series.Current()
 
 		buf.Reset()
 		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
@@ -300,11 +279,6 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	}
 
 	return payloads, nil
-}
-
-type serieIterator interface {
-	MoveNext() bool
-	Current() *metrics.Serie
 }
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
