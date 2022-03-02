@@ -10,4 +10,3 @@ cd "$(dirname "$0")"
 ../run-instance/21-argo-setup.sh
 ../run-instance/22-argo-submit.sh
 ../run-instance/23-argo-get.sh
-../run-instance/99-cleanup.sh

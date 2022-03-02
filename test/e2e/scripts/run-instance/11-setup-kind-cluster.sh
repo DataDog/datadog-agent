@@ -13,5 +13,4 @@ fi
 
 echo "Setup kind cluster: k8s-e2e-tests"
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-kind create cluster --name k8s-e2e-tests --wait 10m --config "$SCRIPT_DIR/kind-cluster.yaml" \
-    || (echo "cluster k8s-e2e-tests already exists, try: kind delete cluster --name k8s-e2e-tests" ; exit 1)
+kind create cluster --name k8s-e2e-tests --wait 10m --config "$SCRIPT_DIR/kind-cluster.yaml"
