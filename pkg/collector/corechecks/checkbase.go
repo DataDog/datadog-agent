@@ -234,7 +234,22 @@ func (c *CheckBase) GetWarnings() []error {
 }
 
 // GetSender gets the object to which metrics for this check should be sent.
+//
+// This is a "safe" sender, specialized to avoid some common errors, at a very
+// small cost to performance.  Performance-sensitive checks can use GetRawSender()
+// to avoid this performance cost, as long as they are careful to avoid errors.
+//
+// See `safesender.go` for details on the managed errors.
 func (c *CheckBase) GetSender() (aggregator.Sender, error) {
+	sender, err := c.GetRawSender()
+	if err != nil {
+		return nil, err
+	}
+	return newSafeSender(sender), err
+}
+
+// GetRawSender is similar to GetSender, but does not provide the safety wrapper.
+func (c *CheckBase) GetRawSender() (aggregator.Sender, error) {
 	return aggregator.GetSender(c.ID())
 }
 
