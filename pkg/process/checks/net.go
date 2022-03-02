@@ -37,6 +37,25 @@ var (
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
+
+	telemetryTypes = []string{
+		string(network.ConnsBpfMapSize),
+		string(network.ConntrackSamplingPercent),
+		string(network.DNSStatsDropped),
+		string(network.NPMDriverFlowsMissedMaxExceeded),
+	}
+
+	monotonicTelemetryTypes = []string{
+		string(network.MonotonicKprobesTriggered),
+		string(network.MonotonicKprobesMissed),
+		string(network.MonotonicConntrackRegisters),
+		string(network.MonotonicConntrackRegistersDropped),
+		string(network.MonotonicDNSPacketsProcessed),
+		string(network.MonotonicConnsClosed),
+		string(network.MonotonicUDPSendsProcessed),
+		string(network.MonotonicUDPSendsMissed),
+		string(network.MonotonicDNSPacketsDropped),
+	}
 )
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
@@ -138,18 +157,11 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
 	if c.lastTelemetry == nil {
 		c.lastTelemetry = make(map[string]int64)
-		c.saveMonotonicTelemetry(nil, tel)
+		c.saveMonotonicTelemetry(tel)
 		return nil
 	}
 
 	cct := map[string]int64{}
-
-	telemetryTypes := []string{
-		string(network.ConnsBpfMapSize),
-		string(network.ConntrackSamplingPercent),
-		string(network.DNSStatsDropped),
-		string(network.NPMDriverFlowsMissedMaxExceeded),
-	}
 
 	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
 	// report the telemetry which is actually provided by the currently running version of the system-probe
@@ -159,29 +171,17 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 		}
 	}
 
-	monotonicTelemetryTypes := []string{
-		string(network.MonotonicKprobesTriggered),
-		string(network.MonotonicKprobesMissed),
-		string(network.MonotonicConntrackRegisters),
-		string(network.MonotonicConntrackRegistersDropped),
-		string(network.MonotonicDNSPacketsProcessed),
-		string(network.MonotonicConnsClosed),
-		string(network.MonotonicUDPSendsProcessed),
-		string(network.MonotonicUDPSendsMissed),
-		string(network.MonotonicDNSPacketsDropped),
-	}
-
 	for _, telemetryName := range monotonicTelemetryTypes {
 		if _, ok := tel[telemetryName]; ok {
 			cct[telemetryName] = tel[telemetryName] - c.lastTelemetry[telemetryName]
 		}
 	}
 
-	c.saveMonotonicTelemetry(monotonicTelemetryTypes, tel)
+	c.saveMonotonicTelemetry(tel)
 	return cct
 }
 
-func (c *ConnectionsCheck) saveMonotonicTelemetry(monotonicTelemetryTypes []string, tel map[string]int64) {
+func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
 	if tel == nil || c.lastTelemetry == nil {
 		return
 	}
