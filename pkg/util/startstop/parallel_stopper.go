@@ -9,24 +9,34 @@ import (
 	"sync"
 )
 
-// parallelStopper implements the logic to stop different components from a data pipeline in parallel
+// parallelStopper stops a set of components in parallel.
 type parallelStopper struct {
 	components []Stoppable
 }
 
-// NewParallelStopper returns a new parallelStopper
+var _ Stopper = &parallelStopper{}
+var _ Stoppable = &parallelStopper{}
+
+// NewParallelStopper returns a new parallel stopper.
+//
+// The Stop() method of this object will stop all components concurrently,
+// calling each component's Stop method in a dedicated goroutine.  It will
+// return only when all Stop calls have completed.
+//
+// Any components included in the arguments will be included in the
+// set of components, as if stopper.Add(..) had been called for each.
 func NewParallelStopper(components ...Stoppable) Stopper {
 	return &parallelStopper{
 		components: components,
 	}
 }
 
-// Add appends new elements to the array of components to stop
+// Add implements Stopper#Add.
 func (g *parallelStopper) Add(components ...Stoppable) {
 	g.components = append(g.components, components...)
 }
 
-// Stop stops all components in parallel and returns when they are all stopped
+// Stop implements Stoppable#Stop.
 func (g *parallelStopper) Stop() {
 	wg := &sync.WaitGroup{}
 	for _, component := range g.components {

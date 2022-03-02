@@ -5,24 +5,33 @@
 
 package startstop
 
-// serialStopper implements the logic to stop different components from a data pipeline in series
+// serialStopper stops a set of components in series.
 type serialStopper struct {
 	components []Stoppable
 }
 
-// NewSerialStopper returns a new serialGroup
+var _ Stopper = &serialStopper{}
+var _ Stoppable = &serialStopper{}
+
+// NewSerialStopper returns a new serial stopper.
+//
+// The Stop() method of this object will stop all components, one
+// by one, in the order they were added.
+//
+// Any components included in the arguments will be included in the
+// set of components, as if stopper.Add(..) had been called for each.
 func NewSerialStopper(components ...Stoppable) Stopper {
 	return &serialStopper{
 		components: components,
 	}
 }
 
-// Add appends new elements to the array of components to stop
+// Add implements Stopper#Add.
 func (g *serialStopper) Add(components ...Stoppable) {
 	g.components = append(g.components, components...)
 }
 
-// Stop stops all components one after another
+// Add implements Stoppable#Stop.
 func (g *serialStopper) Stop() {
 	for _, stopper := range g.components {
 		stopper.Stop()
