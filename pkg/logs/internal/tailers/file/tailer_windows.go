@@ -57,16 +57,12 @@ func (t *Tailer) readAvailable() (int, error) {
 
 	sz := st.Size()
 	offset := t.GetReadOffset()
-	if sz == 0 {
-		log.Debug("File size now zero, resetting offset")
-		t.SetReadOffset(0)
-		t.SetDecodedOffset(0)
-	} else if sz < offset {
-		log.Debug("Offset off end of file, resetting")
-		t.SetReadOffset(0)
-		t.SetDecodedOffset(0)
+	if sz < offset {
+		log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
+		return 0, io.EOF
 	}
-	f.Seek(t.GetReadOffset(), io.SeekStart)
+
+	f.Seek(offset, io.SeekStart)
 	bytes := 0
 
 	for {
