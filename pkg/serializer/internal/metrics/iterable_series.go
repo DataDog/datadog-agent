@@ -12,9 +12,12 @@ import (
 	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/richardartoul/molecule"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
 // IterableSeries is a serializer for metrics.IterableSeries
@@ -27,9 +30,22 @@ func (series IterableSeries) WriteHeader(stream *jsoniter.Stream) error {
 	return writeHeader(stream)
 }
 
+func writeHeader(stream *jsoniter.Stream) error {
+	stream.WriteObjectStart()
+	stream.WriteObjectField("series")
+	stream.WriteArrayStart()
+	return stream.Flush()
+}
+
 // WriteFooter writes the payload footer for this type
 func (series IterableSeries) WriteFooter(stream *jsoniter.Stream) error {
 	return writeFooter(stream)
+}
+
+func writeFooter(stream *jsoniter.Stream) error {
+	stream.WriteArrayEnd()
+	stream.WriteObjectEnd()
+	return stream.Flush()
 }
 
 // WriteCurrentItem writes the json representation of an item
@@ -41,6 +57,12 @@ func (series IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
 	return writeItem(stream, current)
 }
 
+func writeItem(stream *jsoniter.Stream, serie *metrics.Serie) error {
+	serie.PopulateDeviceField()
+	encodeSerie(serie, stream)
+	return stream.Flush()
+}
+
 // DescribeCurrentItem returns a text description for logs
 func (series IterableSeries) DescribeCurrentItem() string {
 	current := series.Current()
@@ -50,11 +72,239 @@ func (series IterableSeries) DescribeCurrentItem() string {
 	return describeItem(current)
 }
 
+func describeItem(serie *metrics.Serie) string {
+	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
+}
+
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
 func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return marshalSplitCompress(series, bufferContext)
+}
+
+// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
+// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
+// compressed protobuf marshaled MetricPayload objects.
+func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	var err error
+	var compressor *stream.Compressor
+	buf := bufferContext.PrecompressionBuf
+	ps := molecule.NewProtoStream(buf)
+	payloads := []*[]byte{}
+
+	var pointsThisPayload int
+	var seriesThisPayload int
+	var serie *metrics.Serie
+	maxPointsPerPayload := config.Datadog.GetInt("serializer_max_series_points_per_payload")
+
+	// constants for the protobuf data we will be writing, taken from MetricPayload in
+	// https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
+	const payloadSeries = 1
+	const seriesResources = 1
+	const seriesMetric = 2
+	const seriesTags = 3
+	const seriesPoints = 4
+	const seriesType = 5
+	const seriesSourceTypeName = 7
+	const seriesInterval = 8
+	const resourceType = 1
+	const resourceName = 2
+	const pointValue = 1
+	const pointTimestamp = 2
+
+	// Prepare to write the next payload
+	startPayload := func() error {
+		var err error
+
+		pointsThisPayload = 0
+		seriesThisPayload = 0
+		bufferContext.CompressorInput.Reset()
+		bufferContext.CompressorOutput.Reset()
+
+		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, []byte{}, []byte{})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	addToPayload := func() error {
+		err = compressor.AddItem(buf.Bytes())
+		if err != nil {
+			return err
+		}
+		pointsThisPayload += len(serie.Points)
+		seriesThisPayload++
+		return nil
+	}
+
+	finishPayload := func() error {
+		var payload []byte
+		// Since the compression buffer is full - flush it and rotate
+		payload, err = compressor.Close()
+		if err != nil {
+			return err
+		}
+
+		if seriesThisPayload > 0 {
+			payloads = append(payloads, &payload)
+		}
+
+		return nil
+	}
+
+	// start things off
+	err = startPayload()
+	if err != nil {
+		return nil, err
+	}
+
+	for iterator.MoveNext() {
+		serie = iterator.Current()
+
+		buf.Reset()
+		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
+			var err error
+
+			err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
+				err = ps.String(resourceType, "host")
+				if err != nil {
+					return err
+				}
+
+				err = ps.String(resourceName, serie.Host)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+
+			err = ps.String(seriesMetric, serie.Name)
+			if err != nil {
+				return err
+			}
+
+			err = serie.Tags.ForEachErr(func(tag string) error {
+				return ps.String(seriesTags, tag)
+			})
+			if err != nil {
+				return err
+			}
+
+			err = ps.Int32(seriesType, serie.MType.SeriesAPIV2Enum())
+			if err != nil {
+				return err
+			}
+
+			err = ps.String(seriesSourceTypeName, serie.SourceTypeName)
+			if err != nil {
+				return err
+			}
+
+			err = ps.Int64(seriesInterval, serie.Interval)
+			if err != nil {
+				return err
+			}
+
+			// (Unit is omitted)
+
+			for _, p := range serie.Points {
+				err = ps.Embedded(seriesPoints, func(ps *molecule.ProtoStream) error {
+					err = ps.Int64(pointTimestamp, int64(p.Ts))
+					if err != nil {
+						return err
+					}
+
+					err = ps.Double(pointValue, p.Value)
+					if err != nil {
+						return err
+					}
+
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if len(serie.Points) > maxPointsPerPayload {
+			// this series is just too big to fit in a payload (even alone)
+			err = stream.ErrItemTooBig
+		} else if pointsThisPayload+len(serie.Points) > maxPointsPerPayload {
+			// this series won't fit in this payload, but will fit in the next
+			err = stream.ErrPayloadFull
+		} else {
+			// Compress the protobuf metadata and the marshaled series
+			err = addToPayload()
+		}
+
+		switch err {
+		case stream.ErrPayloadFull:
+			expvarsPayloadFull.Add(1)
+			tlmPayloadFull.Inc()
+
+			err = finishPayload()
+			if err != nil {
+				return nil, err
+			}
+
+			err = startPayload()
+			if err != nil {
+				return nil, err
+			}
+
+			// Add it to the new compression buffer
+			err = addToPayload()
+			if err == stream.ErrItemTooBig {
+				// Item was too big, drop it
+				expvarsItemTooBig.Add(1)
+				tlmItemTooBig.Inc()
+				continue
+			}
+			if err != nil {
+				// Unexpected error bail out
+				expvarsUnexpectedItemDrops.Add(1)
+				tlmUnexpectedItemDrops.Inc()
+				return nil, err
+			}
+		case stream.ErrItemTooBig:
+			// Item was too big, drop it
+			expvarsItemTooBig.Add(1)
+			tlmItemTooBig.Add(1)
+		case nil:
+			continue
+		default:
+			// Unexpected error bail out
+			expvarsUnexpectedItemDrops.Add(1)
+			tlmUnexpectedItemDrops.Inc()
+			return nil, err
+		}
+	}
+
+	// if the last payload has any data, flush it
+	err = finishPayload()
+	if err != nil {
+		return nil, err
+	}
+
+	return payloads, nil
+}
+
+type serieIterator interface {
+	MoveNext() bool
+	Current() *metrics.Serie
 }
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
@@ -136,4 +386,73 @@ func (series IterableSeries) SplitPayload(times int) ([]marshaler.AbstractMarsha
 		payloads = append(payloads, current)
 	}
 	return payloads, nil
+}
+
+func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
+	stream.WriteObjectStart()
+
+	stream.WriteObjectField("metric")
+	stream.WriteString(serie.Name)
+	stream.WriteMore()
+
+	stream.WriteObjectField("points")
+	encodePoints(serie.Points, stream)
+	stream.WriteMore()
+
+	stream.WriteObjectField("tags")
+	stream.WriteArrayStart()
+	firstTag := true
+	serie.Tags.ForEach(func(s string) {
+		if !firstTag {
+			stream.WriteMore()
+		}
+		stream.WriteString(s)
+		firstTag = false
+	})
+	stream.WriteArrayEnd()
+	stream.WriteMore()
+
+	stream.WriteObjectField("host")
+	stream.WriteString(serie.Host)
+	stream.WriteMore()
+
+	if serie.Device != "" {
+		stream.WriteObjectField("device")
+		stream.WriteString(serie.Device)
+		stream.WriteMore()
+	}
+
+	stream.WriteObjectField("type")
+	stream.WriteString(serie.MType.String())
+	stream.WriteMore()
+
+	stream.WriteObjectField("interval")
+	stream.WriteInt64(serie.Interval)
+
+	if serie.SourceTypeName != "" {
+		stream.WriteMore()
+		stream.WriteObjectField("source_type_name")
+		stream.WriteString(serie.SourceTypeName)
+	}
+
+	stream.WriteObjectEnd()
+}
+
+func encodePoints(points []metrics.Point, stream *jsoniter.Stream) {
+	var needComa bool
+
+	stream.WriteArrayStart()
+	for _, p := range points {
+		if needComa {
+			stream.WriteMore()
+		} else {
+			needComa = true
+		}
+		stream.WriteArrayStart()
+		stream.WriteInt64(int64(p.Ts))
+		stream.WriteMore()
+		stream.WriteFloat64(p.Value)
+		stream.WriteArrayEnd()
+	}
+	stream.WriteArrayEnd()
 }
