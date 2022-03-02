@@ -150,16 +150,29 @@ func (hc *HelmCheck) Run() error {
 }
 
 func helmTags(release *release, storageDriver helmStorage) []string {
-	return []string{
+	tags := []string{
 		fmt.Sprintf("helm_release:%s", release.Name),
-		fmt.Sprintf("helm_chart_name:%s", release.Chart.Metadata.Name),
 		fmt.Sprintf("helm_namespace:%s", release.Namespace),
 		fmt.Sprintf("helm_revision:%d", release.Version),
-		fmt.Sprintf("helm_status:%s", release.Info.Status),
-		fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
-		fmt.Sprintf("helm_app_version:%s", release.Chart.Metadata.AppVersion),
 		fmt.Sprintf("helm_storage:%s", storageDriver),
 	}
+
+	// I've found releases without a chart reference. Not sure if it's due to
+	// failed deployments, bugs in Helm, etc.
+	if release.Chart != nil && release.Chart.Metadata != nil {
+		tags = append(
+			tags,
+			fmt.Sprintf("helm_chart_name:%s", release.Chart.Metadata.Name),
+			fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
+			fmt.Sprintf("helm_app_version:%s", release.Chart.Metadata.AppVersion),
+		)
+	}
+
+	if release.Info != nil {
+		tags = append(tags, fmt.Sprintf("helm_status:%s", release.Info.Status))
+	}
+
+	return tags
 }
 
 func (hc *HelmCheck) releasesFromSecrets() ([]*release, error) {
