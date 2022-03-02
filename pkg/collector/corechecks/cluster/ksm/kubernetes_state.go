@@ -277,7 +277,7 @@ func (c *KSMConfig) parse(data []byte) error {
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
-	sender, err := aggregator.GetSender(k.ID())
+	sender, err := k.GetSender()
 	if err != nil {
 		return err
 	}

@@ -16,7 +16,6 @@ import (
 	"github.com/beevik/ntp"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -161,7 +160,7 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

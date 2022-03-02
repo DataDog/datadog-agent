@@ -95,7 +95,7 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 }
 
 func (d *DockerCheck) getSender() (aggregator.Sender, error) {
-	sender, err := aggregator.GetSender(d.ID())
+	sender, err := d.GetSender()
 	if err != nil {
 		return sender, err
 	}
