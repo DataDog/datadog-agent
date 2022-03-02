@@ -44,7 +44,7 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          map[network.ConnTelemetryType]int64
+	lastTelemetry          map[string]int64
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID atomic.Value
@@ -137,42 +137,64 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 	}
 	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
 	if c.lastTelemetry == nil {
-		c.lastTelemetry = make(map[network.ConnTelemetryType]int64)
-		c.saveTelemetry(tel)
+		c.lastTelemetry = make(map[string]int64)
+		c.saveMonotonicTelemetry(tel)
 		return nil
 	}
 
-	cct := map[string]int64{
-		"kprobes_triggered":           tel[string(network.MonotonicKprobesTriggered)] - c.lastTelemetry[network.MonotonicKprobesTriggered],
-		"kprobes_missed":              tel[string(network.MonotonicKprobesMissed)] - c.lastTelemetry[network.MonotonicKprobesMissed],
-		"conntrack_registers":         tel[string(network.MonotonicConntrackRegisters)] - c.lastTelemetry[network.MonotonicConntrackRegisters],
-		"conntrack_registers_dropped": tel[string(network.MonotonicConntrackRegistersDropped)] - c.lastTelemetry[network.MonotonicConntrackRegistersDropped],
-		"dns_packets_processed":       tel[string(network.MonotonicDNSPacketsProcessed)] - c.lastTelemetry[network.MonotonicDNSPacketsProcessed],
-		"conns_closed":                tel[string(network.MonotonicConnsClosed)] - c.lastTelemetry[network.MonotonicConnsClosed],
-		"conns_bpf_map_size":          tel[string(network.ConnsBpfMapSize)],
-		"udp_sends_processed":         tel[string(network.MonotonicUDPSendsProcessed)] - c.lastTelemetry[network.MonotonicUDPSendsProcessed],
-		"udp_sends_missed":            tel[string(network.MonotonicUDPSendsMissed)] - c.lastTelemetry[network.MonotonicUDPSendsMissed],
-		"conntrack_sampling_percent":  tel[string(network.ConntrackSamplingPercent)],
-		"dns_stats_dropped":           tel[string(network.DNSStatsDropped)],
+	cct := map[string]int64{}
+
+	metricNameForTelemetryType := map[string]string{
+		"conns_bpf_map_size":               string(network.ConnsBpfMapSize),
+		"conntrack_sampling_percent":       string(network.ConntrackSamplingPercent),
+		"dns_stats_dropped":                string(network.DNSStatsDropped),
+		"driver_flows_missed_max_exceeded": string(network.NPMDriverFlowsMissedMaxExceeded),
 	}
-	c.saveTelemetry(tel)
+
+	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
+	// report the telemetry which is actually provided the currently running version of the system-probe
+	for metricName, telemetryTypeName := range metricNameForTelemetryType {
+		if _, ok := tel[telemetryTypeName]; ok {
+			cct[metricName] = tel[telemetryTypeName]
+		}
+	}
+
+	metricNameForMonotonicTelemetryType := map[string]string{
+		"kprobes_triggered":           string(network.MonotonicKprobesTriggered),
+		"kprobes_missed":              string(network.MonotonicKprobesMissed),
+		"conntrack_registers":         string(network.MonotonicConntrackRegisters),
+		"conntrack_registers_dropped": string(network.MonotonicConntrackRegistersDropped),
+		"dns_packets_processed":       string(network.MonotonicDNSPacketsProcessed),
+		"conns_closed":                string(network.MonotonicConnsClosed),
+		"udp_sends_processed":         string(network.MonotonicUDPSendsProcessed),
+		"udp_sends_missed":            string(network.MonotonicUDPSendsMissed),
+		"dns_packets_dropped":         string(network.MonotonicDNSPacketsDropped),
+	}
+
+	for metricName, telemetryTypeName := range metricNameForMonotonicTelemetryType {
+		if _, ok := tel[telemetryTypeName]; ok {
+			cct[metricName] = tel[telemetryTypeName] - c.lastTelemetry[telemetryTypeName]
+		}
+	}
+
+	c.saveMonotonicTelemetry(tel)
 	return cct
 }
 
-func (c *ConnectionsCheck) saveTelemetry(tel map[string]int64) {
+func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
 	if tel == nil || c.lastTelemetry == nil {
 		return
 	}
 
-	c.lastTelemetry[network.MonotonicKprobesTriggered] = tel[string(network.MonotonicKprobesTriggered)]
-	c.lastTelemetry[network.MonotonicKprobesMissed] = tel[string(network.MonotonicKprobesMissed)]
-	c.lastTelemetry[network.MonotonicConntrackRegisters] = tel[string(network.MonotonicConntrackRegisters)]
-	c.lastTelemetry[network.MonotonicConntrackRegistersDropped] = tel[string(network.MonotonicConntrackRegistersDropped)]
-	c.lastTelemetry[network.MonotonicDNSPacketsProcessed] = tel[string(network.MonotonicDNSPacketsProcessed)]
-	c.lastTelemetry[network.MonotonicConnsClosed] = tel[string(network.MonotonicConnsClosed)]
-	c.lastTelemetry[network.MonotonicUDPSendsProcessed] = tel[string(network.MonotonicUDPSendsProcessed)]
-	c.lastTelemetry[network.MonotonicUDPSendsMissed] = tel[string(network.MonotonicUDPSendsMissed)]
-	c.lastTelemetry[network.DNSStatsDropped] = tel[string(network.DNSStatsDropped)]
+	c.lastTelemetry[string(network.MonotonicKprobesTriggered)] = tel[string(network.MonotonicKprobesTriggered)]
+	c.lastTelemetry[string(network.MonotonicKprobesMissed)] = tel[string(network.MonotonicKprobesMissed)]
+	c.lastTelemetry[string(network.MonotonicConntrackRegisters)] = tel[string(network.MonotonicConntrackRegisters)]
+	c.lastTelemetry[string(network.MonotonicConntrackRegistersDropped)] = tel[string(network.MonotonicConntrackRegistersDropped)]
+	c.lastTelemetry[string(network.MonotonicDNSPacketsProcessed)] = tel[string(network.MonotonicDNSPacketsProcessed)]
+	c.lastTelemetry[string(network.MonotonicConnsClosed)] = tel[string(network.MonotonicConnsClosed)]
+	c.lastTelemetry[string(network.MonotonicUDPSendsProcessed)] = tel[string(network.MonotonicUDPSendsProcessed)]
+	c.lastTelemetry[string(network.MonotonicUDPSendsMissed)] = tel[string(network.MonotonicUDPSendsMissed)]
+	c.lastTelemetry[string(network.MonotonicDNSPacketsDropped)] = tel[string(network.MonotonicDNSPacketsDropped)]
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
