@@ -107,8 +107,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	// return HTTPAggregation objects to pool
 	for _, aggr := range httpIndex {
-		resetHTTPAggregations(aggr)
-		httpAggregationsPool.Put(aggr)
+		releaseHTTPAggregations(aggr)
 	}
 
 	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
@@ -133,6 +132,11 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Routes = routes
 
 	return payload
+}
+
+func releaseHTTPAggregations(aggr *model.HTTPAggregations) {
+	resetHTTPAggregations(aggr)
+	httpAggregationsPool.Put(aggr)
 }
 
 func resetHTTPAggregations(aggr *model.HTTPAggregations) {

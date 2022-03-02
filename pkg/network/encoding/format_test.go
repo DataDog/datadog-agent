@@ -183,7 +183,10 @@ func BenchmarkFormatHTTPStats(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FormatHTTPStats(in)
+		result := FormatHTTPStats(in)
+		for _, a := range result {
+			releaseHTTPAggregations(a)
+		}
 	}
 }
 
