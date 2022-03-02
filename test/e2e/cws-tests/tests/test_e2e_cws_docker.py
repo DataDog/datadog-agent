@@ -65,6 +65,16 @@ class TestE2EDocker(unittest.TestCase):
                 agent_rule_name,
             )
 
+        with Step(msg="check policies download", emoji=":file_folder:"):
+            self.policies = self.App.download_policies()
+            data = self.policy_loader.load(self.policies)
+            self.assertIsNotNone(data, msg="unable to load policy")
+
+        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
+            rule = self.policy_loader.get_rule_by_desc(desc)
+            self.assertIsNotNone(rule, msg="unable to find e2e rule")
+            self.assertEqual(rule["id"], agent_rule_name)
+
         with Step(msg="check agent start", emoji=":man_running:"):
             image = os.getenv("DD_AGENT_IMAGE")
             hostname = f"host_{test_id}"
@@ -75,6 +85,7 @@ class TestE2EDocker(unittest.TestCase):
 
             self.container = self.docker_helper.start_cws_agent(
                 image,
+                self.policies,
                 datadog_agent_config=self.datadog_agent_config,
                 system_probe_config=self.system_probe_config,
             )
@@ -85,17 +96,12 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("security-agent", self.docker_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="download policies", emoji=":file_folder:"):
-            self.docker_helper.download_policies();
-
-        with Step(msg="reload policies", emoji=":file_folder:"):
-            self.docker_helper.reload_policies();
-
-        # TODO: v- redo it somehow?
-        # with Step(msg="check rule presence in policies", emoji=":bullseye:"):
-        #     rule = self.policy_loader.get_rule_by_desc(desc)
-        #     self.assertIsNotNone(rule, msg="unable to find e2e rule")
-        #     self.assertEqual(rule["id"], agent_rule_name)
+        # Inside download disabled for now. It will replace the app.download_policies
+        # once we figure out how to check the presence of the wanted test rule
+        # with Step(msg="download policies", emoji=":file_folder:"):
+        #     self.docker_helper.download_policies();
+        # with Step(msg="reload policies", emoji=":file_folder:"):
+        #     self.docker_helper.reload_policies();
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)

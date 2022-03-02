@@ -2,7 +2,6 @@ import os
 
 import docker
 from lib.log import LogGetter
-from lib.const import SEC_AGENT_PATH
 from retry.api import retry_call
 
 
@@ -48,7 +47,7 @@ class DockerHelper(LogGetter):
 
         return self.agent_container
 
-    def start_cws_agent(self, image, datadog_agent_config=None, system_probe_config=None):
+    def start_cws_agent(self, image, policy_filename=None, datadog_agent_config=None, system_probe_config=None):
         volumes = [
             "/var/run/docker.sock:/var/run/docker.sock:ro",
             "/proc/:/host/proc/:ro",
@@ -60,6 +59,9 @@ class DockerHelper(LogGetter):
             "/etc/os-release:/etc/os-release",
         ]
 
+        if policy_filename:
+            volumes.append(f"{policy_filename}:/etc/datadog-agent/runtime-security.d/default.policy")
+
         if datadog_agent_config:
             volumes.append(f"{datadog_agent_config}:/etc/datadog-agent/datadog.yaml")
 
@@ -68,7 +70,6 @@ class DockerHelper(LogGetter):
 
         site = os.environ["DD_SITE"]
         api_key = os.environ["DD_API_KEY"]
-        app_key = os.environ["DD_APP_KEY"]
 
         self.agent_container = self.client.containers.run(
             image,
@@ -80,7 +81,6 @@ class DockerHelper(LogGetter):
                 "HOST_ROOT=/host/root",
                 f"DD_SITE={site}",
                 f"DD_API_KEY={api_key}",
-                f"DD_APP_KEY={app_key}",
             ],
             volumes=volumes,
             detach=True,
@@ -88,24 +88,27 @@ class DockerHelper(LogGetter):
 
         return self.agent_container
 
-    def exec_commant(self, command):
-        site = os.environ["DD_SITE"]
-        api_key = os.environ["DD_API_KEY"]
-        app_key = os.environ["DD_APP_KEY"]
-        self.agent_container.exec_run(command,
-                                      environment=[
-                                          f"DD_SITE={site}",
-                                          f"DD_API_KEY={api_key}",
-                                          f"DD_APP_KEY={app_key}",
-                                      ])
-
-    def download_policies(self):
-        policy_path = "/etc/datadog-agent/runtime-security.d/default.policy"
-        self.exec_commant(SEC_AGENT_PATH + " runtime policy download --output-path " + policy_path)
-
-    def reload_policies(self):
-        sec_agent_path = "/opt/datadog-agent/embedded/bin/security-agent"
-        self.exec_commant(SEC_AGENT_PATH + " runtime policy reload")
+    # Inside download disabled for now. It will replace the app.download_policies
+    # once we figure out how to check the presence of the wanted test rule.
+    # Do not forget to:
+    #  . pass the DD_APP_KEY env as well.
+    #  . add to consts: SEC_AGENT_PATH = "/opt/datadog-agent/embedded/bin/security-agent"
+    # def exec_commant(self, command):
+    #     site = os.environ["DD_SITE"]
+    #     api_key = os.environ["DD_API_KEY"]
+    #     app_key = os.environ["DD_APP_KEY"]
+    #     self.agent_container.exec_run(command,
+    #                                   environment=[
+    #                                       f"DD_SITE={site}",
+    #                                       f"DD_API_KEY={api_key}",
+    #                                       f"DD_APP_KEY={app_key}",
+    #                                   ])
+    # def download_policies(self):
+    #     policy_path = "/etc/datadog-agent/runtime-security.d/default.policy"
+    #     self.exec_commant(SEC_AGENT_PATH + " runtime policy download --output-path " + policy_path)
+    # def reload_policies(self):
+    #     sec_agent_path = "/opt/datadog-agent/embedded/bin/security-agent"
+    #     self.exec_commant(SEC_AGENT_PATH + " runtime policy reload")
 
     def wait_agent_container(self, tries=10, delay=5):
         return retry_call(is_container_running, fargs=[self.agent_container], tries=tries, delay=delay)
