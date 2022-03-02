@@ -61,6 +61,28 @@ func TestRun(t *testing.T) {
 			Version:   2,
 			Namespace: "app",
 		},
+		{ // Release with a nil chart reference
+			Name: "release_without_chart",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart:     nil,
+			Version:   1,
+			Namespace: "default",
+		},
+		{ // Release with a nil info reference
+			Name: "release_without_info",
+			Info: nil,
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "example_app",
+					Version:    "2.0.0",
+					AppVersion: "1",
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
 	}
 
 	// Same order as "releases" array
@@ -99,6 +121,20 @@ func TestRun(t *testing.T) {
 			"helm_chart_version:1.1.0",
 			"helm_app_version:1",
 		},
+		{
+			"helm_release:release_without_chart",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+		},
+		{
+			"helm_release:release_without_info",
+			"helm_chart_name:example_app",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_chart_version:2.0.0",
+			"helm_app_version:1",
+		},
 	}
 
 	tests := []struct {
@@ -120,7 +156,7 @@ func TestRun(t *testing.T) {
 		{
 			name:         "using secrets and configmaps",
 			secrets:      []*v1.Secret{secretsForReleases[0]},
-			configmaps:   []*v1.ConfigMap{configmapsForReleases[1]},
+			configmaps:   configmapsForReleases[1:],
 			expectedTags: expectedTagsForReleases,
 		},
 		{
