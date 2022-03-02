@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package restart
+package startstop
 
-// Stoppable represents a stoppable object
-type Stoppable interface {
-	Stop()
+// Startable represents a startable object
+type Startable interface {
+	Start()
 }
 
-// Stopper stops a group of stoppable objects from a data pipeline
-type Stopper interface {
-	Stoppable
-	Add(components ...Stoppable)
+// Starter starts a group of startable objects from a data pipeline
+type Starter interface {
+	Startable
+	Add(components ...Startable)
 }

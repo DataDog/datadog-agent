@@ -6,14 +6,14 @@
 package container
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // noopLauncher does nothing.
 type noopLauncher struct{}
 
 // NewNoopLauncher returns a new noopLauncher.
-func NewNoopLauncher() restart.Restartable {
+func NewNoopLauncher() startstop.StartStoppable {
 	return &noopLauncher{}
 }
 

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Provider provides message channels
@@ -81,7 +81,7 @@ func (p *provider) Start() {
 // Stop stops all pipelines in parallel,
 // this call blocks until all pipelines are stopped
 func (p *provider) Stop() {
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, pipeline := range p.pipelines {
 		stopper.Add(pipeline)
 	}

@@ -28,9 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Agent represents the data pipeline that collects, decodes,
@@ -43,7 +43,7 @@ type Agent struct {
 	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
-	inputs                    []restart.Restartable
+	inputs                    []startstop.StartStoppable
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 }
@@ -66,7 +66,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	containerLaunchables := []container.Launchable{
 		{
 			IsAvailable: docker.IsAvailable,
-			Launcher: func() restart.Restartable {
+			Launcher: func() startstop.StartStoppable {
 				return docker.NewLauncher(
 					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
 					sources,
@@ -79,7 +79,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		},
 		{
 			IsAvailable: kubernetes.IsAvailable,
-			Launcher: func() restart.Restartable {
+			Launcher: func() startstop.StartStoppable {
 				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
 			},
 		},
@@ -93,7 +93,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	validatePodContainerID := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
 
 	// setup the inputs
-	inputs := []restart.Restartable{
+	inputs := []startstop.StartStoppable{
 		filelauncher.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
 			filelauncher.DefaultSleepDuration, validatePodContainerID, time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
@@ -136,7 +136,7 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
 	// setup the inputs
-	inputs := []restart.Restartable{
+	inputs := []startstop.StartStoppable{
 		channel.NewLauncher(sources, pipelineProvider),
 	}
 
@@ -156,11 +156,11 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	inputs := restart.NewStarter()
+	inputs := startstop.NewStarter()
 	for _, input := range a.inputs {
 		inputs.Add(input)
 	}
-	starter := restart.NewStarter(
+	starter := startstop.NewStarter(
 		a.destinationsCtx,
 		a.auditor,
 		a.pipelineProvider,
@@ -179,11 +179,11 @@ func (a *Agent) Flush(ctx context.Context) {
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {
-	inputs := restart.NewParallelStopper()
+	inputs := startstop.NewParallelStopper()
 	for _, input := range a.inputs {
 		inputs.Add(input)
 	}
-	stopper := restart.NewSerialStopper(
+	stopper := startstop.NewSerialStopper(
 		a.schedulers,
 		inputs,
 		a.pipelineProvider,
