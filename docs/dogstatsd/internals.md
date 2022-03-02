@@ -59,8 +59,8 @@ The Worker is the part of the DogStatsD server responsible for parsing the metri
 
 The server spawns multiple workers based on the amount of cores available on the host:
 
-  * when we are not sharding multiple time sampling pipelines: the amount of workers created is equal to the number of cores on the machine minus 2. If this result is less than 2, 2 workers are spawned.
-  * when we are: the amount of workers is `(number of cores / 2)`.  If this result is less than 2, 2 workers are spawned.
+  * When the server is not running multiple time sampling pipelines: the server creates `(number of cores - 2)` workers. If this result is less than 2, the server spawns 2 workers.
+  * When the server is running multiple time sampling pipelines: the server creates `(number of cores / 2)` workers.  If this result is less than 2, the server spawns 2 workers.
 
 The Worker is using a system called StringInterner to not allocate memory every time a string is needed. Note that this StringInterner is caching a finite number of strings and when it is full it is emptied to start caching strings again. Its size is configurable with `dogstatsd_string_interner_size`.
 
