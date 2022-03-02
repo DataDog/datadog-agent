@@ -5,24 +5,33 @@
 
 package startstop
 
-// Starter implements the logic to start different components from a data pipeline in series
+// starter starts a set of components in series.
 type starter struct {
 	components []Startable
 }
 
-// NewStarter returns a new starter
+var _ Starter = &starter{}
+var _ Startable = &starter{}
+
+// NewStarter returns a new serial starter.
+//
+// The Start() method of this object will start all components, one
+// by one, in the order they were added.
+//
+// Any components included in the arguments will be included in the
+// set of components, as if starter.Add(..) had been called for each.
 func NewStarter(components ...Startable) Starter {
 	return &starter{
 		components: components,
 	}
 }
 
-// Add appends new elements to the array of components to start
+// Add implements Starter#Add.
 func (s *starter) Add(components ...Startable) {
 	s.components = append(s.components, components...)
 }
 
-// Start starts all components one after another
+// Start implements Startable#Start.
 func (s *starter) Start() {
 	for _, c := range s.components {
 		c.Start()
