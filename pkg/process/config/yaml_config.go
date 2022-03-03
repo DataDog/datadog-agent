@@ -66,7 +66,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			a.Enabled = true
 			a.EnabledChecks = processChecks
 		} else if !enabled && err == nil {
-			a.Enabled = false
+			a.Enabled, a.EnabledChecks = false, nil
 		}
 	} else if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
 		// A string indicate the enabled state of the Agent.
