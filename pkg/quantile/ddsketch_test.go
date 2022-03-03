@@ -14,8 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+
 func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSketch {
 	sketch, _ := ddsketch.NewDefaultDDSketch(0.01)
+	// Simulate a given distribution by replacing it with a distribution
+	// where all points are placed where the evaluated quantiles are.
+	// This ensures that quantile(x) for any x = i / N is the same between
+	// the generated distribution and the theoretical distribution, making
+	// comparisons easy in the test cases.
 	for i := 0; i <= N; i++ {
 		sketch.AddWithCount(quantile(float64(i)/float64(N)), float64(M))
 	}
@@ -24,104 +30,9 @@ func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSket
 }
 
 func TestConvertToCompatibleDDSketch(t *testing.T) {
+	// Support of the distribution: [0,N]
 	N := 1_000
-	M := 50
-
-	tests := []struct {
-		// distribution name
-		name string
-		// the cumulative distribution function (within [0,N])
-		cdf func(x float64) float64
-		// the quantile function (within [0,1])
-		quantile func(x float64) float64
-	}{
-		{
-			// https://en.wikipedia.org/wiki/Continuous_uniform_distribution
-			name:     "Uniform distribution (a=0,b=N)",
-			cdf:      func(x float64) float64 { return x / float64(N) },
-			quantile: func(y float64) float64 { return y * float64(N) },
-		},
-		{
-			// https://en.wikipedia.org/wiki/U-quadratic_distribution
-			name: "U-quadratic distribution (a=0,b=N)",
-			cdf: func(x float64) float64 {
-				a := 0.0
-				b := float64(N)
-				alpha := 12.0 / math.Pow(b-a, 3)
-				beta := (b + a) / 2.0
-				return alpha / 3 * (math.Pow(x-beta, 3) + math.Pow(beta-a, 3))
-			},
-			quantile: func(y float64) float64 {
-				a := 0.0
-				b := float64(N)
-				alpha := 12.0 / math.Pow(b-a, 3)
-				beta := (b + a) / 2.0
-
-				// golang's math.Pow doesn't like negative numbers as the first argument
-				// (it will return Nan), even though cubic roots of negative numbers are defined.
-				sign := 1.0
-				if 3/alpha*y-math.Pow(beta-a, 3) < 0 {
-					sign = -1.0
-				}
-				return beta + sign*math.Pow(sign*(3/alpha*y-math.Pow(beta-a, 3)), 1.0/3.0)
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			sketch := generateDDSketch(test.quantile, 100, M)
-
-			// Check the quantiles are approximately correct
-			for i := 1; i <= 100; i++ {
-				q := (float64(i)) / 100.0
-				expectedValue := test.quantile(q)
-
-				quantileValue, err := sketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
-				assert.InEpsilon(t,
-					// test that the quantile value returned by the sketch is vithin the relative accuracy
-					// of the expected value
-					expectedValue,
-					quantileValue,
-					sketch.RelativeAccuracy(),
-					fmt.Sprintf("error too high for p%d", i),
-				)
-			}
-
-			sketchConfig := Default()
-			convertedSketch, err := convertToCompatibleDDSketch(sketchConfig, sketch)
-			assert.NoError(t, err)
-
-			// Check the quantiles are approximately correct
-			for i := 1; i <= 100; i++ {
-				q := (float64(i)) / 100.0
-				expectedValue, err := sketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
-
-				quantileValue, err := convertedSketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
-				assert.InEpsilon(t,
-					// test that the quantile value returned by the sketch is vithin the relative accuracy
-					// of the expected value
-					expectedValue,
-					quantileValue,
-					// Taken from: https://github.com/DataDog/sketches-go/blob/668f772f57bfc7a5f2af7591d657a88b4d0231a4/ddsketch/ddsketch_test.go#L387-L403
-					// the expected value (ie. the quantile value in the input sketch)
-					// and the actual value (ie. the quantile value in the output sketch)
-					// should have a relative error that's less than the sum of the relative errors
-					// of each sketch.
-					sketch.RelativeAccuracy()+convertedSketch.RelativeAccuracy(),
-					fmt.Sprintf("error too high for p%d", i),
-				)
-			}
-
-		})
-	}
-}
-
-func TestFromCompatibleDDSketch(t *testing.T) {
-	N := 1_000
+	// Number of points per quantile
 	M := 50
 
 	tests := []struct {
@@ -169,7 +80,8 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sketch := generateDDSketch(test.quantile, 100, M)
 
-			// Check the quantiles are approximately correct
+			// Check that the quantiles of the input sketch do match
+			// the input distribution's quantiles
 			for i := 1; i <= 100; i++ {
 				q := (float64(i)) / 100.0
 				expectedValue := test.quantile(q)
@@ -177,7 +89,108 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 				quantileValue, err := sketch.GetValueAtQuantile(q)
 				assert.NoError(t, err)
 				assert.InEpsilon(t,
+					// Test that the quantile value returned by the sketch is vithin the relative accuracy
+					// of the expected quantile value
+					expectedValue,
+					quantileValue,
+					sketch.RelativeAccuracy(),
+					fmt.Sprintf("error too high for p%d", i),
+				)
+			}
+
+			sketchConfig := Default()
+			convertedSketch, err := convertToCompatibleDDSketch(sketchConfig, sketch)
+			assert.NoError(t, err)
+
+			// Check that the quantiles of the converted sketch
+			// approximately match the input distribution's quantiles
+			for i := 1; i <= 100; i++ {
+				q := (float64(i)) / 100.0
+				expectedValue, err := sketch.GetValueAtQuantile(q)
+				assert.NoError(t, err)
+
+				quantileValue, err := convertedSketch.GetValueAtQuantile(q)
+				assert.NoError(t, err)
+				assert.InEpsilon(t,
 					// test that the quantile value returned by the sketch is vithin the relative accuracy
+					// of the expected value
+					expectedValue,
+					quantileValue,
+					// Taken from: https://github.com/DataDog/sketches-go/blob/668f772f57bfc7a5f2af7591d657a88b4d0231a4/ddsketch/ddsketch_test.go#L387-L403
+					// the expected value (ie. the quantile value in the input sketch)
+					// and the actual value (ie. the quantile value in the output sketch)
+					// should have a relative error that's less than the sum of the relative errors
+					// of each sketch.
+					sketch.RelativeAccuracy()+convertedSketch.RelativeAccuracy(),
+					fmt.Sprintf("error too high for p%d", i),
+				)
+			}
+
+		})
+	}
+}
+
+func TestFromCompatibleDDSketch(t *testing.T) {
+	// Support of the distribution: [0,N]
+	N := 1_000
+	// Number of points per quantile
+	M := 50
+
+	tests := []struct {
+		// distribution name
+		name string
+		// the cumulative distribution function (within [0,N])
+		cdf func(x float64) float64
+		// the quantile function (within [0,1])
+		quantile func(x float64) float64
+	}{
+		{
+			// https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+			name:     "Uniform distribution (a=0,b=N)",
+			cdf:      func(x float64) float64 { return x / float64(N) },
+			quantile: func(y float64) float64 { return y * float64(N) },
+		},
+		{
+			// https://en.wikipedia.org/wiki/U-quadratic_distribution
+			name: "U-quadratic distribution (a=0,b=N)",
+			cdf: func(x float64) float64 {
+				a := 0.0
+				b := float64(N)
+				alpha := 12.0 / math.Pow(b-a, 3)
+				beta := (b + a) / 2.0
+				return alpha / 3 * (math.Pow(x-beta, 3) + math.Pow(beta-a, 3))
+			},
+			quantile: func(y float64) float64 {
+				a := 0.0
+				b := float64(N)
+				alpha := 12.0 / math.Pow(b-a, 3)
+				beta := (b + a) / 2.0
+
+				// golang's math.Pow doesn't like negative numbers as the first argument
+				// (it will return NaN), even though cubic roots of negative numbers are defined.
+				sign := 1.0
+				if 3/alpha*y-math.Pow(beta-a, 3) < 0 {
+					sign = -1.0
+				}
+				return beta + sign*math.Pow(sign*(3/alpha*y-math.Pow(beta-a, 3)), 1.0/3.0)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sketch := generateDDSketch(test.quantile, 100, M)
+
+			// Check that the quantiles of the input sketch do match
+			// the input distribution's quantiles
+			for i := 1; i <= 100; i++ {
+				q := (float64(i)) / 100.0
+				expectedValue := test.quantile(q)
+
+				quantileValue, err := sketch.GetValueAtQuantile(q)
+				assert.NoError(t, err)
+				assert.InEpsilon(t,
+					// Test that the quantile value returned by the sketch is vithin the relative accuracy
 					// of the expected value
 					expectedValue,
 					quantileValue,
@@ -193,7 +206,8 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 			outputSketch, err := fromCompatibleDDSketch(sketchConfig, convertedSketch)
 			assert.NoError(t, err)
 
-			// Check the quantiles are approximately correct
+			// Check that the quantiles of the output sketch do match
+			// the qunatiles of the DDSketch it comes from
 			for i := 1; i <= 100; i++ {
 				q := (float64(i)) / 100.0
 				expectedValue, err := convertedSketch.GetValueAtQuantile(q)
@@ -201,11 +215,11 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 
 				quantileValue := outputSketch.Quantile(sketchConfig, q)
 				assert.InEpsilon(t,
-					// test that the quantile value returned by the sketch is vithin the relative accuracy
-					// of the expected value
+					// Test that the quantile value returned by the sketch is vithin an acceptable
+					// range of the expected value
 					expectedValue,
 					quantileValue,
-					0.01,
+					0.01, // TODO: What's the real error bound due to converting the DDSketch to the Agent sketch?
 					fmt.Sprintf("error too high for p%d", i),
 				)
 			}

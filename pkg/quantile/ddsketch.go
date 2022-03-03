@@ -30,6 +30,9 @@ func convertToCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*dd
 	negativeStore := store.NewDenseStore()
 
 	gamma := c.gamma.v
+	// TODO: using 1338 instead of 1338.5 gave better results for DDSketch -> Sketch conversion
+	//       Why? May have to do with the way we convert float counts to int counts in
+	//       keyCountsFromFloatKeyCounts.
 	offset := float64(c.norm.bias)
 	newMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
 	if err != nil {
@@ -45,6 +48,11 @@ type floatKeyCount struct {
 	c float64
 }
 
+// keyCountsFromFloatKeyCounts converts DDSketch float counts to integer counts,
+// preserving the total count of the sketch by tracking leftover decimal counts.
+// TODO: this tends to shift the sketch towards the right (since the leftover counts
+// get added to the rightmost bucket). This could be improved by adding leftover
+// counts to the key that's the weighted average of keys that contribute to that leftover count.
 func keyCountsFromFloatKeyCounts(floatKeyCounts []floatKeyCount) []KeyCount {
 	keyCounts := make([]KeyCount, 0, len(floatKeyCounts))
 
@@ -66,6 +74,9 @@ func keyCountsFromFloatKeyCounts(floatKeyCounts []floatKeyCount) []KeyCount {
 		keyCounts = append(keyCounts, KeyCount{k: Key(key), n: uintCount})
 	}
 
+	// Edge case where there may be some leftover count because the total count
+	// isn't an int (or due to float64 precision errors). In this case, round to
+	// nearest.
 	if leftoverCount >= 0.5 {
 		lastIndex := len(keyCounts) - 1
 		keyCounts[lastIndex] = KeyCount{k: keyCounts[lastIndex].k, n: keyCounts[lastIndex].n + 1}
@@ -117,7 +128,8 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 		// All indexes <= 0 represent values that are <= minValue,
 		// and therefore end up in the zero bin
 		if index <= 0 {
-			// TODO: What if zeroes overflows float64?
+			// TODO: What if zeroes overflows float64? We may have
+			// to keep multiple zeroes counters, and add one floatKeyCount for each.
 			zeroes += count
 			return false
 		}
@@ -133,9 +145,12 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 	// Finally, add the 0 key
 	floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
 
+	// Generate the integer KeyCount objects from the counts we retrieved
 	keyCounts := keyCountsFromFloatKeyCounts(floatKeyCounts)
 
 	// Populate sparseStore object with the collected keyCounts
+	// insertCounts will take care of creating multiple uint16 bins for a
+	// single key if the count overflows uint16
 	sparseStore.insertCounts(c, keyCounts)
 
 	// Create summary object
@@ -164,6 +179,7 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 		Min: min,
 	}
 
+	// Build the final Sketch object
 	outputSketch := &Sketch{
 		sparseStore: sparseStore,
 		Basic:       summary,
