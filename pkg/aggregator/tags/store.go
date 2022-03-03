@@ -116,6 +116,13 @@ func (tc *Store) Shrink() {
 	tc.updateTelemetry(&stats)
 }
 
+// Len returns number of entries in the store.
+//
+// Must not be called concurrently with Insert or Shrink.
+func (tc *Store) Len() int {
+	return len(tc.tagsByKey)
+}
+
 func (tc *Store) updateTelemetry(s *entryStats) {
 	t := &tc.telemetry
 

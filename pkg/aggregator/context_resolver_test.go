@@ -10,7 +10,7 @@ package aggregator
 
 import (
 	// stdlib
-
+	"runtime"
 	"testing"
 
 	// 3p
@@ -187,4 +187,27 @@ func testTagDeduplication(t *testing.T, store *tags.Store) {
 }
 func TestTagDeduplication(t *testing.T) {
 	testWithTagsStore(t, testTagDeduplication)
+}
+
+func TestEntryRelease(t *testing.T) {
+	store := tags.NewStore(true, "test")
+	c := newContextResolver(store)
+
+	assert.Equal(t, 0, store.Len())
+
+	c.trackContext(&metrics.MetricSample{
+		Name: "foo",
+		Tags: []string{"bar"},
+	})
+
+	assert.Equal(t, 2, store.Len())
+
+	c = nil
+
+	for i := 0; i < 100 && store.Len() > 0; i++ {
+		runtime.GC()
+		store.Shrink()
+	}
+
+	assert.Equal(t, 0, store.Len())
 }
