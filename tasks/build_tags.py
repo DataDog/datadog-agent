@@ -74,7 +74,7 @@ AGENT_TAGS = {
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
-    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "podman", "systemd"}
+    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "orchestrator", "podman", "systemd"}
 )
 
 # ANDROID_TAGS lists the tags needed when building the android agent
@@ -99,7 +99,7 @@ PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orche
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
-    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "podman", "systemd"}
+    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "orchestrator", "podman", "systemd"}
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
@@ -133,6 +133,9 @@ LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "podman"}
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
+
+# List of tags to always remove when building on Darwin/macOS
+DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 
 # List of tags to always remove when building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrator"}
@@ -221,6 +224,9 @@ def filter_incompatible_tags(include, arch="x64"):
 
     if sys.platform == "win32":
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
+
+    if sys.platform == "darwin":
+        exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
 
     if sys.platform == "win32" and arch == "x86":
         exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)

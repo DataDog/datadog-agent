@@ -154,7 +154,7 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 			rc.telemetry.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
+		dirs, res, err := kernel.GetKernelHeaders(config.EnableKernelHeaderDownload, config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
 		rc.telemetry.headerFetchResult = res
 		if err != nil {
 			rc.telemetry.compilationResult = headerFetchErr

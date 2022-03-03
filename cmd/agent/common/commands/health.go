@@ -76,7 +76,7 @@ func requestHealth() error {
 		return err
 	}
 
-	r, err := util.DoGet(c, urlstr)
+	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

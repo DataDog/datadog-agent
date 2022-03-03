@@ -45,14 +45,18 @@ message LatestConfigsRequest {
   // timestamp and snapshot versions move in tandem so they are the same.
   uint64 current_config_snapshot_version = 3;
   uint64 current_config_root_version = 9;
+  uint64 current_config_user_snapshot_version = 11;
+  uint64 current_config_user_root_version = 12;
   uint64 current_director_root_version = 8;
   repeated string products = 4;
   repeated string new_products = 5;
   repeated Client active_clients = 6;
+  bytes client_state = 10;
 }
 
 message LatestConfigsResponse {
   ConfigMetas config_metas = 1;
+  ConfigMetas config_user_metas = 4;
   DirectorMetas director_metas = 2;
   repeated File target_files = 3;
 }
@@ -113,4 +117,18 @@ message ClientGetConfigsResponse {
   repeated TopMeta roots = 1;
   TopMeta targets = 2;
   repeated File target_files = 3;
+}
+
+// Full state
+
+message FileMetaState {
+  uint64 version = 1;
+  string hash = 2;
+}
+
+message GetStateConfigResponse {
+  map<string, FileMetaState> config_state = 1;
+  map<string, FileMetaState> config_user_state = 2;
+  map<string, FileMetaState> director_state = 3;
+  map<string, string> target_filenames = 4;
 }

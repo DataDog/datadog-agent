@@ -300,7 +300,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
 	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:           serverlessDaemon.ExtraTags,
-		MetricChannel:       serverlessDaemon.MetricAgent.GetMetricChannel(),
+		Demux:               serverlessDaemon.MetricAgent.Demux,
 		ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
 		DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
 	}

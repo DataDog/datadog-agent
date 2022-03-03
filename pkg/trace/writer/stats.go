@@ -155,7 +155,11 @@ func (w *StatsWriter) sendPayloads() {
 	for _, p := range w.payloads {
 		w.SendPayload(p)
 	}
-	w.payloads = w.payloads[:0]
+	w.resetBuffer()
+}
+
+func (w *StatsWriter) resetBuffer() {
+	w.payloads = make([]pb.StatsPayload, 0, len(w.payloads))
 }
 
 // encodePayload encodes the payload as Gzipped msgPack into w.

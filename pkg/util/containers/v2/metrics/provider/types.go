@@ -18,11 +18,12 @@ type ContainerMemStats struct {
 	KernelMemory *float64
 	Limit        *float64
 	Softlimit    *float64
+	Swap         *float64
+	SwapLimit    *float64 // Memory+Swap Limit (>= Limit)
 
 	// Linux-only fields
 	RSS       *float64
 	Cache     *float64
-	Swap      *float64
 	OOMEvents *float64 // Number of events where memory allocation failed
 
 	// Windows-only fields

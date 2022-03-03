@@ -106,12 +106,28 @@ api_key:
 ## @env DD_TAGS - space separated list of strings - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
-## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
+## This configuration value merges with `DD_EXTRA_TAGS`, allowing some
+## tags to be set in a configuration file (`tags`), and additional tags to be added
+## with an environment variable (`DD_EXTRA_TAGS`).
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:
 #   - team:infra
+#   - <TAG_KEY>:<TAG_VALUE>
+
+## @param extra_tags  - list of key:value elements - optional
+## @env DD_EXTRA_TAGS - space separated list of strings - optional
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## This configuration value merges with `tags`, allowing some
+## tags to be set in a configuration file (`tags`), and additional tags to be added
+## with an environment variable (`DD_EXTRA_TAGS`).
+##
+## Learn more about tagging: https://docs.datadoghq.com/tagging/
+#
+# extra_tags:
+#   - region:northerly
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
@@ -332,11 +348,22 @@ api_key:
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
-## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
-## permission. See docs for further details:
+## Requires one of:
+##  - `collect_ec2_tags_use_imds: true` and configuration of the
+##    EC2 instance to allow tags in instance metadata; or
+##  - configuration of the EC2 instance to have an IAM role with
+##    the `EC2:DescribeTags` permission.
+## See docs for further details:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+
+## @param collect_ec2_tags_use_imds - boolean - optional - default: false
+## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
+## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
+## Requires `collect_ec2_tags`.
+#
+# collect_ec2_tags_use_imds: false
 
 ## @param ec2_metadata_timeout - integer - optional - default: 300
 ## @env DD_EC2_METADATA_TIMEOUT - integer - optional - default: 300
@@ -2807,6 +2834,18 @@ api_key:
 ## Network Devices Configuration ##
 ###################################
 
+## @param network_devices - custom object - optional
+## Configuration related to Network Devices Monitoring
+#
+# network_devices:
+
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with the same IP.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  ## This field is used by both the SNMP check and by the traps listener.
+  #
+  # namespace: default
+
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.
 #
@@ -2874,15 +2913,142 @@ api_key:
 ###################################
 
 ## @param otlp_config - custom object - optional
-## This section configures the OpenTelemetry OTLP receiver.
+## This section configures OTLP ingest in the Datadog Agent.
 #
 # otlp_config:
 
   ## @param receiver - custom object - optional
-  ## The receiver configuration. It is an exact copy of the current OpenTelemetry Collector Receiver Configuration:
-  ## https://github.com/open-telemetry/opentelemetry-collector/blob/47a899d/receiver/otlpreceiver/config.md
-  ## Because this configuration is marked as "Beta" by OpenTelemetry, it is subject to change. See also:
-  ## https://github.com/open-telemetry/opentelemetry-collector#status.
+  ## The receiver configuration. It follows the OpenTelemetry Collector's OTLP Receiver Configuration.
+  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation 
+  ## for a full list of available settings:
+  ## https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/otlpreceiver/config.md
   #
   # receiver:
-  #   <RECEIVER_CONFIGURATION>
+
+    ## @param protocols - custom object - optional
+    ## Configuration for the supported protocols.
+    #
+    # protocols:
+
+        ## @param grpc - custom object - optional
+        ## Configuration for OTLP/gRPC listener.
+        ## Setting this as an empty section enables the OTLP/gRPC listener with default options.
+        #
+        # grpc:
+
+          ## @param endpoint - string - optional - default: 0.0.0.0:4317
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT - string - optional - default: 0.0.0.0:4317
+          ## The OTLP/gRPC listener endpoint.
+          # 
+          # endpoint: 0.0.0.0:4317
+
+          ## @param transport - string - optional - default: tcp
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT - string - optional - default: tcp
+          ## The OTLP/gRPC listener transport protocol. 
+          ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
+          # 
+          # transport: tcp
+
+        ## @param http - custom object - optional
+        ## Configuration for OTLP/HTTP listener.
+        ## Setting this as an empty section enables the OTLP/HTTP listener with default options.
+        #
+        # http:
+
+          ## @param endpoint - string - optional - default: 0.0.0.0:4318
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT - string - optional - default: 0.0.0.0:4318
+          ## The OTLP/HTTP listener endpoint.
+          # 
+          # endpoint: 0.0.0.0:4318
+
+  ## @param metrics - custom object - optional
+  ## Metrics-specific configuration for OTLP ingest in the Datadog Agent.
+  ## Note that these configuration options may change in future minor Agent versions.
+  #
+  # metrics:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_METRICS_ENABLED - boolean - optional - default: true
+    ## Whether to ingest metrics through the OTLP endpoint. Set to false to disable OTLP metrics ingest.
+    #
+    # enabled: true
+
+    ## @param resource_attributes_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add all resource attributes of a metric to its metric tags.
+    ## When set to false, only a small predefined subset of resource attributes is converted
+    ## to metric tags.
+    #
+    # resource_attributes_as_tags: false
+
+    ## @param instrumentation_library_metadata_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_LIBRARY_METADATA_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add metadata about the instrumentation library that created a metric.
+    #
+    # instrumentation_library_metadata_as_tags: false
+
+    ## @param tag_cardinality - string - optional - default: low
+    ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low
+    ## Configure the level of granularity of tags to send for OTLP metrics. Choices are:
+    ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+    ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+    ##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+    ## WARNING: sending container tags for checks metrics may create more metrics
+    ## (one per container instead of one per host). This may impact your custom metrics billing.
+    #
+    # tag_cardinality: low
+
+    ## @param report_quantiles - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
+    ## Whether to report quantile metrics for OTLP Summary points. 
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
+    #
+    # report_quantiles: true
+    
+    ## @param send_monotonic_counter - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_SEND_MONOTONIC_COUNTER - boolean - optional - default: false
+    ## Whether to report monotonic metrics as counters or gauges (raw value).
+    ## See https://docs.datadoghq.com/integrations/guide/prometheus-metrics/#counter
+    ## for further details.
+    #
+    # send_monotonic_counter: true
+
+    ## @param delta_ttl - int - optional - default: 3600
+    ## @env DD_OTLP_CONFIG_METRICS_DELTA_TTL - int - optional - default: 3600
+    ## The amount of time (in seconds) that values are kept in memory for
+    ## calculating deltas for cumulative monotonic metrics.
+    #
+    # delta_ttl: 3600
+
+    ## @param histograms - custom object - optional
+    ## Configuration for OTLP Histograms. 
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=histogram for details.
+    # 
+    # histograms:
+
+      ## @param mode - string - optional - default: distributions
+      ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE - string - optional - default: distributions
+      ## How to report histograms. Valid values are:
+      ## 
+      ## - `distributions` to report metrics as Datadog distributions (recommended).
+      ## - `nobuckets` to not report bucket metrics,
+      ## - `counters` to report one metric per histogram bucket.
+      #
+      # mode: distributions
+
+      ## @param send_count_sum_metrics - boolean - optional - default: false
+      ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_COUNT_SUM_METRICS - boolean - optional - default: false
+      ## Whether to report sum and count as separate histogram metrics.
+      #
+      # send_count_sum_metrics: false
+
+  ## @param traces - custom object - optional
+  ## Traces-specific configuration for OTLP ingest in the Datadog Agent.
+  #
+  # traces:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_TRACES_ENABLED - boolean - optional - default: true
+    ## Whether to ingest traces through the OTLP endpoint. Set to false to disable OTLP traces ingest.
+    #
+    # enabled: true

@@ -50,6 +50,12 @@ repos:
       entry: 'python3 tasks/git-hooks/gofmt.py'
       language: system
       files: \.go$
+    - id: win-clang-format
+      name: win-clang-format
+      description: clang-format
+      entry: 'python tasks/git-hooks/wincpplang.py'
+      language: system
+      types_or: [c, c++, c#]
     - id: clang-format
       name: clang-format
       description: clang-format
