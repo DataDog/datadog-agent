@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -64,6 +65,8 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	compileToBC.Stdout = &clangOut
 	compileToBC.Stderr = &clangErr
 
+	log.Debugf("compiling asset to bytecode: %v", compileToBC.Args)
+
 	err := compileToBC.Run()
 
 	if err != nil {
@@ -85,6 +88,8 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	bcToObj.Stdin = &clangOut
 	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr
+
+	log.Debugf("compiling bytecode to object file: %v", bcToObj.Args)
 
 	err = bcToObj.Run()
 	if err != nil {
