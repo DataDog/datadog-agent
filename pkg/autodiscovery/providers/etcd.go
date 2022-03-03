@@ -17,6 +17,7 @@ import (
 	"go.etcd.io/etcd/client/v2"
 	"golang.org/x/net/context"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -123,7 +124,7 @@ func (p *EtcdConfigProvider) getTemplates(ctx context.Context, key string) []int
 		return nil
 	}
 
-	return buildTemplates(key, checkNames, initConfigs, instances)
+	return utils.BuildTemplates(key, checkNames, initConfigs, instances)
 }
 
 // getEtcdValue retrieves content from etcd
@@ -143,7 +144,7 @@ func (p *EtcdConfigProvider) getCheckNames(ctx context.Context, key string) ([]s
 		return nil, err
 	}
 
-	return parseCheckNames(rawNames)
+	return utils.ParseCheckNames(rawNames)
 }
 
 func (p *EtcdConfigProvider) getJSONValue(ctx context.Context, key string) ([][]integration.Data, error) {
@@ -152,7 +153,7 @@ func (p *EtcdConfigProvider) getJSONValue(ctx context.Context, key string) ([][]
 		return nil, fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)
 	}
 
-	return parseJSONValue(rawValue)
+	return utils.ParseJSONValue(rawValue)
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ETCD's data.
