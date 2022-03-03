@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
@@ -43,7 +44,7 @@ type Agent struct {
 	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
-	launchers                 []startstop.StartStoppable
+	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 
@@ -66,23 +67,34 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
+	// setup the launchers
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
+	lnchrs.AddLauncher(filelauncher.NewLauncher(
+		coreConfig.Datadog.GetInt("logs_config.open_files_limit"),
+		filelauncher.DefaultSleepDuration,
+		coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id"),
+		time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))))
+	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
+	lnchrs.AddLauncher(journald.NewLauncher())
+	lnchrs.AddLauncher(windowsevent.NewLauncher())
+	lnchrs.AddLauncher(traps.NewLauncher())
+
+	// Only try to start the container launchers if Docker or Kubernetes is available
 	containerLaunchables := []container.Launchable{
 		{
 			IsAvailable: docker.IsAvailable,
-			Launcher: func() startstop.StartStoppable {
+			Launcher: func() launchers.Launcher {
 				return docker.NewLauncher(
 					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
 					sources,
 					services,
-					pipelineProvider,
-					auditor,
 					coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
 					coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file"))
 			},
 		},
 		{
 			IsAvailable: kubernetes.IsAvailable,
-			Launcher: func() startstop.StartStoppable {
+			Launcher: func() launchers.Launcher {
 				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
 			},
 		},
@@ -93,21 +105,8 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		containerLaunchables[0], containerLaunchables[1] = containerLaunchables[1], containerLaunchables[0]
 	}
 
-	validatePodContainerID := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
-
-	// setup the launchers
-	launchers := []startstop.StartStoppable{
-		filelauncher.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
-			filelauncher.DefaultSleepDuration, validatePodContainerID, time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))),
-		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
-		journald.NewLauncher(sources, pipelineProvider, auditor),
-		windowsevent.NewLauncher(sources, pipelineProvider),
-		traps.NewLauncher(sources, pipelineProvider),
-	}
-
-	// Only try to start the container launchers if Docker or Kubernetes is available
 	if coreConfig.IsFeaturePresent(coreConfig.Docker) || coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
-		launchers = append(launchers, container.NewLauncher(containerLaunchables))
+		lnchrs.AddLauncher(container.NewLauncher(containerLaunchables))
 	}
 
 	return &Agent{
@@ -117,7 +116,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
-		launchers:                 launchers,
+		launchers:                 lnchrs,
 		health:                    health,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
@@ -138,10 +137,9 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
-	// setup the launchers
-	launchers := []startstop.StartStoppable{
-		channel.NewLauncher(sources, pipelineProvider),
-	}
+	// setup the sole launcher for this agent
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
+	lnchrs.AddLauncher(channel.NewLauncher())
 
 	return &Agent{
 		sources:                   sources,
@@ -150,7 +148,7 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
-		launchers:                 launchers,
+		launchers:                 lnchrs,
 		health:                    health,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
@@ -164,16 +162,12 @@ func (a *Agent) Start() {
 	}
 	a.started = true
 
-	launchers := startstop.NewStarter()
-	for _, input := range a.launchers {
-		launchers.Add(input)
-	}
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
 		a.auditor,
 		a.pipelineProvider,
 		a.diagnosticMessageReceiver,
-		launchers,
+		a.launchers,
 		a.schedulers,
 	)
 	starter.Start()
@@ -187,13 +181,9 @@ func (a *Agent) Flush(ctx context.Context) {
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {
-	launchers := startstop.NewParallelStopper()
-	for _, input := range a.launchers {
-		launchers.Add(input)
-	}
 	stopper := startstop.NewSerialStopper(
 		a.schedulers,
-		launchers,
+		a.launchers,
 		a.pipelineProvider,
 		a.auditor,
 		a.destinationsCtx,

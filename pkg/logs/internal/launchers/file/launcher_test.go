@@ -20,6 +20,7 @@ import (
 
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -64,7 +65,9 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.openFilesLimit = 100
 	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: suite.configID, Path: suite.testPath})
 	sleepDuration := 20 * time.Millisecond
-	suite.s = NewLauncher(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration, false, 10*time.Second)
+	suite.s = NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second)
+	suite.s.pipelineProvider = suite.pipelineProvider
+	suite.s.registry = auditor.NewRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
 	status.InitStatus(config.CreateSources([]*config.LogSource{suite.source}))
 	suite.s.scan()
@@ -186,7 +189,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 func (suite *LauncherTestSuite) TestLifeCycle() {
 	s := suite.s
 	suite.Equal(1, len(s.tailers))
-	s.Start()
+	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditor.NewRegistry())
 
 	// all tailers should be stopped
 	s.Stop()
@@ -219,8 +222,9 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		path = fmt.Sprintf("%s/*.log", testDir)
 		openFilesLimit := 2
 		sleepDuration := 20 * time.Millisecond
-		registry := auditor.NewRegistry()
-		launcher := NewLauncher(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+		launcher.pipelineProvider = mock.NewMockProvider()
+		launcher.registry = auditor.NewRegistry()
 		source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
@@ -257,8 +261,9 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	// create launcher
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
-	registry := auditor.NewRegistry()
-	launcher := NewLauncher(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditor.NewRegistry()
 	firstSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "123456789"})
 	secondSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "987654321"})
 
@@ -304,8 +309,9 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	// create launcher
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
-	registry := auditor.NewRegistry()
-	launcher := NewLauncher(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditor.NewRegistry()
 	sources := []*config.LogSource{
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/test.log", testDir), TailingMode: "beginning"}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/container.log", testDir), TailingMode: "beginning", Identifier: "123456789"}),
@@ -370,7 +376,9 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	path = fmt.Sprintf("%s/*.log", testDir)
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	launcher := NewLauncher(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration, false, 10*time.Second)
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditor.NewRegistry()
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()

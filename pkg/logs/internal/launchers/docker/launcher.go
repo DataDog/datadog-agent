@@ -17,6 +17,7 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -65,6 +66,7 @@ type Launcher struct {
 	tailFromFile           bool                      // If true docker will be tailed from the corresponding log file
 	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
 	sources                *config.LogSources        // To schedule file source when taileing container from file
+	services               *service.Services
 }
 
 // IsAvailable retrues true if the launcher is available and a retrier otherwise
@@ -83,7 +85,7 @@ func IsAvailable() (bool, *retry.Retrier) {
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, tailFromFile, forceTailingFromFile bool) *Launcher {
 	if _, err := dockerutilpkg.GetDockerUtil(); err != nil {
 		log.Errorf("DockerUtil not available, failed to create launcher: %v", err)
 		return nil
@@ -103,10 +105,8 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	}
 
 	launcher := &Launcher{
-		pipelineProvider:       pipelineProvider,
 		tailers:                make(map[string]*tailer.Tailer),
 		pendingContainers:      make(map[string]*Container),
-		registry:               registry,
 		runtime:                runtime,
 		stop:                   make(chan struct{}),
 		erroredContainerID:     make(chan string),
@@ -114,6 +114,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		readTimeout:            readTimeout,
 		serviceNameFunc:        util.ServiceNameFromTags,
 		sources:                sources,
+		services:               services,
 		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]sourceInfoPair),
@@ -127,18 +128,18 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		}
 	}
 
-	// FIXME(achntrl): Find a better way of choosing the right launcher
-	// between Docker and Kubernetes
-	launcher.addedSources = sources.GetAddedForType(config.DockerType)
-	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
-	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
-	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher
 }
 
 // Start starts the Launcher
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	log.Info("Starting Docker launcher")
+	l.pipelineProvider = pipelineProvider
+	l.registry = registry
+	l.addedSources = sourceProvider.GetAddedForType(config.DockerType)
+	l.removedSources = sourceProvider.GetRemovedForType(config.DockerType)
+	l.addedServices = l.services.GetAddedServicesForType(config.DockerType)
+	l.removedServices = l.services.GetRemovedServicesForType(config.DockerType)
 	go l.run()
 }
 
