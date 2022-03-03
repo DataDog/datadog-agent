@@ -238,6 +238,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
+                perl -p -e "s/runtime:java8.al2/runtime:java8/g" |
                 sort
         )
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
@@ -257,6 +258,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/[ ]$//g" |
+                perl -p -e "s/runtime:java8.al2/runtime:java8/g" |
                 # ignore a Lambda error that occurs sporadically for log-csharp
                 # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
                 perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
