@@ -113,18 +113,10 @@ trap remove_stack EXIT
 
 # deploy the stack
 if [ "$ARCHITECTURE" == "amd64" ]; then
-    export DEPLOYMENT_REGION=sa-east-1
-    export DEPLOYMENT_BUCKET=integration-tests-deployment-bucket
-    echo "Deploying stack with $ARCHITECTURE architecture to $DEPLOYMENT_REGION, using the $DEPLOYMENT_BUCKET"
-
     # we use the architecture name amd64, while AWS requires it to be listed as x86_64
     export DEPLOYMENT_ARCHITECTURE=x86_64
     serverless deploy --stage "${stage}"
 else 
-    export DEPLOYMENT_REGION=eu-west-1
-    export DEPLOYMENT_BUCKET=integration-tests-deployment-bucket-arm
-    echo "Deploying stack with $ARCHITECTURE architecture to $DEPLOYMENT_REGION, using the $DEPLOYMENT_BUCKET"
-
     export DEPLOYMENT_ARCHITECTURE=$ARCHITECTURE
     serverless deploy --stage "${stage}"
 fi
@@ -265,7 +257,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/[ ]$//g" |
-                # ignore a Lambda error that occurs sporratically for log-csharp
+                # ignore a Lambda error that occurs sporadically for log-csharp
                 # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
                 perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
                  /An error occurred while attempting to execute your code.: LambdaException/ or \
@@ -305,6 +297,12 @@ for function_name in "${all_functions[@]}"; do
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
             continue
         fi
+        # Skip all csharp tests when on arm64, .NET is not supported at all for arm architecture
+        if [[ $ARCHITECTURE == "arm64" && $function_name =~ "csharp" ]]; then
+            printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
+            continue
+        fi
+        if 
         diff_output=$(echo "$logs" | diff - "$function_snapshot_path")
         if [ $? -eq 1 ]; then
             failed_functions+=("$function_name")

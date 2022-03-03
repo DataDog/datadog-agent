@@ -6,7 +6,7 @@ resources:
 
 provider:
   name: aws
-  region: ${env:DEPLOYMENT_REGION}
+  region: eu-west-1
   tracing:
     lambda: true
     apiGateway: true
@@ -28,7 +28,7 @@ provider:
   lambdaHashingVersion: 20201221
   timeout: 15
   deploymentBucket:
-    name: ${env:DEPLOYMENT_BUCKET}
+    name: integration-tests-deployment-bucket-lambda-extension
   iam:
     # IAM permissions require that all functions are deployed with this role
     role: "arn:aws:iam::601427279990:role/serverless-integration-test-lambda-role"
