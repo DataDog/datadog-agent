@@ -160,7 +160,7 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 			rc.telemetry.compilationResult = headerFetchErr
 			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
 		}
-		if err := compiler.CompileToObjectFile(inputReader, outputFile, cflags, dirs); err != nil {
+		if err := compiler.CompileToObjectFile(inputReader, outputFile, flags, dirs); err != nil {
 			rc.telemetry.compilationResult = compilationErr
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", inputFileName, err)
 		}
