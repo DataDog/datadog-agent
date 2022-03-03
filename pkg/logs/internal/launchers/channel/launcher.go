@@ -6,7 +6,9 @@
 package channel
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
@@ -20,16 +22,16 @@ type Launcher struct {
 }
 
 // NewLauncher returns an initialized Launcher
-func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
+func NewLauncher() *Launcher {
 	return &Launcher{
-		pipelineProvider: pipelineProvider,
-		sources:          sources.GetAddedForType(config.StringChannelType),
-		stop:             make(chan struct{}),
+		stop: make(chan struct{}),
 	}
 }
 
 // Start starts the launcher.
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	l.pipelineProvider = pipelineProvider
+	l.sources = sourceProvider.GetAddedForType(config.StringChannelType)
 	go l.run()
 }
 

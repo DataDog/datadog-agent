@@ -11,6 +11,7 @@ package journald
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,18 +28,18 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
+func NewLauncher() *Launcher {
 	return &Launcher{
-		sources:          sources.GetAddedForType(config.JournaldType),
-		pipelineProvider: pipelineProvider,
-		registry:         registry,
-		tailers:          make(map[string]*tailer.Tailer),
-		stop:             make(chan struct{}),
+		tailers: make(map[string]*tailer.Tailer),
+		stop:    make(chan struct{}),
 	}
 }
 
 // Start starts the launcher.
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
+	l.pipelineProvider = pipelineProvider
+	l.registry = registry
 	go l.run()
 }
 
