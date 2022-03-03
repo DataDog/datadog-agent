@@ -23,7 +23,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	st, err := f.Stat()
 	if err != nil {
-		log.Debugf("Error stat()ing file %v", err)
+		log.Debugf("Error calling stat() on file %v", err)
 		return false, err
 	}
 
