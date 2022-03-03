@@ -1033,7 +1033,7 @@ api_key:
   # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
-  ## @env DD_APM_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
+  ## @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
   #
