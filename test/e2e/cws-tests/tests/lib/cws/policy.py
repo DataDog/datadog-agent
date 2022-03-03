@@ -2,9 +2,8 @@ import yaml
 
 
 class PolicyLoader:
-    def load(self, filename):
-        with open(filename, "r") as stream:
-            self.data = yaml.safe_load(stream)
+    def load(self, policy_content):
+            self.data = yaml.safe_load(policy_content)
             return self.data
 
     def get_rule_by_desc(self, desc):

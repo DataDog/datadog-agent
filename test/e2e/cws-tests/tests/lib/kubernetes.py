@@ -49,54 +49,23 @@ class KubernetesHelper(LogGetter):
             tty=False,
         )
 
-    def reload_policies(self, agent_name):
+    def reload_policies(self):
         command = [SEC_AGENT_PATH, 'runtime', 'policy', 'reload']
-        self.exec_command(agent_name, command=command)
+        self.exec_command("security-agent", command=command)
 
-    # Inside download disabled for now. It will replace the app.download_policies
-    # once we figure out:
-    # . how to check the presence of the wanted test rule
-    # . how to pass env variables (app/api_key and site) to download the policy
-    # def download_policies(self, agent_name):
-    #     command = [SEC_AGENT_PATH, 'runtime', 'policy', 'download', '--output-path',
-    #                '/etc/datadog-agent/runtime-security.d/default.policy']
-    #     self.exec_command(agent_name, command=command)
+    def download_policies(self):
+        self.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
+        site = os.environ["DD_SITE"]
+        api_key = os.environ["DD_API_KEY"]
+        app_key = os.environ["DD_APP_KEY"]
+        command = ["/bin/bash", "-c",
+                   "export DD_SITE=" + site +
+                   " ; export DD_API_KEY=" + api_key +
+                   " ; export DD_APP_KEY=" + app_key +
+                   " ; " + SEC_AGENT_PATH + " runtime policy download --output-path " +
+                   "/tmp/runtime-security.d/default.policy"]
+        self.exec_command("security-agent", command=command)
 
-    def cp_to_agent(self, agent_name, src_file, dst_file):
-        command = ['tar', 'xvf', '-', '-C', '/tmp']
-        resp = stream(
-            self.api_client.connect_post_namespaced_pod_exec,
-            name=self.pod_name,
-            namespace=self.namespace,
-            container=agent_name,
-            command=command,
-            stderr=True,
-            stdin=True,
-            stdout=True,
-            tty=False,
-            _preload_content=False,
-        )
-
-        with TemporaryFile() as tar_buffer:
-            with tarfile.open(fileobj=tar_buffer, mode='w') as tar:
-                tar.add(src_file)
-
-            tar_buffer.seek(0)
-            commands = []
-            commands.append(tar_buffer.read())
-
-        while resp.is_open():
-            resp.update(timeout=1)
-            if commands:
-                c = commands.pop(0)
-                resp.write_stdin(c)
-            else:
-                break
-            resp.close()
-
-        dirname = os.path.dirname(dst_file)
-        command = ['mkdir', '-p', dirname]
-        self.exec_command(agent_name, command=command)
-
-        command = ['mv', f'/tmp/{src_file}', dst_file]
-        self.exec_command(agent_name, command=command)
+    def retrieve_policies(self):
+        command = ["cat", "/tmp/runtime-security.d/default.policy"]
+        return self.exec_command("security-agent", command=command)

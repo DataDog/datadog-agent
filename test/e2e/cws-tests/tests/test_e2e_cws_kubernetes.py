@@ -40,9 +40,6 @@ class TestE2EKubernetes(unittest.TestCase):
         if self.signal_rule_id:
             self.App.delete_signal_rule(self.signal_rule_id)
 
-        if self.policies:
-            os.remove(self.policies)
-
     def test_open_signal(self):
         print("")
 
@@ -69,16 +66,6 @@ class TestE2EKubernetes(unittest.TestCase):
                 agent_rule_name,
             )
 
-        with Step(msg="check policies download", emoji=":file_folder:"):
-            self.policies = self.App.download_policies()
-            data = self.policy_loader.load(self.policies)
-            self.assertIsNotNone(data, msg="unable to load policy")
-
-        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
-            rule = self.policy_loader.get_rule_by_desc(desc)
-            self.assertIsNotNone(rule, msg="unable to find e2e rule")
-            self.assertEqual(rule["id"], agent_rule_name)
-
         with Step(msg="select pod", emoji=":man_running:"):
             self.kubernetes_helper.select_pod_name("app=datadog-agent")
 
@@ -91,12 +78,21 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
-        with Step(msg="upload policies", emoji=":down_arrow:"):
-            self.kubernetes_helper.cp_to_agent("system-probe", self.policies, "/tmp/runtime-security.d/default.policy")
+        with Step(msg="check policies download", emoji=":file_folder:"):
+            self.kubernetes_helper.download_policies()
+            self.policies = self.kubernetes_helper.retrieve_policies()
+            self.assertNotEqual(self.policies, "", msg="check policy download failed")
+            data = self.policy_loader.load(self.policies)
+            self.assertIsNotNone(data, msg="unable to load policy")
+
+        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
+            rule = self.policy_loader.get_rule_by_desc(desc)
+            self.assertIsNotNone(rule, msg="unable to find e2e rule")
+            self.assertEqual(rule["id"], agent_rule_name)
 
         with Step(msg="restart system-probe", emoji=":rocket:"):
-            self.kubernetes_helper.reload_policies("system-probe")
-            time.sleep(60)
+            self.kubernetes_helper.reload_policies()
+            time.sleep(10)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             os.system(f"touch {filename}")
