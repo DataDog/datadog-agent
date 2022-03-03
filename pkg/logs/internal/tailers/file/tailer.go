@@ -37,8 +37,9 @@ import (
 // This component translates the decoder.Messages into message.Messages and
 // sends them to the tailer's output channel.
 type Tailer struct {
-	// lastReadOffset is the last file offset that was read.  This value must be
-	// accessed atomically.
+	// lastReadOffset is the last file offset that was read.  This value must
+	// be accessed atomically after the tailer is started (via
+	// getLastReadOffset, setLastReadOffset, and incrementLastReadOffset)
 	lastReadOffset int64
 
 	// decodedOffset is the offset in the file at which the latest decoded message

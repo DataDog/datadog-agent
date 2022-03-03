@@ -37,7 +37,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	filePos, _ := f.Seek(offset, whence)
 	f.Close()
 
-	t.setReadOffset(filePos)
+	t.setLastReadOffset(filePos)
 	t.setDecodedOffset(filePos)
 
 	return nil
