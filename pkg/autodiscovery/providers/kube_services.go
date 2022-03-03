@@ -18,6 +18,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -152,7 +153,7 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 			continue
 		}
 		serviceID := apiserver.EntityForService(svc)
-		svcConf, errors := extractTemplatesFromMap(serviceID, svc.Annotations, kubeServiceAnnotationPrefix)
+		svcConf, errors := utils.ExtractTemplatesFromMap(serviceID, svc.Annotations, kubeServiceAnnotationPrefix)
 		for _, err := range errors {
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
