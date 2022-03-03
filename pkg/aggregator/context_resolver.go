@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
@@ -27,6 +28,12 @@ func (c *Context) Tags() tagset.CompositeTags {
 	return tagset.NewCompositeTags(c.taggerTags.Tags(), c.metricTags.Tags())
 }
 
+// releaseTags allows the tags entries to be freed if no longer used.
+func (c *Context) releaseTags() {
+	c.taggerTags.Release()
+	c.metricTags.Release()
+}
+
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
@@ -42,13 +49,30 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 }
 
 func newContextResolver(cache *tags.Store) *contextResolver {
-	return &contextResolver{
+	cx := &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		tagsCache:     cache,
 		keyGenerator:  ckey.NewKeyGenerator(),
 		taggerBuffer:  tagset.NewHashingTagsAccumulator(),
 		metricBuffer:  tagset.NewHashingTagsAccumulator(),
 	}
+
+	// Finalizers run on a single goroutine, so we set the finalizer on the entire
+	// contextResolver rather than individual contexts to reduce number of finalizers run.
+	runtime.SetFinalizer(cx, finalizeResolver)
+	return cx
+}
+
+// finalizeResolver performs final cleanup before contextResolver object can be destroyed.
+func finalizeResolver(cr *contextResolver) {
+	// All finalizers run on a single goroutine, spawn off to avoid blocking it.
+	go func() {
+		// Finalizer runs when there are no other references to cr, and thus no other
+		// goroutine can modify contextsByKey concurrently.
+		for _, cx := range cr.contextsByKey {
+			cx.releaseTags()
+		}
+	}()
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
@@ -86,8 +110,7 @@ func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 		delete(cr.contextsByKey, expiredContextKey)
 
 		if context != nil {
-			context.taggerTags.Release()
-			context.metricTags.Release()
+			context.releaseTags()
 		}
 	}
 }
