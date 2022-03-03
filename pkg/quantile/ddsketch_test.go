@@ -17,7 +17,6 @@ import (
 func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSketch {
 	sketch, _ := ddsketch.NewDefaultDDSketch(0.01)
 	for i := 0; i <= N; i++ {
-		fmt.Printf("%d / %d, %f\n", i, N, quantile(float64(i)/float64(N)))
 		sketch.AddWithCount(quantile(float64(i)/float64(N)), float64(M))
 	}
 
@@ -89,6 +88,34 @@ func TestGenerateDDSketch(t *testing.T) {
 					fmt.Sprintf("error too high for p%d", i),
 				)
 			}
+
+			sketchConfig := Default()
+			convertedSketch, err := convertToCompatibleDDSketch(sketchConfig, sketch)
+			assert.NoError(t, err)
+
+			// Check the quantiles are approximately correct
+			for i := 1; i <= 100; i++ {
+				q := (float64(i)) / 100.0
+				expectedValue, err := sketch.GetValueAtQuantile(q)
+				assert.NoError(t, err)
+
+				quantileValue, err := convertedSketch.GetValueAtQuantile(q)
+				assert.NoError(t, err)
+				assert.InEpsilon(t,
+					// test that the quantile value returned by the sketch is vithin the relative accuracy
+					// of the expected value
+					expectedValue,
+					quantileValue,
+					// Taken from: https://github.com/DataDog/sketches-go/blob/668f772f57bfc7a5f2af7591d657a88b4d0231a4/ddsketch/ddsketch_test.go#L387-L403
+					// the expected value (ie. the quantile value in the input sketch)
+					// and the actual value (ie. the quantile value in the output sketch)
+					// should have a relative error that's less than the sum of the relative errors
+					// of each sketch.
+					sketch.RelativeAccuracy() + convertedSketch.RelativeAccuracy(),
+					fmt.Sprintf("error too high for p%d", i),
+				)
+			}
+
 		})
 	}
 }
