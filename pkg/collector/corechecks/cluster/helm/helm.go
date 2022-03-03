@@ -12,10 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers/core/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -52,18 +54,23 @@ const (
 // https://helm.sh/docs/faq/changes_since_helm2/#secrets-as-the-default-storage-driver
 type HelmCheck struct {
 	core.CheckBase
-	secretLister      v1.SecretLister
-	configmapLister   v1.ConfigMapLister
+	releases          map[helmStorage]map[string]*release
+	releasesMut       sync.Mutex
 	runLeaderElection bool
 }
 
-var helmSelector = labels.Set{"owner": "helm"}.AsSelector()
-
 func factory() check.Check {
-	return &HelmCheck{
+	helmCheck := &HelmCheck{
 		CheckBase:         core.NewCheckBase(checkName),
+		releases:          make(map[helmStorage]map[string]*release),
 		runLeaderElection: !config.IsCLCRunner(),
 	}
+
+	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
+		helmCheck.releases[storageDriver] = make(map[string]*release)
+	}
+
+	return helmCheck
 }
 
 // Configure configures the Helm check
@@ -88,24 +95,7 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 		return err
 	}
 
-	stopCh := make(chan struct{})
-	apiClient.InformerFactory.Start(stopCh)
-
-	secretInformer := apiClient.InformerFactory.Core().V1().Secrets()
-	hc.secretLister = secretInformer.Lister()
-	go secretInformer.Informer().Run(stopCh)
-
-	configmapInformer := apiClient.InformerFactory.Core().V1().ConfigMaps()
-	hc.configmapLister = configmapInformer.Lister()
-	go configmapInformer.Informer().Run(stopCh)
-
-	return apiserver.SyncInformers(
-		map[apiserver.InformerName]cache.SharedInformer{
-			"helm-secrets":    secretInformer.Informer(),
-			"helm-configmaps": configmapInformer.Informer(),
-		},
-		informerSyncTimeout,
-	)
+	return hc.setupInformers(apiClient.InformerFactory)
 }
 
 // Run executes the check
@@ -128,25 +118,44 @@ func (hc *HelmCheck) Run() error {
 		}
 	}
 
-	releasesInSecrets, err := hc.releasesFromSecrets()
-	if err != nil {
-		return fmt.Errorf("error while getting Helm releases from secrets: %s", err)
-	}
+	hc.releasesMut.Lock()
+	defer hc.releasesMut.Unlock()
 
-	for _, releaseInSecret := range releasesInSecrets {
-		sender.Gauge("helm.release", 1, "", helmTags(releaseInSecret, k8sSecrets))
-	}
-
-	releasesInConfigMaps, err := hc.releasesFromConfigMaps()
-	if err != nil {
-		return fmt.Errorf("error while getting Helm releases from configmaps: %s", err)
-	}
-
-	for _, releaseInConfigMap := range releasesInConfigMaps {
-		sender.Gauge("helm.release", 1, "", helmTags(releaseInConfigMap, k8sConfigmaps))
+	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
+		for _, rel := range hc.releases[storageDriver] {
+			sender.Gauge("helm.release", 1, "", helmTags(rel, storageDriver))
+		}
 	}
 
 	return nil
+}
+
+func (hc *HelmCheck) setupInformers(sharedInformerFactory informers.SharedInformerFactory) error {
+	stopCh := make(chan struct{})
+
+	secretInformer := sharedInformerFactory.Core().V1().Secrets()
+	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    hc.addSecret,
+		DeleteFunc: hc.deleteSecret,
+		UpdateFunc: hc.updateSecret,
+	})
+	go secretInformer.Informer().Run(stopCh)
+
+	configmapInformer := sharedInformerFactory.Core().V1().ConfigMaps()
+	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    hc.addConfigmap,
+		DeleteFunc: hc.deleteConfigmap,
+		UpdateFunc: hc.updateConfigmap,
+	})
+	go configmapInformer.Informer().Run(stopCh)
+
+	return apiserver.SyncInformers(
+		map[apiserver.InformerName]cache.SharedInformer{
+			"helm-secrets":    secretInformer.Informer(),
+			"helm-configmaps": configmapInformer.Informer(),
+		},
+		informerSyncTimeout,
+	)
 }
 
 func helmTags(release *release, storageDriver helmStorage) []string {
@@ -175,42 +184,104 @@ func helmTags(release *release, storageDriver helmStorage) []string {
 	return tags
 }
 
-func (hc *HelmCheck) releasesFromSecrets() ([]*release, error) {
-	secrets, err := hc.secretLister.List(helmSelector)
+func (hc *HelmCheck) addSecret(obj interface{}) {
+	secret, ok := obj.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected secret, got: %v", obj)
+		return
+	}
+
+	if !isManagedByHelm(secret) {
+		return
+	}
+
+	decodedRelease, err := decodeRelease(string(secret.Data["release"]))
 	if err != nil {
-		return nil, err
+		log.Warnf("error while decoding Helm release: %s", err)
+		return
 	}
 
-	var releases []*release
-
-	for _, secret := range secrets {
-		deployedRelease, err := decodeRelease(string(secret.Data["release"]))
-		if err != nil {
-			return nil, fmt.Errorf("error while decoding Helm release: %s", err)
-		}
-		releases = append(releases, deployedRelease)
-	}
-
-	return releases, nil
+	hc.releasesMut.Lock()
+	defer hc.releasesMut.Unlock()
+	hc.releases[k8sSecrets][decodedRelease.ID()] = decodedRelease
 }
 
-func (hc *HelmCheck) releasesFromConfigMaps() ([]*release, error) {
-	configMaps, err := hc.configmapLister.List(helmSelector)
+func (hc *HelmCheck) deleteSecret(obj interface{}) {
+	secret, ok := obj.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected secret, got: %v", obj)
+		return
+	}
+
+	if !isManagedByHelm(secret) {
+		return
+	}
+
+	decodedRelease, err := decodeRelease(string(secret.Data["release"]))
 	if err != nil {
-		return nil, err
+		log.Warnf("error while decoding Helm release: %s", err)
+		return
 	}
 
-	var releases []*release
+	hc.releasesMut.Lock()
+	defer hc.releasesMut.Unlock()
+	delete(hc.releases[k8sSecrets], decodedRelease.ID())
+}
 
-	for _, configMap := range configMaps {
-		deployedRelease, err := decodeRelease(configMap.Data["release"])
-		if err != nil {
-			return nil, fmt.Errorf("error while decoding Helm release: %s", err)
-		}
-		releases = append(releases, deployedRelease)
+func (hc *HelmCheck) updateSecret(_, obj interface{}) {
+	hc.addSecret(obj)
+}
+
+func (hc *HelmCheck) addConfigmap(obj interface{}) {
+	configmap, ok := obj.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected configmap, got: %v", obj)
+		return
 	}
 
-	return releases, nil
+	if !isManagedByHelm(configmap) {
+		return
+	}
+
+	decodedRelease, err := decodeRelease(configmap.Data["release"])
+	if err != nil {
+		log.Warnf("error while decoding Helm release: %s", err)
+		return
+	}
+
+	hc.releasesMut.Lock()
+	defer hc.releasesMut.Unlock()
+	hc.releases[k8sConfigmaps][decodedRelease.ID()] = decodedRelease
+}
+
+func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
+	configmap, ok := obj.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected configmap, got: %v", obj)
+		return
+	}
+
+	if !isManagedByHelm(configmap) {
+		return
+	}
+
+	decodedRelease, err := decodeRelease(configmap.Data["release"])
+	if err != nil {
+		log.Warnf("error while decoding Helm release: %s", err)
+		return
+	}
+
+	hc.releasesMut.Lock()
+	defer hc.releasesMut.Unlock()
+	delete(hc.releases[k8sConfigmaps], decodedRelease.ID())
+}
+
+func (hc *HelmCheck) updateConfigmap(_, obj interface{}) {
+	hc.addConfigmap(obj)
+}
+
+func isManagedByHelm(object metav1.Object) bool {
+	return object.GetLabels()["owner"] == "helm"
 }
 
 func isLeader() (bool, error) {
