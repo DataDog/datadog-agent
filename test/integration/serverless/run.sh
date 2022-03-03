@@ -302,7 +302,6 @@ for function_name in "${all_functions[@]}"; do
             printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
             continue
         fi
-        if 
         diff_output=$(echo "$logs" | diff - "$function_snapshot_path")
         if [ $? -eq 1 ]; then
             failed_functions+=("$function_name")
