@@ -8,6 +8,7 @@ package tags
 import (
 	"fmt"
 	"math/bits"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -30,8 +31,11 @@ func (e *Entry) Tags() []string {
 
 // Release decrements internal reference counter, potentially marking
 // the entry as unused.
+//
+// Can be called concurrently with Insert and Shrink.
 func (e *Entry) Release() {
-	e.refs--
+	const minusOne = ^uint64(0)
+	atomic.AddUint64(&e.refs, minusOne)
 }
 
 // Store is a reference counted container of tags slices, to be shared
@@ -57,6 +61,9 @@ func NewStore(enabled bool, name string) *Store {
 // retrieved from the tagsBuffer. Insert increments reference count
 // for the returned entry; callers should call Entry.Release() when
 // the returned pointer is no longer in use.
+//
+// Must not be called concurrently.
+// Must not be called concurrently with Shrink.
 func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
 		return &Entry{
@@ -67,7 +74,8 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 
 	entry := tc.tagsByKey[key]
 	if entry != nil {
-		entry.refs++
+		// Can happen concurrently with Release().
+		atomic.AddUint64(&entry.refs, 1)
 		tc.telemetry.hits.Inc()
 	} else {
 		entry = &Entry{
@@ -83,13 +91,16 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 }
 
 // Shrink will try to release memory if cache usage drops low enough.
+//
+// Must not be called concurrently.
+// Must not be called concurrently with Insert.
 func (tc *Store) Shrink() {
 	stats := entryStats{}
 	for key, entry := range tc.tagsByKey {
-		if entry.refs == 0 {
-			delete(tc.tagsByKey, key)
+		if refs := atomic.LoadUint64(&entry.refs); refs > 0 {
+			stats.visit(entry, refs)
 		} else {
-			stats.visit(entry)
+			delete(tc.tagsByKey, key)
 		}
 	}
 
@@ -166,8 +177,7 @@ type entryStats struct {
 	count    int
 }
 
-func (s *entryStats) visit(e *Entry) {
-	r := e.refs
+func (s *entryStats) visit(e *Entry, r uint64) {
 	if r < 4 {
 		s.refsFreq[r-1]++
 	} else if r < 64 {
