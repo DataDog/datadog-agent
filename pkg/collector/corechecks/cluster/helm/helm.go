@@ -55,7 +55,7 @@ const (
 type HelmCheck struct {
 	core.CheckBase
 	releases          map[helmStorage]map[string]*release
-	releasesMut       sync.Mutex
+	releasesMutex     sync.Mutex
 	runLeaderElection bool
 }
 
@@ -118,8 +118,8 @@ func (hc *HelmCheck) Run() error {
 		}
 	}
 
-	hc.releasesMut.Lock()
-	defer hc.releasesMut.Unlock()
+	hc.releasesMutex.Lock()
+	defer hc.releasesMutex.Unlock()
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.releases[storageDriver] {
@@ -195,15 +195,7 @@ func (hc *HelmCheck) addSecret(obj interface{}) {
 		return
 	}
 
-	decodedRelease, err := decodeRelease(string(secret.Data["release"]))
-	if err != nil {
-		log.Warnf("error while decoding Helm release: %s", err)
-		return
-	}
-
-	hc.releasesMut.Lock()
-	defer hc.releasesMut.Unlock()
-	hc.releases[k8sSecrets][decodedRelease.ID()] = decodedRelease
+	hc.addRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
 func (hc *HelmCheck) deleteSecret(obj interface{}) {
@@ -217,15 +209,7 @@ func (hc *HelmCheck) deleteSecret(obj interface{}) {
 		return
 	}
 
-	decodedRelease, err := decodeRelease(string(secret.Data["release"]))
-	if err != nil {
-		log.Warnf("error while decoding Helm release: %s", err)
-		return
-	}
-
-	hc.releasesMut.Lock()
-	defer hc.releasesMut.Unlock()
-	delete(hc.releases[k8sSecrets], decodedRelease.ID())
+	hc.deleteRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
 func (hc *HelmCheck) updateSecret(_, obj interface{}) {
@@ -243,15 +227,7 @@ func (hc *HelmCheck) addConfigmap(obj interface{}) {
 		return
 	}
 
-	decodedRelease, err := decodeRelease(configmap.Data["release"])
-	if err != nil {
-		log.Warnf("error while decoding Helm release: %s", err)
-		return
-	}
-
-	hc.releasesMut.Lock()
-	defer hc.releasesMut.Unlock()
-	hc.releases[k8sConfigmaps][decodedRelease.ID()] = decodedRelease
+	hc.addRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
 func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
@@ -265,19 +241,35 @@ func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 		return
 	}
 
-	decodedRelease, err := decodeRelease(configmap.Data["release"])
-	if err != nil {
-		log.Warnf("error while decoding Helm release: %s", err)
-		return
-	}
-
-	hc.releasesMut.Lock()
-	defer hc.releasesMut.Unlock()
-	delete(hc.releases[k8sConfigmaps], decodedRelease.ID())
+	hc.deleteRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
 func (hc *HelmCheck) updateConfigmap(_, obj interface{}) {
 	hc.addConfigmap(obj)
+}
+
+func (hc *HelmCheck) addRelease(encodedRelease string, storageDriver helmStorage) {
+	decodedRelease, err := decodeRelease(encodedRelease)
+	if err != nil {
+		log.Debugf("error while decoding Helm release: %s", err)
+		return
+	}
+
+	hc.releasesMutex.Lock()
+	defer hc.releasesMutex.Unlock()
+	hc.releases[storageDriver][decodedRelease.ID()] = decodedRelease
+}
+
+func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
+	decodedRelease, err := decodeRelease(encodedRelease)
+	if err != nil {
+		log.Debugf("error while decoding Helm release: %s", err)
+		return
+	}
+
+	hc.releasesMutex.Lock()
+	defer hc.releasesMutex.Unlock()
+	delete(hc.releases[storageDriver], decodedRelease.ID())
 }
 
 func isManagedByHelm(object metav1.Object) bool {
