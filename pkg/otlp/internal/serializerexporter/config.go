@@ -73,3 +73,8 @@ type metricsExporterConfig struct {
 	// instrumentation library that created a metric to the metric tags
 	InstrumentationLibraryMetadataAsTags bool `mapstructure:"instrumentation_library_metadata_as_tags"`
 }
+
+// Validate configuration
+func (e *exporterConfig) Validate() error {
+	return e.QueueSettings.Validate()
+}
