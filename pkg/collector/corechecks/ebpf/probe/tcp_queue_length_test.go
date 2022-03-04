@@ -45,14 +45,14 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 
 	beforeStats := extractGlobalStats(t, tcpTracer)
 	if beforeStats.ReadBufferMaxUsage > 10 {
-		t.Error("max usage of read buffer is too big before the stress test")
+		t.Errorf("max usage of read buffer is too big before the stress test: %d > 10", beforeStats.ReadBufferMaxUsage)
 	}
 
 	runTCPLoadTest()
 
 	afterStats := extractGlobalStats(t, tcpTracer)
 	if afterStats.ReadBufferMaxUsage < 1000 {
-		t.Error("max usage of read buffer is too low after the stress test")
+		t.Errorf("max usage of read buffer is too low after the stress test: %d < 1000", afterStats.ReadBufferMaxUsage)
 	}
 
 	defer tcpTracer.Close()
