@@ -201,8 +201,8 @@ func Sha256hex(buf []byte) (string, error) {
 
 // UnameHash returns a sha256 hash of the uname release and version
 func UnameHash(uname *unix.Utsname) (string, error) {
-	bytes := make([]byte, 0, len(uname.Release)+len(uname.Version))
-	bytes = append(bytes, uname.Release[:]...)
-	bytes = append(bytes, uname.Version[:]...)
-	return Sha256hex(bytes)
+	var rv string
+	rv += unix.ByteSliceToString(uname.Release[:])
+	rv += unix.ByteSliceToString(uname.Version[:])
+	return Sha256hex([]byte(rv))
 }
