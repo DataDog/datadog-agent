@@ -36,7 +36,7 @@ func convertToCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*dd
 	offset := float64(c.norm.bias)
 	newMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %v", err)
+		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
 	}
 
 	newSketch := inputSketch.ChangeMapping(newMapping, positiveStore, negativeStore, 1.0)
@@ -163,12 +163,12 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 	avg := sum / float64(cnt)
 	max, err := inputSketch.GetValueAtQuantile(1.0)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't compute maximum of ddsketch: %v", err)
+		return nil, fmt.Errorf("couldn't compute maximum of ddsketch: %w", err)
 	}
 
 	min, err := inputSketch.GetValueAtQuantile(0.0)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't compute minimum of ddsketch: %v", err)
+		return nil, fmt.Errorf("couldn't compute minimum of ddsketch: %w", err)
 	}
 
 	summary := summary.Summary{
@@ -194,12 +194,12 @@ func FromDDSketch(inputSketch *ddsketch.DDSketch) (*Sketch, error) {
 
 	compatibleDDSketch, err := convertToCompatibleDDSketch(sketchConfig, inputSketch)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't convert input ddsketch into ddsketch with compatible parameters: %v", err)
+		return nil, fmt.Errorf("couldn't convert input ddsketch into ddsketch with compatible parameters: %w", err)
 	}
 
 	outputSketch, err := fromCompatibleDDSketch(sketchConfig, compatibleDDSketch)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't convert ddsketch into Sketch: %v", err)
+		return nil, fmt.Errorf("couldn't convert ddsketch into Sketch: %w", err)
 	}
 
 	return outputSketch, nil
