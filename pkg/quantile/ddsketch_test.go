@@ -91,6 +91,13 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 			convertedSketch, err := convertToCompatibleDDSketch(sketchConfig, sketch)
 			assert.NoError(t, err)
 
+			// Taken from:
+			// https://github.com/DataDog/logs-backend/blob/895e56c9eefa1c28a3affbdd0027f58a4c6f4322/domains/event-store/libs/event-store-aggregate/src/test/java/com/dd/event/store/api/query/sketch/SketchTest.java#L409-L422
+			inputGamma := (1.0 + sketch.RelativeAccuracy()) / (1.0 - sketch.RelativeAccuracy())
+			outputGamma := (1.0 + convertedSketch.RelativeAccuracy()) / (1.0 - convertedSketch.RelativeAccuracy())
+			conversionGamma := inputGamma * outputGamma * outputGamma
+			conversionRelativeAccuracy := (conversionGamma - 1) / (conversionGamma + 1)
+
 			// Check that the quantiles of the converted sketch
 			// approximately match the input distribution's quantiles
 			for i := 1; i <= 100; i++ {
@@ -105,12 +112,7 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 					// of the expected value
 					expectedValue,
 					quantileValue,
-					// Taken from: https://github.com/DataDog/sketches-go/blob/668f772f57bfc7a5f2af7591d657a88b4d0231a4/ddsketch/ddsketch_test.go#L387-L403
-					// the expected value (ie. the quantile value in the input sketch)
-					// and the actual value (ie. the quantile value in the output sketch)
-					// should have a relative error that's less than the sum of the relative errors
-					// of each sketch.
-					sketch.RelativeAccuracy()+convertedSketch.RelativeAccuracy(),
+					conversionRelativeAccuracy,
 					fmt.Sprintf("error too high for p%d", i),
 				)
 			}
