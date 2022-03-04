@@ -88,9 +88,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "process.ancestors.envs",
+          "name": "process.ancestors.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "process.ancestors.envs_truncated",
@@ -308,9 +313,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "process.envs",
+          "name": "process.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "process.envs_truncated",
@@ -808,9 +818,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "exec.envs",
+          "name": "exec.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "exec.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "exec.envs_truncated",
@@ -1114,6 +1129,100 @@
       ]
     },
     {
+      "name": "load_module",
+      "definition": "A new kernel module was loaded",
+      "type": "Kernel",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "load_module.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "load_module.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem"
+        },
+        {
+          "name": "load_module.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "load_module.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "load_module.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "load_module.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "load_module.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "load_module.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "load_module.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "load_module.file.name",
+          "type": "string",
+          "definition": "File's basename"
+        },
+        {
+          "name": "load_module.file.path",
+          "type": "string",
+          "definition": "File's path"
+        },
+        {
+          "name": "load_module.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "load_module.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "load_module.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "load_module.loaded_from_memory",
+          "type": "bool",
+          "definition": "Indicates if the kernel module was loaded from memory"
+        },
+        {
+          "name": "load_module.name",
+          "type": "string",
+          "definition": "Name of the new kernel module"
+        },
+        {
+          "name": "load_module.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
       "name": "mkdir",
       "definition": "A directory was created",
       "type": "File",
@@ -1211,8 +1320,8 @@
       "name": "mmap",
       "definition": "A mmap command was executed",
       "type": "Kernel",
-      "from_agent_version": "7.34",
-      "experimental": true,
+      "from_agent_version": "7.35",
+      "experimental": false,
       "properties": [
         {
           "name": "mmap.file.change_time",
@@ -1287,12 +1396,12 @@
         {
           "name": "mmap.flags",
           "type": "int",
-          "definition": ""
+          "definition": "memory segment flags"
         },
         {
           "name": "mmap.protection",
           "type": "int",
-          "definition": ""
+          "definition": "memory segment protection"
         },
         {
           "name": "mmap.retval",
@@ -1305,13 +1414,13 @@
       "name": "mprotect",
       "definition": "A mprotect command was executed",
       "type": "Kernel",
-      "from_agent_version": "7.34",
-      "experimental": true,
+      "from_agent_version": "7.35",
+      "experimental": false,
       "properties": [
         {
           "name": "mprotect.req_protection",
           "type": "int",
-          "definition": ""
+          "definition": "new memory segment protection"
         },
         {
           "name": "mprotect.retval",
@@ -1321,7 +1430,7 @@
         {
           "name": "mprotect.vm_protection",
           "type": "int",
-          "definition": ""
+          "definition": "initial memory segment protection"
         }
       ]
     },
@@ -1423,13 +1532,13 @@
       "name": "ptrace",
       "definition": "A ptrace command was executed",
       "type": "Kernel",
-      "from_agent_version": "7.34",
-      "experimental": true,
+      "from_agent_version": "7.35",
+      "experimental": false,
       "properties": [
         {
           "name": "ptrace.request",
           "type": "int",
-          "definition": ""
+          "definition": "ptrace request"
         },
         {
           "name": "ptrace.retval",
@@ -1507,9 +1616,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "ptrace.tracee.ancestors.envs",
+          "name": "ptrace.tracee.ancestors.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "ptrace.tracee.ancestors.envs_truncated",
@@ -1727,9 +1841,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "ptrace.tracee.envs",
+          "name": "ptrace.tracee.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "ptrace.tracee.envs_truncated",
@@ -2412,6 +2531,480 @@
       ]
     },
     {
+      "name": "signal",
+      "definition": "A signal was sent",
+      "type": "Process",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "signal.pid",
+          "type": "int",
+          "definition": "Target PID"
+        },
+        {
+          "name": "signal.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        },
+        {
+          "name": "signal.target.ancestors.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "signal.target.ancestors.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.target.ancestors.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.target.ancestors.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "signal.target.ancestors.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.target.ancestors.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
+          "name": "signal.target.ancestors.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "signal.target.ancestors.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "signal.target.ancestors.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "signal.target.ancestors.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "signal.target.ancestors.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "signal.target.ancestors.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "signal.target.ancestors.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "signal.target.ancestors.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "signal.target.ancestors.envp",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "signal.target.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
+        },
+        {
+          "name": "signal.target.ancestors.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "signal.target.ancestors.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "signal.target.ancestors.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "signal.target.ancestors.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "signal.target.ancestors.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "signal.target.ancestors.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "signal.target.ancestors.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "signal.target.ancestors.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "signal.target.ancestors.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "signal.target.ancestors.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.target.ancestors.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "signal.target.ancestors.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "signal.target.ancestors.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "signal.target.ancestors.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "signal.target.ancestors.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.target.ancestors.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "signal.target.ancestors.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "signal.target.ancestors.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "signal.target.ancestors.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "signal.target.ancestors.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "signal.target.ancestors.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "signal.target.ancestors.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "signal.target.ancestors.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "signal.target.ancestors.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "signal.target.ancestors.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "signal.target.ancestors.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "signal.target.ancestors.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "signal.target.ancestors.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "signal.target.ancestors.user",
+          "type": "string",
+          "definition": "User of the process"
+        },
+        {
+          "name": "signal.target.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "signal.target.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.target.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.target.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "signal.target.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.target.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
+          "name": "signal.target.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "signal.target.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "signal.target.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "signal.target.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "signal.target.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "signal.target.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "signal.target.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "signal.target.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "signal.target.envp",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "signal.target.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
+        },
+        {
+          "name": "signal.target.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "signal.target.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "signal.target.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "signal.target.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "signal.target.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "signal.target.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "signal.target.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "signal.target.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "signal.target.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "signal.target.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.target.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "signal.target.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "signal.target.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "signal.target.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "signal.target.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.target.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "signal.target.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "signal.target.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "signal.target.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "signal.target.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "signal.target.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "signal.target.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "signal.target.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "signal.target.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "signal.target.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "signal.target.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "signal.target.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "signal.target.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "signal.target.user",
+          "type": "string",
+          "definition": "User of the process"
+        },
+        {
+          "name": "signal.type",
+          "type": "int",
+          "definition": "Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)"
+        }
+      ]
+    },
+    {
       "name": "unlink",
       "definition": "A file was deleted",
       "type": "File",
@@ -2490,6 +3083,25 @@
         },
         {
           "name": "unlink.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
+      "name": "unload_module",
+      "definition": "A kernel module was deleted",
+      "type": "Kernel",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unload_module.name",
+          "type": "string",
+          "definition": "Name of the kernel module that was deleted"
+        },
+        {
+          "name": "unload_module.retval",
           "type": "int",
           "definition": "Return value of the syscall"
         }

@@ -15,11 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
 )
-
-const funcName = "socket__dns_filter"
 
 type ebpfProgram struct {
 	*manager.Manager
@@ -35,10 +33,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  string(probes.SocketDnsFilter),
-				EBPFFuncName: funcName,
-			}},
+			{Section: string(probes.SocketDnsFilter)},
 		},
 	}
 
@@ -68,8 +63,7 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.SocketDnsFilter),
-					EBPFFuncName: funcName,
+					Section: string(probes.SocketDnsFilter),
 				},
 			},
 		},

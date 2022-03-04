@@ -7,6 +7,7 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -129,6 +130,11 @@ func unmarshalTime(data []byte) time.Time {
 	return time.Time{}
 }
 
+// isValidTTYName uses a naive assumption as other tty driver may create tty with other prefix
+func isValidTTYName(ttyName string) bool {
+	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
@@ -150,7 +156,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if IsPrintableASCII(ttyName) {
+	if isValidTTYName(ttyName) {
 		e.TTYName = ttyName
 	}
 	read += 64
@@ -658,4 +664,57 @@ func (e *MProtectEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.VMProtection = int(ByteOrder.Uint32(data[read+16 : read+24]))
 	e.ReqProtection = int(ByteOrder.Uint32(data[read+24 : read+32]))
 	return read + 32, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 60 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	if err != nil {
+		return 0, err
+	}
+	e.LoadedFromMemory = ByteOrder.Uint32(data[read+56:read+60]) == uint32(1)
+	return read + 60, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *UnloadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 56 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	if err != nil {
+		return 0, err
+	}
+	return read + 56, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SignalEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.PID = ByteOrder.Uint32(data[read : read+4])
+	e.Type = ByteOrder.Uint32(data[read+4 : read+8])
+	return read + 8, nil
 }

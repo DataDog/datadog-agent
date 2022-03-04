@@ -222,7 +222,7 @@ func runAgent(ctx context.Context) (err error) {
 		}
 	}
 
-	statsd, err = dogstatsd.NewServer(demux, nil)
+	statsd, err = dogstatsd.NewServer(demux)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return

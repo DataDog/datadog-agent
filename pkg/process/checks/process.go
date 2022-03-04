@@ -152,8 +152,12 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	var containers []*model.Container
 	var pidToCid map[int]string
 	var lastContainerRates map[string]*util.ContainerRateMetrics
+	cacheValidity := cacheValidityNoRT
+	if collectRealTime {
+		cacheValidity = cacheValidityRT
+	}
 	containerTime := time.Now()
-	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityNoRT, p.lastContainerRates, p.lastContainerRun, containerTime)
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates, p.lastContainerRun, containerTime)
 	if err == nil {
 		p.lastContainerRun = containerTime
 		p.lastContainerRates = lastContainerRates
@@ -295,15 +299,11 @@ func chunkProcessesAndContainers(
 
 	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], nil, maxChunkSize, maxChunkWeight, chunker)
 
-	totalContainers := 0
+	totalContainers := len(containers)
 	for _, ctr := range containers {
 		procs := procsByCtr[ctr.Id]
-		if len(procs) == 0 {
-			// can happen if a process is skipped (e.g. disallowlisted)
-			continue
-		}
 		totalProcs += len(procs)
-		totalContainers++
+
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
 	return chunker.collectorProcs, totalProcs, totalContainers

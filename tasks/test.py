@@ -464,9 +464,14 @@ def lint_teamassignment(_):
         res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         issue = res.json()
 
-        for label in issue.get('labels', {}):
-            if re.match('team/', label['name']):
-                print(f"Team Assignment: {label['name']}")
+        labels = {l['name'] for l in issue.get('labels', [])}
+        if "qa/skip-qa" in labels:
+            print("qa/skip-qa label set -- no need for team assignment")
+            return
+
+        for label in labels:
+            if label.startswith('team/'):
+                print(f"Team Assignment: {label}")
                 return
 
         print(f"PR {pr_url} requires team assignment")

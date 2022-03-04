@@ -44,6 +44,23 @@ func TestSetMeta(t *testing.T) {
 	}
 }
 
+func TestGetSetMetaStruct(t *testing.T) {
+	for _, s := range []*pb.Span{
+		{},
+		{MetaStruct: map[string][]byte{"A": []byte(``)}},
+	} {
+		assert.Nil(t, SetMetaStruct(s, "Z", []int{1, 2, 3}))
+		assert.NotNil(t, s.MetaStruct)
+		assert.Equal(t, []byte{0x93, 0x1, 0x2, 0x3}, s.MetaStruct["Z"])
+		val, ok := GetMetaStruct(s, "Z")
+		assert.True(t, ok)
+		assert.Equal(t, []interface{}{int64(1), int64(2), int64(3)}, val)
+		assert.NotNil(t, SetMetaStruct(s, "cannot-marshal", struct{}{}))
+		_, ok = GetMetaStruct(s, "cannot-marshal")
+		assert.False(t, ok)
+	}
+}
+
 func TestTopLevelSingle(t *testing.T) {
 	assert := assert.New(t)
 

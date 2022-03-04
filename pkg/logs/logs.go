@@ -35,6 +35,9 @@ const (
 
 	// AgentJSONIntakeProtocol agent json protocol
 	AgentJSONIntakeProtocol = "agent-json"
+
+	// Log messages
+	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
 )
 
 var (
@@ -106,6 +109,11 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
 		return errors.New(message)
+	}
+
+	if config.HasMultiLineRule(processingRules) {
+		log.Warn(multiLineWarning)
+		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
 	// setup and start the logs agent

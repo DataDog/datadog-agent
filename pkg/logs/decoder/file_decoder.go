@@ -10,6 +10,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/decoder/breaker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
@@ -27,35 +28,36 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var lineParser parsers.Parser
-	var matcher EndLineMatcher
+	var matcher breaker.EndLineMatcher
 	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
 		lineParser = kubernetes.New()
-		matcher = &NewLineMatcher{}
+		matcher = &breaker.NewLineMatcher{}
 	case config.DockerSourceType:
-		if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		switch source.Config.ContainerRuntime {
+		case coreConfig.Podman:
 			// podman's on-disk logs are in kubernetes format
 			lineParser = kubernetes.New()
-		} else {
+		default: // default to Docker
 			lineParser = dockerfile.New()
 		}
-		matcher = &NewLineMatcher{}
+		matcher = &breaker.NewLineMatcher{}
 	default:
 		switch source.Config.Encoding {
 		case config.UTF16BE:
 			lineParser = encodedtext.New(encodedtext.UTF16BE)
-			matcher = NewBytesSequenceMatcher(Utf16beEOL, 2)
+			matcher = breaker.NewBytesSequenceMatcher(breaker.Utf16beEOL, 2)
 		case config.UTF16LE:
 			lineParser = encodedtext.New(encodedtext.UTF16LE)
-			matcher = NewBytesSequenceMatcher(Utf16leEOL, 2)
+			matcher = breaker.NewBytesSequenceMatcher(breaker.Utf16leEOL, 2)
 		case config.SHIFTJIS:
 			lineParser = encodedtext.New(encodedtext.SHIFTJIS)
 			// No special handling required for the newline matcher since Shift JIS does not use
 			// newline characters (0x0a) as the second byte of a multibyte sequence.
-			matcher = &NewLineMatcher{}
+			matcher = &breaker.NewLineMatcher{}
 		default:
 			lineParser = noop.New()
-			matcher = &NewLineMatcher{}
+			matcher = &breaker.NewLineMatcher{}
 		}
 	}
 

@@ -53,20 +53,21 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.15
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.34.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/quantile v0.34.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.34.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.34.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.34.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.34.0-rc.4
+	github.com/DataDog/agent-payload/v5 v5.0.16
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/log v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.35.0-rc.4
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
-	github.com/DataDog/ebpf-manager v0.0.0-20220125102432-266fda150ee4
+	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
+	github.com/DataDog/ebpf-manager v0.0.0-20220214105236-0904578096f4
 	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
 	github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a
-	github.com/DataDog/nikos v1.7.2
+	github.com/DataDog/nikos v1.7.4
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
@@ -90,7 +91,7 @@ require (
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.7.1-0.20211227144435-70d770f1e5f9
+	github.com/cilium/ebpf v0.8.1
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.2
@@ -144,7 +145,7 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.4.1
 	github.com/mholt/archiver/v3 v3.5.1
-	github.com/miekg/dns v1.1.45
+	github.com/miekg/dns v1.1.43
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/sys/mountinfo v0.5.0
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
@@ -208,6 +209,7 @@ require (
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kube-state-metrics/v2 v2.1.1
+	k8s.io/kubelet v0.21.5
 	k8s.io/metrics v0.21.5
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )

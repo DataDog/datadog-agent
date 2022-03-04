@@ -15,7 +15,7 @@ import (
 )
 
 func TestCPUSetParsing(t *testing.T) {
-	assert.EqualValues(t, parseCPUSetFormat("0,1,5-8"), 6)
-	assert.EqualValues(t, parseCPUSetFormat("1"), 1)
-	assert.EqualValues(t, parseCPUSetFormat("2-3"), 2)
+	assert.EqualValues(t, ParseCPUSetFormat("0,1,5-8"), 6)
+	assert.EqualValues(t, ParseCPUSetFormat("1"), 1)
+	assert.EqualValues(t, ParseCPUSetFormat("2-3"), 2)
 }

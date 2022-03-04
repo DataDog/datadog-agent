@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -325,7 +326,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	aggregator.AddRecurrentSeries(&metrics.Serie{
 		Name:   "datadog.agent.check_ready",
 		Points: []metrics.Point{{Value: metricValue}},
-		Tags:   tags,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
 }

@@ -75,6 +75,12 @@ func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error
 	fmt.Println(strings.Repeat("-", 25))
 	printTUFRepo(s.ConfigState)
 
+	if config.Datadog.GetBool("remote_configuration.unstable.self_signed") {
+		fmt.Println("\nConfiguration user repository")
+		fmt.Println(strings.Repeat("-", 29))
+		printTUFRepo(s.ConfigUserState)
+	}
+
 	fmt.Println("\nDirector repository")
 	fmt.Println(strings.Repeat("-", 20))
 	printTUFRepo(s.DirectorState)

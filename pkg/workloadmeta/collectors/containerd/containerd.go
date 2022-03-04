@@ -13,10 +13,8 @@ import (
 	"fmt"
 	"time"
 
-	apievents "github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -171,20 +169,12 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	for _, namespace := range namespaces {
 		c.containerdClient.SetCurrentNamespace(namespace)
 
-		containerdEvents, err := c.generateInitialEvents(ctx, namespace)
+		nsEvents, err := c.generateInitialEvents(ctx, namespace)
 		if err != nil {
 			return err
 		}
 
-		for _, containerdEvent := range containerdEvents {
-			ev, err := c.buildCollectorEvent(ctx, &containerdEvent)
-			if err != nil {
-				log.Warnf(err.Error())
-				continue
-			}
-
-			events = append(events, ev)
-		}
+		events = append(events, nsEvents...)
 	}
 
 	if len(events) > 0 {
@@ -194,8 +184,8 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) generateInitialEvents(ctx context.Context, namespace string) ([]containerdevents.Envelope, error) {
-	var events []containerdevents.Envelope
+func (c *collector) generateInitialEvents(ctx context.Context, namespace string) ([]workloadmeta.CollectorEvent, error) {
+	var events []workloadmeta.CollectorEvent
 
 	existingContainers, err := c.containerdClient.Containers()
 	if err != nil {
@@ -203,37 +193,24 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 	}
 
 	for _, container := range existingContainers {
-		eventEncoded, err := proto.Marshal(&apievents.ContainerCreate{
-			ID: container.ID(),
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		event := containerdevents.Envelope{
-			Timestamp: time.Now(),
-			Namespace: namespace,
-			Topic:     containerCreationTopic,
-			Event: &types.Any{
-				TypeUrl: "containerd.events.ContainerCreate",
-				Value:   eventEncoded,
-			},
-		}
-
-		// if ignoreEvent returns an error, keep the event regardless.
-		// it might've been because of network errors, so it's better
-		// to keep a container we should've ignored than ignoring a
-		// container we should've kept
-		ignore, err := c.ignoreEvent(ctx, &event)
+		// if ignoreContainer returns an error, keep the container
+		// regardless.  it might've been because of network errors, so
+		// it's better to keep a container we should've ignored than
+		// ignoring a container we should've kept
+		ignore, err := c.ignoreContainer(container)
 		if err != nil {
 			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
-		}
-
-		if ignore {
+		} else if ignore {
 			continue
 		}
 
-		events = append(events, event)
+		ev, err := createSetEvent(container, namespace, c.containerdClient)
+		if err != nil {
+			log.Warnf(err.Error())
+			continue
+		}
+
+		events = append(events, ev)
 	}
 
 	return events, nil
@@ -242,22 +219,23 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
 	c.containerdClient.SetCurrentNamespace(containerdEvent.Namespace)
 
-	ignore, err := c.ignoreEvent(ctx, containerdEvent)
+	containerID, container, err := c.extractContainerFromEvent(ctx, containerdEvent)
 	if err != nil {
-		// if ignoreEvent returns an error, keep the event regardless.
-		// it might've been because of network errors, so it's better
-		// to keep a container we should've ignored than ignoring a
-		// container we should've kept
-		log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
+		return fmt.Errorf("cannot extract container from event: %w", err)
 	}
 
-	if ignore {
-		return nil
+	if container != nil {
+		ignore, err := c.ignoreContainer(container)
+		if err != nil {
+			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
+		} else if ignore {
+			return nil
+		}
 	}
 
-	workloadmetaEvent, err := c.buildCollectorEvent(ctx, containerdEvent)
+	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot build collector event: %w", err)
 	}
 
 	c.store.Notify([]workloadmeta.CollectorEvent{workloadmetaEvent})
@@ -265,37 +243,53 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 	return nil
 }
 
-// ignoreEvent returns whether a containerd event should be ignored.
+// extractContainerFromEvent extracts a container ID from an envent, and
+// queries for a containerd.Container object. The Container object will always
+// be missing in a delete event, so that's why we return a separate ID and not
+// just an object.
+func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) (string, containerd.Container, error) {
+	var (
+		containerID string
+		hasID       bool
+	)
+
+	switch containerdEvent.Topic {
+	case containerCreationTopic, containerUpdateTopic, containerDeletionTopic:
+		containerID, hasID = containerdEvent.Field([]string{"event", "id"})
+		if !hasID {
+			return "", nil, fmt.Errorf("missing ID in containerd event")
+		}
+
+	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic, TaskExitTopic, TaskDeleteTopic:
+		containerID, hasID = containerdEvent.Field([]string{"event", "container_id"})
+		if !hasID {
+			return "", nil, fmt.Errorf("missing ID in containerd event")
+		}
+
+	default:
+		return "", nil, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
+	}
+
+	// ignore NotFound errors, since they happen for every deleted
+	// container, but these events still need to be handled
+	container, err := c.containerdClient.ContainerWithContext(ctx, containerID)
+	if err != nil && !errors.IsNotFound(err) {
+		return "", nil, err
+	}
+
+	return containerID, container, nil
+}
+
+// ignoreContainer returns whether a containerd event should be ignored.
 // The ignored events are the ones that refer to a "pause" container.
-func (c *collector) ignoreEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) (bool, error) {
-	// The container ID can be in the "id" field (in container events) or
-	// "container_id" (in task events)
-	ID, found := containerdEvent.Field([]string{"event", "id"})
-	if !found {
-		ID, found = containerdEvent.Field([]string{"event", "container_id"})
-		if !found {
-			// We don't handle any events that don't have a container ID, so we
-			// can ignore them.
-			return true, nil
-		}
-	}
-
-	container, err := c.containerdClient.ContainerWithContext(ctx, ID)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			// This is a delete event that needs to be handled
-			return false, nil
-		}
-		return false, err
-	}
-
-	img, err := c.containerdClient.Image(container)
+func (c *collector) ignoreContainer(container containerd.Container) (bool, error) {
+	info, err := c.containerdClient.Info(container)
 	if err != nil {
 		return false, err
 	}
 
 	// Only the image name is relevant to exclude paused containers
-	return c.filterPausedContainers.IsExcluded("", img.Name(), ""), nil
+	return c.filterPausedContainers.IsExcluded("", info.Image, ""), nil
 }
 
 func subscribeFilters() []string {

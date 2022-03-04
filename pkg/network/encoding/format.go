@@ -49,7 +49,6 @@ func FormatConnection(
 	httpStats *model.HTTPAggregations,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
-	tagsSet *network.TagsSet,
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
@@ -76,7 +75,6 @@ func FormatConnection(
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
-	c.Tags = formatTags(tagsSet, conn)
 
 	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
@@ -125,10 +123,9 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 }
 
 // FormatHTTPStats converts the HTTP map into a suitable format for serialization
-func FormatHTTPStats(httpData map[http.Key]http.RequestStats) (map[http.Key]*model.HTTPAggregations, map[http.Key]uint64) {
+func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*model.HTTPAggregations {
 	var (
 		aggregationsByKey = make(map[http.Key]*model.HTTPAggregations, len(httpData))
-		tagsByKey         = make(map[http.Key]uint64, len(httpData))
 
 		// Pre-allocate some of the objects
 		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
@@ -157,7 +154,6 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) (map[http.Key]*mod
 			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
 		}
 
-		var tags uint64
 		for i := 0; i < len(stats); i++ {
 			data := &dataPool[poolIdx+i]
 			ms.StatsByResponseStatus[i] = data
@@ -169,15 +165,13 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) (map[http.Key]*mod
 			} else {
 				data.FirstLatencySample = stats[i].FirstLatencySample
 			}
-			tags |= stats[i].Tags
 		}
-		tagsByKey[key] |= tags
 
 		poolIdx += http.NumStatusClasses
 		httpAggregations.EndpointAggregations = append(httpAggregations.EndpointAggregations, ms)
 	}
 
-	return aggregationsByKey, tagsByKey
+	return aggregationsByKey
 }
 
 // Build the key for the http map based on whether the local or remote side is http.
@@ -186,12 +180,9 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	laddr, lport := network.GetNATLocalAddress(c)
 	raddr, rport := network.GetNATRemoteAddress(c)
 
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (network.IsEphemeralPort(int(lport)) && !network.IsEphemeralPort(int(rport))) ||
-		(network.IsEphemeralPort(int(lport)) == network.IsEphemeralPort(int(rport)) && lport < rport) {
+	// HTTP data is always indexed as (client, server), so we flip
+	// the lookup key if necessary using the port range heuristic
+	if network.IsEphemeralPort(int(lport)) {
 		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
 	}
 
@@ -310,11 +301,4 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 
 func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
-}
-
-func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats) (tagsIdx []uint32) {
-	for _, tag := range network.GetStaticTags(c.Tags) {
-		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
-	}
-	return tagsIdx
 }

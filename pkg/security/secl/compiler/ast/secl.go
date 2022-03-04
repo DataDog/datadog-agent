@@ -18,7 +18,7 @@ import (
 var (
 	seclLexer = lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
-IntVariable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
+Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
 Duration = digit { digit } ("ms" | "s" | "m" | "h" | "d") .
 Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
@@ -180,14 +180,14 @@ type Unary struct {
 type Primary struct {
 	Pos lexer.Position
 
-	Ident          *string     `parser:"@Ident"`
-	Number         *int        `parser:"| @Int"`
-	NumberVariable *string     `parser:"| @IntVariable"`
-	String         *string     `parser:"| @String"`
-	Pattern        *string     `parser:"| @Pattern"`
-	Regexp         *string     `parser:"| @Regexp"`
-	Duration       *int        `parser:"| @Duration"`
-	SubExpression  *Expression `parser:"| \"(\" @@ \")\""`
+	Ident         *string     `parser:"@Ident"`
+	Number        *int        `parser:"| @Int"`
+	Variable      *string     `parser:"| @Variable"`
+	String        *string     `parser:"| @String"`
+	Pattern       *string     `parser:"| @Pattern"`
+	Regexp        *string     `parser:"| @Regexp"`
+	Duration      *int        `parser:"| @Duration"`
+	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
 }
 
 // StringMember describes a String based array member
@@ -205,5 +205,6 @@ type Array struct {
 
 	StringMembers []StringMember `parser:"\"[\" @@ { \",\" @@ } \"]\""`
 	Numbers       []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
+	Variable      *string        `parser:"| @Variable"`
 	Ident         *string        `parser:"| @Ident"`
 }

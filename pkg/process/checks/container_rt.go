@@ -33,9 +33,9 @@ type RTContainerCheck struct {
 
 // Init initializes a RTContainerCheck instance.
 func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
-	r.sysInfo = sysInfo
-
 	r.maxBatchSize = getMaxBatchSize()
+	r.sysInfo = sysInfo
+	r.containerProvider = util.GetSharedContainerProvider()
 }
 
 // Name returns the name of the RTContainerCheck.
@@ -51,7 +51,7 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	var err error
 	var containers []*model.Container
 	var lastRates map[string]*util.ContainerRateMetrics
-	containers, lastRates, _, err = r.containerProvider.GetContainers(cacheValidityNoRT, r.lastRates, r.lastRun, startTime)
+	containers, lastRates, _, err = r.containerProvider.GetContainers(cacheValidityRT, r.lastRates, r.lastRun, startTime)
 	if err == nil {
 		r.lastRun = startTime
 		r.lastRates = lastRates

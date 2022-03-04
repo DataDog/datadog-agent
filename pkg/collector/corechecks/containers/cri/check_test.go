@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
@@ -33,9 +33,9 @@ func TestCriCheck(t *testing.T) {
 		generic.CreateContainerMeta("docker", "cID101"),
 	}
 
-	containersStats := map[string]metrics.MockContainerEntry{
-		"cID100": metrics.GetFullSampleContainerEntry(),
-		"cID101": metrics.GetFullSampleContainerEntry(),
+	containersStats := map[string]mock.ContainerEntry{
+		"cID100": mock.GetFullSampleContainerEntry(),
+		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 
 	// Inject mock processor in check
@@ -83,7 +83,7 @@ func TestCriCheck(t *testing.T) {
 
 	mockSender.AssertMetricInRange(t, "Gauge", "cri.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "cri.cpu.usage", 100, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "cri.mem.rss", 300, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "cri.mem.rss", 42000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "cri.disk.used", 10, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "cri.disk.inodes", 20, "", expectedTags)
 }

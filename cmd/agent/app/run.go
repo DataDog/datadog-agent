@@ -54,6 +54,7 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register core checks
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
@@ -375,7 +376,7 @@ func StartAgent() error {
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(demux, nil)
+		common.DSD, err = dogstatsd.NewServer(demux)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		} else {

@@ -96,4 +96,8 @@ func (h *StatefulSetHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorCon
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
 func (h *StatefulSetHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+	r := resource.(*appsv1.StatefulSet)
+	if ctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
+	}
 }

@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -239,7 +239,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			if err != nil {
 				log.Debugf("Cannot convert exit code %q: %w", exitCodeString, err)
 			} else {
-				exitCode = util.UInt32Ptr(exitCodeInt)
+				exitCode = pointer.UInt32Ptr(exitCodeInt)
 			}
 		}
 

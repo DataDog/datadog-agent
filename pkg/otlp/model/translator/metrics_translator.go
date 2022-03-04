@@ -435,9 +435,10 @@ func (t *Translator) MapMetrics(ctx context.Context, md pdata.Metrics, consumer 
 			for k := 0; k < metricsArray.Len(); k++ {
 				md := metricsArray.At(k)
 				baseDims := &Dimensions{
-					name: md.Name(),
-					tags: additionalTags,
-					host: host,
+					name:     md.Name(),
+					tags:     additionalTags,
+					host:     host,
+					originID: attributes.OriginIDFromAttributes(rm.Resource().Attributes()),
 				}
 				switch md.DataType() {
 				case pdata.MetricDataTypeGauge:

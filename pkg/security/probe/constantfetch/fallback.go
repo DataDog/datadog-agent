@@ -60,6 +60,14 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getBpfProgAuxIDOffset(f.kernelVersion)
 	case "bpf_prog_aux_name_offset":
 		value = getBpfProgAuxNameOffset(f.kernelVersion)
+	case "pid_level_offset":
+		value = getPIDLevelOffset(f.kernelVersion)
+	case "pid_numbers_offset":
+		value = getPIDNumbersOffset(f.kernelVersion)
+	case "sizeof_upid":
+		value = getSizeOfUpid(f.kernelVersion)
+	case "dentry_sb_offset":
+		value = getDentrySuperBlockOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -330,4 +338,64 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	}
 
 	return nameOffset
+}
+
+func getPIDLevelOffset(kv *kernel.Version) uint64 {
+	return uint64(4)
+}
+
+func getPIDNumbersOffset(kv *kernel.Version) uint64 {
+	pidNumbersOffset := uint64(48)
+
+	switch {
+	case kv.IsRH7Kernel():
+		pidNumbersOffset = 48
+	case kv.IsRH8Kernel():
+		pidNumbersOffset = 56
+	case kv.IsSLES12Kernel():
+		pidNumbersOffset = 48
+	case kv.IsSLES15Kernel():
+		pidNumbersOffset = 80
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		pidNumbersOffset = 56
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		pidNumbersOffset = 96
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		pidNumbersOffset = 128
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_3):
+		pidNumbersOffset = 48
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_7):
+		pidNumbersOffset = 80
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_7:
+		pidNumbersOffset = 96
+	}
+	return pidNumbersOffset
+}
+
+func getSizeOfUpid(kv *kernel.Version) uint64 {
+	sizeOfUpid := uint64(16)
+
+	switch {
+	case kv.IsRH7Kernel():
+		sizeOfUpid = 32
+	case kv.IsRH8Kernel():
+		sizeOfUpid = 16
+	case kv.IsSLES12Kernel():
+		sizeOfUpid = 16
+	case kv.IsSLES15Kernel():
+		sizeOfUpid = 32
+	}
+	return sizeOfUpid
+}
+
+func getDentrySuperBlockOffset(kv *kernel.Version) uint64 {
+	offset := uint64(104)
+
+	switch {
+	case kv.IsCOSKernel():
+		offset = 128
+	}
+
+	return offset
 }

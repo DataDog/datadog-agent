@@ -473,18 +473,16 @@ def get_ebpf_build_flags(target=None):
     return flags
 
 
-def build_network_ebpf_compile_file(
-    ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags, extension=".bc"
-):
+def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags):
     src_file = os.path.join(network_prebuilt_dir, f"{p}.c")
     if not debug:
-        bc_file = os.path.join(build_dir, f"{p}{extension}")
+        bc_file = os.path.join(build_dir, f"{p}.bc")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file),
             asynchronous=parallel_build,
         )
     else:
-        debug_bc_file = os.path.join(build_dir, f"{p}-debug{extension}")
+        debug_bc_file = os.path.join(build_dir, f"{p}-debug.bc")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file),
             asynchronous=parallel_build,
@@ -543,7 +541,7 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    compiled_programs = ["dns", "offset-guess", "tracer"]
+    compiled_programs = ["dns", "http", "offset-guess", "tracer"]
 
     network_flags = get_network_build_flags(network_c_dir)
 
@@ -654,7 +652,6 @@ def build_object_files(ctx, parallel_build):
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
-    build_http_ebpf_files(ctx, build_dir=build_dir)
     build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
 
     generate_runtime_files(ctx)

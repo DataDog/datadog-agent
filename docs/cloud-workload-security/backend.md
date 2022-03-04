@@ -38,6 +38,12 @@ CWS logs have the following JSON schema:
         "ptrace": {
             "$ref": "#/definitions/PTraceEvent"
         },
+        "module": {
+            "$ref": "#/definitions/ModuleEvent"
+        },
+        "signal": {
+            "$ref": "#/definitions/SignalEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -70,6 +76,8 @@ CWS logs have the following JSON schema:
 | `mmap` | $ref | Please see [MMapEvent](#mmapevent) |
 | `mprotect` | $ref | Please see [MProtectEvent](#mprotectevent) |
 | `ptrace` | $ref | Please see [PTraceEvent](#ptraceevent) |
+| `module` | $ref | Please see [ModuleEvent](#moduleevent) |
+| `signal` | $ref | Please see [SignalEvent](#signalevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -558,10 +566,6 @@ CWS logs have the following JSON schema:
         "flags": {
             "type": "string",
             "description": "memory segment flags"
-        },
-        "file": {
-            "$ref": "#/definitions/File",
-            "description": "mmaped file"
         }
     },
     "additionalProperties": false,
@@ -577,11 +581,7 @@ CWS logs have the following JSON schema:
 | `length` | memory segment length |
 | `protection` | memory segment protection |
 | `flags` | memory segment flags |
-| `file` | mmaped file |
 
-| References |
-| ---------- |
-| [File](#file) |
 
 ## `MProtectEvent`
 
@@ -592,7 +592,7 @@ CWS logs have the following JSON schema:
         "vm_start",
         "vm_end",
         "vm_protection",
-        "new_protection"
+        "req_protection"
     ],
     "properties": {
         "vm_start": {
@@ -605,9 +605,9 @@ CWS logs have the following JSON schema:
         },
         "vm_protection": {
             "type": "string",
-            "description": "memory segment protection"
+            "description": "initial memory segment protection"
         },
-        "new_protection": {
+        "req_protection": {
             "type": "string",
             "description": "new memory segment protection"
         }
@@ -622,8 +622,38 @@ CWS logs have the following JSON schema:
 | ----- | ----------- |
 | `vm_start` | memory segment start address |
 | `vm_end` | memory segment end address |
-| `vm_protection` | memory segment protection |
-| `new_protection` | new memory segment protection |
+| `vm_protection` | initial memory segment protection |
+| `req_protection` | new memory segment protection |
+
+
+## `ModuleEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "name"
+    ],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "module name"
+        },
+        "loaded_from_memory": {
+            "type": "boolean",
+            "description": "indicates if a module was loaded from memory, as opposed to a file"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `name` | module name |
+| `loaded_from_memory` | indicates if a module was loaded from memory, as opposed to a file |
 
 
 ## `PTraceEvent`
@@ -1174,6 +1204,45 @@ CWS logs have the following JSON schema:
 | [SELinuxBoolChange](#selinuxboolchange) |
 | [SELinuxEnforceStatus](#selinuxenforcestatus) |
 | [SELinuxBoolCommit](#selinuxboolcommit) |
+
+## `SignalEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "type",
+        "pid"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "description": "signal type"
+        },
+        "pid": {
+            "type": "integer",
+            "description": "signal target pid"
+        },
+        "target": {
+            "$ref": "#/definitions/ProcessContext",
+            "description": "process context of the signal target"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `type` | signal type |
+| `pid` | signal target pid |
+| `target` | process context of the signal target |
+
+| References |
+| ---------- |
+| [ProcessContext](#processcontext) |
 
 ## `UserContext`
 

@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/google/go-cmp/cmp"
@@ -27,8 +27,8 @@ import (
 
 func TestGetContainers(t *testing.T) {
 	// Metrics provider
-	metricsCollector := metrics.NewMockCollector("foo")
-	metricsProvider := metrics.NewMockMetricsProvider()
+	metricsCollector := mock.NewCollector("foo")
+	metricsProvider := mock.NewMetricsProvider()
 	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameContainerd, metricsCollector)
 	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameGarden, metricsCollector)
 
@@ -53,7 +53,7 @@ func TestGetContainers(t *testing.T) {
 	// cID6 garden container missing tags
 
 	// cID1 full stats
-	cID1Metrics := metrics.GetFullSampleContainerEntry()
+	cID1Metrics := mock.GetFullSampleContainerEntry()
 	cID1Metrics.ContainerStats.PID.PIDs = []int{1, 2, 3}
 	metricsCollector.SetContainerEntry("cID1", cID1Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
@@ -130,7 +130,7 @@ func TestGetContainers(t *testing.T) {
 	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID3"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container3"}, nil)
 
 	// cID4 missing tags
-	cID4Metrics := metrics.GetFullSampleContainerEntry()
+	cID4Metrics := mock.GetFullSampleContainerEntry()
 	cID4Metrics.ContainerStats.PID.PIDs = []int{4, 5}
 	metricsCollector.SetContainerEntry("cID4", cID4Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
@@ -163,7 +163,7 @@ func TestGetContainers(t *testing.T) {
 	})
 
 	// cID5 garden container full stats
-	cID5Metrics := metrics.GetFullSampleContainerEntry()
+	cID5Metrics := mock.GetFullSampleContainerEntry()
 	cID5Metrics.ContainerStats.PID.PIDs = []int{6, 7}
 	metricsCollector.SetContainerEntry("cID5", cID5Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
@@ -194,7 +194,7 @@ func TestGetContainers(t *testing.T) {
 	})
 
 	// cID6 garden container missing tags
-	metricsCollector.SetContainerEntry("cID6", metrics.GetFullSampleContainerEntry())
+	metricsCollector.SetContainerEntry("cID6", mock.GetFullSampleContainerEntry())
 	metadataProvider.SetEntity(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -388,16 +388,16 @@ func TestGetContainers(t *testing.T) {
 	//
 	// Step 2: Test proper rate computation
 	//
-	cID1Metrics.ContainerStats.CPU.User = util.Float64Ptr(6000000000)
-	cID1Metrics.ContainerStats.CPU.System = util.Float64Ptr(4000000000)
-	cID1Metrics.ContainerStats.CPU.Total = util.Float64Ptr(2000000000)
-	cID1Metrics.ContainerStats.IO.ReadBytes = util.Float64Ptr(400)
-	cID1Metrics.ContainerStats.IO.WriteBytes = util.Float64Ptr(800)
-	cID1Metrics.ContainerStats.Memory.UsageTotal = util.Float64Ptr(43000)
-	cID1Metrics.NetworkStats.BytesRcvd = util.Float64Ptr(83)
-	cID1Metrics.NetworkStats.BytesSent = util.Float64Ptr(82)
-	cID1Metrics.NetworkStats.PacketsRcvd = util.Float64Ptr(821)
-	cID1Metrics.NetworkStats.PacketsSent = util.Float64Ptr(820)
+	cID1Metrics.ContainerStats.CPU.User = pointer.Float64Ptr(6000000000)
+	cID1Metrics.ContainerStats.CPU.System = pointer.Float64Ptr(4000000000)
+	cID1Metrics.ContainerStats.CPU.Total = pointer.Float64Ptr(2000000000)
+	cID1Metrics.ContainerStats.IO.ReadBytes = pointer.Float64Ptr(400)
+	cID1Metrics.ContainerStats.IO.WriteBytes = pointer.Float64Ptr(800)
+	cID1Metrics.ContainerStats.Memory.UsageTotal = pointer.Float64Ptr(43000)
+	cID1Metrics.NetworkStats.BytesRcvd = pointer.Float64Ptr(83)
+	cID1Metrics.NetworkStats.BytesSent = pointer.Float64Ptr(82)
+	cID1Metrics.NetworkStats.PacketsRcvd = pointer.Float64Ptr(821)
+	cID1Metrics.NetworkStats.PacketsSent = pointer.Float64Ptr(820)
 	metricsCollector.SetContainerEntry("cID1", cID1Metrics)
 
 	// Remove one container from previous rates

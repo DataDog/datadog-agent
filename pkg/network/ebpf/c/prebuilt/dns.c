@@ -20,7 +20,7 @@ int socket__dns_filter(struct __sk_buff* skb) {
     if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }
-    if (tup.sport != 53 && (!dns_stats_enabled() || tup.dport != 53)) {
+    if (skb_info.tup.sport != 53 && (!dns_stats_enabled() || skb_info.tup.dport != 53)) {
         return 0;
     }
 
