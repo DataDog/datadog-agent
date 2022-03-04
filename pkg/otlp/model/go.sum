@@ -1,5 +1,5 @@
-github.com/DataDog/sketches-go v1.3.0 h1:VOaiZiifXh4VRoOz3ZNoFQAPRAZpppH1FPvcarsvBqg=
-github.com/DataDog/sketches-go v1.3.0/go.mod h1:1xYmPLY1So10AwxV6MJV0J53XVH+WL9Ad1KetxVivVI=
+github.com/DataDog/sketches-go v1.3.1-0.20220304105750-276ddff4f205 h1:BbSCEDtdThQKopS6qNbS9v1GiYskhswgiUb3qnqdeUA=
+github.com/DataDog/sketches-go v1.3.1-0.20220304105750-276ddff4f205/go.mod h1:1xYmPLY1So10AwxV6MJV0J53XVH+WL9Ad1KetxVivVI=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

@@ -14,6 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	acceptableFloatError = 1e-12
+)
+
 func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSketch {
 	sketch, _ := ddsketch.NewDefaultDDSketch(0.01)
 	// Simulate a given distribution by replacing it with a distribution
@@ -69,6 +73,23 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sketch := generateDDSketch(test.quantile, 100, M)
 
+			// Check the count of the sketch
+			assert.Equal(
+				t,
+				float64(101 * M),
+				sketch.GetCount(),
+			)
+
+			// Check the minimum value of the sketch
+			minValue, err := sketch.GetMinValue()
+			assert.NoError(t, err)
+			assert.InDelta(
+				t,
+				0.0,
+				minValue,
+				acceptableFloatError,
+			)
+
 			// Check that the quantiles of the input sketch do match
 			// the input distribution's quantiles
 			for i := 1; i <= 100; i++ {
@@ -97,6 +118,24 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 			outputGamma := (1.0 + convertedSketch.RelativeAccuracy()) / (1.0 - convertedSketch.RelativeAccuracy())
 			conversionGamma := inputGamma * outputGamma * outputGamma
 			conversionRelativeAccuracy := (conversionGamma - 1) / (conversionGamma + 1)
+
+			// Check the count of the converted sketch
+			assert.InDelta(
+				t,
+				float64(101 * M),
+				convertedSketch.GetCount(),
+				acceptableFloatError,
+			)
+
+			// Check the minimum value of the converted sketch
+			minValue, err = convertedSketch.GetMinValue()
+			assert.NoError(t, err)
+			assert.InDelta(
+				t,
+				0.0,
+				minValue,
+				acceptableFloatError,
+			)
 
 			// Check that the quantiles of the converted sketch
 			// approximately match the input distribution's quantiles
@@ -162,6 +201,23 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sketch := generateDDSketch(test.quantile, 100, M)
 
+			// Check the count of the sketch
+			assert.Equal(
+				t,
+				float64(101 * M),
+				sketch.GetCount(),
+			)
+
+			// Check the minimum value of the sketch
+			minValue, err := sketch.GetMinValue()
+			assert.NoError(t, err)
+			assert.InDelta(
+				t,
+				0.0,
+				minValue,
+				acceptableFloatError,
+			)
+
 			// Check that the quantiles of the input sketch do match
 			// the input distribution's quantiles
 			for i := 1; i <= 100; i++ {
@@ -193,6 +249,24 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 			outputGamma := sketchConfig.gamma.v
 			conversionGamma := inputGamma * outputGamma * outputGamma
 			conversionRelativeAccuracy := (conversionGamma - 1) / (conversionGamma + 1)
+
+			// Check the count of the output sketch
+			assert.InDelta(
+				t,
+				convertedSketch.GetCount(),
+				outputSketch.Basic.Cnt,
+				acceptableFloatError,
+			)
+
+			// Check the minimum value of the output sketch
+			expectedMinValue, err := convertedSketch.GetMinValue()
+			assert.NoError(t, err)
+			assert.InDelta(
+				t,
+				expectedMinValue,
+				outputSketch.Basic.Min,
+				acceptableFloatError,
+			)
 
 			// Check that the quantiles of the output sketch do match
 			// the qunatiles of the DDSketch it comes from

@@ -91,53 +91,61 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 	// Special counter to aggregate all zeroes
 	zeroes := 0.0
 
-	var loopErr error
 
 	floatKeyCounts := make([]floatKeyCount, 0, defaultBinListSize)
-	inputSketch.ForEach(func(value, count float64) bool {
-		if count <= 0 {
-			loopErr = fmt.Errorf("negative counts are not supported: got %f", count)
-			return true
-		}
 
-		// The value passed to Index must be positive, so we
-		// store the sign in a separate variable, in order to
-		// reuse it when computing the sparseStore key associated to the value
-		// (since negative values get mapped to negative indexes).
-		sign := 1
-		if value < 0 {
-			sign = -1
-			value = -value
-		}
-
-		var index int
-		if value == 0 {
-			index = 0
-		} else {
-			index = inputSketch.Index(value)
-		}
-
-		if index >= maxIndex {
-			loopErr = fmt.Errorf("index value %d exceeds the maximum supported index value (%d)", index, maxIndex)
-			return true
-		}
-
-		// All indexes <= 0 represent values that are <= minValue,
-		// and therefore end up in the zero bin
-		if index <= 0 {
-			// TODO: What if zeroes overflows float64? We may have
-			// to keep multiple zeroes counters, and add one floatKeyCount for each.
-			zeroes += count
-			return false
-		}
-
-		floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: sign * index, c: count})
-		return false
-	})
-
-	if loopErr != nil {
-		return nil, loopErr
+	signedStores := []struct{
+		store store.Store
+		sign  int
+	}{
+		{
+			store: inputSketch.GetPositiveValueStore(),
+			sign:  1,
+		},
+		{
+			store: inputSketch.GetNegativeValueStore(),
+			sign:  -1,
+		},
 	}
+
+	for _, signedStore := range signedStores {
+		var loopErr error
+
+		signedStore.store.ForEach(func(index int, count float64) bool {
+			if count <= 0 {
+				loopErr = fmt.Errorf("negative counts are not supported: got %f", count)
+				return true
+			}
+
+			if index >= maxIndex {
+				loopErr = fmt.Errorf("index value %d exceeds the maximum supported index value (%d)", index, maxIndex)
+				return true
+			}
+
+			// All indexes <= 0 represent values that are <= minValue,
+			// and therefore end up in the zero bin
+			if index <= 0 {
+				// TODO: What if zeroes overflows float64? We may have
+				// to keep multiple zeroes counters, and add one floatKeyCount for each.
+				zeroes += count
+				return false
+			}
+
+			// In the resulting Sketch, negative values are mapped to negative indexes, while
+			// positive values are mapped to positive indexes, therefore we need to multiply
+			// the index by the "sign" of the store.
+			floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: signedStore.sign * index, c: count})
+			return false	
+		})
+
+		if loopErr != nil {
+			return nil, loopErr
+		}
+	}
+
+	// The zero count of the sketch isn't directly exposed, compute it
+	// TODO: Should DDSketch expose its zero count?
+	zeroes += inputSketch.GetCount() - inputSketch.GetPositiveValueStore().TotalCount() - inputSketch.GetNegativeValueStore().TotalCount()
 
 	// Finally, add the 0 key
 	floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
@@ -158,12 +166,12 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 	}
 	sum := inputSketch.GetSum()
 	avg := sum / float64(cnt)
-	max, err := inputSketch.GetValueAtQuantile(1.0)
+	max, err := inputSketch.GetMaxValue()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't compute maximum of ddsketch: %w", err)
 	}
 
-	min, err := inputSketch.GetValueAtQuantile(0.0)
+	min, err := inputSketch.GetMinValue()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't compute minimum of ddsketch: %w", err)
 	}
