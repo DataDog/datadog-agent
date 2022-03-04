@@ -156,16 +156,18 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
+	inputs := restart.NewStarter()
+	for _, input := range a.inputs {
+		inputs.Add(input)
+	}
 	starter := restart.NewStarter(
 		a.destinationsCtx,
 		a.auditor,
 		a.pipelineProvider,
 		a.diagnosticMessageReceiver,
+		inputs,
 		a.schedulers,
 	)
-	for _, input := range a.inputs {
-		starter.Add(input)
-	}
 	starter.Start()
 }
 
