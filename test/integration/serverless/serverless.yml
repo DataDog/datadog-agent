@@ -32,7 +32,7 @@ provider:
   iam:
     # IAM permissions require that all functions are deployed with this role
     role: "arn:aws:iam::601427279990:role/serverless-integration-test-lambda-role"
-  architecture: ${env:DEPLOYMENT_ARCHITECTURE}
+  architecture: ${self:custom.altArchitectureNames.${env:ARCHITECTURE}}
 
 package:
   patterns:
@@ -44,6 +44,10 @@ custom:
   ddLambdaPythonLayerFlag:
     amd64: ""
     arm64: "-ARM"
+  # AWS uses x86_64 instead of amd64
+  altArchitectureNames:
+    amd64: "x86_64"
+    arm64: "arm64"
 
 layers:
   recorderExtension:

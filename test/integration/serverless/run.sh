@@ -112,14 +112,7 @@ function remove_stack() {
 trap remove_stack EXIT
 
 # deploy the stack
-if [ "$ARCHITECTURE" == "amd64" ]; then
-    # we use the architecture name amd64, while AWS requires it to be listed as x86_64
-    export DEPLOYMENT_ARCHITECTURE=x86_64
-    serverless deploy --stage "${stage}"
-else 
-    export DEPLOYMENT_ARCHITECTURE=$ARCHITECTURE
-    serverless deploy --stage "${stage}"
-fi
+serverless deploy --stage "${stage}"
 
 metric_functions=(
     "metric-node"
@@ -153,7 +146,6 @@ trace_functions=(
     "trace-python"
     "trace-java"
     "trace-go"
-    # traces are not supported for .net lambda function on ARM64 architecture (snapshot is empty)
     "trace-csharp"
     "trace-proxy"
 )
