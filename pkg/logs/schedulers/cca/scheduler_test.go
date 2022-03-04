@@ -11,10 +11,10 @@ import (
 	"gotest.tools/assert"
 )
 
-func setup() (scheduler *Scheduler, ac *fakeAC, spy *schedulers.SourceManagerSpy) {
+func setup() (scheduler *Scheduler, ac *fakeAC, spy *schedulers.MockSourceManager) {
 	ac = &fakeAC{}
 	scheduler = New(ac).(*Scheduler)
-	spy = &schedulers.SourceManagerSpy{}
+	spy = &schedulers.MockSourceManager{}
 	return
 }
 
