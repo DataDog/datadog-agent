@@ -8,6 +8,7 @@ package sampler
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -252,7 +253,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 			r.onUpdate(configGenerator(step.version, step.ratesToApply))
 		}
 		for _, s := range step.countServices {
-			r.CountSignature(s.Hash())
+			r.countWeightedSig(time.Now(), s.Hash(), 1)
 		}
 
 		assert.Len(r.samplers, len(step.expectedSamplers))
@@ -265,7 +266,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 			assert.Equal(expectedS.targetTPS, s.targetTPS.Load())
 			assert.Equal(expectedS.mechanism, s.target.Mechanism)
 			assert.Equal(expectedS.rank, s.target.Rank)
-			r.CountSample(root, sig)
+			r.countSample(root, sig)
 
 			tpsTag, ok := root.Metrics[tagRemoteTPS]
 			assert.True(ok)

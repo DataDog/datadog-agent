@@ -14,14 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
 	dogStatsDServer *dogstatsd.Server
-	demux           aggregator.Demultiplexer
+	Demux           aggregator.Demultiplexer
 }
 
 // MetricConfig abstacts the config package
@@ -82,7 +81,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 		} else {
 			statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
 			c.dogStatsDServer = statsd
-			c.demux = demux
+			c.Demux = demux
 		}
 	}
 }
@@ -113,11 +112,6 @@ func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 	}
 }
 
-// GetMetricChannel returns a channel where metrics can be sent to
-func (c *ServerlessMetricAgent) GetMetricChannel() chan []metrics.MetricSample {
-	return c.demux.Aggregator().GetBufferedMetricsWithTsChannel()
-}
-
 func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) aggregator.Demultiplexer {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
@@ -126,7 +120,6 @@ func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarder
 		return nil
 	}
 	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), "serverless", forwarderTimeout)
-
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {
@@ -135,5 +128,5 @@ func buildMetricBlocklist(userProvidedList []string) []string {
 
 // Need to account for duplicate metrics when using the proxy.
 func buildMetricBlocklistForProxy(userProvidedList []string) []string {
-	return append(buildMetricBlocklist(userProvidedList), errorsMetric)
+	return append(buildMetricBlocklist(userProvidedList), ErrorsMetric)
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"os"
 	"testing"
@@ -63,6 +64,11 @@ func (m *mockUptane) TargetsMeta() ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (m *mockUptane) TargetsCustom() ([]byte, error) {
+	args := m.Called()
+	return args.Get(0).([]byte), args.Error(1)
+}
+
 var (
 	testRCKey = msgpgo.RemoteConfigKey{
 		AppKey:     "fake_key",
@@ -107,6 +113,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
 	uptaneClient.On("State").Return(uptane.State{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
 	// We'll set the default interal to 1 second to make math less hard
 	service.defaultRefreshInterval = 1 * time.Second
@@ -165,6 +172,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("State").Return(uptane.State{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 	service.api = api
 
 	// Artificially set the backoff error count so we can test recovery
@@ -211,6 +219,7 @@ func TestService(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("State").Return(uptane.State{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
 	err := service.refresh()
 	assert.NoError(t, err)
@@ -224,6 +233,9 @@ func TestService(t *testing.T) {
 	root3 := []byte(`testroot3`)
 	root4 := []byte(`testroot4`)
 	targets := []byte(`testtargets`)
+	testTargetsCustom, _ := json.Marshal(&targetsCustom{
+		ClientState: []byte("test_state"),
+	})
 	client := &pbgo.Client{
 		State: &pbgo.ClientState{
 			RootVersion: 2,
@@ -235,8 +247,21 @@ func TestService(t *testing.T) {
 	fileAPM1 := []byte(`testapm1`)
 	fileAPM2 := []byte(`testapm2`)
 	uptaneClient.On("TargetsMeta").Return(targets, nil)
+	uptaneClient.On("TargetsCustom").Return(testTargetsCustom, nil)
 	uptaneClient.On("Targets").Return(data.TargetFiles{"datadog/2/APM_SAMPLING/id/1": {}, "datadog/2/TESTING1/id/1": {}, "datadog/2/APM_SAMPLING/id/2": {}, "datadog/2/APPSEC/id/1": {}}, nil)
-	uptaneClient.On("State").Return(uptane.State{ConfigRootVersion: 1, ConfigSnapshotVersion: 2, DirectorRootVersion: 4, DirectorTargetsVersion: 5}, nil)
+	uptaneClient.On("State").Return(uptane.State{
+		ConfigState: map[string]uptane.MetaState{
+			"root.json":      {Version: 1},
+			"snapshot.json":  {Version: 2},
+			"timestamp.json": {Version: 3},
+			"targets.json":   {Version: 4},
+			"role1.json":     {Version: 5},
+		},
+		DirectorState: map[string]uptane.MetaState{
+			"root.json":    {Version: 4},
+			"targets.json": {Version: 5},
+		},
+	}, nil)
 	uptaneClient.On("DirectorRoot", uint64(3)).Return(root3, nil)
 	uptaneClient.On("DirectorRoot", uint64(4)).Return(root4, nil)
 	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return(fileAPM1, nil)
@@ -253,6 +278,7 @@ func TestService(t *testing.T) {
 			string(rdata.ProductAPMSampling),
 		},
 		ActiveClients: []*pbgo.Client{client},
+		ClientState:   []byte("test_state"),
 	}).Return(lastConfigResponse, nil)
 
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
@@ -263,6 +289,11 @@ func TestService(t *testing.T) {
 	err = service.refresh()
 	assert.NoError(t, err)
 
+	stateResponse, err := service.ConfigGetState()
+	assert.NoError(t, err)
+	assert.Equal(t, 5, len(stateResponse.ConfigState))
+	assert.Equal(t, uint64(5), stateResponse.ConfigState["role1.json"].Version)
+	assert.Equal(t, 2, len(stateResponse.DirectorState))
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 }

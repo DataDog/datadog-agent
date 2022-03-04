@@ -53,6 +53,9 @@ func (c *NodeCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.lister = c.informer.Lister()
 }
 
+// IsAvailable returns whether the collector is available.
+func (c *NodeCollector) IsAvailable() bool { return true }
+
 // Metadata is used to access information about the collector.
 func (c *NodeCollector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata

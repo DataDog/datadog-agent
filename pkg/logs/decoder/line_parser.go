@@ -110,6 +110,8 @@ func (p *MultiLineParser) run() {
 		// make sure the content stored in the buffer gets sent,
 		// this can happen when the stop is called in between two timer ticks.
 		p.sendLine()
+		// and close the outputChan, signalling to downstream that this component is finished
+		close(p.outputChan)
 	}()
 	for {
 		select {

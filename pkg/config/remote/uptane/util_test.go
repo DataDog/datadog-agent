@@ -85,6 +85,44 @@ func TestMetaVersion(t *testing.T) {
 	}
 }
 
+func TestMetaCustom(t *testing.T) {
+	root := data.NewRoot()
+	var custom1 = json.RawMessage([]byte("1"))
+	root.Custom = &custom1
+	timestamp := data.NewTimestamp()
+	var custom2 = json.RawMessage([]byte("2"))
+	timestamp.Custom = &custom2
+	snapshot := data.NewSnapshot()
+	targets := data.NewTargets()
+	var custom4 = json.RawMessage([]byte(`{"a":4}`))
+	targets.Custom = &custom4
+
+	tests := []struct {
+		name   string
+		input  json.RawMessage
+		err    bool
+		output []byte
+	}{
+		{name: "root", input: serializeTestMeta(root), err: false, output: []byte("1")},
+		{name: "timestamp", input: serializeTestMeta(timestamp), err: false, output: []byte("2")},
+		{name: "snapshot", input: serializeTestMeta(snapshot), err: false, output: nil},
+		{name: "targets", input: serializeTestMeta(targets), err: false, output: []byte(`{"a":4}`)},
+		{name: "invalid", input: json.RawMessage(`{}`), err: true, output: nil},
+		{name: "invalid2", input: json.RawMessage(``), err: true, output: nil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			output, err := metaCustom(test.input)
+			if test.err {
+				assert.Error(tt, err)
+			} else {
+				assert.Equal(tt, test.output, output)
+				assert.NoError(tt, err)
+			}
+		})
+	}
+}
+
 func TestTrimHashTargetPath(t *testing.T) {
 	tests := []struct {
 		input  string

@@ -603,7 +603,12 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	bumpOrchestratorPayload(payloadType)
 
-	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true)
+	endpoint := endpoints.OrchestratorEndpoint
+	if config.Datadog.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+		endpoint = endpoints.LegacyOrchestratorEndpoint
+	}
+
+	return f.submitProcessLikePayload(endpoint, payload, extra, true)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events

@@ -91,14 +91,12 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      # TODO: Replace with production layer when released
-      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       CORECLR_ENABLE_PROFILING: 1
       CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
       CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
       DD_DOTNET_TRACER_HOME: "/opt/datadog"
-      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   metric-proxy:
     runtime: nodejs14.x
@@ -147,14 +145,12 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      # TODO: Replace with production layer when released
-      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       CORECLR_ENABLE_PROFILING: 1
       CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
       CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
       DD_DOTNET_TRACER_HOME: "/opt/datadog"
-      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   error-proxy:
     runtime: nodejs14.x
@@ -215,14 +211,12 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      # TODO: Replace with production layer when released
-      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       CORECLR_ENABLE_PROFILING: 1
       CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
       CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
       DD_DOTNET_TRACER_HOME: "/opt/datadog"
-      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   timeout-proxy:
     runtime: nodejs14.x
@@ -268,14 +262,12 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      # TODO: Replace with production layer when released
-      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       CORECLR_ENABLE_PROFILING: 1
       CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
       CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
       DD_DOTNET_TRACER_HOME: "/opt/datadog"
-      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   log-java:
     runtime: java8.al2
@@ -347,14 +339,12 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      # TODO: Replace with production layer when released
-      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       CORECLR_ENABLE_PROFILING: 1
       CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
       CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
       DD_DOTNET_TRACER_HOME: "/opt/datadog"
-      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   trace-proxy:
     runtime: nodejs14.x

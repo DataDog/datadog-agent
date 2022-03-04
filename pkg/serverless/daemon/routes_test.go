@@ -101,7 +101,7 @@ func TestTraceContext(t *testing.T) {
 	defer d.Stop()
 	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:           d.ExtraTags,
-		MetricChannel:       nil,
+		Demux:               nil,
 		ProcessTrace:        nil,
 		DetectLambdaLibrary: func() bool { return false },
 	}

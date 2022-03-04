@@ -203,6 +203,7 @@ type BPFMapSerializer struct {
 // easyjson:json
 type BPFProgramSerializer struct {
 	Name        string   `json:"name,omitempty" jsonschema_description:"Name of the BPF program"`
+	Tag         string   `json:"tag,omitempty" jsonschema_description:"Hash (sha1) of the BPF program"`
 	ProgramType string   `json:"program_type,omitempty" jsonschema_description:"Type of the BPF program"`
 	AttachType  string   `json:"attach_type,omitempty" jsonschema_description:"Attach type of the BPF program"`
 	Helpers     []string `json:"helpers,omitempty" jsonschema_description:"List of helpers used by the BPF program"`
@@ -218,20 +219,19 @@ type BPFEventSerializer struct {
 
 // MMapEventSerializer serializes a mmap event to JSON
 type MMapEventSerializer struct {
-	Address    string          `json:"address" jsonschema_description:"memory segment address"`
-	Offset     uint64          `json:"offset" jsonschema_description:"file offset"`
-	Len        uint32          `json:"length" jsonschema_description:"memory segment length"`
-	Protection string          `json:"protection" jsonschema_description:"memory segment protection"`
-	Flags      string          `json:"flags" jsonschema_description:"memory segment flags"`
-	File       *FileSerializer `json:"file,omitempty" jsonschema_description:"mmaped file"`
+	Address    string `json:"address" jsonschema_description:"memory segment address"`
+	Offset     uint64 `json:"offset" jsonschema_description:"file offset"`
+	Len        uint32 `json:"length" jsonschema_description:"memory segment length"`
+	Protection string `json:"protection" jsonschema_description:"memory segment protection"`
+	Flags      string `json:"flags" jsonschema_description:"memory segment flags"`
 }
 
 // MProtectEventSerializer serializes a mmap event to JSON
 type MProtectEventSerializer struct {
 	VMStart       string `json:"vm_start" jsonschema_description:"memory segment start address"`
 	VMEnd         string `json:"vm_end" jsonschema_description:"memory segment end address"`
-	VMProtection  string `json:"vm_protection" jsonschema_description:"memory segment protection"`
-	ReqProtection string `json:"new_protection" jsonschema_description:"new memory segment protection"`
+	VMProtection  string `json:"vm_protection" jsonschema_description:"initial memory segment protection"`
+	ReqProtection string `json:"req_protection" jsonschema_description:"new memory segment protection"`
 }
 
 // PTraceEventSerializer serializes a mmap event to JSON
@@ -241,11 +241,24 @@ type PTraceEventSerializer struct {
 	Tracee  *ProcessContextSerializer `json:"tracee,omitempty" jsonschema_description:"process context of the tracee"`
 }
 
+// SignalEventSerializer serializes a signal event to JSON
+type SignalEventSerializer struct {
+	Type   string                    `json:"type" jsonschema_description:"signal type"`
+	PID    uint32                    `json:"pid" jsonschema_description:"signal target pid"`
+	Target *ProcessContextSerializer `json:"target,omitempty" jsonschema_description:"process context of the signal target"`
+}
+
 // DDContextSerializer serializes a span context to JSON
 // easyjson:json
 type DDContextSerializer struct {
 	SpanID  uint64 `json:"span_id,omitempty" jsonschema_description:"Span ID used for APM correlation"`
 	TraceID uint64 `json:"trace_id,omitempty" jsonschema_description:"Trace ID used for APM correlation"`
+}
+
+// ModuleEventSerializer serializes a module event to JSON
+type ModuleEventSerializer struct {
+	Name             string `json:"name" jsonschema_description:"module name"`
+	LoadedFromMemory *bool  `json:"loaded_from_memory,omitempty" jsonschema_description:"indicates if a module was loaded from memory, as opposed to a file"`
 }
 
 // EventSerializer serializes an event to JSON
@@ -258,6 +271,8 @@ type EventSerializer struct {
 	*MMapEventSerializer       `json:"mmap,omitempty"`
 	*MProtectEventSerializer   `json:"mprotect,omitempty"`
 	*PTraceEventSerializer     `json:"ptrace,omitempty"`
+	*ModuleEventSerializer     `json:"module,omitempty"`
+	*SignalEventSerializer     `json:"signal,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -500,6 +515,7 @@ func newBPFProgramSerializer(e *Event) *BPFProgramSerializer {
 
 	return &BPFProgramSerializer{
 		Name:        e.BPF.Program.Name,
+		Tag:         e.BPF.Program.Tag,
 		ProgramType: model.BPFProgramType(e.BPF.Program.Type).String(),
 		AttachType:  model.BPFAttachType(e.BPF.Program.AttachType).String(),
 		Helpers:     model.StringifyHelpersList(e.BPF.Program.Helpers),
@@ -515,18 +531,12 @@ func newBPFEventSerializer(e *Event) *BPFEventSerializer {
 }
 
 func newMMapEventSerializer(e *Event) *MMapEventSerializer {
-	var fileSerializer *FileSerializer
-	if e.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
-		fileSerializer = newFileSerializer(&e.MMap.File, e)
-	}
-
 	return &MMapEventSerializer{
 		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
 		Offset:     e.MMap.Offset,
 		Len:        e.MMap.Len,
 		Protection: model.Protection(e.MMap.Protection).String(),
 		Flags:      model.MMapFlag(e.MMap.Flags).String(),
-		File:       fileSerializer,
 	}
 }
 
@@ -552,11 +562,38 @@ func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
 	return ptes
 }
 
+func newLoadModuleEventSerializer(e *Event) *ModuleEventSerializer {
+	loadedFromMemory := e.LoadModule.LoadedFromMemory
+	return &ModuleEventSerializer{
+		Name:             e.LoadModule.Name,
+		LoadedFromMemory: &loadedFromMemory,
+	}
+}
+
+func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
+	return &ModuleEventSerializer{
+		Name: e.UnloadModule.Name,
+	}
+}
+
+func newSignalEventSerializer(e *Event) *SignalEventSerializer {
+	ses := &SignalEventSerializer{
+		Type: model.Signal(e.Signal.Type).String(),
+		PID:  e.Signal.PID,
+	}
+	if e.Signal.TargetProcessCacheEntry != nil {
+		pcs := newProcessContextSerializer(e.Signal.TargetProcessCacheEntry, e, e.resolvers)
+		ses.Target = &pcs
+	}
+	return ses
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
-	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
-		return "Refused"
 	case retval < 0:
+		if syscall.Errno(-retval) == syscall.EACCES || syscall.Errno(-retval) == syscall.EPERM {
+			return "Refused"
+		}
 		return "Error"
 	default:
 		return "Success"
@@ -749,6 +786,11 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.BPFEventSerializer = newBPFEventSerializer(event)
 	case model.MMapEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MMap.Retval)
+		if event.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.MMap.File, event),
+			}
+		}
 		s.MMapEventSerializer = newMMapEventSerializer(event)
 	case model.MProtectEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MProtect.Retval)
@@ -756,6 +798,18 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.PTraceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
 		s.PTraceEventSerializer = newPTraceEventSerializer(event)
+	case model.LoadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+		}
+		s.ModuleEventSerializer = newLoadModuleEventSerializer(event)
+	case model.UnloadModuleEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.UnloadModule.Retval)
+		s.ModuleEventSerializer = newUnloadModuleEventSerializer(event)
+	case model.SignalEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Signal.Retval)
+		s.SignalEventSerializer = newSignalEventSerializer(event)
 	}
 
 	return s

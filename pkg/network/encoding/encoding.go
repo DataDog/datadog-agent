@@ -68,21 +68,19 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
-	httpIndex, tagsIndex := FormatHTTPStats(conns.HTTP)
+	httpIndex := FormatHTTPStats(conns.HTTP)
 	httpMatches := make(map[http.Key]struct{}, len(httpIndex))
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
-	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
 		httpKey := httpKeyFromConn(conn)
 		httpAggregations := httpIndex[httpKey]
 		if httpAggregations != nil {
 			httpMatches[httpKey] = struct{}{}
-			conn.Tags |= tagsIndex[httpKey]
 		}
 
-		agentConns[i] = FormatConnection(conn, routeIndex, httpAggregations, dnsFormatter, ipc, tagsSet)
+		agentConns[i] = FormatConnection(conn, routeIndex, httpAggregations, dnsFormatter, ipc)
 	}
 
 	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
@@ -105,7 +103,6 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.Routes = routes
-	payload.Tags = tagsSet.GetStrings()
 
 	return payload
 }

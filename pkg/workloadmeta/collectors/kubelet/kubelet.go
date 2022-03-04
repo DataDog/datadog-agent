@@ -201,9 +201,13 @@ func (c *collector) parsePodContainers(
 		containerState := workloadmeta.ContainerState{}
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
+			containerState.Status = workloadmeta.ContainerStatusRunning
 			containerState.StartedAt = st.StartedAt
+			containerState.CreatedAt = st.StartedAt // CreatedAt not available
 		} else if st := container.State.Terminated; st != nil {
 			containerState.Running = false
+			containerState.Status = workloadmeta.ContainerStatusStopped
+			containerState.CreatedAt = st.StartedAt
 			containerState.StartedAt = st.StartedAt
 			containerState.FinishedAt = st.FinishedAt
 		}

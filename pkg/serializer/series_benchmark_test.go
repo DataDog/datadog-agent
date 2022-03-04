@@ -14,13 +14,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
 
-func generateData(points int, items int, tags int) metrics.Series {
-	series := metrics.Series{}
+func generateData(points int, items int, tags int) metricsserializer.Series {
+	series := metricsserializer.Series{}
 	for i := 0; i < items; i++ {
 		series = append(series, &metrics.Serie{
 			Points: func() []metrics.Point {
@@ -34,13 +36,13 @@ func generateData(points int, items int, tags int) metrics.Series {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags: func() []string {
+			Tags: tagset.CompositeTagsFromSlice(func() []string {
 				ts := make([]string, tags)
 				for t := 0; t < tags; t++ {
 					ts[t] = fmt.Sprintf("tag%d:foobar", t)
 				}
 				return ts
-			}(),
+			}()),
 		})
 	}
 	return series
@@ -49,7 +51,7 @@ func generateData(points int, items int, tags int) metrics.Series {
 var payloads forwarder.Payloads
 
 func BenchmarkSeries(b *testing.B) {
-	bench := func(points, items, tags int, build func(series metrics.Series) (forwarder.Payloads, error)) func(b *testing.B) {
+	bench := func(points, items, tags int, build func(series metricsserializer.Series) (forwarder.Payloads, error)) func(b *testing.B) {
 		return func(b *testing.B) {
 			series := generateData(points, items, tags)
 
@@ -72,12 +74,12 @@ func BenchmarkSeries(b *testing.B) {
 		}
 	}
 	bufferContext := marshaler.DefaultBufferContext()
-	pb := func(series metrics.Series) (forwarder.Payloads, error) {
+	pb := func(series metricsserializer.Series) (forwarder.Payloads, error) {
 		return series.MarshalSplitCompress(bufferContext)
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true)
-	json := func(series metrics.Series) (forwarder.Payloads, error) {
+	json := func(series metricsserializer.Series) (forwarder.Payloads, error) {
 		return payloadBuilder.Build(series)
 	}
 
