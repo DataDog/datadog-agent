@@ -15,8 +15,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/stretchr/testify/require"
 )
+
+func TestTCPQueueLengthCompile(t *testing.T) {
+	cfg := ebpf.NewConfig()
+	cfg.BPFDebug = true
+	_, err := runtime.TcpQueueLength.Compile(cfg, nil)
+	require.NoError(t, err)
+}
 
 func TestTCPQueueLengthTracer(t *testing.T) {
 	kv, err := kernel.HostVersion()
