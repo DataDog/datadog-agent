@@ -80,5 +80,3 @@ cookbook_file "/opt/datadog-agent/embedded/bin/llc" do
   mode '0744'
   action :create
 end
-
-end
