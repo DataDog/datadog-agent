@@ -352,7 +352,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
 	}
 
-	stats, err := t.getStats([]string{"conntrack", "dns", "ebpf"})
+	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats)
 	if err != nil {
 		return nil
 	}
@@ -537,39 +537,58 @@ func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
 	return defaultUDPConnTimeoutNanoSeconds
 }
 
-func (t *Tracer) getStats(comps []string) (map[string]interface{}, error) {
+type statsComp int
+
+const (
+	conntrackStats statsComp = iota
+	dnsStats
+	epbfStats
+	httpStats
+	kprobesStats
+	stateStats
+	tracerStats
+)
+
+var allStats = []statsComp{
+	conntrackStats,
+	dnsStats,
+	epbfStats,
+	httpStats,
+	kprobesStats,
+	stateStats,
+	tracerStats,
+}
+
+func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	if t.state == nil {
 		return nil, fmt.Errorf("internal state not yet initialized")
 	}
 
 	if len(comps) == 0 {
-		comps = []string{
-			"conntrack",
-			"dns",
-			"ebpf",
-			"kprobes",
-			"state",
-			"tracer",
-		}
+		comps = allStats
 	}
 
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
-		case "conntrack":
-			ret[c] = t.conntracker.GetStats()
-		case "dns":
-			ret[c] = t.reverseDNS.GetStats()
-		case "ebpf":
-			ret[c] = t.ebpfTracer.GetTelemetry()
-		case "kprobes":
-			ret[c] = ddebpf.GetProbeStats()
-		case "state":
-			ret[c] = t.state.GetStats()
-		case "tracer":
+		case conntrackStats:
+			ret["conntrack"] = t.conntracker.GetStats()
+		case dnsStats:
+			ret["dns"] = t.reverseDNS.GetStats()
+		case epbfStats:
+			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
+		case httpStats:
+			if t.httpMonitor != nil {
+				ret["http"] = t.httpMonitor.GetTelemetry()
+			}
+		case kprobesStats:
+			ret["kprobes"] = ddebpf.GetProbeStats()
+		case stateStats:
+			ret["state"] = t.state.GetStats()
+		case tracerStats:
 			tracerStats := t.statsReporter.Report()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
-			ret[c] = tracerStats
+			ret["tracer"] = tracerStats
 		}
 	}
 
@@ -578,7 +597,7 @@ func (t *Tracer) getStats(comps []string) (map[string]interface{}, error) {
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	return t.getStats(nil)
+	return t.getStats()
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging

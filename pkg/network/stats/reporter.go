@@ -9,6 +9,7 @@ import (
 	"unsafe"
 )
 
+// Reporter reports stats
 type Reporter struct {
 	stats map[string]statsInfo
 	value reflect.Value
@@ -119,6 +120,7 @@ func loadAtomic(f reflect.Value) interface{} {
 	return nil
 }
 
+// from https://gist.github.com/stoewer/fbe273b711e6a06315d19552dd4d33e6
 var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 

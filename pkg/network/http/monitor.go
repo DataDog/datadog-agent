@@ -77,7 +77,10 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
-	telemetry := newTelemetry()
+	telemetry, err := newTelemetry()
+	if err != nil {
+		return nil, err
+	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 
 	handler := func(transactions []httpTX) {
@@ -138,8 +141,8 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				delta := m.telemetry.reset()
-				delta.report()
+				m.telemetry.report()
+				m.telemetry.reset()
 
 				reply <- m.statkeeper.GetAndResetAllStats()
 			case <-report.C:
@@ -200,4 +203,8 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.Manager.DumpMaps(maps...)
+}
+
+func (m *Monitor) GetTelemetry() map[string]interface{} {
+	return m.telemetry.report()
 }
