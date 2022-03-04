@@ -431,4 +431,7 @@ replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20
 replace (
 	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
 	github.com/go-logr/stdr => github.com/go-logr/stdr v0.4.0
+	// HACK: Add `funcr` package from v1.0.0 to support packages using it (notably go.opentelemetry/otel)
+	// See internal/patch/logr/funcr/README.md for more details.
+	github.com/go-logr/funcr =>  ./internal/patch/logr/funcr
 )
