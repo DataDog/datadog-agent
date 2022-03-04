@@ -123,6 +123,7 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 
 func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	k := key(ns, "intervals", check)
+
 	if !config.Datadog.IsSet(k) {
 		return
 	}
