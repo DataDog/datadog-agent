@@ -100,14 +100,15 @@ func (r *QueueDurationCapacity) ComputeCapacity(t time.Time) (map[string]QueueCa
 	}
 
 	var totalBytesPerSec float64
-	for _, accumulator := range r.accumulators {
-		totalBytesPerSec += getSpeedRate(accumulator, t)
+	speedRateByDomain := make(map[string]float64)
+	for domain, accumulator := range r.accumulators {
+		speedRate := getSpeedRate(accumulator, t)
+		totalBytesPerSec += speedRate
+		speedRateByDomain[domain] = speedRate
 	}
 
 	durations := make(map[string]QueueCapacityStats)
-	for domain, accumulator := range r.accumulators {
-		bytesPerSec := getSpeedRate(accumulator, t)
-
+	for domain, bytesPerSec := range speedRateByDomain {
 		// If there is no traffic during the time period do not report statistics.
 		if bytesPerSec > 0 {
 			availableSpace := r.getAvailableSpace(bytesPerSec, totalBytesPerSec, float64(diskSpace))

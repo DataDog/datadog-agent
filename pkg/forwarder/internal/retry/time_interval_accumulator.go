@@ -68,8 +68,8 @@ func (a *timeIntervalAccumulator) add(now time.Time, value int64) {
 }
 
 func (a *timeIntervalAccumulator) getDuration(now time.Time) (int64, time.Duration) {
-	// + 1 to take into account the first second in startIndexTime.
-	// if now.Unix() == a.startIndexTime, we want to return 1.
+	// Add `+ 1` as a bucket has a one second resolution.
+	// a.startIndexTime represents the time interval [a.startIndexTime, a.startIndexTime+1[
 	duration := now.Unix() - a.startIndexTime + 1
 	return a.sum, time.Duration(duration) * time.Second
 }
