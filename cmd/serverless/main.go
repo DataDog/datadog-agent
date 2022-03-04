@@ -356,6 +356,7 @@ func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
 	)
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
+		return
 	}
 
 	agent.AddScheduler(serverlessLogs.NewScheduler(logChannel, nil))
