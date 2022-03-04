@@ -147,6 +147,31 @@ const (
 
 //revive:enable
 
+var (
+	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
+	// into the network connections payload
+	ConnTelemetryTypes = []ConnTelemetryType{
+		ConnsBpfMapSize,
+		ConntrackSamplingPercent,
+		DNSStatsDropped,
+		NPMDriverFlowsMissedMaxExceeded,
+	}
+
+	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
+	// into the network connections payload
+	MonotonicConnTelemetryTypes = []ConnTelemetryType{
+		MonotonicKprobesTriggered,
+		MonotonicKprobesMissed,
+		MonotonicConntrackRegisters,
+		MonotonicConntrackRegistersDropped,
+		MonotonicDNSPacketsProcessed,
+		MonotonicConnsClosed,
+		MonotonicUDPSendsProcessed,
+		MonotonicUDPSendsMissed,
+		MonotonicDNSPacketsDropped,
+	}
+)
+
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool

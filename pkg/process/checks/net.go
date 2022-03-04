@@ -37,25 +37,6 @@ var (
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
-
-	telemetryTypes = []string{
-		string(network.ConnsBpfMapSize),
-		string(network.ConntrackSamplingPercent),
-		string(network.DNSStatsDropped),
-		string(network.NPMDriverFlowsMissedMaxExceeded),
-	}
-
-	monotonicTelemetryTypes = []string{
-		string(network.MonotonicKprobesTriggered),
-		string(network.MonotonicKprobesMissed),
-		string(network.MonotonicConntrackRegisters),
-		string(network.MonotonicConntrackRegistersDropped),
-		string(network.MonotonicDNSPacketsProcessed),
-		string(network.MonotonicConnsClosed),
-		string(network.MonotonicUDPSendsProcessed),
-		string(network.MonotonicUDPSendsMissed),
-		string(network.MonotonicDNSPacketsDropped),
-	}
 )
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
@@ -165,15 +146,17 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 
 	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
 	// report the telemetry which is actually provided by the currently running version of the system-probe
-	for _, telemetryName := range telemetryTypes {
-		if _, ok := tel[telemetryName]; ok {
-			cct[telemetryName] = tel[telemetryName]
+	for _, telemetryType := range network.ConnTelemetryTypes {
+		telemetryMetricName := string(telemetryType)
+		if _, ok := tel[telemetryMetricName]; ok {
+			cct[telemetryMetricName] = tel[telemetryMetricName]
 		}
 	}
 
-	for _, telemetryName := range monotonicTelemetryTypes {
-		if _, ok := tel[telemetryName]; ok {
-			cct[telemetryName] = tel[telemetryName] - c.lastTelemetry[telemetryName]
+	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
+		telemetryMetricName := string(telemetryType)
+		if _, ok := tel[telemetryMetricName]; ok {
+			cct[telemetryMetricName] = tel[telemetryMetricName] - c.lastTelemetry[telemetryMetricName]
 		}
 	}
 
@@ -186,8 +169,9 @@ func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
 		return
 	}
 
-	for _, telemetryName := range monotonicTelemetryTypes {
-		c.lastTelemetry[telemetryName] = tel[telemetryName]
+	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
+		telemetryMetricName := string(telemetryType)
+		c.lastTelemetry[telemetryMetricName] = tel[telemetryMetricName]
 	}
 }
 
