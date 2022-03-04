@@ -30,10 +30,7 @@ func convertToCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*dd
 	negativeStore := store.NewDenseStore()
 
 	gamma := c.gamma.v
-	// TODO: using 1338 instead of 1338.5 gave better results for DDSketch -> Sketch conversion
-	//       Why? May have to do with the way we convert float counts to int counts in
-	//       keyCountsFromFloatKeyCounts.
-	offset := float64(c.norm.bias)
+	offset := float64(c.norm.bias) + 0.5
 	newMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)

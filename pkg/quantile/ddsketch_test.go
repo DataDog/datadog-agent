@@ -91,7 +91,7 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 			convertedSketch, err := convertToCompatibleDDSketch(sketchConfig, sketch)
 			assert.NoError(t, err)
 
-			// Taken from:
+			// Conversion accuracy formula taken from:
 			// https://github.com/DataDog/logs-backend/blob/895e56c9eefa1c28a3affbdd0027f58a4c6f4322/domains/event-store/libs/event-store-aggregate/src/test/java/com/dd/event/store/api/query/sketch/SketchTest.java#L409-L422
 			inputGamma := (1.0 + sketch.RelativeAccuracy()) / (1.0 - sketch.RelativeAccuracy())
 			outputGamma := (1.0 + convertedSketch.RelativeAccuracy()) / (1.0 - convertedSketch.RelativeAccuracy())
@@ -187,6 +187,13 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 			outputSketch, err := fromCompatibleDDSketch(sketchConfig, convertedSketch)
 			assert.NoError(t, err)
 
+			// Conversion accuracy formula taken from:
+			// https://github.com/DataDog/logs-backend/blob/895e56c9eefa1c28a3affbdd0027f58a4c6f4322/domains/event-store/libs/event-store-aggregate/src/test/java/com/dd/event/store/api/query/sketch/SketchTest.java#L409-L422
+			inputGamma := (1.0 + convertedSketch.RelativeAccuracy()) / (1.0 - convertedSketch.RelativeAccuracy())
+			outputGamma := sketchConfig.gamma.v
+			conversionGamma := inputGamma * outputGamma * outputGamma
+			conversionRelativeAccuracy := (conversionGamma - 1) / (conversionGamma + 1)
+
 			// Check that the quantiles of the output sketch do match
 			// the qunatiles of the DDSketch it comes from
 			for i := 1; i <= 100; i++ {
@@ -200,7 +207,7 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 					// range of the expected value
 					expectedValue,
 					quantileValue,
-					0.01, // TODO: What's the real error bound due to converting the DDSketch to the Agent sketch?
+					conversionRelativeAccuracy,
 					fmt.Sprintf("error too high for p%d", i),
 				)
 			}
