@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-
 func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSketch {
 	sketch, _ := ddsketch.NewDefaultDDSketch(0.01)
 	// Simulate a given distribution by replacing it with a distribution
@@ -38,27 +37,17 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 	tests := []struct {
 		// distribution name
 		name string
-		// the cumulative distribution function (within [0,N])
-		cdf func(x float64) float64
 		// the quantile function (within [0,1])
 		quantile func(x float64) float64
 	}{
 		{
 			// https://en.wikipedia.org/wiki/Continuous_uniform_distribution
 			name:     "Uniform distribution (a=0,b=N)",
-			cdf:      func(x float64) float64 { return x / float64(N) },
 			quantile: func(y float64) float64 { return y * float64(N) },
 		},
 		{
 			// https://en.wikipedia.org/wiki/U-quadratic_distribution
 			name: "U-quadratic distribution (a=0,b=N)",
-			cdf: func(x float64) float64 {
-				a := 0.0
-				b := float64(N)
-				alpha := 12.0 / math.Pow(b-a, 3)
-				beta := (b + a) / 2.0
-				return alpha / 3 * (math.Pow(x-beta, 3) + math.Pow(beta-a, 3))
-			},
 			quantile: func(y float64) float64 {
 				a := 0.0
 				b := float64(N)
@@ -139,27 +128,17 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 	tests := []struct {
 		// distribution name
 		name string
-		// the cumulative distribution function (within [0,N])
-		cdf func(x float64) float64
 		// the quantile function (within [0,1])
 		quantile func(x float64) float64
 	}{
 		{
 			// https://en.wikipedia.org/wiki/Continuous_uniform_distribution
 			name:     "Uniform distribution (a=0,b=N)",
-			cdf:      func(x float64) float64 { return x / float64(N) },
 			quantile: func(y float64) float64 { return y * float64(N) },
 		},
 		{
 			// https://en.wikipedia.org/wiki/U-quadratic_distribution
 			name: "U-quadratic distribution (a=0,b=N)",
-			cdf: func(x float64) float64 {
-				a := 0.0
-				b := float64(N)
-				alpha := 12.0 / math.Pow(b-a, 3)
-				beta := (b + a) / 2.0
-				return alpha / 3 * (math.Pow(x-beta, 3) + math.Pow(beta-a, 3))
-			},
 			quantile: func(y float64) float64 {
 				a := 0.0
 				b := float64(N)
