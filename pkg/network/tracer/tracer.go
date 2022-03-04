@@ -145,6 +145,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxHTTPStatsBuffered,
 	)
 
+	gwLookup := newGatewayLookup(config)
+	if gwLookup != nil {
+		log.Info("gateway lookup enabled")
+	}
+
 	tr := &Tracer{
 		config:                     config,
 		state:                      state,
@@ -157,7 +162,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		buf:                        make([]byte, network.ConnectionByteKeyMaxLen),
 		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
-		gwLookup:                   newGatewayLookup(config),
+		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
 	}
 
@@ -543,6 +548,7 @@ const (
 	conntrackStats statsComp = iota
 	dnsStats
 	epbfStats
+	gatewayLookupStats
 	httpStats
 	kprobesStats
 	stateStats
@@ -553,6 +559,7 @@ var allStats = []statsComp{
 	conntrackStats,
 	dnsStats,
 	epbfStats,
+	gatewayLookupStats,
 	httpStats,
 	kprobesStats,
 	stateStats,
@@ -577,6 +584,10 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["dns"] = t.reverseDNS.GetStats()
 		case epbfStats:
 			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
+		case gatewayLookupStats:
+			if t.gwLookup != nil {
+				ret["gateway_lookup"] = t.gwLookup.GetStats()
+			}
 		case httpStats:
 			if t.httpMonitor != nil {
 				ret["http"] = t.httpMonitor.GetTelemetry()
