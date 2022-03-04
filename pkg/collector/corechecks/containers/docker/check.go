@@ -289,7 +289,7 @@ func (d *DockerCheck) collectImageMetrics(sender aggregator.Sender, du docker.Cl
 			imageName := du.GetPreferredImageName(image.ID, image.RepoTags, image.RepoDigests)
 			imageTags, err := getImageTags(imageName)
 			if err != nil {
-				log.Tracef("Unable to resolve image from repotags/digests with id: %s, err: %w", imageName, err)
+				log.Tracef("Unable to resolve image from repotags/digests with id: %s, err: %v", imageName, err)
 				continue
 			}
 
