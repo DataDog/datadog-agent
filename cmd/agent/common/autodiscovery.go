@@ -32,7 +32,11 @@ var (
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
 	providers.InitConfigFilesReader(confSearchPaths)
-	ad.AddConfigProvider(providers.NewFileConfigProvider(), false, 0)
+	ad.AddConfigProvider(
+		providers.NewFileConfigProvider(),
+		config.Datadog.GetBool("autoconf_config_files_poll"),
+		config.Datadog.GetDuration("autoconf_config_files_poll_interval")*time.Second,
+	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()

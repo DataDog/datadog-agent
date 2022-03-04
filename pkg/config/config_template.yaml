@@ -1991,6 +1991,19 @@ api_key:
 #
 # autoconf_template_dir: /datadog/check_configs
 
+## @param autoconf_config_files_poll - boolean - optional - default: false
+## @env DD_AUTOCONF_CONFIG_FILES_POLL - boolean - optional - default: false
+## Should the we check for new/updated integration configuration files on disk.
+#
+# autoconf_config_files_poll: false
+
+## @param autoconf_config_files_poll_interval - integer - optional - default: 60
+## @env DD_AUTOCONF_CONFIG_FILES_POLL_INTERVAL - integer - optional - default: 60
+## How frequently should the Agent check for new/updated integration configuration files. WARNING: the configuration
+## provider caches reads from disk for 5 minutes.
+#
+# autoconf_config_files_poll_interval: 60
+
 ## @param config_providers - List of custom object - optional
 ## @env DD_CONFIG_PROVIDERS - List of custom object - optional
 ## The providers the Agent should call to collect checks configurations. Available providers are:
