@@ -18,7 +18,8 @@ for _, provider := range configProviders {
 
 ### `FileConfigProvider`
 
-The `FileConfigProvider` is a static config provider, it scans the check configs directory once at startup.
+The `FileConfigProvider` is a static config provider, it scans the check configs directory at startup. The files are cached
+in memory for five minutes.
 
 ### `KubeletConfigProvider`
 
