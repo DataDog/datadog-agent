@@ -165,10 +165,10 @@ func GetStatus() status.Status {
 	return status.Get()
 }
 
-// SetADMetaScheduler provides a reference to the AD MetaScheduler during agent
-// startup.
+// SetADMetaScheduler supplies this package with a reference to the AD MetaScheduler,
+// once it has been started.
 func SetADMetaScheduler(sched *metaScheduler.MetaScheduler) {
-	adScheduler.ADMetaScheduler = sched
+	adScheduler.SetADMetaScheduler(sched)
 }
 
 // GetMessageReceiver returns the diagnostic message receiver

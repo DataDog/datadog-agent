@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -21,16 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// ADMetaScheduler is the metaScheduler that is set up early in agent
-	// initialization.  We get a pointer to it during that process, for use later.
-	ADMetaScheduler *adScheduler.MetaScheduler
-)
-
 // Scheduler creates and deletes new sources and services to start or stop
 // log collection based on information from autodiscovery.
+//
+// This type implements  pkg/logs/schedulers.Scheduler.
 type Scheduler struct {
 	mgr                schedulers.SourceManager
+	listener           *adListener
 	sourcesByServiceID map[string]*logsConfig.LogSource
 }
 
@@ -38,20 +34,22 @@ var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
 func New() schedulers.Scheduler {
-	return &Scheduler{
+	sch := &Scheduler{
 		sourcesByServiceID: make(map[string]*logsConfig.LogSource),
 	}
+	sch.listener = newADListener(sch.Schedule, sch.Unschedule)
+	return sch
 }
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	s.mgr = sourceMgr
-	ADMetaScheduler.Register("logs", s)
+	s.listener.start()
 }
 
 // Stop implements schedulers.Scheduler#Stop.
 func (s *Scheduler) Stop() {
-	ADMetaScheduler.Deregister("logs")
+	s.listener.stop()
 	s.mgr = nil
 }
 
