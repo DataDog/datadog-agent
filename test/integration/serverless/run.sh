@@ -95,10 +95,10 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
 
-# function remove_stack() {
-#     echo "Removing stack"
-#     serverless remove --stage "${stage}"
-# }
+function remove_stack() {
+    echo "Removing stack"
+    serverless remove --stage "${stage}"
+}
 
 # always remove the stack before exiting, no matter what
 trap remove_stack EXIT
