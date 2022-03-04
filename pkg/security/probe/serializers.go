@@ -800,8 +800,10 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.PTraceEventSerializer = newPTraceEventSerializer(event)
 	case model.LoadModuleEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
-		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+		if !event.LoadModule.LoadedFromMemory {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+			}
 		}
 		s.ModuleEventSerializer = newLoadModuleEventSerializer(event)
 	case model.UnloadModuleEventType:
