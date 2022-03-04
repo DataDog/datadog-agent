@@ -767,7 +767,6 @@ core,go.opencensus.io/trace/tracestate,Apache-2.0,OpenCensus Authors
 core,go.opentelemetry.io/collector/client,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/component,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/component/componenterror,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/component/componenthelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Open Telemetry Maintainers
@@ -788,9 +787,7 @@ core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,O
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/experimental/storage,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/extension/extensionhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/internal/internalinterface,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Open Telemetry Maintainers
@@ -815,12 +812,10 @@ core,go.opentelemetry.io/collector/model/semconv/v1.5.0,Apache-2.0,Open Telemetr
 core,go.opentelemetry.io/collector/model/semconv/v1.6.1,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/obsreport,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/processor/batchprocessor,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/processor/processorhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/receiver/otlpreceiver,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/receiver/receiverhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/receiver/scrapererror,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/featuregate,Apache-2.0,Open Telemetry Maintainers
@@ -854,10 +849,9 @@ core,go.opentelemetry.io/otel/metric/number,Apache-2.0,Open Telemetry Maintainer
 core,go.opentelemetry.io/otel/metric/sdkapi,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/unit,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/otel/sdk/export/metric,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/otel/sdk/export/metric/aggregation,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/sdk/internal/env,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/histogram,Apache-2.0,Open Telemetry Maintainers
@@ -865,6 +859,8 @@ core,go.opentelemetry.io/otel/sdk/metric/aggregator/lastvalue,Apache-2.0,Open Te
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/sum,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/controller/basic,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/controller/time,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/sdk/metric/export,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/sdk/metric/export/aggregation,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/processor/basic,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/selector/simple,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/resource,Apache-2.0,Open Telemetry Maintainers
