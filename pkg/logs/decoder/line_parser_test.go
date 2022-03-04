@@ -14,13 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const header = "HEADER"
 
-func lineParserChans() (chan *DecodedInput, chan *Message) {
-	return make(chan *DecodedInput, 5), make(chan *Message, 5)
+func lineParserChans() (func(*Message), chan *Message) {
+	ch := make(chan *Message, 20)
+	return func(m *Message) { ch <- m }, ch
 }
 
 type MockFailingParser struct {
@@ -56,47 +56,33 @@ func TestSingleLineParser(t *testing.T) {
 	var message *Message
 	p := NewMockFailingParser(header)
 
-	inputChan, outputChan := lineParserChans()
-	lineParser := NewSingleLineParser(inputChan, outputChan, p)
-	lineParser.Start()
+	outputFn, outputChan := lineParserChans()
+	lineParser := NewSingleLineParser(outputFn, p)
 
 	line := header
 
 	inputLen := len(line) + 1
-	inputChan <- &DecodedInput{[]byte(line), inputLen}
+	lineParser.process([]byte(line), inputLen)
 	message = <-outputChan
 	assert.Equal(t, "", string(message.Content))
 	assert.Equal(t, inputLen, message.RawDataLen)
 
 	inputLen = len(line+"one message") + 1
-	inputChan <- &DecodedInput{[]byte(line + "one message"), inputLen}
+	lineParser.process([]byte(line+"one message"), inputLen)
 	message = <-outputChan
 	assert.Equal(t, "one message", string(message.Content))
 	assert.Equal(t, inputLen, message.RawDataLen)
-
-	close(inputChan)
-
-	// once the input channel closes, the output channel closes as well
-	_, ok := <-outputChan
-	require.Equal(t, false, ok)
 }
 
 func TestSingleLineParserSendsRawInvalidMessages(t *testing.T) {
 	p := NewMockFailingParser(header)
 
-	inputChan, outputChan := lineParserChans()
-	lineParser := NewSingleLineParser(inputChan, outputChan, p)
-	lineParser.Start()
+	outputFn, outputChan := lineParserChans()
+	lineParser := NewSingleLineParser(outputFn, p)
 
-	inputChan <- &DecodedInput{[]byte("one message"), 12}
+	lineParser.process([]byte("one message"), 12)
 	message := <-outputChan
 	assert.Equal(t, "one message", string(message.Content))
-
-	close(inputChan)
-
-	// once the input channel closes, the output channel closes as well
-	_, ok := <-outputChan
-	require.Equal(t, false, ok)
 }
 
 func TestMultilineParser(t *testing.T) {
@@ -104,24 +90,17 @@ func TestMultilineParser(t *testing.T) {
 	timeout := 1000 * time.Millisecond
 	contentLenLimit := 256 * 100
 
-	inputChan, outputChan := lineParserChans()
-	lineParser := NewMultiLineParser(inputChan, outputChan, timeout, p, contentLenLimit)
-	lineParser.Start()
+	outputFn, outputChan := lineParserChans()
+	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
-	inputChan <- &DecodedInput{[]byte(header + "one "), 11}
-	inputChan <- &DecodedInput{[]byte(header + "long "), 12}
-	inputChan <- &DecodedInput{[]byte(header + "line\\n"), 14}
+	lineParser.process([]byte(header+"one "), 11)
+	lineParser.process([]byte(header+"long "), 12)
+	lineParser.process([]byte(header+"line\\n"), 14)
 
 	message := <-outputChan
 
 	assert.Equal(t, "one long line", string(message.Content))
 	assert.Equal(t, message.RawDataLen, 11+12+14)
-
-	close(inputChan)
-
-	// once the input channel closes, the output channel closes as well
-	_, ok := <-outputChan
-	require.Equal(t, false, ok)
 }
 
 func TestMultilineParserTimeout(t *testing.T) {
@@ -129,12 +108,19 @@ func TestMultilineParserTimeout(t *testing.T) {
 	timeout := 100 * time.Millisecond
 	contentLenLimit := 256 * 100
 
-	inputChan, outputChan := lineParserChans()
-	lineParser := NewMultiLineParser(inputChan, outputChan, timeout, p, contentLenLimit)
-	lineParser.Start()
-	defer close(inputChan)
+	outputFn, outputChan := lineParserChans()
+	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
-	inputChan <- &DecodedInput{[]byte(header + "message"), 14}
+	lineParser.process([]byte(header+"message"), 14)
+
+	// shouldn't be anything here yet
+	select {
+	case <-outputChan:
+		panic("shouldn't be a message")
+	default:
+	}
+
+	lineParser.flush()
 
 	message := <-outputChan
 
@@ -150,15 +136,13 @@ func TestMultilineParserLimit(t *testing.T) {
 	var message *Message
 	line := strings.Repeat("a", contentLenLimit)
 
-	inputChan, outputChan := lineParserChans()
-	lineParser := NewMultiLineParser(inputChan, outputChan, timeout, p, contentLenLimit)
-	lineParser.Start()
-	defer close(inputChan)
+	outputFn, outputChan := lineParserChans()
+	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
 	for i := 0; i < 10; i++ {
-		inputChan <- &DecodedInput{[]byte(header + line), 7 + len(line)}
+		lineParser.process([]byte(header+line), 7+len(line))
 	}
-	inputChan <- &DecodedInput{[]byte(header + "aaaa\\n"), 13}
+	lineParser.process([]byte(header+"aaaa\\n"), 13)
 
 	for i := 0; i < 10; i++ {
 		message = <-outputChan

@@ -165,15 +165,17 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 
 	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
 	// report the telemetry which is actually provided by the currently running version of the system-probe
-	for _, telemetryName := range telemetryTypes {
-		if _, ok := tel[telemetryName]; ok {
-			cct[telemetryName] = tel[telemetryName]
+	for _, telemetryType := range network.ConnTelemetryTypes {
+		telemetryMetricName := string(telemetryType)
+		if _, ok := tel[telemetryMetricName]; ok {
+			cct[telemetryMetricName] = tel[telemetryMetricName]
 		}
 	}
 
-	for _, telemetryName := range monotonicTelemetryTypes {
-		if _, ok := tel[telemetryName]; ok {
-			cct[telemetryName] = tel[telemetryName] - c.lastTelemetry[telemetryName]
+	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
+		telemetryMetricName := string(telemetryType)
+		if _, ok := tel[telemetryMetricName]; ok {
+			cct[telemetryMetricName] = tel[telemetryMetricName] - c.lastTelemetry[telemetryMetricName]
 		}
 	}
 
@@ -186,8 +188,9 @@ func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
 		return
 	}
 
-	for _, telemetryName := range monotonicTelemetryTypes {
-		c.lastTelemetry[telemetryName] = tel[telemetryName]
+	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
+		telemetryMetricName := string(telemetryType)
+		c.lastTelemetry[telemetryMetricName] = tel[telemetryMetricName]
 	}
 }
 

@@ -22,11 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 func TestRun(t *testing.T) {
@@ -193,28 +190,13 @@ func TestRun(t *testing.T) {
 				kubeObjects = append(kubeObjects, configMap)
 			}
 
-			// Set up mocked k8s client and informers
+			check := factory().(*HelmCheck)
+			check.runLeaderElection = false
+
 			k8sClient := fake.NewSimpleClientset(kubeObjects...)
 			sharedK8sInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute)
-			secretsInformer := sharedK8sInformerFactory.Core().V1().Secrets().Informer()
-			go secretsInformer.Run(stopCh)
-			configMapsInformer := sharedK8sInformerFactory.Core().V1().ConfigMaps().Informer()
-			go configMapsInformer.Run(stopCh)
-			err := apiserver.SyncInformers(
-				map[apiserver.InformerName]cache.SharedInformer{
-					"helm-secrets":    secretsInformer,
-					"helm-configmaps": configMapsInformer,
-				},
-				10*time.Second,
-			)
+			err := check.setupInformers(sharedK8sInformerFactory)
 			assert.NoError(t, err)
-
-			check := &HelmCheck{
-				CheckBase:         core.NewCheckBase(checkName),
-				runLeaderElection: false,
-				secretLister:      sharedK8sInformerFactory.Core().V1().Secrets().Lister(),
-				configmapLister:   sharedK8sInformerFactory.Core().V1().ConfigMaps().Lister(),
-			}
 
 			mockedSender := mocksender.NewMockSender(checkName)
 			mockedSender.SetupAcceptAll()
