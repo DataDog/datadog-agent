@@ -80,7 +80,7 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 	procPath := config.Datadog.GetString("container_proc_root")
 	deviceMapping, err := system.GetDiskDeviceMapping(procPath)
 	if err != nil {
-		log.Debugf("Error while getting disk mapping, no disk metric will be present, err: %w", err)
+		log.Debugf("Error while getting disk mapping, no disk metric will be present, err: %v", err)
 	}
 
 	for _, blkioStatEntry := range ioStats.IoServiceBytesRecursive {

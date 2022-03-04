@@ -75,7 +75,7 @@ func (c *CRICheck) Configure(config, initConfig integration.Data, source string)
 
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(containerFilter))
