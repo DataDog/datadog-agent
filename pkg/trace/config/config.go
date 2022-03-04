@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
@@ -379,6 +380,23 @@ type AgentConfig struct {
 	// MaxCatalogEntries specifies the maximum number of services to be added to the priority sampler's
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
+
+	// RemoteSamplingClient ...
+	RemoteSamplingClient RemoteClient
+}
+
+// Remote client is used to APM Sampling Updates from a remote source. Within the Datadog Agent
+// the implementation is (cmd/trace-agent.remoteClient).
+type RemoteClient interface {
+	SamplingUpdates() <-chan SamplingUpdate
+	Close()
+}
+
+// SamplingUpdate ...
+type SamplingUpdate struct {
+	ID      string
+	Version uint64
+	Rates   []pb.APMSampling
 }
 
 // Tag represents a key/value pair.

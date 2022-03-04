@@ -150,7 +150,7 @@ func TestPrioritySamplerWithRemote(t *testing.T) {
 		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
-	s.remoteRates = newRemoteRates(10, "6.0.0")
+	s.remoteRates = newRemoteRates(nil, 10, "6.0.0")
 	s.Start()
 	s.updateRates()
 	s.reportStats()

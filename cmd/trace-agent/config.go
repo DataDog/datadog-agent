@@ -74,6 +74,13 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		return cfg, err
 	}
 	cfg.ConfigPath = path
+	if features.Has("remote_rates") {
+		if client, err := newRemoteClient(); err != nil {
+			log.Errorf("Error when subscribing to remote config management %v", err)
+		} else {
+			cfg.RemoteSamplingClient = client
+		}
+	}
 	return cfg, nil
 }
 

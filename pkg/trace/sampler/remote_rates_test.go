@@ -6,11 +6,10 @@
 package sampler
 
 import (
-	"os"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,12 +20,9 @@ const maxRemoteTPS = 12377
 func TestRemoteConfInit(t *testing.T) {
 	assert := assert.New(t)
 	// disabled by default
-	assert.Nil(newRemoteRates(0, "6.0.0"))
+	assert.Nil(newRemoteRates(nil, 0, "6.0.0"))
 	// subscription to subscriber fails
-	old := os.Getenv("DD_APM_FEATURES")
-	os.Setenv("DD_APM_FEATURES", "remote_rates")
-	assert.Nil(newRemoteRates(0, "6.0.0"))
-	os.Setenv("DD_APM_FEATURES", old)
+	assert.Nil(newRemoteRates(nil, 0, "6.0.0"))
 	// todo:raphael mock grpc server
 }
 
@@ -39,15 +35,11 @@ func newTestRemoteRates() *RemoteRates {
 	}
 }
 
-func configGenerator(version uint64, rates pb.APMSampling) remote.APMSamplingUpdate {
-	return remote.APMSamplingUpdate{
-		Config: &remote.APMSamplingConfig{
-			Config: remote.Config{
-				ID:      "testid",
-				Version: version,
-			},
-			Rates: []pb.APMSampling{rates},
-		},
+func configGenerator(version uint64, rates pb.APMSampling) config.SamplingUpdate {
+	return config.SamplingUpdate{
+		ID:      "testid",
+		Version: version,
+		Rates:   []pb.APMSampling{rates},
 	}
 }
 
