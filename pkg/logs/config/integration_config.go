@@ -71,6 +71,11 @@ type LogsConfig struct {
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
+
+	// When logging containers with Type="file", this is set to the current
+	// container runtime, allowing the file launcher to determine how to decode
+	// the on-disk content.
+	ContainerRuntime config.Feature
 }
 
 // TailingMode type
