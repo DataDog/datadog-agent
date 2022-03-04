@@ -96,18 +96,3 @@ func (s *LogSources) GetSources() []*LogSource {
 	clone := append([]*LogSource{}, s.sources...)
 	return clone
 }
-
-// GetSourceByName gets a source by its name (source.Config.Source), returning nil
-// if not found.
-func (s *LogSources) GetSourceByName(name string) *LogSource {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, source := range s.sources {
-		if name == source.Config.Source {
-			return source
-		}
-	}
-
-	return nil
-}
