@@ -113,32 +113,25 @@ func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout u
 type pidDiscarders struct {
 	*lib.Map
 	erpc *ERPC
+	req  ERPCRequest
 }
 
 func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
-	req := ERPCRequest{
-		OP: DiscardPidOp,
-	}
+	offset := marshalDiscardHeader(&p.req, eventType, 0)
+	model.ByteOrder.PutUint32(p.req.Data[offset:offset+4], pid)
 
-	offset := marshalDiscardHeader(&req, eventType, 0)
-	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
-
-	return p.erpc.Request(&req)
+	return p.erpc.Request(&p.req)
 }
 
 func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32, timeout int64) error {
-	req := ERPCRequest{
-		OP: DiscardPidOp,
-	}
+	offset := marshalDiscardHeader(&p.req, eventType, uint64(timeout))
+	model.ByteOrder.PutUint32(p.req.Data[offset:offset+4], pid)
 
-	offset := marshalDiscardHeader(&req, eventType, uint64(timeout))
-	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
-
-	return p.erpc.Request(&req)
+	return p.erpc.Request(&p.req)
 }
 
 func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
-	return &pidDiscarders{Map: m, erpc: erpc}
+	return &pidDiscarders{Map: m, erpc: erpc, req: ERPCRequest{OP: DiscardPidOp}}
 }
 
 type inodeDiscarder struct {
@@ -151,6 +144,7 @@ type inodeDiscarder struct {
 type inodeDiscarders struct {
 	*lib.Map
 	erpc           *ERPC
+	req            ERPCRequest
 	revisions      *lib.Map
 	revisionCache  [discarderRevisionSize]uint32
 	dentryResolver *DentryResolver
@@ -164,6 +158,7 @@ func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryReso
 	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,
+		req:            ERPCRequest{OP: DiscardInodeOp},
 		revisions:      revisionsMap,
 		dentryResolver: dentryResolver,
 	}
@@ -174,33 +169,25 @@ func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryReso
 }
 
 func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
-	req := ERPCRequest{
-		OP: DiscardInodeOp,
-	}
-
 	var isLeafInt uint32
 	if isLeaf {
 		isLeafInt = 1
 	}
 
-	offset := marshalDiscardHeader(&req, eventType, 0)
-	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
-	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
-	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+	offset := marshalDiscardHeader(&id.req, eventType, 0)
+	model.ByteOrder.PutUint64(id.req.Data[offset:offset+8], inode)
+	model.ByteOrder.PutUint32(id.req.Data[offset+8:offset+12], mountID)
+	model.ByteOrder.PutUint32(id.req.Data[offset+12:offset+16], isLeafInt)
 
-	return id.erpc.Request(&req)
+	return id.erpc.Request(&id.req)
 }
 
 // expireInodeDiscarder sends an eRPC request to expire a discarder
 func (id *inodeDiscarders) expireInodeDiscarder(mountID uint32, inode uint64) error {
-	req := ERPCRequest{
-		OP: ExpireInodeDiscarderOp,
-	}
+	model.ByteOrder.PutUint64(id.req.Data[0:8], inode)
+	model.ByteOrder.PutUint32(id.req.Data[8:12], mountID)
 
-	model.ByteOrder.PutUint64(req.Data[0:8], inode)
-	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
-
-	return id.erpc.Request(&req)
+	return id.erpc.Request(&id.req)
 }
 
 func (id *inodeDiscarders) setRevision(mountID uint32, revision uint32) {
@@ -229,6 +216,10 @@ var (
 
 // use a faster version of path.Dir which adds some sanity checks not required here
 func dirname(filename string) string {
+	if len(filename) == 0 {
+		return "/"
+	}
+
 	i := len(filename) - 1
 	for i >= 0 && filename[i] != '/' {
 		i--
@@ -238,7 +229,7 @@ func dirname(filename string) string {
 		return filename
 	}
 
-	if i == 0 {
+	if i <= 0 {
 		return "/"
 	}
 
@@ -355,7 +346,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 			}
 		}
 
-		return true, nil
+		return len(valueFncs) > 0, nil
 	}
 	id.parentDiscarderFncs[depth-1][field] = fnc
 
@@ -627,4 +618,7 @@ func init() {
 
 	allDiscarderHandlers["mprotect"] = processDiscarderWrapper(model.MProtectEventType, nil)
 	allDiscarderHandlers["ptrace"] = processDiscarderWrapper(model.PTraceEventType, nil)
+	allDiscarderHandlers["load_module"] = processDiscarderWrapper(model.LoadModuleEventType, nil)
+	allDiscarderHandlers["unload_module"] = processDiscarderWrapper(model.UnloadModuleEventType, nil)
+	allDiscarderHandlers["signal"] = processDiscarderWrapper(model.SignalEventType, nil)
 }

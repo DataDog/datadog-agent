@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -32,7 +32,7 @@ type Tags struct {
 // for the extension to collect them.
 type LambdaLogsCollector struct {
 	LogChannel             chan *logConfig.ChannelMessage
-	MetricChannel          chan []metrics.MetricSample
+	Demux                  aggregator.Demultiplexer
 	ExtraTags              *Tags
 	LogsEnabled            bool
 	EnhancedMetricsEnabled bool
@@ -272,7 +272,7 @@ func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	for _, message := range messages {
-		processMessage(message, c.GetExecutionContext, c.UpdateExecutionContextFromStartLog, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel, c.HandleRuntimeDone)
+		processMessage(message, c.GetExecutionContext, c.UpdateExecutionContextFromStartLog, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
@@ -294,7 +294,7 @@ func processMessage(
 	updateExecutionContextFromStartLog func(string, time.Time),
 	enhancedMetricsEnabled bool,
 	metricTags []string,
-	metricsChan chan []metrics.MetricSample,
+	demux aggregator.Demultiplexer,
 	handleRuntimeDone func(),
 ) {
 	ec := getExecutionContext()
@@ -313,7 +313,7 @@ func processMessage(
 	if enhancedMetricsEnabled {
 		tags := tags.AddColdStartTag(metricTags, ec.LastLogRequestID == ec.ColdstartRequestID)
 		if message.logType == logTypeFunction {
-			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, metricsChan)
+			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformReport {
 			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(
@@ -322,10 +322,10 @@ func processMessage(
 				message.objectRecord.reportLogItem.billedDurationMs,
 				message.objectRecord.reportLogItem.memorySizeMB,
 				message.objectRecord.reportLogItem.maxMemoryUsedMB,
-				message.time, tags, metricsChan)
+				message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(ec.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, metricsChan)
+			serverlessMetrics.GenerateRuntimeDurationMetric(ec.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
 		}
 	}
 

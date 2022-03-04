@@ -11,7 +11,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,7 +20,7 @@ const defaultTTL = 10 * time.Second
 type LocalResolver struct {
 	mux         sync.RWMutex
 	addrToCtrID map[model.ContainerAddr]string
-	ctrForPid   map[int32]string
+	ctrForPid   map[int]string
 	updated     time.Time
 }
 
@@ -31,7 +30,7 @@ type addrWithNS struct {
 }
 
 // LoadAddrs generates a map of network addresses to container IDs
-func (l *LocalResolver) LoadAddrs(containers []*containers.Container) {
+func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[int]string) {
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
@@ -41,24 +40,15 @@ func (l *LocalResolver) LoadAddrs(containers []*containers.Container) {
 
 	l.updated = time.Now()
 	l.addrToCtrID = make(map[model.ContainerAddr]string)
-	l.ctrForPid = make(map[int32]string)
+	l.ctrForPid = pidToCid
 	for _, ctr := range containers {
-		for _, pid := range ctr.Pids {
-			l.ctrForPid[pid] = ctr.ID
-		}
-
-		for _, networkAddr := range ctr.AddressList {
-			if networkAddr.IP.IsLoopback() {
+		for _, networkAddr := range ctr.Addresses {
+			parsedAddr := procutil.AddressFromString(networkAddr.Ip)
+			if parsedAddr.IsLoopback() {
 				continue
 			}
-			addr := model.ContainerAddr{
-				Ip:       networkAddr.IP.String(),
-				Port:     int32(networkAddr.Port),
-				Protocol: model.ConnectionType(model.ConnectionType_value[networkAddr.Protocol]),
-			}
-			l.addrToCtrID[addr] = ctr.ID
+			l.addrToCtrID[*networkAddr] = ctr.Id
 		}
-
 	}
 }
 
@@ -95,7 +85,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		raddr.ContainerId = l.addrToCtrID[addr]
 
 		// resolve laddr
-		cid, ok := l.ctrForPid[conn.Pid]
+		cid, ok := l.ctrForPid[int(conn.Pid)]
 		if !ok {
 			continue
 		}

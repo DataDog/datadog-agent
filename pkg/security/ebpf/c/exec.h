@@ -313,25 +313,28 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
+    u64 is_thread = 1;
 
     if (input == DO_FORK_STRUCT_INPUT) {
         void *args = (void *)PT_REGS_PARM1(ctx);
         int exit_signal;
         bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
 
-        // Only insert an entry if this is a thread
         if (exit_signal == SIGCHLD) {
-            return 0;
+            is_thread = 0;
         }
     } else {
         u64 flags = (u64)PT_REGS_PARM1(ctx);
         if ((flags & SIGCHLD) == SIGCHLD) {
-            return 0;
+            is_thread = 0;
         }
     }
 
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
+        .fork = {
+            .is_thread = is_thread,
+        },
     };
     cache_syscall(&syscall);
 
@@ -353,18 +356,34 @@ int kprobe__do_fork(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kretprobe/__task_pid_nr_ns")
-int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid_ns = (pid_t) PT_REGS_RC(ctx);
-
-    // no namespace
-    if (!pid_ns || pid_tgid>>32 == pid_ns) {
-      return 0;
+SEC("kretprobe/alloc_pid")
+int kretprobe_alloc_pid(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        return 0;
     }
 
-    register_pid_ns(pid_tgid, pid_ns);
+    // cache the struct pid in the syscall cache, it will be populated by `alloc_pid`
+    struct pid *pid = (struct pid *) PT_REGS_RC(ctx);
+    bpf_probe_read(&syscall->fork.pid, sizeof(syscall->fork.pid), &pid);
+    return 0;
+}
 
+// There is only one use case for this hook point: fetch the nr translation for a long running process in a container,
+// for which we missed the fork, and that finally decides to exec without cloning first.
+// Note that in most cases (except the exec one), bpf_get_current_pid_tgid won't match the input task.
+// TODO(will): replace this hook point by a snapshot
+SEC("kretprobe/__task_pid_nr_ns")
+int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    u32 root_nr = bpf_get_current_pid_tgid();
+    u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
+
+    register_nr(root_nr, namespace_nr);
     return 0;
 }
 
@@ -396,7 +415,15 @@ SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // check if this is a thread first
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (syscall) {
+    if (!syscall) {
+        return 0;
+    }
+
+    // cache namespace nr translations
+    cache_nr_translations(syscall->fork.pid);
+
+    // if this is a thread, leave
+    if (syscall->fork.is_thread) {
         return 0;
     }
 
@@ -479,6 +506,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
         unregister_span_memory();
     }
+
+    // remove nr translations
+    remove_nr(pid);
 
     return 0;
 }

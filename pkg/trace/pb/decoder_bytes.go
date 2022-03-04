@@ -247,3 +247,20 @@ func parseInt32Bytes(bts []byte) (int32, []byte, error) {
 		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.IntType}
 	}
 }
+
+// parseBytes reads the next BinType in the msgpack payload.
+func parseBytes(bts []byte) ([]byte, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return nil, bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	switch t {
+	case msgp.BinType:
+		return msgp.ReadBytesZC(bts)
+	default:
+		return nil, bts, msgp.TypeError{Encoded: t, Method: msgp.BinType}
+	}
+}

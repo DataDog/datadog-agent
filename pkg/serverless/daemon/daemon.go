@@ -171,12 +171,12 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 	d.mux.Handle(route, &serverlessLog.LambdaLogsCollector{
 		ExtraTags:                          d.ExtraTags,
 		LogChannel:                         logsChan,
-		MetricChannel:                      d.MetricAgent.GetMetricChannel(),
 		LogsEnabled:                        logsEnabled,
 		EnhancedMetricsEnabled:             enhancedMetricsEnabled,
 		HandleRuntimeDone:                  d.HandleRuntimeDone,
 		GetExecutionContext:                d.GetExecutionContext,
 		UpdateExecutionContextFromStartLog: d.UpdateExecutionContextFromStartLog,
+		Demux:                              d.MetricAgent.Demux,
 	})
 }
 

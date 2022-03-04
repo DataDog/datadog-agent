@@ -6,8 +6,8 @@
 package eval
 
 import (
+	"fmt"
 	"reflect"
-	"unsafe"
 
 	"github.com/pkg/errors"
 
@@ -132,89 +132,6 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
-func combineRegisters(combinations []Registers, regID RegisterID, values []unsafe.Pointer) []Registers {
-	var combined []Registers
-
-	if len(combinations) == 0 {
-		for _, value := range values {
-			registers := make(Registers)
-			registers[regID] = &Register{
-				Value: value,
-			}
-			combined = append(combined, registers)
-		}
-
-		return combined
-	}
-
-	for _, combination := range combinations {
-		for _, value := range values {
-			regs := combination.Clone()
-			regs[regID] = &Register{
-				Value: value,
-			}
-			combined = append(combined, regs)
-		}
-	}
-
-	return combined
-}
-
-func handleRegisters(evalFnc BoolEvalFnc, registersInfo map[RegisterID]*registerInfo) BoolEvalFnc {
-	return func(ctx *Context) bool {
-		ctx.Registers = make(Registers)
-
-		// start with the head of all register
-		for id, info := range registersInfo {
-			ctx.Registers[id] = &Register{
-				Value:    info.iterator.Front(ctx),
-				iterator: info.iterator,
-			}
-		}
-
-		// capture all the values for each register
-		registerValues := make(map[RegisterID][]unsafe.Pointer)
-
-		for id, reg := range ctx.Registers {
-			values := []unsafe.Pointer{}
-			for reg.Value != nil {
-				// short cut if we find a solution while constructing the combinations
-				if evalFnc(ctx) {
-					return true
-				}
-				values = append(values, reg.Value)
-
-				reg.Value = reg.iterator.Next()
-			}
-			registerValues[id] = values
-
-			// restore the head value
-			reg.Value = reg.iterator.Front(ctx)
-		}
-
-		// no need to combine there is only one registers used
-		if len(registersInfo) == 1 {
-			return false
-		}
-
-		// generate all the combinations
-		var combined []Registers
-		for id, values := range registerValues {
-			combined = combineRegisters(combined, id, values)
-		}
-
-		// eval the combinations
-		for _, registers := range combined {
-			ctx.Registers = registers
-			if evalFnc(ctx) {
-				return true
-			}
-		}
-
-		return false
-	}
-}
-
 func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range opts.Macros {
@@ -243,13 +160,6 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 			return evalBool.Value
 		}
 	}
-
-	// NOTE: currently we use only array we random register. Only the iterator on array will be handled
-	// properly we will uncomment the following lines
-	/*if len(state.registersInfo) > 0 {
-		// rule uses register replace the original eval function with the one handling registers
-		evalBool.EvalFnc = handleRegisters(evalBool.EvalFnc, state.registersInfo)
-	}*/
 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
@@ -285,16 +195,22 @@ func (r *Rule) genMacroPartials() (map[Field]map[MacroID]*MacroEvaluator, error)
 	partials := make(map[Field]map[MacroID]*MacroEvaluator)
 	for _, field := range r.GetFields() {
 		for id, macro := range r.Opts.Macros {
-
-			// NOTE(safchain) this is not working with nested macro. It will be removed once partial
-			// will be generated another way
-			evaluator, err := macroToEvaluator(macro.ast, r.Model, r.Opts, field)
-			if err != nil {
-				if err, ok := err.(*ErrAstToEval); ok {
-					return nil, errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: macro.Expression}, "macro syntax error")
+			var err error
+			var evaluator *MacroEvaluator
+			if macro.ast != nil {
+				// NOTE(safchain) this is not working with nested macro. It will be removed once partial
+				// will be generated another way
+				evaluator, err = macroToEvaluator(macro.ast, r.Model, r.Opts, field)
+				if err != nil {
+					if err, ok := err.(*ErrAstToEval); ok {
+						return nil, fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos})
+					}
+					return nil, fmt.Errorf("macro compilation error: %w", err)
 				}
-				return nil, errors.Wrap(err, "macro compilation error")
+			} else {
+				evaluator = macro.GetEvaluator()
 			}
+
 			macroEvaluators, exists := partials[field]
 			if !exists {
 				macroEvaluators = make(map[MacroID]*MacroEvaluator)
@@ -330,19 +246,6 @@ func (r *Rule) GenPartials() error {
 			pEvalBool.EvalFnc = func(ctx *Context) bool {
 				return pEvalBool.Value
 			}
-		}
-
-		// rule uses register replace the original eval function with the one handling registers
-		if len(state.registersInfo) > 0 {
-			// generate register map for the given field only
-			registersInfo := make(map[RegisterID]*registerInfo)
-			for regID, info := range state.registersInfo {
-				if _, exists := info.subFields[field]; exists {
-					registersInfo[regID] = info
-				}
-			}
-
-			pEvalBool.EvalFnc = handleRegisters(pEvalBool.EvalFnc, registersInfo)
 		}
 
 		r.evaluator.setPartial(field, pEvalBool.EvalFnc)

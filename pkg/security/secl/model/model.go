@@ -85,6 +85,12 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 		if value := fieldValue.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
 			return errors.New("return value can only be tested against EPERM or EACCES")
 		}
+	case "bpf.map.name", "bpf.prog.name":
+		if value, ok := fieldValue.Value.(string); ok {
+			if len(value) > MaxBpfObjName {
+				return fmt.Errorf("the name provided in %s must be at most %d characters, len(\"%s\") = %d", field, MaxBpfObjName, value, len(value))
+			}
+		}
 	}
 
 	return nil
@@ -141,12 +147,15 @@ type Event struct {
 	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
+	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 
-	SELinux  SELinuxEvent  `field:"selinux" event:"selinux"`   // [7.30] [Kernel] An SELinux operation was run
-	BPF      BPFEvent      `field:"bpf" event:"bpf"`           // [7.33] [Kernel] A BPF command was executed
-	PTrace   PTraceEvent   `field:"ptrace" event:"ptrace"`     // [7.34] [Kernel] [Experimental] A ptrace command was executed
-	MMap     MMapEvent     `field:"mmap" event:"mmap"`         // [7.34] [Kernel] [Experimental] A mmap command was executed
-	MProtect MProtectEvent `field:"mprotect" event:"mprotect"` // [7.34] [Kernel] [Experimental] A mprotect command was executed
+	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
+	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
+	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace"`               // [7.35] [Kernel] A ptrace command was executed
+	MMap         MMapEvent         `field:"mmap" event:"mmap"`                   // [7.35] [Kernel] A mmap command was executed
+	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
+	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
+	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -278,13 +287,15 @@ type Process struct {
 	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                           // Arguments of the process (as a string)
 	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags" field:"args_options,ResolveProcessArgsOptions"` // Arguments of the process (as an array)
 	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                            // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variables of the process
+	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variable names of the process
+	Envp          []string `field:"envp,ResolveProcessEnvp:100"`                                                                                           // Environment variables of the process
 	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
 
 	// cache version
-	ScrubbedArgvResolved  bool     `field:"-"`
-	ScrubbedArgv          []string `field:"-"`
-	ScrubbedArgsTruncated bool     `field:"-"`
+	ScrubbedArgvResolved  bool           `field:"-"`
+	ScrubbedArgv          []string       `field:"-"`
+	ScrubbedArgsTruncated bool           `field:"-"`
+	Variables             eval.Variables `field:"-"`
 }
 
 // SpanContext describes a span context
@@ -465,17 +476,24 @@ type ProcessCacheEntry struct {
 
 	refCount  uint64                     `field:"-"`
 	onRelease func(_ *ProcessCacheEntry) `field:"-"`
+	releaseCb func()                     `field:"-"`
 }
 
 // Reset the entry
 func (e *ProcessCacheEntry) Reset() {
 	e.ProcessContext = zeroProcessContext
 	e.refCount = 0
+	e.releaseCb = nil
 }
 
 // Retain increment ref counter
 func (e *ProcessCacheEntry) Retain() {
 	e.refCount++
+}
+
+// SetReleaseCallback set the callback called when the entry is released
+func (e *ProcessCacheEntry) SetReleaseCallback(callback func()) {
+	e.releaseCb = callback
 }
 
 // Release decrement and eventually release the entry
@@ -488,13 +506,15 @@ func (e *ProcessCacheEntry) Release() {
 	if e.onRelease != nil {
 		e.onRelease(e)
 	}
+
+	if e.releaseCb != nil {
+		e.releaseCb()
+	}
 }
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		onRelease: onRelease,
-	}
+	return &ProcessCacheEntry{onRelease: onRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -594,26 +614,27 @@ type BPFEvent struct {
 type BPFMap struct {
 	ID   uint32 `field:"-"`    // ID of the eBPF map
 	Type uint32 `field:"type"` // Type of the eBPF map
-	Name string `field:"-"`    // Name of the eBPF map
+	Name string `field:"name"` // Name of the eBPF map (added in 7.35)
 }
 
 // BPFProgram represents a BPF program
 type BPFProgram struct {
-	ID         uint32   `field:"-"`                // ID of the eBPF program
-	Type       uint32   `field:"type"`             // Type of the eBPF program
-	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
-	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
-	Name       string   `field:"-"`                // Name of the eBPF program
+	ID         uint32   `field:"-"`                      // ID of the eBPF program
+	Type       uint32   `field:"type"`                   // Type of the eBPF program
+	AttachType uint32   `field:"attach_type"`            // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers,ResolveHelpers"` // eBPF helpers used by the eBPF program (added in 7.35)
+	Name       string   `field:"name"`                   // Name of the eBPF program (added in 7.35)
+	Tag        string   `field:"tag"`                    // Hash (sha1) of the eBPF program (added in 7.35)
 }
 
 // PTraceEvent represents a ptrace event
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request                 uint32             `field:"request"`
+	Request                 uint32             `field:"request"` //  ptrace request
 	PID                     uint32             `field:"-"`
 	Address                 uint64             `field:"-"`
-	Tracee                  ProcessContext     `field:"tracee"`
+	Tracee                  ProcessContext     `field:"tracee"` // process context of the tracee
 	TraceeProcessCacheEntry *ProcessCacheEntry `field:"-"`
 }
 
@@ -625,8 +646,8 @@ type MMapEvent struct {
 	Addr       uint64    `field:"-"`
 	Offset     uint64    `field:"-"`
 	Len        uint32    `field:"-"`
-	Protection int       `field:"protection"`
-	Flags      int       `field:"flags"`
+	Protection int       `field:"protection"` // memory segment protection
+	Flags      int       `field:"flags"`      // memory segment flags
 }
 
 // MProtectEvent represents a mprotect event
@@ -635,6 +656,32 @@ type MProtectEvent struct {
 
 	VMStart       uint64 `field:"-"`
 	VMEnd         uint64 `field:"-"`
-	VMProtection  int    `field:"vm_protection"`
-	ReqProtection int    `field:"req_protection"`
+	VMProtection  int    `field:"vm_protection"`  // initial memory segment protection
+	ReqProtection int    `field:"req_protection"` // new memory segment protection
+}
+
+// LoadModuleEvent represents a load_module event
+type LoadModuleEvent struct {
+	SyscallEvent
+
+	File             FileEvent `field:"file"`               // Path to the kernel module file
+	LoadedFromMemory bool      `field:"loaded_from_memory"` // Indicates if the kernel module was loaded from memory
+	Name             string    `field:"name"`               // Name of the new kernel module
+}
+
+// UnloadModuleEvent represents an unload_module event
+type UnloadModuleEvent struct {
+	SyscallEvent
+
+	Name string `field:"name"` // Name of the kernel module that was deleted
+}
+
+// SignalEvent represents a signal event
+type SignalEvent struct {
+	SyscallEvent
+
+	Type                    uint32             `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID                     uint32             `field:"pid"`    // Target PID
+	Target                  ProcessContext     `field:"target"` // Target process context
+	TargetProcessCacheEntry *ProcessCacheEntry `field:"-"`
 }

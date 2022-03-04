@@ -91,6 +91,48 @@ func TestGetInstanceIdentity(t *testing.T) {
 	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
 }
 
+func TestFetchEc2TagsFromIMDS(t *testing.T) {
+	ctx := context.Background()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/tags/instance":
+			io.WriteString(w, "Name\nPurpose") // no trailing newline
+		case "/tags/instance/Name":
+			io.WriteString(w, "some-vm")
+		case "/tags/instance/Purpose":
+			io.WriteString(w, "mining")
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	defer resetPackageVars()
+
+	tags, err := fetchEc2TagsFromIMDS(ctx)
+	require.Nil(t, err)
+	assert.Equal(t, []string{
+		"Name:some-vm",
+		"Purpose:mining",
+	}, tags)
+}
+
+func TestFetchEc2TagsFromIMDSError(t *testing.T) {
+	ctx := context.Background()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	defer resetPackageVars()
+
+	_, err := fetchEc2TagsFromIMDS(ctx)
+	require.Error(t, err)
+}
+
 func mockFetchTagsSuccess(ctx context.Context) ([]string, error) {
 	fmt.Printf("mockFetchTagsSuccess !!!!!!!!\n")
 	return []string{"tag1", "tag2"}, nil

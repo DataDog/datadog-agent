@@ -128,6 +128,11 @@ struct syscall_cache_t {
         } exec;
 
         struct {
+            u32 is_thread;
+            struct pid *pid;
+        } fork;
+
+        struct {
             struct dentry *dentry;
             struct file_t file;
             u32 event_kind;
@@ -164,6 +169,22 @@ struct syscall_cache_t {
             u64 vm_protection;
             u64 req_protection;
         } mprotect;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            char name[MODULE_NAME_LEN];
+            u32 loaded_from_memory;
+        } init_module;
+
+        struct {
+            char *name;
+        } delete_module;
+
+        struct {
+            u32 pid;
+            u32 type;
+        } signal;
     };
 };
 

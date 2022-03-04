@@ -11,7 +11,6 @@ package docker
 import (
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -21,39 +20,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 )
 
-func createContainerMeta(runtime, cID string) *workloadmeta.Container {
-	return &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   cID,
-		},
-		Runtime: workloadmeta.ContainerRuntime(runtime),
-		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
-		},
-	}
-}
-
 func TestDockerCheckGenericPart(t *testing.T) {
 	// Creating mocks
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
-		createContainerMeta("docker", "cID100"),
+		generic.CreateContainerMeta("docker", "cID100"),
 		// Should never been called as we are in the Docker check
-		createContainerMeta("containerd", "cID101"),
+		generic.CreateContainerMeta("containerd", "cID101"),
 	}
 
-	containersStats := map[string]metrics.MockContainerEntry{
-		"cID100": metrics.GetFullSampleContainerEntry(),
-		"cID101": metrics.GetFullSampleContainerEntry(),
+	containersStats := map[string]mock.ContainerEntry{
+		"cID100": mock.GetFullSampleContainerEntry(),
+		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 
 	// Inject mock processor in check
