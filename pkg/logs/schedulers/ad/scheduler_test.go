@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setup() (scheduler *Scheduler, spy *schedulers.SourceManagerSpy) {
+func setup() (scheduler *Scheduler, spy *schedulers.MockSourceManager) {
 	scheduler = New().(*Scheduler)
-	spy = &schedulers.SourceManagerSpy{}
+	spy = &schedulers.MockSourceManager{}
 	scheduler.mgr = spy
 	return scheduler, spy
 }

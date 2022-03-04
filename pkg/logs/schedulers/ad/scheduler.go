@@ -23,7 +23,7 @@ import (
 
 var (
 	// ADMetaScheduler is the metaScheduler that is set up early in agent
-	// initialization.  We get a copy of it during that process, for use later.
+	// initialization.  We get a pointer to it during that process, for use later.
 	ADMetaScheduler *adScheduler.MetaScheduler
 )
 
@@ -52,6 +52,7 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 // Stop implements schedulers.Scheduler#Stop.
 func (s *Scheduler) Stop() {
 	ADMetaScheduler.Deregister("logs")
+	s.mgr = nil
 }
 
 // Schedule creates new sources and services from a list of integration configs.

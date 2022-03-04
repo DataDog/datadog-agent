@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// sourceManager implements SourceManager.
+// sourceManager implements the SourceManager interface.
 //
 // NOTE: when support for services is removed, this struct will be unnecessary,
 // as config.Sources will satisfy the interface.
@@ -39,8 +39,8 @@ func (sm *sourceManager) RemoveService(service *service.Service) {
 	sm.services.RemoveService(service)
 }
 
-// SpyAddRemove is an event observed by SourceManagerSpy
-type SpyAddRemove struct {
+// MockAddRemove is an event observed by MockSourceManager
+type MockAddRemove struct {
 	// Added is true if this source was added; otherwise it was removed
 	Add bool
 
@@ -51,32 +51,32 @@ type SpyAddRemove struct {
 	Service *service.Service
 }
 
-// SourceManagerSpy is a "spy" that records the AddSource and RemoveSource
+// MockSourceManager is a "spy" that records the AddSource and RemoveSource
 // calls that it receives.
 //
 // This is a useful tool in testing schedulers.  Its zero value is a valid
 // beginning state.
-type SourceManagerSpy struct {
+type MockSourceManager struct {
 	// Events are the events that occurred in the spy
-	Events []SpyAddRemove
+	Events []MockAddRemove
 }
 
 // AddSource implements SourceManager#AddSource.
-func (sm *SourceManagerSpy) AddSource(source *logsConfig.LogSource) {
-	sm.Events = append(sm.Events, SpyAddRemove{Add: true, Source: source})
+func (sm *MockSourceManager) AddSource(source *logsConfig.LogSource) {
+	sm.Events = append(sm.Events, MockAddRemove{Add: true, Source: source})
 }
 
 // RemoveSource implements SourceManager#RemoveSource.
-func (sm *SourceManagerSpy) RemoveSource(source *logsConfig.LogSource) {
-	sm.Events = append(sm.Events, SpyAddRemove{Add: false, Source: source})
+func (sm *MockSourceManager) RemoveSource(source *logsConfig.LogSource) {
+	sm.Events = append(sm.Events, MockAddRemove{Add: false, Source: source})
 }
 
 // AddService implements SourceManager#AddService.
-func (sm *SourceManagerSpy) AddService(service *service.Service) {
-	sm.Events = append(sm.Events, SpyAddRemove{Add: true, Service: service})
+func (sm *MockSourceManager) AddService(service *service.Service) {
+	sm.Events = append(sm.Events, MockAddRemove{Add: true, Service: service})
 }
 
 // RemoveService implements SourceManager#RemoveService.
-func (sm *SourceManagerSpy) RemoveService(service *service.Service) {
-	sm.Events = append(sm.Events, SpyAddRemove{Add: false, Service: service})
+func (sm *MockSourceManager) RemoveService(service *service.Service) {
+	sm.Events = append(sm.Events, MockAddRemove{Add: false, Service: service})
 }

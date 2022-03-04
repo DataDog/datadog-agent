@@ -39,6 +39,7 @@ type SourceManager interface {
 	// AddService adds a new service to the logs agent.
 	AddService(service *service.Service)
 
-	// RemoveService removes a service added with AddService
+	// RemoveService removes a service added with AddService.  The source
+	// is recognized by pointer equality.
 	RemoveService(service *service.Service)
 }
