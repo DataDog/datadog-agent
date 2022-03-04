@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,6 +46,15 @@ type kprobeTracer struct {
 
 	pidCollisions int64
 	removeTuple   *netebpf.ConnTuple
+
+	telemetry telemetry
+}
+
+type telemetry struct {
+	tcpConns4, tcpConns6 int64 `stats:"atomic"`
+	udpConns4, udpConns6 int64 `stats:"atomic"`
+
+	reporter stats.Reporter
 }
 
 func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
@@ -152,6 +162,11 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
 	}
 
+	tr.telemetry.reporter, err = stats.NewReporter(&tr.telemetry)
+	if err != nil {
+		return nil, fmt.Errorf("error creating stats reporter: %w", err)
+	}
+
 	return tr, nil
 }
 
@@ -203,9 +218,13 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
+	var tel telemetry
 	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
+
+		tel.addConnection(conn)
+
 		if filter != nil && !filter(conn) {
 			continue
 		}
@@ -219,7 +238,56 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
+	t.telemetry.assign(tel)
+
 	return nil
+}
+
+func (t *telemetry) assign(other telemetry) {
+	atomic.StoreInt64(&t.tcpConns4, other.tcpConns4)
+	atomic.StoreInt64(&t.tcpConns6, other.tcpConns6)
+	atomic.StoreInt64(&t.udpConns4, other.udpConns4)
+	atomic.StoreInt64(&t.udpConns6, other.udpConns6)
+}
+
+func (t *telemetry) addConnection(conn *network.ConnectionStats) {
+	isTcp := conn.Type == network.TCP
+	switch conn.Family {
+	case network.AFINET6:
+		if isTcp {
+			atomic.AddInt64(&t.tcpConns6, 1)
+		} else {
+			atomic.AddInt64(&t.udpConns6, 1)
+		}
+	case network.AFINET:
+		if isTcp {
+			atomic.AddInt64(&t.tcpConns4, 1)
+		} else {
+			atomic.AddInt64(&t.udpConns4, 1)
+		}
+	}
+}
+
+func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
+	isTcp := conn.Type == network.TCP
+	switch conn.Family {
+	case network.AFINET6:
+		if isTcp {
+			atomic.AddInt64(&t.tcpConns6, -1)
+		} else {
+			atomic.AddInt64(&t.udpConns6, -1)
+		}
+	case network.AFINET:
+		if isTcp {
+			atomic.AddInt64(&t.tcpConns4, -1)
+		} else {
+			atomic.AddInt64(&t.udpConns4, -1)
+		}
+	}
+}
+
+func (t *telemetry) get() map[string]interface{} {
+	return t.reporter.Report()
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
@@ -251,6 +319,8 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
+	t.telemetry.removeConnection(conn)
+
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
 	t.removeTuple.Pid = 0
 	// We can ignore the error for this map since it will not always contain the entry
@@ -277,7 +347,7 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	closeStats := t.closeConsumer.GetStats()
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
-	return map[string]int64{
+	stats := map[string]int64{
 		"closed_conn_polling_lost":     closeStats[perfLostStat],
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
@@ -289,6 +359,12 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"udp_sends_missed":           int64(telemetry.Udp_sends_missed),
 		"conn_stats_max_entries_hit": int64(telemetry.Conn_stats_max_entries_hit),
 	}
+
+	for k, v := range t.telemetry.get() {
+		stats[k] = v.(int64)
+	}
+
+	return stats
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

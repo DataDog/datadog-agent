@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -50,7 +51,7 @@ type Tracer struct {
 	ebpfTracer  connection.Tracer
 
 	// Telemetry
-	skippedConns int64
+	skippedConns int64 `stats:"atomic"`
 	// Will track the count of expired TCP connections
 	// We are manually expiring TCP connections because it seems that we are losing some TCP close events
 	// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
@@ -63,9 +64,9 @@ type Tracer struct {
 	//
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
-	expiredTCPConns  int64
-	closedConns      int64
-	connStatsMapSize int64
+	expiredTCPConns  int64 `stats:"atomic"`
+	closedConns      int64 `stats:"atomic"`
+	connStatsMapSize int64 `stats:"atomic"`
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -81,6 +82,8 @@ type Tracer struct {
 
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
+
+	statsReporter stats.Reporter
 }
 
 func NewTracer(config *config.Config) (*Tracer, error) {
@@ -156,6 +159,10 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   newGatewayLookup(config),
 		ebpfTracer:                 ebpfTracer,
+	}
+
+	if tr.statsReporter, err = stats.NewReporter(tr); err != nil {
+		return nil, fmt.Errorf("could not initialize stats: %w", err)
 	}
 
 	err = ebpfTracer.Start(tr.storeClosedConnections)
@@ -345,7 +352,12 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
 	}
 
-	conntrackStats := t.conntracker.GetStats()
+	stats, err := t.getStats([]string{"conntrack", "dns", "ebpf"})
+	if err != nil {
+		return nil
+	}
+
+	conntrackStats := stats["conntrack"].(map[string]int64)
 	if rt, ok := conntrackStats["registers_total"]; ok {
 		tm[network.MonotonicConntrackRegisters] = rt
 	}
@@ -356,7 +368,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		tm[network.ConntrackSamplingPercent] = sp
 	}
 
-	dnsStats := t.reverseDNS.GetStats()
+	dnsStats := stats["dns"].(map[string]int64)
 	if pp, ok := dnsStats["packets_processed"]; ok {
 		tm[network.MonotonicDNSPacketsProcessed] = pp
 	}
@@ -365,7 +377,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		tm[network.DNSStatsDropped] = ds
 	}
 
-	ebpfStats := t.ebpfTracer.GetTelemetry()
+	ebpfStats := stats["ebpf"].(map[string]int64)
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
 		tm[network.MonotonicUDPSendsProcessed] = usp
 	}
@@ -525,38 +537,48 @@ func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
 	return defaultUDPConnTimeoutNanoSeconds
 }
 
-// GetStats returns a map of statistics about the current tracer's internal state
-func (t *Tracer) GetStats() (map[string]interface{}, error) {
+func (t *Tracer) getStats(comps []string) (map[string]interface{}, error) {
 	if t.state == nil {
 		return nil, fmt.Errorf("internal state not yet initialized")
 	}
 
-	skipped := atomic.LoadInt64(&t.skippedConns)
-	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
-	connStatsMapSize := atomic.LoadInt64(&t.connStatsMapSize)
-
-	tracerStats := map[string]int64{
-		"conn_valid_skipped":  skipped, // Skipped connections (e.g. Local DNS requests)
-		"expired_tcp_conns":   expiredTCP,
-		"conn_stats_map_size": connStatsMapSize,
-	}
-	for k, v := range runtime.Tracer.GetTelemetry() {
-		tracerStats[k] = v
+	if len(comps) == 0 {
+		comps = []string{
+			"conntrack",
+			"dns",
+			"ebpf",
+			"kprobes",
+			"state",
+			"tracer",
+		}
 	}
 
-	stateStats := t.state.GetStats()
-	conntrackStats := t.conntracker.GetStats()
-
-	ret := map[string]interface{}{
-		"conntrack": conntrackStats,
-		"state":     stateStats["telemetry"],
-		"tracer":    tracerStats,
-		"ebpf":      t.ebpfTracer.GetTelemetry(),
-		"kprobes":   ddebpf.GetProbeStats(),
-		"dns":       t.reverseDNS.GetStats(),
+	ret := map[string]interface{}{}
+	for _, c := range comps {
+		switch c {
+		case "conntrack":
+			ret[c] = t.conntracker.GetStats()
+		case "dns":
+			ret[c] = t.reverseDNS.GetStats()
+		case "ebpf":
+			ret[c] = t.ebpfTracer.GetTelemetry()
+		case "kprobes":
+			ret[c] = ddebpf.GetProbeStats()
+		case "state":
+			ret[c] = t.state.GetStats()
+		case "tracer":
+			tracerStats := t.statsReporter.Report()
+			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
+			ret[c] = tracerStats
+		}
 	}
 
 	return ret, nil
+}
+
+// GetStats returns a map of statistics about the current tracer's internal state
+func (t *Tracer) GetStats() (map[string]interface{}, error) {
+	return t.getStats(nil)
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging
