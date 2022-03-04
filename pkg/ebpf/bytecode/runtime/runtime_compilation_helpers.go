@@ -199,6 +199,7 @@ func Sha256hex(buf []byte) (string, error) {
 	return hex.EncodeToString(cCodeHash), nil
 }
 
+// UnameHash returns a sha256 hash of the uname release and version
 func UnameHash(uname *unix.Utsname) (string, error) {
 	bytes := make([]byte, 0, len(uname.Release)+len(uname.Version))
 	bytes = append(bytes, uname.Release[:]...)
