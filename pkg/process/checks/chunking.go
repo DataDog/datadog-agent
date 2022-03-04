@@ -98,11 +98,17 @@ func chunkPayloadsBySizeAndWeight(l payloadList, a chunkAllocator, maxChunkSize 
 
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
 func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container, maxChunkSize, maxChunkWeight int, chunker *collectorProcChunker) {
-	// Use the last available chunk as it may have some space for payloads
-	chunker.idx = 0
-	if len(chunker.collectorProcs) > 1 {
-		chunker.idx = len(chunker.collectorProcs) - 1
+	if ctr != nil && len(procs) == 0 {
+		// can happen in two scenarios, and we still need to report the container
+		// a) if a process is skipped (e.g. disallowlisted)
+		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows)
+		chunker.appendContainerWithoutProcesses(ctr)
+		return
 	}
+
+	// Use the last available chunk as it may have some space for payloads
+	chunker.setLastChunk()
+
 	// Processes that have a related container will add this container to every chunk they are split across
 	// This may result in the same container being sent in multiple payloads from the agent
 	// Note that this is necessary because container process tags (sent within `model.Container`) are only resolved from
@@ -207,6 +213,21 @@ func (c *collectorProcChunker) Accept(procs []*model.Process, weight int) {
 	collectorProc.Processes = append(collectorProc.Processes, procs...)
 	c.props[c.idx].size += len(procs)
 	c.props[c.idx].weight += weight
+}
+
+func (c *collectorProcChunker) setLastChunk() {
+	c.idx = 0
+	if len(c.collectorProcs) > 1 {
+		c.idx = len(c.collectorProcs) - 1
+	}
+}
+
+func (c *collectorProcChunker) appendContainerWithoutProcesses(ctr *model.Container) {
+	if len(c.collectorProcs) == 0 {
+		c.collectorProcs = append(c.collectorProcs, &model.CollectorProc{})
+	}
+	collectorProc := c.collectorProcs[len(c.collectorProcs)-1]
+	collectorProc.Containers = append(collectorProc.Containers, ctr)
 }
 
 var (

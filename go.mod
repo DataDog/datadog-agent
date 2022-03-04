@@ -53,16 +53,17 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.15
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.35.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.35.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.35.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.35.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.35.0-rc.1
+	github.com/DataDog/agent-payload/v5 v5.0.16
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/log v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.35.0-rc.4
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
+	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
 	github.com/DataDog/ebpf-manager v0.0.0-20220214105236-0904578096f4
 	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
 	github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a
@@ -144,7 +145,7 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.4.1
 	github.com/mholt/archiver/v3 v3.5.1
-	github.com/miekg/dns v1.1.45
+	github.com/miekg/dns v1.1.43
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/sys/mountinfo v0.5.0
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb

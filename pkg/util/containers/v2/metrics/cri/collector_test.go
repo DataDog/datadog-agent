@@ -50,7 +50,7 @@ func TestGetContainerStats(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, pointer.UIntToFloatPtr(1000), stats.CPU.Total)
-	assert.Equal(t, pointer.UIntToFloatPtr(1024), stats.Memory.RSS)
+	assert.Equal(t, pointer.UIntToFloatPtr(1024), stats.Memory.UsageTotal)
 }
 
 func TestGetContainerNetworkStats(t *testing.T) {

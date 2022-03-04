@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
-// +build !linux
+package system
 
-package network
-
-// GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
-func GetStaticTags(staticTags uint64) (tags []string) {
-	return tags
+// NetworkRoute holds one network destination subnet and it's linked interface name
+type NetworkRoute struct {
+	Interface string
+	Subnet    uint64
+	Gateway   uint64
+	Mask      uint64
 }

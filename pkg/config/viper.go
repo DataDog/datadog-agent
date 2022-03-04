@@ -95,8 +95,14 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	// inside it is set.
 	// This is needed when keys within the section
 	// are set through env variables.
+
+	// Add trailing . to make sure we don't take into account unrelated
+	// settings, eg. IsSectionSet("section") shouldn't return true
+	// if "section_key" is set.
+	sectionPrefix := section + "."
+
 	for _, key := range c.AllKeys() {
-		if strings.HasPrefix(key, section) && c.IsSet(key) {
+		if strings.HasPrefix(key, sectionPrefix) && c.IsSet(key) {
 			return true
 		}
 	}

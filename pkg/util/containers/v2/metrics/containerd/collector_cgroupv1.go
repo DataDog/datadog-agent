@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build containerd
-// +build containerd
+//go:build containerd && linux
+// +build containerd,linux
 
 package containerd
 
@@ -13,15 +13,12 @@ import (
 	"time"
 
 	v1 "github.com/containerd/cgroups/stats/v1"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/oci"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-func getContainerdStatsV1(metrics *v1.Metrics, container containers.Container, OCISpec *oci.Spec, processes []containerd.ProcessInfo) *provider.ContainerStats {
+func getContainerdStatsV1(metrics *v1.Metrics) *provider.ContainerStats {
 	if metrics == nil {
 		return nil
 	}
@@ -30,13 +27,13 @@ func getContainerdStatsV1(metrics *v1.Metrics, container containers.Container, O
 
 	return &provider.ContainerStats{
 		Timestamp: currentTime,
-		CPU:       getCPUStatsCgroupV1(metrics.CPU, currentTime, container.CreatedAt, OCISpec),
+		CPU:       getCPUStatsCgroupV1(metrics.CPU),
 		Memory:    getMemoryStatsCgroupV1(metrics.Memory),
-		IO:        getIOStatsCgroupV1(metrics.Blkio, processes),
+		IO:        getIOStatsCgroupV1(metrics.Blkio),
 	}
 }
 
-func getCPUStatsCgroupV1(cpuStat *v1.CPUStat, currentTime time.Time, startTime time.Time, OCISpec *oci.Spec) *provider.ContainerCPUStats {
+func getCPUStatsCgroupV1(cpuStat *v1.CPUStat) *provider.ContainerCPUStats {
 	if cpuStat == nil {
 		return nil
 	}
@@ -53,8 +50,6 @@ func getCPUStatsCgroupV1(cpuStat *v1.CPUStat, currentTime time.Time, startTime t
 		res.ThrottledPeriods = pointer.UIntToFloatPtr(cpuStat.Throttling.ThrottledPeriods)
 		res.ThrottledTime = pointer.UIntToFloatPtr(cpuStat.Throttling.ThrottledTime)
 	}
-
-	res.Limit = getContainerdCPULimit(currentTime, startTime, OCISpec)
 
 	return &res
 }
@@ -85,7 +80,7 @@ func getMemoryStatsCgroupV1(memStat *v1.MemoryStat) *provider.ContainerMemStats 
 	return &res
 }
 
-func getIOStatsCgroupV1(blkioStat *v1.BlkIOStat, processes []containerd.ProcessInfo) *provider.ContainerIOStats {
+func getIOStatsCgroupV1(blkioStat *v1.BlkIOStat) *provider.ContainerIOStats {
 	if blkioStat == nil {
 		return nil
 	}

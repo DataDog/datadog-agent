@@ -25,10 +25,6 @@ const (
 	NetworkExtensionID = "network"
 )
 
-var defaultExtensions = map[string]ProcessorExtension{
-	NetworkExtensionID: NewProcessorNetwork(),
-}
-
 // Processor contains the core logic of the generic check, allowing reusability
 type Processor struct {
 	metricsProvider metrics.Provider
@@ -45,7 +41,9 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 		ctrLister:       lister,
 		metricsAdapter:  adapter,
 		ctrFilter:       filter,
-		extensions:      defaultExtensions,
+		extensions: map[string]ProcessorExtension{
+			NetworkExtensionID: NewProcessorNetwork(),
+		},
 	}
 }
 

@@ -10,6 +10,7 @@ package docker
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/decoder/breaker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 )
 
@@ -23,7 +24,7 @@ const (
 )
 
 type headerMatcher struct {
-	decoder.EndLineMatcher
+	breaker.EndLineMatcher
 }
 
 // SeparatorLen returns the number of byte to skip at the end of each line

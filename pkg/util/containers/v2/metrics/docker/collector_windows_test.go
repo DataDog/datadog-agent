@@ -59,15 +59,12 @@ func Test_convertMemoryStats(t *testing.T) {
 		{
 			name: "basic",
 			input: types.MemoryStats{
-				Usage:             42,
-				Limit:             43,
 				Commit:            44,
 				CommitPeak:        45,
 				PrivateWorkingSet: 46,
 			},
 			expectedOutput: provider.ContainerMemStats{
-				UsageTotal:        pointer.Float64Ptr(42),
-				Limit:             pointer.Float64Ptr(43),
+				UsageTotal:        pointer.Float64Ptr(44),
 				PrivateWorkingSet: pointer.Float64Ptr(46),
 				CommitBytes:       pointer.Float64Ptr(44),
 				CommitPeakBytes:   pointer.Float64Ptr(45),

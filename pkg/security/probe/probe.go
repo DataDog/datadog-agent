@@ -506,19 +506,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
-		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
-
-		if _, err = p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
-			log.Debugf("failed to resolve exec path: %s", err)
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.processCacheEntry); err != nil {
+			log.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
-		p.resolvers.ProcessResolver.SetProcessFilesystem(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.SetProcessTTY(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.SetProcessUsersGroups(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
 
@@ -1088,6 +1078,7 @@ func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64,
 func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, probe *Probe) (map[string]uint64, error) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("dentry_sb_offset", "struct dentry", "d_sb", "linux/dcache.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
@@ -1108,5 +1099,6 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("pid_level_offset", "struct pid", "level", "linux/pid.h")
 	constantFetcher.AppendOffsetofRequest("pid_numbers_offset", "struct pid", "numbers", "linux/pid.h")
 	constantFetcher.AppendSizeofRequest("sizeof_upid", "struct upid", "linux/pid.h")
+
 	return constantFetcher.FinishAndGetResults()
 }

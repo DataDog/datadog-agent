@@ -7,13 +7,13 @@ replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
 replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.35.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.35.0-rc.4
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.4 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

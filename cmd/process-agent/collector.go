@@ -591,6 +591,11 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 			continue
 		}
 
+		// we don't need to decode the body in case of the pod check
+		if checkName == checks.Pod.Name() {
+			continue
+		}
+
 		r, err := model.DecodeMessage(response.Body)
 		if err != nil {
 			log.Errorf("[%s] Could not decode response body: %s", checkName, err)

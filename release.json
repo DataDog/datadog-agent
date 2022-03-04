@@ -1,8 +1,8 @@
 {
     "base_branch": "main",
     "last_stable": {
-        "6": "6.33.0",
-        "7": "7.33.0"
+        "6": "6.34.0",
+        "7": "7.34.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -29,9 +29,9 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "release-a6": {
-        "INTEGRATIONS_CORE_VERSION": "7.35.0-rc.1",
-        "OMNIBUS_SOFTWARE_VERSION": "7.35.0-rc.1",
-        "OMNIBUS_RUBY_VERSION": "7.35.0-rc.1",
+        "INTEGRATIONS_CORE_VERSION": "7.35.0-rc.4",
+        "OMNIBUS_SOFTWARE_VERSION": "7.35.0-rc.4",
+        "OMNIBUS_RUBY_VERSION": "7.35.0-rc.2",
         "JMXFETCH_VERSION": "0.44.6",
         "JMXFETCH_HASH": "dbd31f982328a3cf6b44c65b06812a14daf24172a82ab6266be1d208e0f420e9",
         "SECURITY_AGENT_POLICIES_VERSION": "v0.22.0",
@@ -41,9 +41,9 @@
         "WINDOWS_DDNPM_SHASUM": "a14514beb952f3aaa09de4df43c5e439044a90aaddf05b1ade459778c1d255d3"
     },
     "release-a7": {
-        "INTEGRATIONS_CORE_VERSION": "7.35.0-rc.1",
-        "OMNIBUS_SOFTWARE_VERSION": "7.35.0-rc.1",
-        "OMNIBUS_RUBY_VERSION": "7.35.0-rc.1",
+        "INTEGRATIONS_CORE_VERSION": "7.35.0-rc.4",
+        "OMNIBUS_SOFTWARE_VERSION": "7.35.0-rc.4",
+        "OMNIBUS_RUBY_VERSION": "7.35.0-rc.2",
         "JMXFETCH_VERSION": "0.44.6",
         "JMXFETCH_HASH": "dbd31f982328a3cf6b44c65b06812a14daf24172a82ab6266be1d208e0f420e9",
         "SECURITY_AGENT_POLICIES_VERSION": "v0.22.0",

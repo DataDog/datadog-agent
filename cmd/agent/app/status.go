@@ -202,7 +202,7 @@ func makeRequest(url string) ([]byte, error) {
 		return nil, e
 	}
 
-	r, e := util.DoGet(c, url)
+	r, e := util.DoGet(c, url, util.LeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
