@@ -429,9 +429,9 @@ replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20
 // k8s.io/component-base is incompatible with logr v1.x,
 // remove once k8s.io/* is upgrade to v0.23.x or above (https://github.com/kubernetes/kubernetes/commit/cb6a6537)
 replace (
-	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
-	github.com/go-logr/stdr => github.com/go-logr/stdr v0.4.0
 	// HACK: Add `funcr` package from v1.0.0 to support packages using it (notably go.opentelemetry/otel)
 	// See internal/patch/logr/funcr/README.md for more details.
-	github.com/go-logr/funcr =>  ./internal/patch/logr/funcr
+	github.com/go-logr/funcr => ./internal/patch/logr/funcr
+	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
+	github.com/go-logr/stdr => github.com/go-logr/stdr v0.4.0
 )
