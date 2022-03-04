@@ -112,6 +112,16 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	return rules, nil
 }
 
+// HasMultiLineRule returns true if the rule set contains a multi_line rule
+func HasMultiLineRule(rules []*ProcessingRule) bool {
+	for _, rule := range rules {
+		if rule.Type == MultiLine {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildEndpoints returns the endpoints to send logs.
 func BuildEndpoints(httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")

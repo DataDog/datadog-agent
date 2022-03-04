@@ -7,6 +7,7 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -129,6 +130,11 @@ func unmarshalTime(data []byte) time.Time {
 	return time.Time{}
 }
 
+// isValidTTYName uses a naive assumption as other tty driver may create tty with other prefix
+func isValidTTYName(ttyName string) bool {
+	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
@@ -150,7 +156,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if IsPrintableASCII(ttyName) {
+	if isValidTTYName(ttyName) {
 		e.TTYName = ttyName
 	}
 	read += 64

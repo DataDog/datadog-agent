@@ -31,6 +31,12 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
 
+	// Make sure the old DD_OTLP_GRPC_PORT and DD_OTLP_HTTP_PORT env variables keep working
+	// for one release.
+	// TODO: To be removed once 7.35.0 is out.
+	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")
+	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")
+
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
 	config.BindEnvAndSetDefault(OTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
@@ -41,8 +47,39 @@ func SetupOTLP(config Config) {
 	config.SetKnown(OTLPReceiverSection)
 	// Set all subkeys of otlp.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
+
+	// TODO: Remove SetKnown for experimental variables
+	// once support for the experimental.otlp section is removed.
+	config.SetKnown("experimental.otlp.metrics")
+	// Set all subkeys of experimental.otlp.metrics as known
+	config.SetKnown("experimental.otlp.metrics.*")
+	config.SetKnown("experimental.otlp.receiver")
+	// Set all subkeys of experimental.otlp.receiver as known
+	config.SetKnown("experimental.otlp.receiver.*")
+
 	// set environment variables for selected fields
 	setupOTLPEnvironmentVariables(config)
+}
+
+// getOTLPReceiverHost gets the OTLP ingest bind_host when setting the configuration through the DD_OTLP_HTTP_PORT or DD_OTLP_GRPC_PORT.
+// This is to preserve backwards compatibility; if the port feature is reintroduced again, we want to have consistency with DogStatsD.
+func getOTLPReceiverHost(cfg Config) (receiverHost string) {
+	// The default value for the trace Agent
+	receiverHost = "localhost"
+
+	// This is taken from pkg/trace/config.AgentConfig.applyDatadogConfig
+	if cfg.IsSet("bind_host") || cfg.IsSet("apm_config.apm_non_local_traffic") {
+		if cfg.IsSet("bind_host") {
+			receiverHost = cfg.GetString("bind_host")
+		}
+
+		if cfg.IsSet("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
+			receiverHost = "0.0.0.0"
+		}
+	} else if IsContainerized() {
+		receiverHost = "0.0.0.0"
+	}
+	return
 }
 
 // promoteExperimentalOTLP checks if "experimental.otlp" is set and promotes it to the top level
@@ -51,12 +88,16 @@ func SetupOTLP(config Config) {
 // TODO(gbbr): This is to keep backwards compatibility and should
 // be completely removed once 7.35.0 is out.
 func promoteExperimentalOTLP(cfg Config) {
-	if !cfg.IsSet("experimental.otlp") {
+	if !cfg.IsSectionSet("experimental.otlp") {
 		return
 	}
+
 	log.Warn(`OTLP ingest configuration is now stable and has been moved out of the "experimental" section. ` +
-		`This section will be deprecated in the 7.37 Datadog Agent release. Please use the "otlp_config" section instead.`)
-	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
+		`This section will be removed in the 7.37 Datadog Agent release. Please use the "otlp_config" section instead.` +
+		`The DD_OTLP_GRPC_PORT and DD_OTLP_HTTP_PORT environment variables will also be removed in 7.37; set the full endpoint instead.`,
+	)
+
+	if k := "experimental.otlp.metrics"; cfg.IsSectionSet(k) {
 		for key, val := range cfg.GetStringMap(k) {
 			cfg.Set(OTLPMetrics+"."+key, val)
 		}
@@ -83,10 +124,10 @@ func promoteExperimentalOTLP(cfg Config) {
 		}
 	}
 	if v := cfg.GetString("experimental.otlp.http_port"); v != "" {
-		cfg.Set(OTLPReceiverSection+".protocols.http.endpoint", net.JoinHostPort(getBindHost(cfg), v))
+		cfg.Set(OTLPReceiverSection+".protocols.http.endpoint", net.JoinHostPort(getOTLPReceiverHost(cfg), v))
 	}
 	if v := cfg.GetString("experimental.otlp.grpc_port"); v != "" {
-		cfg.Set(OTLPReceiverSection+".protocols.grpc.endpoint", net.JoinHostPort(getBindHost(cfg), v))
+		cfg.Set(OTLPReceiverSection+".protocols.grpc.endpoint", net.JoinHostPort(getOTLPReceiverHost(cfg), v))
 	}
 }
 

@@ -73,14 +73,10 @@ func (s *PrioritySampler) Start() {
 		s.remoteRates.Start()
 	}
 	go func() {
-		updateRates := time.NewTicker(decayPeriod)
 		statsTicker := time.NewTicker(10 * time.Second)
-		defer updateRates.Stop()
 		defer statsTicker.Stop()
 		for {
 			select {
-			case <-updateRates.C:
-				s.updateRates()
 			case <-statsTicker.C:
 				s.reportStats()
 			case <-s.exit:
@@ -100,10 +96,6 @@ func (s *PrioritySampler) reportStats() {
 
 // update sampling rates
 func (s *PrioritySampler) updateRates() {
-	s.localRates.update()
-	if s.remoteRates != nil {
-		s.remoteRates.update()
-	}
 	s.rateByService.SetAll(s.ratesByService())
 }
 
@@ -116,7 +108,7 @@ func (s *PrioritySampler) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PrioritySampler) Sample(trace *pb.TraceChunk, root *pb.Span, tracerEnv string, clientDroppedP0s bool) bool {
+func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.Span, tracerEnv string, clientDroppedP0sWeight float64) bool {
 	// Extra safety, just in case one trace is empty
 	if len(trace.Spans) == 0 {
 		return false
@@ -137,61 +129,41 @@ func (s *PrioritySampler) Sample(trace *pb.TraceChunk, root *pb.Span, tracerEnv 
 	if samplingPriority > 1 {
 		return sampled
 	}
-	// short-circuiting root P0 trace chunks that the client passed. The sig is already taken in account
-	// in CountWeightedSig below. This chunk will likely be sampled by the ExceptionSampler
-	if clientDroppedP0s && samplingPriority == 0 && root.ParentID == 0 {
-		return sampled
-	}
 
 	signature := s.catalog.register(ServiceSignature{Name: root.Service, Env: toSamplerEnv(tracerEnv, s.agentEnv)})
 
 	// Update sampler state by counting this trace
-	s.CountSignature(root, signature)
+	s.countSignature(now, root, signature, clientDroppedP0sWeight)
 
 	if sampled {
 		rate := s.applyRate(sampled, root, signature)
-		s.CountSampled(root, clientDroppedP0s, signature, rate)
+		s.countSampled(now, root, signature, rate)
 	}
 	return sampled
 }
 
-// CountSignature counts all chunks received with local chunk root signature.
-func (s *PrioritySampler) CountSignature(root *pb.Span, signature Signature) {
-	s.localRates.Backend.CountSignature(signature)
+// countSignature counts all chunks received with local chunk root signature.
+func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature, clientDroppedP0Weight float64) {
+	rootWeight := weightRoot(root)
+	newRates := s.localRates.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
 
 	// remoteRates only considers root spans
 	if s.remoteRates != nil && root.ParentID == 0 {
-		s.remoteRates.CountSignature(signature)
+		s.remoteRates.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
+	}
+
+	if newRates {
+		s.updateRates()
 	}
 }
 
-// CountSampled counts sampled chunks with local chunk root signature.
-func (s *PrioritySampler) CountSampled(root *pb.Span, clientDroppedP0s bool, signature Signature, rate float64) {
-	s.localRates.Backend.CountSample()
-	// adjust sig score with the expected P0 count for that sig
-	// adjusting this score only matters for root spans
-	if clientDroppedP0s && rate > 0 && rate < 1 {
-		// removing 1 to not count twice the P1 chunk
-		weight := 1/rate - 1
-		s.localRates.Backend.CountWeightedSig(signature, weight)
-	}
-
+// countSampled counts sampled chunks with local chunk root signature.
+func (s *PrioritySampler) countSampled(now time.Time, root *pb.Span, signature Signature, rate float64) {
+	s.localRates.countSample()
 	// remoteRates only considers root spans
 	if s.remoteRates != nil && root.ParentID == 0 {
-		s.remoteRates.CountSample(root, signature)
-		if clientDroppedP0s && rate > 0 && rate < 1 {
-			// removing 1 to not count twice the P1 chunk
-			weight := 1/rate - 1
-			s.remoteRates.CountWeightedSig(signature, weight)
-		}
+		s.remoteRates.countSample(root, signature)
 	}
-}
-
-// CountClientDroppedP0s counts client dropped traces. They are added
-// to the totalScore, allowing them to weight on sampling rates during
-// adjust calls
-func (s *PrioritySampler) CountClientDroppedP0s(dropped int64) {
-	s.localRates.Backend.AddTotalScore(float64(dropped))
 }
 
 func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) float64 {
@@ -215,14 +187,14 @@ func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signa
 	}
 	if s.remoteRates != nil {
 		// use a remote rate, if available
-		rate, ok := s.remoteRates.GetSignatureSampleRate(signature)
+		rate, ok := s.remoteRates.getSignatureSampleRate(signature)
 		if ok {
 			setMetric(root, deprecatedRateKey, rate)
 			return rate
 		}
 	}
 	// Use the rate from the default local feedback loop
-	rate := s.localRates.GetSignatureSampleRate(signature)
+	rate := s.localRates.getSignatureSampleRate(signature)
 	setMetric(root, deprecatedRateKey, rate)
 	return rate
 }
@@ -234,6 +206,6 @@ func (s *PrioritySampler) ratesByService() map[ServiceSignature]rm {
 	if s.remoteRates != nil {
 		remoteRates = s.remoteRates.getAllSignatureSampleRates()
 	}
-	localRates := s.localRates.getAllSignatureSampleRates()
-	return s.catalog.ratesByService(s.agentEnv, localRates, remoteRates, s.localRates.GetDefaultSampleRate())
+	localRates, defaultRate := s.localRates.getAllSignatureSampleRates()
+	return s.catalog.ratesByService(s.agentEnv, localRates, remoteRates, defaultRate)
 }

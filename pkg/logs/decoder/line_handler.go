@@ -5,6 +5,8 @@
 
 package decoder
 
+import "time"
+
 // truncatedFlag is the flag that is added at the beginning
 // or/and at the end of every trucated lines.
 var truncatedFlag = []byte("...TRUNCATED...")
@@ -16,10 +18,14 @@ var truncatedFlag = []byte("...TRUNCATED...")
 var escapedLineFeed = []byte(`\n`)
 
 // LineHandler handles raw lines to form structured lines.
-//
-// Input and output channels are given to the constructor for the concrete
-// type.  After Start(), the actor runs until its input channel is closed.
-// After all inputs are processed, the actor closes its output channel.
 type LineHandler interface {
-	Start()
+	// process handles a new line (message)
+	process(*Message)
+
+	// flushChan returns a channel which will deliver a message when `flush` should be called.
+	flushChan() <-chan time.Time
+
+	// flush flushes partially-processed data.  It should be called either when flushChan has
+	// a message, or when the decoder is stopped.
+	flush()
 }

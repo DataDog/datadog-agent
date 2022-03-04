@@ -74,16 +74,26 @@ if node['platform_family'] != 'windows'
       end
     end
 
-    docker_image 'centos' do
-      tag '7'
-      action :pull
+    file "#{wrk_dir}/Dockerfile" do
+      content <<-EOF
+      FROM centos:7
+      ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
+      RUN yum -y install xfsprogs e2fsprogs
+      CMD sleep 7200
+      EOF
+      action :create
+    end
+
+    docker_image 'testsuite-img' do
+      tag 'latest'
+      source wrk_dir
+      action :build
     end
 
     docker_container 'docker-testsuite' do
-      repo 'centos'
-      tag '7'
+      repo 'testsuite-img'
+      tag 'latest'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
-      command "sleep 7200"
       volumes [
         '/tmp/security-agent:/tmp/security-agent',
         '/proc:/host/proc',
@@ -103,11 +113,6 @@ if node['platform_family'] != 'windows'
     docker_exec 'debug_fs' do
       container 'docker-testsuite'
       command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
-    end
-
-    docker_exec 'install_xfs' do
-      container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
     end
 
     for i in 0..7 do

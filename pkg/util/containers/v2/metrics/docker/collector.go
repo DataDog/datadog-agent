@@ -189,6 +189,14 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 		return
 	}
 
+	if spec.State != nil && spec.State.Pid > 0 {
+		if containerStats.PID == nil {
+			containerStats.PID = &provider.ContainerPIDStats{}
+		}
+
+		containerStats.PID.PIDs = append(containerStats.PID.PIDs, spec.State.Pid)
+	}
+
 	computeCPULimit(containerStats, spec)
 }
 

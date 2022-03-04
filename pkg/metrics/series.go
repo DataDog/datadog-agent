@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -71,12 +72,42 @@ func (p *Point) UnmarshalJSON(buf []byte) error {
 }
 
 // String could be used for debug logging
-func (e Serie) String() string {
-	s, err := json.Marshal(e)
+func (serie Serie) String() string {
+	s, err := json.Marshal(serie)
 	if err != nil {
 		return ""
 	}
 	return string(s)
+}
+
+// PopulateDeviceField removes any `device:` tag in the series tags and uses the value to
+// populate the Serie.Device field
+//FIXME(olivier v): remove this as soon as the v1 API can handle `device` as a regular tag
+func (serie *Serie) PopulateDeviceField() {
+	if !serie.hasDeviceTag() {
+		return
+	}
+	// make a copy of the tags array. Otherwise the underlying array won't have
+	// the device tag for the Nth iteration (N>1), and the deice field will
+	// be lost
+	filteredTags := make([]string, 0, serie.Tags.Len())
+
+	serie.Tags.ForEach(func(tag string) {
+		if strings.HasPrefix(tag, "device:") {
+			serie.Device = tag[7:]
+		} else {
+			filteredTags = append(filteredTags, tag)
+		}
+	})
+
+	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
+}
+
+// hasDeviceTag checks whether a series contains a device tag
+func (serie *Serie) hasDeviceTag() bool {
+	return serie.Tags.Find(func(tag string) bool {
+		return strings.HasPrefix(tag, "device:")
+	})
 }
 
 // Series is a collection of `Serie`

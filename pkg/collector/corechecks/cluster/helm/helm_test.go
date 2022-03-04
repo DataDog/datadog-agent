@@ -22,11 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 func TestRun(t *testing.T) {
@@ -60,6 +57,28 @@ func TestRun(t *testing.T) {
 			},
 			Version:   2,
 			Namespace: "app",
+		},
+		{ // Release with a nil chart reference
+			Name: "release_without_chart",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart:     nil,
+			Version:   1,
+			Namespace: "default",
+		},
+		{ // Release with a nil info reference
+			Name: "release_without_info",
+			Info: nil,
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "example_app",
+					Version:    "2.0.0",
+					AppVersion: "1",
+				},
+			},
+			Version:   1,
+			Namespace: "default",
 		},
 	}
 
@@ -99,6 +118,20 @@ func TestRun(t *testing.T) {
 			"helm_chart_version:1.1.0",
 			"helm_app_version:1",
 		},
+		{
+			"helm_release:release_without_chart",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+		},
+		{
+			"helm_release:release_without_info",
+			"helm_chart_name:example_app",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_chart_version:2.0.0",
+			"helm_app_version:1",
+		},
 	}
 
 	tests := []struct {
@@ -120,7 +153,7 @@ func TestRun(t *testing.T) {
 		{
 			name:         "using secrets and configmaps",
 			secrets:      []*v1.Secret{secretsForReleases[0]},
-			configmaps:   []*v1.ConfigMap{configmapsForReleases[1]},
+			configmaps:   configmapsForReleases[1:],
 			expectedTags: expectedTagsForReleases,
 		},
 		{
@@ -157,28 +190,13 @@ func TestRun(t *testing.T) {
 				kubeObjects = append(kubeObjects, configMap)
 			}
 
-			// Set up mocked k8s client and informers
+			check := factory().(*HelmCheck)
+			check.runLeaderElection = false
+
 			k8sClient := fake.NewSimpleClientset(kubeObjects...)
 			sharedK8sInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute)
-			secretsInformer := sharedK8sInformerFactory.Core().V1().Secrets().Informer()
-			go secretsInformer.Run(stopCh)
-			configMapsInformer := sharedK8sInformerFactory.Core().V1().ConfigMaps().Informer()
-			go configMapsInformer.Run(stopCh)
-			err := apiserver.SyncInformers(
-				map[apiserver.InformerName]cache.SharedInformer{
-					"helm-secrets":    secretsInformer,
-					"helm-configmaps": configMapsInformer,
-				},
-				10*time.Second,
-			)
+			err := check.setupInformers(sharedK8sInformerFactory)
 			assert.NoError(t, err)
-
-			check := &HelmCheck{
-				CheckBase:         core.NewCheckBase(checkName),
-				runLeaderElection: false,
-				secretLister:      sharedK8sInformerFactory.Core().V1().Secrets().Lister(),
-				configmapLister:   sharedK8sInformerFactory.Core().V1().ConfigMaps().Lister(),
-			}
 
 			mockedSender := mocksender.NewMockSender(checkName)
 			mockedSender.SetupAcceptAll()

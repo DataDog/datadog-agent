@@ -9,7 +9,6 @@
 package cgroups
 
 import (
-	"io"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
@@ -18,6 +17,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
+
 	"github.com/karrick/godirwalk"
 )
 
@@ -41,26 +42,50 @@ type pidMapper interface {
 // cgroupRoot is cgroup base directory (like /host/sys/fs/cgroup)
 func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilter) pidMapper {
 	// Checking if we are in host pid. If that's the case `cgroup.procs` in any controller will contain PIDs
-	f, err := defaultFileReader.open(filepath.Join(cgroupRoot, baseController, cgroupProcsFile))
-	if err == nil {
-		content, err := io.ReadAll(f)
-		if err != nil && len(content) > 0 {
-			return &cgroupProcsPidMapper{
-				fr: defaultFileReader,
-				cgroupProcsFilePathBuilder: func(relativeCgroupPath string) string {
-					return filepath.Join(cgroupRoot, baseController, relativeCgroupPath, cgroupProcsFile)
-				},
-			}
+	// In cgroupv2, the file contains 0 values, filtering for that
+	cgroupProcsTestFilePath := filepath.Join(cgroupRoot, baseController, cgroupProcsFile)
+	cgroupProcsUsable := false
+	err := parseFile(defaultFileReader, cgroupProcsTestFilePath, func(s string) error {
+		if s != "" && s != "0" {
+			cgroupProcsUsable = true
+		}
+
+		return nil
+	})
+
+	if cgroupProcsUsable {
+		return &cgroupProcsPidMapper{
+			fr: defaultFileReader,
+			cgroupProcsFilePathBuilder: func(relativeCgroupPath string) string {
+				return filepath.Join(cgroupRoot, baseController, relativeCgroupPath, cgroupProcsFile)
+			},
 		}
 	}
+	log.Debugf("cgroup.procs file at: %s is empty or unreadable, considering we're not running in host PID namespace, err: %v", cgroupProcsTestFilePath, err)
 
-	log.Debugf("Unable to read cgroup.procs file, considering we're not running in host PID namespace")
-	return &procPidMapper{
+	// Checking if we're in host cgroup namespace, other the method below cannot be used either
+	// (we'll still return it in case the cgroup namespace detection failed but log a warning)
+	pidMapper := &procPidMapper{
 		fr:               defaultFileReader,
 		readerFilter:     filter,
 		procPath:         procPath,
 		cgroupController: baseController,
 	}
+
+	// In cgroupv2, checking if we run in host cgroup namespace.
+	// If not we cannot fill PIDs for containers and do PID<>CID mapping.
+	if baseController == "" {
+		cgroupInode, err := system.GetProcessNamespaceInode("/proc", "self", "cgroup")
+		if err == nil {
+			if isHostNs := system.IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
+				log.Warnf("Usage of cgroupv2 detected but the Agent does not seem to run in host cgroup namespace. Make sure to run with --cgroupns=host, some feature may not work otherwise")
+			}
+		} else {
+			log.Debugf("Unable to get self cgroup namespace inode, err: %v", err)
+		}
+	}
+
+	return pidMapper
 }
 
 // Mapper used if we are running in host PID namespace, faster.
