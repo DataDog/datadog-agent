@@ -185,12 +185,12 @@ func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname
 		return "", err
 	}
 
-	unameRHash, err := runtime.Sha256hex(uname.Release[:])
+	unameHash, err := runtime.UnameHash(uname)
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameRHash, cCodeHash, flagHash)), nil
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameHash, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {

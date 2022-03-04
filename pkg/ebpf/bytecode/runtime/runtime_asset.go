@@ -104,12 +104,12 @@ func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsnam
 	// this ensures we re-compile when either of the input changes
 	baseName := strings.TrimSuffix(a.filename, filepath.Ext(a.filename))
 
-	unameReleaseHash, err := Sha256hex(uname.Release[:])
+	unameHash, err := UnameHash(uname)
 	if err != nil {
 		return "", err
 	}
 
-	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%s-%s-%s.o", baseName, unameReleaseHash, a.hash, flagHash))
+	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%s-%s-%s.o", baseName, unameHash, a.hash, flagHash))
 	return outputFile, nil
 }
 
