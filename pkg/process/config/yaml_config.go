@@ -47,6 +47,18 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
 	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
 
+	if config.IsECSFargate() {
+		if a.CheckIntervals[RTProcessCheckName] < 10*time.Second {
+			a.CheckIntervals[RTProcessCheckName] = RTProcessCheckDefaultIntervalFargate
+			log.Infof("Overriding %s interval to %s. Fargate API fetches new data only every 10s", RTProcessCheckName, RTProcessCheckDefaultIntervalFargate.String())
+		}
+
+		if a.CheckIntervals[RTContainerCheckName] < 10*time.Second {
+			a.CheckIntervals[RTContainerCheckName] = RTProcessCheckDefaultIntervalFargate
+			log.Infof("Overriding %s interval to %s. Fargate API fetches new data only every 10s", RTContainerCheckName, RTContainerCheckDefaultIntervalFargate.String())
+		}
+	}
+
 	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 	// We use a minimum of 10 minutes for this value.
 	discoveryInterval := config.Datadog.GetDuration("process_config.process_discovery.interval")
@@ -111,7 +123,6 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 
 func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	k := key(ns, "intervals", check)
-
 	if !config.Datadog.IsSet(k) {
 		return
 	}

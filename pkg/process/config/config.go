@@ -48,13 +48,15 @@ const (
 	PodCheckName         = "pod"
 	DiscoveryCheckName   = "process_discovery"
 
-	ProcessCheckDefaultInterval          = 10 * time.Second
-	RTProcessCheckDefaultInterval        = 2 * time.Second
-	ContainerCheckDefaultInterval        = 10 * time.Second
-	RTContainerCheckDefaultInterval      = 2 * time.Second
-	ConnectionsCheckDefaultInterval      = 30 * time.Second
-	PodCheckDefaultInterval              = 10 * time.Second
-	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
+	ProcessCheckDefaultInterval            = 10 * time.Second
+	RTProcessCheckDefaultInterval          = 2 * time.Second
+	RTProcessCheckDefaultIntervalFargate   = 10 * time.Second
+	ContainerCheckDefaultInterval          = 10 * time.Second
+	RTContainerCheckDefaultInterval        = 2 * time.Second
+	RTContainerCheckDefaultIntervalFargate = 10 * time.Second
+	ConnectionsCheckDefaultInterval        = 30 * time.Second
+	PodCheckDefaultInterval                = 10 * time.Second
+	ProcessDiscoveryCheckDefaultInterval   = 4 * time.Hour
 )
 
 type proxyFunc func(*http.Request) (*url.URL, error)
