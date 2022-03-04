@@ -32,3 +32,117 @@ It bundles a copy of `github.com/go-logr/logr@v1.2.2` on the `internal/logr` fol
 1. Non-public references to logr are replaced with references to the `internal/logr` copy. 
 2. Public references are kept referencing v0.4.0 logr.
 3. The `New` and `NewJSON` functions are rewritten using the wrapper.
+
+Code in `internal/logr` is kept as-is on the original dependency. Code on the funcr package has the following diff:
+
+<details>
+
+<summary> Diff of funcr.go </summary>
+
+```diff
+--- /Users/pablo.baeyens/Source/logr/funcr/funcr.go     2022-03-04 13:16:46.000000000 +0100
++++ internal/patch/logr/funcr/funcr.go  2022-03-04 13:50:08.000000000 +0100
+@@ -46,11 +46,13 @@
+        "time"
+ 
+        "github.com/go-logr/logr"
++       v122Logr "github.com/go-logr/logr/funcr/internal/logr"
++       "github.com/go-logr/logr/funcr/internal/wrapper"
+ )
+ 
+ // New returns a logr.Logger which is implemented by an arbitrary function.
+ func New(fn func(prefix, args string), opts Options) logr.Logger {
+-       return logr.New(newSink(fn, NewFormatter(opts)))
++       return wrapper.Fromv122Logger(v122Logr.New(newSink(fn, NewFormatter(opts))))
+ }
+ 
+ // NewJSON returns a logr.Logger which is implemented by an arbitrary function
+@@ -59,7 +61,7 @@
+        fnWrapper := func(_, obj string) {
+                fn(obj)
+        }
+-       return logr.New(newSink(fnWrapper, NewFormatterJSON(opts)))
++       return wrapper.Fromv122Logger(v122Logr.New(newSink(fnWrapper, NewFormatterJSON(opts))))
+ }
+ 
+ // Underlier exposes access to the underlying logging function. Since
+@@ -70,7 +72,7 @@
+        GetUnderlying() func(prefix, args string)
+ }
+ 
+-func newSink(fn func(prefix, args string), formatter Formatter) logr.LogSink {
++func newSink(fn func(prefix, args string), formatter Formatter) v122Logr.LogSink {
+        l := &fnlogger{
+                Formatter: formatter,
+                write:     fn,
+@@ -157,17 +159,17 @@
+        write func(prefix, args string)
+ }
+ 
+-func (l fnlogger) WithName(name string) logr.LogSink {
++func (l fnlogger) WithName(name string) v122Logr.LogSink {
+        l.Formatter.AddName(name)
+        return &l
+ }
+ 
+-func (l fnlogger) WithValues(kvList ...interface{}) logr.LogSink {
++func (l fnlogger) WithValues(kvList ...interface{}) v122Logr.LogSink {
+        l.Formatter.AddValues(kvList)
+        return &l
+ }
+ 
+-func (l fnlogger) WithCallDepth(depth int) logr.LogSink {
++func (l fnlogger) WithCallDepth(depth int) v122Logr.LogSink {
+        l.Formatter.AddCallDepth(depth)
+        return &l
+ }
+@@ -187,8 +189,8 @@
+ }
+ 
+ // Assert conformance to the interfaces.
+-var _ logr.LogSink = &fnlogger{}
+-var _ logr.CallDepthLogSink = &fnlogger{}
++var _ v122Logr.LogSink = &fnlogger{}
++var _ v122Logr.CallDepthLogSink = &fnlogger{}
+ var _ Underlier = &fnlogger{}
+ 
+ // NewFormatter constructs a Formatter which emits a JSON-like key=value format.
+@@ -224,7 +226,7 @@
+ 
+ // Formatter is an opaque struct which can be embedded in a LogSink
+ // implementation. It should be constructed with NewFormatter. Some of
+-// its methods directly implement logr.LogSink.
++// its methods directly implement v122Logr.LogSink.
+ type Formatter struct {
+        outputFormat outputFormat
+        prefix       string
+@@ -348,7 +350,7 @@
+        }
+ 
+        // Handle types that take full control of logging.
+-       if v, ok := value.(logr.Marshaler); ok {
++       if v, ok := value.(v122Logr.Marshaler); ok {
+                // Replace the value with what the type wants to get logged.
+                // That then gets handled below via reflection.
+                value = invokeMarshaler(v)
+@@ -597,7 +599,7 @@
+        return false
+ }
+ 
+-func invokeMarshaler(m logr.Marshaler) (ret interface{}) {
++func invokeMarshaler(m v122Logr.Marshaler) (ret interface{}) {
+        defer func() {
+                if r := recover(); r != nil {
+                        ret = fmt.Sprintf("<panic: %s>", r)
+@@ -692,7 +694,7 @@
+ // Init configures this Formatter from runtime info, such as the call depth
+ // imposed by logr itself.
+ // Note that this receiver is a pointer, so depth can be saved.
+-func (f *Formatter) Init(info logr.RuntimeInfo) {
++func (f *Formatter) Init(info v122Logr.RuntimeInfo) {
+        f.depth += info.CallDepth
+ }
+
+```
+
+</details>
