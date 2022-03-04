@@ -91,11 +91,6 @@ func TestBuildCollectorEvent(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	eventWithoutID, err := proto.Marshal(&events.ContainerCreate{
-		ID: "",
-	})
-	assert.NoError(t, err)
-
 	tests := []struct {
 		name          string
 		event         containerdevents.Envelope
@@ -114,7 +109,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -129,7 +124,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -144,7 +139,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeUnset,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadmeta.Container{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindContainer,
@@ -171,17 +166,6 @@ func TestBuildCollectorEvent(t *testing.T) {
 			expectsError: true,
 		},
 		{
-			name: "event without ID",
-			event: containerdevents.Envelope{
-				Namespace: namespace,
-				Topic:     containerCreationTopic,
-				Event: &types.Any{
-					TypeUrl: "containerd.events.ContainerCreate", Value: eventWithoutID,
-				},
-			},
-			expectsError: true,
-		},
-		{
 			name: "task start event",
 			event: containerdevents.Envelope{
 				Namespace: namespace,
@@ -192,7 +176,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -207,7 +191,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -222,7 +206,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -237,7 +221,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -252,7 +236,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -267,7 +251,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -280,7 +264,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 				c.contToExitInfo[containerID] = test.exitInfo
 			}
 
-			workloadMetaEvent, err := c.buildCollectorEvent(context.TODO(), &test.event)
+			workloadMetaEvent, err := c.buildCollectorEvent(&test.event, container.ID(), &container)
 
 			if test.expectsError {
 				assert.Error(t, err)

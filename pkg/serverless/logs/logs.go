@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +41,7 @@ type ExecutionContext struct {
 // for the extension to collect them.
 type LambdaLogsCollector struct {
 	LogChannel             chan *logConfig.ChannelMessage
-	MetricChannel          chan []metrics.MetricSample
+	Demux                  aggregator.Demultiplexer
 	ExtraTags              *Tags
 	ExecutionContext       *ExecutionContext
 	LogsEnabled            bool
@@ -280,7 +280,7 @@ func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	for _, message := range messages {
-		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel, c.HandleRuntimeDone)
+		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
@@ -295,7 +295,7 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 }
 
 // processMessage performs logic about metrics and tags on the message
-func processMessage(message logMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample, handleRuntimeDone func()) {
+func processMessage(message logMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, demux aggregator.Demultiplexer, handleRuntimeDone func()) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	if !shouldProcessLog(executionContext, message) {
 		return
@@ -309,7 +309,7 @@ func processMessage(message logMessage, executionContext *ExecutionContext, enha
 	if enhancedMetricsEnabled {
 		tags := tags.AddColdStartTag(metricTags, executionContext.LastLogRequestID == executionContext.ColdstartRequestID)
 		if message.logType == logTypeFunction {
-			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, metricsChan)
+			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformReport {
 			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(
@@ -318,10 +318,10 @@ func processMessage(message logMessage, executionContext *ExecutionContext, enha
 				message.objectRecord.reportLogItem.billedDurationMs,
 				message.objectRecord.reportLogItem.memorySizeMB,
 				message.objectRecord.reportLogItem.maxMemoryUsedMB,
-				message.time, tags, metricsChan)
+				message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(executionContext.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, metricsChan)
+			serverlessMetrics.GenerateRuntimeDurationMetric(executionContext.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
 		}
 	}
 

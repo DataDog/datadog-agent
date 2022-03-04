@@ -143,6 +143,28 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 	tm := map[network.ConnTelemetryType]int64{}
+
+	// allStats is the expvar map.  it is actually a map of maps
+	// top level keys are:
+	//   state (we don't need for this call)
+	//   dns   ( the dns handle stats)
+	//   each of the strings in DriverExpvarNames.  We're interested
+	//   in driver.flowHandleStats, which is "driver_flow_handle_stats"
+	if allstats, err := t.driverInterface.GetStats(); err == nil {
+		if flowStats, ok := allstats["driver_flow_handle_stats"].(map[string]int64); ok {
+			if fme, ok := flowStats["num_flows_missed_max_exceeded"]; ok {
+				tm[network.NPMDriverFlowsMissedMaxExceeded] = fme
+			}
+		}
+	}
+	dnsStats := t.reverseDNS.GetStats()
+	if pp, ok := dnsStats["packets_processed_transport"]; ok {
+		tm[network.MonotonicDNSPacketsProcessed] = pp
+	}
+	if pd, ok := dnsStats["read_packets_skipped"]; ok {
+		tm[network.MonotonicDNSPacketsDropped] = pd
+	}
+
 	return tm
 }
 

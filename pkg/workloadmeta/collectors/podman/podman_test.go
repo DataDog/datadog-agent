@@ -149,7 +149,7 @@ func TestPull(t *testing.T) {
 	expectedEvents := []workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourcePodman,
+			Source: workloadmeta.SourceRuntime,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -190,13 +190,15 @@ func TestPull(t *testing.T) {
 				Runtime: workloadmeta.ContainerRuntimePodman,
 				State: workloadmeta.ContainerState{
 					Running:   true,
+					Status:    workloadmeta.ContainerStatusRunning,
+					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
 			},
 		},
 		{
 			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourcePodman,
+			Source: workloadmeta.SourceRuntime,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -237,6 +239,8 @@ func TestPull(t *testing.T) {
 				Runtime: workloadmeta.ContainerRuntimePodman,
 				State: workloadmeta.ContainerState{
 					Running:   true,
+					Status:    workloadmeta.ContainerStatusRunning,
+					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
 			},
@@ -281,7 +285,7 @@ func TestPull(t *testing.T) {
 			cache:  cacheWithExpired,
 			expectedEvents: append(expectedEvents, workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeUnset,
-				Source: workloadmeta.SourcePodman,
+				Source: workloadmeta.SourceRuntime,
 				Entity: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
 					ID:   expiredID,

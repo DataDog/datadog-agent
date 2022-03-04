@@ -54,7 +54,7 @@ func doListChecks() error {
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/check/", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
-	body, e := util.DoGet(c, urlstr)
+	body, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if e != nil {
 		fmt.Printf("Error getting version string: %s\n", e)
 		return e

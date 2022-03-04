@@ -30,7 +30,6 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configSource})
@@ -59,7 +58,6 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configSource})
@@ -88,7 +86,6 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configSource})
@@ -114,7 +111,6 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 
 	go adScheduler.Schedule([]integration.Config{configService})
@@ -127,7 +123,6 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
 		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 	go adScheduler.Schedule([]integration.Config{configService})
 	select {
@@ -151,7 +146,6 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
-		CreationTime:  0,
 	}
 
 	// We need to have a source to remove
@@ -180,7 +174,6 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 
 	go adScheduler.Unschedule([]integration.Config{configService})
@@ -193,7 +186,6 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
 		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
 		ClusterCheck: false,
-		CreationTime: 0,
 	}
 
 	go adScheduler.Unschedule([]integration.Config{configService})
@@ -217,7 +209,6 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
-		CreationTime: 0,
 		LogsExcluded: true,
 	}
 

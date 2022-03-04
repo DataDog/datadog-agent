@@ -31,7 +31,7 @@ func TestTagsFromAttributes(t *testing.T) {
 		conventions.AttributeProcessCommandLine:    pdata.NewAttributeValueString("cmd/otelcol --config=\"/path/to/config.yaml\""),
 		conventions.AttributeProcessPID:            pdata.NewAttributeValueInt(1),
 		conventions.AttributeProcessOwner:          pdata.NewAttributeValueString("root"),
-		conventions.AttributeOSType:                pdata.NewAttributeValueString("LINUX"),
+		conventions.AttributeOSType:                pdata.NewAttributeValueString("linux"),
 		conventions.AttributeK8SDaemonSetName:      pdata.NewAttributeValueString("daemon_set_name"),
 		conventions.AttributeAWSECSClusterARN:      pdata.NewAttributeValueString("cluster_arn"),
 		"tags.datadoghq.com/service":               pdata.NewAttributeValueString("service_name"),
@@ -40,7 +40,7 @@ func TestTagsFromAttributes(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{
 		fmt.Sprintf("%s:%s", conventions.AttributeProcessExecutableName, "otelcol"),
-		fmt.Sprintf("%s:%s", conventions.AttributeOSType, "LINUX"),
+		fmt.Sprintf("%s:%s", conventions.AttributeOSType, "linux"),
 		fmt.Sprintf("%s:%s", "kube_daemon_set", "daemon_set_name"),
 		fmt.Sprintf("%s:%s", "ecs_cluster_name", "cluster_arn"),
 		fmt.Sprintf("%s:%s", "service", "service_name"),
@@ -80,4 +80,46 @@ func TestContainerTagFromAttributesEmpty(t *testing.T) {
 	attributeMap := map[string]string{}
 
 	assert.Equal(t, empty, ContainerTagFromAttributes(attributeMap))
+}
+
+func TestOriginIDFromAttributes(t *testing.T) {
+	tests := []struct {
+		name     string
+		attrs    pdata.AttributeMap
+		originID string
+	}{
+		{
+			name: "pod UID and container ID",
+			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
+				conventions.AttributeContainerID: pdata.NewAttributeValueString("container_id_goes_here"),
+				conventions.AttributeK8SPodUID:   pdata.NewAttributeValueString("k8s_pod_uid_goes_here"),
+			}),
+			originID: "container_id://container_id_goes_here",
+		},
+		{
+			name: "only container ID",
+			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
+				conventions.AttributeContainerID: pdata.NewAttributeValueString("container_id_goes_here"),
+			}),
+			originID: "container_id://container_id_goes_here",
+		},
+		{
+			name: "only pod UID",
+			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
+				conventions.AttributeK8SPodUID: pdata.NewAttributeValueString("k8s_pod_uid_goes_here"),
+			}),
+			originID: "kubernetes_pod_uid://k8s_pod_uid_goes_here",
+		},
+		{
+			name:  "none",
+			attrs: pdata.NewAttributeMap(),
+		},
+	}
+
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			originID := OriginIDFromAttributes(testInstance.attrs)
+			assert.Equal(t, testInstance.originID, originID)
+		})
+	}
 }

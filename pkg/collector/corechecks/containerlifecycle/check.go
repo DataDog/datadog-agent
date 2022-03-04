@@ -96,7 +96,7 @@ func (c *Check) Run() error {
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindContainer},
-			[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd},
+			workloadmeta.SourceRuntime,
 		),
 	)
 
@@ -105,7 +105,7 @@ func (c *Check) Run() error {
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-			[]workloadmeta.Source{workloadmeta.SourceKubelet},
+			workloadmeta.SourceNodeOrchestrator,
 		),
 	)
 

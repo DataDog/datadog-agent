@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -41,14 +42,17 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
+const (
+	statsdPoolSize = 64
+)
+
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
 	wg               sync.WaitGroup
 	probe            *sprobe.Probe
 	config           *sconfig.Config
-	ruleSets         [2]*rules.RuleSet
-	currentRuleSet   uint64
+	currentRuleSet   atomic.Value
 	reloading        uint64
 	statsdClient     *statsd.Client
 	apiServer        *APIServer
@@ -264,14 +268,26 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
+	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
+	for name, value := range model.SECLVariables {
+		probeVariables[name] = value
+	}
+
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(model.SECLVariables).
+		WithVariables(probeVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
 		WithLegacyFields(model.SECLLegacyFields).
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
@@ -280,6 +296,9 @@ func (m *Module) Reload() error {
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
 	opts.WithVariables(sprobe.SECLVariables)
+	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+	})
 
 	ruleSet := m.probe.NewRuleSet(&opts)
 	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
@@ -312,10 +331,7 @@ func (m *Module) Reload() error {
 		m.rulesLoaded(ruleSet)
 	}
 
-	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
-	m.ruleSets[currentRuleSet] = ruleSet
-	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
-	m.ruleSets[1-currentRuleSet] = nil
+	m.currentRuleSet.Store(ruleSet)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
@@ -493,7 +509,10 @@ func (m *Module) GetProbe() *sprobe.Probe {
 
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
-	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
+	if ruleSet := m.currentRuleSet.Load(); ruleSet != nil {
+		return ruleSet.(*rules.RuleSet)
+	}
+	return nil
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
@@ -511,7 +530,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 			statsdAddr = cfg.StatsdAddr
 		}
 
-		if statsdClient, err = statsd.New(statsdAddr); err != nil {
+		if statsdClient, err = statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize)); err != nil {
 			return nil, err
 		}
 	} else {
@@ -534,17 +553,16 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	}
 
 	m := &Module{
-		config:         cfg,
-		probe:          probe,
-		statsdClient:   statsdClient,
-		apiServer:      NewAPIServer(cfg, probe, statsdClient),
-		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
-		sigupChan:      make(chan os.Signal, 1),
-		currentRuleSet: 1,
-		ctx:            ctx,
-		cancelFnc:      cancelFnc,
-		selfTester:     selfTester,
+		config:       cfg,
+		probe:        probe,
+		statsdClient: statsdClient,
+		apiServer:    NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:   grpc.NewServer(),
+		rateLimiter:  NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		sigupChan:    make(chan os.Signal, 1),
+		ctx:          ctx,
+		cancelFnc:    cancelFnc,
+		selfTester:   selfTester,
 	}
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)

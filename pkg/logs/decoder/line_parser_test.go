@@ -118,6 +118,10 @@ func TestMultilineParser(t *testing.T) {
 	assert.Equal(t, message.RawDataLen, 11+12+14)
 
 	close(inputChan)
+
+	// once the input channel closes, the output channel closes as well
+	_, ok := <-outputChan
+	require.Equal(t, false, ok)
 }
 
 func TestMultilineParserTimeout(t *testing.T) {

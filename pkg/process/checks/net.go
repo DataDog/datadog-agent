@@ -37,6 +37,25 @@ var (
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
+
+	telemetryTypes = []string{
+		string(network.ConnsBpfMapSize),
+		string(network.ConntrackSamplingPercent),
+		string(network.DNSStatsDropped),
+		string(network.NPMDriverFlowsMissedMaxExceeded),
+	}
+
+	monotonicTelemetryTypes = []string{
+		string(network.MonotonicKprobesTriggered),
+		string(network.MonotonicKprobesMissed),
+		string(network.MonotonicConntrackRegisters),
+		string(network.MonotonicConntrackRegistersDropped),
+		string(network.MonotonicDNSPacketsProcessed),
+		string(network.MonotonicConnsClosed),
+		string(network.MonotonicUDPSendsProcessed),
+		string(network.MonotonicUDPSendsMissed),
+		string(network.MonotonicDNSPacketsDropped),
+	}
 )
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
@@ -44,7 +63,7 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          map[network.ConnTelemetryType]int64
+	lastTelemetry          map[string]int64
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID atomic.Value
@@ -104,7 +123,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -137,42 +156,39 @@ func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[stri
 	}
 	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
 	if c.lastTelemetry == nil {
-		c.lastTelemetry = make(map[network.ConnTelemetryType]int64)
-		c.saveTelemetry(tel)
+		c.lastTelemetry = make(map[string]int64)
+		c.saveMonotonicTelemetry(tel)
 		return nil
 	}
 
-	cct := map[string]int64{
-		"kprobes_triggered":           tel[string(network.MonotonicKprobesTriggered)] - c.lastTelemetry[network.KprobesTriggered],
-		"kprobes_missed":              tel[string(network.MonotonicKprobesMissed)] - c.lastTelemetry[network.KprobesMissed],
-		"conntrack_registers":         tel[string(network.MonotonicConntrackRegisters)] - c.lastTelemetry[network.ConntrackRegisters],
-		"conntrack_registers_dropped": tel[string(network.MonotonicConntrackRegistersDropped)] - c.lastTelemetry[network.ConntrackRegistersDropped],
-		"dns_packets_processed":       tel[string(network.MonotonicDNSPacketsProcessed)] - c.lastTelemetry[network.DNSPacketsProcessed],
-		"conns_closed":                tel[string(network.MonotonicConnsClosed)] - c.lastTelemetry[network.ConnsClosed],
-		"conns_bpf_map_size":          tel[string(network.ConnsBpfMapSize)],
-		"udp_sends_processed":         tel[string(network.MonotonicUDPSendsProcessed)] - c.lastTelemetry[network.UDPSendsProcessed],
-		"udp_sends_missed":            tel[string(network.MonotonicUDPSendsMissed)] - c.lastTelemetry[network.UDPSendsMissed],
-		"conntrack_sampling_percent":  tel[string(network.ConntrackSamplingPercent)],
-		"dns_stats_dropped":           tel[string(network.DNSStatsDropped)],
+	cct := map[string]int64{}
+
+	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
+	// report the telemetry which is actually provided by the currently running version of the system-probe
+	for _, telemetryName := range telemetryTypes {
+		if _, ok := tel[telemetryName]; ok {
+			cct[telemetryName] = tel[telemetryName]
+		}
 	}
-	c.saveTelemetry(tel)
+
+	for _, telemetryName := range monotonicTelemetryTypes {
+		if _, ok := tel[telemetryName]; ok {
+			cct[telemetryName] = tel[telemetryName] - c.lastTelemetry[telemetryName]
+		}
+	}
+
+	c.saveMonotonicTelemetry(tel)
 	return cct
 }
 
-func (c *ConnectionsCheck) saveTelemetry(tel map[string]int64) {
+func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
 	if tel == nil || c.lastTelemetry == nil {
 		return
 	}
 
-	c.lastTelemetry[network.KprobesTriggered] = tel[string(network.MonotonicKprobesTriggered)]
-	c.lastTelemetry[network.KprobesMissed] = tel[string(network.MonotonicKprobesMissed)]
-	c.lastTelemetry[network.ConntrackRegisters] = tel[string(network.MonotonicConntrackRegisters)]
-	c.lastTelemetry[network.ConntrackRegistersDropped] = tel[string(network.MonotonicConntrackRegistersDropped)]
-	c.lastTelemetry[network.DNSPacketsProcessed] = tel[string(network.MonotonicDNSPacketsProcessed)]
-	c.lastTelemetry[network.ConnsClosed] = tel[string(network.MonotonicConnsClosed)]
-	c.lastTelemetry[network.UDPSendsProcessed] = tel[string(network.MonotonicUDPSendsProcessed)]
-	c.lastTelemetry[network.UDPSendsMissed] = tel[string(network.MonotonicUDPSendsMissed)]
-	c.lastTelemetry[network.DNSStatsDropped] = tel[string(network.DNSStatsDropped)]
+	for _, telemetryName := range monotonicTelemetryTypes {
+		c.lastTelemetry[telemetryName] = tel[telemetryName]
+	}
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
@@ -283,7 +299,6 @@ func batchConnections(
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
 	routes []*model.Route,
-	tags []string,
 	agentCfg *model.AgentConfiguration,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
@@ -310,8 +325,6 @@ func batchConnections(
 		namemap := make(map[string]int32)
 		namedb := make([]string, 0)
 
-		tagsEncoder := model.NewV2TagEncoder()
-
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				if _, present := batchDNS[c.Raddr.Ip]; !present {
@@ -329,18 +342,6 @@ func batchConnections(
 			// in the namedb.  Each unique string should only occur once.
 			remapDNSStatsByDomain(c, namemap, &namedb, domains)
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
-
-			// tags remap
-			if len(c.Tags) > 0 {
-				var tagsStr []string
-				for _, t := range c.Tags {
-					tagsStr = append(tagsStr, tags[t])
-				}
-				c.Tags = nil
-				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
-			} else {
-				c.TagsIdx = -1
-			}
 
 		}
 
@@ -391,18 +392,17 @@ func batchConnections(
 			}
 		}
 		cc := &model.CollectorConnections{
-			AgentConfiguration:     agentCfg,
-			HostName:               cfg.HostName,
-			NetworkId:              networkID,
-			Connections:            batchConns,
-			GroupId:                groupID,
-			GroupSize:              groupSize,
-			ContainerForPid:        ctrIDForPID,
-			EncodedDomainDatabase:  encodedNameDb,
-			EncodedDnsLookups:      mappedDNSLookups,
-			ContainerHostType:      cfg.ContainerHostType,
-			Routes:                 batchRoutes,
-			EncodedConnectionsTags: tagsEncoder.Buffer(),
+			AgentConfiguration:    agentCfg,
+			HostName:              cfg.HostName,
+			NetworkId:             networkID,
+			Connections:           batchConns,
+			GroupId:               groupID,
+			GroupSize:             groupSize,
+			ContainerForPid:       ctrIDForPID,
+			EncodedDomainDatabase: encodedNameDb,
+			EncodedDnsLookups:     mappedDNSLookups,
+			ContainerHostType:     cfg.ContainerHostType,
+			Routes:                batchRoutes,
 		}
 
 		// Add OS telemetry

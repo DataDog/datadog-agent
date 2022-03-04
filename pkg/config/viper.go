@@ -88,6 +88,30 @@ func (c *safeConfig) IsSet(key string) bool {
 	return c.Viper.IsSet(key)
 }
 
+// IsSectionSet checks if a section is set by checking if either it
+// or any of its subkeys is set.
+func (c *safeConfig) IsSectionSet(section string) bool {
+	// The section is considered set if any of the keys
+	// inside it is set.
+	// This is needed when keys within the section
+	// are set through env variables.
+
+	// Add trailing . to make sure we don't take into account unrelated
+	// settings, eg. IsSectionSet("section") shouldn't return true
+	// if "section_key" is set.
+	sectionPrefix := section + "."
+
+	for _, key := range c.AllKeys() {
+		if strings.HasPrefix(key, sectionPrefix) && c.IsSet(key) {
+			return true
+		}
+	}
+
+	// Is none of the keys are set, the section is still considered as set
+	// if it has been explicitly set in the config.
+	return c.IsSet(section)
+}
+
 // Get wraps Viper for concurrent access
 func (c *safeConfig) Get(key string) interface{} {
 	c.RLock()

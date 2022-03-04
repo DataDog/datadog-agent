@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -139,7 +138,7 @@ func (s *Launcher) scan() {
 		// tailer is tailing the file for the new container).
 		tailerKey := file.GetScanKey()
 		tailer, isTailed := s.tailers[tailerKey]
-		if isTailed && atomic.LoadInt32(&tailer.ShouldStop) != 0 {
+		if isTailed && tailer.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
 		}

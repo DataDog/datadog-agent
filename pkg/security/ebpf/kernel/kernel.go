@@ -33,8 +33,12 @@ var (
 	Kernel4_15 = kernel.VersionCode(4, 15, 0) //nolint:deadcode,unused
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
 	Kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
+	// Kernel4_18 is the KernelVersion representation of kernel version 4.18
+	Kernel4_18 = kernel.VersionCode(4, 18, 0) //nolint:deadcode,unused
 	// Kernel4_19 is the KernelVersion representation of kernel version 4.19
 	Kernel4_19 = kernel.VersionCode(4, 19, 0) //nolint:deadcode,unused
+	// Kernel4_20 is the KernelVersion representation of kernel version 4.20
+	Kernel4_20 = kernel.VersionCode(4, 20, 0) //nolint:deadcode,unused
 	// Kernel5_0 is the KernelVersion representation of kernel version 5.0
 	Kernel5_0 = kernel.VersionCode(5, 0, 0) //nolint:deadcode,unused
 	// Kernel5_1 is the KernelVersion representation of kernel version 5.1

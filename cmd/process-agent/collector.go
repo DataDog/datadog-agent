@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type checkResult struct {
@@ -226,11 +227,14 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
 		extraHeaders.Set(headers.ProcessVersionHeader, Version)
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
 		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}
+			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
+			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		}
 
 		payloads = append(payloads, checkPayload{
@@ -276,6 +280,7 @@ func (l *Collector) run(exit chan struct{}) error {
 			checkNames = append(checkNames, checks.Process.RealTimeName())
 		}
 	}
+	updateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
@@ -583,6 +588,11 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 		if response.StatusCode >= 300 {
 			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
+			continue
+		}
+
+		// we don't need to decode the body in case of the pod check
+		if checkName == checks.Pod.Name() {
 			continue
 		}
 

@@ -135,3 +135,119 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 
 	return hash
 }
+
+// Dedup2 removes duplicates from two tags accumulators. Duplicate tags are removed, so at the end
+// tag each tag is present once in either l or r, but not both at the same time.
+//
+// First, duplicates are removed from l. Then duplicates are removed from r, including any tags that
+// are already present in l. Can move tags from one accumulator to another.
+func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumulator) {
+	ntags := l.Len() + r.Len()
+
+	// This implementation has been designed to remove all heap
+	// allocations from the intake in order to reduce GC pressure on high volumes.
+	//
+	// There are three implementations used here to deduplicate the tags
+	// depending on how many tags we have to process:
+	//  - 16 < n < hashSetSize: // we use a hashset of `hashSetSize` values.
+	//  - n < 16: we use a simple for loop, which is faster than the hashset when there is
+	//    less than 16 tags
+	//  - n > hashSetSize: sort
+	if ntags > hashSetSize {
+		l.AppendHashingAccumulator(r)
+		l.SortUniq()
+		r.Reset()
+	} else if ntags > bruteforceSize {
+		// reset the `seen` hashset.
+		// it copies `g.empty` instead of using make because it's faster
+
+		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
+		// close to a power of two, size one up to keep hashset load low.
+		size := 1 << bits.Len(uint(ntags+ntags/8))
+		if size > hashSetSize {
+			size = hashSetSize
+		}
+		mask := uint64(size - 1)
+		copy(g.seenIdx[:size], g.empty[:size])
+
+		ibase := int16(0)
+		for _, tb := range [2]*HashingTagsAccumulator{l, r} {
+			tags := tb.data
+			hashes := tb.hash
+			ntags := len(hashes)
+
+			for i := 0; i < ntags; {
+				h := hashes[i]
+				j := h & mask
+				for {
+					if g.seenIdx[j] == blank {
+						g.seen[j] = h
+						g.seenIdx[j] = int16(i) + ibase
+						i++
+						break
+					} else if g.seen[j] == h {
+						idx := g.seenIdx[j]
+						if (idx >= ibase && tags[idx-ibase] == tags[i]) ||
+							(idx < ibase && l.data[idx] == tags[i]) {
+							tags[i] = tags[ntags-1]
+							hashes[i] = hashes[ntags-1]
+							ntags--
+							break
+						}
+					}
+					j = (j + 1) & mask
+				}
+			}
+			ibase = int16(ntags)
+			tb.Truncate(ntags)
+		}
+	} else { // ntags <= bruteforceSize
+		ldata := l.data
+		lhash := l.hash
+		lsize := len(ldata)
+
+	L:
+		for i := 0; i < lsize; {
+			h := lhash[i]
+			for j := 0; j < i; j++ {
+				if g.seen[j] == h && ldata[j] == ldata[i] {
+					lsize--
+					ldata[i] = ldata[lsize]
+					lhash[i] = lhash[lsize]
+					continue L
+				}
+			}
+			g.seen[i] = h
+			i++
+		}
+		l.Truncate(lsize)
+
+		rdata := r.data
+		rhash := r.hash
+		rsize := len(rdata)
+	R:
+		for i := 0; i < rsize; {
+			h := rhash[i]
+			for j := 0; j < lsize; j++ {
+				if g.seen[j] == h && ldata[j] == rdata[i] {
+					rsize--
+					rdata[i] = rdata[rsize]
+					rhash[i] = rhash[rsize]
+					continue R
+				}
+			}
+			for j := 0; j < i; j++ {
+				if g.seen[lsize+j] == h && rdata[j] == rdata[i] {
+					rsize--
+					rdata[i] = rdata[rsize]
+					rhash[i] = rhash[rsize]
+					continue R
+				}
+			}
+			g.seen[lsize+i] = h
+			i++
+		}
+		r.Truncate(rsize)
+
+	}
+}

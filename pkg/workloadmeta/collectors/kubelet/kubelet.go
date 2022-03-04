@@ -135,7 +135,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 
 		events = append(events, containerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceKubelet,
+			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: entity,
 		})
@@ -201,16 +201,20 @@ func (c *collector) parsePodContainers(
 		containerState := workloadmeta.ContainerState{}
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
+			containerState.Status = workloadmeta.ContainerStatusRunning
 			containerState.StartedAt = st.StartedAt
+			containerState.CreatedAt = st.StartedAt // CreatedAt not available
 		} else if st := container.State.Terminated; st != nil {
 			containerState.Running = false
+			containerState.Status = workloadmeta.ContainerStatusStopped
+			containerState.CreatedAt = st.StartedAt
 			containerState.StartedAt = st.StartedAt
 			containerState.FinishedAt = st.FinishedAt
 		}
 
 		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceKubelet,
+			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
@@ -278,7 +282,7 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEv
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceKubelet,
+			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: workloadmeta.EntityID{
 				Kind: kind,

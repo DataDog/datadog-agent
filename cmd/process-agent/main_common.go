@@ -20,6 +20,7 @@ import (
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -87,7 +88,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 			return nil, err
 		}
 	}
-	err := cfg.LoadProcessYamlConfig(opts.configPath)
+	err := cfg.LoadAgentConfig(opts.configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand)
+	rootCmd.AddCommand(configCommand, app.StatusCmd())
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
@@ -229,14 +230,14 @@ func runAgent(exit chan struct{}) {
 	log.Infof("running on platform: %s", hostInfo.Platform)
 	log.Infof("running version: %s", versionString(", "))
 
+	// Start workload metadata store before tagger (used for containerCollection)
+	workloadmeta.GetGlobalStore().Start(context.Background())
+
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
 		t = remote.NewTagger()
 	} else {
-		// Start workload metadata store before tagger
-		workloadmeta.GetGlobalStore().Start(context.Background())
-
 		t = local.NewTagger(collectors.DefaultCatalog)
 	}
 	tagger.SetDefaultTagger(t)
@@ -256,12 +257,7 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready on newly provisioned hosts.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
-
-	enabledChecks := getChecks(syscfg, cfg.Orchestrator, canAccessContainers)
+	enabledChecks := getChecks(syscfg, cfg.Orchestrator, ddconfig.IsAnyContainerFeaturePresent())
 
 	// Exit if agent is not enabled and we're not debugging a check.
 	if len(enabledChecks) == 0 && opts.check == "" {
