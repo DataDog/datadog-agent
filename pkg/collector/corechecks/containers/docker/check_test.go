@@ -64,7 +64,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 15)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "docker.cpu.usage", 1e-5, "", expectedTags)
@@ -83,6 +83,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.swap", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.failed_count", 10, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.in_use", 1, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.sw_limit", 500, "", expectedTags)
 
 	expectedFooTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/foo", "device_name:/dev/foo")
 	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", 100, "", expectedFooTags)

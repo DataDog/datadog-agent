@@ -96,4 +96,8 @@ func (h *DaemonSetHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorConte
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
 func (h *DaemonSetHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+	r := resource.(*appsv1.DaemonSet)
+	if ctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
+	}
 }

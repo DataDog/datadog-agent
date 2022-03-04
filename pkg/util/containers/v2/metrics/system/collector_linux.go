@@ -57,7 +57,7 @@ func newSystemCollector() (*systemCollector, error) {
 	}
 
 	reader, err := cgroups.NewReader(
-		cgroups.WithCgroupV1BaseController("freezer"),
+		cgroups.WithCgroupV1BaseController("memory"),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
 		cgroups.WithReaderFilter(cgroups.ContainerFilter),
@@ -187,6 +187,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.RSS, &cs.RSS)
 	convertField(cgs.Cache, &cs.Cache)
 	convertField(cgs.Swap, &cs.Swap)
+	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
 
 	return cs

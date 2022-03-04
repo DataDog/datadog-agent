@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build containerd
+//go:build containerd && (linux || windows)
 // +build containerd
+// +build linux windows
 
 package containerd
 
@@ -13,18 +14,12 @@ import (
 	"strconv"
 	"time"
 
-	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
-	v1 "github.com/containerd/cgroups/stats/v1"
-	v2 "github.com/containerd/cgroups/v2/stats"
-	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
-	"github.com/opencontainers/runtime-spec/specs-go"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -88,45 +83,45 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 		return nil, err
 	}
 
-	if winStats, ok := metrics.(*wstats.Statistics); ok {
-		windowsMetrics := winStats.GetWindows()
-
-		if windowsMetrics == nil {
-			return nil, fmt.Errorf("error getting Windows metrics for container with ID %s: %s", containerID, err)
-		}
-
-		return getContainerdStatsWindows(windowsMetrics), nil
+	containerStats, err := processContainerStats(containerID, metrics)
+	if err != nil {
+		return nil, err
 	}
 
+	// We got the main stats, best effort to fill remaining fields
 	container, err := c.client.Container(containerID)
 	if err != nil {
-		return nil, fmt.Errorf("could not get container with ID %s: %w", containerID, err)
+		log.Debugf("Could not fetch container with ID %s: %w", containerID, err)
+		return containerStats, nil
 	}
 
-	OCISpec, err := c.client.Spec(container)
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve OCI Spec from container with ID %s: %w", containerID, err)
-	}
-
-	info, err := c.client.Info(container)
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve the metadata of the container with ID %s: %w", containerID, err)
-	}
-
+	// Filling the PIDs if returned
 	processes, err := c.client.TaskPids(container)
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve the processes of the container with ID %s: %w", containerID, err)
+	if err == nil {
+		if len(processes) > 0 {
+			if containerStats.PID == nil {
+				containerStats.PID = &provider.ContainerPIDStats{
+					PIDs: make([]int, len(processes)),
+				}
+			}
+
+			for _, process := range processes {
+				containerStats.PID.PIDs = append(containerStats.PID.PIDs, int(process.Pid))
+			}
+		}
+	} else {
+		log.Debugf("Unable to get TaskPids for containerwith ID %s: %w", containerID, err)
 	}
 
-	// Linux stats can be v1 or v2
-	switch metricsVal := metrics.(type) {
-	case *v2.Metrics:
-		return getContainerdStatsV2(metricsVal, info, OCISpec, processes), nil
-	case *v1.Metrics:
-		return getContainerdStatsV1(metricsVal, info, OCISpec, processes), nil
-	default:
-		return nil, fmt.Errorf("can't convert the metrics data (type %T) from container with ID %s", metricsVal, containerID)
+	// Filling information from Spec
+	OCISpec, err := c.client.Spec(container)
+	if err == nil {
+		fillStatsFromSpec(containerStats, OCISpec)
+	} else {
+		log.Debugf("could not retrieve OCI Spec from container with ID %s: %w", containerID, err)
 	}
+
+	return containerStats, nil
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
@@ -142,18 +137,7 @@ func (c *containerdCollector) GetContainerNetworkStats(containerID string, cache
 		return nil, err
 	}
 
-	switch metricsVal := metrics.(type) {
-	case *v1.Metrics:
-		return getNetworkStatsCgroupV1(metricsVal.Network), nil
-	case *v2.Metrics:
-		// Network stats are not available on Linux cgroupv2
-		return nil, nil
-	case *wstats.Statistics:
-		// Network stats are not available on Windows
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("can't convert the metrics data (type %T) from container with ID %s", metricsVal, containerID)
-	}
+	return processContainerNetworkStats(containerID, metrics)
 }
 
 // GetContainerIDForPID returns the container ID for given PID
@@ -236,27 +220,6 @@ func (c *containerdCollector) refreshPIDCache(currentTime time.Time, cacheValidi
 
 	c.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, nil)
 	return nil
-}
-
-func getContainerdCPULimit(currentTime time.Time, startTime time.Time, OCISpec *oci.Spec) *float64 {
-	timeDiff := float64(currentTime.Sub(startTime).Nanoseconds()) // cpu.total is in nanoseconds
-
-	if timeDiff <= 0 {
-		return nil
-	}
-
-	var cpuLimits *specs.LinuxCPU
-	if OCISpec != nil && OCISpec.Linux != nil && OCISpec.Linux.Resources != nil {
-		cpuLimits = OCISpec.Linux.Resources.CPU
-	}
-
-	cpuLimitPct := float64(system.HostCPUCount())
-	if cpuLimits != nil && cpuLimits.Period != nil && *cpuLimits.Period > 0 && cpuLimits.Quota != nil && *cpuLimits.Quota > 0 {
-		cpuLimitPct = float64(*cpuLimits.Quota) / float64(*cpuLimits.Period)
-	}
-
-	limit := cpuLimitPct * timeDiff
-	return &limit
 }
 
 func (c *containerdCollector) containerNamespace(containerID string) (string, error) {

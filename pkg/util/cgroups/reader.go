@@ -46,7 +46,9 @@ func DefaultFilter(path, name string) (string, error) {
 }
 
 // ContainerRegexp defines the regexp used to match container ids
-var ContainerRegexp = regexp.MustCompile("([0-9a-f]{64}|[0-9a-f]{8}(-[0-9a-f]{4}){4})")
+// First part is usual containerid (opencontainers standard)
+// Second part is PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
+var ContainerRegexp = regexp.MustCompile("([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)")
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
 func ContainerFilter(path, name string) (string, error) {
@@ -55,7 +57,7 @@ func ContainerFilter(path, name string) (string, error) {
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
 	// While existing, no process is attached to it and thus holds no stats
 	if match != "" {
-		if strings.HasSuffix(name, ".mount") {
+		if strings.HasSuffix(name, ".mount") || strings.HasPrefix(name, "crio-conmon-") {
 			return "", nil
 		}
 

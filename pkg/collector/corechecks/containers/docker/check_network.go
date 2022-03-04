@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker && linux
-// +build docker,linux
+//go:build docker
+// +build docker
 
 package docker
 
 import (
 	"encoding/binary"
 	"net"
+	"runtime"
 	"strings"
 	"time"
 
@@ -34,8 +35,18 @@ const (
 // The custom network extension is only there to build the interface name to Docker network name mapping
 // It only works on Linux with access to host /proc, which should not be a pre-requisite.
 func (d *DockerCheck) configureNetworkProcessor(processor *generic.Processor) {
-	if config.IsHostProcAvailable() {
-		d.networkProcessorExtension = &dockerNetworkExtension{procPath: config.Datadog.GetString("container_proc_root")}
+	switch runtime.GOOS {
+	case "linux":
+		if config.IsHostProcAvailable() {
+			d.networkProcessorExtension = &dockerNetworkExtension{procPath: config.Datadog.GetString("container_proc_root")}
+		}
+	case "windows":
+		d.networkProcessorExtension = &dockerNetworkExtension{}
+	default:
+		panic("Not implemented")
+	}
+
+	if d.networkProcessorExtension != nil {
 		processor.RegisterExtension(generic.NetworkExtensionID, d.networkProcessorExtension)
 	}
 }
