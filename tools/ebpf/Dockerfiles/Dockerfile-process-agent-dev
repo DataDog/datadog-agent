@@ -22,4 +22,3 @@ COPY agent $CORE_AGENT_DEST
 
 COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/
 COPY *.c /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
-COPY stdarg.h /opt/datadog-agent/embedded/include/stdarg.h

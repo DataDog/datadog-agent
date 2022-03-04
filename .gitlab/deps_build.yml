@@ -55,7 +55,6 @@
     - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt llc_targets.txt
     - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-11 $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.${ARCH}
     - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.${ARCH}
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/stdarg.h $S3_PERMANENT_ARTIFACTS_URI/stdarg.h
     - mkdir -p $CI_PROJECT_DIR/.tmp
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-11 $CI_PROJECT_DIR/.tmp/clang
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc

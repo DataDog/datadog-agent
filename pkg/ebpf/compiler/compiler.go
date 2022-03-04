@@ -11,8 +11,11 @@ package compiler
 import (
 	"bytes"
 	"context"
+	"embed"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -26,7 +29,12 @@ var (
 	datadogAgentEmbeddedPath = "/opt/datadog-agent/embedded"
 	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang")
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc")
-	embeddedIncludePath      = filepath.Join(datadogAgentEmbeddedPath, "include")
+
+	//go:embed stdarg.h
+	stdargHData []byte
+
+	// Use the embed class in a trivial manner in order to get around 'imported and not used: "embed"' error
+	_ embed.FS
 )
 
 const compilationStepTimeout = 15 * time.Second
@@ -41,6 +49,16 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		return fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
 	}
 
+	tmpIncludeDir, err := ioutil.TempDir(os.TempDir(), "include-")
+	if err != nil {
+		return fmt.Errorf("error creating temporary include directory: %s", err.Error())
+	}
+	defer os.RemoveAll(tmpIncludeDir)
+
+	if err = os.WriteFile(filepath.Join(tmpIncludeDir, "stdarg.h"), stdargHData, 0644); err != nil {
+		return fmt.Errorf("error writing data to stdarg.h: %s", err.Error())
+	}
+
 	for _, d := range headerDirs {
 		cflags = append(cflags,
 			fmt.Sprintf("-isystem%s/arch/%s/include", d, arch),
@@ -52,7 +70,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 			fmt.Sprintf("-isystem%s/include/generated/uapi", d),
 		)
 	}
-	cflags = append(cflags, fmt.Sprintf("-isystem%s", embeddedIncludePath))
+	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
 	cflags = append(cflags, "-c", "-x", "c", "-o", "-", "-")
 
 	var clangOut, clangErr, llcErr bytes.Buffer
@@ -67,7 +85,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 
 	log.Debugf("compiling asset to bytecode: %v", compileToBC.Args)
 
-	err := compileToBC.Run()
+	err = compileToBC.Run()
 
 	if err != nil {
 		var errMsg string

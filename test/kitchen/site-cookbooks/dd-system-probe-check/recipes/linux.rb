@@ -81,8 +81,4 @@ cookbook_file "/opt/datadog-agent/embedded/bin/llc" do
   action :create
 end
 
-cookbook_file "/opt/datadog-agent/embedded/include/stdarg.h" do
-  source "stdarg.h"
-  mode '0744'
-  action :create
 end
