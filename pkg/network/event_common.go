@@ -132,17 +132,17 @@ type ConnTelemetryType string
 const (
 	MonotonicKprobesTriggered          ConnTelemetryType = "kprobes_triggered"
 	MonotonicKprobesMissed                               = "kprobes_missed"
-	MonotonicConnsClosed                                 = "conntrack_registers"
-	MonotonicConntrackRegisters                          = "conntrack_registers_dropped"
-	MonotonicConntrackRegistersDropped                   = "dns_packets_processed"
-	MonotonicDNSPacketsProcessed                         = "conns_closed"
+	MonotonicConnsClosed                                 = "conns_closed"
+	MonotonicConntrackRegisters                          = "conntrack_registers"
+	MonotonicConntrackRegistersDropped                   = "conntrack_registers_dropped"
+	MonotonicDNSPacketsProcessed                         = "dns_packets_processed"
 	MonotonicUDPSendsProcessed                           = "udp_sends_processed"
 	MonotonicUDPSendsMissed                              = "udp_sends_missed"
-	DNSStatsDropped                                      = "dns_packets_dropped"
+	DNSStatsDropped                                      = "dns_stats_dropped"
 	ConnsBpfMapSize                                      = "conns_bpf_map_size"
 	ConntrackSamplingPercent                             = "conntrack_sampling_percent"
-	NPMDriverFlowsMissedMaxExceeded                      = "dns_stats_dropped"
-	MonotonicDNSPacketsDropped                           = "driver_flows_missed_max_exceeded"
+	NPMDriverFlowsMissedMaxExceeded                      = "driver_flows_missed_max_exceeded"
+	MonotonicDNSPacketsDropped                           = "dns_packets_dropped"
 )
 
 //revive:enable
