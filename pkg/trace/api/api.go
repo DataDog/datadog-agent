@@ -29,9 +29,7 @@ import (
 	"time"
 
 	"github.com/tinylib/msgp/msgp"
-	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
@@ -45,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 var bufferPool = sync.Pool{
@@ -76,7 +73,6 @@ type HTTPReceiver struct {
 	server         *http.Server
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
-	coreClient     pbgo.AgentSecureClient // gRPC client to core agent process
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -95,20 +91,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if err != nil {
 		log.Errorf("Could not instantiate AppSec: %v", err)
 	}
-	var coreClient pbgo.AgentSecureClient
-	if features.Has("config_endpoint") {
-		coreClient, err = grpc.GetDDAgentSecureClient(context.Background())
-		if err != nil {
-			killProcess("could not instantiate the tracer remote config client: %v", err)
-		}
-	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
 		out:            out,
 		statsProcessor: statsProcessor,
-		coreClient:     coreClient,
 		conf:           conf,
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
@@ -386,6 +374,12 @@ const (
 	tagContainersTags = "_dd.tags.container"
 )
 
+// TagStats returns the stats and tags coinciding with the information found in header.
+// For more information, check the "Datadog-Meta-*" HTTP headers defined in this file.
+func (r *HTTPReceiver) TagStats(v Version, header http.Header) *info.TagStats {
+	return r.tagStats(v, header)
+}
+
 func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	return r.Stats.GetTagStats(info.Tags{
 		Lang:            header.Get(headerLang),
@@ -430,7 +424,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
-	case v07:
+	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
 		if _, err = io.Copy(buf, req.Body); err != nil {
@@ -490,7 +484,7 @@ type StatsProcessor interface {
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
-	ts := r.tagStats(v07, req.Header)
+	ts := r.tagStats(V07, req.Header)
 	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
@@ -504,54 +498,6 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
 	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang), req.Header.Get(headerTracerVersion))
-}
-
-// handleGetConfig handles config request.
-func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request) {
-	defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
-	tags := r.tagStats(v07, req.Header).AsTags()
-	statusCode := http.StatusOK
-	defer func() {
-		tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))
-		metrics.Count("datadog.trace_agent.receiver.config_request", 1, tags, 1)
-	}()
-
-	buf := getBuffer()
-	defer putBuffer(buf)
-	_, err := io.Copy(buf, req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-	}
-	var configsRequest pbgo.ClientGetConfigsRequest
-	err = json.Unmarshal(buf.Bytes(), &configsRequest)
-	if err != nil {
-		statusCode = http.StatusBadRequest
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", r.conf.AuthToken)},
-	}
-	ctx := metadata.NewOutgoingContext(req.Context(), md)
-	cfg, err := r.coreClient.ClientGetConfigs(ctx, &configsRequest)
-	if err != nil {
-		statusCode = http.StatusInternalServerError
-		http.Error(w, err.Error(), statusCode)
-		return
-	}
-	if cfg == nil {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	content, err := json.Marshal(cfg)
-	if err != nil {
-		statusCode = http.StatusInternalServerError
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(content)
 }
 
 // handleTraces knows how to handle a bunch of traces

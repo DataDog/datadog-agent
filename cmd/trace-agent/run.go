@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -32,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -68,12 +71,6 @@ func Run(ctx context.Context) {
 			return
 		}
 		Exitf("%v", err)
-	}
-	if features.Has("config_endpoint") {
-		cfg.AuthToken, err = security.FetchAuthToken()
-		if err != nil {
-			Exitf("could obtain the auth token for the tracer remote config client: %v", err)
-		}
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
@@ -182,6 +179,21 @@ func Run(ctx context.Context) {
 			log.Error(err)
 		}
 	}()
+
+	if features.Has("config_endpoint") {
+		client, err := grpc.GetDDAgentSecureClient(context.Background())
+		if err != nil {
+			Exitf("could not instantiate the tracer remote config client: %v", err)
+		}
+		token, err := security.FetchAuthToken()
+		if err != nil {
+			Exitf("could obtain the auth token for the tracer remote config client: %v", err)
+		}
+		api.AttachEndpoint(api.Endpoint{
+			Pattern: "/v0.7/config",
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token) },
+		})
+	}
 
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)

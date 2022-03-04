@@ -228,11 +228,11 @@ type WriterConfig struct {
 type FargateOrchestratorName string
 
 const (
-	// ECS represents AWS ECS
+	// OrchestratorECS represents AWS ECS
 	OrchestratorECS FargateOrchestratorName = "ECS"
-	// EKS represents AWS EKS
+	// OrchestratorEKS represents AWS EKS
 	OrchestratorEKS FargateOrchestratorName = "EKS"
-	// Unknown is used when we cannot retrieve the orchestrator
+	// OrchestratorUnknown is used when we cannot retrieve the orchestrator
 	OrchestratorUnknown FargateOrchestratorName = "Unknown"
 )
 
@@ -269,7 +269,6 @@ type AgentConfig struct {
 	Hostname   string
 	DefaultEnv string // the traces will default to this environment
 	ConfigPath string // the source of this config, if any
-	AuthToken  string // from the auth token file
 
 	// Endpoints specifies the set of hosts and API keys where traces and stats
 	// will be uploaded to. The first endpoint is the main configuration endpoint;

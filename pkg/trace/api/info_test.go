@@ -108,9 +108,8 @@ func TestInfoHandler(t *testing.T) {
 	}
 
 	var testCases = []struct {
-		name                 string
-		expected             string
-		enableConfigEndpoint bool
+		name     string
+		expected string
 	}{
 		{
 			name: "default",
@@ -171,8 +170,7 @@ func TestInfoHandler(t *testing.T) {
 }`,
 		},
 		{
-			name:                 "debug",
-			enableConfigEndpoint: true,
+			name: "debug",
 			expected: `{
 	"version": "0.99.0",
 	"git_commit": "fab047e10",
@@ -189,11 +187,10 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
-		"/debugger/v1/input",
-		"/v0.7/config"
+		"/debugger/v1/input"
 	],
 	"feature_flags": [
-		"config_endpoint"
+		"feature_flag"
 	],
 	"client_drop_p0s": true,
 	"span_meta_structs": true,
@@ -234,11 +231,7 @@ func TestInfoHandler(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			rcv := newTestReceiverFromConfig(conf)
-			if tt.enableConfigEndpoint {
-				defer testutil.WithFeatures("config_endpoint")()
-			} else {
-				defer testutil.WithFeatures("feature_flag")()
-			}
+			defer testutil.WithFeatures("feature_flag")()
 			defer func(old string) { info.Version = old }(info.Version)
 			defer func(old string) { info.GitCommit = old }(info.GitCommit)
 			defer func(old string) { info.BuildDate = old }(info.BuildDate)
