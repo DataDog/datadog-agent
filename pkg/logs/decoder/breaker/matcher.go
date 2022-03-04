@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package decoder
+package breaker
 
 var (
 	// Utf16leEOL is the bytes sequence for UTF-16 Little-Endian end-of-line char

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/decoder/breaker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
@@ -238,7 +239,7 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 func TestDecoderWithDecodingParser(t *testing.T) {
 	source := config.NewLogSource("config", &config.LogsConfig{})
 
-	d := NewDecoderWithEndLineMatcher(source, encodedtext.New(encodedtext.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL, 2), nil)
+	d := NewDecoderWithEndLineMatcher(source, encodedtext.New(encodedtext.UTF16LE), breaker.NewBytesSequenceMatcher(breaker.Utf16leEOL, 2), nil)
 	d.Start()
 
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
