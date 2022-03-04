@@ -37,25 +37,6 @@ var (
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
-
-	telemetryTypes = []string{
-		string(network.ConnsBpfMapSize),
-		string(network.ConntrackSamplingPercent),
-		string(network.DNSStatsDropped),
-		string(network.NPMDriverFlowsMissedMaxExceeded),
-	}
-
-	monotonicTelemetryTypes = []string{
-		string(network.MonotonicKprobesTriggered),
-		string(network.MonotonicKprobesMissed),
-		string(network.MonotonicConntrackRegisters),
-		string(network.MonotonicConntrackRegistersDropped),
-		string(network.MonotonicDNSPacketsProcessed),
-		string(network.MonotonicConnsClosed),
-		string(network.MonotonicUDPSendsProcessed),
-		string(network.MonotonicUDPSendsMissed),
-		string(network.MonotonicDNSPacketsDropped),
-	}
 )
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
