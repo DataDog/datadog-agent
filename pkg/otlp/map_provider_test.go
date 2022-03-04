@@ -48,7 +48,8 @@ func TestNewMap(t *testing.T) {
 						"tls": map[string]interface{}{
 							"insecure": true,
 						},
-						"endpoint": "localhost:5003",
+						"compression": "none",
+						"endpoint":    "localhost:5003",
 					},
 				},
 				"service": map[string]interface{}{
@@ -101,7 +102,8 @@ func TestNewMap(t *testing.T) {
 						"tls": map[string]interface{}{
 							"insecure": true,
 						},
-						"endpoint": "localhost:5003",
+						"compression": "none",
+						"endpoint":    "localhost:5003",
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -158,7 +160,8 @@ func TestNewMap(t *testing.T) {
 						"tls": map[string]interface{}{
 							"insecure": true,
 						},
-						"endpoint": "localhost:5003",
+						"compression": "none",
+						"endpoint":    "localhost:5003",
 					},
 				},
 				"service": map[string]interface{}{
