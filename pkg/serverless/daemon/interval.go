@@ -15,7 +15,7 @@ import (
 const (
 	// maxInvocationsStored is the number of invocations stored in order
 	// to determine whether to flush during every invocation or periodically.
-	maxInvocationsStored = 10
+	maxInvocationsStored = 30
 
 	// defaultFlushInterval is the default interval between flushes when
 	// the extension is flushing telemetry periodically.
@@ -45,9 +45,8 @@ func (d *Daemon) StoreInvocationTime(t time.Time) bool {
 // InvocationInterval computes the invocation interval of the current function.
 // This function returns 0 if not enough invocations were done.
 func (d *Daemon) InvocationInterval() time.Duration {
-	// with less than 3 invocations, we don't have enough data to compute
-	// something reliable.
-	if len(d.lastInvocations) < 3 {
+	// with less than 20 invocations, we may switch to periodical flushing prematurely.
+	if len(d.lastInvocations) < 20 {
 		return 0
 	}
 
