@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package container
+package launchers
 
 import (
 	"errors"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/stretchr/testify/assert"
@@ -73,7 +72,7 @@ func (m *mockLauncher) SetAvailable(Available bool) {
 	m.isAvailable = Available
 }
 
-func (m *mockLauncher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+func (m *mockLauncher) Start(sourceProvider SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	m.startCount++
 	m.wg.Done()
 }
@@ -81,20 +80,20 @@ func (m *mockLauncher) Stop() {
 	m.stopCount++
 }
 
-func (m *mockLauncher) ToLaunchable() Launchable {
-	return Launchable{
+func (m *mockLauncher) ToLaunchable() Factory {
+	return Factory{
 		IsAvailable: m.IsAvailable,
-		Launcher: func() launchers.Launcher {
+		NewLauncher: func() Launcher {
 			m.wg.Done()
 			return m
 		},
 	}
 }
 
-func (m *mockLauncher) ToErrLaunchable() Launchable {
-	return Launchable{
+func (m *mockLauncher) ToErrLaunchable() Factory {
+	return Factory{
 		IsAvailable: m.IsAvailable,
-		Launcher: func() launchers.Launcher {
+		NewLauncher: func() Launcher {
 			m.wg.Done()
 			return nil
 		},
@@ -106,7 +105,7 @@ func TestSelectFirst(t *testing.T) {
 	l2 := newMockLauncher(false)
 
 	l1.wg.Add(2)
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncherSelector([]Factory{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start(nil, nil, nil)
 
 	l1.wg.Wait()
@@ -119,7 +118,7 @@ func TestSelectSecond(t *testing.T) {
 	l2 := newMockLauncher(true)
 
 	l2.wg.Add(2)
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncherSelector([]Factory{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start(nil, nil, nil)
 
 	l2.wg.Wait()
@@ -132,7 +131,7 @@ func TestFailsThenSucceeds(t *testing.T) {
 	l2 := newMockLauncher(false)
 
 	l2.wg.Add(2)
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncherSelector([]Factory{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start(nil, nil, nil)
 
 	// let it run a few times
@@ -153,7 +152,7 @@ func TestFailsThenSucceedsRetrier(t *testing.T) {
 	l2 := newMockLauncher(false)
 
 	l1.wg.Add(3)
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncherSelector([]Factory{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start(nil, nil, nil)
 
 	l1.wg.Wait()
@@ -162,29 +161,12 @@ func TestFailsThenSucceedsRetrier(t *testing.T) {
 	assert.Equal(t, 0, l2.startCount)
 }
 
-func TestAvailableLauncherReturnsNil(t *testing.T) {
-	l1 := newMockLauncher(false)
-	l2 := newMockLauncher(true)
-
-	l2.wg.Add(1)
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToErrLaunchable()})
-	l.Start(nil, nil, nil)
-
-	l2.wg.Wait()
-	assert.Equal(t, 0, l1.startCount)
-	assert.Equal(t, 0, l2.startCount)
-	l.Lock()
-	_, ok := l.activeLauncher.(*noopLauncher)
-	l.Unlock()
-	assert.True(t, ok)
-}
-
 func TestRestartUsesPreviousLauncher(t *testing.T) {
 	l1 := newMockLauncher(true)
 	l2 := newMockLauncher(false)
 
 	l1.wg.Add(2)
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncherSelector([]Factory{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start(nil, nil, nil)
 
 	l1.wg.Wait()
@@ -206,7 +188,7 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	l1 := newMockLauncher(false)
 	l2 := newMockLauncher(false)
 
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncherSelector([]Factory{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start(nil, nil, nil)
 
 	// let it run a few times
@@ -233,7 +215,7 @@ func TestRestartSameLauncher(t *testing.T) {
 	l2 := newMockLauncher(false)
 
 	l1.wg.Add(2)
-	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncherSelector([]Factory{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start(nil, nil, nil)
 
 	// let it run a few times

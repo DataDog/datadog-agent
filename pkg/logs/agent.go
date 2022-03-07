@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
@@ -77,10 +76,10 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	lnchrs.AddLauncher(traps.NewLauncher())
 
 	// Only try to start the container launchers if Docker or Kubernetes is available
-	containerLaunchables := []container.Launchable{
+	containerLauncherFactories := []launchers.Factory{
 		{
 			IsAvailable: docker.IsAvailable,
-			Launcher: func() launchers.Launcher {
+			NewLauncher: func() launchers.Launcher {
 				return docker.NewLauncher(
 					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
 					sources,
@@ -91,7 +90,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		},
 		{
 			IsAvailable: kubernetes.IsAvailable,
-			Launcher: func() launchers.Launcher {
+			NewLauncher: func() launchers.Launcher {
 				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
 			},
 		},
@@ -99,11 +98,11 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 
 	// when k8s_container_use_file is true, always attempt to use the kubernetes launcher first
 	if coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file") {
-		containerLaunchables[0], containerLaunchables[1] = containerLaunchables[1], containerLaunchables[0]
+		containerLauncherFactories[0], containerLauncherFactories[1] = containerLauncherFactories[1], containerLauncherFactories[0]
 	}
 
 	if coreConfig.IsFeaturePresent(coreConfig.Docker) || coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
-		lnchrs.AddLauncher(container.NewLauncher(containerLaunchables))
+		lnchrs.AddLauncher(launchers.NewLauncherSelector(containerLauncherFactories))
 	}
 
 	return &Agent{
