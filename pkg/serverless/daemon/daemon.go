@@ -348,7 +348,8 @@ func (d *Daemon) WaitForDaemon() {
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
-		tagMap := tags.BuildTagMap(d.executionContext.ARN, configTags)
+		ec := d.GetExecutionContext()
+		tagMap := tags.BuildTagMap(ec.ARN, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)
