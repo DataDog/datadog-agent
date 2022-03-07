@@ -20,8 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 const testAPIKey = "123"
@@ -56,14 +56,10 @@ func TestSender(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		client := httputils.NewResetClient(
-			0,
-			func() *http.Client {
-				return &http.Client{}
-			},
-		)
+		cfg := config.New()
+		cfg.ConnectionResetInterval = 0
 		return &senderConfig{
-			client:    client,
+			client:    cfg.NewHTTPClient(),
 			url:       url,
 			maxConns:  climit,
 			maxQueued: 40,

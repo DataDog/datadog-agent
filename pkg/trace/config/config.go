@@ -472,11 +472,13 @@ func (c *AgentConfig) APIKey() string {
 
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
-func (c *AgentConfig) NewHTTPClient() *http.Client {
-	return &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: c.NewHTTPTransport(),
-	}
+func (c *AgentConfig) NewHTTPClient() *ResetClient {
+	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
+		return &http.Client{
+			Timeout:   10 * time.Second,
+			Transport: c.NewHTTPTransport(),
+		}
+	})
 }
 
 // NewHTTPTransport returns a new http.Transport to be used for outgoing connections to
