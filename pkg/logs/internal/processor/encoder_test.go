@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/pb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pb"
 	"github.com/stretchr/testify/assert"
 )
 
