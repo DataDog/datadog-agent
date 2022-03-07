@@ -590,7 +590,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 		log.Debug("Flushing the following Sketches:")
 		for _, s := range sketches {
-			log.Debugf("%s", s)
+			log.Debugf("%v", s)
 		}
 	}
 

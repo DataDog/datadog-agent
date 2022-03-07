@@ -72,7 +72,7 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 				for source, entity := range cachedEntity.sources {
 					info, err := entityToString(entity)
 					if err != nil {
-						log.Debugf("Ignoring entity %s: %w", entity.GetID().ID, err)
+						log.Debugf("Ignoring entity %s: %v", entity.GetID().ID, err)
 						continue
 					}
 
@@ -83,7 +83,7 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 			e := cachedEntity.cached
 			info, err := entityToString(e)
 			if err != nil {
-				log.Debugf("Ignoring entity %s: %w", e.GetID().ID, err)
+				log.Debugf("Ignoring entity %s: %v", e.GetID().ID, err)
 				continue
 			}
 

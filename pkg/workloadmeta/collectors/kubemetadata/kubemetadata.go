@@ -123,7 +123,7 @@ func (c *collector) Pull(ctx context.Context) error {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
-			log.Debugf("Cannot add the metadataMapping to cache: %w", err)
+			log.Debugf("Cannot add the metadataMapping to cache: %v", err)
 		}
 	}
 
@@ -178,7 +178,7 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 
 		metadata, err := c.getMetadata(apiserver.GetPodMetadataNames, metadataByNsPods, pod)
 		if err != nil {
-			log.Debugf("Could not fetch metadata for pod %s/%s: %w", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
 
 		services := []string{}
@@ -198,7 +198,7 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 		var nsLabels map[string]string
 		nsLabels, err = c.getNamespaceLabels(apiserver.GetNamespaceLabels, pod.Metadata.Namespace)
 		if err != nil {
-			log.Debugf("Could not fetch namespace labels for pod %s/%s: %w", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			log.Debugf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
 
 		entityID := workloadmeta.EntityID{

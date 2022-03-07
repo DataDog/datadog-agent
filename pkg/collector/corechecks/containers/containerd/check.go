@@ -78,7 +78,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 
 	c.containerFilter, err = containers.GetSharedMetricFilter()
 	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	c.client, err = cutil.NewContainerdUtil()

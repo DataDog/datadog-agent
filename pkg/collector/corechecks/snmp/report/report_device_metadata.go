@@ -165,7 +165,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 	for _, strIndex := range indexes {
 		index, err := strconv.ParseInt(strIndex, 10, 32)
 		if err != nil {
-			log.Warnf("interface metadata: invalid index: %s", index)
+			log.Warnf("interface metadata: invalid index: %d", index)
 			continue
 		}
 

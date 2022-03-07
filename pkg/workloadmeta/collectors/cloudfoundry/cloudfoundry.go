@@ -95,7 +95,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	events := make([]workloadmeta.CollectorEvent, 0, len(handles))
 	for id, containerInfo := range containersInfo {
 		if containerInfo.Err != nil {
-			log.Debugf("Failed to retrieve info for garden container: %s, err: %w", id, containerInfo.Err.Err)
+			log.Debugf("Failed to retrieve info for garden container: %s, err: %v", id, containerInfo.Err.Err)
 			continue
 		}
 
@@ -185,7 +185,7 @@ func (c *collector) getDCAClient() clusteragent.DCAClientInterface {
 	var err error
 	c.dcaClient, err = clusteragent.GetClusterAgentClient()
 	if err != nil {
-		log.Debugf("Could not initialise the communication with the cluster agent, PCF tags may be missing, err: %w", err)
+		log.Debugf("Could not initialise the communication with the cluster agent, PCF tags may be missing, err: %v", err)
 		return nil
 	}
 
