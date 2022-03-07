@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/internal/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/pkg/errors"
 	"github.com/theupdateframework/go-tuf/client"

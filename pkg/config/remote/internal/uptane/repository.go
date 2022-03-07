@@ -1,7 +1,7 @@
 package uptane
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/internal/meta"
 	"github.com/theupdateframework/go-tuf/client"
 	"go.etcd.io/bbolt"
 )

@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/internal/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/theupdateframework/go-tuf/client"
 	"github.com/theupdateframework/go-tuf/data"
