@@ -1071,11 +1071,15 @@ func (p *Probe) ensureConfigDefaults() {
 // GetOffsetConstants returns the offsets and struct sizes constants
 func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
-	return GetOffsetConstantsFromFetcher(constantFetcher, probe)
+	kv, err := probe.GetKernelVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
+	}
+	return GetOffsetConstantsFromFetcher(constantFetcher, kv)
 }
 
 // GetOffsetConstantsFromFetcher returns the offsets and struct sizes constants, from a constant fetcher
-func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, probe *Probe) (map[string]uint64, error) {
+func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) (map[string]uint64, error) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("dentry_sb_offset", "struct dentry", "d_sb", "linux/dcache.h")
@@ -1092,7 +1096,7 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
 
-	if probe.kernelVersion.Code != 0 && (probe.kernelVersion.Code > kernel.Kernel4_16 || probe.kernelVersion.IsSLES12Kernel() || probe.kernelVersion.IsSLES15Kernel()) {
+	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSLES12Kernel() || kv.IsSLES15Kernel()) {
 		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
 	}
 	// namespace nr offsets
