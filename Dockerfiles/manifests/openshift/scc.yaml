@@ -43,6 +43,9 @@ allowedCapabilities:
 - NET_BROADCAST
 - IPC_LOCK
 - NET_RAW
+- CHOWN
+- AUDIT_CONTROL
+- AUDIT_READ
 #
 # The rest is copied from restricted SCC
 #
