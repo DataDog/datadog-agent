@@ -62,7 +62,7 @@ func TestProfileProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
-	newProfileProxy(c.NewHTTPTransport(), []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
+	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
 	slurp, err := ioutil.ReadAll(rec.Result().Body)
 	if err != nil {
 		t.Fatal(err)

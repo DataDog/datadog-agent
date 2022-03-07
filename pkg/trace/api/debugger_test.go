@@ -47,7 +47,7 @@ func TestDebuggerProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &traceconfig.AgentConfig{}
-	newDebuggerProxy(c.NewHTTPTransport(), u, "123", "key:val").ServeHTTP(rec, req)
+	newDebuggerProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
 	slurp, err := ioutil.ReadAll(rec.Result().Body)
 	if err != nil {
 		t.Fatal(err)

@@ -368,6 +368,7 @@ func TestInfoConfig(t *testing.T) {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.TelemetryConfig.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
 	}
+	conf.ContainerTags = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }

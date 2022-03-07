@@ -46,26 +46,24 @@ const (
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
-	wg      sync.WaitGroup  // waits for a graceful shutdown
-	httpsrv *http.Server    // the running HTTP server on a started receiver, if enabled
-	grpcsrv *grpc.Server    // the running GRPC server on a started receiver, if enabled
-	out     chan<- *Payload // the outgoing payload channel
-	cfg     *config.OTLP    // receiver config
+	wg      sync.WaitGroup      // waits for a graceful shutdown
+	httpsrv *http.Server        // the running HTTP server on a started receiver, if enabled
+	grpcsrv *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out     chan<- *Payload     // the outgoing payload channel
+	conf    *config.AgentConfig // receiver config
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *Payload, cfg *config.OTLP) *OTLPReceiver {
-	if cfg == nil {
-		cfg = new(config.OTLP)
-	}
-	return &OTLPReceiver{out: out, cfg: cfg}
+func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
+	return &OTLPReceiver{out: out, conf: cfg}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
 func (o *OTLPReceiver) Start() {
-	if o.cfg.HTTPPort != 0 {
+	cfg := o.conf.OTLPReceiver
+	if cfg.HTTPPort != 0 {
 		o.httpsrv = &http.Server{
-			Addr:    fmt.Sprintf("%s:%d", o.cfg.BindHost, o.cfg.HTTPPort),
+			Addr:    fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
 			Handler: o,
 		}
 		o.wg.Add(1)
@@ -77,10 +75,10 @@ func (o *OTLPReceiver) Start() {
 				}
 			}
 		}()
-		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.cfg.BindHost, o.cfg.HTTPPort)
+		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.HTTPPort)
 	}
-	if o.cfg.GRPCPort != 0 {
-		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", o.cfg.BindHost, o.cfg.GRPCPort))
+	if cfg.GRPCPort != 0 {
+		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
@@ -93,7 +91,7 @@ func (o *OTLPReceiver) Start() {
 					log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 				}
 			}()
-			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.cfg.BindHost, o.cfg.GRPCPort)
+			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.GRPCPort)
 		}
 	}
 }
@@ -138,7 +136,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		r = gzipr
 	}
-	rd := apiutil.NewLimitedReader(r, o.cfg.MaxRequestBytes)
+	rd := apiutil.NewLimitedReader(r, o.conf.OTLPReceiver.MaxRequestBytes)
 	slurp, err := ioutil.ReadAll(rd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -253,7 +251,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 			LanguageVersion: tagstats.LangVersion,
 			TracerVersion:   tagstats.TracerVersion,
 		}
-		if ctags := getContainerTags(p.TracerPayload.ContainerID); ctags != "" {
+		if ctags := getContainerTags(o.conf.ContainerTags, p.TracerPayload.ContainerID); ctags != "" {
 			p.TracerPayload.Tags = map[string]string{
 				tagContainersTags: ctags,
 			}

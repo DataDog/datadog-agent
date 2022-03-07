@@ -380,6 +380,9 @@ type AgentConfig struct {
 
 	// RemoteSamplingClient ...
 	RemoteSamplingClient RemoteClient
+
+	// ContainerTags ...
+	ContainerTags func(cid string) ([]string, error) `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source. Within the Datadog Agent
@@ -447,8 +450,9 @@ func New() *AgentConfig {
 
 		GlobalTags: make(map[string]string),
 
-		Proxy:        http.ProxyFromEnvironment,
-		OTLPReceiver: &OTLP{},
+		Proxy:         http.ProxyFromEnvironment,
+		OTLPReceiver:  &OTLP{},
+		ContainerTags: noopContainerTagsFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -457,6 +461,10 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 	}
+}
+
+func noopContainerTagsFunc(_ string) ([]string, error) {
+	return nil, errors.New("ContainerTags function not defined")
 }
 
 // APIKey returns the first (main) endpoint's API key.

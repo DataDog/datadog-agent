@@ -8,7 +8,6 @@ package config
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"net/url"
@@ -23,6 +22,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -50,7 +51,9 @@ func LoadConfigFile(path string) (*config.AgentConfig, error) {
 	} else {
 		log.Infof("Loaded configuration: %s", cfg.ConfigPath)
 	}
-	applyDatadogConfig(cfg)
+	if err := applyDatadogConfig(cfg); err != nil {
+		log.Error(err)
+	}
 	return cfg, validate(cfg)
 }
 
@@ -81,7 +84,12 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 			cfg.RemoteSamplingClient = client
 		}
 	}
+	cfg.ContainerTags = containerTagsFunc
 	return cfg, nil
+}
+
+func containerTagsFunc(cid string) ([]string, error) {
+	return tagger.Tag("container_id://"+cid, collectors.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
@@ -468,15 +476,6 @@ func parseServiceAndOp(name string) (string, string, error) {
 		return "", "", fmt.Errorf("Bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
 	}
 	return splits[0], splits[1], nil
-}
-
-func splitString(s string, sep rune) ([]string, error) {
-	r := csv.NewReader(strings.NewReader(s))
-	r.TrimLeadingSpace = true
-	r.LazyQuotes = true
-	r.Comma = sep
-
-	return r.Read()
 }
 
 func toFloat64(val interface{}) (float64, error) {

@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -46,6 +44,7 @@ type StatsWriter struct {
 	senders []*sender
 	stop    chan struct{}
 	stats   *info.StatsWriterInfo
+	conf    *config.AgentConfig
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -64,6 +63,7 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload) *StatsWr
 		flushChan: make(chan chan struct{}),
 		syncMode:  cfg.SynchronousFlushing,
 		easylog:   log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		conf:      cfg,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -203,7 +203,7 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		}
 		nbEntries += p.nbEntries
 		nbBuckets += len(p.Stats)
-		resolveContainerTags(&p.ClientStatsPayload)
+		w.resolveContainerTags(&p.ClientStatsPayload)
 		current.Stats = append(current.Stats, p.ClientStatsPayload)
 	}
 	if nbEntries > 0 {
@@ -216,12 +216,12 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 }
 
 // resolveContainerTags takes any ContainerID found in p to fill in the appropriate tags.
-func resolveContainerTags(p *pb.ClientStatsPayload) {
+func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	if p.ContainerID == "" {
 		p.Tags = nil
 		return
 	}
-	ctags, err := tagger.Tag("container_id://"+p.ContainerID, collectors.HighCardinality)
+	ctags, err := w.conf.ContainerTags(p.ContainerID)
 	switch {
 	case err != nil:
 		log.Tracef("Error resolving container tags for %q: %v", p.ContainerID, err)

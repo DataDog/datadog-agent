@@ -98,7 +98,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ctx:                   ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
-	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf.OTLPReceiver)
+	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
 	return agnt
 }
 

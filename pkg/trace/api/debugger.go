@@ -47,7 +47,7 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	if k := r.conf.DebuggerProxy.APIKey; k != "" {
 		apiKey = k
 	}
-	return newDebuggerProxy(r.conf.NewHTTPTransport(), target, strings.TrimSpace(apiKey), tags)
+	return newDebuggerProxy(r.conf, target, strings.TrimSpace(apiKey), tags)
 }
 
 // debuggerErrorHandler always returns http.StatusInternalServerError with a clarifying message.
@@ -59,12 +59,12 @@ func debuggerErrorHandler(err error) http.Handler {
 }
 
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
-func newDebuggerProxy(rt http.RoundTripper, target *url.URL, key string, tags string) *httputil.ReverseProxy {
+func newDebuggerProxy(conf *config.AgentConfig, target *url.URL, key string, tags string) *httputil.ReverseProxy {
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	director := func(req *http.Request) {
 		ddtags := tags
 		containerID := req.Header.Get(headerContainerID)
-		if ct := getContainerTags(containerID); ct != "" {
+		if ct := getContainerTags(conf.ContainerTags, containerID); ct != "" {
 			ddtags = fmt.Sprintf("%s,%s", ddtags, ct)
 		}
 		q := req.URL.Query()
@@ -81,7 +81,7 @@ func newDebuggerProxy(rt http.RoundTripper, target *url.URL, key string, tags st
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "debugger.Proxy: ", 0),
-		Transport: &measuringDebuggerTransport{rt},
+		Transport: &measuringDebuggerTransport{conf.NewHTTPTransport()},
 	}
 }
 

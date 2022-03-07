@@ -6,8 +6,6 @@
 package config
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -38,7 +36,6 @@ func newRemoteClient() (*remoteClient, error) {
 
 // remoteClient implements config.RemoteClient
 type remoteClient struct {
-	wg     sync.WaitGroup
 	client *remote.Client
 	out    chan config.SamplingUpdate
 }

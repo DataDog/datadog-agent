@@ -117,7 +117,7 @@ func Run(ctx context.Context) {
 		if err != nil {
 			log.Error(err)
 		}
-		pprof.StartCPUProfile(f)
+		pprof.StartCPUProfile(f) //nolint:errcheck
 		log.Info("CPU profiling started...")
 		defer pprof.StopCPUProfile()
 	}
@@ -200,8 +200,11 @@ func Run(ctx context.Context) {
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	if pcfg := profilingConfig(cfg); pcfg != nil {
-		profiling.Start(*pcfg)
-		log.Infof("Internal profiling enabled: %s.", pcfg)
+		if err := profiling.Start(*pcfg); err != nil {
+			log.Warn(err)
+		} else {
+			log.Infof("Internal profiling enabled: %s.", pcfg)
+		}
 		defer profiling.Stop()
 	}
 	agnt.Run()

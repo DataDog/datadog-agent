@@ -30,8 +30,6 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -555,7 +553,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	if ctags := getContainerTags(tp.ContainerID); ctags != "" {
+	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
 		}
@@ -815,11 +813,15 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 
 // getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
 // is empty or no tags are found, an empty string is returned.
-func getContainerTags(containerID string) string {
+func getContainerTags(fn func(string) ([]string, error), containerID string) string {
 	if containerID == "" {
 		return ""
 	}
-	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
+	if fn == nil {
+		log.Warn("ContainerTags not configured")
+		return ""
+	}
+	list, err := fn("container_id://" + containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return ""
