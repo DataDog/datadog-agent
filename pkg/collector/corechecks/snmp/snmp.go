@@ -16,12 +16,12 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 var timeNow = time.Now

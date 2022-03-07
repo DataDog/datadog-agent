@@ -22,10 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 func TestProfileMetadata_f5(t *testing.T) {
