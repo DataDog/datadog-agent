@@ -462,7 +462,7 @@ func TestConvertResourceRequirements(t *testing.T) {
 			},
 			expected: nil,
 		},
-		"0 ResourceRequirements set": {
+		"0 ResourceRequirement explicitly set": {
 			input: v1.Container{
 				Name: "test",
 				Resources: v1.ResourceRequirements{
