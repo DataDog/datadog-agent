@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (

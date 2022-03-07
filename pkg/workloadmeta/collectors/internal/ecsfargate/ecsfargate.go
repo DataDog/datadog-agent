@@ -21,7 +21,7 @@ import (
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
