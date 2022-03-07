@@ -225,12 +225,27 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 	setLimits := false
 	limits := map[string]int64{}
 
-	for t, v := range rq.Limits {
-		limits[t.String()] = v.Value()
+	cpuLimit := rq.Limits.Cpu()
+	if !cpuLimit.IsZero() {
+		limits[corev1.ResourceCPU.String()] = cpuLimit.MilliValue()
 		setLimits = true
 	}
-	for t, v := range rq.Requests {
-		requests[t.String()] = v.Value()
+
+	memLimit := rq.Limits.Memory()
+	if !memLimit.IsZero() {
+		limits[corev1.ResourceMemory.String()] = memLimit.Value()
+		setLimits = true
+	}
+
+	cpuRequest := rq.Requests.Cpu()
+	if !cpuRequest.IsZero() {
+		requests[corev1.ResourceCPU.String()] = cpuRequest.MilliValue()
+		setRequests = true
+	}
+
+	memRequest := rq.Requests.Memory()
+	if !memRequest.IsZero() {
+		requests[corev1.ResourceMemory.String()] = memRequest.Value()
 		setRequests = true
 	}
 
