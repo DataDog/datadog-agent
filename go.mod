@@ -64,9 +64,9 @@ require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
-	github.com/DataDog/ebpf-manager v0.0.0-20220214105236-0904578096f4
+	github.com/DataDog/ebpf-manager v0.0.0-20220223090948-29871766cdd0
 	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
-	github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a
+	github.com/DataDog/gopsutil v0.0.0-20211117161807-6301733ae21b
 	github.com/DataDog/nikos v1.7.4
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
@@ -173,7 +173,7 @@ require (
 	github.com/twmb/murmur3 v1.1.6
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
-	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
+	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
@@ -187,7 +187,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
+	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.9
@@ -287,7 +287,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/googleapis/gnostic v0.5.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
-	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.0.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
