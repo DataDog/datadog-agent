@@ -12,7 +12,7 @@ We need this because of a 'dependency hell' situation:
 
 1. `k8s.io/component-base` depends on v0.4.0 of `github.com/go-logr/logr`
 2. `go.opentelemetry.io/otel` depends on v1.2.2 of `github.com/go-logr/logr`.
-3. Go considers v0.x and v1.x to be the same major version, pressumably for backwards compatibility with the era pre-modules.
+3. Go considers v0.x and v1.x to be the same major version, presumably for backwards compatibility with the era pre-modules.
 
 This situation would be solved by bumping Kubernetes to v0.23.0 or above, see [relevant commit](https://github.com/kubernetes/kubernetes/commit/cb6a6537).
 However, Kubernetes can't be upgraded above v0.21.x, because of another 'dependency hell': [it depends on v0.20 of `go.opentelemetry.io/otel`](https://github.com/kubernetes/kubernetes/issues/106536). Preserving backwards-compatibility with older Kubernetes API objects also makes the update difficult.
