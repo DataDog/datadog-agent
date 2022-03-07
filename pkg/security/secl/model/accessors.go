@@ -6188,7 +6188,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6214,7 +6213,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6265,7 +6263,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6516,7 +6513,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6542,7 +6538,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -7303,7 +7298,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Argv
@@ -7314,7 +7308,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Argv
@@ -7335,7 +7328,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Argv
@@ -7436,7 +7428,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Envp
@@ -7447,7 +7438,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Envs
