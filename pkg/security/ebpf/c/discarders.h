@@ -75,26 +75,24 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
     }
 }
 
-void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type) {
+void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
     if (entry == NULL)
         return NULL;
 
     struct discarder_params_t *params = (struct discarder_params_t *)entry;
 
-    u64 tm = bpf_ktime_get_ns();
-
     // this discarder has been marked as on hold by event such as unlink, rename, etc.
     // keep them for a while in the map to avoid userspace to reinsert it with a pending userspace event
     if (params->is_retained) {
-        if (params->expire_at < tm) {
+        if (params->expire_at < now) {
             bpf_map_delete_elem(discarder_map, key);
         }
         return NULL;
     }
 
     u64* pid_tm = get_discarder_timestamp(params, event_type);
-    if (pid_tm != NULL && *pid_tm && *pid_tm <= tm) {
+    if (pid_tm != NULL && *pid_tm && *pid_tm <= now) {
         return NULL;
     }
 
@@ -181,21 +179,76 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-int __attribute__((always_inline)) is_discarded_by_inode(u64 event_type, u32 mount_id, u64 inode, u32 is_leaf) {
-    struct inode_discarder_t key = {
-        .path_key = {
-            .ino = inode,
-            .mount_id = mount_id,
-        },
-        .is_leaf = is_leaf,
-    };
+struct is_discarded_by_inode_t {
+    u64 event_type;
+    struct inode_discarder_t discarder;
 
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, event_type);
+    u64 now;
+    u32 tgid_is_traced;
+    u64 tgid_exec_ts;
+    u32 tgid;
+};
+
+int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+    // is this process traced ?
+    if (params->tgid_is_traced) {
+
+        // was this inode seen before ?
+        struct traced_inode_t traced_key = {
+            .tgid = params->tgid,
+            .inode = params->discarder.path_key.ino,
+            .mount_id = params->discarder.path_key.mount_id,
+        };
+        struct traced_inode_params_t *traced_inode_params = bpf_map_lookup_elem(&traced_inodes, &traced_key);
+
+        if (traced_inode_params == NULL) {
+
+            // this is the first time we see this inode, save the current time and add the event type to the event mask
+            struct traced_inode_params_t new_params = {
+                .first_sent = params->now,
+                .event_mask = 0,
+            };
+            add_event_to_mask(&new_params.first_sent, params->event_type);
+            bpf_map_update_elem(&traced_inodes, &traced_key, &new_params, BPF_ANY);
+
+            // do not discard this event
+            return 0;
+
+        }
+
+        // Regardless of the event type, we want to check first that the process for which we sent the first event
+        // on this inode is still up.
+        if (params->tgid_exec_ts > traced_inode_params->first_sent || params->tgid_exec_ts == 0) {
+
+            // the tgid was reused, update the last_sent timestamp and do not discard
+            traced_inode_params->first_sent = params->now;
+            traced_inode_params->event_mask = 0;
+            add_event_to_mask(&traced_inode_params->event_mask, params->event_type);
+
+            // do not discard this event
+            return 0;
+
+        }
+
+        // have we seen this event type before ?
+        if (mask_has_event(traced_inode_params->event_mask, params->event_type)) {
+            // yes, discard this inode
+            return 1;
+        }
+
+        // no, add the event type to the mask of event type
+        add_event_to_mask(&traced_inode_params->event_mask, params->event_type);
+        // do not discard this event
+        return 0;
+    }
+
+    // fall back to the "normal" discarder check
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &params->discarder, params->event_type, params->now);
     if (!inode_params) {
         return 0;
     }
 
-    return inode_params->revision == get_discarder_revision(mount_id);
+    return inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
 }
 
 void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 inode) {
@@ -299,7 +352,7 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
         .tgid = tgid,
     };
 
-    return is_discarded(&pid_discarders, &key, event_type) != NULL;
+    return is_discarded(&pid_discarders, &key, event_type, bpf_ktime_get_ns()) != NULL;
 }
 
 int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
@@ -319,8 +372,20 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
             return 1;
 
         struct proc_cache_t *entry = get_proc_cache(tgid);
-        if (entry && is_discarded_by_inode(event_type, entry->executable.path_key.mount_id, entry->executable.path_key.ino, 0)) {
-            return 1;
+        if (entry != NULL) {
+            struct is_discarded_by_inode_t params = {
+                .event_type = event_type,
+                .discarder = {
+                    .path_key = {
+                        .ino = entry->executable.path_key.ino,
+                        .mount_id = entry->executable.path_key.mount_id,
+                        // we don't want to copy the path_id
+                    },
+                },
+            };
+            if (is_discarded_by_inode(&params)) {
+                return 1;
+            }
         }
     }
 

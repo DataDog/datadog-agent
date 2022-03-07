@@ -32,9 +32,9 @@ func GetAllCategories() []EventCategory {
 // GetEventTypeCategory returns the category for the given event type
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
-	case "exec":
+	case "exec", "signal":
 		return ProcessCategory
-	case "bpf", "selinux", "mmap", "mprotect", "ptrace":
+	case "bpf", "selinux", "mmap", "mprotect", "ptrace", "load_module", "unload_module":
 		return KernelCategory
 	}
 

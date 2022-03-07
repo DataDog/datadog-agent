@@ -145,10 +145,15 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     tags = build_tags[:] or get_default_build_tags(build="test", arch=arch)
     tags.append("dovet")
 
+    printf_funcs_sep = '='
+    printf_funcs = "-printf.funcs"
+    for fct in ["Tracef", "Debugf", "Infof", "Printf", "Warnf", "Errorf"]:
+        printf_funcs += printf_funcs_sep + "github.com/DataDog/datadog-agent/pkg/util/log." + fct
+        printf_funcs_sep = ","
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     env["CGO_ENABLED"] = "1"
-
-    ctx.run(f"go vet -tags \"{' '.join(tags)}\" " + " ".join(args), env=env)
+    ctx.run(f"go vet {printf_funcs} -tags \"{' '.join(tags)}\" " + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
@@ -404,7 +409,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 @task
 def generate_protobuf(ctx):
     """
-    Generates protobuf defintions in pkg/proto
+    Generates protobuf definitions in pkg/proto
     """
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))

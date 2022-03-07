@@ -36,7 +36,7 @@ type Model struct {
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{Event: model.Event{}}
+	return &Event{}
 }
 
 // Event describes a probe event
@@ -72,8 +72,13 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	// do not try to resolve mmap events when they aren't backed by any file
-	if ev.GetEventType() == model.MMapEventType {
+	switch ev.GetEventType() {
+	case model.MMapEventType:
 		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
+			return ""
+		}
+	case model.LoadModuleEventType:
+		if ev.LoadModule.LoadedFromMemory {
 			return ""
 		}
 	}
@@ -259,6 +264,12 @@ func (ev *Event) ResolveProcessArgs(process *model.Process) string {
 func (ev *Event) ResolveProcessArgv(process *model.Process) []string {
 	argv, _ := ev.resolvers.ProcessResolver.GetProcessArgv(process)
 	return argv
+}
+
+// ResolveProcessEnvp resolves the envp of the event as an array
+func (ev *Event) ResolveProcessEnvp(process *model.Process) []string {
+	envp, _ := ev.resolvers.ProcessResolver.GetProcessEnvp(process)
+	return envp
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated

@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	minimalRefreshInterval = time.Second * 5
-	defaultClientsTTL      = 10 * time.Second
+	minimalRefreshInterval = 5 * time.Second
+	defaultClientsTTL      = 30 * time.Second
+	maxClientsTTL          = 60 * time.Second
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -71,6 +72,7 @@ type uptaneClient interface {
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
+	TargetsCustom() ([]byte, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -122,23 +124,23 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	backendURL := config.Datadog.GetString("remote_configuration.endpoint")
-	http := api.NewHTTPClient(backendURL, apiKey, remoteConfigKey.AppKey)
+	http := api.NewHTTPClient(apiKey, remoteConfigKey.AppKey)
 
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
+	selfSignedEnabled := config.Datadog.GetBool("remote_configuration.unstable.self_signed")
 	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID, selfSignedEnabled)
 	if err != nil {
 		return nil, err
 	}
 
-	clientsTTL := time.Second * config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
-	if clientsTTL <= 5*time.Second || clientsTTL >= 60*time.Second {
-		log.Warnf("Configured clients ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, clientsTTL, defaultClientsTTL)
+	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
+	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
+		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
 		clientsTTL = defaultClientsTTL
 	}
 	clock := clock.New()
@@ -200,7 +202,11 @@ func (s *Service) refresh() error {
 	if s.forceRefresh() || err != nil {
 		previousState = uptane.State{}
 	}
-	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts))
+	clientState, err := s.getClientState()
+	if err != nil {
+		log.Warnf("could not get previous backend client state: %v", err)
+	}
+	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, clientState))
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
@@ -235,6 +241,18 @@ func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
 	}
 }
 
+func (s *Service) getClientState() ([]byte, error) {
+	rawTargetsCustom, err := s.uptane.TargetsCustom()
+	if err != nil {
+		return nil, err
+	}
+	custom, err := parseTargetsCustom(rawTargetsCustom)
+	if err != nil {
+		return nil, err
+	}
+	return custom.ClientState, nil
+}
+
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
@@ -244,10 +262,10 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
-	if state.DirectorTargetsVersion == request.Client.State.TargetsVersion {
+	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion)
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion())
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +280,40 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	return &pbgo.ClientGetConfigsResponse{
 		Roots: roots,
 		Targets: &pbgo.TopMeta{
-			Version: state.DirectorTargetsVersion,
+			Version: state.DirectorTargetsVersion(),
 			Raw:     targetsRaw,
 		},
 		TargetFiles: targetFiles,
 	}, nil
+}
+
+// ConfigGetState returns the state of the configuration and the director repos in the local store
+func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
+	state, err := s.uptane.State()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &pbgo.GetStateConfigResponse{
+		ConfigState:     map[string]*pbgo.FileMetaState{},
+		DirectorState:   map[string]*pbgo.FileMetaState{},
+		TargetFilenames: map[string]string{},
+	}
+
+	for metaName, metaState := range state.ConfigState {
+		response.ConfigState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
+	for metaName, metaState := range state.ConfigUserState {
+		response.ConfigUserState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
+	for metaName, metaState := range state.DirectorState {
+		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
+	for targetName, targetHash := range state.TargetFilenames {
+		response.TargetFilenames[targetName] = targetHash
+	}
+
+	return response, nil
 }
 
 func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([]*pbgo.TopMeta, error) {

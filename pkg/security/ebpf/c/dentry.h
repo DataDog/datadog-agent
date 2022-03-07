@@ -89,9 +89,12 @@ struct dentry * __attribute__((always_inline)) get_vfsmount_dentry(struct vfsmou
     return dentry;
 }
 
-struct super_block * __attribute__((always_inline)) get_dentry_sb(struct dentry *dentry) {
+struct super_block *__attribute__((always_inline)) get_dentry_sb(struct dentry *dentry) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_sb_offset", offset);
+
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
+    bpf_probe_read(&sb, sizeof(sb), (char *)dentry + offset);
     return sb;
 }
 

@@ -7,37 +7,31 @@ package decoder
 
 import (
 	"bytes"
+	"time"
 )
 
 // SingleLineHandler takes care of tracking the line length
 // and truncating them when they are too long.
 type SingleLineHandler struct {
-	inputChan      chan *Message
-	outputChan     chan *Message
+	outputFn       func(*Message)
 	shouldTruncate bool
 	lineLimit      int
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler.
-func NewSingleLineHandler(inputChan chan *Message, outputChan chan *Message, lineLimit int) *SingleLineHandler {
+func NewSingleLineHandler(outputFn func(*Message), lineLimit int) *SingleLineHandler {
 	return &SingleLineHandler{
-		inputChan:  inputChan,
-		outputChan: outputChan,
-		lineLimit:  lineLimit,
+		outputFn:  outputFn,
+		lineLimit: lineLimit,
 	}
 }
 
-// Start starts the handler.
-func (h *SingleLineHandler) Start() {
-	go h.run()
+func (h *SingleLineHandler) flushChan() <-chan time.Time {
+	return nil
 }
 
-// run consumes new lines and processes them.
-func (h *SingleLineHandler) run() {
-	for line := range h.inputChan {
-		h.process(line)
-	}
-	close(h.outputChan)
+func (h *SingleLineHandler) flush() {
+	// do nothing
 }
 
 // process transforms a raw line into a structured line,
@@ -58,12 +52,12 @@ func (h *SingleLineHandler) process(message *Message) {
 	}
 
 	if len(message.Content) < h.lineLimit {
-		h.outputChan <- message
+		h.outputFn(message)
 	} else {
 		// the line is too long, it needs to be cut off and send,
 		// adding the truncated flag the end of the content
 		message.Content = append(message.Content, truncatedFlag...)
-		h.outputChan <- message
+		h.outputFn(message)
 		// make sure the following part of the line will be cut off as well
 		h.shouldTruncate = true
 	}

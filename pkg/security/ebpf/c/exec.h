@@ -25,6 +25,13 @@ struct str_array_buffer_t {
     char value[MAX_STR_BUFF_LEN];
 };
 
+struct bpf_map_def SEC("maps/traced_comms") traced_comms = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = TASK_COMM_LEN,
+    .value_size = sizeof(u32),
+    .max_entries = 200,
+};
+
 struct bpf_map_def SEC("maps/args_envs_progs") args_envs_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
@@ -313,25 +320,28 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
+    u64 is_thread = 1;
 
     if (input == DO_FORK_STRUCT_INPUT) {
         void *args = (void *)PT_REGS_PARM1(ctx);
         int exit_signal;
         bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
 
-        // Only insert an entry if this is a thread
         if (exit_signal == SIGCHLD) {
-            return 0;
+            is_thread = 0;
         }
     } else {
         u64 flags = (u64)PT_REGS_PARM1(ctx);
         if ((flags & SIGCHLD) == SIGCHLD) {
-            return 0;
+            is_thread = 0;
         }
     }
 
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
+        .fork = {
+            .is_thread = is_thread,
+        },
     };
     cache_syscall(&syscall);
 
@@ -353,18 +363,34 @@ int kprobe__do_fork(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kretprobe/__task_pid_nr_ns")
-int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid_ns = (pid_t) PT_REGS_RC(ctx);
-
-    // no namespace
-    if (!pid_ns || pid_tgid>>32 == pid_ns) {
-      return 0;
+SEC("kretprobe/alloc_pid")
+int kretprobe_alloc_pid(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        return 0;
     }
 
-    register_pid_ns(pid_tgid, pid_ns);
+    // cache the struct pid in the syscall cache, it will be populated by `alloc_pid`
+    struct pid *pid = (struct pid *) PT_REGS_RC(ctx);
+    bpf_probe_read(&syscall->fork.pid, sizeof(syscall->fork.pid), &pid);
+    return 0;
+}
 
+// There is only one use case for this hook point: fetch the nr translation for a long running process in a container,
+// for which we missed the fork, and that finally decides to exec without cloning first.
+// Note that in most cases (except the exec one), bpf_get_current_pid_tgid won't match the input task.
+// TODO(will): replace this hook point by a snapshot
+SEC("kretprobe/__task_pid_nr_ns")
+int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    u32 root_nr = bpf_get_current_pid_tgid();
+    u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
+
+    register_nr(root_nr, namespace_nr);
     return 0;
 }
 
@@ -396,7 +422,15 @@ SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // check if this is a thread first
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (syscall) {
+    if (!syscall) {
+        return 0;
+    }
+
+    // cache namespace nr translations
+    cache_nr_translations(syscall->fork.pid);
+
+    // if this is a thread, leave
+    if (syscall->fork.is_thread) {
         return 0;
     }
 
@@ -445,6 +479,12 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // send the entry to maintain userspace cache
     send_event(args, EVENT_FORK, event);
 
+    // if the parent is traced, trace the child too
+    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &ppid);
+    if (tgid_exec_ts != NULL) {
+        bpf_map_update_elem(&traced_pids, &pid, &ts, BPF_ANY);
+    }
+
     return 0;
 }
 
@@ -478,7 +518,13 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
+
+        // delete pid from traced_pids
+        bpf_map_delete_elem(&traced_pids, &tgid);
     }
+
+    // remove nr translations
+    remove_nr(pid);
 
     return 0;
 }
@@ -500,7 +546,9 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
 
         struct tty_struct *tty;
         bpf_probe_read(&tty, sizeof(tty), (char *)signal + tty_offset);
-        bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
+        if (tty) {
+            bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
+        }
     }
 
     return 0;
@@ -561,6 +609,13 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             // copy proc_cache entry data
             copy_proc_cache_except_comm(proc_entry, &event.proc_entry);
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
+
+            // lookup comm to see if the process should be traced
+            u32 *traced = bpf_map_lookup_elem(&traced_comms, event.proc_entry.comm);
+            if (traced != NULL && *traced == 1) {
+                u64 ts = bpf_ktime_get_ns();
+                bpf_map_update_elem(&traced_pids, &tgid, &ts, BPF_ANY);
+            }
 
             // copy pid_cache entry data
             copy_pid_cache_except_exit_ts(pid_entry, &event.pid_entry);

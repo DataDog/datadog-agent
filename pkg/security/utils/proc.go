@@ -48,6 +48,11 @@ func StatusPath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
 }
 
+// RootPath returns the path to the root folder of a pid in /proc
+func RootPath(pid int32) string {
+	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
+}
+
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process
 func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 	var capEff, capPrm uint64
@@ -172,8 +177,8 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 	}
 }
 
-// EnvVars returns a map with the environment variables of the given pid
-func EnvVars(pid int32) (map[string]string, error) {
+// EnvVars returns a array with the environment variables of the given pid
+func EnvVars(pid int32) ([]string, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
 
 	f, err := os.Open(filename)
@@ -197,16 +202,9 @@ func EnvVars(pid int32) (map[string]string, error) {
 	scanner := bufio.NewScanner(f)
 	scanner.Split(zero)
 
-	envs := make(map[string]string)
+	var envs []string
 	for scanner.Scan() {
-		if els := strings.SplitN(scanner.Text(), "=", 2); len(els) == 2 {
-			key := els[0]
-			value := els[1]
-
-			if len(key) > 0 {
-				envs[key] = value
-			}
-		}
+		envs = append(envs, scanner.Text())
 	}
 
 	return envs, nil

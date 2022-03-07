@@ -10,6 +10,7 @@ package system
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,7 +57,7 @@ func newSystemCollector() (*systemCollector, error) {
 	}
 
 	reader, err := cgroups.NewReader(
-		cgroups.WithCgroupV1BaseController("freezer"),
+		cgroups.WithCgroupV1BaseController("memory"),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
 		cgroups.WithReaderFilter(cgroups.ContainerFilter),
@@ -101,8 +102,18 @@ func (c *systemCollector) GetContainerNetworkStats(containerID string, cacheVali
 }
 
 func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	// Currently it does not consider cacheVadlity as no cache is used.
-	refs, err := cgroups.ReadCgroupReferences(c.procPath, pid)
+	refs, err := cgroups.ReadCgroupReferences(c.procPath, strconv.Itoa(pid))
+	if err != nil {
+		return "", err
+	}
+
+	// Returns first match in the file. We do expect all container IDs to be the same.
+	cID := cgroups.ContainerRegexp.FindString(refs)
+	return cID, nil
+}
+
+func (c *systemCollector) GetSelfContainerID() (string, error) {
+	refs, err := cgroups.ReadCgroupReferences("/proc", "self")
 	if err != nil {
 		return "", err
 	}
@@ -176,6 +187,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.RSS, &cs.RSS)
 	convertField(cgs.Cache, &cs.Cache)
 	convertField(cgs.Swap, &cs.Swap)
+	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
 
 	return cs

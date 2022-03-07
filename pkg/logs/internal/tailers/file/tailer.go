@@ -45,11 +45,17 @@ type Tailer struct {
 
 	sleepDuration time.Duration
 
-	closeTimeout  time.Duration
-	ShouldStop    int32
+	closeTimeout time.Duration
+
+	// isFinished is an atomic value, set to 1 when the tailer has closed its input
+	// and flushed all messages.
+	isFinished int32
+
+	// didFileRotate is an atomic value, used to determine hasFileRotated.
 	didFileRotate int32
-	stop          chan struct{}
-	done          chan struct{}
+
+	stop chan struct{}
+	done chan struct{}
 
 	forwardContext context.Context
 	stopForward    context.CancelFunc
@@ -110,19 +116,13 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	return nil
 }
 
-// DidRotate returns true if the tailer's file has been log-rotated.
-// When a log rotation occurs, the file can be either:
-// - renamed and recreated
-// - removed and recreated
-// - truncated
-// readForever lets the tailer tail the content of a file
-// until it is closed or the tailer is stopped.
-func (t *Tailer) DidRotate() (bool, error) {
-	return DidRotate(t.osFile, t.GetReadOffset())
-}
-
 func (t *Tailer) readForever() {
-	defer t.onStop()
+	defer func() {
+		t.osFile.Close()
+		t.decoder.Stop()
+		log.Info("Closed", t.File.Path, "for tailer key", t.File.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
+	}()
+
 	for {
 		n, err := t.read()
 		if err != nil {
@@ -132,7 +132,7 @@ func (t *Tailer) readForever() {
 
 		select {
 		case <-t.stop:
-			if n != 0 && atomic.LoadInt32(&t.didFileRotate) == 1 {
+			if n != 0 && t.hasFileRotated() {
 				log.Warn("Tailer stopped after rotation close timeout with remaining unread data")
 			}
 			// stop reading data from file
@@ -163,7 +163,6 @@ func (t *Tailer) StartFromBeginning() error {
 
 // Stop stops the tailer and returns only when the decoder is flushed
 func (t *Tailer) Stop() {
-	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
 	t.File.Source.RemoveInput(t.File.Path)
 	// wait for the decoder to be flushed
@@ -173,37 +172,33 @@ func (t *Tailer) Stop() {
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
-	atomic.StoreInt32(&t.didFileRotate, 1)
-	go t.startStopTimer()
+	t.fileHasRotated()
+	go func() {
+		time.Sleep(t.closeTimeout)
+		t.stopForward()
+		t.stop <- struct{}{}
+	}()
 	t.File.Source.RemoveInput(t.File.Path)
 }
 
-// startStopTimer initializes and starts a timer to stop the tailor after the timeout
-func (t *Tailer) startStopTimer() {
-	stopTimer := time.NewTimer(t.closeTimeout)
-	<-stopTimer.C
-	t.stopForward()
-	t.stop <- struct{}{}
-}
-
-// onStop finishes to stop the tailer
-func (t *Tailer) onStop() {
-	t.osFile.Close()
-	t.decoder.Stop()
-	log.Info("Closed", t.File.Path, "for tailer key", t.File.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
+// IsFinished returns true if the tailer is in the process of stopping.  Specifically,
+// this may be true if the tailer has completed handling all messages, but has not
+// yet had its Stop method called.
+func (t *Tailer) IsFinished() bool {
+	return atomic.LoadInt32(&t.isFinished) != 0
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		atomic.StoreInt32(&t.ShouldStop, 1)
+		atomic.StoreInt32(&t.isFinished, 1)
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
 		offset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
-		if !t.shouldTrackOffset() {
+		if t.hasFileRotated() {
 			offset = 0
 			identifier = ""
 		}
@@ -253,12 +248,15 @@ func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
 }
 
-// shouldTrackOffset returns whether the tailer should track the file offset or not
-func (t *Tailer) shouldTrackOffset() bool {
-	if atomic.LoadInt32(&t.didFileRotate) != 0 {
-		return false
-	}
-	return true
+// fileHasRotated causes subsequent calls to hasFileRotated to return true.
+func (t *Tailer) fileHasRotated() {
+	atomic.StoreInt32(&t.didFileRotate, 1)
+}
+
+// hasFileRotated returns true if the file has been rotated, and this tailer replaced
+// with a new tailer for the new file.
+func (t *Tailer) hasFileRotated() bool {
+	return atomic.LoadInt32(&t.didFileRotate) != 0
 }
 
 // wait lets the tailer sleep for a bit

@@ -28,7 +28,7 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 				checkCfg = append(checkCfg, checks.RTContainer)
 			}
 		} else if !canAccessContainers {
-			_ = log.Warn("Disabled container check because a container provider could not be found")
+			_ = log.Warn("Disabled container check because no container environment detected (see list of detected features in `agent status`)")
 		}
 
 		if ddconfig.Datadog.GetBool("process_config.process_discovery.enabled") {

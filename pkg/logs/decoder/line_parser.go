@@ -15,62 +15,58 @@ import (
 
 // LineParser handles decoded lines, parsing them into decoder.Message's using
 // an embedded parsers.Parser.
-//
-// Input and output channels are given to the constructor for the concrete
-// type.  After Start(), the actor runs until its input channel is closed.
-// After all inputs are processed, the actor closes its output channel.
 type LineParser interface {
-	Start()
+	// process handles a new line (message)
+	process(content []byte, rawDataLen int)
+
+	// flushChan returns a channel which will deliver a message when `flush` should be called.
+	flushChan() <-chan time.Time
+
+	// flush flushes partially-processed data.  It should be called either when flushChan has
+	// a message, or when the decoder is stopped.
+	flush()
 }
 
 // SingleLineParser makes sure that multiple lines from a same content
 // are properly put together.
 type SingleLineParser struct {
-	parser     parsers.Parser
-	inputChan  chan *DecodedInput
-	outputChan chan *Message
+	outputFn func(*Message)
+	parser   parsers.Parser
 }
 
 // NewSingleLineParser returns a new SingleLineParser.
 func NewSingleLineParser(
-	inputChan chan *DecodedInput,
-	outputChan chan *Message,
+	outputFn func(*Message),
 	parser parsers.Parser) *SingleLineParser {
 	return &SingleLineParser{
-		parser:     parser,
-		inputChan:  inputChan,
-		outputChan: outputChan,
+		outputFn: outputFn,
+		parser:   parser,
 	}
 }
 
-// Start starts the parser.
-func (p *SingleLineParser) Start() {
-	go p.run()
+func (p *SingleLineParser) flushChan() <-chan time.Time {
+	return nil
 }
 
-// run consumes new lines and processes them.
-func (p *SingleLineParser) run() {
-	for input := range p.inputChan {
-		p.process(input)
-	}
-	close(p.outputChan)
+func (p *SingleLineParser) flush() {
+	// do nothing
 }
 
-func (p *SingleLineParser) process(input *DecodedInput) {
+func (p *SingleLineParser) process(content []byte, rawDataLen int) {
 	// Just parse an pass to the next step
-	msg, err := p.parser.Parse(input.content)
+	msg, err := p.parser.Parse(content)
 	if err != nil {
 		log.Debug(err)
 	}
-	p.outputChan <- NewMessage(msg.Content, msg.Status, input.rawDataLen, msg.Timestamp)
+	p.outputFn(NewMessage(msg.Content, msg.Status, rawDataLen, msg.Timestamp))
 }
 
 // MultiLineParser makes sure that chunked lines are properly put together.
 type MultiLineParser struct {
+	outputFn     func(*Message)
 	buffer       *bytes.Buffer
 	flushTimeout time.Duration
-	inputChan    chan *DecodedInput
-	outputChan   chan *Message
+	flushTimer   *time.Timer
 	parser       parsers.Parser
 	rawDataLen   int
 	lineLimit    int
@@ -80,73 +76,47 @@ type MultiLineParser struct {
 
 // NewMultiLineParser returns a new MultiLineParser.
 func NewMultiLineParser(
-	inputChan chan *DecodedInput,
-	outputChan chan *Message,
+	outputFn func(*Message),
 	flushTimeout time.Duration,
 	parser parsers.Parser,
 	lineLimit int,
 ) *MultiLineParser {
 	return &MultiLineParser{
-		inputChan:    inputChan,
-		outputChan:   outputChan,
+		outputFn:     outputFn,
 		buffer:       bytes.NewBuffer(nil),
 		flushTimeout: flushTimeout,
+		flushTimer:   nil,
 		lineLimit:    lineLimit,
 		parser:       parser,
 	}
 }
 
-// Start starts the handler.
-func (p *MultiLineParser) Start() {
-	go p.run()
+func (p *MultiLineParser) flushChan() <-chan time.Time {
+	if p.flushTimer != nil && p.buffer.Len() > 0 {
+		return p.flushTimer.C
+	}
+	return nil
 }
 
-// run processes new lines from the channel and makes sur the content is properly sent when
-// it stayed for too long in the buffer.
-func (p *MultiLineParser) run() {
-	flushTimer := time.NewTimer(p.flushTimeout)
-	defer func() {
-		flushTimer.Stop()
-		// make sure the content stored in the buffer gets sent,
-		// this can happen when the stop is called in between two timer ticks.
-		p.sendLine()
-	}()
-	for {
-		select {
-		case message, isOpen := <-p.inputChan:
-			if !isOpen {
-				// inputChan has been closed, no more lines are expected
-				return
-			}
-			// process the new line and restart the timeout
-			if !flushTimer.Stop() {
-				// flushTimer.stop() doesn't prevent the timer to tick,
-				// makes sure the event is consumed to avoid sending
-				// just one piece of the content.
-				select {
-				case <-flushTimer.C:
-				default:
-				}
-			}
-			p.process(message)
-			flushTimer.Reset(p.flushTimeout)
-		case <-flushTimer.C:
-			// no chunk has been collected since a while,
-			// the content is supposed to be complete.
-			p.sendLine()
-		}
-	}
+func (p *MultiLineParser) flush() {
+	p.sendLine()
 }
 
 // process buffers and aggregates partial lines
-func (p *MultiLineParser) process(input *DecodedInput) {
-	msg, err := p.parser.Parse(input.content)
+func (p *MultiLineParser) process(content []byte, rawDataLen int) {
+	if p.flushTimer != nil && p.buffer.Len() > 0 {
+		// stop the flush timer, as we now have data
+		if !p.flushTimer.Stop() {
+			<-p.flushTimer.C
+		}
+	}
+	msg, err := p.parser.Parse(content)
 	if err != nil {
 		log.Debug(err)
 	}
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
-	p.rawDataLen += input.rawDataLen
+	p.rawDataLen += rawDataLen
 	p.timestamp = msg.Timestamp
 	p.status = msg.Status
 	p.buffer.Write(msg.Content)
@@ -155,10 +125,17 @@ func (p *MultiLineParser) process(input *DecodedInput) {
 		// the current chunk marks the end of an aggregated line
 		p.sendLine()
 	}
+	if p.buffer.Len() > 0 {
+		// since there's buffered data, start the flush timer to flush it
+		if p.flushTimer == nil {
+			p.flushTimer = time.NewTimer(p.flushTimeout)
+		} else {
+			p.flushTimer.Reset(p.flushTimeout)
+		}
+	}
 }
 
 // sendBuffer forwards the content stored in the buffer
-// to the output channel.
 func (p *MultiLineParser) sendLine() {
 	defer func() {
 		p.buffer.Reset()
@@ -168,6 +145,6 @@ func (p *MultiLineParser) sendLine() {
 	content := make([]byte, p.buffer.Len())
 	copy(content, p.buffer.Bytes())
 	if len(content) > 0 || p.rawDataLen > 0 {
-		p.outputChan <- NewMessage(content, p.status, p.rawDataLen, p.timestamp)
+		p.outputFn(NewMessage(content, p.status, p.rawDataLen, p.timestamp))
 	}
 }

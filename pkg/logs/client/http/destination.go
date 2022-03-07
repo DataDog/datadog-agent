@@ -295,17 +295,20 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// *after* serving the request.
 		return err
 	}
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}
-	if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-		// the server could not serve the request, most likely because of an
-		// internal error or, (429) because it is overwhelmed
-		return client.NewRetryableError(errServer)
-	} else if resp.StatusCode >= 400 {
+	if resp.StatusCode == http.StatusBadRequest ||
+		resp.StatusCode == http.StatusUnauthorized ||
+		resp.StatusCode == http.StatusForbidden ||
+		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
 		return errClient
+	} else if resp.StatusCode > http.StatusBadRequest {
+		// the server could not serve the request, most likely because of an
+		// internal error. We should retry these requests.
+		return client.NewRetryableError(errServer)
 	} else {
 		return nil
 	}

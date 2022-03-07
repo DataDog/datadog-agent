@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"math"
 	"math/rand"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -180,6 +181,30 @@ func TestStatsWriter(t *testing.T) {
 		assert.Equal(5, len(s[0].Stats[1].Stats))
 		assert.Equal(5, len(s[0].Stats[2].Stats))
 	})
+}
+
+func TestStatsResetBuffer(t *testing.T) {
+	w, _, _ := testStatsSyncWriter()
+
+	runtime.GC()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
+
+	bigPayload := pb.StatsPayload{
+		AgentHostname: string(make([]byte, 50*1e6)),
+	}
+
+	w.payloads = append(w.payloads, bigPayload)
+
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
+
+	w.resetBuffer()
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
 }
 
 func TestStatsSyncWriter(t *testing.T) {

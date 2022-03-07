@@ -15,12 +15,13 @@
 # NODE_LAYER_VERSION [number] - A specific layer version of datadog-lambda-js to use.
 # PYTHON_LAYER_VERSION [number] - A specific layer version of datadog-lambda-py to use.
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
+# DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
-DEFAULT_ENABLE_RACE_DETECTION=false
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=1
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -51,8 +52,8 @@ LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
 if [ "$BUILD_EXTENSION" != "false" ]; then
     echo "Building extension"
 
-    if [ -z "$ENABLE_RACE_DETECTION" ]; then
-        export ENABLE_RACE_DETECTION=$DEFAULT_ENABLE_RACE_DETECTION
+    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
+        ENABLE_RACE_DETECTION=false
     fi
 
     # This version number is arbitrary and won't be used by AWS
@@ -82,9 +83,14 @@ if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
     export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
 fi
 
-echo "Using Node layer version: $NODE_LAYER_VERSION"
-echo "Using Python layer version: $PYTHON_LAYER_VERSION"
-echo "Using Java tracer layer version: $JAVA_TRACE_LAYER_VERSION"
+if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
+    export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
+fi
+
+echo "Using dd-lambda-js layer version: $NODE_LAYER_VERSION"
+echo "Using dd-lambda-python version: $PYTHON_LAYER_VERSION"
+echo "Using dd-trace-java layer version: $JAVA_TRACE_LAYER_VERSION"
+echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
@@ -98,9 +104,7 @@ function remove_stack() {
 trap remove_stack EXIT
 
 # deploy the stack
-NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
-    PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} \
-    serverless deploy --stage "${stage}"
+serverless deploy --stage "${stage}"
 
 metric_functions=(
     "metric-node"
@@ -183,7 +187,7 @@ for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name}..."
     retry_counter=1
     while [ $retry_counter -lt 11 ]; do
-        raw_logs=$(NODE_LAYER_VERSION=${NODE_LAYER_VERSION} PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
+        raw_logs=$(serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
         fetch_logs_exit_code=$?
         if [ $fetch_logs_exit_code -eq 1 ]; then
             printf "\e[A\e[K" # erase previous log line
@@ -251,6 +255,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
+                perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort

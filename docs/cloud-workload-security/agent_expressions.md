@@ -38,11 +38,12 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chown` | File | A file’s owner was changed | 7.27 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
+| `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
-| `mmap` | Kernel | [Experimental] A mmap command was executed | 7.34 |
-| `mprotect` | Kernel | [Experimental] A mprotect command was executed | 7.34 |
+| `mmap` | Kernel | A mmap command was executed | 7.35 |
+| `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
-| `ptrace` | Kernel | [Experimental] A ptrace command was executed | 7.34 |
+| `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
 | `rmdir` | File | A directory was removed | 7.27 |
@@ -50,7 +51,9 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setgid` | Process | A process changed its effective gid | 7.27 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
+| `signal` | Process | A signal was sent | 7.35 |
 | `unlink` | File | A file was deleted | 7.27 |
+| `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
 ## Operators
@@ -159,7 +162,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `process.ancestors.egid` | int | Effective GID of the process |
 | `process.ancestors.egroup` | string | Effective group of the process |
-| `process.ancestors.envs` | string | Environment variables of the process |
+| `process.ancestors.envp` | string | Environment variables of the process |
+| `process.ancestors.envs` | string | Environment variable names of the process |
 | `process.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.ancestors.euid` | int | Effective UID of the process |
 | `process.ancestors.euser` | string | Effective user of the process |
@@ -203,7 +207,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.created_at` | int | Timestamp of the creation of the process |
 | `process.egid` | int | Effective GID of the process |
 | `process.egroup` | string | Effective group of the process |
-| `process.envs` | string | Environment variables of the process |
+| `process.envp` | string | Environment variables of the process |
+| `process.envs` | string | Environment variable names of the process |
 | `process.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.euid` | int | Effective UID of the process |
 | `process.euser` | string | Effective user of the process |
@@ -241,8 +246,12 @@ A BPF command was executed
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 | `bpf.cmd` | int | BPF command name |
+| `bpf.map.name` | string | Name of the eBPF map (added in 7.35) |
 | `bpf.map.type` | int | Type of the eBPF map |
 | `bpf.prog.attach_type` | int | Attach type of the eBPF program |
+| `bpf.prog.helpers` | int | eBPF helpers used by the eBPF program (added in 7.35) |
+| `bpf.prog.name` | string | Name of the eBPF program (added in 7.35) |
+| `bpf.prog.tag` | string | Hash (sha1) of the eBPF program (added in 7.35) |
 | `bpf.prog.type` | int | Type of the eBPF program |
 | `bpf.retval` | int | Return value of the syscall |
 
@@ -325,7 +334,8 @@ A process was executed or forked
 | `exec.created_at` | int | Timestamp of the creation of the process |
 | `exec.egid` | int | Effective GID of the process |
 | `exec.egroup` | string | Effective group of the process |
-| `exec.envs` | string | Environment variables of the process |
+| `exec.envp` | string | Environment variables of the process |
+| `exec.envs` | string | Environment variable names of the process |
 | `exec.envs_truncated` | bool | Indicator of environment variables truncation |
 | `exec.euid` | int | Effective UID of the process |
 | `exec.euser` | string | Effective user of the process |
@@ -392,6 +402,30 @@ Create a new name/alias for a file
 | `link.file.user` | string | User of the file's owner |
 | `link.retval` | int | Return value of the syscall |
 
+### Event `load_module`
+
+A new kernel module was loaded
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `load_module.file.change_time` | int | Change time of the file |
+| `load_module.file.filesystem` | string | File's filesystem |
+| `load_module.file.gid` | int | GID of the file's owner |
+| `load_module.file.group` | string | Group of the file's owner |
+| `load_module.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `load_module.file.inode` | int | Inode of the file |
+| `load_module.file.mode` | int | Mode/rights of the file |
+| `load_module.file.modification_time` | int | Modification time of the file |
+| `load_module.file.mount_id` | int | Mount ID of the file |
+| `load_module.file.name` | string | File's basename |
+| `load_module.file.path` | string | File's path |
+| `load_module.file.rights` | int | Mode/rights of the file |
+| `load_module.file.uid` | int | UID of the file's owner |
+| `load_module.file.user` | string | User of the file's owner |
+| `load_module.loaded_from_memory` | bool | Indicates if the kernel module was loaded from memory |
+| `load_module.name` | string | Name of the new kernel module |
+| `load_module.retval` | int | Return value of the syscall |
+
 ### Event `mkdir`
 
 A directory was created
@@ -418,8 +452,6 @@ A directory was created
 
 ### Event `mmap`
 
-_This event type is experimental and may change in the future._
-
 A mmap command was executed
 
 | Property | Type | Definition |
@@ -438,21 +470,19 @@ A mmap command was executed
 | `mmap.file.rights` | int | Mode/rights of the file |
 | `mmap.file.uid` | int | UID of the file's owner |
 | `mmap.file.user` | string | User of the file's owner |
-| `mmap.flags` | int |  |
-| `mmap.protection` | int |  |
+| `mmap.flags` | int | memory segment flags |
+| `mmap.protection` | int | memory segment protection |
 | `mmap.retval` | int | Return value of the syscall |
 
 ### Event `mprotect`
-
-_This event type is experimental and may change in the future._
 
 A mprotect command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mprotect.req_protection` | int |  |
+| `mprotect.req_protection` | int | new memory segment protection |
 | `mprotect.retval` | int | Return value of the syscall |
-| `mprotect.vm_protection` | int |  |
+| `mprotect.vm_protection` | int | initial memory segment protection |
 
 ### Event `open`
 
@@ -480,13 +510,11 @@ A file was opened
 
 ### Event `ptrace`
 
-_This event type is experimental and may change in the future._
-
 A ptrace command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `ptrace.request` | int |  |
+| `ptrace.request` | int | ptrace request |
 | `ptrace.retval` | int | Return value of the syscall |
 | `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |
 | `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |
@@ -502,7 +530,8 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |
 | `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |
-| `ptrace.tracee.ancestors.envs` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envp` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envs` | string | Environment variable names of the process |
 | `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |
 | `ptrace.tracee.ancestors.euser` | string | Effective user of the process |
@@ -546,7 +575,8 @@ A ptrace command was executed
 | `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.egid` | int | Effective GID of the process |
 | `ptrace.tracee.egroup` | string | Effective group of the process |
-| `ptrace.tracee.envs` | string | Environment variables of the process |
+| `ptrace.tracee.envp` | string | Environment variables of the process |
+| `ptrace.tracee.envs` | string | Environment variable names of the process |
 | `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.euid` | int | Effective UID of the process |
 | `ptrace.tracee.euser` | string | Effective user of the process |
@@ -720,6 +750,106 @@ Set exteneded attributes
 | `setxattr.file.user` | string | User of the file's owner |
 | `setxattr.retval` | int | Return value of the syscall |
 
+### Event `signal`
+
+A signal was sent
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `signal.pid` | int | Target PID |
+| `signal.retval` | int | Return value of the syscall |
+| `signal.target.ancestors.args` | string | Arguments of the process (as a string) |
+| `signal.target.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `signal.target.ancestors.argv` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.argv0` | string | First argument of the process |
+| `signal.target.ancestors.cap_effective` | int | Effective capability set of the process |
+| `signal.target.ancestors.cap_permitted` | int | Permitted capability set of the process |
+| `signal.target.ancestors.comm` | string | Comm attribute of the process |
+| `signal.target.ancestors.container.id` | string | Container ID |
+| `signal.target.ancestors.cookie` | int | Cookie of the process |
+| `signal.target.ancestors.created_at` | int | Timestamp of the creation of the process |
+| `signal.target.ancestors.egid` | int | Effective GID of the process |
+| `signal.target.ancestors.egroup` | string | Effective group of the process |
+| `signal.target.ancestors.envp` | string | Environment variables of the process |
+| `signal.target.ancestors.envs` | string | Environment variable names of the process |
+| `signal.target.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
+| `signal.target.ancestors.euid` | int | Effective UID of the process |
+| `signal.target.ancestors.euser` | string | Effective user of the process |
+| `signal.target.ancestors.file.change_time` | int | Change time of the file |
+| `signal.target.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `signal.target.ancestors.file.gid` | int | GID of the file's owner |
+| `signal.target.ancestors.file.group` | string | Group of the file's owner |
+| `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `signal.target.ancestors.file.inode` | int | Inode of the file |
+| `signal.target.ancestors.file.mode` | int | Mode/rights of the file |
+| `signal.target.ancestors.file.modification_time` | int | Modification time of the file |
+| `signal.target.ancestors.file.mount_id` | int | Mount ID of the file |
+| `signal.target.ancestors.file.name` | string | Basename of the path of the process executable |
+| `signal.target.ancestors.file.path` | string | Path of the process executable |
+| `signal.target.ancestors.file.rights` | int | Mode/rights of the file |
+| `signal.target.ancestors.file.uid` | int | UID of the file's owner |
+| `signal.target.ancestors.file.user` | string | User of the file's owner |
+| `signal.target.ancestors.fsgid` | int | FileSystem-gid of the process |
+| `signal.target.ancestors.fsgroup` | string | FileSystem-group of the process |
+| `signal.target.ancestors.fsuid` | int | FileSystem-uid of the process |
+| `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |
+| `signal.target.ancestors.gid` | int | GID of the process |
+| `signal.target.ancestors.group` | string | Group of the process |
+| `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
+| `signal.target.ancestors.ppid` | int | Parent process ID |
+| `signal.target.ancestors.tid` | int | Thread ID of the thread |
+| `signal.target.ancestors.tty_name` | string | Name of the TTY associated with the process |
+| `signal.target.ancestors.uid` | int | UID of the process |
+| `signal.target.ancestors.user` | string | User of the process |
+| `signal.target.args` | string | Arguments of the process (as a string) |
+| `signal.target.args_flags` | string | Arguments of the process (as an array) |
+| `signal.target.args_options` | string | Arguments of the process (as an array) |
+| `signal.target.args_truncated` | bool | Indicator of arguments truncation |
+| `signal.target.argv` | string | Arguments of the process (as an array) |
+| `signal.target.argv0` | string | First argument of the process |
+| `signal.target.cap_effective` | int | Effective capability set of the process |
+| `signal.target.cap_permitted` | int | Permitted capability set of the process |
+| `signal.target.comm` | string | Comm attribute of the process |
+| `signal.target.container.id` | string | Container ID |
+| `signal.target.cookie` | int | Cookie of the process |
+| `signal.target.created_at` | int | Timestamp of the creation of the process |
+| `signal.target.egid` | int | Effective GID of the process |
+| `signal.target.egroup` | string | Effective group of the process |
+| `signal.target.envp` | string | Environment variables of the process |
+| `signal.target.envs` | string | Environment variable names of the process |
+| `signal.target.envs_truncated` | bool | Indicator of environment variables truncation |
+| `signal.target.euid` | int | Effective UID of the process |
+| `signal.target.euser` | string | Effective user of the process |
+| `signal.target.file.change_time` | int | Change time of the file |
+| `signal.target.file.filesystem` | string | FileSystem of the process executable |
+| `signal.target.file.gid` | int | GID of the file's owner |
+| `signal.target.file.group` | string | Group of the file's owner |
+| `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `signal.target.file.inode` | int | Inode of the file |
+| `signal.target.file.mode` | int | Mode/rights of the file |
+| `signal.target.file.modification_time` | int | Modification time of the file |
+| `signal.target.file.mount_id` | int | Mount ID of the file |
+| `signal.target.file.name` | string | Basename of the path of the process executable |
+| `signal.target.file.path` | string | Path of the process executable |
+| `signal.target.file.rights` | int | Mode/rights of the file |
+| `signal.target.file.uid` | int | UID of the file's owner |
+| `signal.target.file.user` | string | User of the file's owner |
+| `signal.target.fsgid` | int | FileSystem-gid of the process |
+| `signal.target.fsgroup` | string | FileSystem-group of the process |
+| `signal.target.fsuid` | int | FileSystem-uid of the process |
+| `signal.target.fsuser` | string | FileSystem-user of the process |
+| `signal.target.gid` | int | GID of the process |
+| `signal.target.group` | string | Group of the process |
+| `signal.target.pid` | int | Process ID of the process (also called thread group ID) |
+| `signal.target.ppid` | int | Parent process ID |
+| `signal.target.tid` | int | Thread ID of the thread |
+| `signal.target.tty_name` | string | Name of the TTY associated with the process |
+| `signal.target.uid` | int | UID of the process |
+| `signal.target.user` | string | User of the process |
+| `signal.type` | int | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
+
 ### Event `unlink`
 
 A file was deleted
@@ -741,6 +871,15 @@ A file was deleted
 | `unlink.file.uid` | int | UID of the file's owner |
 | `unlink.file.user` | string | User of the file's owner |
 | `unlink.retval` | int | Return value of the syscall |
+
+### Event `unload_module`
+
+A kernel module was deleted
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `unload_module.name` | string | Name of the kernel module that was deleted |
+| `unload_module.retval` | int | Return value of the syscall |
 
 ### Event `utimes`
 

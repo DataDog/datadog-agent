@@ -398,7 +398,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				}
 			}
 		default:
-			log.Errorf("cannot handle event of type %d. event dump: %+v", ev)
+			log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
 		}
 	}
 

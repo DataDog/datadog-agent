@@ -96,7 +96,7 @@ func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelF
 		done:               make(chan struct{}, 1),
 		erroredContainerID: make(chan string, 1),
 		reader:             newSafeReader(),
-		cancelFunc:         cancelFunc,
+		readerCancelFunc:   cancelFunc,
 	}
 	tailer.reader.setUnsafeReader(reader)
 

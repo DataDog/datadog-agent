@@ -31,7 +31,7 @@ func buildNetworkStats(procPath string, pids []int) (*provider.ContainerNetworkS
 		}
 
 		if !errors.Is(err, os.ErrNotExist) {
-			log.Debugf("Unable to get network stats for PID: %d, err: %w", pid, err)
+			log.Debugf("Unable to get network stats for PID: %d, err: %v", pid, err)
 			return nil, err
 		}
 	}
@@ -103,7 +103,7 @@ func collectNetworkStats(procPath string, pid int) (*provider.ContainerNetworkSt
 	convertField(&totalPktSent, &netStats.PacketsSent)
 
 	// This requires to run as ~root, that's why it's fine to silently fail
-	if inode, err := systemutils.GetProcessNamespaceInode(procPath, pid, "net"); err == nil {
+	if inode, err := systemutils.GetProcessNamespaceInode(procPath, strconv.Itoa(pid), "net"); err == nil {
 		netStats.NetworkIsolationGroupID = &inode
 		netStats.UsingHostNetwork = systemutils.IsProcessHostNetwork(procPath, inode)
 	}

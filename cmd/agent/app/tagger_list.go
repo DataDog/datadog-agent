@@ -57,7 +57,7 @@ var taggerListCommand = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		r, err := util.DoGet(c, fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port")))
+		r, err := util.DoGet(c, fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port")), util.LeaveConnectionOpen)
 		if err != nil {
 			if r != nil && string(r) != "" {
 				fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while getting tags list: %s", string(r)))

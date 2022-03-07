@@ -61,6 +61,18 @@ func (g *KeyGenerator) GenerateWithTags(name, hostname string, tagsBuf *tagset.H
 	return ContextKey(hash), TagsKey(tags)
 }
 
+// GenerateWithTags2 returns the ContextKey and TagsKey hashes for the given parameters.
+//
+// Tags from l, r are combined to produce the key and deduplicated, but most of the time left in
+// their respective buffers.
+func (g *KeyGenerator) GenerateWithTags2(name, hostname string, l, r *tagset.HashingTagsAccumulator) (ContextKey, TagsKey, TagsKey) {
+	g.hg.Dedup2(l, r)
+	lHash := l.Hash()
+	rHash := r.Hash()
+	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ lHash ^ rHash
+	return ContextKey(hash), TagsKey(lHash), TagsKey(rHash)
+}
+
 // Equals returns whether the two context keys are equal or not.
 func Equals(a, b ContextKey) bool {
 	return a == b
