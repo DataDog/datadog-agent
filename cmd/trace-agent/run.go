@@ -197,10 +197,9 @@ func Run(ctx context.Context) {
 
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
-	if cfg.ProfilingSettings != nil {
-		cfg.ProfilingSettings.Tags = []string{fmt.Sprintf("version:%s", info.Version)}
-		profiling.Start(*cfg.ProfilingSettings)
-		log.Infof("Internal profiling enabled: %s.", cfg.ProfilingSettings)
+	if pcfg := profilingConfig(cfg); pcfg != nil {
+		profiling.Start(*pcfg)
+		log.Infof("Internal profiling enabled: %s.", pcfg)
 		defer profiling.Stop()
 	}
 	agnt.Run()

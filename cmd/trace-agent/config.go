@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -368,27 +369,6 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
 	}
-	if coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		endpoint := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url")
-		if endpoint == "" {
-			endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, c.Site)
-		}
-
-		c.ProfilingSettings = &profiling.Settings{
-			ProfilingURL: endpoint,
-
-			// remaining configuration parameters use the top-level `internal_profiling` config
-			Period:               coreconfig.Datadog.GetDuration("internal_profiling.period"),
-			CPUDuration:          coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
-			MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
-			BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
-			WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-
-			// NOTE: Tags cannot be set here, because it is based on
-			// info.Version and leads to a package reference loop. It is set
-			// from Run, instead.
-		}
-	}
 	if k := "appsec_config.enabled"; coreconfig.Datadog.IsSet(k) {
 		c.AppSec.Enabled = coreconfig.Datadog.GetBool(k)
 	}
@@ -618,4 +598,25 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	}
 	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
+}
+
+func profilingConfig(cfg *config.AgentConfig) *profiling.Settings {
+	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		return nil
+	}
+	endpoint := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url")
+	if endpoint == "" {
+		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, cfg.Site)
+	}
+	return &profiling.Settings{
+		ProfilingURL: endpoint,
+
+		// remaining configuration parameters use the top-level `internal_profiling` config
+		Period:               coreconfig.Datadog.GetDuration("internal_profiling.period"),
+		CPUDuration:          coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
+		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
+		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+		Tags:                 []string{fmt.Sprintf("version:%s", info.Version)},
+	}
 }

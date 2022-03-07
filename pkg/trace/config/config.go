@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
@@ -358,9 +357,6 @@ type AgentConfig struct {
 	// OTLPReceiver holds the configuration for OpenTelemetry receiver.
 	OTLPReceiver *OTLP
 
-	// Profiling settings, or nil if profiling is disabled
-	ProfilingSettings *profiling.Settings
-
 	// ProfilingProxy specifies settings for the profiling proxy.
 	ProfilingProxy ProfilingProxyConfig
 
@@ -383,6 +379,24 @@ type AgentConfig struct {
 
 	// RemoteSamplingClient ...
 	RemoteSamplingClient RemoteClient
+}
+
+type ProfilingSettings struct {
+	// ProfilingURL specifies the URL to which profiles will be sent.  This can be constructed
+	// from a site value with ProfilingURLTemplate.
+	ProfilingURL string
+	// Period specifies the interval at which to collect profiles.
+	Period time.Duration
+	// CPUDuration specifies the length at which to collect CPU profiles.
+	CPUDuration time.Duration
+	// MutexProfileFraction, if set, turns on mutex profiles with rate
+	// indicating the fraction of mutex contention events reported in the mutex
+	// profile.
+	MutexProfileFraction int
+	// BlockProfileRate turns on block profiles with the given rate.
+	BlockProfileRate int
+	// WithGoroutineProfile additionally reports stack traces of all current goroutines
+	WithGoroutineProfile bool
 }
 
 // Remote client is used to APM Sampling Updates from a remote source. Within the Datadog Agent
