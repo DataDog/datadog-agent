@@ -72,8 +72,13 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	// do not try to resolve mmap events when they aren't backed by any file
-	if ev.GetEventType() == model.MMapEventType {
+	switch ev.GetEventType() {
+	case model.MMapEventType:
 		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
+			return ""
+		}
+	case model.LoadModuleEventType:
+		if ev.LoadModule.LoadedFromMemory {
 			return ""
 		}
 	}

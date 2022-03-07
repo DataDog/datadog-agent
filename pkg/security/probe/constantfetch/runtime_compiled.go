@@ -10,9 +10,7 @@ package constantfetch
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"debug/elf"
-	"encoding/base32"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -23,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-go/statsd"
+	"golang.org/x/sys/unix"
 )
 
 type rcSymbolPair struct {
@@ -181,16 +179,18 @@ func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runt
 	return strings.NewReader(p.cCode), nil
 }
 
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
-	hasher := sha256.New()
-	if _, err := hasher.Write([]byte(a.cCode)); err != nil {
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+	cCodeHash, err := runtime.Sha256hex([]byte(a.cCode))
+	if err != nil {
 		return "", err
 	}
-	cCodeHash := hasher.Sum(nil)
-	// base32 is only [A-V0-9]+
-	cCodeHashB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash)
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHashB32, flagHash)), nil
+	unameHash, err := runtime.UnameHash(uname)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameHash, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {
