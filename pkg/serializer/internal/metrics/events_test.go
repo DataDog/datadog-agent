@@ -24,7 +24,7 @@ import (
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )
 
 func TestMarshal(t *testing.T) {

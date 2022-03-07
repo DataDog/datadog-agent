@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )
 
 func benchmarkJSONPayloadBuilderThroughput(points int, items int, tags int, runs int) { //nolint:unuse
