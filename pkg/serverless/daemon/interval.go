@@ -70,9 +70,9 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 		return &flush.AtTheEnd{}
 	}
 
-	// if running more than 1 time every 5 minutes, we can switch to the flush strategy
+	// if running more than 1 time every 2 minutes, we can switch to the flush strategy
 	// of flushing at least every 20 seconds (at the start of the invocation)
-	if freq.Seconds() < 60*5 {
+	if freq.Seconds() < 60*2 {
 		return flush.NewPeriodically(defaultFlushInterval)
 	}
 

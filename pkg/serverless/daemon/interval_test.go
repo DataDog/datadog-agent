@@ -23,14 +23,20 @@ func TestAutoSelectStrategy(t *testing.T) {
 
 	now := time.Now()
 
+	// prefilling lastInvocations with 17 timestamps since we need 20 to change flush strategies
+	for i := 0; i < 17; i++ {
+		d.StoreInvocationTime(now.Add(time.Second * time.Duration(i)))
+	}
+
+	fmt.Print(len(d.lastInvocations))
 	// when not enough data, the flush at the end strategy should be selected
 	// -----
 
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected") // default strategy
 
-	assert.True(d.StoreInvocationTime(now.Add(-time.Second * 140)))
+	assert.True(d.StoreInvocationTime(now.Add(time.Second * 18)))
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
-	assert.True(d.StoreInvocationTime(now.Add(-time.Second * 70)))
+	assert.True(d.StoreInvocationTime(now.Add(time.Second * 19)))
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 
 	// add a third invocation, after this, we have enough data to decide to switch
@@ -38,7 +44,7 @@ func TestAutoSelectStrategy(t *testing.T) {
 	// than 1 time a minute.
 	// -----
 
-	assert.True(d.StoreInvocationTime(now.Add(-time.Second * 1)))
+	assert.True(d.StoreInvocationTime(now.Add(time.Second * 20)))
 	assert.Equal(flush.NewPeriodically(defaultFlushInterval).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 
 	// simulate a function invoked less than 1 time a minute
@@ -72,8 +78,8 @@ func TestStoreInvocationTime(t *testing.T) {
 
 	assert.True(len(d.lastInvocations) <= maxInvocationsStored, "the amount of stored invocations should be lower or equal to 50")
 	// validate that the proper entries were removed
-	assert.Equal(now.Add(-time.Second*10), d.lastInvocations[0])
-	assert.Equal(now.Add(-time.Second*9), d.lastInvocations[1])
+	assert.Equal(now.Add(-time.Second*30), d.lastInvocations[0])
+	assert.Equal(now.Add(-time.Second*29), d.lastInvocations[1])
 }
 
 func TestInvocationInterval(t *testing.T) {
@@ -87,7 +93,7 @@ func TestInvocationInterval(t *testing.T) {
 	// first scenario, validate that we're not computing the interval if we only have 2 invocations done
 	// -----
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 19; i++ {
 		time.Sleep(100 * time.Millisecond)
 		d.lastInvocations = append(d.lastInvocations, time.Now())
 		assert.Equal(time.Duration(0), d.InvocationInterval(), "we should not compute any interval just yet since we don't have enough data")
@@ -95,7 +101,7 @@ func TestInvocationInterval(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	d.lastInvocations = append(d.lastInvocations, time.Now())
 
-	//	assert.Equal(d.InvocationInterval(), time.Duration(0), "we should not compute any interval just yet since we don't have enough data")
+	//  assert.Equal(d.InvocationInterval(), time.Duration(0), "we should not compute any interval just yet since we don't have enough data")
 	assert.NotEqual(time.Duration(0), d.InvocationInterval(), "we should compute some interval now")
 
 	// second scenario, validate the interval that has been computed
