@@ -70,8 +70,10 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 
 // Start starts the concentrator.
 func (c *Concentrator) Start() {
+	c.exitWG.Add(1)
 	go func() {
 		defer watchdog.LogOnPanic()
+		defer c.exitWG.Done()
 		c.Run()
 	}()
 }
@@ -79,9 +81,6 @@ func (c *Concentrator) Start() {
 // Run runs the main loop of the concentrator goroutine. Traces are received
 // through `Add`, this loop only deals with flushing.
 func (c *Concentrator) Run() {
-	c.exitWG.Add(1)
-	defer c.exitWG.Done()
-
 	// flush with the same period as stats buckets
 	flushTicker := time.NewTicker(time.Duration(c.bsize) * time.Nanosecond)
 	defer flushTicker.Stop()

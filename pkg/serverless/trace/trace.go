@@ -8,6 +8,7 @@ package trace
 import (
 	"context"
 
+	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -33,7 +34,7 @@ type LoadConfig struct {
 
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
-	return config.Load(l.Path)
+	return tracecmdconfig.LoadConfigFile(l.Path)
 }
 
 // Start starts the agent

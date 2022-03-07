@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/osutil"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -54,7 +56,7 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	cfg, err := loadConfigFile(flags.ConfigPath)
+	cfg, err := cmdconfig.LoadConfigFile(flags.ConfigPath)
 	if err != nil {
 		fmt.Println(err) // TODO: remove me
 		if err == config.ErrMissingAPIKey {
@@ -70,16 +72,16 @@ func Run(ctx context.Context) {
 			// attempt to restart the process.
 			return
 		}
-		Exitf("%v", err)
+		osutil.Exitf("%v", err)
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
-		Exitf("%v", err)
+		osutil.Exitf("%v", err)
 	}
 
 	if flags.Info {
 		if err := info.Info(os.Stdout, cfg); err != nil {
-			Exitf("Failed to print info: %s", err)
+			osutil.Exitf("Failed to print info: %s", err)
 		}
 		return
 	}
@@ -93,7 +95,7 @@ func Run(ctx context.Context) {
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
 	); err != nil {
-		Exitf("Cannot create logger: %v", err)
+		osutil.Exitf("Cannot create logger: %v", err)
 	}
 	tracelog.SetLogger(corelogger{})
 	defer log.Flush()
@@ -137,13 +139,13 @@ func Run(ctx context.Context) {
 
 	err = manager.ConfigureAutoExit(ctx)
 	if err != nil {
-		Exitf("Unable to configure auto-exit, err: %v", err)
+		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
 		return
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})
 	if err != nil {
-		Exitf("cannot configure dogstatsd: %v", err)
+		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
 	defer metrics.Flush()
 	defer timing.Stop()
@@ -183,11 +185,11 @@ func Run(ctx context.Context) {
 	if features.Has("config_endpoint") {
 		client, err := grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
-			Exitf("could not instantiate the tracer remote config client: %v", err)
+			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
 		}
 		token, err := security.FetchAuthToken()
 		if err != nil {
-			Exitf("could obtain the auth token for the tracer remote config client: %v", err)
+			osutil.Exitf("could obtain the auth token for the tracer remote config client: %v", err)
 		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
@@ -268,3 +270,24 @@ func (corelogger) Criticalf(format string, params ...interface{}) error {
 
 // Flush implements Logger.
 func (corelogger) Flush() { log.Flush() }
+
+func profilingConfig(cfg *config.AgentConfig) *profiling.Settings {
+	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		return nil
+	}
+	endpoint := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url")
+	if endpoint == "" {
+		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, cfg.Site)
+	}
+	return &profiling.Settings{
+		ProfilingURL: endpoint,
+
+		// remaining configuration parameters use the top-level `internal_profiling` config
+		Period:               coreconfig.Datadog.GetDuration("internal_profiling.period"),
+		CPUDuration:          coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
+		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
+		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+		Tags:                 []string{fmt.Sprintf("version:%s", info.Version)},
+	}
+}

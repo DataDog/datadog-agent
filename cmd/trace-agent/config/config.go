@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package config
 
 import (
 	"bytes"
@@ -19,18 +19,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -39,10 +38,10 @@ const (
 	apiEndpointPrefix = "https://trace.agent."
 )
 
-// loadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
+// LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func loadConfigFile(path string) (*config.AgentConfig, error) {
+func LoadConfigFile(path string) (*config.AgentConfig, error) {
 	cfg, err := prepareConfig(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -215,7 +214,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		} else {
 			err := compileReplaceRules(rt)
 			if err != nil {
-				Exitf("replace_tags: %s", err)
+				osutil.Exitf("replace_tags: %s", err)
 			}
 			c.ReplaceTags = rt
 		}
@@ -429,7 +428,7 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 func addReplaceRule(c *config.AgentConfig, tag, pattern, repl string) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		Exitf("error adding replace rule: %s", err)
+		osutil.Exitf("error adding replace rule: %s", err)
 	}
 	c.ReplaceTags = append(c.ReplaceTags, &config.ReplaceRule{
 		Name:    tag,
@@ -598,25 +597,4 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	}
 	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
-}
-
-func profilingConfig(cfg *config.AgentConfig) *profiling.Settings {
-	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		return nil
-	}
-	endpoint := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url")
-	if endpoint == "" {
-		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, cfg.Site)
-	}
-	return &profiling.Settings{
-		ProfilingURL: endpoint,
-
-		// remaining configuration parameters use the top-level `internal_profiling` config
-		Period:               coreconfig.Datadog.GetDuration("internal_profiling.period"),
-		CPUDuration:          coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
-		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
-		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
-		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		Tags:                 []string{fmt.Sprintf("version:%s", info.Version)},
-	}
 }
