@@ -101,7 +101,6 @@ func TestInvocationInterval(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	d.lastInvocations = append(d.lastInvocations, time.Now())
 
-	//  assert.Equal(d.InvocationInterval(), time.Duration(0), "we should not compute any interval just yet since we don't have enough data")
 	assert.NotEqual(time.Duration(0), d.InvocationInterval(), "we should compute some interval now")
 
 	// second scenario, validate the interval that has been computed
