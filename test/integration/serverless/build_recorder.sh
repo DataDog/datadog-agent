@@ -2,5 +2,5 @@
 
 echo "Building recorder extension"
 cd recorder-extension
-GOOS=linux GOARCH=$ARCHITECTURE go build -o extensions/recorder-extension-$ARCHITECTURE main.go
-zip -rq ext-$ARCHITECTURE.zip extensions/recorder-extension-$ARCHITECTURE
+GOOS=linux GOARCH=$ARCHITECTURE go build -o extensions/recorder-extension main.go
+zip -rq ext.zip extensions/recorder-extension

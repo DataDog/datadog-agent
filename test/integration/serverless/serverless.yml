@@ -24,7 +24,6 @@ provider:
     DD_SERVICE: integration-tests-service
     DD_TAGS: tagA:valueA tagB:valueB
     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-    DD_ARCHITECTURE: ${env:ARCHITECTURE}
   lambdaHashingVersion: 20201221
   timeout: 15
   deploymentBucket:
@@ -52,7 +51,7 @@ custom:
 layers:
   recorderExtension:
     package:
-      artifact: ./recorder-extension/ext-${env:ARCHITECTURE}.zip
+      artifact: ./recorder-extension/ext.zip
   datadogExtensionIntegrationTest:
     package:
       artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-${env:ARCHITECTURE}.zip
