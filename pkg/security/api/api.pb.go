@@ -414,6 +414,358 @@ func (m *SecuritySelfTestResultMessage) GetError() string {
 	return ""
 }
 
+type DumpActivityParams struct {
+	Tags                 []string `protobuf:"bytes,1,rep,name=Tags,proto3" json:"Tags,omitempty"`
+	Comm                 string   `protobuf:"bytes,2,opt,name=comm,proto3" json:"comm,omitempty"`
+	Timeout              int32    `protobuf:"varint,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	WithGraph            bool     `protobuf:"varint,4,opt,name=with_graph,json=withGraph,proto3" json:"with_graph,omitempty"`
+	DifferentiateArgs    bool     `protobuf:"varint,5,opt,name=differentiate_args,json=differentiateArgs,proto3" json:"differentiate_args,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DumpActivityParams) Reset()         { *m = DumpActivityParams{} }
+func (m *DumpActivityParams) String() string { return proto.CompactTextString(m) }
+func (*DumpActivityParams) ProtoMessage()    {}
+func (*DumpActivityParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{10}
+}
+
+func (m *DumpActivityParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DumpActivityParams.Unmarshal(m, b)
+}
+func (m *DumpActivityParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DumpActivityParams.Marshal(b, m, deterministic)
+}
+func (m *DumpActivityParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DumpActivityParams.Merge(m, src)
+}
+func (m *DumpActivityParams) XXX_Size() int {
+	return xxx_messageInfo_DumpActivityParams.Size(m)
+}
+func (m *DumpActivityParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_DumpActivityParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DumpActivityParams proto.InternalMessageInfo
+
+func (m *DumpActivityParams) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+func (m *DumpActivityParams) GetComm() string {
+	if m != nil {
+		return m.Comm
+	}
+	return ""
+}
+
+func (m *DumpActivityParams) GetTimeout() int32 {
+	if m != nil {
+		return m.Timeout
+	}
+	return 0
+}
+
+func (m *DumpActivityParams) GetWithGraph() bool {
+	if m != nil {
+		return m.WithGraph
+	}
+	return false
+}
+
+func (m *DumpActivityParams) GetDifferentiateArgs() bool {
+	if m != nil {
+		return m.DifferentiateArgs
+	}
+	return false
+}
+
+type SecurityActivityDumpMessage struct {
+	OutputFilename       string   `protobuf:"bytes,1,opt,name=OutputFilename,proto3" json:"OutputFilename,omitempty"`
+	GraphFilename        string   `protobuf:"bytes,2,opt,name=GraphFilename,proto3" json:"GraphFilename,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityActivityDumpMessage) Reset()         { *m = SecurityActivityDumpMessage{} }
+func (m *SecurityActivityDumpMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityActivityDumpMessage) ProtoMessage()    {}
+func (*SecurityActivityDumpMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{11}
+}
+
+func (m *SecurityActivityDumpMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityActivityDumpMessage.Unmarshal(m, b)
+}
+func (m *SecurityActivityDumpMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityActivityDumpMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityActivityDumpMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityActivityDumpMessage.Merge(m, src)
+}
+func (m *SecurityActivityDumpMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityActivityDumpMessage.Size(m)
+}
+func (m *SecurityActivityDumpMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityActivityDumpMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityActivityDumpMessage proto.InternalMessageInfo
+
+func (m *SecurityActivityDumpMessage) GetOutputFilename() string {
+	if m != nil {
+		return m.OutputFilename
+	}
+	return ""
+}
+
+func (m *SecurityActivityDumpMessage) GetGraphFilename() string {
+	if m != nil {
+		return m.GraphFilename
+	}
+	return ""
+}
+
+type ListActivityDumpsParams struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListActivityDumpsParams) Reset()         { *m = ListActivityDumpsParams{} }
+func (m *ListActivityDumpsParams) String() string { return proto.CompactTextString(m) }
+func (*ListActivityDumpsParams) ProtoMessage()    {}
+func (*ListActivityDumpsParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{12}
+}
+
+func (m *ListActivityDumpsParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListActivityDumpsParams.Unmarshal(m, b)
+}
+func (m *ListActivityDumpsParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListActivityDumpsParams.Marshal(b, m, deterministic)
+}
+func (m *ListActivityDumpsParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListActivityDumpsParams.Merge(m, src)
+}
+func (m *ListActivityDumpsParams) XXX_Size() int {
+	return xxx_messageInfo_ListActivityDumpsParams.Size(m)
+}
+func (m *ListActivityDumpsParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListActivityDumpsParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListActivityDumpsParams proto.InternalMessageInfo
+
+type SecurityActivityDumpListMessage struct {
+	DumpTags             []string `protobuf:"bytes,1,rep,name=DumpTags,proto3" json:"DumpTags,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityActivityDumpListMessage) Reset()         { *m = SecurityActivityDumpListMessage{} }
+func (m *SecurityActivityDumpListMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityActivityDumpListMessage) ProtoMessage()    {}
+func (*SecurityActivityDumpListMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{13}
+}
+
+func (m *SecurityActivityDumpListMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityActivityDumpListMessage.Unmarshal(m, b)
+}
+func (m *SecurityActivityDumpListMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityActivityDumpListMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityActivityDumpListMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityActivityDumpListMessage.Merge(m, src)
+}
+func (m *SecurityActivityDumpListMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityActivityDumpListMessage.Size(m)
+}
+func (m *SecurityActivityDumpListMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityActivityDumpListMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityActivityDumpListMessage proto.InternalMessageInfo
+
+func (m *SecurityActivityDumpListMessage) GetDumpTags() []string {
+	if m != nil {
+		return m.DumpTags
+	}
+	return nil
+}
+
+type StopActivityDumpParams struct {
+	Tags                 []string `protobuf:"bytes,1,rep,name=Tags,proto3" json:"Tags,omitempty"`
+	Comm                 string   `protobuf:"bytes,2,opt,name=Comm,proto3" json:"Comm,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StopActivityDumpParams) Reset()         { *m = StopActivityDumpParams{} }
+func (m *StopActivityDumpParams) String() string { return proto.CompactTextString(m) }
+func (*StopActivityDumpParams) ProtoMessage()    {}
+func (*StopActivityDumpParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{14}
+}
+
+func (m *StopActivityDumpParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StopActivityDumpParams.Unmarshal(m, b)
+}
+func (m *StopActivityDumpParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StopActivityDumpParams.Marshal(b, m, deterministic)
+}
+func (m *StopActivityDumpParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StopActivityDumpParams.Merge(m, src)
+}
+func (m *StopActivityDumpParams) XXX_Size() int {
+	return xxx_messageInfo_StopActivityDumpParams.Size(m)
+}
+func (m *StopActivityDumpParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_StopActivityDumpParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StopActivityDumpParams proto.InternalMessageInfo
+
+func (m *StopActivityDumpParams) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+func (m *StopActivityDumpParams) GetComm() string {
+	if m != nil {
+		return m.Comm
+	}
+	return ""
+}
+
+type SecurityActivityDumpStoppedMessage struct {
+	Error                string   `protobuf:"bytes,1,opt,name=Error,proto3" json:"Error,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityActivityDumpStoppedMessage) Reset()         { *m = SecurityActivityDumpStoppedMessage{} }
+func (m *SecurityActivityDumpStoppedMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityActivityDumpStoppedMessage) ProtoMessage()    {}
+func (*SecurityActivityDumpStoppedMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{15}
+}
+
+func (m *SecurityActivityDumpStoppedMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityActivityDumpStoppedMessage.Unmarshal(m, b)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityActivityDumpStoppedMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityActivityDumpStoppedMessage.Merge(m, src)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityActivityDumpStoppedMessage.Size(m)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityActivityDumpStoppedMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityActivityDumpStoppedMessage proto.InternalMessageInfo
+
+func (m *SecurityActivityDumpStoppedMessage) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+type GenerateProfileParams struct {
+	ActivityDumpFile     string   `protobuf:"bytes,1,opt,name=ActivityDumpFile,proto3" json:"ActivityDumpFile,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GenerateProfileParams) Reset()         { *m = GenerateProfileParams{} }
+func (m *GenerateProfileParams) String() string { return proto.CompactTextString(m) }
+func (*GenerateProfileParams) ProtoMessage()    {}
+func (*GenerateProfileParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{16}
+}
+
+func (m *GenerateProfileParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GenerateProfileParams.Unmarshal(m, b)
+}
+func (m *GenerateProfileParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GenerateProfileParams.Marshal(b, m, deterministic)
+}
+func (m *GenerateProfileParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GenerateProfileParams.Merge(m, src)
+}
+func (m *GenerateProfileParams) XXX_Size() int {
+	return xxx_messageInfo_GenerateProfileParams.Size(m)
+}
+func (m *GenerateProfileParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_GenerateProfileParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GenerateProfileParams proto.InternalMessageInfo
+
+func (m *GenerateProfileParams) GetActivityDumpFile() string {
+	if m != nil {
+		return m.ActivityDumpFile
+	}
+	return ""
+}
+
+type SecurityProfileGeneratedMessage struct {
+	ProfilePath          string   `protobuf:"bytes,1,opt,name=ProfilePath,proto3" json:"ProfilePath,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityProfileGeneratedMessage) Reset()         { *m = SecurityProfileGeneratedMessage{} }
+func (m *SecurityProfileGeneratedMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityProfileGeneratedMessage) ProtoMessage()    {}
+func (*SecurityProfileGeneratedMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{17}
+}
+
+func (m *SecurityProfileGeneratedMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityProfileGeneratedMessage.Unmarshal(m, b)
+}
+func (m *SecurityProfileGeneratedMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityProfileGeneratedMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityProfileGeneratedMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityProfileGeneratedMessage.Merge(m, src)
+}
+func (m *SecurityProfileGeneratedMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityProfileGeneratedMessage.Size(m)
+}
+func (m *SecurityProfileGeneratedMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityProfileGeneratedMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityProfileGeneratedMessage proto.InternalMessageInfo
+
+func (m *SecurityProfileGeneratedMessage) GetProfilePath() string {
+	if m != nil {
+		return m.ProfilePath
+	}
+	return ""
+}
+
 func init() {
 	proto.RegisterType((*GetEventParams)(nil), "api.GetEventParams")
 	proto.RegisterType((*SecurityEventMessage)(nil), "api.SecurityEventMessage")
@@ -425,41 +777,68 @@ func init() {
 	proto.RegisterType((*ReloadPoliciesParams)(nil), "api.ReloadPoliciesParams")
 	proto.RegisterType((*ReloadPoliciesResultMessage)(nil), "api.ReloadPoliciesResultMessage")
 	proto.RegisterType((*SecuritySelfTestResultMessage)(nil), "api.SecuritySelfTestResultMessage")
+	proto.RegisterType((*DumpActivityParams)(nil), "api.DumpActivityParams")
+	proto.RegisterType((*SecurityActivityDumpMessage)(nil), "api.SecurityActivityDumpMessage")
+	proto.RegisterType((*ListActivityDumpsParams)(nil), "api.ListActivityDumpsParams")
+	proto.RegisterType((*SecurityActivityDumpListMessage)(nil), "api.SecurityActivityDumpListMessage")
+	proto.RegisterType((*StopActivityDumpParams)(nil), "api.StopActivityDumpParams")
+	proto.RegisterType((*SecurityActivityDumpStoppedMessage)(nil), "api.SecurityActivityDumpStoppedMessage")
+	proto.RegisterType((*GenerateProfileParams)(nil), "api.GenerateProfileParams")
+	proto.RegisterType((*SecurityProfileGeneratedMessage)(nil), "api.SecurityProfileGeneratedMessage")
 }
 
 func init() { proto.RegisterFile("pkg/security/api/api.proto", fileDescriptor_ce049ba84fb5261a) }
 
 var fileDescriptor_ce049ba84fb5261a = []byte{
-	// 464 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x93, 0x5f, 0x6b, 0xdb, 0x3c,
-	0x14, 0xc6, 0xf3, 0xa7, 0x6f, 0xdf, 0xe4, 0x6c, 0x78, 0xe9, 0x69, 0x16, 0x3c, 0x95, 0x6e, 0x41,
-	0x8c, 0x91, 0xab, 0x76, 0x6c, 0xbb, 0x1d, 0x63, 0x6b, 0xd2, 0x52, 0x46, 0x48, 0x50, 0x0a, 0x85,
-	0xdd, 0x0c, 0xd5, 0x39, 0x75, 0x45, 0x1c, 0xdb, 0x48, 0x76, 0x61, 0x1f, 0x61, 0xdf, 0x7a, 0x44,
-	0xb6, 0x4a, 0xec, 0x79, 0x17, 0x06, 0x9d, 0xc7, 0x47, 0x8f, 0x1f, 0xeb, 0x77, 0x04, 0x2c, 0xdd,
-	0x84, 0xe7, 0x86, 0x82, 0x5c, 0xab, 0xec, 0xd7, 0xb9, 0x4c, 0xd5, 0xee, 0x39, 0x4b, 0x75, 0x92,
-	0x25, 0xd8, 0x95, 0xa9, 0xe2, 0x03, 0xf0, 0xae, 0x28, 0x9b, 0x3d, 0x52, 0x9c, 0x2d, 0xa5, 0x96,
-	0x5b, 0xc3, 0x53, 0x18, 0xae, 0xca, 0x0d, 0x56, 0x9e, 0x93, 0x31, 0x32, 0x24, 0x1c, 0xc1, 0xa1,
-	0xc8, 0x23, 0xba, 0x9e, 0xfa, 0xed, 0x71, 0x7b, 0xd2, 0x17, 0x65, 0x85, 0x08, 0x07, 0x53, 0x99,
-	0x49, 0xbf, 0x33, 0x6e, 0x4f, 0x9e, 0x0b, 0xbb, 0xde, 0x69, 0x37, 0x32, 0x34, 0x7e, 0x77, 0xdc,
-	0x9d, 0xf4, 0x85, 0x5d, 0xa3, 0x0f, 0xff, 0xaf, 0x48, 0x3f, 0xaa, 0x80, 0xfc, 0x03, 0x6b, 0xe0,
-	0x4a, 0xfe, 0x09, 0x46, 0xd3, 0x7c, 0x9b, 0x2e, 0x75, 0x12, 0x90, 0x31, 0x17, 0x32, 0x78, 0xa0,
-	0x22, 0x0b, 0x32, 0xe8, 0xdd, 0xaa, 0xec, 0xe1, 0xab, 0x0e, 0x8d, 0xfd, 0x6a, 0x4f, 0x3c, 0xd5,
-	0xfc, 0x33, 0xbc, 0x71, 0x39, 0xeb, 0xbb, 0x5d, 0x64, 0x06, 0xbd, 0x4b, 0x15, 0x51, 0x2c, 0xb7,
-	0x54, 0x86, 0x7e, 0xaa, 0xf9, 0x11, 0xbc, 0xb8, 0xa2, 0xec, 0x22, 0x89, 0xef, 0x55, 0x58, 0xfe,
-	0xf9, 0x4f, 0x78, 0xe9, 0x1c, 0x0b, 0xdd, 0xf9, 0xbc, 0x03, 0x4f, 0xe4, 0x71, 0xa6, 0xb6, 0x34,
-	0x8b, 0xe5, 0x5d, 0x44, 0xeb, 0x32, 0x4c, 0x4d, 0xc5, 0xd7, 0x00, 0x97, 0xd7, 0x73, 0xd7, 0xd3,
-	0xb1, 0x3d, 0x7b, 0x0a, 0x3f, 0x86, 0x23, 0x91, 0xc7, 0x2b, 0x8a, 0xee, 0x6f, 0xc8, 0xb8, 0xf3,
-	0x1e, 0xc1, 0x50, 0x50, 0x94, 0xc8, 0xf5, 0x32, 0x89, 0x54, 0xa0, 0xc8, 0x94, 0xfa, 0x29, 0x9c,
-	0x54, 0x75, 0x41, 0x26, 0x8f, 0x1c, 0x0e, 0x3e, 0x83, 0x53, 0x17, 0xd6, 0x19, 0x56, 0x1a, 0xd0,
-	0x83, 0xce, 0x62, 0x53, 0x06, 0xed, 0x2c, 0x36, 0x38, 0x84, 0xff, 0x66, 0x5a, 0x27, 0xda, 0xe6,
-	0xea, 0x8b, 0xa2, 0xf8, 0xf0, 0xbb, 0x0b, 0x9e, 0xf3, 0x99, 0x27, 0xeb, 0x3c, 0x22, 0xfc, 0x02,
-	0x7d, 0x37, 0x12, 0x06, 0x8f, 0xcf, 0x76, 0x03, 0x53, 0x1d, 0x11, 0xf6, 0xca, 0x8a, 0x4d, 0x53,
-	0xc2, 0x5b, 0xef, 0xdb, 0x78, 0x0b, 0x83, 0x3a, 0x11, 0x3c, 0xb1, 0x5b, 0x9a, 0x31, 0xb3, 0xb7,
-	0x15, 0xbf, 0x7f, 0xd0, 0xe4, 0xad, 0x32, 0x59, 0xc1, 0x06, 0x87, 0x2e, 0xd9, 0x3e, 0x43, 0xc6,
-	0x2a, 0x56, 0x15, 0x8c, 0xbc, 0x85, 0xdf, 0xe1, 0xd9, 0x1e, 0x00, 0x1c, 0xd9, 0xe6, 0xbf, 0x90,
-	0x30, 0x5e, 0x31, 0x69, 0x3c, 0x5e, 0xde, 0xc2, 0x05, 0x78, 0x55, 0x40, 0x58, 0x9c, 0x4b, 0x13,
-	0x4d, 0x36, 0x6e, 0x78, 0x55, 0x33, 0xfc, 0x86, 0x3f, 0x06, 0xf5, 0xeb, 0x7a, 0x77, 0x68, 0xef,
-	0xea, 0xc7, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xd0, 0xff, 0xb1, 0x35, 0xc9, 0x03, 0x00, 0x00,
+	// 761 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x55, 0x61, 0x6f, 0xea, 0x36,
+	0x14, 0x4d, 0xa0, 0x74, 0x70, 0xdb, 0x31, 0x70, 0x29, 0xa5, 0xe9, 0xba, 0x21, 0xab, 0xda, 0xd0,
+	0xa4, 0xb5, 0xd3, 0xb6, 0x4f, 0x93, 0xa6, 0xad, 0xa3, 0x14, 0x55, 0x7b, 0x15, 0x28, 0xf4, 0xa9,
+	0x7a, 0xfd, 0x52, 0xb9, 0x60, 0xc0, 0x22, 0x24, 0x51, 0xe2, 0xf4, 0xa9, 0xff, 0xe7, 0xfd, 0xb4,
+	0xf7, 0x43, 0x9e, 0x6c, 0xec, 0x3c, 0x27, 0x0d, 0xfd, 0x80, 0x64, 0x1f, 0x7c, 0x8f, 0x4f, 0xee,
+	0xb9, 0x39, 0x01, 0x27, 0x5c, 0x2d, 0x2e, 0x62, 0x3a, 0x4d, 0x22, 0xc6, 0x5f, 0x2e, 0x48, 0xc8,
+	0xc4, 0xef, 0x3c, 0x8c, 0x02, 0x1e, 0xa0, 0x32, 0x09, 0x19, 0x6e, 0x40, 0x7d, 0x48, 0xf9, 0xe0,
+	0x99, 0xfa, 0x7c, 0x4c, 0x22, 0xb2, 0x8e, 0x71, 0x08, 0xad, 0x89, 0x2a, 0x90, 0xf0, 0x2d, 0x8d,
+	0x63, 0xb2, 0xa0, 0xa8, 0x0d, 0xbb, 0x6e, 0xe2, 0xd1, 0x9b, 0xab, 0x8e, 0xdd, 0xb5, 0x7b, 0x35,
+	0x57, 0xed, 0x10, 0x82, 0x9d, 0x2b, 0xc2, 0x49, 0xa7, 0xd4, 0xb5, 0x7b, 0xfb, 0xae, 0x5c, 0x0b,
+	0xec, 0x8e, 0x2c, 0xe2, 0x4e, 0xb9, 0x5b, 0xee, 0xd5, 0x5c, 0xb9, 0x46, 0x1d, 0xf8, 0x66, 0x42,
+	0xa3, 0x67, 0x36, 0xa5, 0x9d, 0x1d, 0x49, 0xa0, 0xb7, 0xf8, 0x4f, 0x68, 0x5f, 0x25, 0xeb, 0x70,
+	0x1c, 0x05, 0x53, 0x1a, 0xc7, 0x7d, 0x32, 0x5d, 0xd2, 0x8d, 0x16, 0xe4, 0x40, 0xf5, 0x9e, 0xf1,
+	0xe5, 0x65, 0xb4, 0x88, 0xe5, 0xad, 0x55, 0x37, 0xdd, 0xe3, 0xbf, 0xe1, 0x47, 0xad, 0x33, 0x5f,
+	0xad, 0x25, 0x3b, 0x50, 0xbd, 0x66, 0x1e, 0xf5, 0xc9, 0x9a, 0x2a, 0xd1, 0xe9, 0x1e, 0x37, 0xe1,
+	0xbb, 0x21, 0xe5, 0xfd, 0xc0, 0x9f, 0xb3, 0x85, 0x7a, 0xf2, 0x47, 0x38, 0xd4, 0x8c, 0x1b, 0x5c,
+	0xf3, 0xfc, 0x04, 0x75, 0x37, 0xf1, 0x39, 0x5b, 0xd3, 0x81, 0x4f, 0x9e, 0x3c, 0x3a, 0x53, 0x62,
+	0x72, 0x28, 0xfa, 0x01, 0xe0, 0xfa, 0xe6, 0x56, 0x9f, 0x29, 0xc9, 0x33, 0x06, 0x82, 0x0f, 0xa0,
+	0xe9, 0x26, 0xfe, 0x84, 0x7a, 0xf3, 0x3b, 0x1a, 0xeb, 0x7e, 0xb7, 0xa1, 0xe5, 0x52, 0x2f, 0x20,
+	0xb3, 0x71, 0xe0, 0xb1, 0x29, 0xa3, 0xb1, 0xc2, 0x4f, 0xe1, 0x24, 0x8b, 0xbb, 0x34, 0x4e, 0x3c,
+	0x6d, 0x07, 0x1e, 0xc0, 0xa9, 0x16, 0xab, 0x09, 0x33, 0x07, 0x50, 0x1d, 0x4a, 0xa3, 0x95, 0x12,
+	0x5a, 0x1a, 0xad, 0x50, 0x0b, 0x2a, 0x83, 0x28, 0x0a, 0x22, 0xa9, 0xab, 0xe6, 0x6e, 0x36, 0xf8,
+	0x93, 0x0d, 0x48, 0xb4, 0xef, 0x72, 0xca, 0xd9, 0x33, 0xe3, 0x2f, 0xaa, 0xf1, 0xda, 0x40, 0xdb,
+	0x30, 0x10, 0xc1, 0xce, 0x34, 0x58, 0xaf, 0x55, 0xbd, 0x5c, 0x0b, 0x53, 0x45, 0x03, 0x82, 0x84,
+	0x77, 0xca, 0x5d, 0xbb, 0x57, 0x71, 0xf5, 0x16, 0x9d, 0x02, 0x7c, 0x64, 0x7c, 0xf9, 0xb8, 0x88,
+	0x48, 0xb8, 0x94, 0x8e, 0x57, 0xdd, 0x9a, 0x40, 0x86, 0x02, 0x40, 0xbf, 0x02, 0x9a, 0xb1, 0xf9,
+	0x9c, 0x46, 0xd4, 0xe7, 0x8c, 0x70, 0xfa, 0x48, 0x84, 0xc7, 0x15, 0x79, 0xac, 0x99, 0xf9, 0x47,
+	0x9a, 0xbd, 0x82, 0x13, 0xfd, 0xb4, 0x5a, 0xa9, 0x50, 0x6d, 0x18, 0x34, 0x4a, 0x78, 0x98, 0xf0,
+	0x9c, 0xdd, 0x39, 0x14, 0x9d, 0xc1, 0xb7, 0xf2, 0xfa, 0xf4, 0xd8, 0xe6, 0x59, 0xb2, 0x20, 0x3e,
+	0x86, 0xa3, 0x77, 0x2c, 0xe6, 0xe6, 0x45, 0xda, 0x14, 0x63, 0xe8, 0xcc, 0xbf, 0xc5, 0x71, 0x63,
+	0xe8, 0x04, 0x64, 0xb4, 0x2f, 0xdd, 0xe3, 0x7f, 0xa1, 0x3d, 0xe1, 0x41, 0x68, 0x96, 0xbe, 0xdd,
+	0xf0, 0xbe, 0xd1, 0x70, 0xb1, 0xc6, 0x7f, 0x01, 0x2e, 0x12, 0x20, 0x58, 0x43, 0x3a, 0xd3, 0x1a,
+	0x52, 0xaf, 0x6d, 0xd3, 0xeb, 0x3e, 0x1c, 0x0e, 0xa9, 0x4f, 0x23, 0xc2, 0xe9, 0x38, 0x0a, 0xe6,
+	0xcc, 0xd3, 0xaf, 0xd9, 0x2f, 0xd0, 0x30, 0xc9, 0x44, 0x23, 0x54, 0xe5, 0x2b, 0x1c, 0xf7, 0xbf,
+	0x76, 0x40, 0x91, 0x68, 0xce, 0xf4, 0xf6, 0x2e, 0xec, 0xa5, 0xfc, 0x7c, 0xa9, 0x98, 0x4c, 0xe8,
+	0xf7, 0xcf, 0x15, 0xa8, 0x6b, 0x96, 0xdb, 0x60, 0x96, 0x78, 0x14, 0xfd, 0x03, 0x35, 0x1d, 0x44,
+	0x31, 0x3a, 0x38, 0x17, 0x31, 0x95, 0x0d, 0x26, 0xe7, 0x58, 0x82, 0x45, 0xd9, 0x84, 0xad, 0xdf,
+	0x6c, 0x74, 0x0f, 0x8d, 0x7c, 0x0e, 0xa0, 0x13, 0x59, 0x52, 0x1c, 0x2e, 0xce, 0x59, 0x86, 0x6f,
+	0x4b, 0x86, 0x60, 0x0b, 0xfd, 0x0f, 0xfb, 0xe6, 0x1b, 0x82, 0x8e, 0x52, 0xd2, 0xec, 0x4b, 0xe3,
+	0x74, 0x33, 0x84, 0x05, 0x73, 0x8a, 0x2d, 0xf4, 0x01, 0x9a, 0xaf, 0x66, 0x0b, 0x7d, 0x2f, 0x0b,
+	0xb7, 0xcc, 0x5c, 0x4e, 0xe7, 0x96, 0xb1, 0xc3, 0x16, 0x7a, 0x80, 0x46, 0x7e, 0xb8, 0x54, 0x03,
+	0x8a, 0x67, 0xce, 0xf9, 0x79, 0x2b, 0x71, 0x76, 0x9c, 0xb0, 0x85, 0xde, 0x8b, 0xb4, 0xcc, 0x8c,
+	0x0e, 0x72, 0x94, 0x47, 0x05, 0x03, 0x95, 0x93, 0xbc, 0x65, 0x4e, 0xb0, 0xa5, 0x4c, 0xdf, 0x84,
+	0x2d, 0x6a, 0x69, 0xd3, 0xcd, 0x50, 0x76, 0x9c, 0x0c, 0x55, 0x26, 0x97, 0xa5, 0x37, 0x7b, 0x46,
+	0xa2, 0xa2, 0xb6, 0x3c, 0xfc, 0x2a, 0x63, 0x1d, 0x9c, 0x21, 0x29, 0xcc, 0x4b, 0x6c, 0xa1, 0x11,
+	0xd4, 0xb3, 0x89, 0x8b, 0x36, 0x23, 0x57, 0x14, 0xcf, 0xca, 0xec, 0xb7, 0x12, 0xda, 0xfa, 0x0f,
+	0x3d, 0x34, 0xf2, 0xdf, 0xdf, 0xa7, 0x5d, 0xf9, 0xf1, 0xfd, 0xe3, 0x4b, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0x8e, 0x96, 0x7f, 0xcf, 0x9a, 0x07, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -476,6 +855,10 @@ const _ = grpc.SupportPackageIsVersion4
 type SecurityModuleClient interface {
 	GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error)
 	DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error)
+	DumpActivity(ctx context.Context, in *DumpActivityParams, opts ...grpc.CallOption) (*SecurityActivityDumpMessage, error)
+	ListActivityDumps(ctx context.Context, in *ListActivityDumpsParams, opts ...grpc.CallOption) (*SecurityActivityDumpListMessage, error)
+	StopActivityDump(ctx context.Context, in *StopActivityDumpParams, opts ...grpc.CallOption) (*SecurityActivityDumpStoppedMessage, error)
+	GenerateProfile(ctx context.Context, in *GenerateProfileParams, opts ...grpc.CallOption) (*SecurityProfileGeneratedMessage, error)
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
@@ -530,6 +913,42 @@ func (c *securityModuleClient) DumpProcessCache(ctx context.Context, in *DumpPro
 	return out, nil
 }
 
+func (c *securityModuleClient) DumpActivity(ctx context.Context, in *DumpActivityParams, opts ...grpc.CallOption) (*SecurityActivityDumpMessage, error) {
+	out := new(SecurityActivityDumpMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpActivity", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) ListActivityDumps(ctx context.Context, in *ListActivityDumpsParams, opts ...grpc.CallOption) (*SecurityActivityDumpListMessage, error) {
+	out := new(SecurityActivityDumpListMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/ListActivityDumps", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) StopActivityDump(ctx context.Context, in *StopActivityDumpParams, opts ...grpc.CallOption) (*SecurityActivityDumpStoppedMessage, error) {
+	out := new(SecurityActivityDumpStoppedMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/StopActivityDump", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) GenerateProfile(ctx context.Context, in *GenerateProfileParams, opts ...grpc.CallOption) (*SecurityProfileGeneratedMessage, error) {
+	out := new(SecurityProfileGeneratedMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/GenerateProfile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *securityModuleClient) GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error) {
 	out := new(SecurityConfigMessage)
 	err := c.cc.Invoke(ctx, "/api.SecurityModule/GetConfig", in, out, opts...)
@@ -561,6 +980,10 @@ func (c *securityModuleClient) ReloadPolicies(ctx context.Context, in *ReloadPol
 type SecurityModuleServer interface {
 	GetEvents(*GetEventParams, SecurityModule_GetEventsServer) error
 	DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error)
+	DumpActivity(context.Context, *DumpActivityParams) (*SecurityActivityDumpMessage, error)
+	ListActivityDumps(context.Context, *ListActivityDumpsParams) (*SecurityActivityDumpListMessage, error)
+	StopActivityDump(context.Context, *StopActivityDumpParams) (*SecurityActivityDumpStoppedMessage, error)
+	GenerateProfile(context.Context, *GenerateProfileParams) (*SecurityProfileGeneratedMessage, error)
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
@@ -575,6 +998,18 @@ func (*UnimplementedSecurityModuleServer) GetEvents(req *GetEventParams, srv Sec
 }
 func (*UnimplementedSecurityModuleServer) DumpProcessCache(ctx context.Context, req *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpProcessCache not implemented")
+}
+func (*UnimplementedSecurityModuleServer) DumpActivity(ctx context.Context, req *DumpActivityParams) (*SecurityActivityDumpMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DumpActivity not implemented")
+}
+func (*UnimplementedSecurityModuleServer) ListActivityDumps(ctx context.Context, req *ListActivityDumpsParams) (*SecurityActivityDumpListMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListActivityDumps not implemented")
+}
+func (*UnimplementedSecurityModuleServer) StopActivityDump(ctx context.Context, req *StopActivityDumpParams) (*SecurityActivityDumpStoppedMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopActivityDump not implemented")
+}
+func (*UnimplementedSecurityModuleServer) GenerateProfile(ctx context.Context, req *GenerateProfileParams) (*SecurityProfileGeneratedMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateProfile not implemented")
 }
 func (*UnimplementedSecurityModuleServer) GetConfig(ctx context.Context, req *GetConfigParams) (*SecurityConfigMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
@@ -625,6 +1060,78 @@ func _SecurityModule_DumpProcessCache_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SecurityModuleServer).DumpProcessCache(ctx, req.(*DumpProcessCacheParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_DumpActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DumpActivityParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).DumpActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/DumpActivity",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).DumpActivity(ctx, req.(*DumpActivityParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_ListActivityDumps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListActivityDumpsParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).ListActivityDumps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/ListActivityDumps",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).ListActivityDumps(ctx, req.(*ListActivityDumpsParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_StopActivityDump_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopActivityDumpParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).StopActivityDump(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/StopActivityDump",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).StopActivityDump(ctx, req.(*StopActivityDumpParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_GenerateProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateProfileParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).GenerateProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/GenerateProfile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).GenerateProfile(ctx, req.(*GenerateProfileParams))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -690,6 +1197,22 @@ var _SecurityModule_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DumpProcessCache",
 			Handler:    _SecurityModule_DumpProcessCache_Handler,
+		},
+		{
+			MethodName: "DumpActivity",
+			Handler:    _SecurityModule_DumpActivity_Handler,
+		},
+		{
+			MethodName: "ListActivityDumps",
+			Handler:    _SecurityModule_ListActivityDumps_Handler,
+		},
+		{
+			MethodName: "StopActivityDump",
+			Handler:    _SecurityModule_StopActivityDump_Handler,
+		},
+		{
+			MethodName: "GenerateProfile",
+			Handler:    _SecurityModule_GenerateProfile_Handler,
 		},
 		{
 			MethodName: "GetConfig",

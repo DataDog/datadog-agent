@@ -258,7 +258,8 @@ type Process struct {
 	Filesystem          string `field:"file.filesystem"` // FileSystem of the process executable
 	PathResolutionError error  `field:"-"`
 
-	ContainerID string `field:"container.id"` // Container ID
+	ContainerID   string   `field:"container.id"` // Container ID
+	ContainerTags []string `field:"-"`
 
 	TTYName string `field:"tty_name"` // Name of the TTY associated with the process
 	Comm    string `field:"comm"`     // Comm attribute of the process
@@ -480,35 +481,35 @@ type ProcessCacheEntry struct {
 }
 
 // Reset the entry
-func (e *ProcessCacheEntry) Reset() {
-	e.ProcessContext = zeroProcessContext
-	e.refCount = 0
-	e.releaseCb = nil
+func (pc *ProcessCacheEntry) Reset() {
+	pc.ProcessContext = zeroProcessContext
+	pc.refCount = 0
+	pc.releaseCb = nil
 }
 
 // Retain increment ref counter
-func (e *ProcessCacheEntry) Retain() {
-	e.refCount++
+func (pc *ProcessCacheEntry) Retain() {
+	pc.refCount++
 }
 
 // SetReleaseCallback set the callback called when the entry is released
-func (e *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	e.releaseCb = callback
+func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
+	pc.releaseCb = callback
 }
 
 // Release decrement and eventually release the entry
-func (e *ProcessCacheEntry) Release() {
-	e.refCount--
-	if e.refCount > 0 {
+func (pc *ProcessCacheEntry) Release() {
+	pc.refCount--
+	if pc.refCount > 0 {
 		return
 	}
 
-	if e.onRelease != nil {
-		e.onRelease(e)
+	if pc.onRelease != nil {
+		pc.onRelease(pc)
 	}
 
-	if e.releaseCb != nil {
-		e.releaseCb()
+	if pc.releaseCb != nil {
+		pc.releaseCb()
 	}
 }
 
