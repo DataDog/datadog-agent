@@ -812,6 +812,7 @@ core,go.opentelemetry.io/collector/model/otlp,Apache-2.0,Open Telemetry Maintain
 core,go.opentelemetry.io/collector/model/otlpgrpc,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/pdata,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/semconv/v1.5.0,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/semconv/v1.6.1,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/obsreport,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/processor/batchprocessor,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/processor/processorhelper,Apache-2.0,Open Telemetry Maintainers
