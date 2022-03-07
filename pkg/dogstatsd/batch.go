@@ -58,8 +58,8 @@ func newBatcher(demux aggregator.Demultiplexer) *batcher {
 	var e chan []*metrics.Event
 	var sc chan []*metrics.ServiceCheck
 
-	// the Serverless Agent is not running an Aggregator, it does not
-	// have to support service checks nor events.
+	// the Serverless Agent doesn't have to support service checks nor events so
+	// it doesn't run an Aggregator.
 	if agg != nil {
 		e, sc = agg.GetBufferedChannels()
 	}
@@ -132,7 +132,7 @@ func (b *batcher) flush() {
 		b.flushSamples(uint32(i))
 	}
 
-	if len(b.events) > 0 && b.choutEvents != nil {
+	if len(b.events) > 0 {
 		t1 := time.Now()
 		b.choutEvents <- b.events
 		t2 := time.Now()
@@ -141,7 +141,7 @@ func (b *batcher) flush() {
 		b.events = []*metrics.Event{}
 	}
 
-	if len(b.serviceChecks) > 0 && b.choutServiceChecks != nil {
+	if len(b.serviceChecks) > 0 {
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
 		t2 := time.Now()
