@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 type fakeWorkloadmetaStore struct {
