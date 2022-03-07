@@ -277,6 +277,13 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
     if (syscall->policy.mode == NO_FILTER)
         return 0;
 
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &tgid);
+    if (tgid_exec_ts != NULL) {
+        // return immediately
+        return 0;
+    }
+
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 
     if (syscall->policy.mode == DENY) {

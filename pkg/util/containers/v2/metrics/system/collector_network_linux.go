@@ -31,7 +31,7 @@ func buildNetworkStats(procPath string, pids []int) (*provider.ContainerNetworkS
 		}
 
 		if !errors.Is(err, os.ErrNotExist) {
-			log.Debugf("Unable to get network stats for PID: %d, err: %w", pid, err)
+			log.Debugf("Unable to get network stats for PID: %d, err: %v", pid, err)
 			return nil, err
 		}
 	}

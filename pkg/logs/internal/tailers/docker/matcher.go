@@ -9,8 +9,8 @@ package docker
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder/breaker"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/breaker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 )
 

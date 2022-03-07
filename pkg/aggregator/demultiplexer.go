@@ -112,6 +112,7 @@ type AgentDemultiplexer struct {
 // DemultiplexerOptions are the options used to initialize a Demultiplexer.
 type DemultiplexerOptions struct {
 	SharedForwarderOptions         *forwarder.Options
+	UseNoopForwarder               bool
 	UseNoopEventPlatformForwarder  bool
 	UseEventPlatformForwarder      bool
 	UseOrchestratorForwarder       bool
@@ -133,7 +134,7 @@ type statsd struct {
 }
 
 type forwarders struct {
-	shared             *forwarder.DefaultForwarder
+	shared             forwarder.Forwarder
 	orchestrator       *forwarder.DefaultForwarder
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
@@ -228,7 +229,12 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		containerLifecycleForwarder = containerlifecycle.NewForwarder()
 	}
 
-	sharedForwarder := forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
+	var sharedForwarder forwarder.Forwarder
+	if options.UseNoopForwarder {
+		sharedForwarder = forwarder.NoopForwarder{}
+	} else {
+		sharedForwarder = forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
+	}
 
 	// prepare the serializer
 	// ----------------------
@@ -584,7 +590,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 		log.Debug("Flushing the following Sketches:")
 		for _, s := range sketches {
-			log.Debugf("%s", s)
+			log.Debugf("%v", s)
 		}
 	}
 
