@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/cri/remote/util"
+	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 
 	"google.golang.org/grpc"
 	kubeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"

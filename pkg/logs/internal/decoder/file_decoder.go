@@ -10,7 +10,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder/breaker"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/breaker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"

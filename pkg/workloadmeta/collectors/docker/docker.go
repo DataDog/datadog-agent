@@ -66,7 +66,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 
 	filter, err := containers.GetPauseContainerFilter()
 	if err != nil {
-		log.Warnf("Can't get pause container filter, no filtering will be applied: %w", err)
+		log.Warnf("Can't get pause container filter, no filtering will be applied: %v", err)
 	}
 
 	c.eventCh, c.errCh, err = c.dockerUtil.SubscribeToContainerEvents(componentName, filter)
@@ -237,7 +237,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		if exitCodeString, found := ev.Attributes["exitCode"]; found {
 			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
 			if err != nil {
-				log.Debugf("Cannot convert exit code %q: %w", exitCodeString, err)
+				log.Debugf("Cannot convert exit code %q: %v", exitCodeString, err)
 			} else {
 				exitCode = pointer.UInt32Ptr(exitCodeInt)
 			}

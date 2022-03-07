@@ -286,7 +286,7 @@ func (c *APIClient) connect() error {
 
 	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
-		log.Infof("Could not get apiserver vpa client: %w", err)
+		log.Infof("Could not get apiserver vpa client: %v", err)
 		return err
 	}
 

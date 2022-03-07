@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/third_party/golang/expansion"
+	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
