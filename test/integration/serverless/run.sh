@@ -230,7 +230,6 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
-                perl -p -e "s/runtime:java8.al2/runtime:java8/g" |
                 sort
         )
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
@@ -256,7 +255,6 @@ for function_name in "${all_functions[@]}"; do
                  /An error occurred while attempting to execute your code.: LambdaException/ or \
                  /terminate called after throwing an instance of 'std::logic_error'/ or \
                  /basic_string::_M_construct null not valid/"
-                perl -p -e "s/runtime:java8.al2/runtime:java8/g"
         )
     else
         # Normalize traces
@@ -274,7 +272,6 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
-                perl -p -e "s/\"runtime\":\"java8.al2\"/\"runtime\":\"java8\"/g" |
                 sort
         )
     fi
