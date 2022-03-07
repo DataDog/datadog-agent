@@ -250,6 +250,12 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/[ ]$//g" |
+                # ignore a Lambda error that occurs sporadically for log-csharp
+                # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
+                perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
+                 /An error occurred while attempting to execute your code.: LambdaException/ or \
+                 /terminate called after throwing an instance of 'std::logic_error'/ or \
+                 /basic_string::_M_construct null not valid/"
                 perl -p -e "s/runtime:java8.al2/runtime:java8/g"
         )
     else
