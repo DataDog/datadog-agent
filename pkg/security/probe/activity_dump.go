@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/cilium/ebpf"
@@ -342,7 +344,7 @@ type ProfileRule struct {
 // NewProfileRule returns a new ProfileRule
 func NewProfileRule(expression string, ruleIDPrefix string) ProfileRule {
 	return ProfileRule{
-		ID:         ruleIDPrefix + "_" + utils.RandID(5),
+		ID:         ruleIDPrefix + "_" + eval.RandString(5),
 		Expression: expression,
 	}
 }
@@ -411,7 +413,7 @@ func (ad *ActivityDump) generateRules(node *ProcessActivityNode, ancestors []*Pr
 // GenerateProfileData generates a Profile from the activity dump
 func (ad *ActivityDump) GenerateProfileData() Profile {
 	p := Profile{
-		Name: "profile_" + utils.RandID(5),
+		Name: "profile_" + eval.RandString(5),
 	}
 
 	// generate selector
