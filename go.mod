@@ -19,7 +19,7 @@ retract (
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
-	github.com/docker/distribution => github.com/docker/distribution v2.7.1-0.20190104202606-0ac367fd6bee+incompatible
+	github.com/docker/distribution => github.com/docker/distribution v2.8.0+incompatible
 	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1
 	github.com/lxn/walk => github.com/lxn/walk v0.0.0-20180521183810-02935bac0ab8
 	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
@@ -95,7 +95,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.2
-	github.com/containerd/containerd v1.5.9
+	github.com/containerd/containerd v1.5.10
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v0.8.1
 	github.com/coreos/go-semver v0.3.0
