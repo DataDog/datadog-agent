@@ -15,15 +15,19 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: '1.17.6'
-    - uses: evantorrie/mott-the-tidier@v1-beta
-      id: modtidy
+    - name: Install python
+      uses: actions/setup-python@v2
       with:
-        gomods: '**/go.mod'
-        gomodsum_only: true
+        python-version: '3.8.10'
+    - name: Go mod tidy
+      run: |
+        python3 -m pip install -r requirements.txt
+        inv -e tidy-all
+        inv -e generate-licenses
     - uses: stefanzweifel/git-auto-commit-action@v4
       id: autocommit
       with:
-        commit_message: Auto-fix go.sum changes in dependent modules
+        commit_message: Auto-generate go.sum and LICENSE-3rdparty.csv changes
     - name: changes
       run: |
         echo "Changes detected: ${{ steps.autocommit.outputs.changes_detected }}"
