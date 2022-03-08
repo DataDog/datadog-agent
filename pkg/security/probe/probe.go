@@ -909,7 +909,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
 	}
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupsWaitListSize)
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupWaitListSize)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -980,7 +980,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "dump_timeout",
-			Value: getDefaultDumpTimeout(p),
+			Value: getCgroupDumpTimeout(p),
 		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)

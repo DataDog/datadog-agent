@@ -40,7 +40,7 @@ func Test_extractFirstParent(t *testing.T) {
 			name:  "one char with slash",
 			args:  args{"/h"},
 			want:  "h",
-			want1: 1,
+			want1: 2,
 		},
 		{
 			name:  "one char no slash",
@@ -52,7 +52,7 @@ func Test_extractFirstParent(t *testing.T) {
 			name:  "single node with slash",
 			args:  args{"/hello"},
 			want:  "hello",
-			want1: 5,
+			want1: 6,
 		},
 		{
 			name:  "single node no slash",
@@ -64,7 +64,7 @@ func Test_extractFirstParent(t *testing.T) {
 			name:  "parent with slash",
 			args:  args{"/hello/there/"},
 			want:  "hello",
-			want1: 5,
+			want1: 6,
 		},
 		{
 			name:  "parent no slash",

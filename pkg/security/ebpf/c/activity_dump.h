@@ -8,7 +8,7 @@ struct bpf_map_def SEC("maps/traced_cgroups") traced_cgroups = {
     .max_entries = 200, // might be overridden at runtime
 };
 
-struct bpf_map_def SEC("maps/cgroups_wait_list") cgroups_wait_list = {
+struct bpf_map_def SEC("maps/cgroup_wait_list") cgroup_wait_list = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = CONTAINER_ID_LEN,
     .value_size = sizeof(u64),
@@ -155,11 +155,11 @@ __attribute__((always_inline)) void should_trace_new_process(void *ctx, u64 now,
             }
         } else {
             // have we seen this cgroup before ?
-            u64 *wait_timeout = bpf_map_lookup_elem(&cgroups_wait_list, &cgroup[0]);
+            u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &cgroup[0]);
             if (wait_timeout != NULL) {
                 if (now > *wait_timeout) {
                     // delete expired wait_list entry
-                    bpf_map_delete_elem(&cgroups_wait_list, &cgroup[0]);
+                    bpf_map_delete_elem(&cgroup_wait_list, &cgroup[0]);
                 } else {
                     // this cgroup is on the wait list, do not start tracing it
                     return;

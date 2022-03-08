@@ -18,8 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
-
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -34,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -93,6 +92,7 @@ var (
 		timeout           int
 		withGraph         bool
 		differentiateArgs bool
+		outputDirectory   string
 	}{}
 
 	activityDumpGenerateCmd = &cobra.Command{
@@ -188,6 +188,12 @@ func init() {
 		false,
 		"add the arguments in the process node merge algorithm",
 	)
+	activityDumpGenerateCmd.Flags().StringVar(
+		&activityDumpArgs.outputDirectory,
+		"output",
+		"/tmp/activity_dumps/",
+		"output directory",
+	)
 
 	activityDumpStopCmd.Flags().StringVar(
 		&activityDumpArgs.comm,
@@ -254,8 +260,15 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 }
 
 func printSecurityActivityDumpMessage(prefix string, msg *api.SecurityActivityDumpMessage) {
-	fmt.Printf("%s- output filename: %s\n", prefix, msg.OutputFilename)
-	fmt.Printf("%s  graph filename: %s\n", prefix, msg.GraphFilename)
+	fmt.Printf("%s- start: %s\n", prefix, msg.Start)
+	fmt.Printf("%s  timeout: %s\n", prefix, msg.Timeout)
+	fmt.Printf("%s  left: %s\n", prefix, msg.Left)
+	if len(msg.OutputFilename) > 0 {
+		fmt.Printf("%s  output filename: %s\n", prefix, msg.OutputFilename)
+	}
+	if len(msg.GraphFilename) > 0 {
+		fmt.Printf("%s  graph filename: %s\n", prefix, msg.GraphFilename)
+	}
 	if len(msg.Comm) > 0 {
 		fmt.Printf("%s  comm: %s\n", prefix, msg.Comm)
 	}
@@ -267,9 +280,6 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.SecurityActivityDu
 	}
 	fmt.Printf("%s  with graph: %v\n", prefix, msg.WithGraph)
 	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.DifferentiateArgs)
-	fmt.Printf("%s  start: %s\n", prefix, msg.Start)
-	fmt.Printf("%s  timeout: %s\n", prefix, msg.Timeout)
-	fmt.Printf("%s  left: %s\n", prefix, msg.Left)
 }
 
 func generateActivityDump(cmd *cobra.Command, args []string) error {
@@ -278,13 +288,17 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if len(activityDumpArgs.outputDirectory) == 0 && activityDumpArgs.withGraph {
+		return fmt.Errorf("the output directory cannot be empty if \"--graph\" is provided")
+	}
+
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
 	}
 	defer client.Close()
 
-	output, err := client.GenerateActivityDump(activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs)
+	output, err := client.GenerateActivityDump(activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs, activityDumpArgs.outputDirectory)
 	if err != nil {
 		return fmt.Errorf("unable send request to system-probe: %w", err)
 	}

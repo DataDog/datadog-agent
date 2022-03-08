@@ -55,10 +55,11 @@ type ActivityDump struct {
 	DifferentiateArgs   bool
 	WithGraph           bool
 
-	OutputFile string `json:"-"`
-	outputFile *os.File
-	GraphFile  string `json:"-"`
-	graphFile  *os.File
+	OutputDirectory string `json:"-"`
+	OutputFile      string `json:"-"`
+	outputFile      *os.File
+	GraphFile       string `json:"-"`
+	graphFile       *os.File
 
 	Comm        string        `json:"comm,omitempty"`
 	ContainerID string        `json:"container_id,omitempty"`
@@ -99,32 +100,34 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) (*Acti
 		ad.addedSnapshotCount[i] = &snapshot
 	}
 
-	// generate random output file
-	_ = os.MkdirAll("/tmp/activity_dumps", 0400)
-	ad.outputFile, err = os.CreateTemp("/tmp/activity_dumps", "activity-dump-*.json")
-	if err != nil {
-		return nil, err
-	}
-
-	if err = os.Chmod(ad.outputFile.Name(), 0400); err != nil {
-		ad.close()
-		return nil, err
-	}
-	ad.OutputFile = ad.outputFile.Name()
-
-	// generate random graph file
-	if ad.WithGraph {
-		ad.graphFile, err = os.CreateTemp("/tmp/activity_dumps", "graph-dump-*.dot")
+	if len(ad.OutputDirectory) > 0 {
+		// generate random output file
+		_ = os.MkdirAll(ad.OutputDirectory, 0400)
+		ad.outputFile, err = os.CreateTemp(ad.OutputDirectory, "activity-dump-*.json")
 		if err != nil {
-			ad.close()
 			return nil, err
 		}
 
-		if err = os.Chmod(ad.graphFile.Name(), 0400); err != nil {
+		if err = os.Chmod(ad.outputFile.Name(), 0400); err != nil {
 			ad.close()
 			return nil, err
 		}
-		ad.GraphFile = ad.graphFile.Name()
+		ad.OutputFile = ad.outputFile.Name()
+
+		// generate random graph file
+		if ad.WithGraph {
+			ad.graphFile, err = os.CreateTemp(ad.OutputDirectory, "graph-dump-*.dot")
+			if err != nil {
+				ad.close()
+				return nil, err
+			}
+
+			if err = os.Chmod(ad.graphFile.Name(), 0400); err != nil {
+				ad.close()
+				return nil, err
+			}
+			ad.GraphFile = ad.graphFile.Name()
+		}
 	}
 	return &ad, nil
 }
@@ -227,7 +230,7 @@ func (ad *ActivityDump) Done() {
 		title := fmt.Sprintf("Activity tree: %s", ad.GetSelectorStr())
 		err := ad.generateGraph(title)
 		if err != nil {
-			seclog.Errorf("couldn't generate activity graph: %s", err)
+			seclog.Errorf("couldn't generate activity graph: %v", err)
 		} else {
 			seclog.Infof("activity graph for [%s] written at: %s", ad.GetSelectorStr(), ad.GraphFile)
 		}
@@ -241,14 +244,18 @@ func (ad *ActivityDump) Done() {
 }
 
 func (ad *ActivityDump) dump() {
+	if ad.outputFile == nil {
+		return
+	}
+
 	raw, err := json.Marshal(ad)
 	if err != nil {
-		seclog.Errorf("couldn't marshal ActivityDump: %s\n", err)
+		seclog.Errorf("couldn't marshal ActivityDump: %v\n", err)
 		return
 	}
 	n, err := ad.outputFile.Write(raw)
 	if err != nil {
-		seclog.Errorf("couldn't write ActivityDump: %s\n", err)
+		seclog.Errorf("couldn't write ActivityDump: %v\n", err)
 		return
 	}
 
@@ -256,7 +263,7 @@ func (ad *ActivityDump) dump() {
 	if n > 0 {
 		var tags []string
 		if err = ad.adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpSizeInBytes, float64(n), tags, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %w", metrics.MetricActivityDumpSizeInBytes, err)
+			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
 		}
 	}
 	seclog.Infof("activity dump for [%s] written at: %s", ad.GetSelectorStr(), ad.OutputFile)
@@ -419,6 +426,10 @@ func NewProfileRule(expression string, ruleIDPrefix string) ProfileRule {
 
 func (ad *ActivityDump) generateFIMRules(file *FileActivityNode, activityNode *ProcessActivityNode, ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
 	var rules []ProfileRule
+
+	if file.File == nil {
+		return rules
+	}
 
 	if file.Open != nil {
 		rule := NewProfileRule(fmt.Sprintf(
@@ -605,8 +616,8 @@ type ProcessActivityNode struct {
 	Process        model.Process      `json:"process"`
 	GenerationType NodeGenerationType `json:"creation_type"`
 
-	Files    []*FileActivityNode    `json:"files"`
-	Children []*ProcessActivityNode `json:"children"`
+	Files    map[string]*FileActivityNode `json:"files"`
+	Children []*ProcessActivityNode       `json:"children"`
 }
 
 // NewProcessActivityNode returns a new ProcessActivityNode instance
@@ -614,6 +625,7 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 	pan := ProcessActivityNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
+		Files:          make(map[string]*FileActivityNode),
 	}
 	pan.retain()
 	return &pan
@@ -700,42 +712,47 @@ func extractFirstParent(path string) (string, int) {
 	if len(path) == 0 {
 		return "", 0
 	}
+	if path == "/" {
+		return "", 0
+	}
 
+	var add int
 	if path[0] == '/' {
 		path = path[1:]
+		add = 1
 	}
 
 	for i := 0; i < len(path); i++ {
 		if path[i] == '/' {
-			return path[0:i], i
+			return path[0:i], i + add
 		}
 	}
 
-	return path, len(path)
+	return path, len(path) + add
 }
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
 func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
-	prefix, prefixLen := extractFirstParent(event.ResolveFilePath(fileEvent))
-	if prefixLen == 0 {
+	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
+	if nextParentIndex == 0 {
 		return false
 	}
 
-	for _, child := range pan.Files {
-		if child.Name == prefix {
-			return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[prefixLen:], generationType)
-		}
-		// TODO: look for patterns / merge algo
+	// TODO: look for patterns / merge algo
+
+	child, ok := pan.Files[parent]
+	if ok {
+		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
 	}
 
 	// create new child
-	if len(fileEvent.PathnameStr) <= prefixLen+1 {
-		pan.Files = append(pan.Files, NewFileActivityNode(fileEvent, event, prefix, generationType))
+	if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
+		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
-		child := NewFileActivityNode(nil, nil, prefix, generationType)
-		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[prefixLen:], generationType)
-		pan.Files = append(pan.Files, child)
+		child := NewFileActivityNode(nil, nil, parent, generationType)
+		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
+		pan.Files[parent] = child
 	}
 	return true
 }
@@ -842,13 +859,13 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
 	Name           string             `json:"name"`
-	File           model.FileEvent    `json:"file,omitempty"`
+	File           *model.FileEvent   `json:"file,omitempty"`
 	GenerationType NodeGenerationType `json:"generation_type"`
 	FirstSeen      time.Time          `json:"first_seen,omitempty"`
 
 	Open *OpenNode `json:"open,omitempty"`
 
-	Children []*FileActivityNode `json:"children"`
+	Children map[string]*FileActivityNode `json:"children"`
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -863,9 +880,11 @@ func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, 
 	fan := &FileActivityNode{
 		Name:           name,
 		GenerationType: generationType,
+		Children:       make(map[string]*FileActivityNode),
 	}
 	if fileEvent != nil {
-		fan.File = *fileEvent
+		fileEventTmp := *fileEvent
+		fan.File = &fileEventTmp
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -900,26 +919,26 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
 func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType) bool {
-	prefix, prefixLen := extractFirstParent(remainingPath)
-	if prefixLen == 0 {
+	parent, nextParentIndex := extractFirstParent(remainingPath)
+	if nextParentIndex == 0 {
 		fan.enrichFromEvent(event)
 		return false
 	}
 
-	for _, child := range fan.Children {
-		// TODO: look for patterns / merge algo
-		if child.Name == prefix {
-			return child.InsertFileEvent(fileEvent, event, remainingPath[prefixLen:], generationType)
-		}
+	// TODO: look for patterns / merge algo
+
+	child, ok := fan.Children[parent]
+	if ok {
+		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType)
 	}
 
 	// create new child
-	if len(remainingPath) <= prefixLen {
-		fan.Children = append(fan.Children, NewFileActivityNode(fileEvent, event, prefix, generationType))
+	if len(remainingPath) <= nextParentIndex+1 {
+		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
-		child := NewFileActivityNode(nil, nil, prefix, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[prefixLen:], generationType)
-		fan.Children = append(fan.Children, child)
+		child := NewFileActivityNode(nil, nil, parent, generationType)
+		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType)
+		fan.Children[parent] = child
 	}
 	return true
 }

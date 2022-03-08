@@ -112,11 +112,14 @@ type Config struct {
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
 	// to this list.
 	ActivityDumpTracedEventTypes []model.EventType
-	// ActivityDumpDefaultDumpTimeout defines the default activity dump timeout.
-	ActivityDumpDefaultDumpTimeout time.Duration
-	// ActivityDumpCgroupsWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
+	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
+	ActivityDumpCgroupDumpTimeout time.Duration
+	// ActivityDumpCgroupWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
 	// delay between 2 activity dumps of the same cgroup.
-	ActivityDumpCgroupsWaitListSize int
+	ActivityDumpCgroupWaitListSize int
+	// ActivityDumpCgroupOutputDirectory defines the output directory for the cgroup activity dumps and graphs. Leave
+	// this field empty to prevent writing any output to disk.
+	ActivityDumpCgroupOutputDirectory string
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
 }
@@ -177,8 +180,9 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpTagsResolutionPeriod:   time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.tags_resolution_period")) * time.Second,
 		ActivityDumpTracedCgroupsCount:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:       model.ParseEventTypeStringSlice(aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump_manager.traced_event_types")),
-		ActivityDumpDefaultDumpTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.default_dump_timeout")) * time.Minute,
-		ActivityDumpCgroupsWaitListSize:    aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.cgroups_wait_list_size"),
+		ActivityDumpCgroupDumpTimeout:      time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.cgroup_dump_timeout")) * time.Minute,
+		ActivityDumpCgroupWaitListSize:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.cgroup_wait_list_size"),
+		ActivityDumpCgroupOutputDirectory:  aconfig.Datadog.GetString("runtime_security_config.activity_dump_manager.cgroup_output_directory"),
 		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 	}
 

@@ -119,12 +119,12 @@ const (
 )
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupsWaitListSize int) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
 		tracedCgroupsCount = MaxTracedCgroupsCount
 	}
-	if cgroupsWaitListSize <= 0 || cgroupsWaitListSize > MaxTracedCgroupsCount {
-		tracedCgroupsCount = MaxTracedCgroupsCount
+	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
+		cgroupWaitListSize = MaxTracedCgroupsCount
 	}
 	return map[string]manager.MapSpecEditor{
 		"proc_cache": {
@@ -144,8 +144,8 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupsWaitListSize i
 			MaxEntries: uint32(tracedCgroupsCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"cgroups_wait_list": {
-			MaxEntries: uint32(cgroupsWaitListSize),
+		"cgroup_wait_list": {
+			MaxEntries: uint32(cgroupWaitListSize),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
