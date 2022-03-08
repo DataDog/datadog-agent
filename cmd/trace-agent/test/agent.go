@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/viper"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -125,7 +125,11 @@ func (s *agentRunner) Kill() {
 			log.Print("couldn't kill running agent: ", err)
 		}
 	}
-	proc.Wait()
+	if _, err := proc.Wait(); err != nil {
+		if s.verbose {
+			log.Print("error waiting for process to exit", err)
+		}
+	}
 }
 
 func (s *agentRunner) runAgentConfig(path string) <-chan error {
@@ -134,7 +138,9 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	s.log.Reset()
 	cmd.Stdout = s.log
 	cmd.Stderr = ioutil.Discard
-	cmd.Start()
+	if err := cmd.Start(); err != nil {
+		log.Print("error starting process: ", err)
+	}
 
 	s.mu.Lock()
 	s.pid = cmd.Process.Pid

@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test"
 )
 
 func jsonTraceFromPath(path string) (pb.Trace, error) {

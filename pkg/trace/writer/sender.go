@@ -343,7 +343,9 @@ func (s *sender) do(req *http.Request) error {
 	// From https://golang.org/pkg/net/http/#Response:
 	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
 	// TCP connections if the Body is not read to completion and closed.
-	io.Copy(ioutil.Discard, resp.Body)
+	if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+		log.Debugf("Error discarding request body: %v", err)
+	}
 	resp.Body.Close()
 
 	if isRetriable(resp.StatusCode) {
@@ -401,7 +403,9 @@ func (p *payload) clone() *payload {
 		headers[k] = v
 	}
 	clone := newPayload(headers)
-	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
+	if _, err := clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes())); err != nil {
+		log.Errorf("Error cloning writer payload: %v", err)
+	}
 	return clone
 }
 

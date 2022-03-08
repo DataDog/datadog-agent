@@ -427,7 +427,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
-	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
+	atomic.AddInt64(&ts.EventsExtracted, numExtracted)
 	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
 	return numEvents, sampled, filteredChunk

@@ -175,7 +175,9 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 	}
 	for {
 		// ensure potential TCP handshake timeouts don't stall us forever
-		sl.SetDeadline(time.Now().Add(time.Second))
+		if err := sl.SetDeadline(time.Now().Add(time.Second)); err != nil {
+			log.Debugf("Error setting rate limiter deadline: %v", err)
+		}
 		conn, err := sl.TCPListener.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() {

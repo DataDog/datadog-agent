@@ -175,7 +175,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 
 		if resp, err := m.rt.RoundTrip(newreq); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body)
+			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

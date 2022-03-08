@@ -101,7 +101,9 @@ func (o *OTLPReceiver) Stop() {
 	if o.httpsrv != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		go func() {
-			o.httpsrv.Shutdown(timeout)
+			if err := o.httpsrv.Shutdown(timeout); err != nil {
+				log.Errorf("Error shutting down OTLP HTTP server: %v", err)
+			}
 			cancel()
 		}()
 	}

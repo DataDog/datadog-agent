@@ -228,13 +228,6 @@ func stringRandomChoice(s []string) string {
 	return randomChoice(stringSlice(s)).(string)
 }
 
-func randomTime() time.Time {
-	// we don't do rand.Int63() nanosecs because the given epoch
-	// (after 2300) can overflow.
-	// any time between now and the next year is good enough
-	return time.Now().Add(time.Duration(rand.Int63n(YearNS)))
-}
-
 // RandomSpanDuration generates a random span duration
 func RandomSpanDuration() int64 {
 	return int64RandomChoice(durations)

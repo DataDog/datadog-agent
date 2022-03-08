@@ -93,7 +93,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     go_cmd = f'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
-        "./pkg/trace/test/testsuite/...",
+        "./cmd/trace-agent/test/testsuite/...",
     ]
 
     for prefix in prefixes:

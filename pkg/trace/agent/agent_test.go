@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
@@ -1079,7 +1079,7 @@ func generateTraffic(processor *event.Processor, serviceName string, operationNa
 	eventTicker := time.NewTicker(tickerInterval)
 	defer eventTicker.Stop()
 	numTicksInSecond := float64(time.Second) / float64(tickerInterval)
-	spansPerTick := int(math.Round(float64(intakeSPS) / numTicksInSecond))
+	spansPerTick := int(math.Round(intakeSPS / numTicksInSecond))
 
 Loop:
 	for {

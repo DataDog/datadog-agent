@@ -58,7 +58,7 @@ func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion str
 	}
 }
 
-func (r *RemoteRates) onUpdate(update config.SamplingUpdate) error {
+func (r *RemoteRates) onUpdate(update config.SamplingUpdate) {
 	log.Debugf("fetched config version %d from remote config management", update.Version)
 	tpsTargets := make(map[Signature]pb.TargetTPS, len(r.tpsTargets))
 	for _, rates := range update.Rates {
@@ -74,7 +74,6 @@ func (r *RemoteRates) onUpdate(update config.SamplingUpdate) error {
 	}
 	r.updateTPS(tpsTargets)
 	atomic.StoreUint64(&r.tpsVersion, update.Version)
-	return nil
 }
 
 // addTargetTPS keeping the highest rank if 2 targetTPS of the same signature are added

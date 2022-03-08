@@ -6,8 +6,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/DataDog/sketches-go v1.2.1
-	github.com/DataDog/viper v1.9.0
+	github.com/DataDog/viper v1.9.0 // indirect
 	github.com/Microsoft/go-winio v0.5.1
+	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
@@ -24,6 +25,6 @@ require (
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.44.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apimachinery v0.21.5
 )

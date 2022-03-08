@@ -60,7 +60,7 @@ func (s *Runner) Shutdown(wait time.Duration) error {
 	if s.agent == nil || s.backend == nil {
 		return ErrNotStarted
 	}
-	s.agent.cleanup()
+	s.agent.cleanup() //nolint:errcheck
 	if err := s.backend.Shutdown(wait); err != nil {
 		return err
 	}

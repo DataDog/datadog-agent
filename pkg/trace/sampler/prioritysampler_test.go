@@ -18,11 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	testServiceA = "service-a"
-	testServiceB = "service-b"
-)
-
 func randomTraceID() uint64 {
 	return uint64(rand.Int63())
 }

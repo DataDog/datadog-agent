@@ -26,8 +26,7 @@ type maxEPSSampler struct {
 	maxEPS      float64
 	rateCounter rateCounter
 
-	reportFrequency time.Duration
-	reportDone      chan bool
+	reportDone chan bool
 }
 
 // NewMaxEPSSampler creates a new instance of a maxEPSSampler with the provided maximum amount of events per second.

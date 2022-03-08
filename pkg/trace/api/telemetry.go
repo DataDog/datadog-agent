@@ -103,7 +103,7 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
 		if resp, err := m.roundTrip(newreq, endpoint); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body)
+			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

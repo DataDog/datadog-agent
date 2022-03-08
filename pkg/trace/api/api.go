@@ -155,7 +155,9 @@ func (r *HTTPReceiver) Start() {
 	}
 	go func() {
 		defer watchdog.LogOnPanic()
-		r.server.Serve(ln)
+		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
+		}
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
@@ -166,7 +168,9 @@ func (r *HTTPReceiver) Start() {
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
-			r.server.Serve(ln)
+			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+			}
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
 	}
@@ -181,7 +185,9 @@ func (r *HTTPReceiver) Start() {
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
-			r.server.Serve(ln)
+			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Errorf("Could not start Windows Pipes server: %v. Windows Pipes receiver disabled.", err)
+			}
 		}()
 		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
@@ -504,7 +510,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
-		io.Copy(ioutil.Discard, req.Body)
+		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
 		atomic.AddInt64(&ts.PayloadRefused, 1)

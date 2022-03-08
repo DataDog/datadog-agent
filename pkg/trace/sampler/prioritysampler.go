@@ -29,7 +29,6 @@ const (
 	deprecatedRateKey = "_sampling_priority_rate_v1"
 	agentRateKey      = "_dd.agent_psr"
 	ruleRateKey       = "_dd.rule_psr"
-	syncPeriod        = 3 * time.Second
 )
 
 // PrioritySampler computes priority rates per tracerEnv, service to apply in a feedback loop with trace-agent clients.

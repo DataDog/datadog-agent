@@ -86,7 +86,7 @@ func Infof(format string, params ...interface{}) {
 // and writes to log with level = Warn
 func Warn(v ...interface{}) {
 	mu.RLock()
-	logger.Warn(v...)
+	logger.Warn(v...) //nolint:errcheck
 	mu.RUnlock()
 }
 
@@ -94,7 +94,7 @@ func Warn(v ...interface{}) {
 // and writes to log with level = Warn.
 func Warnf(format string, params ...interface{}) {
 	mu.RLock()
-	logger.Warnf(format, params...)
+	logger.Warnf(format, params...) //nolint:errcheck
 	mu.RUnlock()
 }
 
@@ -102,7 +102,7 @@ func Warnf(format string, params ...interface{}) {
 // and writes to log with level = Error
 func Error(v ...interface{}) {
 	mu.RLock()
-	logger.Error(v...)
+	logger.Error(v...) //nolint:errcheck
 	mu.RUnlock()
 }
 
@@ -111,7 +111,7 @@ func Error(v ...interface{}) {
 func Errorf(format string, params ...interface{}) {
 	mu.RLock()
 	fmt.Println("X:", format, params)
-	logger.Errorf(format, params...)
+	logger.Errorf(format, params...) //nolint:errcheck
 	mu.RUnlock()
 }
 
@@ -119,7 +119,7 @@ func Errorf(format string, params ...interface{}) {
 // and writes to log with level = Critical
 func Critical(v ...interface{}) {
 	mu.RLock()
-	logger.Critical(v...)
+	logger.Critical(v...) //nolint:errcheck
 	mu.RUnlock()
 }
 
@@ -127,7 +127,7 @@ func Critical(v ...interface{}) {
 // and writes to log with level = Critical.
 func Criticalf(format string, params ...interface{}) {
 	mu.RLock()
-	logger.Criticalf(format, params...)
+	logger.Criticalf(format, params...) //nolint:errcheck
 	mu.RUnlock()
 }
 

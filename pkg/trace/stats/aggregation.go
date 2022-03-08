@@ -16,7 +16,6 @@ import (
 
 const (
 	tagStatusCode = "http.status_code"
-	tagVersion    = "version"
 	tagSynthetics = "synthetics"
 )
 
