@@ -9,6 +9,7 @@
 package containerd
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -21,6 +22,10 @@ import (
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
+	if container == nil {
+		return workloadmeta.Container{}, fmt.Errorf("cannot build workloadmeta container from nil containerd container")
+	}
+
 	info, err := containerdClient.Info(container)
 	if err != nil {
 		return workloadmeta.Container{}, err
