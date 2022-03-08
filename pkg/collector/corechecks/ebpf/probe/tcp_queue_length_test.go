@@ -57,19 +57,19 @@ func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLeng
 		t.Error("failed to get and flush stats")
 	}
 
-	global := TCPQueueLengthStatsValue{}
+	globalStats := TCPQueueLengthStatsValue{}
 
 	for _, cgroupStats := range stats {
-		if cgroupStats.ReadBufferMaxUsage > global.ReadBufferMaxUsage {
-			global.ReadBufferMaxUsage = cgroupStats.ReadBufferMaxUsage
+		if cgroupStats.ReadBufferMaxUsage > globalStats.ReadBufferMaxUsage {
+			globalStats.ReadBufferMaxUsage = cgroupStats.ReadBufferMaxUsage
 		}
 
-		if cgroupStats.WriteBufferMaxUsage > global.WriteBufferMaxUsage {
-			global.WriteBufferMaxUsage = cgroupStats.WriteBufferMaxUsage
+		if cgroupStats.WriteBufferMaxUsage > globalStats.WriteBufferMaxUsage {
+			globalStats.WriteBufferMaxUsage = cgroupStats.WriteBufferMaxUsage
 		}
 	}
 
-	return global
+	return globalStats
 }
 
 // TCP test infrastructure
