@@ -114,6 +114,8 @@ ENV DOCKER_DD_AGENT=true \
     S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     # Allow readonlyrootfs
     S6_READ_ONLY_ROOT=1
+    # Allow User Group to exec the secret backend script.
+    ENV DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 # make sure we have recent dependencies
 RUN apt update \
@@ -168,7 +170,7 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
- && chmod 500 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+ && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
 
 # Update links to python binaries
 
