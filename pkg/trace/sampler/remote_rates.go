@@ -67,15 +67,7 @@ func newRemoteRates(maxTPS float64) *RemoteRates {
 }
 
 func (r *RemoteRates) onUpdate(update remote.APMSamplingUpdate) error {
-	// TODO: We don't have a version per product, yet. But, we will have it in the next version.
-	// In the meantime we will just use a version of one of the config files.
-	var version uint64
-	for _, c := range update.Config.Configs {
-		version = c.Version
-		break
-	}
-
-	log.Debugf("fetched config version %d from remote config management", version)
+	log.Debugf("fetched config version %d from remote config management", update.Config.Version)
 	tpsTargets := make(map[Signature]pb.TargetTPS, len(r.tpsTargets))
 	for _, rates := range update.Config.Rates {
 		for _, targetTPS := range rates.TargetTPS {
@@ -89,7 +81,7 @@ func (r *RemoteRates) onUpdate(update remote.APMSamplingUpdate) error {
 		}
 	}
 	r.updateTPS(tpsTargets)
-	atomic.StoreUint64(&r.tpsVersion, version)
+	atomic.StoreUint64(&r.tpsVersion, update.Config.Version)
 	return nil
 }
 

@@ -152,11 +152,9 @@ func TestClientValidResponse(t *testing.T) {
 	apmUpdate := <-apmUpdates
 	assert.Equal(t, APMSamplingUpdate{
 		Config: &APMSamplingConfig{
-			Configs: map[string]Config{
-				"id": {
-					ID:      "id",
-					Version: 5,
-				},
+			Config: Config{
+				ID:      "id",
+				Version: 5,
 			},
 			Rates: []pb.APMSampling{apmConfig},
 		},
