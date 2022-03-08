@@ -491,7 +491,7 @@ api_key:
   # validation_period: 60
 
 ## @param additional_endpoint - custom object - optional
-## Add endpoints to send data Agent collects.
+## Additional endpoint to send data collected by the Agent.
 #
 # additional_endpoints:
 #   "https://additional_endpoint.datadoghq.com":
