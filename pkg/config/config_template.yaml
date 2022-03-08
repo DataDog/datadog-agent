@@ -494,8 +494,10 @@ api_key:
 ## Additional endpoint to send data collected by the Agent.
 #
 # additional_endpoints:
-#   "https://additional_endpoint.datadoghq.com":
-#     - api_key
+#   "https://your_additional_endpoint1.datadoghq.com":
+#     - api_key1
+#   "https://your_additional_endpoint2.datadoghq.com":
+#     - api_key2
 
 {{ end }}
 {{- if .Agent }}
