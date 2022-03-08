@@ -49,6 +49,8 @@ var (
 	Kernel5_4 = kernel.VersionCode(5, 4, 0) //nolint:deadcode,unused
 	// Kernel5_5 is the KernelVersion representation of kernel version 5.5
 	Kernel5_5 = kernel.VersionCode(5, 5, 0) //nolint:deadcode,unused
+	// Kernel5_6 is the KernelVersion representation of kernel version 5.6
+	Kernel5_6 = kernel.VersionCode(5, 6, 0) //nolint:deadcode,unused
 	// Kernel5_7 is the KernelVersion representation of kernel version 5.7
 	Kernel5_7 = kernel.VersionCode(5, 7, 0) //nolint:deadcode,unused
 	// Kernel5_8 is the KernelVersion representation of kernel version 5.8
