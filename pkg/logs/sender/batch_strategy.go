@@ -25,13 +25,12 @@ type batchStrategy struct {
 	outputChan chan *message.Payload
 	buffer     *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
-	pipelineName     string
-	serializer       Serializer
-	batchWait        time.Duration
-	contentEncoding  ContentEncoding
-	syncFlushTrigger chan struct{} // trigger a synchronous flush
-	syncFlushDone    chan struct{} // wait for a synchronous flush to finish
-	clock            clock.Clock
+	pipelineName    string
+	serializer      Serializer
+	batchWait       time.Duration
+	contentEncoding ContentEncoding
+	stopChan        chan struct{} // wait for a synchronous flush to finish
+	clock           clock.Clock
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -57,24 +56,22 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	contentEncoding ContentEncoding) Strategy {
 
 	return &batchStrategy{
-		inputChan:        inputChan,
-		outputChan:       outputChan,
-		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
-		serializer:       serializer,
-		batchWait:        batchWait,
-		contentEncoding:  contentEncoding,
-		syncFlushTrigger: make(chan struct{}),
-		syncFlushDone:    make(chan struct{}),
-		pipelineName:     pipelineName,
-		clock:            clock,
+		inputChan:       inputChan,
+		outputChan:      outputChan,
+		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
+		serializer:      serializer,
+		batchWait:       batchWait,
+		contentEncoding: contentEncoding,
+		stopChan:        make(chan struct{}),
+		pipelineName:    pipelineName,
+		clock:           clock,
 	}
 }
 
 // Stop flushes the buffer and stops the strategy
 func (s *batchStrategy) Stop() {
-	s.syncFlushTrigger <- struct{}{}
-	<-s.syncFlushDone
 	close(s.inputChan)
+	<-s.stopChan
 }
 
 // Start reads the incoming messages and accumulates them to a buffer. The buffer is
@@ -87,6 +84,7 @@ func (s *batchStrategy) Start() {
 		defer func() {
 			s.flushBuffer(s.outputChan)
 			flushTicker.Stop()
+			s.stopChan <- struct{}{}
 		}()
 		for {
 			select {
@@ -100,9 +98,6 @@ func (s *batchStrategy) Start() {
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushBuffer(s.outputChan)
-			case <-s.syncFlushTrigger:
-				s.flushBuffer(s.outputChan)
-				s.syncFlushDone <- struct{}{}
 			}
 		}
 	}()
