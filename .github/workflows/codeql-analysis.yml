@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 7.[0-9][0-9].x
+      - klai/cryptographic-footprint
   pull_request:
     branches:
       - main
