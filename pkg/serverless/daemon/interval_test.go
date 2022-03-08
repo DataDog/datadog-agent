@@ -38,12 +38,6 @@ func TestAutoSelectStrategy(t *testing.T) {
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 	assert.True(d.StoreInvocationTime(now.Add(time.Second * 19)))
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
-
-	// add a third invocation, after this, we have enough data to decide to switch
-	// to the "periodically" strategy since the function is invoked more often
-	// than 1 time a minute.
-	// -----
-
 	assert.True(d.StoreInvocationTime(now.Add(time.Second * 20)))
 	assert.Equal(flush.NewPeriodically(defaultFlushInterval).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 
@@ -89,9 +83,6 @@ func TestInvocationInterval(t *testing.T) {
 		lastInvocations: make([]time.Time, 0),
 		flushStrategy:   &flush.AtTheEnd{},
 	}
-
-	// first scenario, validate that we're not computing the interval if we only have 2 invocations done
-	// -----
 
 	for i := 0; i < 19; i++ {
 		time.Sleep(100 * time.Millisecond)
