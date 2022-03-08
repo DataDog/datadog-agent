@@ -490,6 +490,13 @@ api_key:
   #
   # validation_period: 60
 
+## @param additional_endpoint - custom object - optional
+## Add endpoints to send data Agent collects.
+#
+# additional_endpoints:
+#   "https://additional_endpoint.datadoghq.com":
+#     - api_key
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}
@@ -2922,7 +2929,7 @@ api_key:
 
   ## @param receiver - custom object - optional
   ## The receiver configuration. It follows the OpenTelemetry Collector's OTLP Receiver Configuration.
-  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation 
+  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
   ## https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/otlpreceiver/config.md
   #
@@ -2942,14 +2949,14 @@ api_key:
           ## @param endpoint - string - optional - default: 0.0.0.0:4317
           ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT - string - optional - default: 0.0.0.0:4317
           ## The OTLP/gRPC listener endpoint.
-          # 
+          #
           # endpoint: 0.0.0.0:4317
 
           ## @param transport - string - optional - default: tcp
           ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT - string - optional - default: tcp
-          ## The OTLP/gRPC listener transport protocol. 
+          ## The OTLP/gRPC listener transport protocol.
           ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
-          # 
+          #
           # transport: tcp
 
         ## @param http - custom object - optional
@@ -2961,7 +2968,7 @@ api_key:
           ## @param endpoint - string - optional - default: 0.0.0.0:4318
           ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT - string - optional - default: 0.0.0.0:4318
           ## The OTLP/HTTP listener endpoint.
-          # 
+          #
           # endpoint: 0.0.0.0:4318
 
   ## @param metrics - custom object - optional
@@ -3003,11 +3010,11 @@ api_key:
 
     ## @param report_quantiles - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
-    ## Whether to report quantile metrics for OTLP Summary points. 
+    ## Whether to report quantile metrics for OTLP Summary points.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
     #
     # report_quantiles: true
-    
+
     ## @param send_monotonic_counter - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_SEND_MONOTONIC_COUNTER - boolean - optional - default: false
     ## Whether to report monotonic metrics as counters or gauges (raw value).
@@ -3024,15 +3031,15 @@ api_key:
     # delta_ttl: 3600
 
     ## @param histograms - custom object - optional
-    ## Configuration for OTLP Histograms. 
+    ## Configuration for OTLP Histograms.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=histogram for details.
-    # 
+    #
     # histograms:
 
       ## @param mode - string - optional - default: distributions
       ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE - string - optional - default: distributions
       ## How to report histograms. Valid values are:
-      ## 
+      ##
       ## - `distributions` to report metrics as Datadog distributions (recommended).
       ## - `nobuckets` to not report bucket metrics,
       ## - `counters` to report one metric per histogram bucket.
