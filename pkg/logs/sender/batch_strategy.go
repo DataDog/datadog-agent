@@ -29,7 +29,7 @@ type batchStrategy struct {
 	serializer      Serializer
 	batchWait       time.Duration
 	contentEncoding ContentEncoding
-	stopChan        chan struct{} // wait for a synchronous flush to finish
+	stopChan        chan struct{} // closed when the goroutine has finished
 	clock           clock.Clock
 }
 
@@ -84,7 +84,7 @@ func (s *batchStrategy) Start() {
 		defer func() {
 			s.flushBuffer(s.outputChan)
 			flushTicker.Stop()
-			s.stopChan <- struct{}{}
+			close(s.stopChan)
 		}()
 		for {
 			select {
