@@ -22,6 +22,7 @@ jobs:
     - name: Go mod tidy
       run: |
         python3 -m pip install -r requirements.txt
+        inv -e install-tools
         inv -e tidy-all
         inv -e generate-licenses
     - uses: stefanzweifel/git-auto-commit-action@v4
