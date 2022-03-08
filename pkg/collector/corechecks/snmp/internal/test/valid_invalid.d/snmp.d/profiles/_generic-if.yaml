@@ -1,7 +1,7 @@
 # Generic network interfaces metrics.
 #
 extends:
-  - _abstract-profile.yaml
+  - _abstract.yaml
 
 metrics:
 - MIB: IF-MIB

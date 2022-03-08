@@ -174,8 +174,8 @@ func Test_loadProfiles(t *testing.T) {
 	defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
 	assert.Nil(t, err)
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext_conf.d"))
-	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic_conf.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
+	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
 
 	profileWithInvalidExtends, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
 	invalidYamlProfile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
@@ -422,7 +422,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext_conf.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	globalProfileConfigMap = nil
 
@@ -444,7 +444,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid_conf.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	globalProfileConfigMap = nil
 
@@ -458,9 +458,9 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	logs := b.String()
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to read profile definition `f5-big-ip-invalid`"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to read profile definition `f5-invalid`"), logs)
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
-	assert.NotContains(t, defaultProfiles, "f5-big-ip-invalid")
+	assert.NotContains(t, defaultProfiles, "f5-invalid")
 }
 
 func Test_mergeProfileDefinition(t *testing.T) {
