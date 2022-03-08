@@ -1,6 +1,6 @@
 import os
 import tarfile
-from tempfile import TemporaryFile
+import tempfile
 
 from kubernetes import client, config
 from kubernetes.stream import stream
@@ -43,7 +43,7 @@ class KubernetesHelper(LogGetter):
             namespace=self.namespace,
             container=container,
             command=command,
-            stderr=True,
+            stderr=False,
             stdin=False,
             stdout=True,
             tty=False,
@@ -54,7 +54,6 @@ class KubernetesHelper(LogGetter):
         self.exec_command("security-agent", command=command)
 
     def download_policies(self):
-        self.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
         site = os.environ["DD_SITE"]
         api_key = os.environ["DD_API_KEY"]
         app_key = os.environ["DD_APP_KEY"]
@@ -62,10 +61,53 @@ class KubernetesHelper(LogGetter):
                    "export DD_SITE=" + site +
                    " ; export DD_API_KEY=" + api_key +
                    " ; export DD_APP_KEY=" + app_key +
-                   " ; " + SEC_AGENT_PATH + " runtime policy download --output-path " +
-                   "/tmp/runtime-security.d/default.policy"]
-        self.exec_command("security-agent", command=command)
-
-    def retrieve_policies(self):
-        command = ["cat", "/tmp/runtime-security.d/default.policy"]
+                   " ; " + SEC_AGENT_PATH + " runtime policy download"]
         return self.exec_command("security-agent", command=command)
+
+    def push_policies(self, policies):
+        temppolicy = tempfile.NamedTemporaryFile(prefix="e2e-policy-", mode="w", delete=False)
+        temppolicy.write(policies)
+        temppolicy.close()
+        temppolicy_path = temppolicy.name
+        self.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
+        self.cp_to_agent("security-agent", temppolicy_path, "/tmp/runtime-security.d/default.policy")
+        os.remove(temppolicy_path)
+
+    def cp_to_agent(self, agent_name, src_file, dst_file):
+        command = ['tar', 'xvf', '-', '-C', '/tmp']
+        resp = stream(
+            self.api_client.connect_post_namespaced_pod_exec,
+            name=self.pod_name,
+            namespace=self.namespace,
+            container=agent_name,
+            command=command,
+            stderr=True,
+            stdin=True,
+            stdout=True,
+            tty=False,
+            _preload_content=False,
+        )
+
+        with tempfile.TemporaryFile() as tar_buffer:
+            with tarfile.open(fileobj=tar_buffer, mode='w') as tar:
+                tar.add(src_file)
+
+            tar_buffer.seek(0)
+            commands = []
+            commands.append(tar_buffer.read())
+
+        while resp.is_open():
+            resp.update(timeout=1)
+            if commands:
+                c = commands.pop(0)
+                resp.write_stdin(c)
+            else:
+                break
+            resp.close()
+
+        dirname = os.path.dirname(dst_file)
+        command = ['mkdir', '-p', dirname]
+        self.exec_command(agent_name, command=command)
+
+        command = ['mv', f'/tmp/{src_file}', dst_file]
+        self.exec_command(agent_name, command=command)

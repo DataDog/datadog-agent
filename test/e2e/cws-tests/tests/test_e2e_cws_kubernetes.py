@@ -85,8 +85,7 @@ class TestE2EKubernetes(unittest.TestCase):
             time.sleep(3 * 60)
 
         with Step(msg="check policies download", emoji=":file_folder:"):
-            self.kubernetes_helper.download_policies()
-            self.policies = self.kubernetes_helper.retrieve_policies()
+            self.policies = self.kubernetes_helper.download_policies()
             self.assertNotEqual(self.policies, "", msg="check policy download failed")
             data = self.policy_loader.load(self.policies)
             self.assertIsNotNone(data, msg="unable to load policy")
@@ -96,7 +95,10 @@ class TestE2EKubernetes(unittest.TestCase):
             self.assertIsNotNone(rule, msg="unable to find e2e rule")
             self.assertEqual(rule["id"], agent_rule_name)
 
-        with Step(msg="restart system-probe", emoji=":rocket:"):
+        with Step(msg="push policies", emoji=":envelope:"):
+            self.kubernetes_helper.push_policies(self.policies)
+
+        with Step(msg="reload policies", emoji=":rocket:"):
             self.kubernetes_helper.reload_policies()
 
         with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
