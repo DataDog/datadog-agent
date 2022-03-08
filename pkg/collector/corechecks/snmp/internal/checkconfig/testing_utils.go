@@ -19,6 +19,9 @@ func SetConfdPathAndCleanProfiles() {
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	}
+	if !pathExists(file) {
+		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
+	}
 	config.Datadog.Set("confd_path", file)
 }
 

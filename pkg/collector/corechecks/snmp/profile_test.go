@@ -31,7 +31,7 @@ import (
 func TestProfileMetadata_f5(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	invalidPath, _ := filepath.Abs(filepath.Join("test", "metadata_conf.d"))
+	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata_conf.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
