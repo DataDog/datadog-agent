@@ -66,7 +66,7 @@ require (
 	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
 	github.com/DataDog/ebpf-manager v0.0.0-20220223090948-29871766cdd0
 	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
-	github.com/DataDog/gopsutil v0.0.0-20211117161807-6301733ae21b
+	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.4
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
