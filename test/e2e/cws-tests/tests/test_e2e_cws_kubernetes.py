@@ -75,6 +75,16 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            event = self.App.wait_app_log(f"rule_id:ruleset_loaded")
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            start_date = attributes["date"]
+            if "policies_ignored" in attributes:
+                self.assertEqual(len(attributes["attributes"]), 0)
+            for p in attributes["policies"]:
+                if "rules_ignored" in p:
+                    self.assertEqual(len(p["rules_ignored"]), 0)
+
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
@@ -92,7 +102,22 @@ class TestE2EKubernetes(unittest.TestCase):
 
         with Step(msg="restart system-probe", emoji=":rocket:"):
             self.kubernetes_helper.reload_policies()
-            time.sleep(10)
+
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            for i in range(1, 60): # retry 60 times
+                self.assertNotEqual(i, 59) # timeout
+                event = self.App.wait_app_log(f"rule_id:ruleset_loaded")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                restart_date = attributes["date"]
+                # search for restart log until the timestamp differs
+                if restart_date != start_date:
+                    break;
+                time.sleep(1);
+            if "policies_ignored" in attributes:
+                self.assertEqual(len(attributes["attributes"]), 0)
+            for p in attributes["policies"]:
+                if "rules_ignored" in p:
+                    self.assertEqual(len(p["rules_ignored"]), 0)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             os.system(f"touch {filename}")
