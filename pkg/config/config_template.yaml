@@ -490,7 +490,7 @@ api_key:
   #
   # validation_period: 60
 
-## @param additional_endpoint - custom object - optional
+## @param additional_endpoints - custom object - optional
 ## Additional endpoint to send data collected by the Agent.
 #
 # additional_endpoints:
