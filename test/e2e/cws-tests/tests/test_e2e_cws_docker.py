@@ -83,8 +83,7 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
         with Step(msg="download policies", emoji=":file_folder:"):
-            self.docker_helper.download_policies();
-            self.policies = self.docker_helper.retrieve_policies()
+            self.policies = self.docker_helper.download_policies().output.decode();
             self.assertNotEqual(self.policies, "", msg="download policies failed")
             data = self.policy_loader.load(self.policies)
             self.assertIsNotNone(data, msg="unable to load policy")
@@ -93,6 +92,9 @@ class TestE2EDocker(unittest.TestCase):
             rule = self.policy_loader.get_rule_by_desc(desc)
             self.assertIsNotNone(rule, msg="unable to find e2e rule")
             self.assertEqual(rule["id"], agent_rule_name)
+
+        with Step(msg="push policies", emoji=":envelope:"):
+            self.docker_helper.push_policies(self.policies);
 
         with Step(msg="reload policies", emoji=":file_folder:"):
             self.docker_helper.reload_policies();

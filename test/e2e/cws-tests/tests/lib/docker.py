@@ -1,6 +1,8 @@
 import os
 
 import docker
+import tempfile
+import tarfile
 from lib.log import LogGetter
 from lib.const import SEC_AGENT_PATH
 from retry.api import retry_call
@@ -87,21 +89,37 @@ class DockerHelper(LogGetter):
         return self.agent_container
 
     def download_policies(self):
-        policy_path = "/etc/datadog-agent/runtime-security.d/default.policy"
-        command = SEC_AGENT_PATH + " runtime policy download --output-path " + policy_path
+        command = SEC_AGENT_PATH + " runtime policy download"
         site = os.environ["DD_SITE"]
         api_key = os.environ["DD_API_KEY"]
         app_key = os.environ["DD_APP_KEY"]
-        self.agent_container.exec_run(command,
-                                      environment=[
-                                          f"DD_SITE={site}",
-                                          f"DD_API_KEY={api_key}",
-                                          f"DD_APP_KEY={app_key}",
-                                      ])
+        return self.agent_container.exec_run(command,
+                                             stderr=False,
+                                             stdout=True,
+                                             stream=False,
+                                             environment=[
+                                                 f"DD_SITE={site}",
+                                                 f"DD_API_KEY={api_key}",
+                                                 f"DD_APP_KEY={app_key}",
+                                             ])
 
-    def retrieve_policies(self):
-        content = self.agent_container.exec_run(cmd="cat /etc/datadog-agent/runtime-security.d/default.policy")
-        return content.output.decode()
+    def push_policies(self, policies):
+        temppolicy = tempfile.NamedTemporaryFile(prefix="e2e-policy-", mode="w", delete=False)
+        temppolicy.write(policies)
+        temppolicy.close()
+        temppolicy_path = temppolicy.name
+        self.cp_file(temppolicy_path, "/etc/datadog-agent/runtime-security.d/default.policy")
+        os.remove(temppolicy_path)
+
+    def cp_file(self, src, dst):
+        tar = tarfile.open(src + '.tar', mode='w')
+        try:
+            tar.add(src)
+        finally:
+            tar.close()
+        data = open(src + '.tar', 'rb').read()
+        self.agent_container.put_archive("/tmp", data)
+        self.agent_container.exec_run("mv /tmp/" + src + " " + dst)
 
     def reload_policies(self):
         self.agent_container.exec_run(SEC_AGENT_PATH + " runtime policy reload")
