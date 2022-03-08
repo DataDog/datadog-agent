@@ -185,6 +185,13 @@ struct syscall_cache_t {
             u32 pid;
             u32 type;
         } signal;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            u32 file_found;
+            u32 pipe_flag;
+        } splice;
     };
 };
 

@@ -132,3 +132,7 @@ func validateUnloadModuleSchema(t *testing.T, event *sprobe.Event) bool {
 func validateSignalSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///schemas/signal.schema.json")
 }
+
+func validateSpliceSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/splice.schema.json")
+}

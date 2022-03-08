@@ -722,3 +722,18 @@ func (e *SignalEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint32(data[read+4 : read+8])
 	return read + 8, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.PipeBufFlag = ByteOrder.Uint32(data[read : read+4])
+	return read + 4, nil
+}
