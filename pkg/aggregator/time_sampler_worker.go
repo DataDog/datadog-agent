@@ -43,7 +43,7 @@ type timeSamplerWorker struct {
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
-	parallelSerialization *FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
+	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 

@@ -500,13 +500,9 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
-	// only used when we're using flush/serialize in parallel feature
-	var seriesSink *metrics.IterableSeries
-	var done chan struct{}
-
-	seriesSink, done = startSendingIterableSeries(
+	seriesSink, done := startSendingIterableSeries(
 		d.sharedSerializer,
-		&d.aggregator.flushAndSerializeInParallel,
+		d.aggregator.flushAndSerializeInParallel,
 		logPayloads,
 		start)
 
@@ -584,7 +580,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 func startSendingIterableSeries(
 	serializer serializer.MetricSerializer,
-	flushAndSerializeInParallel *FlushAndSerializeInParallel,
+	flushAndSerializeInParallel FlushAndSerializeInParallel,
 	logPayloads bool,
 	start time.Time) (*metrics.IterableSeries, chan struct{}) {
 	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {
@@ -832,12 +828,9 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	// only used when we're using flush/serialize in parallel feature
 	logPayloads := config.Datadog.GetBool("log_payloads")
 
-	var seriesSink *metrics.IterableSeries
-	var done chan struct{}
-
-	seriesSink, done = startSendingIterableSeries(
+	seriesSink, done := startSendingIterableSeries(
 		d.serializer,
-		&d.aggregator.flushAndSerializeInParallel,
+		d.aggregator.flushAndSerializeInParallel,
 		logPayloads,
 		start)
 
