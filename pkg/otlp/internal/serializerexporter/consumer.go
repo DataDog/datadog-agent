@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
@@ -105,7 +107,8 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	iterableSeries := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000)
+	flushAndSerializeInParallel := aggregator.NewFlushAndSerializeInParallel(config.Datadog)
+	iterableSeries := metrics.NewIterableSeries(func(se *metrics.Serie) {}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	done := make(chan struct{})
 	var err error
 	go func() {

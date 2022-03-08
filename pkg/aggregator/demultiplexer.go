@@ -584,7 +584,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 func startSendingIterableSeries(
 	serializer serializer.MetricSerializer,
-	flushAndSerializeInParallel *flushAndSerializeInParallel,
+	flushAndSerializeInParallel *FlushAndSerializeInParallel,
 	logPayloads bool,
 	start time.Time) (*metrics.IterableSeries, chan struct{}) {
 	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {
@@ -592,7 +592,7 @@ func startSendingIterableSeries(
 			log.Debugf("Flushing serie: %s", se)
 		}
 		tagsetTlm.updateHugeSerieTelemetry(se)
-	}, flushAndSerializeInParallel.bufferSize, flushAndSerializeInParallel.channelSize)
+	}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	done := make(chan struct{})
 	go sendIterableSeries(serializer, start, seriesSink, done)
 	return seriesSink, done
@@ -769,10 +769,7 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	flushAndSerializeInParallel := flushAndSerializeInParallel{
-		bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
-		channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
-	}
+	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{

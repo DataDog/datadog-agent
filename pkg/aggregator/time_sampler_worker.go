@@ -27,7 +27,7 @@ type timeSamplerWorker struct {
 	flushInterval time.Duration
 
 	// parallel serialization configuration
-	parallelSerialization flushAndSerializeInParallel
+	parallelSerialization FlushAndSerializeInParallel
 
 	// samplesChan is used to communicate between from the processLoop receiving the
 	// samples and the TimeSampler.
@@ -43,7 +43,7 @@ type timeSamplerWorker struct {
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
-	parallelSerialization flushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
+	parallelSerialization *FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
