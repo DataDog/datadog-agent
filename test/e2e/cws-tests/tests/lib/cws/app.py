@@ -182,3 +182,11 @@ class App:
 
     def wait_app_signal(self, query, tries=30, delay=10):
         return retry_call(get_app_signal, fargs=[self.api_client, query], tries=tries, delay=delay)
+
+    def check_for_ignored_policies(self, policies):
+        if "policies_ignored" in policies:
+            self.assertEqual(len(policies["policies_ignored"]), 0)
+        if "policies" in policies:
+            for policy in policies["policies"]:
+                if "rules_ignored" in policy:
+                    self.assertEqual(len(policy["rules_ignored"]), 0)
