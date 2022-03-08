@@ -168,24 +168,24 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 	}
 
 	gets := atomic.LoadInt64(&ctr.stats.gets)
+	getTimeTotal := atomic.LoadInt64(&ctr.stats.getTimeTotal)
+	m["gets_total"] = gets
 	if gets != 0 {
-		getTimeTotal := atomic.LoadInt64(&ctr.stats.getTimeTotal)
-		m["gets_total"] = gets
 		m["nanoseconds_per_get"] = getTimeTotal / gets
 	}
 
 	registers := atomic.LoadInt64(&ctr.stats.registers)
+	m["registers_total"] = registers
+	registersTotalTime := atomic.LoadInt64(&ctr.stats.registersTotalTime)
 	if registers != 0 {
-		registersTotalTime := atomic.LoadInt64(&ctr.stats.registersTotalTime)
-		m["registers_total"] = registers
 		m["nanoseconds_per_register"] = registersTotalTime / registers
 	}
 	m["registers_dropped"] = atomic.LoadInt64(&ctr.stats.registersDropped)
 
 	unregisters := atomic.LoadInt64(&ctr.stats.unregisters)
+	unregisterTotalTime := atomic.LoadInt64(&ctr.stats.unregistersTotalTime)
+	m["unregisters_total"] = unregisters
 	if unregisters != 0 {
-		unregisterTotalTime := atomic.LoadInt64(&ctr.stats.unregistersTotalTime)
-		m["unregisters_total"] = unregisters
 		m["nanoseconds_per_unregister"] = unregisterTotalTime / unregisters
 	}
 	m["evicts_total"] = atomic.LoadInt64(&ctr.stats.evicts)
