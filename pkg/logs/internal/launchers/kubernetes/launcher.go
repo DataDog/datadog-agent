@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/cenkalti/backoff"
 )
 
@@ -59,23 +57,6 @@ type Launcher struct {
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
-// IsAvailable retrues true if the launcher is available and a retrier otherwise
-func IsAvailable() (bool, *retry.Retrier) {
-	if !isIntegrationAvailable() {
-		if coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
-			log.Warnf("Kubernetes launcher is not available. Integration not available - %s not found", basePath)
-		}
-		return false, nil
-	}
-	util, retrier := kubelet.GetKubeUtilWithRetrier()
-	if util != nil {
-		log.Info("Kubernetes launcher is available")
-		return true, nil
-	}
-	log.Infof("Kubernetes launcher is not available: %v", retrier.LastError())
-	return false, retrier
-}
-
 // NewLauncher returns a new launcher.
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
 	kubeutil, err := kubelet.GetKubeUtil()
@@ -97,26 +78,28 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	return launcher
 }
 
-func isIntegrationAvailable() bool {
-	if _, err := os.Stat(basePath); err != nil {
-		return false
-	}
-
-	return true
+// launcherEnabled determines whether we should use this launcher, based on the
+// configured features.
+func launcherEnabled() bool {
+	return util.ContainersOrPods() == util.LogPods
 }
 
 // Start starts the launcher
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
-	log.Info("Starting Kubernetes launcher")
-	l.addedServices = l.services.GetAllAddedServices()
-	l.removedServices = l.services.GetAllRemovedServices()
-	go l.run()
+	if launcherEnabled() {
+		log.Info("Starting Kubernetes launcher")
+		l.addedServices = l.services.GetAllAddedServices()
+		l.removedServices = l.services.GetAllRemovedServices()
+		go l.run()
+	}
 }
 
 // Stop stops the launcher
 func (l *Launcher) Stop() {
-	log.Info("Stopping Kubernetes launcher")
-	l.stopped <- struct{}{}
+	if launcherEnabled() {
+		log.Info("Stopping Kubernetes launcher")
+		l.stopped <- struct{}{}
+	}
 }
 
 // run handles new and deleted pods,

@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	dockerutilpkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -69,28 +68,8 @@ type Launcher struct {
 	services               *service.Services
 }
 
-// IsAvailable retrues true if the launcher is available and a retrier otherwise
-func IsAvailable() (bool, *retry.Retrier) {
-	if !coreConfig.IsFeaturePresent(coreConfig.Docker) {
-		return false, nil
-	}
-
-	util, retrier := dockerutilpkg.GetDockerUtilWithRetrier()
-	if util != nil {
-		log.Info("Docker launcher is available")
-		return true, nil
-	}
-
-	return false, retrier
-}
-
 // NewLauncher returns a new launcher
 func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, tailFromFile, forceTailingFromFile bool) *Launcher {
-	if _, err := dockerutilpkg.GetDockerUtil(); err != nil {
-		log.Errorf("DockerUtil not available, failed to create launcher: %v", err)
-		return nil
-	}
-
 	var runtime coreConfig.Feature
 	for _, rt := range []coreConfig.Feature{
 		coreConfig.Docker,
@@ -131,35 +110,45 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	return launcher
 }
 
+// launcherEnabled determines whether we should use this launcher, based on the
+// configured features.
+func launcherEnabled() bool {
+	return util.ContainersOrPods() == util.LogContainers
+}
+
 // Start starts the Launcher
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
-	log.Info("Starting Docker launcher")
-	l.pipelineProvider = pipelineProvider
-	l.registry = registry
-	l.addedSources = sourceProvider.GetAddedForType(config.DockerType)
-	l.removedSources = sourceProvider.GetRemovedForType(config.DockerType)
-	l.addedServices = l.services.GetAddedServicesForType(config.DockerType)
-	l.removedServices = l.services.GetRemovedServicesForType(config.DockerType)
-	go l.run()
+	if launcherEnabled() {
+		log.Info("Starting Docker launcher")
+		l.pipelineProvider = pipelineProvider
+		l.registry = registry
+		l.addedSources = sourceProvider.GetAddedForType(config.DockerType)
+		l.removedSources = sourceProvider.GetRemovedForType(config.DockerType)
+		l.addedServices = l.services.GetAddedServicesForType(config.DockerType)
+		l.removedServices = l.services.GetRemovedServicesForType(config.DockerType)
+		go l.run()
+	}
 }
 
 // Stop stops the Launcher and its tailers in parallel,
 // this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
-	log.Info("Stopping Docker launcher")
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	l.lock.Lock()
-	var containerIDs []string
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
-		containerIDs = append(containerIDs, tailer.ContainerID)
+	if launcherEnabled() {
+		log.Info("Stopping Docker launcher")
+		l.stop <- struct{}{}
+		stopper := startstop.NewParallelStopper()
+		l.lock.Lock()
+		var containerIDs []string
+		for _, tailer := range l.tailers {
+			stopper.Add(tailer)
+			containerIDs = append(containerIDs, tailer.ContainerID)
+		}
+		l.lock.Unlock()
+		for _, containerID := range containerIDs {
+			l.removeTailer(containerID)
+		}
+		stopper.Stop()
 	}
-	l.lock.Unlock()
-	for _, containerID := range containerIDs {
-		l.removeTailer(containerID)
-	}
-	stopper.Stop()
 }
 
 // run starts and stops new tailers when it receives a new source
