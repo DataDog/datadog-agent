@@ -128,6 +128,12 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity, intakeTrackType IntakeTra
 	return BuildEndpointsWithConfig(defaultLogsConfigKeys(), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
+// BuildEndpointsWithVectorOverride returns the endpoints to send logs and enforce Vector override config keys
+func BuildEndpointsWithVectorOverride(httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
+	return BuildEndpointsWithConfig(defaultLogsConfigKeysWithVectorOverride(), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+}
+
 // BuildEndpointsWithConfig returns the endpoints to send logs.
 func BuildEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	if logsConfig.devModeNoSSL() {
@@ -209,6 +215,11 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpoints(intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeys(), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+}
+
+// BuildHTTPEndpointsWithVectorOverride returns the HTTP endpoints to send logs to.
+func BuildHTTPEndpointsWithVectorOverride(intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeysWithVectorOverride(), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
