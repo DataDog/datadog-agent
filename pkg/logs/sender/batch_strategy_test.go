@@ -95,7 +95,6 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	// expect payload to be sent before timer, so we never advance the clock; if this
 	// doesn't work, the test will hang
 	payload := <-output
-
 	assert.Equal(t, message, payload.Messages[0])
 }
 
