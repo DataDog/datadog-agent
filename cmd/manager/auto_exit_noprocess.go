@@ -57,7 +57,7 @@ func DefaultNoProcessExit() (ExitDetector, error) {
 func (s *noProcessExit) check() bool {
 	processes, err := processFetcher()
 	if err != nil {
-		log.Debugf("Unable to get processes list to trigger autoexit, err: %w", err)
+		log.Debugf("Unable to get processes list to trigger autoexit, err: %v", err)
 		return false
 	}
 

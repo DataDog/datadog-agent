@@ -184,6 +184,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += n
 
+	if len(data[read:]) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8

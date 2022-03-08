@@ -126,6 +126,17 @@ var (
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
 
+	// Activity dump metrics
+
+	// MetricActivityDumpProcessed is the name of the metric used to count the number of events processed while
+	// creating the activity dump.
+	// Tags: event_type
+	MetricActivityDumpProcessed = newRuntimeMetric(".activity_dump.processed")
+	// MetricActivityDumpAdded is the name of the metric used to count the number of events that were added in the
+	// activity dump.
+	// Tags: event_type
+	MetricActivityDumpAdded = newRuntimeMetric(".activity_dump.added")
+
 	// Custom events
 
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded

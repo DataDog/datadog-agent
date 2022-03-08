@@ -85,7 +85,7 @@ func IsAvailable() (bool, *retry.Retrier) {
 // NewLauncher returns a new launcher
 func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
 	if _, err := dockerutilpkg.GetDockerUtil(); err != nil {
-		log.Errorf("DockerUtil not available, failed to create launcher", err)
+		log.Errorf("DockerUtil not available, failed to create launcher: %v", err)
 		return nil
 	}
 

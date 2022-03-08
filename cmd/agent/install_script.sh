@@ -297,7 +297,7 @@ fi
 
 if [ ! "$apikey" ]; then
   # if it's an upgrade, then we will use the transition script
-  if [ ! "$upgrade" ]; then
+  if [ ! "$upgrade" ] && [ ! -e "$config_file" ]; then
     printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
     exit 1;
   fi

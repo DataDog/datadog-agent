@@ -104,12 +104,12 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 
 		containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %w", container, collector.ID(), err)
+			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
 			continue
 		}
 
 		if err := p.processContainer(sender, tags, container, containerStats); err != nil {
-			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 			continue
 		}
 
