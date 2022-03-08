@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"time"
 
-	v1 "github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi/v1"
+	v1 "github.com/DataDog/datadog-agent/cmd/agent/internal/clcrunnerapi/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
