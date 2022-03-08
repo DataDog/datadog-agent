@@ -14,17 +14,16 @@ import (
 	"sync"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	dockerutilpkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -49,7 +48,6 @@ type Launcher struct {
 	pendingContainers  map[string]*Container
 	tailers            map[string]*tailer.Tailer
 	registry           auditor.Registry
-	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
@@ -62,34 +60,19 @@ type Launcher struct {
 	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
 	sources                *config.LogSources        // To schedule file source when taileing container from file
 	services               *service.Services
-}
 
-// IsAvailable retrues true if the launcher is available and a retrier otherwise
-func IsAvailable() (bool, *retry.Retrier) {
-	if !coreConfig.IsFeaturePresent(coreConfig.Docker) {
-		return false, nil
-	}
+	// ctx is the context for the running goroutine, set in Start
+	ctx context.Context
 
-	util, retrier := dockerutilpkg.GetDockerUtilWithRetrier()
-	if util != nil {
-		log.Info("Docker launcher is available")
-		return true, nil
-	}
-
-	return false, retrier
+	// cancel cancels the running goroutine
+	cancel context.CancelFunc
 }
 
 // NewLauncher returns a new launcher
 func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, tailFromFile, forceTailingFromFile bool) *Launcher {
-	if _, err := dockerutilpkg.GetDockerUtil(); err != nil {
-		log.Errorf("DockerUtil not available, failed to create launcher: %v", err)
-		return nil
-	}
-
 	launcher := &Launcher{
 		tailers:                make(map[string]*tailer.Tailer),
 		pendingContainers:      make(map[string]*Container),
-		stop:                   make(chan struct{}),
 		erroredContainerID:     make(chan string),
 		lock:                   &sync.Mutex{},
 		readTimeout:            readTimeout,
@@ -114,6 +97,44 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 
 // Start starts the Launcher
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	// only start this launcher once it's determined that we should be logging containers, and not pods.
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	go l.run(sourceProvider, pipelineProvider, registry)
+}
+
+// Stop stops the Launcher and its tailers in parallel,
+// this call returns only when all the tailers are stopped.
+func (l *Launcher) Stop() {
+	if l.cancel != nil {
+		l.cancel()
+	}
+
+	// only stop this launcher once it's determined that we should be logging
+	// containers, and not pods, but do not block trying to find out.
+	if containersorpods.Get() == containersorpods.LogContainers {
+		stopper := startstop.NewParallelStopper()
+		l.lock.Lock()
+		var containerIDs []string
+		for _, tailer := range l.tailers {
+			stopper.Add(tailer)
+			containerIDs = append(containerIDs, tailer.ContainerID)
+		}
+		l.lock.Unlock()
+		for _, containerID := range containerIDs {
+			l.removeTailer(containerID)
+		}
+		stopper.Stop()
+	}
+}
+
+// run starts and stops new tailers when it receives a new source
+// or a new service which is mapped to a container.
+func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	// if we're not logging containers, then there's nothing to do
+	if containersorpods.Wait(l.ctx) != containersorpods.LogContainers {
+		return
+	}
+
 	log.Info("Starting Docker launcher")
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
@@ -121,31 +142,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.removedSources = sourceProvider.GetRemovedForType(config.DockerType)
 	l.addedServices = l.services.GetAddedServicesForType(config.DockerType)
 	l.removedServices = l.services.GetRemovedServicesForType(config.DockerType)
-	go l.run()
-}
 
-// Stop stops the Launcher and its tailers in parallel,
-// this call returns only when all the tailers are stopped.
-func (l *Launcher) Stop() {
-	log.Info("Stopping Docker launcher")
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	l.lock.Lock()
-	var containerIDs []string
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
-		containerIDs = append(containerIDs, tailer.ContainerID)
-	}
-	l.lock.Unlock()
-	for _, containerID := range containerIDs {
-		l.removeTailer(containerID)
-	}
-	stopper.Stop()
-}
-
-// run starts and stops new tailers when it receives a new source
-// or a new service which is mapped to a container.
-func (l *Launcher) run() {
 	for {
 		select {
 		case service := <-l.addedServices:
@@ -204,8 +201,9 @@ func (l *Launcher) run() {
 			delete(l.pendingContainers, containerID)
 		case containerID := <-l.erroredContainerID:
 			go l.restartTailer(containerID)
-		case <-l.stop:
+		case <-l.ctx.Done():
 			// no docker container should be tailed anymore
+			log.Info("Stopping Docker launcher")
 			return
 		}
 	}

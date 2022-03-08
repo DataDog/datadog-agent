@@ -15,18 +15,17 @@ import (
 	"path/filepath"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/cenkalti/backoff"
 )
 
@@ -57,38 +56,21 @@ type Launcher struct {
 	collectAll         bool
 	pendingRetries     map[string]*retryOps
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
-}
 
-// IsAvailable retrues true if the launcher is available and a retrier otherwise
-func IsAvailable() (bool, *retry.Retrier) {
-	if !isIntegrationAvailable() {
-		if coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
-			log.Warnf("Kubernetes launcher is not available. Integration not available - %s not found", basePath)
-		}
-		return false, nil
-	}
-	util, retrier := kubelet.GetKubeUtilWithRetrier()
-	if util != nil {
-		log.Info("Kubernetes launcher is available")
-		return true, nil
-	}
-	log.Infof("Kubernetes launcher is not available: %v", retrier.LastError())
-	return false, retrier
+	// ctx is the context for the running goroutine, set in Start
+	ctx context.Context
+
+	// cancel cancels the running goroutine
+	cancel context.CancelFunc
 }
 
 // NewLauncher returns a new launcher.
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
-	kubeutil, err := kubelet.GetKubeUtil()
-	if err != nil {
-		log.Errorf("KubeUtil not available, failed to create launcher: %v", err)
-		return nil
-	}
 	launcher := &Launcher{
 		sources:            sources,
 		services:           services,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
-		kubeutil:           kubeutil,
 		collectAll:         collectAll,
 		pendingRetries:     make(map[string]*retryOps),
 		retryOperations:    make(chan *retryOps),
@@ -97,31 +79,47 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	return launcher
 }
 
-func isIntegrationAvailable() bool {
-	if _, err := os.Stat(basePath); err != nil {
-		return false
-	}
-
-	return true
-}
-
 // Start starts the launcher
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
-	log.Info("Starting Kubernetes launcher")
-	l.addedServices = l.services.GetAllAddedServices()
-	l.removedServices = l.services.GetAllRemovedServices()
-	go l.run()
+	// only start this launcher once it's determined that we should be logging containers, and not pods.
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	go l.run(sourceProvider, pipelineProvider, registry)
 }
 
 // Stop stops the launcher
 func (l *Launcher) Stop() {
-	log.Info("Stopping Kubernetes launcher")
-	l.stopped <- struct{}{}
+	if l.cancel != nil {
+		l.cancel()
+	}
+
+	// only stop this launcher once it's determined that we should be logging
+	// pods, and not containers, but do not block trying to find out.
+	if containersorpods.Get() == containersorpods.LogPods {
+		l.stopped <- struct{}{}
+	}
 }
 
 // run handles new and deleted pods,
 // the kubernetes launcher consumes new and deleted services pushed by the autodiscovery
-func (l *Launcher) run() {
+func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	// if we're not logging pods, then there's nothing to do
+	if containersorpods.Wait(l.ctx) != containersorpods.LogPods {
+		return
+	}
+
+	log.Info("Starting Kubernetes launcher")
+	l.addedServices = l.services.GetAllAddedServices()
+	l.removedServices = l.services.GetAllRemovedServices()
+
+	// kubeutil should be available now, as containersorpods.Wait waits until that
+	// is the case.
+	var err error
+	l.kubeutil, err = kubelet.GetKubeUtil()
+	if err != nil {
+		log.Errorf("KubeUtil not available, failed to start launcher: %v", err)
+		return
+	}
+
 	for {
 		select {
 		case service := <-l.addedServices:
