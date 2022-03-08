@@ -25,9 +25,19 @@ func defaultLogsConfigKeys() *LogsConfigKeys {
 	return NewLogsConfigKeys("logs_config.", coreConfig.Datadog)
 }
 
+// defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
+func defaultLogsConfigKeysWithVectorOverride() *LogsConfigKeys {
+	return NewLogsConfigKeysWithVector("logs_config.", "logs.", coreConfig.Datadog)
+}
+
 // NewLogsConfigKeys returns a new logs configuration keys set
 func NewLogsConfigKeys(configPrefix string, config coreConfig.Config) *LogsConfigKeys {
-	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: "logs.", config: config}
+	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: "", config: config}
+}
+
+// NewLogsConfigKeysWithVector returns a new logs configuration keys set with vector config keys enabled
+func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config coreConfig.Config) *LogsConfigKeys {
+	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: vectorPrefix, config: config}
 }
 
 func (l *LogsConfigKeys) getConfig() coreConfig.Config {
@@ -253,9 +263,11 @@ func (l *LogsConfigKeys) vectorEnabled() bool {
 }
 
 func (l *LogsConfigKeys) getVectorURL() (string, bool) {
-	configKey := l.getVectorConfigKey("url")
-	if l.isSetAndNotEmpty(configKey) {
-		return l.getConfig().GetString(configKey), true
+	if l.vectorPrefix != "" {
+		configKey := l.getVectorConfigKey("url")
+		if l.isSetAndNotEmpty(configKey) {
+			return l.getConfig().GetString(configKey), true
+		}
 	}
 	return "", false
 }
