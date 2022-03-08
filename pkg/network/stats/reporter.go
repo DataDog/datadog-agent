@@ -48,7 +48,7 @@ func NewReporter(v interface{}) (Reporter, error) {
 func isTypeSupported(f reflect.StructField, atomic bool) bool {
 	if atomic {
 		switch f.Type.Kind() {
-		case reflect.Int32, reflect.Int64, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		case reflect.Int32, reflect.Int64, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Uint:
 			return true
 		}
 
@@ -110,6 +110,8 @@ func loadAtomic(f reflect.Value) interface{} {
 	case reflect.Int64:
 		return atomic.LoadInt64((*int64)(unsafe.Pointer(f.UnsafeAddr())))
 	case reflect.Uint:
+		return uint(atomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr()))))
+	case reflect.Uintptr:
 		return atomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr())))
 	case reflect.Uint32:
 		return atomic.LoadUint32((*uint32)(unsafe.Pointer(f.UnsafeAddr())))
