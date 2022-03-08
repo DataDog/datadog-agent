@@ -98,11 +98,6 @@ func (h *CronJobHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext
 func (h *CronJobHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*batchv1beta1.CronJob)
 	if ctx.Cfg.IsScrubbingEnabled {
-		for c := 0; c < len(r.Spec.JobTemplate.Spec.Template.Spec.InitContainers); c++ {
-			redact.ScrubContainer(&r.Spec.JobTemplate.Spec.Template.Spec.InitContainers[c], ctx.Cfg.Scrubber)
-		}
-		for c := 0; c < len(r.Spec.JobTemplate.Spec.Template.Spec.Containers); c++ {
-			redact.ScrubContainer(&r.Spec.JobTemplate.Spec.Template.Spec.Containers[c], ctx.Cfg.Scrubber)
-		}
+		redact.ScrubPodTemplateSpec(&r.Spec.JobTemplate.Spec.Template, ctx.Cfg.Scrubber)
 	}
 }

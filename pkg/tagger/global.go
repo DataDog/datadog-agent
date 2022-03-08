@@ -290,7 +290,7 @@ func taggerCardinality(cardinality string) collectors.TagCardinality {
 
 	taggerCardinality, err := collectors.StringToTagCardinality(cardinality)
 	if err != nil {
-		log.Tracef("Couldn't convert cardinality tag: %w", err)
+		log.Tracef("Couldn't convert cardinality tag: %v", err)
 		return DogstatsdCardinality
 	}
 

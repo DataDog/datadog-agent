@@ -34,7 +34,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
 		if err != nil {
-			log.Warnf("Couldn't read config files: %w", err)
+			log.Warnf("Couldn't read config files: %v", err)
 		}
 
 		svcFound, epFound := false, false

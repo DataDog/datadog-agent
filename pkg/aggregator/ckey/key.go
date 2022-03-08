@@ -57,7 +57,8 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTa
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) GenerateWithTags(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) (ContextKey, TagsKey) {
 	tags := g.hg.Hash(tagsBuf)
-	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ tags
+	hash := g.combineHash(name, hostname, tags)
+
 	return ContextKey(hash), TagsKey(tags)
 }
 
@@ -69,8 +70,19 @@ func (g *KeyGenerator) GenerateWithTags2(name, hostname string, l, r *tagset.Has
 	g.hg.Dedup2(l, r)
 	lHash := l.Hash()
 	rHash := r.Hash()
-	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ lHash ^ rHash
+	hash := g.combineHash(name, hostname, lHash^rHash)
+
 	return ContextKey(hash), TagsKey(lHash), TagsKey(rHash)
+}
+
+func (g *KeyGenerator) combineHash(name, hostname string, tagsHash uint64) uint64 {
+	// Don't just xor with tags hashes, because metric and hostname are allowed to be the same
+	// as a tag, and we don't want them to cancel out.
+	i, j := tagsHash, tagsHash
+	i, j = murmur3.SeedStringSum128(i, j, name)
+	i, _ = murmur3.SeedStringSum128(i, j, hostname)
+
+	return i // Same as murmur3.StringSum64, return upper 64 bits of the result.
 }
 
 // Equals returns whether the two context keys are equal or not.
