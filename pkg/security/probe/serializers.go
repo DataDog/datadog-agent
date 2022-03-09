@@ -247,6 +247,12 @@ type DDContextSerializer struct {
 	TraceID uint64 `json:"trace_id,omitempty" jsonschema_description:"Trace ID used for APM correlation"`
 }
 
+// SpliceEventSerializer serializes a splice event to JSON
+// easyjson:json
+type SpliceEventSerializer struct {
+	PipeFlag string `json:"pipe_flag" jsonschema_description:"flag of the pipe used by the splice syscall"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -257,6 +263,7 @@ type EventSerializer struct {
 	*MMapEventSerializer       `json:"mmap,omitempty"`
 	*MProtectEventSerializer   `json:"mprotect,omitempty"`
 	*PTraceEventSerializer     `json:"ptrace,omitempty"`
+	*SpliceEventSerializer     `json:"splice,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -551,6 +558,12 @@ func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
 	return ptes
 }
 
+func newSpliceEventSerializer(e *Event) *SpliceEventSerializer {
+	return &SpliceEventSerializer{
+		PipeFlag: model.PipeBufFlag(e.Splice.PipeBufFlag).String(),
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
@@ -755,6 +768,14 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.PTraceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
 		s.PTraceEventSerializer = newPTraceEventSerializer(event)
+	case model.SpliceEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Splice.Retval)
+		s.SpliceEventSerializer = newSpliceEventSerializer(event)
+		if event.Splice.File.Inode != 0 {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.Splice.File, event),
+			}
+		}
 	}
 
 	return s

@@ -141,4 +141,5 @@ func init() {
 	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
 	allApproversHandlers["mmap"] = mmapOnNewApprovers
 	allApproversHandlers["mprotect"] = mprotectOnNewApprovers
+	allApproversHandlers["splice"] = spliceOnNewApprovers
 }

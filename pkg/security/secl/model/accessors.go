@@ -67,6 +67,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("setxattr"),
 
+		eval.EventType("splice"),
+
 		eval.EventType("unlink"),
 
 		eval.EventType("utimes"),
@@ -5857,6 +5859,166 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "splice.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.Filesytem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.pipe_flag":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.PipeBufFlag)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "unlink.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7052,6 +7214,38 @@ func (e *Event) GetFields() []eval.Field {
 		"setxattr.file.user",
 
 		"setxattr.retval",
+
+		"splice.file.change_time",
+
+		"splice.file.filesystem",
+
+		"splice.file.gid",
+
+		"splice.file.group",
+
+		"splice.file.in_upper_layer",
+
+		"splice.file.inode",
+
+		"splice.file.mode",
+
+		"splice.file.modification_time",
+
+		"splice.file.mount_id",
+
+		"splice.file.name",
+
+		"splice.file.path",
+
+		"splice.file.rights",
+
+		"splice.file.uid",
+
+		"splice.file.user",
+
+		"splice.pipe_flag",
+
+		"splice.retval",
 
 		"unlink.file.change_time",
 
@@ -10478,6 +10672,70 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 
+	case "splice.file.change_time":
+
+		return int(e.Splice.File.FileFields.CTime), nil
+
+	case "splice.file.filesystem":
+
+		return e.Splice.File.Filesytem, nil
+
+	case "splice.file.gid":
+
+		return int(e.Splice.File.FileFields.GID), nil
+
+	case "splice.file.group":
+
+		return e.Splice.File.FileFields.Group, nil
+
+	case "splice.file.in_upper_layer":
+
+		return e.Splice.File.FileFields.InUpperLayer, nil
+
+	case "splice.file.inode":
+
+		return int(e.Splice.File.FileFields.Inode), nil
+
+	case "splice.file.mode":
+
+		return int(e.Splice.File.FileFields.Mode), nil
+
+	case "splice.file.modification_time":
+
+		return int(e.Splice.File.FileFields.MTime), nil
+
+	case "splice.file.mount_id":
+
+		return int(e.Splice.File.FileFields.MountID), nil
+
+	case "splice.file.name":
+
+		return e.Splice.File.BasenameStr, nil
+
+	case "splice.file.path":
+
+		return e.Splice.File.PathnameStr, nil
+
+	case "splice.file.rights":
+
+		return int(e.Splice.File.FileFields.Mode), nil
+
+	case "splice.file.uid":
+
+		return int(e.Splice.File.FileFields.UID), nil
+
+	case "splice.file.user":
+
+		return e.Splice.File.FileFields.User, nil
+
+	case "splice.pipe_flag":
+
+		return int(e.Splice.PipeBufFlag), nil
+
+	case "splice.retval":
+
+		return int(e.Splice.SyscallEvent.Retval), nil
+
 	case "unlink.file.change_time":
 
 		return int(e.Unlink.File.FileFields.CTime), nil
@@ -11937,6 +12195,54 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "setxattr.retval":
 		return "setxattr", nil
+
+	case "splice.file.change_time":
+		return "splice", nil
+
+	case "splice.file.filesystem":
+		return "splice", nil
+
+	case "splice.file.gid":
+		return "splice", nil
+
+	case "splice.file.group":
+		return "splice", nil
+
+	case "splice.file.in_upper_layer":
+		return "splice", nil
+
+	case "splice.file.inode":
+		return "splice", nil
+
+	case "splice.file.mode":
+		return "splice", nil
+
+	case "splice.file.modification_time":
+		return "splice", nil
+
+	case "splice.file.mount_id":
+		return "splice", nil
+
+	case "splice.file.name":
+		return "splice", nil
+
+	case "splice.file.path":
+		return "splice", nil
+
+	case "splice.file.rights":
+		return "splice", nil
+
+	case "splice.file.uid":
+		return "splice", nil
+
+	case "splice.file.user":
+		return "splice", nil
+
+	case "splice.pipe_flag":
+		return "splice", nil
+
+	case "splice.retval":
+		return "splice", nil
 
 	case "unlink.file.change_time":
 		return "unlink", nil
@@ -13809,6 +14115,70 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "setxattr.retval":
+
+		return reflect.Int, nil
+
+	case "splice.file.change_time":
+
+		return reflect.Int, nil
+
+	case "splice.file.filesystem":
+
+		return reflect.String, nil
+
+	case "splice.file.gid":
+
+		return reflect.Int, nil
+
+	case "splice.file.group":
+
+		return reflect.String, nil
+
+	case "splice.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "splice.file.inode":
+
+		return reflect.Int, nil
+
+	case "splice.file.mode":
+
+		return reflect.Int, nil
+
+	case "splice.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "splice.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "splice.file.name":
+
+		return reflect.String, nil
+
+	case "splice.file.path":
+
+		return reflect.String, nil
+
+	case "splice.file.rights":
+
+		return reflect.Int, nil
+
+	case "splice.file.uid":
+
+		return reflect.Int, nil
+
+	case "splice.file.user":
+
+		return reflect.String, nil
+
+	case "splice.pipe_flag":
+
+		return reflect.Int, nil
+
+	case "splice.retval":
 
 		return reflect.Int, nil
 
@@ -19089,6 +19459,179 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.SyscallEvent.Retval"}
 		}
 		e.SetXAttr.SyscallEvent.Retval = int64(v)
+
+		return nil
+
+	case "splice.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.CTime"}
+		}
+		e.Splice.File.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "splice.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.Filesytem"}
+		}
+		e.Splice.File.Filesytem = str
+
+		return nil
+
+	case "splice.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.GID"}
+		}
+		e.Splice.File.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "splice.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Group"}
+		}
+		e.Splice.File.FileFields.Group = str
+
+		return nil
+
+	case "splice.file.in_upper_layer":
+
+		var ok bool
+		if e.Splice.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "splice.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Inode"}
+		}
+		e.Splice.File.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "splice.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
+		}
+		e.Splice.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "splice.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MTime"}
+		}
+		e.Splice.File.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "splice.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MountID"}
+		}
+		e.Splice.File.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "splice.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.BasenameStr"}
+		}
+		e.Splice.File.BasenameStr = str
+
+		return nil
+
+	case "splice.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PathnameStr"}
+		}
+		e.Splice.File.PathnameStr = str
+
+		return nil
+
+	case "splice.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
+		}
+		e.Splice.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "splice.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.UID"}
+		}
+		e.Splice.File.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "splice.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.User"}
+		}
+		e.Splice.File.FileFields.User = str
+
+		return nil
+
+	case "splice.pipe_flag":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeBufFlag"}
+		}
+		e.Splice.PipeBufFlag = uint32(v)
+
+		return nil
+
+	case "splice.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.SyscallEvent.Retval"}
+		}
+		e.Splice.SyscallEvent.Retval = int64(v)
 
 		return nil
 

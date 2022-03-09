@@ -7,6 +7,7 @@
 #include <linux/bpf.h>
 #include <linux/filter.h>
 #include <uapi/asm-generic/mman-common.h>
+#include <linux/pipe_fs_i.h>
 
 #include "defs.h"
 #include "buffer_selector.h"
@@ -43,6 +44,7 @@
 #include "selinux.h"
 #include "bpf.h"
 #include "ptrace.h"
+#include "splice.h"
 #include "mmap.h"
 #include "mprotect.h"
 #include "raw_syscalls.h"

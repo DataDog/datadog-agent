@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package constantfetch
@@ -37,6 +38,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSignalTTYOffset(f.kernelVersion)
 	case "tty_name_offset":
 		value = getTTYNameOffset(f.kernelVersion)
+	case "pipe_inode_info_bufs_offset":
+		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -119,4 +122,23 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	}
 
 	return nameOffset
+}
+
+func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
+	offset := uint64(120)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 128
+	case kv.IsRH8Kernel():
+		offset = 120
+
+	case kv.Code != 0 && kv.Code >= kernel.Kernel4_13 && kv.Code < kernel.Kernel5_6:
+		offset = 120
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_6 && kv.Code < kernel.Kernel5_8:
+		offset = 144
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_8:
+		offset = 152
+	}
+	return offset
 }

@@ -164,6 +164,13 @@ struct syscall_cache_t {
             u64 vm_protection;
             u64 req_protection;
         } mprotect;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            u32 file_found;
+            u32 pipe_flag;
+        } splice;
     };
 };
 

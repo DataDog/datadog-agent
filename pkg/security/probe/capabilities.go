@@ -137,4 +137,5 @@ func init() {
 	allCapabilities["utimes"] = oneBasenameCapabilities("utimes")
 	allCapabilities["mmap"] = mmapCapabilities
 	allCapabilities["mprotect"] = mprotectCapabilities
+	allCapabilities["splice"] = spliceCapabilities
 }
