@@ -229,9 +229,12 @@ func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSumm
 }
 
 func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outContainerStats *provider.ContainerStats) {
-	outContainerStats.Timestamp = kubeContainerStats.CPU.Time.Time
+	if kubeContainerStats == nil {
+		return
+	}
 
 	if kubeContainerStats.CPU != nil {
+		outContainerStats.Timestamp = kubeContainerStats.CPU.Time.Time
 		outContainerStats.CPU = &provider.ContainerCPUStats{
 			Total: pointer.UIntPtrToFloatPtr(kubeContainerStats.CPU.UsageCoreNanoSeconds),
 		}
@@ -252,6 +255,10 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 }
 
 func convertNetworkStats(podNetworkStats *v1alpha1.NetworkStats, outNetworkStats *provider.ContainerNetworkStats) {
+	if podNetworkStats == nil {
+		return
+	}
+
 	var sumBytesSent, sumBytesRcvd float64
 	outNetworkStats.Timestamp = podNetworkStats.Time.Time
 	outNetworkStats.Interfaces = make(map[string]provider.InterfaceNetStats, len(podNetworkStats.Interfaces))
