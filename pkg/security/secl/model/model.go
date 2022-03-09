@@ -691,6 +691,7 @@ type SignalEvent struct {
 type SpliceEvent struct {
 	SyscallEvent
 
-	File        FileEvent `field:"file"`      // File modified by the splice syscall
-	PipeBufFlag uint32    `field:"pipe_flag"` // Flag of the pipe used by the splice syscall
+	File          FileEvent `field:"file"`            // File modified by the splice syscall
+	PipeEntryFlag uint32    `field:"pipe_entry_flag"` // Entry flag of the "fd_out" pipe passed to the splice syscall
+	PipeExitFlag  uint32    `field:"pipe_exit_flag"`  // Exit flag of the "fd_out" pipe passed to the splice syscall
 }

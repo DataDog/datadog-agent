@@ -7923,11 +7923,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "splice.pipe_flag":
+	case "splice.pipe_entry_flag":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Splice.PipeBufFlag)
+				return int((*Event)(ctx.Object).Splice.PipeEntryFlag)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.pipe_exit_flag":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.PipeExitFlag)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9425,7 +9435,9 @@ func (e *Event) GetFields() []eval.Field {
 
 		"splice.file.user",
 
-		"splice.pipe_flag",
+		"splice.pipe_entry_flag",
+
+		"splice.pipe_exit_flag",
 
 		"splice.retval",
 
@@ -14240,9 +14252,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Splice.File.FileFields.User, nil
 
-	case "splice.pipe_flag":
+	case "splice.pipe_entry_flag":
 
-		return int(e.Splice.PipeBufFlag), nil
+		return int(e.Splice.PipeEntryFlag), nil
+
+	case "splice.pipe_exit_flag":
+
+		return int(e.Splice.PipeExitFlag), nil
 
 	case "splice.retval":
 
@@ -16115,7 +16131,10 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "splice.file.user":
 		return "splice", nil
 
-	case "splice.pipe_flag":
+	case "splice.pipe_entry_flag":
+		return "splice", nil
+
+	case "splice.pipe_exit_flag":
 		return "splice", nil
 
 	case "splice.retval":
@@ -18533,7 +18552,11 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "splice.pipe_flag":
+	case "splice.pipe_entry_flag":
+
+		return reflect.Int, nil
+
+	case "splice.pipe_exit_flag":
 
 		return reflect.Int, nil
 
@@ -25453,14 +25476,25 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
-	case "splice.pipe_flag":
+	case "splice.pipe_entry_flag":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeBufFlag"}
+			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeEntryFlag"}
 		}
-		e.Splice.PipeBufFlag = uint32(v)
+		e.Splice.PipeEntryFlag = uint32(v)
+
+		return nil
+
+	case "splice.pipe_exit_flag":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeExitFlag"}
+		}
+		e.Splice.PipeExitFlag = uint32(v)
 
 		return nil
 
