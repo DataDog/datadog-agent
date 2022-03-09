@@ -468,8 +468,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_storage_path", "")
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
-	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
-	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80) // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
+	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)                // 0 means disabled. This is a BETA feature.
+	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80)                // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
+	config.BindEnvAndSetDefault("forwarder_retry_queue_capacity_time_interval_sec", 900) // 15 mins
 
 	// Forwarder channels buffer size
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)

@@ -19,11 +19,11 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
-	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/cmd/agent/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"

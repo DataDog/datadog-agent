@@ -136,8 +136,8 @@ github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d h1:IDaPE9yacR5zku/mt
 github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d/go.mod h1:8XpC6a7gAUI/vY2nslP9T2COQ3TYeXllybvQDqBp/rk=
 github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
 github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
-github.com/DataDog/gopsutil v0.0.0-20211117161807-6301733ae21b h1:s3YBoPJLDVmaHdrTyFh5IvCGPT/9Axk+IAP7EEJwwKA=
-github.com/DataDog/gopsutil v0.0.0-20211117161807-6301733ae21b/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
+github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3 h1:TzjzV4FcSe81oI4372DijvtStUuAS5m0uts6cbvueGU=
+github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gostackparse v0.5.0 h1:jb72P6GFHPHz2W0onsN51cS3FkaMDcjb0QzgxxA4gDk=
 github.com/DataDog/gostackparse v0.5.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/DataDog/kube-state-metrics/v2 v2.1.2-0.20211109105526-c17162ee2798 h1:qYy55KpaJaFvbC3QaxGFUdprZJUWOZLLScJJeuiaOnU=
