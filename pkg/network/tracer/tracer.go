@@ -365,6 +365,12 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		tm[network.DNSStatsDropped] = ds
 	}
 
+	if httpStats, err := t.httpMonitor.GetStats(); err == nil {
+		if ds, ok := httpStats["dropped_stats"]; ok {
+			tm[network.HTTPStatsDropped] = ds
+		}
+	}
+
 	ebpfStats := t.ebpfTracer.GetTelemetry()
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
 		tm[network.MonotonicUDPSendsProcessed] = usp

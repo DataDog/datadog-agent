@@ -88,6 +88,11 @@ func TestUnknownMethodRegression(t *testing.T) {
 			t.Error("detected HTTP request with method unknown")
 		}
 	}
+
+	telemetry, err := monitor.GetStats()
+	require.NoError(t, err)
+	_, ok := telemetry["dropped_stats"]
+	require.True(t, ok)
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
