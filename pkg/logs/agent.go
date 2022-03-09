@@ -46,6 +46,9 @@ type Agent struct {
 	inputs                    []restart.Restartable
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+
+	// started is true if the agent has ever been started
+	started bool
 }
 
 // NewAgent returns a new Logs Agent
@@ -156,10 +159,16 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
+	if a.started {
+		panic("logs agent cannot be started more than once")
+	}
+	a.started = true
+
 	inputs := restart.NewStarter()
 	for _, input := range a.inputs {
 		inputs.Add(input)
 	}
+
 	starter := restart.NewStarter(
 		a.destinationsCtx,
 		a.auditor,
