@@ -9,13 +9,13 @@
 package k8s
 
 import (
-	batchv1 "k8s.io/api/batch/v1"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/stretchr/testify/assert"
+	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
