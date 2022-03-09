@@ -1,10 +1,10 @@
 import os
+import tarfile
+import tempfile
 
 import docker
-import tempfile
-import tarfile
-from lib.log import LogGetter
 from lib.const import SEC_AGENT_PATH
+from lib.log import LogGetter
 from retry.api import retry_call
 
 
@@ -93,15 +93,17 @@ class DockerHelper(LogGetter):
         site = os.environ["DD_SITE"]
         api_key = os.environ["DD_API_KEY"]
         app_key = os.environ["DD_APP_KEY"]
-        return self.agent_container.exec_run(command,
-                                             stderr=False,
-                                             stdout=True,
-                                             stream=False,
-                                             environment=[
-                                                 f"DD_SITE={site}",
-                                                 f"DD_API_KEY={api_key}",
-                                                 f"DD_APP_KEY={app_key}",
-                                             ])
+        return self.agent_container.exec_run(
+            command,
+            stderr=False,
+            stdout=True,
+            stream=False,
+            environment=[
+                f"DD_SITE={site}",
+                f"DD_API_KEY={api_key}",
+                f"DD_APP_KEY={app_key}",
+            ],
+        )
 
     def push_policies(self, policies):
         temppolicy = tempfile.NamedTemporaryFile(prefix="e2e-policy-", mode="w", delete=False)

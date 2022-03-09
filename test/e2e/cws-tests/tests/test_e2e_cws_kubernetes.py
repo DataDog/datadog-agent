@@ -76,7 +76,7 @@ class TestE2EKubernetes(unittest.TestCase):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
         with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
-            event = self.App.wait_app_log(f"rule_id:ruleset_loaded")
+            event = self.App.wait_app_log("rule_id:ruleset_loaded")
             attributes = event["data"][-1]["attributes"]["attributes"]
             start_date = attributes["date"]
             self.App.check_for_ignored_policies(attributes)
@@ -102,15 +102,15 @@ class TestE2EKubernetes(unittest.TestCase):
             self.kubernetes_helper.reload_policies()
 
         with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
-            for i in range(1, 60): # retry 60 times
-                self.assertNotEqual(i, 59) # timeout
-                event = self.App.wait_app_log(f"rule_id:ruleset_loaded")
+            for i in range(1, 60):  # retry 60 times
+                self.assertNotEqual(i, 59)  # timeout
+                event = self.App.wait_app_log("rule_id:ruleset_loaded")
                 attributes = event["data"][-1]["attributes"]["attributes"]
                 restart_date = attributes["date"]
                 # search for restart log until the timestamp differs
                 if restart_date != start_date:
-                    break;
-                time.sleep(1);
+                    break
+                time.sleep(1)
             self.App.check_for_ignored_policies(attributes)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):

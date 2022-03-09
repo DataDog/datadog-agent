@@ -4,8 +4,9 @@ import tempfile
 
 from kubernetes import client, config
 from kubernetes.stream import stream
-from lib.log import LogGetter
 from lib.const import SEC_AGENT_PATH
+from lib.log import LogGetter
+
 
 class KubernetesHelper(LogGetter):
     def __init__(self, namespace, in_cluster=False):
@@ -57,11 +58,19 @@ class KubernetesHelper(LogGetter):
         site = os.environ["DD_SITE"]
         api_key = os.environ["DD_API_KEY"]
         app_key = os.environ["DD_APP_KEY"]
-        command = ["/bin/bash", "-c",
-                   "export DD_SITE=" + site +
-                   " ; export DD_API_KEY=" + api_key +
-                   " ; export DD_APP_KEY=" + app_key +
-                   " ; " + SEC_AGENT_PATH + " runtime policy download"]
+        command = [
+            "/bin/bash",
+            "-c",
+            "export DD_SITE="
+            + site
+            + " ; export DD_API_KEY="
+            + api_key
+            + " ; export DD_APP_KEY="
+            + app_key
+            + " ; "
+            + SEC_AGENT_PATH
+            + " runtime policy download",
+        ]
         return self.exec_command("security-agent", command=command)
 
     def push_policies(self, policies):
