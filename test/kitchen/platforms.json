@@ -85,6 +85,14 @@
             }
         }
     },
+    "amazonlinux": {
+        "ec2" : {
+            "x86_64": {
+                "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
+                "amazonlinux2-5-10": "ami-033b95fb8079dc481"
+            }
+        }
+    },
     "windows": {
         "azure": {
             "x86_64": {
