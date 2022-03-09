@@ -168,8 +168,10 @@ struct syscall_cache_t {
         struct {
             struct file_t file;
             struct dentry *dentry;
+            struct pipe_buffer *bufs;
             u32 file_found;
-            u32 pipe_flag;
+            u32 pipe_entry_flag;
+            u32 pipe_exit_flag;
         } splice;
     };
 };

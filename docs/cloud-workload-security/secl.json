@@ -2469,9 +2469,14 @@
           "definition": "User of the file's owner"
         },
         {
-          "name": "splice.pipe_flag",
+          "name": "splice.pipe_entry_flag",
           "type": "int",
-          "definition": "Flag of the pipe used by the splice syscall"
+          "definition": "Entry flag of the \"fd_out\" pipe passed to the splice syscall"
+        },
+        {
+          "name": "splice.pipe_exit_flag",
+          "type": "int",
+          "definition": "Exit flag of the \"fd_out\" pipe passed to the splice syscall"
         },
         {
           "name": "splice.retval",
