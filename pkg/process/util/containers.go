@@ -27,15 +27,17 @@ const (
 // ContainerRateMetrics holds previous values for a container,
 // in order to compute rates
 type ContainerRateMetrics struct {
-	UserCPU            float64
-	SystemCPU          float64
-	TotalCPU           float64
-	IOReadBytes        float64
-	IOWriteBytes       float64
-	NetworkRcvdBytes   float64
-	NetworkSentBytes   float64
-	NetworkRcvdPackets float64
-	NetworkSentPackets float64
+	ContainerStatsTimestamp time.Time
+	NetworkStatsTimestamp   time.Time
+	UserCPU                 float64
+	SystemCPU               float64
+	TotalCPU                float64
+	IOReadBytes             float64
+	IOWriteBytes            float64
+	NetworkRcvdBytes        float64
+	NetworkSentBytes        float64
+	NetworkRcvdPackets      float64
+	NetworkSentPackets      float64
 }
 
 // NullContainerRates can be safely used for containers that have no
@@ -53,7 +55,7 @@ var (
 
 // ContainerProvider defines the interface for a container metrics provider
 type ContainerProvider interface {
-	GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics, previousTime, currentTime time.Time) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error)
+	GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error)
 }
 
 // GetSharedContainerProvider returns a shared ContainerProvider
@@ -91,7 +93,7 @@ func NewDefaultContainerProvider() ContainerProvider {
 }
 
 // GetContainers returns containers found on the machine
-func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics, previousTime, currentTime time.Time) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
+func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
 	containersMetadata, err := p.metadataStore.ListContainers()
 	if err != nil {
 		return nil, nil, nil, err
@@ -125,7 +127,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		outPreviousStats := NullContainerRates
 		// Name and Image fields exist but are never filled
 		processContainer := &model.Container{
-			Type:      string(container.Runtime),
+			Type:      convertContainerRuntime(container.Runtime),
 			Id:        container.ID,
 			Started:   container.State.StartedAt.Unix(),
 			Created:   container.State.CreatedAt.Unix(),
@@ -151,11 +153,11 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 
 		containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
 		if err != nil || containerStats == nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
 			// If main container stats are missing, we skip the container
 			continue
 		}
-		computeContainerStats(hostCPUCount, currentTime, previousTime, containerStats, previousContainerRates, &outPreviousStats, processContainer)
+		computeContainerStats(hostCPUCount, containerStats, previousContainerRates, &outPreviousStats, processContainer)
 
 		// Building PID to CID mapping for NPM
 		if containerStats.PID != nil {
@@ -166,9 +168,9 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 
 		containerNetworkStats, err := collector.GetContainerNetworkStats(container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container network stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container network stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
 		}
-		computeContainerNetworkStats(currentTime, previousTime, containerNetworkStats, previousContainerRates, &outPreviousStats, processContainer)
+		computeContainerNetworkStats(containerNetworkStats, previousContainerRates, &outPreviousStats, processContainer)
 
 		// Storing previous stats
 		rateStats[processContainer.Id] = &outPreviousStats
@@ -177,10 +179,17 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	return processContainers, rateStats, pidToCid, nil
 }
 
-func computeContainerStats(hostCPUCount float64, currentTime, previousTime time.Time, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
+func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
 	if inStats == nil {
 		return
 	}
+
+	// All collectors should provide timestamped data, logging to trace these issues
+	if inStats.Timestamp.IsZero() {
+		log.Debug("Missing timestamp in container stats - use current timestamp")
+		inStats.Timestamp = time.Now()
+	}
+	outPreviousStats.ContainerStatsTimestamp = inStats.Timestamp
 
 	if inStats.CPU != nil {
 		outPreviousStats.TotalCPU = statValue(inStats.CPU.Total, -1)
@@ -188,9 +197,9 @@ func computeContainerStats(hostCPUCount float64, currentTime, previousTime time.
 		outPreviousStats.SystemCPU = statValue(inStats.CPU.System, -1)
 
 		outStats.CpuLimit = float32(statValue(inStats.CPU.Limit, 0))
-		outStats.TotalPct = float32(cpuRateValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, hostCPUCount, currentTime, previousTime))
-		outStats.UserPct = float32(cpuRateValue(outPreviousStats.UserCPU, previousStats.UserCPU, hostCPUCount, currentTime, previousTime))
-		outStats.SystemPct = float32(cpuRateValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, hostCPUCount, currentTime, previousTime))
+		outStats.TotalPct = float32(cpuRateValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.UserPct = float32(cpuRateValue(outPreviousStats.UserCPU, previousStats.UserCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.SystemPct = float32(cpuRateValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 	}
 
 	if inStats.Memory != nil {
@@ -208,25 +217,32 @@ func computeContainerStats(hostCPUCount float64, currentTime, previousTime time.
 		outPreviousStats.IOReadBytes = statValue(inStats.IO.ReadBytes, 0)
 		outPreviousStats.IOWriteBytes = statValue(inStats.IO.WriteBytes, 0)
 
-		outStats.Rbps = float32(rateValue(outPreviousStats.IOReadBytes, previousStats.IOReadBytes, currentTime, previousTime))
-		outStats.Wbps = float32(rateValue(outPreviousStats.IOWriteBytes, previousStats.IOWriteBytes, currentTime, previousTime))
+		outStats.Rbps = float32(rateValue(outPreviousStats.IOReadBytes, previousStats.IOReadBytes, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.Wbps = float32(rateValue(outPreviousStats.IOWriteBytes, previousStats.IOWriteBytes, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 	}
 }
 
-func computeContainerNetworkStats(currentTime, previousTime time.Time, inStats *metrics.ContainerNetworkStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
+func computeContainerNetworkStats(inStats *metrics.ContainerNetworkStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
 	if inStats == nil {
 		return
 	}
+
+	// All collectors should provide timestamped data, logging to trace these issues
+	if inStats.Timestamp.IsZero() {
+		log.Debug("Missing timestamp in container stats - use current timestamp")
+		inStats.Timestamp = time.Now()
+	}
+	outPreviousStats.NetworkStatsTimestamp = inStats.Timestamp
 
 	outPreviousStats.NetworkRcvdBytes = statValue(inStats.BytesRcvd, 0)
 	outPreviousStats.NetworkSentBytes = statValue(inStats.BytesSent, 0)
 	outPreviousStats.NetworkRcvdPackets = statValue(inStats.PacketsRcvd, 0)
 	outPreviousStats.NetworkSentPackets = statValue(inStats.PacketsSent, 0)
 
-	outStats.NetRcvdBps = float32(rateValue(outPreviousStats.NetworkRcvdBytes, previousStats.NetworkRcvdBytes, currentTime, previousTime))
-	outStats.NetSentBps = float32(rateValue(outPreviousStats.NetworkSentBytes, previousStats.NetworkSentBytes, currentTime, previousTime))
-	outStats.NetRcvdPs = float32(rateValue(outPreviousStats.NetworkRcvdPackets, previousStats.NetworkRcvdPackets, currentTime, previousTime))
-	outStats.NetSentPs = float32(rateValue(outPreviousStats.NetworkSentPackets, previousStats.NetworkSentPackets, currentTime, previousTime))
+	outStats.NetRcvdBps = float32(rateValue(outPreviousStats.NetworkRcvdBytes, previousStats.NetworkRcvdBytes, inStats.Timestamp, previousStats.NetworkStatsTimestamp))
+	outStats.NetSentBps = float32(rateValue(outPreviousStats.NetworkSentBytes, previousStats.NetworkSentBytes, inStats.Timestamp, previousStats.NetworkStatsTimestamp))
+	outStats.NetRcvdPs = float32(rateValue(outPreviousStats.NetworkRcvdPackets, previousStats.NetworkRcvdPackets, inStats.Timestamp, previousStats.NetworkStatsTimestamp))
+	outStats.NetSentPs = float32(rateValue(outPreviousStats.NetworkSentPackets, previousStats.NetworkSentPackets, inStats.Timestamp, previousStats.NetworkStatsTimestamp))
 }
 
 func computeContainerAddrs(container *workloadmeta.Container) []*model.ContainerAddr {
@@ -245,6 +261,15 @@ func computeContainerAddrs(container *workloadmeta.Container) []*model.Container
 		}
 	}
 	return addrs
+}
+
+func convertContainerRuntime(runtime workloadmeta.ContainerRuntime) string {
+	// ECSFargate is special and used to be mapped to "ECS"
+	if runtime == workloadmeta.ContainerRuntimeECSFargate {
+		return "ECS"
+	}
+
+	return string(runtime)
 }
 
 func convertHealthStatus(health workloadmeta.ContainerHealth) model.ContainerHealth {
@@ -281,11 +306,15 @@ func rateValue(current, previous float64, currentTs, previousTs time.Time) float
 		return 0
 	}
 
-	valueDiff := current - previous
-	if valueDiff < 0 {
-		valueDiff = 0
+	timeDiff := currentTs.Sub(previousTs).Seconds()
+	if timeDiff <= 0 {
+		return 0
 	}
 
-	timeDiff := currentTs.Sub(previousTs).Seconds()
+	valueDiff := current - previous
+	if valueDiff <= 0 {
+		return 0
+	}
+
 	return valueDiff / timeDiff
 }
