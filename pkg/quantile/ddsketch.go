@@ -91,10 +91,9 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 	// Special counter to aggregate all zeroes
 	zeroes := 0.0
 
-
 	floatKeyCounts := make([]floatKeyCount, 0, defaultBinListSize)
 
-	signedStores := []struct{
+	signedStores := []struct {
 		store store.Store
 		sign  int
 	}{
@@ -135,7 +134,7 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 			// positive values are mapped to positive indexes, therefore we need to multiply
 			// the index by the "sign" of the store.
 			floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: signedStore.sign * index, c: count})
-			return false	
+			return false
 		})
 
 		if loopErr != nil {
