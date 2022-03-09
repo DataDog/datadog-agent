@@ -7,6 +7,7 @@ package traps
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"testing"
 
@@ -15,7 +16,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var defaultFormatter = NewJSONFormatter(NoOpOIDResolver{})
+// NoOpOIDResolver is a dummy OIDResolver implementation that is unable to get any Trap or Variable metadata.
+type NoOpOIDResolver struct{}
+
+// GetTrapMetadata always return an error in this OIDResolver implementation
+func (or NoOpOIDResolver) GetTrapMetadata(trapOID string) (TrapMetadata, error) {
+	return TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
+}
+
+// GetVariableMetadata always return an error in this OIDResolver implementation
+func (or NoOpOIDResolver) GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error) {
+	return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
+}
+
+var defaultFormatter, _ = NewJSONFormatter(NoOpOIDResolver{})
 
 func createTestV1GenericPacket() *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: LinkDownv1GenericTrap}
@@ -197,9 +211,10 @@ func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
 }
 
 func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
-	var formatter Formatter = NewJSONFormatter(nil)
+	var formatter, err = NewJSONFormatter(NoOpOIDResolver{})
+	require.NoError(t, err)
 	packet := createTestPacket()
-	_, err := formatter.FormatPacket(packet)
+	_, err = formatter.FormatPacket(packet)
 	require.NoError(t, err)
 	tags := formatter.GetTags(packet)
 	assert.Equal(t, tags, []string{
@@ -210,7 +225,8 @@ func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 }
 
 func TestFormatterWithResolverAndTrapV2(t *testing.T) {
-	formatter := NewJSONFormatter(resolverWithData)
+	formatter, err := NewJSONFormatter(resolverWithData)
+	require.NoError(t, err)
 	packet := createTestPacket()
 	data, err := formatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -230,7 +246,8 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 }
 
 func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
-	formatter := NewJSONFormatter(resolverWithData)
+	formatter, err := NewJSONFormatter(resolverWithData)
+	require.NoError(t, err)
 	packet := createTestV1GenericPacket()
 	data, err := formatter.FormatPacket(packet)
 	require.NoError(t, err)

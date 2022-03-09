@@ -38,12 +38,12 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver) JSONFormatter {
-	namespace := GetNamespace()
+func NewJSONFormatter(oidResolver OIDResolver) (JSONFormatter, error) {
 	if oidResolver == nil {
-		return JSONFormatter{NoOpOIDResolver{}, namespace}
+		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
-	return JSONFormatter{oidResolver, namespace}
+	namespace := GetNamespace()
+	return JSONFormatter{oidResolver, namespace}, nil
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach

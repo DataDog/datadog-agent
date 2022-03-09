@@ -39,9 +39,10 @@ func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *trap
 	outputChan := l.pipelineProvider.NextPipelineChan()
 	oidResolver, err := traps.NewMultiFilesOIDResolver()
 	if err != nil {
-		log.Errorf("unable to load traps database: %w", err)
+		log.Errorf("unable to load traps database: %w. Will not listen for SNMP traps", err)
+		return
 	}
-	l.tailer = tailer.NewTailer(oidResolver, source, inputChan, outputChan)
+	l.tailer, err = tailer.NewTailer(oidResolver, source, inputChan, outputChan)
 	l.tailer.Start()
 }
 

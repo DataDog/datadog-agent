@@ -32,19 +32,6 @@ type OIDResolver interface {
 	GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error)
 }
 
-// NoOpOIDResolver is a dummy OIDResolver implementation that is unable to get any Trap or Variable metadata.
-type NoOpOIDResolver struct{}
-
-// GetTrapMetadata always return an error in this OIDResolver implementation
-func (or NoOpOIDResolver) GetTrapMetadata(trapOID string) (TrapMetadata, error) {
-	return TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
-}
-
-// GetVariableMetadata always return an error in this OIDResolver implementation
-func (or NoOpOIDResolver) GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error) {
-	return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
-}
-
 // MultiFilesOIDResolver is an OIDResolver implementation that can be configured with multiple input files.
 // Trap OIDs conflicts are resolved using the name of the source file in alphabetical order and by giving
 // the less priority to Datadog's own database shipped with the agent.

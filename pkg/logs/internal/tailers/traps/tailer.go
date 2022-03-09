@@ -24,14 +24,18 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(oidResolver traps.OIDResolver, source *config.LogSource, inputChan traps.PacketsChannel, outputChan chan *message.Message) *Tailer {
+func NewTailer(oidResolver traps.OIDResolver, source *config.LogSource, inputChan traps.PacketsChannel, outputChan chan *message.Message) (*Tailer, error) {
+	formatter, err := traps.NewJSONFormatter(oidResolver)
+	if err != nil {
+		return nil, err
+	}
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,
 		outputChan: outputChan,
-		formatter:  traps.NewJSONFormatter(oidResolver),
+		formatter:  formatter,
 		done:       make(chan interface{}, 1),
-	}
+	}, nil
 }
 
 // Start starts the tailer.
