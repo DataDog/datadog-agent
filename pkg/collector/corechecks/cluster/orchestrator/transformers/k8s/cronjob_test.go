@@ -9,6 +9,7 @@
 package k8s
 
 import (
+	batchv1 "k8s.io/api/batch/v1"
 	"testing"
 	"time"
 
@@ -97,6 +98,21 @@ func TestExtractCronJob(t *testing.T) {
 					},
 					LastScheduleTime: lastScheduleTime.Unix(),
 				},
+			},
+		},
+		"cronjob with resources": {
+			input: batchv1beta1.CronJob{
+				Spec: batchv1beta1.CronJobSpec{
+					JobTemplate: batchv1beta1.JobTemplateSpec{
+						Spec: batchv1.JobSpec{Template: getTemplateWithResourceRequirements()},
+					},
+				},
+			},
+			expected: model.CronJob{
+				Metadata:             &model.Metadata{},
+				Spec:                 &model.CronJobSpec{},
+				Status:               &model.CronJobStatus{},
+				ResourceRequirements: getExpectedModelResourceRequirements(),
 			},
 		},
 	}
