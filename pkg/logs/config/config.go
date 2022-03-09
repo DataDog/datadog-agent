@@ -15,7 +15,6 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,32 +57,6 @@ var (
 	// HTTPConnectivityFailure is the status for failed HTTP connectivity
 	HTTPConnectivityFailure HTTPConnectivity = false
 )
-
-// ContainerCollectAllSource returns a source to collect all logs from all containers.
-func ContainerCollectAllSource() *LogSource {
-	if coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
-		// source to collect all logs from all containers
-		return NewLogSource(ContainerCollectAll, &LogsConfig{
-			Type:    DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-	}
-	return nil
-}
-
-// SNMPTrapsSource returs a source to forward SNMP traps as logs.
-func SNMPTrapsSource() *LogSource {
-	if traps.IsEnabled() && traps.IsRunning() {
-		// source to forward SNMP traps as logs.
-		return NewLogSource(SnmpTraps, &LogsConfig{
-			Type:    SnmpTrapsType,
-			Service: "snmp",
-			Source:  "snmp",
-		})
-	}
-	return nil
-}
 
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
 func GlobalProcessingRules() ([]*ProcessingRule, error) {
