@@ -467,12 +467,12 @@ func TestConvertResourceRequirements(t *testing.T) {
 				Name: "test",
 				Resources: v1.ResourceRequirements{
 					// 1024 = 1Ki
-					Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("0"), v1.ResourceCPU: resource.MustParse("550Mi")},
+					Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("0"), v1.ResourceCPU: resource.MustParse("0.5")},
 					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("0")}, // explicitly set the "0" value, that means if not set, it will not be in the map
 				},
 			},
 			expected: &model.ResourceRequirements{
-				Limits:   map[string]int64{v1.ResourceCPU.String(): 576716800, v1.ResourceMemory.String(): 0},
+				Limits:   map[string]int64{v1.ResourceCPU.String(): 500, v1.ResourceMemory.String(): 0},
 				Requests: map[string]int64{v1.ResourceMemory.String(): 0},
 				Name:     "test",
 				Type:     model.ResourceRequirementsType_container,
