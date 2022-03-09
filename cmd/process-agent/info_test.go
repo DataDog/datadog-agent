@@ -110,7 +110,6 @@ func TestNotRunning(t *testing.T) {
 	assert.NotNil(server)
 	defer server.Close()
 
-	Version = "0.99.0"
 	err := initInfo(conf)
 	assert.NoError(err)
 	var buf bytes.Buffer

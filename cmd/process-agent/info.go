@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"html/template"
 	"io"
 	"net/http"
@@ -95,12 +96,8 @@ func publishUptimeNano() interface{} {
 }
 
 func publishVersion() interface{} {
-	return infoVersion{
-		Version:   Version,
-		GitCommit: GitCommit,
-		BuildDate: BuildDate,
-		GoVersion: GoVersion,
-	}
+	agentVersion, _ := version.Agent()
+	return agentVersion
 }
 
 func publishDockerSocket() interface{} {
@@ -292,7 +289,7 @@ type StatusInfo struct {
 	Pid                 int                    `json:"pid"`
 	Uptime              int                    `json:"uptime"`
 	MemStats            struct{ Alloc uint64 } `json:"memstats"`
-	Version             infoVersion            `json:"version"`
+	Version             version.Version        `json:"version"`
 	Config              config.AgentConfig     `json:"config"`
 	DockerSocket        string                 `json:"docker_socket"`
 	LastCollectTime     string                 `json:"last_collect_time"`
@@ -358,11 +355,12 @@ func initInfo(_ *config.AgentConfig) error {
 
 // Info is called when --info flag is enabled when executing the agent binary
 func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
+	agentVersion, _ := version.Agent()
 	var err error
 	client := http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(expvarURL)
 	if err != nil {
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(agentVersion.GetNumber())
 		_ = infoNotRunningTmpl.Execute(w, struct {
 			Banner  string
 			Program string
@@ -377,7 +375,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	var info StatusInfo
 	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(agentVersion.GetNumber())
 		_ = infoErrorTmpl.Execute(w, struct {
 			Banner  string
 			Program string
@@ -390,7 +388,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 		return err
 	}
 
-	program, banner := getProgramBanner(info.Version.Version)
+	program, banner := getProgramBanner(info.Version.GetNumber())
 	err = infoTmpl.Execute(w, struct {
 		Banner  string
 		Program string

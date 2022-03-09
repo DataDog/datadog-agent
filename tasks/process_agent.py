@@ -62,31 +62,12 @@ def build(
             f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"
         )
 
-    # TODO use pkg/version for this
-    main = "main."
-    ld_vars = {
-        "Version": get_version(ctx, major_version=major_version),
-        "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
-        "GitCommit": get_git_commit(),
-        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-    }
-
     goenv = {}
-    if go_version:
-        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
-        for line in lines:
-            for env_var in GIMME_ENV_VARS:
-                if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
-        ld_vars["GoVersion"] = go_version
-
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_include = (
         get_default_build_tags(build="process-agent", arch=arch, flavor=flavor)
         if build_include is None

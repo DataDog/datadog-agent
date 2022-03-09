@@ -6,7 +6,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -61,15 +60,6 @@ var opts struct {
 	info               bool
 }
 
-// version info sourced from build flags
-var (
-	Version   string
-	GitCommit string
-	GitBranch string
-	BuildDate string
-	GoVersion string
-)
-
 var (
 	rootCmd = &cobra.Command{
 		Run:          rootCmdRun,
@@ -110,7 +100,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand, app.StatusCmd())
+	rootCmd.AddCommand(configCommand, app.StatusCmd(), app.VersionCmd)
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
@@ -134,29 +124,6 @@ func fixDeprecatedFlags() {
 	}
 }
 
-// versionString returns the version information filled in at build time
-func versionString(sep string) string {
-	var buf bytes.Buffer
-
-	if Version != "" {
-		fmt.Fprintf(&buf, "Version: %s%s", Version, sep)
-	}
-	if GitCommit != "" {
-		fmt.Fprintf(&buf, "Git hash: %s%s", GitCommit, sep)
-	}
-	if GitBranch != "" {
-		fmt.Fprintf(&buf, "Git branch: %s%s", GitBranch, sep)
-	}
-	if BuildDate != "" {
-		fmt.Fprintf(&buf, "Build date: %s%s", BuildDate, sep)
-	}
-	if GoVersion != "" {
-		fmt.Fprintf(&buf, "Go Version: %s%s", GoVersion, sep)
-	}
-
-	return buf.String()
-}
-
 const (
 	agent6DisabledMessage = `process-agent not enabled.
 Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
@@ -169,7 +136,8 @@ Exiting.`
 
 func runAgent(exit chan struct{}) {
 	if opts.version {
-		fmt.Print(versionString("\n"))
+		log.Warn("--version is deprecated and will be removed in a future version. Please use `process-agent version` instead.")
+		_ = app.WriteVersion(os.Stdout)
 		cleanupAndExit(0)
 	}
 
@@ -228,7 +196,8 @@ func runAgent(exit chan struct{}) {
 	// Now that the logger is configured log host info
 	hostInfo := host.GetStatusInformation()
 	log.Infof("running on platform: %s", hostInfo.Platform)
-	log.Infof("running version: %s", versionString(", "))
+	agentVersion, _ := version.Agent()
+	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
 	// Start workload metadata store before tagger (used for containerCollection)
 	workloadmeta.GetGlobalStore().Start(context.Background())
