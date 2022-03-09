@@ -82,6 +82,12 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("security-agent", self.docker_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            event = self.App.wait_app_log(f"rule_id:ruleset_loaded")
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            start_date = attributes["date"]
+            self.App.check_for_ignored_policies(attributes)
+
         with Step(msg="download policies", emoji=":file_folder:"):
             self.policies = self.docker_helper.download_policies().output.decode();
             self.assertNotEqual(self.policies, "", msg="download policies failed")
@@ -98,6 +104,18 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="reload policies", emoji=":file_folder:"):
             self.docker_helper.reload_policies();
+
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            for i in range(1, 60): # retry 60 times
+                self.assertNotEqual(i, 59) # timeout
+                event = self.App.wait_app_log(f"rule_id:ruleset_loaded")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                restart_date = attributes["date"]
+                # search for restart log until the timestamp differs
+                if restart_date != start_date:
+                    break;
+                time.sleep(1);
+            self.App.check_for_ignored_policies(attributes)
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
