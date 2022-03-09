@@ -2392,6 +2392,95 @@
       ]
     },
     {
+      "name": "splice",
+      "definition": "A splice command was executed",
+      "type": "File",
+      "from_agent_version": "7.36",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "splice.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "splice.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem"
+        },
+        {
+          "name": "splice.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "splice.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "splice.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "splice.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "splice.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "splice.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "splice.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "splice.file.name",
+          "type": "string",
+          "definition": "File's basename"
+        },
+        {
+          "name": "splice.file.path",
+          "type": "string",
+          "definition": "File's path"
+        },
+        {
+          "name": "splice.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "splice.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "splice.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "splice.pipe_flag",
+          "type": "int",
+          "definition": "Flag of the pipe used by the splice syscall"
+        },
+        {
+          "name": "splice.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
       "name": "unlink",
       "definition": "A file was deleted",
       "type": "File",

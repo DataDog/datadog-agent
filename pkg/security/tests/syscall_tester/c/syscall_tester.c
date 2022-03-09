@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -140,6 +141,28 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
+int test_splice() {
+	const int fd = open("/tmp/splice_test", O_RDONLY | O_CREAT, 0700);
+	if (fd < 0) {
+		fprintf(stderr, "open failed");
+		return EXIT_FAILURE;
+	}
+
+	int p[2];
+	if (pipe(p)) {
+        fprintf(stderr, "pipe failed");
+        return EXIT_FAILURE;
+	}
+
+    loff_t offset = 1;
+    splice(fd, 0, p[1], NULL, 1, 0);
+    close(fd);
+    sleep(5);
+    remove("/tmp/splice_test");
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -156,6 +179,8 @@ int main(int argc, char **argv) {
         return ptrace_traceme();
     } else if (strcmp(cmd, "span-open") == 0) {
         return span_open(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "splice") == 0) {
+        return test_splice();
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

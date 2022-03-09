@@ -562,6 +562,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SpliceEventType:
+		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -1036,5 +1041,8 @@ func getOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64,
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
+	// splice event
+	constantFetcher.AppendOffsetofRequest("pipe_inode_info_bufs_offset", "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
+
 	return constantFetcher.FinishAndGetResults()
 }

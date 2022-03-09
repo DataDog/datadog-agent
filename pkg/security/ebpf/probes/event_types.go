@@ -421,4 +421,15 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mprotect"}, EntryAndExit),
 		},
 	},
+
+	// List of probes required to capture splice events
+	"splice": {
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "splice"}, EntryAndExit),
+		},
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/get_pipe_info", EBPFFuncName: "kprobe_get_pipe_info"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/get_pipe_info", EBPFFuncName: "kretprobe_get_pipe_info"}},
+		}},
+	},
 }

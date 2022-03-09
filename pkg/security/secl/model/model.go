@@ -136,8 +136,9 @@ type Event struct {
 	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
 	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
-	Exec        ExecEvent     `field:"exec" event:"exec"`               // [7.27] [Process] A process was executed or forked
+	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 
+	Exec   ExecEvent   `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
 	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
@@ -637,4 +638,12 @@ type MProtectEvent struct {
 	VMEnd         uint64 `field:"-"`
 	VMProtection  int    `field:"vm_protection"`
 	ReqProtection int    `field:"req_protection"`
+}
+
+// SpliceEvent represents a splice event
+type SpliceEvent struct {
+	SyscallEvent
+
+	File        FileEvent `field:"file"`      // File modified by the splice syscall
+	PipeBufFlag uint32    `field:"pipe_flag"` // Flag of the pipe used by the splice syscall
 }
