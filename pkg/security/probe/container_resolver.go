@@ -17,6 +17,6 @@ type ContainerResolver struct{}
 
 // GetContainerID returns the container id of the given pid
 func (cr *ContainerResolver) GetContainerID(pid uint32) (utils.ContainerID, error) {
-	// Parse /proc/[pid]/moutinfo
+	// Parse /proc/[pid]/task/[pid]/cgroup
 	return utils.GetProcContainerID(pid, pid)
 }

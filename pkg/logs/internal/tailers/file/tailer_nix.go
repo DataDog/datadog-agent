@@ -12,7 +12,7 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

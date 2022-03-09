@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -205,11 +205,6 @@ func (t *Tailer) StopAfterFileRotation() {
 		t.stop <- struct{}{}
 	}()
 	t.file.Source.RemoveInput(t.file.Path)
-}
-
-// DidRotate returns true if the tailer's file has been log-rotated.
-func (t *Tailer) DidRotate() (bool, error) {
-	return DidRotate(t.osFile, t.getLastReadOffset())
 }
 
 // readForever lets the tailer tail the content of a file

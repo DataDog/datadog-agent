@@ -124,6 +124,9 @@ const (
 	ContainerRuntimePodman     ContainerRuntime = "podman"
 	ContainerRuntimeCRIO       ContainerRuntime = "cri-o"
 	ContainerRuntimeGarden     ContainerRuntime = "garden"
+	// ECS Fargate can be considered as a runtime in the sense that we don't
+	// know the actual runtime but we need to identify it's Fargate
+	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
 )
 
 // ContainerStatus is the status of the container

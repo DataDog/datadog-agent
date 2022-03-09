@@ -6,11 +6,6 @@
 //go:build linux
 // +build linux
 
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
 package app
 
 import (
@@ -22,9 +17,11 @@ import (
 	"path"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -44,7 +41,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
 const (
@@ -54,12 +50,12 @@ const (
 var (
 	runtimeCmd = &cobra.Command{
 		Use:   "runtime",
-		Short: "Runtime Agent utility commands",
+		Short: "runtime Agent utility commands",
 	}
 
 	checkPoliciesCmd = &cobra.Command{
 		Use:        "check-policies",
-		Short:      "Check policies and return a report",
+		Short:      "check policies and return a report",
 		RunE:       checkPolicies,
 		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
@@ -68,19 +64,57 @@ var (
 		dir string
 	}{}
 
-	dumpCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "Dump security module information",
+	processCacheCmd = &cobra.Command{
+		Use:   "process-cache",
+		Short: "process cache",
 	}
 
-	dumpProcessArgs = struct {
+	processCacheDumpCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "dump the process cache",
+		RunE:  dumpProcessCache,
+	}
+
+	processCacheDumpArgs = struct {
 		withArgs bool
 	}{}
 
-	dumpProcessCacheCmd = &cobra.Command{
-		Use:   "process-cache",
-		Short: "process cache",
-		RunE:  dumpProcessCache,
+	activityDumpCmd = &cobra.Command{
+		Use:   "activity-dump",
+		Short: "activity dump command",
+	}
+
+	activityDumpArgs = struct {
+		tags              []string
+		comm              string
+		file              string
+		timeout           int
+		withGraph         bool
+		differentiateArgs bool
+	}{}
+
+	activityDumpGenerateCmd = &cobra.Command{
+		Use:   "generate",
+		Short: "generate an activity dump",
+		RunE:  generateActivityDump,
+	}
+
+	activityDumpGenerateProfileCmd = &cobra.Command{
+		Use:   "generate-profile",
+		Short: "generate a profile from an activity dump",
+		RunE:  generateProfileFromActivityDump,
+	}
+
+	activityDumpStopCmd = &cobra.Command{
+		Use:   "stop",
+		Short: "stops the first activity dump that matches the provided selector",
+		RunE:  stopActivityDump,
+	}
+
+	activityDumpListCmd = &cobra.Command{
+		Use:   "list",
+		Short: "get the list of running activity dumps",
+		RunE:  listActivityDumps,
 	}
 
 	selfTestCmd = &cobra.Command{
@@ -126,9 +160,68 @@ var (
 )
 
 func init() {
-	dumpProcessCacheCmd.Flags().BoolVar(&dumpProcessArgs.withArgs, "with-args", false, "add process arguments to the dump")
-	dumpCmd.AddCommand(dumpProcessCacheCmd)
-	runtimeCmd.AddCommand(dumpCmd)
+	processCacheDumpCmd.Flags().BoolVar(&processCacheDumpArgs.withArgs, "with-args", false, "add process arguments to the dump")
+
+	activityDumpGenerateCmd.Flags().StringArrayVar(
+		&activityDumpArgs.tags,
+		"tags",
+		[]string{},
+		"tags are used to filter the activity dump in order to select a specific workload. Tags should be provided in the \"tag_name:tag_value\" format.",
+	)
+	activityDumpGenerateCmd.Flags().StringVar(
+		&activityDumpArgs.comm,
+		"comm",
+		"",
+		"a process command can be used to filter the activity dump from a specific process.",
+	)
+	activityDumpGenerateCmd.Flags().IntVar(
+		&activityDumpArgs.timeout,
+		"timeout",
+		10,
+		"timeout for the activity dump in minutes",
+	)
+	activityDumpGenerateCmd.Flags().BoolVar(
+		&activityDumpArgs.withGraph,
+		"graph",
+		false,
+		"generate a graph from the generated dump",
+	)
+	activityDumpGenerateCmd.Flags().BoolVar(
+		&activityDumpArgs.differentiateArgs,
+		"differentiate-args",
+		false,
+		"add the arguments in the process node merge algorithm",
+	)
+
+	activityDumpStopCmd.Flags().StringArrayVar(
+		&activityDumpArgs.tags,
+		"tags",
+		[]string{},
+		"tags is used to select an activity dump. Tags should be provided in the [tag_name:tag_value] format.",
+	)
+	activityDumpStopCmd.Flags().StringVar(
+		&activityDumpArgs.comm,
+		"comm",
+		"",
+		"a process command can be used to filter the activity dump from a specific process.",
+	)
+
+	activityDumpGenerateProfileCmd.Flags().StringVar(
+		&activityDumpArgs.file,
+		"input",
+		"",
+		"path to the activity dump file from which a profile will be generated",
+	)
+	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
+
+	processCacheCmd.AddCommand(processCacheDumpCmd)
+	runtimeCmd.AddCommand(processCacheCmd)
+
+	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
+	activityDumpCmd.AddCommand(activityDumpListCmd)
+	activityDumpCmd.AddCommand(activityDumpStopCmd)
+	activityDumpCmd.AddCommand(activityDumpGenerateProfileCmd)
+	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
@@ -149,19 +242,129 @@ func init() {
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
 	}
 	defer client.Close()
 
-	filename, err := client.DumpProcessCache(dumpProcessArgs.withArgs)
+	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
 	if err != nil {
 		return errors.Wrap(err, "unable to get a process cache dump")
 	}
 
-	fmt.Printf("Dump written: %s\n", filename)
+	fmt.Printf("Process dump file: %s\n", filename)
 
+	return nil
+}
+
+func generateActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	var filename, graph string
+	filename, graph, err = client.GenerateActivityDump(activityDumpArgs.tags, activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs)
+	if err != nil {
+		return errors.Wrap(err, "unable to an request activity dump for %s")
+	}
+
+	fmt.Printf("Activity dump file: %s\n", filename)
+	if len(graph) > 0 {
+		fmt.Printf("Graph dump file: %s\n", graph)
+	}
+
+	return nil
+}
+
+func listActivityDumps(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	var activeDumps []string
+	activeDumps, err = client.ListActivityDumps()
+	if err != nil {
+		return errors.Wrap(err, "unable to request the list activity dumps")
+	}
+
+	if len(activeDumps) > 0 {
+		fmt.Println("Active dumps:")
+		for _, d := range activeDumps {
+			fmt.Printf("\t- %s\n", d)
+		}
+	} else {
+		fmt.Println("No active dumps found")
+	}
+
+	return nil
+}
+
+func stopActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	var msg string
+	msg, err = client.StopActivityDump(activityDumpArgs.tags, activityDumpArgs.comm)
+	if err != nil {
+		return errors.Wrap(err, "unable to stop the request activity dump")
+	}
+
+	if len(msg) == 0 {
+		fmt.Println("done!")
+	} else {
+		fmt.Println(msg)
+	}
+
+	return nil
+}
+
+func generateProfileFromActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to generate a profile")
+	}
+	defer client.Close()
+
+	var output string
+	output, err = client.GenerateProfile(activityDumpArgs.file)
+	if err != nil {
+		return errors.Wrapf(err, "couldn't generate a profile from: %s", activityDumpArgs.file)
+	}
+
+	fmt.Printf("Generated profile: %s\n", output)
 	return nil
 }
 

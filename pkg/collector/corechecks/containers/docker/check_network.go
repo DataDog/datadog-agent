@@ -81,13 +81,13 @@ func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta
 	// We only need it for PIDs
 	containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
 	if err != nil {
-		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return
 	}
 
 	containerNetworkStats, err := collector.GetContainerNetworkStats(container.ID, cacheValidity)
 	if err != nil {
-		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return
 	}
 
@@ -201,7 +201,7 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 
 	// We need at least one PID to gather routes
 	if len(entry.pids) == 0 {
-		log.Debugf("No PID found for container: %s, skipping network")
+		log.Debugf("No PID found for container: %s, skipping network", entry.containerID)
 		return
 	}
 

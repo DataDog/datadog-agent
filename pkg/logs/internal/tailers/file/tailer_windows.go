@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,6 +44,12 @@ func (t *Tailer) setup(offset int64, whence int) error {
 }
 
 func (t *Tailer) readAvailable() (int, error) {
+	// If the file has already rotated, there is nothing to be done. Unlike on *nix,
+	// there is no open file handle from which remaining data might be read.
+	if t.hasFileRotated() {
+		return 0, io.EOF
+	}
+
 	f, err := openFile(t.fullpath)
 	if err != nil {
 		return 0, err
@@ -58,15 +64,11 @@ func (t *Tailer) readAvailable() (int, error) {
 
 	sz := st.Size()
 	offset := t.getLastReadOffset()
-	if sz == 0 {
-		log.Debug("File size now zero, resetting offset")
-		t.setLastReadOffset(0)
-		t.setDecodedOffset(0)
-	} else if sz < offset {
-		log.Debug("Offset off end of file, resetting")
-		t.setLastReadOffset(0)
-		t.setDecodedOffset(0)
+	if sz < offset {
+		log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
+		return 0, io.EOF
 	}
+
 	f.Seek(offset, io.SeekStart)
 	bytes := 0
 

@@ -54,12 +54,12 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 
 				err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceRuntime})
 				if err != nil {
-					log.Debugf("Couldn't process container %q: %w", container.ID, err)
+					log.Debugf("Couldn't process container %q: %v", container.ID, err)
 				}
 			case workloadmeta.KindKubernetesPod:
 				err := p.processPod(event.Entity)
 				if err != nil {
-					log.Debugf("Couldn't process pod %q: %w", event.Entity.GetID().ID, err)
+					log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
 				}
 			case workloadmeta.KindECSTask: // not supported
 			default:
