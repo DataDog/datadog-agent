@@ -1254,12 +1254,17 @@ CWS logs have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
-        "pipe_flag"
+        "pipe_entry_flag",
+        "pipe_exit_flag"
     ],
     "properties": {
-        "pipe_flag": {
+        "pipe_entry_flag": {
             "type": "string",
-            "description": "flag of the pipe used by the splice syscall"
+            "description": "entry flag of the fd_out pipe passed to the splice syscall"
+        },
+        "pipe_exit_flag": {
+            "type": "string",
+            "description": "exit flag of the fd_out pipe passed to the splice syscall"
         }
     },
     "additionalProperties": false,
@@ -1270,7 +1275,8 @@ CWS logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `pipe_flag` | flag of the pipe used by the splice syscall |
+| `pipe_entry_flag` | entry flag of the fd_out pipe passed to the splice syscall |
+| `pipe_exit_flag` | exit flag of the fd_out pipe passed to the splice syscall |
 
 
 ## `UserContext`

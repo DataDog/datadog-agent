@@ -871,7 +871,8 @@ A splice command was executed
 | `splice.file.rights` | int | Mode/rights of the file |
 | `splice.file.uid` | int | UID of the file's owner |
 | `splice.file.user` | string | User of the file's owner |
-| `splice.pipe_flag` | int | Flag of the pipe used by the splice syscall |
+| `splice.pipe_entry_flag` | int | Entry flag of the "fd_out" pipe passed to the splice syscall |
+| `splice.pipe_exit_flag` | int | Exit flag of the "fd_out" pipe passed to the splice syscall |
 | `splice.retval` | int | Return value of the syscall |
 
 ### Event `unlink`

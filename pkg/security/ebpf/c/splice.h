@@ -1,7 +1,7 @@
 #ifndef _SPLICE_H_
 #define _SPLICE_H_
 
-struct bpf_map_def SEC("maps/splice_flags_approvers") splice_flags_approvers = {
+struct bpf_map_def SEC("maps/splice_entry_flags_approvers") splice_entry_flags_approvers = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
@@ -10,10 +10,28 @@ struct bpf_map_def SEC("maps/splice_flags_approvers") splice_flags_approvers = {
     .namespace = "",
 };
 
-int __attribute__((always_inline)) approve_splice_by_flags(struct syscall_cache_t *syscall) {
+int __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_cache_t *syscall) {
     u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&splice_flags_approvers, &key);
-    if (flags != NULL && (syscall->splice.pipe_flag & *flags) > 0) {
+    u32 *flags = bpf_map_lookup_elem(&splice_entry_flags_approvers, &key);
+    if (flags != NULL && (syscall->splice.pipe_entry_flag & *flags) > 0) {
+        return 1;
+    }
+    return 0;
+}
+
+struct bpf_map_def SEC("maps/splice_exit_flags_approvers") splice_exit_flags_approvers = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    u32 *flags = bpf_map_lookup_elem(&splice_exit_flags_approvers, &key);
+    if (flags != NULL && (syscall->splice.pipe_exit_flag & *flags) > 0) {
         return 1;
     }
     return 0;
@@ -27,7 +45,10 @@ int __attribute__((always_inline)) splice_approvers(struct syscall_cache_t *sysc
     }
 
     if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
-        pass_to_userspace = approve_splice_by_flags(syscall);
+        pass_to_userspace = approve_splice_by_exit_flags(syscall);
+        if (!pass_to_userspace) {
+            pass_to_userspace = approve_splice_by_entry_flags(syscall);
+        }
     }
 
     return pass_to_userspace;
@@ -47,8 +68,8 @@ struct splice_event_t {
     struct syscall_t syscall;
 
     struct file_t file;
-    u32 pipe_flag;
-    u32 padding;
+    u32 pipe_entry_flag;
+    u32 pipe_exit_flag;
 };
 
 SYSCALL_KPROBE0(splice) {
@@ -104,9 +125,11 @@ int kretprobe_get_pipe_info(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct pipe_buffer *bufs = 0;
-    bpf_probe_read(&bufs, sizeof(bufs), (void *)info + get_pipe_inode_info_bufs_offset()); // 152
-    bpf_probe_read(&syscall->splice.pipe_flag, sizeof(syscall->splice.pipe_flag), &bufs->flags);
+    bpf_probe_read(&syscall->splice.bufs, sizeof(syscall->splice.bufs), (void *)info + get_pipe_inode_info_bufs_offset());
+    if (syscall->splice.bufs != NULL) {
+        // copy the entry flag of the pipe
+        bpf_probe_read(&syscall->splice.pipe_entry_flag, sizeof(syscall->splice.pipe_entry_flag), &syscall->splice.bufs->flags);
+    }
     return 0;
 }
 
@@ -120,6 +143,11 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
         return 0;
     }
 
+    if (syscall->splice.bufs != NULL) {
+        // copy the pipe exit flag
+        bpf_probe_read(&syscall->splice.pipe_exit_flag, sizeof(syscall->splice.pipe_exit_flag), &syscall->splice.bufs->flags);
+    }
+
     if (filter_syscall(syscall, splice_approvers)) {
         return discard_syscall(syscall);
     }
@@ -127,7 +155,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     struct splice_event_t event = {
         .syscall.retval = retval,
         .file = syscall->splice.file,
-        .pipe_flag = syscall->splice.pipe_flag,
+        .pipe_entry_flag = syscall->splice.pipe_entry_flag,
+        .pipe_exit_flag = syscall->splice.pipe_exit_flag,
     };
     fill_file_metadata(syscall->splice.dentry, &event.file.metadata);
 
