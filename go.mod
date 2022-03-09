@@ -67,7 +67,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.0.0-20220223090948-29871766cdd0
 	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
-	github.com/DataDog/nikos v1.7.4
+	github.com/DataDog/nikos v1.7.5
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
@@ -83,7 +83,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/aws/aws-sdk-go v1.42.20
+	github.com/aws/aws-sdk-go v1.43.14
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
@@ -186,7 +186,7 @@ require (
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9
 	golang.org/x/text v0.3.7
