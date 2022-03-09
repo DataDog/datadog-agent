@@ -222,7 +222,7 @@ def kitchen_prepare(ctx, windows=is_windows):
 
 
 @task
-def kitchen_test(ctx, target=None, arch="x86_64"):
+def kitchen_test(ctx, target=None, arch="x86_64", provider="virtualbox"):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
@@ -231,9 +231,10 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
     # Retrieve a list of all available vagrant images
     images = {}
-    with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
+    platform_file = os.path.join(KITCHEN_DIR, "platforms.json")
+    with open(platform_file, 'r') as f:
         for platform, by_provider in json.load(f).items():
-            if "vagrant" in by_provider:
+            if "vagrant" in by_provider and arch in by_provider["vagrant"]:
                 for image in by_provider["vagrant"][arch]:
                     images[image] = platform
 
@@ -245,8 +246,8 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test",
-            env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"},
+            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test --platformfile {platform_file} --arch {arch}",
+            env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
 
