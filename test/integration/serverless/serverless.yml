@@ -93,11 +93,11 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   metric-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -110,7 +110,7 @@ functions:
 
   metric-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.noop 
+    handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -147,11 +147,11 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   error-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Error
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -164,7 +164,7 @@ functions:
 
   error-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.error 
+    handler: src/proxyTestFunctions.error
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -212,12 +212,12 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   timeout-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Timeout
     timeout: 1
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -230,7 +230,7 @@ functions:
 
   timeout-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.timeout 
+    handler: src/proxyTestFunctions.timeout
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -264,11 +264,11 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   log-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -288,10 +288,10 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-  
+
   log-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.log 
+    handler: src/proxyTestFunctions.log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -341,11 +341,11 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   trace-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -358,7 +358,7 @@ functions:
 
   trace-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.noop 
+    handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
