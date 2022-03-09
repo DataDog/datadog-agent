@@ -276,14 +276,6 @@ func getProgramBanner(version string) (string, string) {
 	return program, banner
 }
 
-type infoVersion struct {
-	Version   string
-	GitCommit string
-	GitBranch string
-	BuildDate string
-	GoVersion string
-}
-
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
 	Pid                 int                    `json:"pid"`
