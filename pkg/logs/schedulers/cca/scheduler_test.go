@@ -1,9 +1,9 @@
 package cca
 
 import (
-	"sync/atomic"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -11,23 +11,11 @@ import (
 	"gotest.tools/assert"
 )
 
-func setup() (scheduler *Scheduler, ac *fakeAC, spy *schedulers.MockSourceManager) {
-	ac = &fakeAC{}
-	scheduler = New(ac).(*Scheduler)
+func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *schedulers.MockSourceManager) {
+	ac = &autodiscovery.AutoConfig{}
+	scheduler = New(func() *autodiscovery.AutoConfig { return ac }).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return
-}
-
-type fakeAC struct {
-	hasRunOnce int32
-}
-
-func (ac *fakeAC) HasRunOnce() bool {
-	return atomic.LoadInt32(&ac.hasRunOnce) != 0
-}
-
-func (ac *fakeAC) FakeRun() {
-	atomic.StoreInt32(&ac.hasRunOnce, 1)
 }
 
 func TestNothingWhenNoConfig(t *testing.T) {
@@ -51,7 +39,7 @@ func TestAfterACStarts(t *testing.T) {
 	require.Equal(t, 0, len(spy.Events))
 
 	// Fake autoconfig running..
-	ac.FakeRun()
+	ac.ForceRanOnceFlag()
 
 	// wait for the source to be added
 	<-scheduler.added

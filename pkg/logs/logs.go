@@ -130,7 +130,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, err
 	log.Info("logs-agent started")
 
 	agent.AddScheduler(adScheduler.New())
-	agent.AddScheduler(ccaScheduler.New(getAC()))
+	agent.AddScheduler(ccaScheduler.New(getAC))
 	agent.AddScheduler(trapsScheduler.New())
 
 	return agent, nil
