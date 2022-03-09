@@ -72,6 +72,11 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	// TODO (AP-1550): Fix this once we can disable changing the gRPC logger
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows, see AP-1550 for details")
+	}
+
 	tests := []struct {
 		path string
 		err  string
