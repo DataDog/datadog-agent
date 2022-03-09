@@ -137,7 +137,7 @@ func convertFilter(conf []string) string {
 
 // Run executes the check.
 func (k *KubeASCheck) Run() error {
-	sender, err := aggregator.GetSender(k.ID())
+	sender, err := k.GetSender()
 	if err != nil {
 		return err
 	}

@@ -95,7 +95,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 
 // Run executes the check
 func (c *ContainerdCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

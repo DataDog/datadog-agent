@@ -277,7 +277,11 @@ func (c *KSMConfig) parse(data []byte) error {
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
-	sender, err := aggregator.GetSender(k.ID())
+	// this check uses a "raw" sender, for better performance.  That requires
+	// careful consideration of uses of this sender.  In particular, the `tags
+	// []string` arguments must not be used after they are passed to the sender
+	// methods, as they may be mutated in-place.
+	sender, err := k.GetRawSender()
 	if err != nil {
 		return err
 	}
@@ -384,11 +388,15 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 	}
 }
 
-// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration
+// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration.
+//
+// This function must always return a "fresh" slice of tags, that will not be accessed after return.
 func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
+
+	// generate a dedicated tags slice
 	tags := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName := "", ""

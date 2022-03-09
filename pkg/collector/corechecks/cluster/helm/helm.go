@@ -20,7 +20,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -100,7 +99,7 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 
 // Run executes the check
 func (hc *HelmCheck) Run() error {
-	sender, err := aggregator.GetSender(hc.ID())
+	sender, err := hc.GetSender()
 	if err != nil {
 		return err
 	}
