@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.7.1.post
+install_script_version=1.8.0
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
