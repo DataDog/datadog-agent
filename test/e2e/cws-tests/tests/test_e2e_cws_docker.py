@@ -106,7 +106,7 @@ class TestE2EDocker(unittest.TestCase):
             self.docker_helper.reload_policies()
 
         with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
-            for i in range(60):  # retry 60 times
+            for _i in range(60):  # retry 60 times
                 event = self.App.wait_app_log("rule_id:ruleset_loaded")
                 attributes = event["data"][-1]["attributes"]["attributes"]
                 restart_date = attributes["date"]
