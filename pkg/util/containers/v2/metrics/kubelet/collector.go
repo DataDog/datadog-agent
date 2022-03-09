@@ -253,6 +253,7 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 
 func convertNetworkStats(podNetworkStats *v1alpha1.NetworkStats, outNetworkStats *provider.ContainerNetworkStats) {
 	var sumBytesSent, sumBytesRcvd float64
+	outNetworkStats.Timestamp = podNetworkStats.Time.Time
 	outNetworkStats.Interfaces = make(map[string]provider.InterfaceNetStats, len(podNetworkStats.Interfaces))
 
 	for _, interfaceStats := range podNetworkStats.Interfaces {
