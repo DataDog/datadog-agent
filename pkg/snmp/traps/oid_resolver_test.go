@@ -116,10 +116,10 @@ func TestSortFiles(t *testing.T) {
 	sortedFiles := getSortedFileNames(files)
 	require.EqualValues(t,
 		[]string{
-			"dd_traps_db.yaml",
-			"dd_traps_db.yaml.gz",
 			"dd_traps_db.json",
 			"dd_traps_db.json.gz",
+			"dd_traps_db.yaml",
+			"dd_traps_db.yaml.gz",
 			"chihiro",
 			"kiki",
 			"mononoke",

@@ -103,27 +103,31 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 }
 
 func getSortedFileNames(files []fs.DirEntry) []string {
-	fileNames := make([]string, 0, len(files))
+	// There should usually be one file provided by Datadog and zero or more provided by the user
+	userProvidedFileNames := make([]string, 0, len(files)-1)
+	// Using a slice for error-proofing but there will usually be only one dd provided file.
+	ddProvidedFileNames := make([]string, 0, 1)
 	for _, file := range files {
 		if file.IsDir() {
 			log.Debugf("not loading traps data from path %s: file is directory", file.Name())
 			continue
 		}
-		fileNames = append(fileNames, file.Name())
+		fileName := file.Name()
+		if strings.HasPrefix(fileName, ddTrapDBFileNamePrefix) {
+			ddProvidedFileNames = append(ddProvidedFileNames, fileName)
+		} else {
+			userProvidedFileNames = append(userProvidedFileNames, file.Name())
+		}
 	}
 
-	// Sort files alphabetically but put first the one shipped with the agent
-	sort.Slice(fileNames, func(i, j int) bool {
-		fileNameI := strings.ToLower(fileNames[i])
-		fileNameJ := strings.ToLower(fileNames[j])
-		if strings.HasPrefix(fileNameI, ddTrapDBFileNamePrefix) {
-			return true
-		} else if strings.HasPrefix(fileNameJ, ddTrapDBFileNamePrefix) {
-			return false
-		}
-		return fileNameI < fileNameJ
+	sort.Slice(userProvidedFileNames, func(i, j int) bool {
+		return strings.ToLower(userProvidedFileNames[i]) < strings.ToLower(userProvidedFileNames[j])
 	})
-	return fileNames
+	sort.Slice(ddProvidedFileNames, func(i, j int) bool {
+		return strings.ToLower(ddProvidedFileNames[i]) < strings.ToLower(ddProvidedFileNames[j])
+	})
+
+	return append(ddProvidedFileNames, userProvidedFileNames...)
 }
 
 func (or *MultiFilesOIDResolver) updateFromFile(filePath string) error {
@@ -160,10 +164,11 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 		return err
 	}
 
-	return or.updateResolverWithData(trapData)
+	or.updateResolverWithData(trapData)
+	return nil
 }
 
-func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent) error {
+func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent) {
 	definedVariables := variableSpec{}
 	for variableOID, variableData := range trapDB.Variables {
 		variableOID := NormalizeOID(variableOID)
@@ -181,5 +186,4 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 			variableSpecPtr: definedVariables,
 		}
 	}
-	return nil
 }
