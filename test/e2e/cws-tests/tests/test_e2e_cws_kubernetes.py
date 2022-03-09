@@ -102,8 +102,7 @@ class TestE2EKubernetes(unittest.TestCase):
             self.kubernetes_helper.reload_policies()
 
         with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
-            for i in range(1, 60):  # retry 60 times
-                self.assertNotEqual(i, 59)  # timeout
+            for i in range(60):  # retry 60 times
                 event = self.App.wait_app_log("rule_id:ruleset_loaded")
                 attributes = event["data"][-1]["attributes"]["attributes"]
                 restart_date = attributes["date"]
@@ -111,6 +110,8 @@ class TestE2EKubernetes(unittest.TestCase):
                 if restart_date != start_date:
                     break
                 time.sleep(1)
+            else:
+                self.fail("check ruleset_loaded timeouted")
             self.App.check_for_ignored_policies(attributes)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
