@@ -10,6 +10,7 @@ package otlp
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
