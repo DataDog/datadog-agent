@@ -43,6 +43,10 @@ func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *trap
 		return
 	}
 	l.tailer, err = tailer.NewTailer(oidResolver, source, inputChan, outputChan)
+	if err != nil {
+		log.Errorf("unable to load traps database: %w. Will not listen for SNMP traps", err)
+		return
+	}
 	l.tailer.Start()
 }
 
