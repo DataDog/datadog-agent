@@ -96,7 +96,7 @@ func (f JSONFormatter) formatV1Trap(packet *gosnmp.SnmpPacket) map[string]interf
 	data["genericTrap"] = genericTrap
 	data["specificTrap"] = specificTrap
 	variables := parseVariables(packet.Variables)
-	data["variables_raw"] = variables
+	data["variables"] = variables
 	for _, variable := range variables {
 		varMetadata, err := f.oidResolver.GetVariableMetadata(trapOID, variable.OID)
 		if err != nil {
@@ -142,7 +142,7 @@ func (f JSONFormatter) formatTrap(packet *gosnmp.SnmpPacket) (map[string]interfa
 	}
 
 	parsedVariables := parseVariables(variables[2:])
-	data["variables_raw"] = parsedVariables
+	data["variables"] = parsedVariables
 	for _, variable := range parsedVariables {
 		varMetadata, err := f.oidResolver.GetVariableMetadata(trapOID, variable.OID)
 		if err != nil {

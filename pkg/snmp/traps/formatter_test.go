@@ -77,7 +77,7 @@ func TestFormatPacketV1Generic(t *testing.T) {
 
 	variables := make([]map[string]interface{}, 3)
 	for i := 0; i < 3; i++ {
-		variables[i] = data["variables_raw"].([]interface{})[i].(map[string]interface{})
+		variables[i] = data["variables"].([]interface{})[i].(map[string]interface{})
 	}
 
 	assert.Equal(t, "1.3.6.1.6.3.1.1.5", data["enterpriseOID"])
@@ -116,7 +116,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 
 	variables := make([]map[string]interface{}, 2)
 	for i := 0; i < 2; i++ {
-		variables[i] = data["variables_raw"].([]interface{})[i].(map[string]interface{})
+		variables[i] = data["variables"].([]interface{})[i].(map[string]interface{})
 	}
 
 	assert.Equal(t, "1.3.6.1.2.1.118", data["enterpriseOID"])
@@ -149,7 +149,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 
 	variables := make([]map[string]interface{}, 2)
 	for i := 0; i < 2; i++ {
-		variables[i] = data["variables_raw"].([]interface{})[i].(map[string]interface{})
+		variables[i] = data["variables"].([]interface{})[i].(map[string]interface{})
 	}
 
 	heartBeatRate := variables[0]
