@@ -9,7 +9,14 @@ import (
 	"sync"
 )
 
-// LogSources stores a list of log sources.
+// LogSources serves as the interface between Schedulers and Launchers, distributing
+// notifications of added/removed LogSources to subscribed Launchers.
+//
+// If more than one Launcher subscribes to the same type, the sources will be
+// distributed randomly to the Launchers.  This is generally undesirable, and the
+// caller should ensure at most one subscriber for each type.
+//
+// This type is threadsafe, and all of its methods can be called concurrently.
 type LogSources struct {
 	mu            sync.Mutex
 	sources       []*LogSource
@@ -26,6 +33,9 @@ func NewLogSources() *LogSources {
 }
 
 // AddSource adds a new source.
+//
+// Any subscribers registered for this source's type (src.Config.Type) will be
+// notified.
 func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
@@ -42,6 +52,9 @@ func (s *LogSources) AddSource(source *LogSource) {
 }
 
 // RemoveSource removes a source.
+//
+// Any subscribers registered for this source's type (src.Config.Type) will be
+// notified of its removal.
 func (s *LogSources) RemoveSource(source *LogSource) {
 	s.mu.Lock()
 	var sourceFound bool
@@ -60,7 +73,10 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 	}
 }
 
-// GetAddedForType returns the new added sources matching the provided type.
+// GetAddedForType returns a channel carrying notifications of new sources
+// with the given type.
+//
+// Any sources added before this call are not included.
 func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -73,7 +89,8 @@ func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 	return stream
 }
 
-// GetRemovedForType returns the new removed sources matching the provided type.
+// GetRemovedForType returns a channel carrying notifications of removed sources
+// with the given type.
 func (s *LogSources) GetRemovedForType(sourceType string) chan *LogSource {
 	s.mu.Lock()
 	defer s.mu.Unlock()
