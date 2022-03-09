@@ -16,10 +16,14 @@
                 "splice": {
                     "type": "object",
                     "required": [
-                        "pipe_flag"
+                        "pipe_entry_flag",
+                        "pipe_exit_flag"
                     ],
                     "properties": {
-                        "pipe_flag": {
+                        "pipe_entry_flag": {
+                            "type": "string"
+                        },
+                        "pipe_exit_flag": {
                             "type": "string"
                         }
                     }

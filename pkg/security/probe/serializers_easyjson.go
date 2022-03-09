@@ -276,8 +276,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			continue
 		}
 		switch key {
-		case "pipe_flag":
-			out.PipeFlag = string(in.String())
+		case "pipe_entry_flag":
+			out.PipeEntryFlag = string(in.String())
+		case "pipe_exit_flag":
+			out.PipeExitFlag = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -293,9 +295,14 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"pipe_flag\":"
+		const prefix string = ",\"pipe_entry_flag\":"
 		out.RawString(prefix[1:])
-		out.String(string(in.PipeFlag))
+		out.String(string(in.PipeEntryFlag))
+	}
+	{
+		const prefix string = ",\"pipe_exit_flag\":"
+		out.RawString(prefix)
+		out.String(string(in.PipeExitFlag))
 	}
 	out.RawByte('}')
 }

@@ -250,7 +250,8 @@ type DDContextSerializer struct {
 // SpliceEventSerializer serializes a splice event to JSON
 // easyjson:json
 type SpliceEventSerializer struct {
-	PipeFlag string `json:"pipe_flag" jsonschema_description:"flag of the pipe used by the splice syscall"`
+	PipeEntryFlag string `json:"pipe_entry_flag" jsonschema_description:"entry flag of the fd_out pipe passed to the splice syscall"`
+	PipeExitFlag  string `json:"pipe_exit_flag" jsonschema_description:"exit flag of the fd_out pipe passed to the splice syscall"`
 }
 
 // EventSerializer serializes an event to JSON
@@ -560,7 +561,8 @@ func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
 
 func newSpliceEventSerializer(e *Event) *SpliceEventSerializer {
 	return &SpliceEventSerializer{
-		PipeFlag: model.PipeBufFlag(e.Splice.PipeBufFlag).String(),
+		PipeEntryFlag: model.PipeBufFlag(e.Splice.PipeEntryFlag).String(),
+		PipeExitFlag:  model.PipeBufFlag(e.Splice.PipeExitFlag).String(),
 	}
 }
 

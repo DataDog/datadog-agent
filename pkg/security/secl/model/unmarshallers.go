@@ -662,10 +662,11 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 4 {
+	if len(data)-read < 8 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.PipeBufFlag = ByteOrder.Uint32(data[read : read+4])
+	e.PipeEntryFlag = ByteOrder.Uint32(data[read : read+4])
+	e.PipeExitFlag = ByteOrder.Uint32(data[read+4 : read+8])
 	return read + 4, nil
 }

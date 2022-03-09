@@ -26,7 +26,11 @@ var spliceCapabilities = Capabilities{
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
 	},
-	"splice.pipe_flag": {
+	"splice.pipe_entry_flag": {
+		PolicyFlags:     PolicyFlagFlags,
+		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+	},
+	"splice.pipe_exit_flag": {
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
@@ -49,9 +53,16 @@ func spliceOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprov
 	for field, values := range approvers {
 		switch field {
 		case "splice.file.name", "splice.file.path": // already handled by onNewBasenameApprovers
-		case "splice.pipe_flag":
+		case "splice.pipe_entry_flag":
 			var approver activeApprover
-			approver, err = approveFlags("splice_flags_approvers", intValues(values)...)
+			approver, err = approveFlags("splice_entry_flags_approvers", intValues(values)...)
+			if err != nil {
+				return nil, err
+			}
+			spliceApprovers = append(spliceApprovers, approver)
+		case "splice.pipe_exit_flag":
+			var approver activeApprover
+			approver, err = approveFlags("splice_exit_flags_approvers", intValues(values)...)
 			if err != nil {
 				return nil, err
 			}
