@@ -64,9 +64,9 @@ func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 // GetTags returns a list of tags associated to an SNMP trap packet.
 func (f JSONFormatter) GetTags(packet *SnmpPacket) []string {
 	return []string{
-		fmt.Sprintf("snmp_version:%s", formatVersion(packet.Content)),
-		fmt.Sprintf("device_namespace:%s", f.namespace),
-		fmt.Sprintf("snmp_device:%s", packet.Addr.IP.String()),
+		"snmp_version:" + formatVersion(packet.Content),
+		"device_namespace:" + f.namespace,
+		"snmp_device:" + packet.Addr.IP.String(),
 	}
 }
 
