@@ -463,6 +463,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 			if prev.PPid == s.Pid && prev.Comm == s.Comm {
 				prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
 				prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
+				prev.Argv0 = ""
 			}
 		}
 		prev = s
