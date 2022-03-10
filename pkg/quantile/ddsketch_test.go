@@ -148,7 +148,7 @@ func TestCreateDDSketchWithSketchMapping(t *testing.T) {
 				quantileValue, err := convertedSketch.GetValueAtQuantile(q)
 				assert.NoError(t, err)
 
-				fmt.Printf("%v %v\n", expectedValue, quantileValue)
+				t.Logf("expected value for p%d: %v actual value for p%d: %v\n", i, expectedValue, i, quantileValue)
 
 				// Test that the quantile value returned by the sketch is vithin the relative accuracy
 				// of the expected value
@@ -311,7 +311,7 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 
 				quantileValue := outputSketch.Quantile(sketchConfig, q)
 
-				fmt.Printf("%v %v\n", expectedValue, quantileValue)
+				t.Logf("expected value for p%d: %v actual value for p%d: %v\n", i, expectedValue, i, quantileValue)
 				// Test that the quantile value returned by the sketch is vithin an acceptable
 				// range of the expected value
 				if expectedValue == 0.0 {
