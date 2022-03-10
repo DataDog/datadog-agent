@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -80,7 +81,7 @@ func TestCreateDDSketchWithSketchMapping(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			sketch, err := generateDDSketch(test.quantile, 100, M)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Check the count of the sketch
 			assert.Equal(
@@ -96,7 +97,7 @@ func TestCreateDDSketchWithSketchMapping(t *testing.T) {
 				expectedValue := test.quantile(q)
 
 				quantileValue, err := sketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				// Test that the quantile value returned by the sketch is vithin the relative accuracy
 				// of the expected quantile value
@@ -121,7 +122,7 @@ func TestCreateDDSketchWithSketchMapping(t *testing.T) {
 
 			sketchConfig := Default()
 			convertedSketch, err := createDDSketchWithSketchMapping(sketchConfig, sketch)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Conversion accuracy formula taken from:
 			// https://github.com/DataDog/logs-backend/blob/895e56c9eefa1c28a3affbdd0027f58a4c6f4322/domains/event-store/libs/event-store-aggregate/src/test/java/com/dd/event/store/api/query/sketch/SketchTest.java#L409-L422
@@ -143,12 +144,10 @@ func TestCreateDDSketchWithSketchMapping(t *testing.T) {
 			for i := 0; i <= 100; i++ {
 				q := (float64(i)) / 100.0
 				expectedValue, err := sketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				quantileValue, err := convertedSketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
-
-				t.Logf("expected value for p%d: %v actual value for p%d: %v\n", i, expectedValue, i, quantileValue)
+				require.NoError(t, err)
 
 				// Test that the quantile value returned by the sketch is vithin the relative accuracy
 				// of the expected value
@@ -185,6 +184,8 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 		name string
 		// the quantile function (within [0,1])
 		quantile func(x float64) float64
+		// the map of quantiles for which the test is known to fail
+		excludedQuantiles map[int]bool
 	}{
 		{
 			// https://en.wikipedia.org/wiki/Continuous_uniform_distribution
@@ -194,11 +195,12 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 		// The p99 for this test fails, likely due to the shift of leftover bucket counts the right that is performed
 		// during the DDSketch -> Sketch conversion, causing the p99 of the output sketch to fall on 0
 		// (which means the InEpsilon check returns 1).
-		// {
-		// 	// https://en.wikipedia.org/wiki/Continuous_uniform_distribution
-		// 	name:     "Uniform distribution (a=-N,b=0)",
-		// 	quantile: func(y float64) float64 { return (y - 1) * float64(N) },
-		// },
+		{
+			// https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+			name:              "Uniform distribution (a=-N,b=0)",
+			quantile:          func(y float64) float64 { return (y - 1) * float64(N) },
+			excludedQuantiles: map[int]bool{99: true},
+		},
 		{
 			// https://en.wikipedia.org/wiki/U-quadratic_distribution
 			name: "U-quadratic distribution (a=0,b=N)",
@@ -222,7 +224,7 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			sketch, err := generateDDSketch(test.quantile, 100, M)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Check the count of the sketch
 			assert.Equal(
@@ -238,7 +240,7 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 				expectedValue := test.quantile(q)
 
 				quantileValue, err := sketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				// Test that the quantile value returned by the sketch is vithin the relative accuracy
 				// of the expected quantile value
 				if expectedValue == 0.0 {
@@ -262,10 +264,10 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 
 			sketchConfig := Default()
 			convertedSketch, err := createDDSketchWithSketchMapping(sketchConfig, sketch)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			outputSketch, err := convertDDSketchIntoSketch(sketchConfig, convertedSketch)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Conversion accuracy formula taken from:
 			// https://github.com/DataDog/logs-backend/blob/895e56c9eefa1c28a3affbdd0027f58a4c6f4322/domains/event-store/libs/event-store-aggregate/src/test/java/com/dd/event/store/api/query/sketch/SketchTest.java#L409-L422
@@ -284,7 +286,7 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 
 			// Check the minimum value of the output sketch
 			expectedMinValue, err := convertedSketch.GetMinValue()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.InDelta(
 				t,
 				expectedMinValue,
@@ -294,7 +296,7 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 
 			// Check the maximum value of the output sketch
 			expectedMaxValue, err := convertedSketch.GetMaxValue()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.InDelta(
 				t,
 				expectedMaxValue,
@@ -305,13 +307,18 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 			// Check that the quantiles of the output sketch do match
 			// the quantiles of the DDSketch it comes from
 			for i := 0; i <= 100; i++ {
+				// Skip if quantile is excluded
+				if test.excludedQuantiles[i] {
+					continue
+				}
+
 				q := (float64(i)) / 100.0
+
 				expectedValue, err := convertedSketch.GetValueAtQuantile(q)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				quantileValue := outputSketch.Quantile(sketchConfig, q)
 
-				t.Logf("expected value for p%d: %v actual value for p%d: %v\n", i, expectedValue, i, quantileValue)
 				// Test that the quantile value returned by the sketch is vithin an acceptable
 				// range of the expected value
 				if expectedValue == 0.0 {
