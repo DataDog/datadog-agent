@@ -12,7 +12,9 @@ import (
 	"fmt"
 
 	"sync"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -33,7 +35,7 @@ type Monitor struct {
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
-	lastTelemetry          chan telemetry
+	telemetrySnapshot      *telemetry
 	pollRequests           chan chan map[Key]RequestStats
 	statkeeper             *httpStatKeeper
 
@@ -78,7 +80,6 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
-	lastTelemetry := make(chan telemetry, 1)
 	telemetry := newTelemetry()
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 
@@ -94,7 +95,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
-		lastTelemetry:          lastTelemetry,
+		telemetrySnapshot:      nil,
 		pollRequests:           make(chan chan map[Key]RequestStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
@@ -150,13 +151,7 @@ func (m *Monitor) Start() error {
 				// `statkeeper` stats and telemetry data need to be snapshot'd at the same time for consistency.
 				// However, `pollRequest` only needs to receive the former, so we need to keep the telemetry around
 				// for when `getStats` will be called.
-
-				select {
-				case _ = <-m.lastTelemetry:
-				default:
-				}
-
-				m.lastTelemetry <- delta
+				atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&m.telemetrySnapshot)), unsafe.Pointer(&delta))
 
 				reply <- m.statkeeper.GetAndResetAllStats()
 			case <-report.C:
@@ -188,14 +183,16 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 	return <-reply
 }
 
-func (m *Monitor) GetStats() (map[string]int64, error) {
-	if len(m.lastTelemetry) == 0 {
-		return map[string]int64{}, fmt.Errorf("error: could not get telemetry data")
+func (m *Monitor) GetStats() map[string]int64 {
+	telemPtr := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&m.telemetrySnapshot)))
+	if telemPtr == nil {
+		return map[string]int64{}
 	}
-	telem := <-m.lastTelemetry
+
+	telem := (*telemetry)(telemPtr)
 	return map[string]int64{
 		"dropped_stats": telem.dropped,
-	}, nil
+	}
 }
 
 // Stop HTTP monitoring
