@@ -128,6 +128,11 @@ struct syscall_cache_t {
         } exec;
 
         struct {
+            u32 is_thread;
+            struct pid *pid;
+        } fork;
+
+        struct {
             struct dentry *dentry;
             struct file_t file;
             u32 event_kind;
@@ -164,6 +169,22 @@ struct syscall_cache_t {
             u64 vm_protection;
             u64 req_protection;
         } mprotect;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            char name[MODULE_NAME_LEN];
+            u32 loaded_from_memory;
+        } init_module;
+
+        struct {
+            char *name;
+        } delete_module;
+
+        struct {
+            u32 pid;
+            u32 type;
+        } signal;
     };
 };
 
@@ -255,6 +276,13 @@ int __attribute__((always_inline)) mark_as_discarded(struct syscall_cache_t *sys
 int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscall, int (*check_approvers)(struct syscall_cache_t *syscall)) {
     if (syscall->policy.mode == NO_FILTER)
         return 0;
+
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &tgid);
+    if (tgid_exec_ts != NULL) {
+        // return immediately
+        return 0;
+    }
 
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 

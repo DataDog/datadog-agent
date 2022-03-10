@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -201,10 +202,15 @@ type DefaultForwarder struct {
 	m                sync.Mutex // To control Start/Stop races
 
 	completionHandler transaction.HTTPCompletionHandler
+
+	agentName                       string
+	queueDurationCapacity           *retry.QueueDurationCapacity
+	retryQueueDurationCapacityMutex sync.Mutex
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(options *Options) *DefaultForwarder {
+	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
@@ -216,14 +222,16 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			validationInterval:    options.APIKeyValidationInterval,
 		},
 		completionHandler: options.CompletionHandler,
+		agentName:         agentName,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	var diskUsageLimit *retry.DiskUsageLimit
 
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
-	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
+	} else if agentName != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		if storagePath == "" {
 			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
@@ -231,7 +239,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
-		storagePath = path.Join(storagePath, agentFolder)
+		storagePath = path.Join(storagePath, agentName)
 		optionalRemovalPolicy, err = retry.NewFileRemovalPolicy(storagePath, outdatedFileInDays, retry.FileRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
@@ -242,6 +250,10 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			}
 			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
+
+		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
+		diskUsageLimit = retry.NewDiskUsageLimit(storagePath, filesystem.NewDisk(), storageMaxSize, diskRatio)
+
 	} else {
 		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
@@ -249,6 +261,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+	var queueDiskSpaceUsedList []retry.QueueDiskSpaceUsed
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -269,10 +282,11 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
-				storageMaxSize,
+				diskUsageLimit,
 				transactionContainerSort,
 				resolver)
 			f.domainResolvers[domain] = resolver
+			queueDiskSpaceUsedList = append(queueDiskSpaceUsedList, transactionContainer)
 			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
@@ -287,6 +301,14 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		}
 	}
 
+	timeInterval := config.Datadog.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
+	f.queueDurationCapacity = retry.NewQueueDurationCapacity(
+		time.Duration(timeInterval)*time.Second,
+		10*time.Second,
+		options.RetryQueuePayloadsTotalMaxSize,
+		diskUsageLimit,
+		queueDiskSpaceUsedList)
+
 	if optionalRemovalPolicy != nil {
 		filesRemoved, err := optionalRemovalPolicy.RemoveUnknownDomains()
 		if err != nil {
@@ -298,10 +320,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	return f
 }
 
-func getAgentFolder(options *Options) string {
+func getAgentName(options *Options) string {
 	if HasFeature(options.EnabledFeatures, CoreFeatures) {
 		return "core"
 	}
+	// If a new Agent is supported by this function, the implementation of
+	// QueueDurationCapacity.ComputeCapacity must be updated.
+	// More specifically, `totalBytesPerSec` should takes into account other Agent processes.
 	return ""
 }
 
@@ -441,9 +466,34 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	if atomic.LoadUint32(&f.internalState) == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
+	if config.Datadog.GetBool("telemetry.enabled") {
+		f.retryQueueDurationCapacityMutex.Lock()
+		defer f.retryQueueDurationCapacityMutex.Unlock()
 
-	for _, t := range transactions {
-		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
+		now := time.Now()
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
+
+			if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+				log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+			}
+		}
+
+		if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+			log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+		} else {
+			for domain, t := range capacities {
+				tlmRetryQueueDurationCapacity.Set(t.Capacity.Seconds(), f.agentName, domain)
+				tlmRetryQueueDurationBytesPerSec.Set(t.BytesPerSec, f.agentName, domain)
+				tlmRetryQueueDurationCapacityBytes.Set(float64(t.AvailableSpace), f.agentName, domain)
+			}
+		}
+	} else {
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
+		}
 	}
 	return nil
 }
@@ -553,7 +603,12 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	bumpOrchestratorPayload(payloadType)
 
-	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true)
+	endpoint := endpoints.OrchestratorEndpoint
+	if config.Datadog.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+		endpoint = endpoints.LegacyOrchestratorEndpoint
+	}
+
+	return f.submitProcessLikePayload(endpoint, payload, extra, true)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events

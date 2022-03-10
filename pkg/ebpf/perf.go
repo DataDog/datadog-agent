@@ -11,7 +11,7 @@ package ebpf
 import (
 	"sync"
 
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf/manager"
 )
 
 type PerfHandler struct {

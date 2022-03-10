@@ -13,16 +13,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestBPFEventLoad(t *testing.T) {
+	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
+		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_prog_load",
-			Expression: `bpf.cmd == BPF_PROG_LOAD && process.file.name == "syscall_go_tester"`,
+			Expression: `bpf.cmd == BPF_PROG_LOAD && bpf.prog.name == "kprobe_vfs_open" && process.file.name == "syscall_go_tester"`,
 		},
 	}
 
@@ -52,10 +57,14 @@ func TestBPFEventLoad(t *testing.T) {
 }
 
 func TestBPFEventMap(t *testing.T) {
+	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
+		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_map_create",
-			Expression: `bpf.cmd == BPF_MAP_CREATE && process.file.name == "syscall_go_tester"`,
+			Expression: `bpf.cmd == BPF_MAP_CREATE && bpf.map.name == "cache" && process.file.name == "syscall_go_tester"`,
 		},
 	}
 
@@ -75,9 +84,7 @@ func TestBPFEventMap(t *testing.T) {
 			return runSyscallTesterFunc(t, syscallTester, "-load-bpf", "-clone-bpf")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
-
-			// TODO: the manager generate a map call, we need to the name available to select the right event
-			//assert.Equal(t, uint32(model.BpfMapTypeHash), event.BPF.Map.Type, "wrong map type")
+			assert.Equal(t, uint32(model.BpfMapTypeHash), event.BPF.Map.Type, "wrong map type")
 
 			if !validateBPFSchema(t, event) {
 				t.Error(event.String())

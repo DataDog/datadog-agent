@@ -40,6 +40,8 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getPTraceProbes()...)
 	allProbes = append(allProbes, getMMapProbes()...)
 	allProbes = append(allProbes, getMProtectProbes()...)
+	allProbes = append(allProbes, getModuleProbes()...)
+	allProbes = append(allProbes, getSignalProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor

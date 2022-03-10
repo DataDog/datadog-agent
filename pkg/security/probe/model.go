@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"syscall"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/mailru/easyjson/jwriter"
@@ -32,11 +34,33 @@ var eventZero Event
 // Model describes the data model for the runtime security agent probe events
 type Model struct {
 	model.Model
+	probe *Probe
+}
+
+// ValidateField validates the value of a field
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+	if err := m.Model.ValidateField(field, fieldValue); err != nil {
+		return err
+	}
+
+	switch field {
+	case "bpf.map.name":
+		if offset, found := m.probe.constantOffsets["bpf_map_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+
+	case "bpf.prog.name":
+		if offset, found := m.probe.constantOffsets["bpf_prog_aux_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+	}
+
+	return nil
 }
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{Event: model.Event{}}
+	return &Event{}
 }
 
 // Event describes a probe event
@@ -72,8 +96,13 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	// do not try to resolve mmap events when they aren't backed by any file
-	if ev.GetEventType() == model.MMapEventType {
+	switch ev.GetEventType() {
+	case model.MMapEventType:
 		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
+			return ""
+		}
+	case model.LoadModuleEventType:
+		if ev.LoadModule.LoadedFromMemory {
 			return ""
 		}
 	}
@@ -259,6 +288,12 @@ func (ev *Event) ResolveProcessArgs(process *model.Process) string {
 func (ev *Event) ResolveProcessArgv(process *model.Process) []string {
 	argv, _ := ev.resolvers.ProcessResolver.GetProcessArgv(process)
 	return argv
+}
+
+// ResolveProcessEnvp resolves the envp of the event as an array
+func (ev *Event) ResolveProcessEnvp(process *model.Process) []string {
+	envp, _ := ev.resolvers.ProcessResolver.GetProcessEnvp(process)
+	return envp
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated

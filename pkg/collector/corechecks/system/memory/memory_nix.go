@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/mem"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
@@ -33,7 +32,7 @@ const mbSize float64 = 1024 * 1024
 
 // Run executes the check
 func (c *Check) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -83,7 +82,7 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -101,7 +100,7 @@ func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error 
 }
 
 func (c *Check) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

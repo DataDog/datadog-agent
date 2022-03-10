@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -199,8 +198,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-// If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
-func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -285,9 +283,14 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 
-	if extraTags == nil {
-		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
+	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
+
+	// if the server is running in a context where static tags are required, add those
+	// to extraTags.
+	if staticTags := util.GetStaticTagsSlice(context.TODO()); staticTags != nil {
+		extraTags = append(extraTags, staticTags...)
 	}
+	util.SortUniqInPlace(extraTags)
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
@@ -403,21 +406,16 @@ func (s *Server) handleMessages() {
 		go l.Listen()
 	}
 
-	// We let available:
-	// - a core to the listener goroutine
-	// - one per aggregation pipeline (time sampler)
-	// But we want at minimum 2 workers.
-	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
-	workersCount := runtime.GOMAXPROCS(-1) - 1 - pc
-	if workersCount < 2 {
-		workersCount = 2
-	}
+	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
 	// undocumented configuration field to force the amount of dogstatsd workers
 	// mainly used for benchmarks or some very specific use-case.
 	if configWC := config.Datadog.GetInt("dogstatsd_workers_count"); configWC != 0 {
+		log.Debug("Forcing the amount of DogStatsD workers to:", configWC)
 		workersCount = configWC
 	}
+
+	log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s)

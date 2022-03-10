@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.7.1.post
+install_script_version=1.8.0.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -297,7 +297,7 @@ fi
 
 if [ ! "$apikey" ]; then
   # if it's an upgrade, then we will use the transition script
-  if [ ! "$upgrade" ]; then
+  if [ ! "$upgrade" ] && [ ! -e "$config_file" ]; then
     printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
     exit 1;
   fi

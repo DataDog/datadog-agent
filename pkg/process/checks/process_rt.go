@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
 )
@@ -49,7 +48,6 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 	}
 
 	procs, err := p.probe.StatsForPIDs(p.lastPIDs, time.Now())
-
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +56,18 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 		mergeStatWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
-	ctrList, _ := util.GetContainers()
+	var containers []*model.Container
+	var pidToCid map[int]string
+	var lastContainerRates map[string]*util.ContainerRateMetrics
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityRT, p.lastContainerRates)
+	if err == nil {
+		p.lastContainerRates = lastContainerRates
+	} else {
+		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
 
 	// End check early if this is our first run.
 	if p.realtimeLastProcs == nil {
-		p.realtimeLastCtrRates = util.ExtractContainerRateMetric(ctrList)
 		p.realtimeLastProcs = procs
 		p.realtimeLastCPUTime = cpuTimes[0]
 		p.realtimeLastRun = time.Now()
@@ -72,9 +77,9 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 
 	connsByPID := Connections.getLastConnectionsByPID()
 
-	chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, procs, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+	chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 	groupSize := len(chunkedStats)
-	chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
+	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -94,7 +99,6 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
 	p.realtimeLastRun = time.Now()
 	p.realtimeLastProcs = procs
-	p.realtimeLastCtrRates = util.ExtractContainerRateMetric(ctrList)
 	p.realtimeLastCPUTime = cpuTimes[0]
 
 	return &RunResult{
@@ -107,18 +111,11 @@ func fmtProcessStats(
 	cfg *config.AgentConfig,
 	maxBatchSize int,
 	procs, lastProcs map[int32]*procutil.Stats,
-	ctrList []*containers.Container,
+	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connsByPID map[int32][]*model.Connection,
 ) [][]*model.ProcessStat {
-	cidByPid := make(map[int32]string, len(ctrList))
-	for _, c := range ctrList {
-		for _, p := range c.Pids {
-			cidByPid[p] = c.ID
-		}
-	}
-
 	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	chunked := make([][]*model.ProcessStat, 0)
@@ -155,7 +152,7 @@ func fmtProcessStats(
 			IoStat:                 ioStat,
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
-			ContainerId:            cidByPid[pid],
+			ContainerId:            pidToCid[int(pid)],
 			Networks:               formatNetworks(connsByPID[pid], connCheckIntervalS),
 		})
 		if len(chunk) == maxBatchSize {

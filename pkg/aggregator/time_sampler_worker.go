@@ -8,6 +8,7 @@ package aggregator
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -35,11 +36,14 @@ type timeSamplerWorker struct {
 	flushChan chan flushTrigger
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
+
+	// tagsStore shard used to store tag slices for this worker
+	tagsStore *tags.Store
 }
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
-	parallelSerialization flushAndSerializeInParallel) *timeSamplerWorker {
+	parallelSerialization flushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -51,6 +55,8 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		samplesChan: make(chan []metrics.MetricSample, bufferSize),
 		stopChan:    make(chan struct{}),
 		flushChan:   make(chan flushTrigger),
+
+		tagsStore: tagsStore,
 	}
 }
 
@@ -75,6 +81,7 @@ func (w *timeSamplerWorker) run() {
 			w.metricSamplePool.PutBatch(ms)
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
+			w.tagsStore.Shrink()
 		}
 	}
 }

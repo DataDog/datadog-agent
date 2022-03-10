@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 )
@@ -27,9 +27,9 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 		generic.CreateContainerMeta("docker", "cID101"),
 	}
 
-	containersStats := map[string]metrics.MockContainerEntry{
-		"cID100": metrics.GetFullSampleContainerEntry(),
-		"cID101": metrics.GetFullSampleContainerEntry(),
+	containersStats := map[string]mock.ContainerEntry{
+		"cID100": mock.GetFullSampleContainerEntry(),
+		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 
 	// Inject mock processor in check
@@ -60,7 +60,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "containerd.cpu.limit", 5e8, "", expectedTags)
 
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.current.usage", 42000, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "containerd.mem.kernel", 40, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "containerd.mem.kernel.usage", 40, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.current.limit", 42000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.rss", 300, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.cache", 200, "", expectedTags)

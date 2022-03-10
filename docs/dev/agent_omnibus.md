@@ -85,25 +85,42 @@ the source files for the `datadog-agent` software definition.
 ### Prerequisites
 To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows/install/) must be installed and configured to use Windows containers.
 
-Start a command prompt with administrators permission and navigate to your local clone of the `datadog-agent` repo. Start Docker image by running:
-```
-docker run -v %CD%:c:\dev\go\src\github.com\DataDog\datadog-agent -it datadog/agent-buildimages-windows_1809_x64 cmd
+Start a Powershell prompt and navigate to your local clone of the `datadog-agent` repo.
+
+ Run the following command: 
+ 
+```powershell
+docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e PY_RUNTIMES=3 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
 ```
 
-It takes a while on the first run since it has to download the ~12GB Docker image.
+Downloading the Docker image may take some time in the first run.
 
-Start the build by running:
-```
-set PY_RUNTIMES="3"
-set MAJOR_VERSION=7
-set RELEASE_VERSION=nightly
-set TARGET_ARCH=x64
-set PYTHONIOENCODING=UTF-8
-REM The line below will force gem refresh
-del \dev\go\src\github.com\datadog\datadog-agent\omnibus\Gemfile.lock
-md c:\mnt
-cd \dev\go\src\github.com\datadog\datadog-agent\tasks\winbuildscripts\
-buildwin.bat
+Alternatively here's a small Powershell script to facilitate using the docker image:
+```powershell
+param (
+   [int]$MAJOR_VERSION=7,
+   $TARGET_ARCH="x64",
+   $RELEASE_VERSION="nightly",
+   [bool]$RM_CONTAINER=$true,
+   [bool]$DEBUG=$false
+)
+
+if ($MAJOR_VERSION -eq 7) {
+    $PY_RUNTIMES="3"
+} else {
+    $PY_RUNTIMES="2,3"
+}
+$cmd = "docker run"
+if ($RM_CONTAINER) {
+    $cmd += " --rm "
+}
+$opts = "-e OMNIBUS_TARGET=main -e RELEASE_VERSION=$RELEASE_VERSION -e MAJOR_VERSION=$MAJOR_VERSION -e PY_RUNTIMES=$PY_RUNTIMES -e TARGET_ARCH=$TARGET_ARCH"
+if ($DEBUG) {
+    $opts += " -e DEBUG_CUSTOMACTION=yes "
+}
+$cmd += " -m 4096M -v ""$(Get-Location):c:\mnt"" $opts datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat"
+Write-Host $cmd
+Invoke-Expression -Command $cmd
 ```
 
 If the build succeeds, the build artifacts can be found under `omnibus\pkg` in the repo.

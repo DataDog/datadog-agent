@@ -212,7 +212,7 @@ outer:
 
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
-	w.tracerPayloads = w.tracerPayloads[:0]
+	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
@@ -235,7 +235,6 @@ func (w *TraceWriter) flush() {
 		ErrorTPS:       w.errorTPS,
 		TracerPayloads: w.tracerPayloads,
 	}
-	log.DebugfServerless("Sending trace payload : %+v", p)
 	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)

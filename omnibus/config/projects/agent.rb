@@ -53,7 +53,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys'
+    runtime_dependency 'datadog-signing-keys'
   end
 
   if osx?

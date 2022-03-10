@@ -1,7 +1,7 @@
 ---
 .kitchen_common:
   stage: kitchen_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   artifacts:
     expire_in: 2 weeks
@@ -95,6 +95,9 @@
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
     - bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
 
+.kitchen_test_process_agent:
+  script:
+    - bash -l tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
 
 # Kitchen: Agent flavor
 # -------------------------------

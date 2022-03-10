@@ -223,9 +223,10 @@ type BufferedAggregator struct {
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
 	flushChan              chan flushTrigger
-	stopChan               chan struct{}
-	health                 *health.Handle
-	agentName              string // Name of the agent for telemetry metrics
+
+	stopChan  chan struct{}
+	health    *health.Handle
+	agentName string // Name of the agent for telemetry metrics
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
@@ -476,7 +477,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 			extra.SourceTypeName = "System"
 		}
 
-		tags := append(extra.Tags, agg.tags(false)...)
+		tags := tagset.CombineCompositeTagsAndSlice(extra.Tags, agg.tags(false))
 		newSerie := &metrics.Serie{
 			Name:           extra.Name,
 			Tags:           tags,
@@ -504,7 +505,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           agg.tags(true),
+		Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -514,7 +515,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
-		Tags:           agg.tags(false),
+		Tags:           tagset.CompositeTagsFromSlice(agg.tags(false)),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -766,7 +767,7 @@ func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
 		case event := <-agg.contLcycleBuffer:
 			if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
 				aggregatorContainerLifecycleEventsErrors.Add(1)
-				log.Warnf("Error submitting container lifecycle data: %w", err)
+				log.Warnf("Error submitting container lifecycle data: %v", err)
 			}
 		case <-agg.contLcycleStopper:
 			return

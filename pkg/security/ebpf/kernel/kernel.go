@@ -29,10 +29,14 @@ var (
 	Kernel4_12 = kernel.VersionCode(4, 12, 0) //nolint:deadcode,unused
 	// Kernel4_13 is the KernelVersion representation of kernel version 4.13
 	Kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
+	// Kernel4_14 is the KernelVersion representation of kernel version 4.14
+	Kernel4_14 = kernel.VersionCode(4, 14, 0) //nolint:deadcode,unused
 	// Kernel4_15 is the KernelVersion representation of kernel version 4.15
 	Kernel4_15 = kernel.VersionCode(4, 15, 0) //nolint:deadcode,unused
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
 	Kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
+	// Kernel4_18 is the KernelVersion representation of kernel version 4.18
+	Kernel4_18 = kernel.VersionCode(4, 18, 0) //nolint:deadcode,unused
 	// Kernel4_19 is the KernelVersion representation of kernel version 4.19
 	Kernel4_19 = kernel.VersionCode(4, 19, 0) //nolint:deadcode,unused
 	// Kernel4_20 is the KernelVersion representation of kernel version 4.20
@@ -150,6 +154,11 @@ func (k *Version) IsOracleUEKKernel() bool {
 // IsCOSKernel returns whether the kernel is a suse kernel
 func (k *Version) IsCOSKernel() bool {
 	return k.osRelease["ID"] == "cos"
+}
+
+// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
+func (k *Version) IsAmazonLinuxKernel() bool {
+	return k.osRelease["ID"] == "amzn"
 }
 
 // IsInRangeCloseOpen returns whether the kernel version is between the begin

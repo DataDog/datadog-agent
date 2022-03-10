@@ -30,7 +30,7 @@ type Container struct {
 	Type          string            `json:"Type"`
 	Image         string            `json:"Image"`
 	Labels        map[string]string `json:"Labels"`
-	KnownStatus   string            `json:"KnownStatus"`
+	KnownStatus   string            `json:"KnownStatus"` // See https://github.com/aws/amazon-ecs-agent/blob/master/agent/api/container/status/containerstatus.go
 	DesiredStatus string            `json:"DesiredStatus"`
 	DockerID      string            `json:"DockerID"`
 	CreatedAt     string            `json:"CreatedAt"`
@@ -54,11 +54,12 @@ type Port struct {
 // ContainerStats represents the statistics of a container as returned by the
 // ECS metadata API v2.
 type ContainerStats struct {
-	CPU      CPUStats    `json:"cpu_stats"`
-	Memory   MemStats    `json:"memory_stats"`
-	IO       IOStats     `json:"blkio_stats"`
-	Networks NetStatsMap `json:"networks"`
-	//Pids    []int32  `json:"pids_stats"` // seems to be always empty
+	Timestamp string      `json:"read"`
+	CPU       CPUStats    `json:"cpu_stats"`
+	Memory    MemStats    `json:"memory_stats"`
+	IO        IOStats     `json:"blkio_stats"`
+	Networks  NetStatsMap `json:"networks"`
+	// Pids    []int32  `json:"pids_stats"` // seems to be always empty
 }
 
 // NetStatsMap represents a map of networks stats

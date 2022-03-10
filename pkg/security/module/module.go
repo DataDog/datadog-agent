@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -61,7 +62,7 @@ type Module struct {
 	sigupChan        chan os.Signal
 	ctx              context.Context
 	cancelFnc        context.CancelFunc
-	rulesLoaded      func(rs *rules.RuleSet)
+	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
 
 	selfTester *SelfTester
@@ -267,14 +268,26 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
+	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
+	for name, value := range model.SECLVariables {
+		probeVariables[name] = value
+	}
+
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(model.SECLVariables).
+		WithVariables(probeVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
 		WithLegacyFields(model.SECLLegacyFields).
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
@@ -283,6 +296,9 @@ func (m *Module) Reload() error {
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
 	opts.WithVariables(sprobe.SECLVariables)
+	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+	})
 
 	ruleSet := m.probe.NewRuleSet(&opts)
 	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
@@ -312,7 +328,7 @@ func (m *Module) Reload() error {
 
 	ruleSet.AddListener(m)
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet)
+		m.rulesLoaded(ruleSet, loadErr)
 	}
 
 	m.currentRuleSet.Store(ruleSet)
@@ -500,7 +516,7 @@ func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet)) {
+func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
 	m.rulesLoaded = cb
 }
 

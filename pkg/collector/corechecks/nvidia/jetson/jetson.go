@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -104,7 +103,7 @@ func getSizeMultiplier(unit string) float64 {
 
 // Parses the output of tegrastats
 func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

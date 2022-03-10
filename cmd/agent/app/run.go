@@ -19,11 +19,11 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
-	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/cmd/agent/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -54,6 +54,7 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register core checks
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
@@ -375,12 +376,17 @@ func StartAgent() error {
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(demux, nil)
+		common.DSD, err = dogstatsd.NewServer(demux)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		} else {
 			log.Debugf("dogstatsd started")
 		}
+	}
+
+	// Setup stats telemetry handler
+	if sender, err := demux.GetDefaultSender(); err == nil {
+		telemetry.RegisterStatsSender(sender)
 	}
 
 	// Start OTLP intake
@@ -416,7 +422,7 @@ func StartAgent() error {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
-		if err := logs.Start(func() *autodiscovery.AutoConfig { return common.AC }); err != nil {
+		if _, err := logs.Start(func() *autodiscovery.AutoConfig { return common.AC }); err != nil {
 			log.Error("Could not start logs-agent: ", err)
 		}
 	} else {

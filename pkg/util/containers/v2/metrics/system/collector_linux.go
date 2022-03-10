@@ -10,6 +10,7 @@ package system
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +22,8 @@ import (
 )
 
 const (
-	systemCollectorID = "system"
+	systemCollectorID      = "system"
+	cgroupV1BaseController = "memory"
 )
 
 func init() {
@@ -37,8 +39,9 @@ func init() {
 }
 
 type systemCollector struct {
-	reader   *cgroups.Reader
-	procPath string
+	reader         *cgroups.Reader
+	procPath       string
+	baseController string
 }
 
 func newSystemCollector() (*systemCollector, error) {
@@ -56,7 +59,7 @@ func newSystemCollector() (*systemCollector, error) {
 	}
 
 	reader, err := cgroups.NewReader(
-		cgroups.WithCgroupV1BaseController("freezer"),
+		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
 		cgroups.WithReaderFilter(cgroups.ContainerFilter),
@@ -67,10 +70,17 @@ func newSystemCollector() (*systemCollector, error) {
 		return nil, provider.ErrPermaFail
 	}
 
-	return &systemCollector{
+	systemCollector := &systemCollector{
 		reader:   reader,
 		procPath: procPath,
-	}, nil
+	}
+
+	// Set base controller for cgroupV1 (remains empty for cgroupV2)
+	if reader.CgroupVersion() == 1 {
+		systemCollector.baseController = cgroupV1BaseController
+	}
+
+	return systemCollector, nil
 }
 
 func (c *systemCollector) ID() string {
@@ -101,15 +111,13 @@ func (c *systemCollector) GetContainerNetworkStats(containerID string, cacheVali
 }
 
 func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	// Currently it does not consider cacheVadlity as no cache is used.
-	refs, err := cgroups.ReadCgroupReferences(c.procPath, pid)
-	if err != nil {
-		return "", err
-	}
+	containerID, _, err := cgroups.ContainerIDFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController)
+	return containerID, err
+}
 
-	// Returns first match in the file. We do expect all container IDs to be the same.
-	cID := cgroups.ContainerRegexp.FindString(refs)
-	return cID, nil
+func (c *systemCollector) GetSelfContainerID() (string, error) {
+	containerID, _, err := cgroups.ContainerIDFromCgroupReferences("/proc", "self", c.baseController)
+	return containerID, err
 }
 
 func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
@@ -176,6 +184,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.RSS, &cs.RSS)
 	convertField(cgs.Cache, &cs.Cache)
 	convertField(cgs.Swap, &cs.Swap)
+	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
 
 	return cs

@@ -323,6 +323,42 @@ var (
 		"MAP_HUGE_16GB":       34 << unix.MAP_HUGE_SHIFT,
 	}
 
+	signalConstants = map[string]int{
+		"SIGHUP":    int(unix.SIGHUP),
+		"SIGINT":    int(unix.SIGINT),
+		"SIGQUIT":   int(unix.SIGQUIT),
+		"SIGILL":    int(unix.SIGILL),
+		"SIGTRAP":   int(unix.SIGTRAP),
+		"SIGABRT":   int(unix.SIGABRT),
+		"SIGIOT":    int(unix.SIGIOT),
+		"SIGBUS":    int(unix.SIGBUS),
+		"SIGFPE":    int(unix.SIGFPE),
+		"SIGKILL":   int(unix.SIGKILL),
+		"SIGUSR1":   int(unix.SIGUSR1),
+		"SIGSEGV":   int(unix.SIGSEGV),
+		"SIGUSR2":   int(unix.SIGUSR2),
+		"SIGPIPE":   int(unix.SIGPIPE),
+		"SIGALRM":   int(unix.SIGALRM),
+		"SIGTERM":   int(unix.SIGTERM),
+		"SIGSTKFLT": int(unix.SIGSTKFLT),
+		"SIGCHLD":   int(unix.SIGCHLD),
+		"SIGCONT":   int(unix.SIGCONT),
+		"SIGSTOP":   int(unix.SIGSTOP),
+		"SIGTSTP":   int(unix.SIGTSTP),
+		"SIGTTIN":   int(unix.SIGTTIN),
+		"SIGTTOU":   int(unix.SIGTTOU),
+		"SIGURG":    int(unix.SIGURG),
+		"SIGXCPU":   int(unix.SIGXCPU),
+		"SIGXFSZ":   int(unix.SIGXFSZ),
+		"SIGVTALRM": int(unix.SIGVTALRM),
+		"SIGPROF":   int(unix.SIGPROF),
+		"SIGWINCH":  int(unix.SIGWINCH),
+		"SIGIO":     int(unix.SIGIO),
+		"SIGPOLL":   int(unix.SIGPOLL),
+		"SIGPWR":    int(unix.SIGPWR),
+		"SIGSYS":    int(unix.SIGSYS),
+	}
+
 	unlinkFlagsConstants = map[string]int{
 		"AT_REMOVEDIR": unix.AT_REMOVEDIR,
 	}

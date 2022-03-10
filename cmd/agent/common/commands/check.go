@@ -138,6 +138,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 			opts := aggregator.DefaultDemultiplexerOptions(nil)
 			opts.FlushInterval = 0
+			opts.UseNoopForwarder = true
 			opts.UseNoopEventPlatformForwarder = true
 			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
@@ -614,13 +615,15 @@ func getMetricsData(demux aggregator.Demultiplexer) map[string]interface{} {
 
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
-		// Workaround to get the raw sequence of metrics, see:
-		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
-		var data map[string]interface{}
-		sj, _ := json.Marshal(series)
-		json.Unmarshal(sj, &data) //nolint:errcheck
+		metrics := make([]interface{}, len(series))
+		// Workaround to get the sequence of metrics as plain interface{}
+		for i, serie := range series {
+			serie.PopulateDeviceField()
+			sj, _ := json.Marshal(serie)
+			json.Unmarshal(sj, &metrics[i]) //nolint:errcheck
+		}
 
-		aggData["metrics"] = data["series"]
+		aggData["metrics"] = metrics
 	}
 	if len(sketches) != 0 {
 		aggData["sketches"] = sketches

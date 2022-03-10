@@ -7,6 +7,7 @@ package service
 
 import (
 	"encoding/base32"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -48,7 +49,7 @@ func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error)
 	return &key, nil
 }
 
-func buildLatestConfigsRequest(hostname string, state uptane.State, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}) *pbgo.LatestConfigsRequest {
+func buildLatestConfigsRequest(hostname string, state uptane.State, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, clientState []byte) *pbgo.LatestConfigsRequest {
 	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
@@ -61,15 +62,28 @@ func buildLatestConfigsRequest(hostname string, state uptane.State, activeClient
 		newProductsList[i] = k
 		i++
 	}
-
 	return &pbgo.LatestConfigsRequest{
 		Hostname:                     hostname,
 		AgentVersion:                 version.AgentVersion,
 		Products:                     data.ProductListToString(productsList),
 		NewProducts:                  data.ProductListToString(newProductsList),
-		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion,
-		CurrentConfigRootVersion:     state.ConfigRootVersion,
-		CurrentDirectorRootVersion:   state.DirectorRootVersion,
+		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion(),
+		CurrentConfigRootVersion:     state.ConfigRootVersion(),
+		CurrentDirectorRootVersion:   state.DirectorRootVersion(),
 		ActiveClients:                activeClients,
+		ClientState:                  clientState,
 	}
+}
+
+type targetsCustom struct {
+	ClientState []byte `json:"client_state"`
+}
+
+func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {
+	var custom targetsCustom
+	err := json.Unmarshal(rawTargetsCustom, &custom)
+	if err != nil {
+		return targetsCustom{}, err
+	}
+	return custom, nil
 }

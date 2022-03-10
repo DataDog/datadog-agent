@@ -31,6 +31,7 @@ const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 const kernelModulesPath = "/lib/modules/%s/build"
 const debKernelModulesPath = "/lib/modules/%s/source"
 const cosKernelModulesPath = "/usr/src/linux-headers-%s"
+const centosKernelModulesPath = "/usr/src/kernels/%s"
 const fedoraKernelModulesPath = "/usr"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
@@ -83,7 +84,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 		if dirs, err = getSysfsHeaderDirs(hv); err == nil {
 			return dirs, sysfsHeadersFound, nil
 		}
-		log.Debugf("unable to find system kernel headers: %w", err)
+		log.Debugf("unable to find system kernel headers: %v", err)
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
@@ -138,7 +139,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 				valid = append(valid, d)
 				continue
 			}
-			log.Debugf("error validating %s: error validating headers version: %w", d, err)
+			log.Debugf("error validating %s: error validating headers version: %v", d, err)
 			continue
 		}
 
@@ -245,6 +246,7 @@ func getDefaultHeaderDirs() []string {
 		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(centosKernelModulesPath, hi.KernelVersion),
 		fedoraKernelModulesPath,
 	}
 	return dirs

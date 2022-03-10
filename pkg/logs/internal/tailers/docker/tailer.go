@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 
 	"github.com/docker/docker/api/types"
 )
@@ -34,26 +34,45 @@ type dockerContainerLogInterface interface {
 }
 
 // Tailer tails logs coming from stdout and stderr of a docker container
-// Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
+// Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later on.
 // To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
+//
+// This tailer contains three components, communicating with channels:
+//  - readForever
+//  - decoder
+//  - message forwarder
 type Tailer struct {
+	// ContainerID is the ID of the container this tailer is tailing.
 	ContainerID string
+
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
-	reader      *safeReader
 	dockerutil  dockerContainerLogInterface
 	Source      *config.LogSource
 	tagProvider tag.Provider
 
-	readTimeout        time.Duration
-	sleepDuration      time.Duration
-	shouldStop         bool
-	stop               chan struct{}
-	done               chan struct{}
+	readTimeout   time.Duration
+	sleepDuration time.Duration
+
+	// stop: writing a value to this channel will cause the readForever component to stop
+	stop chan struct{}
+
+	// done: a value is written to this channel when the message-forwarder
+	// component is finished.
+	done chan struct{}
+
 	erroredContainerID chan string
-	cancelFunc         context.CancelFunc
-	lastSince          string
-	mutex              sync.Mutex
+
+	// reader is the io.Reader reading chunks of log data from the Docker API.
+	reader *safeReader
+
+	// readerCancelFunc is the context cancellation function for the ongoing
+	// docker-API reader.  Calling this function will cancel any pending Read
+	// calls, which will return context.Canceled
+	readerCancelFunc context.CancelFunc
+
+	lastSince string
+	mutex     sync.Mutex
 }
 
 // NewTailer returns a new Tailer
@@ -83,13 +102,22 @@ func (t *Tailer) Identifier() string {
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", dockerutil.ShortContainerID(t.ContainerID))
+
+	// signal the readForever component to stop
 	t.stop <- struct{}{}
 
+	// signal the reader itself to close.
 	t.reader.Close()
-	// no-op if already closed because of a timeout
-	t.cancelFunc()
+
+	// signal the reader to stop a third way, by cancelling its context.  no-op
+	// if already closed because of a timeout
+	t.readerCancelFunc()
+
 	t.Source.RemoveInput(t.ContainerID)
-	// wait for the decoder to be flushed
+
+	// the closed readForever component will eventually close its channel to the decoder,
+	// which will eventually close its channel to the message-forwarder component,
+	// which will indicate it's done with this channel.
 	<-t.done
 }
 
@@ -136,7 +164,7 @@ func (t *Tailer) setupReader() error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.dockerutil.ContainerLogs(ctx, t.ContainerID, options)
 	t.reader.setUnsafeReader(reader)
-	t.cancelFunc = cancelFunc
+	t.readerCancelFunc = cancelFunc
 
 	return err
 }
@@ -164,6 +192,11 @@ func (t *Tailer) tail(since string) error {
 	t.Source.Status.Success()
 	t.Source.AddInput(t.ContainerID)
 
+	// Start (in reverse order) the three actor components of this tailer, each
+	// in dedicated goroutines:
+	// - readForever, which reads data from the docker API and passes it to..
+	// - the decoder, which runs in its own goroutine(s) and passes messages to..
+	// - forwardMessage, which writes messages to t.outputChan.
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -174,6 +207,8 @@ func (t *Tailer) tail(since string) error {
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
 func (t *Tailer) readForever() {
+	// close the decoder's input channel when this function returns, causing it to
+	// flush and close its output channel
 	defer t.decoder.Stop()
 	for {
 		select {
@@ -243,7 +278,7 @@ func (t *Tailer) readForever() {
 }
 
 // read implement a timeout on t.reader.Read() because it can be blocking (it's a
-// wrapper over an HTTP call). If read timeouts, the tailer will be restarted.
+// wrapper over an HTTP call). If read timeouts, this function returns context.Canceled.
 func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	var n int
 	var err error
@@ -257,7 +292,9 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	case <-doneReading:
 	case <-time.After(timeout):
 		// Cancel the docker socket reader context
-		t.cancelFunc()
+		t.readerCancelFunc()
+		// wait for the Read call to return, likely with
+		// context.Canceled
 		<-doneReading
 	}
 
@@ -273,7 +310,6 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.shouldStop = true
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
