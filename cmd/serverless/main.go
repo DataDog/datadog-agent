@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
@@ -350,10 +351,13 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 }
 
 func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	if err := logs.StartServerless(
+	agent, err := logs.StartServerless(
 		func() *autodiscovery.AutoConfig { return common.AC },
-		logChannel, nil,
-	); err != nil {
+	)
+	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
+		return
 	}
+
+	agent.AddScheduler(serverlessLogs.NewScheduler(logChannel, nil))
 }

@@ -13,6 +13,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 )
 
@@ -31,6 +32,10 @@ type release struct {
 	Chart     *chart `json:"chart,omitempty"`
 	Version   int    `json:"version,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
+}
+
+func (rel *release) ID() string {
+	return fmt.Sprintf("%s/%s/%d", rel.Namespace, rel.Name, rel.Version)
 }
 
 type info struct {

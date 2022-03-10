@@ -14,7 +14,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -146,7 +145,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
 	// access serializer
-	sender, err := aggregator.GetSender(o.ID())
+	sender, err := o.GetSender()
 	if err != nil {
 		return err
 	}

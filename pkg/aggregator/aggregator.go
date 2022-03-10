@@ -767,7 +767,7 @@ func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
 		case event := <-agg.contLcycleBuffer:
 			if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
 				aggregatorContainerLifecycleEventsErrors.Add(1)
-				log.Warnf("Error submitting container lifecycle data: %w", err)
+				log.Warnf("Error submitting container lifecycle data: %v", err)
 			}
 		case <-agg.contLcycleStopper:
 			return

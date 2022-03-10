@@ -46,7 +46,9 @@ func DefaultFilter(path, name string) (string, error) {
 }
 
 // ContainerRegexp defines the regexp used to match container ids
-var ContainerRegexp = regexp.MustCompile("([0-9a-f]{64}|[0-9a-f]{8}(-[0-9a-f]{4}){4})")
+// First part is usual containerid (opencontainers standard)
+// Second part is PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
+var ContainerRegexp = regexp.MustCompile("([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)")
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
 func ContainerFilter(path, name string) (string, error) {
@@ -147,6 +149,11 @@ func (r *Reader) init() error {
 	}
 
 	return nil
+}
+
+// CgroupVersion returns the detected cgroup version
+func (r *Reader) CgroupVersion() int {
+	return r.cgroupVersion
 }
 
 // ListCgroups returns list of known cgroups

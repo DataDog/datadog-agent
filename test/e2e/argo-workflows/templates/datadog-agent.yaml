@@ -48,7 +48,6 @@ spec:
             processAgent:
               enabled: true
             systemProbe:
-              seccomp: "runtime/default"
               enableTCPQueueLength: true
               enableOOMKill: true
             networkMonitoring:

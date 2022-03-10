@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
 
 // Tailer tails one file and sends messages to an output channel
@@ -114,17 +114,6 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	go t.readForever()
 
 	return nil
-}
-
-// DidRotate returns true if the tailer's file has been log-rotated.
-// When a log rotation occurs, the file can be either:
-// - renamed and recreated
-// - removed and recreated
-// - truncated
-// readForever lets the tailer tail the content of a file
-// until it is closed or the tailer is stopped.
-func (t *Tailer) DidRotate() (bool, error) {
-	return DidRotate(t.osFile, t.GetReadOffset())
 }
 
 func (t *Tailer) readForever() {
