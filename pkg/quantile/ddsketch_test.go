@@ -18,7 +18,7 @@ const (
 	acceptableFloatError = 1e-12
 )
 
-func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSketch {
+func generateDDSketch(quantile func(float64) float64, N, M int) (*ddsketch.DDSketch, error) {
 	sketch, _ := ddsketch.NewDefaultDDSketch(0.01)
 	// Simulate a given distribution by replacing it with a distribution
 	// where all points are placed where the evaluated quantiles are.
@@ -26,10 +26,13 @@ func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSket
 	// the generated distribution and the theoretical distribution, making
 	// comparisons easy in the test cases.
 	for i := 0; i <= N; i++ {
-		sketch.AddWithCount(quantile(float64(i)/float64(N)), float64(M))
+		err := sketch.AddWithCount(quantile(float64(i)/float64(N)), float64(M))
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return sketch
+	return sketch, nil
 }
 
 func TestCreateDDSketchWithSketchMapping(t *testing.T) {
@@ -76,7 +79,8 @@ func TestCreateDDSketchWithSketchMapping(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sketch := generateDDSketch(test.quantile, 100, M)
+			sketch, err := generateDDSketch(test.quantile, 100, M)
+			assert.NoError(t, err)
 
 			// Check the count of the sketch
 			assert.Equal(
@@ -217,7 +221,8 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sketch := generateDDSketch(test.quantile, 100, M)
+			sketch, err := generateDDSketch(test.quantile, 100, M)
+			assert.NoError(t, err)
 
 			// Check the count of the sketch
 			assert.Equal(
