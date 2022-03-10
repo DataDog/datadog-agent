@@ -72,9 +72,7 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 
 const runtimeCompilationTemplate = `
 #include <linux/kconfig.h>
-#ifdef CONFIG_ARM64_MTE
-#undef CONFIG_ARM64_MTE
-#endif
+#include <asm/compiler.h>
 {{ range .headers }}
 #include <{{ . }}>
 {{ end }}
