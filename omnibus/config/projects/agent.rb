@@ -214,7 +214,7 @@ package :msi do
       safe_embedded_archive_path = windows_safe_path(install_dir, "embedded#{version}.7z")
 
       shellout!(
-        <<-EOH.split.join(" ").squeeze(" ").strip
+        <<-EOH.strip
           7z a -mx=5 -ms=on #{safe_embedded_archive_path} #{safe_embedded_path}
       EOH
       )
