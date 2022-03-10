@@ -192,10 +192,9 @@ func (nn *NetworkNamespace) hasValidHandle() bool {
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
 	sync.RWMutex
-	state     int64
-	probe     *Probe
-	resolvers *Resolvers
-	client    *statsd.Client
+	state  int64
+	probe  *Probe
+	client *statsd.Client
 
 	networkNamespaces map[uint32]*NetworkNamespace
 }
@@ -204,7 +203,6 @@ type NamespaceResolver struct {
 func NewNamespaceResolver(probe *Probe) *NamespaceResolver {
 	return &NamespaceResolver{
 		probe:             probe,
-		resolvers:         probe.resolvers,
 		client:            probe.statsdClient,
 		networkNamespaces: make(map[uint32]*NetworkNamespace),
 	}
@@ -268,8 +266,8 @@ func (nr *NamespaceResolver) ResolveNetworkNamespace(nsID uint32) *NetworkNamesp
 		return nil
 	}
 
-	nr.Lock()
-	defer nr.Unlock()
+	nr.RLock()
+	defer nr.RUnlock()
 
 	return nr.networkNamespaces[nsID]
 }
@@ -291,7 +289,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 
 	links, err := ntl.Sock.LinkList()
 	if err != nil {
-		seclog.Errorf("couldn't list network interfaces in namespace %d: %s", netns, err)
+		seclog.Errorf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
 		return 0
 	}
 
@@ -550,6 +548,7 @@ func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []Netw
 		if params.GetSnapshotInterfaces() {
 			handle, err = netns.getNamespaceHandleDup()
 			if err != nil {
+				netns.Unlock()
 				continue
 			}
 

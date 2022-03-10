@@ -81,15 +81,6 @@ var (
 		snapshotInterfaces bool
 	}{}
 
-	dumpCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "Dump security module information",
-	}
-
-	dumpProcessArgs = struct {
-		withArgs bool
-	}{}
-
 	processCacheCmd = &cobra.Command{
 		Use:   "process-cache",
 		Short: "process cache",
