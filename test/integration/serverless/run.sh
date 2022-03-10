@@ -249,6 +249,8 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/[ ]$//g" |
+                perl -p -e "s/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z)/\DATE/g" |
+                perl -p -e "s/([a-z0-9-]{37})/\HASH/g" |
                 # ignore a Lambda error that occurs sporadically for log-csharp
                 # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
                 perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
