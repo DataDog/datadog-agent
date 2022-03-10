@@ -109,6 +109,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 
 	// Test network stats
 	expectedPodNetworkStats := &provider.ContainerNetworkStats{
+		Timestamp: expectedTime,
 		BytesRcvd: pointer.Float64Ptr(254942755),
 		BytesSent: pointer.Float64Ptr(137422821),
 		Interfaces: map[string]provider.InterfaceNetStats{

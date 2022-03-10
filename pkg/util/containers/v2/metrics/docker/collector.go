@@ -98,7 +98,7 @@ func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheVali
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks), nil
+	return convertNetworkStats(stats), nil
 }
 
 // GetContainerIDForPID returns the container ID for given PID
@@ -189,11 +189,20 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 		return
 	}
 
+	if spec.State != nil && spec.State.Pid > 0 {
+		if containerStats.PID == nil {
+			containerStats.PID = &provider.ContainerPIDStats{}
+		}
+
+		containerStats.PID.PIDs = append(containerStats.PID.PIDs, spec.State.Pid)
+	}
+
 	computeCPULimit(containerStats, spec)
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.ContainerNetworkStats {
+func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
+		Timestamp:   stats.Read,
 		BytesSent:   pointer.Float64Ptr(0),
 		BytesRcvd:   pointer.Float64Ptr(0),
 		PacketsSent: pointer.Float64Ptr(0),
@@ -201,7 +210,7 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.C
 		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
-	for ifname, netStats := range networkStats {
+	for ifname, netStats := range stats.Networks {
 		*containerNetworkStats.BytesSent += float64(netStats.TxBytes)
 		*containerNetworkStats.BytesRcvd += float64(netStats.RxBytes)
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)

@@ -62,7 +62,7 @@ type Module struct {
 	sigupChan        chan os.Signal
 	ctx              context.Context
 	cancelFnc        context.CancelFunc
-	rulesLoaded      func(rs *rules.RuleSet)
+	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
 
 	selfTester *SelfTester
@@ -328,7 +328,7 @@ func (m *Module) Reload() error {
 
 	ruleSet.AddListener(m)
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet)
+		m.rulesLoaded(ruleSet, loadErr)
 	}
 
 	m.currentRuleSet.Store(ruleSet)
@@ -516,7 +516,7 @@ func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet)) {
+func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
 	m.rulesLoaded = cb
 }
 

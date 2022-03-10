@@ -78,12 +78,12 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 	// different than the agent hostname depending on the environment (like EC2 or GCE).
 	d.dockerHostname, err = util.GetHostname(context.TODO())
 	if err != nil {
-		log.Warnf("Can't get hostname from docker, events will not have it: %w", err)
+		log.Warnf("Can't get hostname from docker, events will not have it: %v", err)
 	}
 
 	d.containerFilter, err = containers.GetSharedMetricFilter()
 	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	d.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(d.containerFilter))
@@ -95,7 +95,7 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 }
 
 func (d *DockerCheck) getSender() (aggregator.Sender, error) {
-	sender, err := aggregator.GetSender(d.ID())
+	sender, err := d.GetSender()
 	if err != nil {
 		return sender, err
 	}
@@ -196,7 +196,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		if perImage == nil {
 			imageTags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 			if err != nil {
-				log.Warnf("Unable to fetch tags for container: %s, err: %w", rawContainer.ImageID, err)
+				log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ImageID, err)
 			} else {
 				perImage = &containerPerImage{
 					tags: imageTags,
@@ -221,7 +221,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		// Send container size metrics
 		containerTags, err := tagger.Tag(taggerEntityID, collectors.HighCardinality)
 		if err != nil {
-			log.Warnf("Unable to fetch tags for container: %s, err: %w", rawContainer.ID, err)
+			log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ID, err)
 		}
 
 		if rawContainer.SizeRw > 0 || rawContainer.SizeRootFs > 0 {
@@ -271,15 +271,15 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 func (d *DockerCheck) collectImageMetrics(sender aggregator.Sender, du docker.Client, containersPerImage map[string]*containerPerImage) error {
 	availableImages, err := du.Images(context.TODO(), false)
 	if err != nil {
-		log.Warnf("Unable to list Docker images, err: %w", err)
-		_ = d.Warnf("Unable to list Docker images, err: %w", err)
+		log.Warnf("Unable to list Docker images, err: %v", err)
+		_ = d.Warnf("Unable to list Docker images, err: %v", err)
 		sender.ServiceCheck(DockerServiceUp, coreMetrics.ServiceCheckCritical, "", nil, err.Error())
 		return err
 	}
 	allImages, err := du.Images(context.TODO(), true)
 	if err != nil {
-		log.Warnf("Unable to list Docker images, err: %w", err)
-		_ = d.Warnf("Unable to list Docker images, err: %w", err)
+		log.Warnf("Unable to list Docker images, err: %v", err)
+		_ = d.Warnf("Unable to list Docker images, err: %v", err)
 		sender.ServiceCheck(DockerServiceUp, coreMetrics.ServiceCheckCritical, "", nil, err.Error())
 		return err
 	}
@@ -289,7 +289,7 @@ func (d *DockerCheck) collectImageMetrics(sender aggregator.Sender, du docker.Cl
 			imageName := du.GetPreferredImageName(image.ID, image.RepoTags, image.RepoDigests)
 			imageTags, err := getImageTags(imageName)
 			if err != nil {
-				log.Tracef("Unable to resolve image from repotags/digests with id: %s, err: %w", err)
+				log.Tracef("Unable to resolve image from repotags/digests with id: %s, err: %v", imageName, err)
 				continue
 			}
 

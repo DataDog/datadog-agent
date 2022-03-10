@@ -12,6 +12,7 @@ import (
 	"context"
 	json "encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -113,6 +114,71 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 	}, nil
 }
 
+// DumpActivity handle an activity dump request
+func (a *APIServer) DumpActivity(ctx context.Context, params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+	var filename, graph string
+	var err error
+
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		filename, graph, err = monitor.DumpActivity(params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &api.SecurityActivityDumpMessage{
+		OutputFilename: filename,
+		GraphFilename:  graph,
+	}, nil
+}
+
+// ListActivityDumps returns the list of active dumps
+func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
+	var activeDumps []string
+	var err error
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		activeDumps, err = monitor.ListActivityDumps(params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &api.SecurityActivityDumpListMessage{
+		DumpTags: activeDumps,
+	}, nil
+}
+
+// StopActivityDump stops an active activity dump if it exists
+func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
+	var msg string
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		err := monitor.StopActivityDump(params)
+		if err != nil {
+			msg = fmt.Sprintf("couldn't stop activity dump: %s", err)
+		}
+	}
+
+	return &api.SecurityActivityDumpStoppedMessage{
+		Error: msg,
+	}, nil
+}
+
+// GenerateProfile generates a profile from an activity dump
+func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
+	var output string
+	var err error
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		output, err = monitor.GenerateProfile(params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &api.SecurityProfileGeneratedMessage{
+		ProfilePath: output,
+	}, nil
+}
+
 func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Lock()
 	a.queue = append(a.queue, msg)
@@ -157,8 +223,17 @@ func (a *APIServer) start(ctx context.Context) {
 
 				// recopy tags
 				var tags []string
+				hasService := len(msg.service) != 0
 				for tag := range msg.tags {
 					tags = append(tags, tag)
+
+					// look for the service tag if we don't have one yet
+					if !hasService {
+						if strings.HasPrefix(tag, "service:") {
+							msg.service = strings.TrimPrefix(tag, "service:")
+							hasService = true
+						}
+					}
 				}
 
 				m := &api.SecurityEventMessage{

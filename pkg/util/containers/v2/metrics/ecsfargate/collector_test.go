@@ -15,13 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConvertEcsNetworkStats(t *testing.T) {
+	testTimeStr := "2020-10-02T00:51:13.410254284Z"
+	testTime, err := time.Parse(time.RFC3339Nano, testTimeStr)
+	assert.NoError(t, err)
+
 	type args struct {
-		netStats v2.NetStatsMap
+		ecsStats *v2.ContainerStats
 	}
 	tests := []struct {
 		name string
@@ -31,9 +34,13 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 		{
 			name: "nominal case",
 			args: args{
-				netStats: v2.NetStatsMap{"eth1": v2.NetStats{RxBytes: 2398415937, RxPackets: 1898631, TxBytes: 1259037719, TxPackets: 428002}},
+				ecsStats: &v2.ContainerStats{
+					Timestamp: testTimeStr,
+					Networks:  v2.NetStatsMap{"eth1": v2.NetStats{RxBytes: 2398415937, RxPackets: 1898631, TxBytes: 1259037719, TxPackets: 428002}},
+				},
 			},
 			want: &provider.ContainerNetworkStats{
+				Timestamp:   testTime,
 				Interfaces:  map[string]provider.InterfaceNetStats{"eth1": {BytesRcvd: pointer.UIntToFloatPtr(2398415937), PacketsRcvd: pointer.UIntToFloatPtr(1898631), BytesSent: pointer.UIntToFloatPtr(1259037719), PacketsSent: pointer.UIntToFloatPtr(428002)}},
 				BytesRcvd:   pointer.UIntToFloatPtr(2398415937),
 				PacketsRcvd: pointer.UIntToFloatPtr(1898631),
@@ -44,12 +51,16 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 		{
 			name: "multiple interfaces",
 			args: args{
-				netStats: v2.NetStatsMap{
-					"eth0": v2.NetStats{RxBytes: 2398415937, RxPackets: 1898631, TxBytes: 1259037719, TxPackets: 428002},
-					"eth1": v2.NetStats{TxBytes: 2398415936, TxPackets: 1898630, RxBytes: 1259037718, RxPackets: 428001},
+				ecsStats: &v2.ContainerStats{
+					Timestamp: testTimeStr,
+					Networks: v2.NetStatsMap{
+						"eth0": v2.NetStats{RxBytes: 2398415937, RxPackets: 1898631, TxBytes: 1259037719, TxPackets: 428002},
+						"eth1": v2.NetStats{TxBytes: 2398415936, TxPackets: 1898630, RxBytes: 1259037718, RxPackets: 428001},
+					},
 				},
 			},
 			want: &provider.ContainerNetworkStats{
+				Timestamp: testTime,
 				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {BytesRcvd: pointer.UIntToFloatPtr(2398415937), PacketsRcvd: pointer.UIntToFloatPtr(1898631), BytesSent: pointer.UIntToFloatPtr(1259037719), PacketsSent: pointer.UIntToFloatPtr(428002)},
 					"eth1": {BytesSent: pointer.UIntToFloatPtr(2398415936), PacketsSent: pointer.UIntToFloatPtr(1898630), BytesRcvd: pointer.UIntToFloatPtr(1259037718), PacketsRcvd: pointer.UIntToFloatPtr(428001)},
@@ -63,13 +74,16 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.EqualValues(t, tt.want, convertNetworkStats(tt.args.netStats))
+			assert.EqualValues(t, tt.want, convertNetworkStats(tt.args.ecsStats))
 		})
 	}
 }
 
 func TestConvertEcsStats(t *testing.T) {
-	constTime := time.Now()
+	testTimeStr := "2020-10-02T00:51:13.410254284Z"
+	testTime, err := time.Parse(time.RFC3339Nano, testTimeStr)
+	assert.NoError(t, err)
+
 	type args struct {
 		ecsStats *v2.ContainerStats
 	}
@@ -82,8 +96,9 @@ func TestConvertEcsStats(t *testing.T) {
 			name: "nominal case",
 			args: args{
 				ecsStats: &v2.ContainerStats{
-					CPU:    v2.CPUStats{Usage: v2.CPUUsage{Total: 1137691504, Kernelmode: 80000000, Usermode: 810000000}},
-					Memory: v2.MemStats{Limit: 9223372036854772000, Usage: 6504448, Details: v2.DetailedMem{RSS: 4669440, Cache: 651264}},
+					Timestamp: testTimeStr,
+					CPU:       v2.CPUStats{Usage: v2.CPUUsage{Total: 1137691504, Kernelmode: 80000000, Usermode: 810000000}},
+					Memory:    v2.MemStats{Usage: 6504448, Details: v2.DetailedMem{RSS: 4669440, Cache: 651264}},
 					IO: v2.IOStats{
 						BytesPerDeviceAndKind: []v2.OPStat{
 							{
@@ -153,14 +168,13 @@ func TestConvertEcsStats(t *testing.T) {
 				},
 			},
 			want: &provider.ContainerStats{
-				Timestamp: constTime,
+				Timestamp: testTime,
 				CPU: &provider.ContainerCPUStats{
 					Total:  pointer.UIntToFloatPtr(1137691504),
 					System: pointer.UIntToFloatPtr(80000000),
 					User:   pointer.UIntToFloatPtr(810000000),
 				},
 				Memory: &provider.ContainerMemStats{
-					Limit:      pointer.UIntToFloatPtr(9223372036854772000),
 					UsageTotal: pointer.UIntToFloatPtr(6504448),
 					RSS:        pointer.UIntToFloatPtr(4669440),
 					Cache:      pointer.UIntToFloatPtr(651264),
@@ -177,9 +191,48 @@ func TestConvertEcsStats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := convertEcsStats(tt.args.ecsStats)
-			got.Timestamp = constTime // avoid comparing the timestamp field as we have no control over it
-
 			assert.EqualValues(t, tt.want, got)
 		})
 	}
+}
+
+func TestFillFromSpec(t *testing.T) {
+	testSpec := &v2.Task{
+		Limits: map[string]float64{
+			cpuKey:    0.5,
+			memoryKey: 4096,
+		},
+	}
+
+	// Nominal case, no limits found from stats
+	containerStats := &provider.ContainerStats{
+		CPU:    &provider.ContainerCPUStats{},
+		Memory: &provider.ContainerMemStats{},
+	}
+	fillFromSpec(containerStats, testSpec)
+	assert.EqualValues(t, &provider.ContainerStats{
+		CPU: &provider.ContainerCPUStats{
+			Limit: pointer.Float64Ptr(50),
+		},
+		Memory: &provider.ContainerMemStats{
+			Limit: pointer.Float64Ptr(4294967296),
+		},
+	}, containerStats)
+
+	// Test no memory override
+	containerStats = &provider.ContainerStats{
+		CPU: &provider.ContainerCPUStats{},
+		Memory: &provider.ContainerMemStats{
+			Limit: pointer.Float64Ptr(1024),
+		},
+	}
+	fillFromSpec(containerStats, testSpec)
+	assert.EqualValues(t, &provider.ContainerStats{
+		CPU: &provider.ContainerCPUStats{
+			Limit: pointer.Float64Ptr(50),
+		},
+		Memory: &provider.ContainerMemStats{
+			Limit: pointer.Float64Ptr(1024),
+		},
+	}, containerStats)
 }

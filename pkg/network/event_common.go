@@ -118,26 +118,59 @@ type BufferedData struct {
 type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]string
-	ConnTelemetry               *ConnectionsTelemetry
+	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
-// ConnectionsTelemetry stores telemetry from the system probe related to connections collection
-type ConnectionsTelemetry struct {
-	MonotonicKprobesTriggered          int64
-	MonotonicKprobesMissed             int64
-	MonotonicConntrackRegisters        int64
-	MonotonicConntrackRegistersDropped int64
-	MonotonicDNSPacketsProcessed       int64
-	MonotonicConnsClosed               int64
-	ConnsBpfMapSize                    int64
-	MonotonicUDPSendsProcessed         int64
-	MonotonicUDPSendsMissed            int64
-	ConntrackSamplingPercent           int64
-	DNSStatsDropped                    int64
-}
+// ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
+// The string name of each telemetry type is the metric name which will be emitted
+type ConnTelemetryType string
+
+//revive:disable:exported
+const (
+	MonotonicKprobesTriggered          ConnTelemetryType = "kprobes_triggered"
+	MonotonicKprobesMissed                               = "kprobes_missed"
+	MonotonicConnsClosed                                 = "conns_closed"
+	MonotonicConntrackRegisters                          = "conntrack_registers"
+	MonotonicConntrackRegistersDropped                   = "conntrack_registers_dropped"
+	MonotonicDNSPacketsProcessed                         = "dns_packets_processed"
+	MonotonicUDPSendsProcessed                           = "udp_sends_processed"
+	MonotonicUDPSendsMissed                              = "udp_sends_missed"
+	DNSStatsDropped                                      = "dns_stats_dropped"
+	ConnsBpfMapSize                                      = "conns_bpf_map_size"
+	ConntrackSamplingPercent                             = "conntrack_sampling_percent"
+	NPMDriverFlowsMissedMaxExceeded                      = "driver_flows_missed_max_exceeded"
+	MonotonicDNSPacketsDropped                           = "dns_packets_dropped"
+)
+
+//revive:enable
+
+var (
+	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
+	// into the network connections payload
+	ConnTelemetryTypes = []ConnTelemetryType{
+		ConnsBpfMapSize,
+		ConntrackSamplingPercent,
+		DNSStatsDropped,
+		NPMDriverFlowsMissedMaxExceeded,
+	}
+
+	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
+	// into the network connections payload
+	MonotonicConnTelemetryTypes = []ConnTelemetryType{
+		MonotonicKprobesTriggered,
+		MonotonicKprobesMissed,
+		MonotonicConntrackRegisters,
+		MonotonicConntrackRegistersDropped,
+		MonotonicDNSPacketsProcessed,
+		MonotonicConnsClosed,
+		MonotonicUDPSendsProcessed,
+		MonotonicUDPSendsMissed,
+		MonotonicDNSPacketsDropped,
+	}
+)
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
 type RuntimeCompilationTelemetry struct {
@@ -197,7 +230,6 @@ type ConnectionStats struct {
 	IPTranslation    *IPTranslation
 	IntraHost        bool
 	Via              *Via
-	Tags             uint64
 
 	IsAssured bool
 }

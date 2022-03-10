@@ -61,7 +61,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	assertPayloadSizeFromExtractTransactions(a, container, []int{10})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{9})
 	a.Equal(0, q.getFilesCount())
-	a.Equal(int64(0), q.getCurrentSizeInBytes())
+	a.Equal(int64(0), q.GetDiskSpaceUsed())
 }
 
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
@@ -136,7 +136,7 @@ func newOnDiskRetryQueueTest(a *assert.Assertions) (*onDiskRetryQueue, func()) {
 			Available: 10000,
 			Total:     10000,
 		}}
-	diskUsageLimit := newDiskUsageLimit("", disk, 1000, 1)
+	diskUsageLimit := NewDiskUsageLimit("", disk, 1000, 1)
 	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver("", nil)), path, diskUsageLimit, newOnDiskRetryQueueTelemetry("domain"))
 	a.NoError(err)
 	return q, clean

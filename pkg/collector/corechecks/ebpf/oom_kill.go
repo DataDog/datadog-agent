@@ -20,7 +20,6 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -98,7 +97,7 @@ func (m *OOMKillCheck) Run() error {
 	}
 
 	// sender is just what is used to submit the data
-	sender, err := aggregator.GetSender(m.ID())
+	sender, err := m.GetSender()
 	if err != nil {
 		return err
 	}

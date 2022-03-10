@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	fakeremote "github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/cri/remote/fake"
+	fakeremote "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

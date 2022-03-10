@@ -28,7 +28,7 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20210208.542",
+                "debian-10": "urn,Debian:debian-10:10:0.20210621.680",
                 "debian-11": "urn,Debian:debian-11:11:0.20210814.734"
             }
         },
@@ -56,7 +56,6 @@
         "azure": {
             "x86_64": {
                 "ubuntu-14-04": "urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140",
-                "ubuntu-16-04-4.4": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.201608150",
                 "ubuntu-16-04": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.202106110",
                 "ubuntu-18-04": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040",
                 "ubuntu-18-04-3": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201912180",
@@ -83,6 +82,14 @@
         "azure": {
             "x86_64": {
                 "oracle-7-9": "urn,Oracle:Oracle-Linux:ol79:7.9.6"
+            }
+        }
+    },
+    "amazonlinux": {
+        "ec2" : {
+            "x86_64": {
+                "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
+                "amazonlinux2-5-10": "ami-033b95fb8079dc481"
             }
         }
     },

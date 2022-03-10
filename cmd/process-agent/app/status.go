@@ -65,7 +65,7 @@ func writeError(w io.Writer, e error) {
 }
 
 func fetchStatus(statusURL string) ([]byte, error) {
-	body, err := apiutil.DoGet(httpClient, statusURL)
+	body, err := apiutil.DoGet(httpClient, statusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return nil, util.NewConnectionError(err)
 	}

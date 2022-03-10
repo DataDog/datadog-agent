@@ -66,7 +66,7 @@ func showSecretInfo() error {
 	}
 	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secrets", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
-	r, err := util.DoGet(c, apiConfigURL)
+	r, err := util.DoGet(c, apiConfigURL, util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
