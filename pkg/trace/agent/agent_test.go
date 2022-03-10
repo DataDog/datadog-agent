@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1142,7 +1141,6 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	ta := NewAgent(ctx, c)
-	seelog.UseLogger(seelog.Disabled)
 
 	b.ResetTimer()
 	b.ReportAllocs()

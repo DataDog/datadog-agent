@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,11 +54,7 @@ func TestThrottled(t *testing.T) {
 
 	t.Run("io.Writer", func(t *testing.T) {
 		var out bytes.Buffer
-		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(&out, seelog.WarnLvl, "[%Level] %Msg")
-		if err != nil {
-			t.Fatal(err)
-		}
-		SetLogger(logger)
+		SetLogger(NewBufferLogger(&out))
 		l := NewThrottled(2, 10*time.Millisecond)
 		l.Write([]byte("1\n"))
 		time.Sleep(20 * time.Millisecond) // reset
@@ -73,6 +68,6 @@ func TestThrottled(t *testing.T) {
 		l.Write([]byte("8\n"))
 		l.Write([]byte("9\n"))
 		logger.Flush()
-		assert.Equal(t, "[Error] 1\n[Error] 2\n[Error] 3\n[Error] 4\n[Error] 5\n[Error] Too many similar messages, pausing up to 10ms...", out.String())
+		assert.Equal(t, "[ERROR] 1\n[ERROR] 2\n[ERROR] 3\n[ERROR] 4\n[ERROR] 5\n[ERROR] Too many similar messages, pausing up to 10ms...", out.String())
 	})
 }

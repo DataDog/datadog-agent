@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/flags"
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/osutil"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"

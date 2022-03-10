@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/osutil"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"

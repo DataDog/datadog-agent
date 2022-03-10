@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 

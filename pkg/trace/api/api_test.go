@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
@@ -64,8 +63,6 @@ func newTestReceiverConfig() *config.AgentConfig {
 }
 
 func TestMain(m *testing.M) {
-	seelog.UseLogger(seelog.Disabled)
-
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
 	killProcess = func(_ string, _ ...interface{}) {}
 

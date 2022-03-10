@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
