@@ -160,7 +160,14 @@ func (l *Launcher) run() {
 			// detected a new container running on the host,
 			dockerutil, err := dockerutilpkg.GetDockerUtil()
 			if err != nil {
-				log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", service.Identifier, err)
+				// docker is not available, but we've gotten a service from AD,
+				// so likely it _will_ be available shortly.  So, retry the
+				// container soon.
+				log.Infof("Docker service not yet available to handle container %v; will retry: %v", service.Identifier, err)
+				go func() {
+					time.Sleep(5 * time.Second)
+					l.addedServices <- service
+				}()
 				continue
 			}
 			dockerContainer, err := dockerutil.Inspect(context.TODO(), service.Identifier, false)

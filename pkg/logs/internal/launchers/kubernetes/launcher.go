@@ -59,17 +59,11 @@ type Launcher struct {
 
 // NewLauncher returns a new launcher.
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
-	kubeutil, err := kubelet.GetKubeUtil()
-	if err != nil {
-		log.Errorf("KubeUtil not available, failed to create launcher: %v", err)
-		return nil
-	}
 	launcher := &Launcher{
 		sources:            sources,
 		services:           services,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
-		kubeutil:           kubeutil,
 		collectAll:         collectAll,
 		pendingRetries:     make(map[string]*retryOps),
 		retryOperations:    make(chan *retryOps),
@@ -164,6 +158,20 @@ func (l *Launcher) addSource(svc *service.Service) {
 	if _, exists := l.sourcesByContainer[svc.GetEntityID()]; exists {
 		log.Warnf("A source already exist for container %v", svc.GetEntityID())
 		return
+	}
+
+	// initialize l.kubeutil only when we need it.
+	if l.kubeutil == nil {
+		var err error
+		l.kubeutil, err = kubelet.GetKubeUtil()
+		if err != nil {
+			// kubelet is not available, but we've gotten a service from AD,
+			// so likely it _will_ be available shortly.  So, retry the
+			// container soon.
+			log.Debugf("KubeUtil not available to handle container %v, will retry: %v", svc.Identifier, err)
+			l.scheduleServiceForRetry(svc)
+			return
+		}
 	}
 
 	pod, err := l.kubeutil.GetPodForEntityID(context.TODO(), svc.GetEntityID())
