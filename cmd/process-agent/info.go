@@ -367,7 +367,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	var info StatusInfo
 	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(agentVersion.GetNumber())
+		program, banner := getProgramBanner(info.Version.GetNumber())
 		_ = infoErrorTmpl.Execute(w, struct {
 			Banner  string
 			Program string
