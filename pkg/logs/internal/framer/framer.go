@@ -27,7 +27,7 @@ const (
 	// Newline-terminated text in UTF-16-LE.
 	UTF16LENewline
 
-	// Newline-termianted text in SHIFT-JIS.
+	// Newline-terminated text in SHIFT-JIS.
 	SHIFTJISNewline
 
 	// Docker log-stream format.
@@ -153,7 +153,8 @@ func (fr *Framer) Process(inBuf []byte) {
 			}
 		}
 
-		// copy the data so that we can reuse the buffer
+		// copy the data so that we can reuse fr.buffer (`content` is a slice
+		// of `fr.buffer`)
 		owned := make([]byte, len(content))
 		copy(owned, content)
 
@@ -162,19 +163,32 @@ func (fr *Framer) Process(inBuf []byte) {
 		seen = framed
 	}
 
-	// check whether the buffer is empty, or if we should move the un-framed
-	// data to re-use the buffer space
+	fr.bytesFramed = framed
+	fr.normalizeBuffer()
+}
+
+// normalizeBuffer makes the buffer ready for new data, while attempting to
+// minimize copying of data.
+func (fr *Framer) normalizeBuffer() {
+	framed := fr.bytesFramed
+
+	// if the buffer is completely framed (a common event), reset to the
+	// beginning
 	if framed == fr.buffer.Len() {
 		fr.buffer.Reset()
-		framed = 0
-	} else if framed*2 > fr.buffer.Len() {
+		fr.bytesFramed = 0
+		return
+	}
+
+	// if more than half of the buffer is framed, move the remaining bytes
+	// to the beginning of the buffer to re-use that space
+	if framed*2 > fr.buffer.Len() {
 		buf := fr.buffer.Bytes()
 		unframed := buf[framed:]
 		copy(buf[:len(unframed)], unframed)
 		fr.buffer.Truncate(len(unframed))
-		framed = 0
+		fr.bytesFramed = 0
 	}
-	fr.bytesFramed = framed
 }
 
 // reset resets the framer to begin framing a new stream, for testing.
