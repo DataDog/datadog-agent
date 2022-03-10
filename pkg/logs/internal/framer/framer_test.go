@@ -61,6 +61,7 @@ func TestLineBreaking(t *testing.T) {
 			}
 			require.Equal(t, lines, gotContent)
 			require.Equal(t, rawLens, gotLens)
+			require.Equal(t, int64(len(lines)), framer.GetFrameCount())
 		}
 	}
 

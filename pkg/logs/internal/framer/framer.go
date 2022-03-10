@@ -159,6 +159,7 @@ func (fr *Framer) Process(inBuf []byte) {
 		copy(owned, content)
 
 		fr.outputFn(owned, rawDataLen)
+		atomic.AddInt64(&fr.frames, 1)
 		framed += rawDataLen
 		seen = framed
 	}
