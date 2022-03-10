@@ -32,7 +32,7 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 		source := logsConfig.NewLogSource(logsConfig.SnmpTraps, &logsConfig.LogsConfig{
 			Type:    logsConfig.SnmpTrapsType,
 			Service: "snmp-traps",
-			Source:  "snmp",
+			Source:  "snmp-traps",
 		})
 		log.Debug("Adding SNMPTraps source to the Logs Agent")
 		sourceMgr.AddSource(source)
