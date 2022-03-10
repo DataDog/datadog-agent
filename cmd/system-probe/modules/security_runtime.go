@@ -24,7 +24,8 @@ const (
 
 // SecurityRuntime - Security runtime Factory
 var SecurityRuntime = module.Factory{
-	Name: config.SecurityRuntimeModule,
+	Name:             config.SecurityRuntimeModule,
+	ConfigNamespaces: []string{"runtime_security_config"},
 	Fn: func(agentConfig *config.Config) (module.Module, error) {
 		config, err := sconfig.NewConfig(agentConfig)
 		if err != nil {

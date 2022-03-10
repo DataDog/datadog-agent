@@ -22,7 +22,8 @@ import (
 
 // OOMKillProbe Factory
 var OOMKillProbe = module.Factory{
-	Name: config.OOMKillProbeModule,
+	Name:             config.OOMKillProbeModule,
+	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
 		okp, err := probe.NewOOMKillProbe(ebpf.NewConfig())

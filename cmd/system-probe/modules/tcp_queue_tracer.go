@@ -21,7 +21,8 @@ import (
 
 // TCPQueueLength Factory
 var TCPQueueLength = module.Factory{
-	Name: config.TCPQueueLengthTracerModule,
+	Name:             config.TCPQueueLengthTracerModule,
+	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		t, err := probe.NewTCPQueueLengthTracer(ebpf.NewConfig())
 		if err != nil {
