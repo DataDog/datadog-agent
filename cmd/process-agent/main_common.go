@@ -136,7 +136,7 @@ Exiting.`
 
 func runAgent(exit chan struct{}) {
 	if opts.version {
-		log.Warn("--version is deprecated and will be removed in a future version. Please use `process-agent version` instead.")
+		fmt.Println("WARNING: --version is deprecated and will be removed in a future version. Please use `process-agent version` instead.")
 		_ = app.WriteVersion(os.Stdout)
 		cleanupAndExit(0)
 	}
