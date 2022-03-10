@@ -9,6 +9,7 @@
 package containerd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/containerd/containerd"
@@ -19,6 +20,8 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+var errNoContainer = errors.New("no container")
 
 // buildCollectorEvent generates a CollectorEvent from a containerdevents.Envelope
 func (c *collector) buildCollectorEvent(
@@ -63,6 +66,10 @@ func (c *collector) buildCollectorEvent(
 }
 
 func createSetEvent(container containerd.Container, namespace string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
+	if container == nil {
+		return workloadmeta.CollectorEvent{}, errNoContainer
+	}
+
 	entity, err := buildWorkloadMetaContainer(container, containerdClient)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", container.ID(), err)
