@@ -8,6 +8,8 @@
 
 package cgroups
 
+import "strconv"
+
 func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	if stats == nil {
 		return &InvalidInputError{Desc: "input stats cannot be nil"}
@@ -18,20 +20,45 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 
 	var kernelStack, slab *uint64
-	if err := parse2ColumnStatsWithMapping(c.fr, c.pathFor("memory.stat"), 0, 1, map[string]**uint64{
-		"file":          &stats.Cache,
-		"anon":          &stats.RSS,
-		"anon_thp":      &stats.RSSHuge,
-		"file_mapped":   &stats.MappedFile,
-		"pgfault":       &stats.Pgfault,
-		"pgmajfault":    &stats.Pgmajfault,
-		"inactive_anon": &stats.InactiveAnon,
-		"active_anon":   &stats.ActiveAnon,
-		"inactive_file": &stats.InactiveFile,
-		"active_file":   &stats.ActiveFile,
-		"unevictable":   &stats.Unevictable,
-		"kernel_stack":  &kernelStack,
-		"slab":          &slab,
+
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory.stat"), 0, 1, func(key, value string) error {
+		intVal, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			reportError(newValueError(value, err))
+			// Dont't stop parsing on a single faulty value
+			return nil
+		}
+
+		switch key {
+		case "file":
+			stats.Cache = &intVal
+		case "anon":
+			stats.RSS = &intVal
+		case "anon_thp":
+			stats.RSSHuge = &intVal
+		case "file_mapped":
+			stats.MappedFile = &intVal
+		case "pgfault":
+			stats.Pgfault = &intVal
+		case "pgmajfault":
+			stats.Pgmajfault = &intVal
+		case "inactive_anon":
+			stats.InactiveAnon = &intVal
+		case "active_anon":
+			stats.ActiveAnon = &intVal
+		case "inactive_file":
+			stats.InactiveFile = &intVal
+		case "active_file":
+			stats.ActiveFile = &intVal
+		case "unevictable":
+			stats.Unevictable = &intVal
+		case "kernel_stack":
+			kernelStack = &intVal
+		case "slab":
+			slab = &intVal
+		}
+
+		return nil
 	}); err != nil {
 		reportError(err)
 	}
@@ -78,9 +105,22 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 	nilIfZero(&stats.SwapLimit)
 
-	if err := parse2ColumnStatsWithMapping(c.fr, c.pathFor("memory.events"), 0, 1, map[string]**uint64{
-		"oom":      &stats.OOMEvents,
-		"oom_kill": &stats.OOMKiilEvents,
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory.events"), 0, 1, func(key, value string) error {
+		intVal, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			reportError(newValueError(value, err))
+			// Dont't stop parsing on a single faulty value
+			return nil
+		}
+
+		switch key {
+		case "oom":
+			stats.OOMEvents = &intVal
+		case "oom_kill":
+			stats.OOMKiilEvents = &intVal
+		}
+
+		return nil
 	}); err != nil {
 		reportError(err)
 	}
