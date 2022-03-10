@@ -239,7 +239,7 @@ jobs:
           command: inv -e agent.build --flavor iot
       - run:
           name: test iot agent
-          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
+          command: DD_HOSTNAME=test-circleci-hostname ./bin/agent/agent -c ./bin/agent/dist check cpu
 
   documentation_generation:
     <<: *job_template
