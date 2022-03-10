@@ -64,7 +64,8 @@
                 "ubuntu-20-04-2": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202107200",
                 "ubuntu-20-04-3": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202201040",
                 "ubuntu-20-04-4": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202203080",
-                "ubuntu-21-10": "urn,Canonical:0001-com-ubuntu-server-impish-daily:21_10-daily:21.10.202202040"
+                "ubuntu-21-10": "urn,Canonical:0001-com-ubuntu-server-impish-daily:21_10-daily:21.10.202202040",
+                "ubuntu-22-04": "urn,Canonical:0001-com-ubuntu-server-jammy-daily:22_04-daily-lts:22.04.202202110"
             }
         },
         "ec2": {
