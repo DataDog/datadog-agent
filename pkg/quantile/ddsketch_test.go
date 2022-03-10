@@ -32,7 +32,7 @@ func generateDDSketch(quantile func(float64) float64, N, M int) *ddsketch.DDSket
 	return sketch
 }
 
-func TestConvertToCompatibleDDSketch(t *testing.T) {
+func TestCreateDDSketchWithSketchMapping(t *testing.T) {
 	// Support of the distribution: [0,N] or [-N,0]
 	N := 1_000
 	// Number of points per quantile
@@ -116,7 +116,7 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 			}
 
 			sketchConfig := Default()
-			convertedSketch, err := convertToCompatibleDDSketch(sketchConfig, sketch)
+			convertedSketch, err := createDDSketchWithSketchMapping(sketchConfig, sketch)
 			assert.NoError(t, err)
 
 			// Conversion accuracy formula taken from:
@@ -170,7 +170,7 @@ func TestConvertToCompatibleDDSketch(t *testing.T) {
 	}
 }
 
-func TestFromCompatibleDDSketch(t *testing.T) {
+func TestConvertDDSketchIntoSketch(t *testing.T) {
 	// Support of the distribution: [0,N] or [-N,0]
 	N := 1_000
 	// Number of points per quantile
@@ -256,10 +256,10 @@ func TestFromCompatibleDDSketch(t *testing.T) {
 			}
 
 			sketchConfig := Default()
-			convertedSketch, err := convertToCompatibleDDSketch(sketchConfig, sketch)
+			convertedSketch, err := createDDSketchWithSketchMapping(sketchConfig, sketch)
 			assert.NoError(t, err)
 
-			outputSketch, err := fromCompatibleDDSketch(sketchConfig, convertedSketch)
+			outputSketch, err := convertDDSketchIntoSketch(sketchConfig, convertedSketch)
 			assert.NoError(t, err)
 
 			// Conversion accuracy formula taken from:

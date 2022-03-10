@@ -20,15 +20,16 @@ const (
 	maxIndex = math.MaxInt16
 )
 
-// convertToCompatibleDDSketch converts any DDSketch into a DDSketch with parameters
-// compatible with Sketch
-func convertToCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*ddsketch.DDSketch, error) {
+// createDDSketchWithSketchMapping takes a DDSketch and returns a new DDSketch
+// with a logarithmic mapping that matches the Sketch parameters.
+func createDDSketchWithSketchMapping(c *Config, inputSketch *ddsketch.DDSketch) (*ddsketch.DDSketch, error) {
 	// Create positive store for the new DDSketch
 	positiveStore := store.NewDenseStore()
 
 	// Create negative store for the new DDSketch
 	negativeStore := store.NewDenseStore()
 
+	// Take parameters that match the Sketch mapping, and create a LogarithmicMapping out of them
 	gamma := c.gamma.v
 	offset := float64(c.norm.bias) + 0.5
 	newMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
@@ -45,12 +46,12 @@ type floatKeyCount struct {
 	c float64
 }
 
-// keyCountsFromFloatKeyCounts converts DDSketch float counts to integer counts,
-// preserving the total count of the sketch by tracking leftover decimal counts.
-// TODO: this tends to shift the sketch towards the right (since the leftover counts
+// convertFloatCountsToIntCounts converts a list of float counts to integer counts,
+// preserving the total count of the list by tracking leftover decimal counts.
+// TODO: this tends to shift sketches towards the right (since the leftover counts
 // get added to the rightmost bucket). This could be improved by adding leftover
 // counts to the key that's the weighted average of keys that contribute to that leftover count.
-func keyCountsFromFloatKeyCounts(floatKeyCounts []floatKeyCount) []KeyCount {
+func convertFloatCountsToIntCounts(floatKeyCounts []floatKeyCount) []KeyCount {
 	keyCounts := make([]KeyCount, 0, len(floatKeyCounts))
 
 	sort.Slice(floatKeyCounts, func(i, j int) bool {
@@ -82,7 +83,10 @@ func keyCountsFromFloatKeyCounts(floatKeyCounts []floatKeyCount) []KeyCount {
 	return keyCounts
 }
 
-func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch, error) {
+// convertDDSketchIntoSketch takes a DDSketch and moves its data to a Sketch.
+// The conversion assumes that the DDSketch has a mapping that is compatible
+// with the Sketch parameters (eg. a DDSketch returned by convertDDSketchMapping).
+func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch, error) {
 	sparseStore := sparseStore{
 		bins:  make([]bin, 0, defaultBinListSize),
 		count: 0,
@@ -150,7 +154,7 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 	floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
 
 	// Generate the integer KeyCount objects from the counts we retrieved
-	keyCounts := keyCountsFromFloatKeyCounts(floatKeyCounts)
+	keyCounts := convertFloatCountsToIntCounts(floatKeyCounts)
 
 	// Populate sparseStore object with the collected keyCounts
 	// insertCounts will take care of creating multiple uint16 bins for a
@@ -192,16 +196,19 @@ func fromCompatibleDDSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch,
 	return outputSketch, nil
 }
 
-// FromDDSketch converts a DDSketch into a Sketch
-func FromDDSketch(inputSketch *ddsketch.DDSketch) (*Sketch, error) {
+// ConvertDDSketchIntoSketch converts a DDSketch into a Sketch, by first
+// converting the DDSketch into a new DDSketch with a mapping that's compatible
+// with Sketch parameters, then creating the Sketch by copying the DDSketch
+// bins to the Sketch store.
+func ConvertDDSketchIntoSketch(inputSketch *ddsketch.DDSketch) (*Sketch, error) {
 	sketchConfig := Default()
 
-	compatibleDDSketch, err := convertToCompatibleDDSketch(sketchConfig, inputSketch)
+	compatibleDDSketch, err := createDDSketchWithSketchMapping(sketchConfig, inputSketch)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert input ddsketch into ddsketch with compatible parameters: %w", err)
 	}
 
-	outputSketch, err := fromCompatibleDDSketch(sketchConfig, compatibleDDSketch)
+	outputSketch, err := convertDDSketchIntoSketch(sketchConfig, compatibleDDSketch)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert ddsketch into Sketch: %w", err)
 	}
