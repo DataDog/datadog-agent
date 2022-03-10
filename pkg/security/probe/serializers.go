@@ -107,9 +107,9 @@ type ProcessCredentialsSerializer struct {
 	Destination interface{} `json:"destination,omitempty" jsonschema_description:"Credentials after the operation"`
 }
 
-// ProcessCacheEntrySerializer serializes a process cache entry to JSON
+// ProcessSerializer serializes a process to JSON
 // easyjson:json
-type ProcessCacheEntrySerializer struct {
+type ProcessSerializer struct {
 	Pid                 uint32                        `json:"pid,omitempty" jsonschema_description:"Process ID"`
 	PPid                uint32                        `json:"ppid,omitempty" jsonschema_description:"Parent Process ID"`
 	Tid                 uint32                        `json:"tid,omitempty" jsonschema_description:"Thread ID"`
@@ -163,9 +163,9 @@ type EventContextSerializer struct {
 // ProcessContextSerializer serializes a process context to JSON
 // easyjson:json
 type ProcessContextSerializer struct {
-	*ProcessCacheEntrySerializer
-	Parent    *ProcessCacheEntrySerializer   `json:"parent,omitempty" jsonschema_description:"Parent process"`
-	Ancestors []*ProcessCacheEntrySerializer `json:"ancestors,omitempty" jsonschema_description:"Ancestor processes"`
+	*ProcessSerializer
+	Parent    *ProcessSerializer   `json:"parent,omitempty" jsonschema_description:"Parent process"`
+	Ancestors []*ProcessSerializer `json:"ancestors,omitempty" jsonschema_description:"Ancestor processes"`
 }
 
 // easyjson:json
@@ -276,21 +276,21 @@ type SpliceEventSerializer struct {
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	EventContextSerializer     `json:"evt,omitempty"`
-	*FileEventSerializer       `json:"file,omitempty"`
-	*SELinuxEventSerializer    `json:"selinux,omitempty"`
-	*BPFEventSerializer        `json:"bpf,omitempty"`
-	*MMapEventSerializer       `json:"mmap,omitempty"`
-	*MProtectEventSerializer   `json:"mprotect,omitempty"`
-	*PTraceEventSerializer     `json:"ptrace,omitempty"`
-	*ModuleEventSerializer     `json:"module,omitempty"`
-	*SignalEventSerializer     `json:"signal,omitempty"`
-	*SpliceEventSerializer     `json:"splice,omitempty"`
-	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
-	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
-	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
-	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
-	Date                       time.Time                   `json:"date,omitempty"`
+	EventContextSerializer      `json:"evt,omitempty"`
+	*FileEventSerializer        `json:"file,omitempty"`
+	*SELinuxEventSerializer     `json:"selinux,omitempty"`
+	*BPFEventSerializer         `json:"bpf,omitempty"`
+	*MMapEventSerializer        `json:"mmap,omitempty"`
+	*MProtectEventSerializer    `json:"mprotect,omitempty"`
+	*PTraceEventSerializer      `json:"ptrace,omitempty"`
+	*ModuleEventSerializer      `json:"module,omitempty"`
+	*SignalEventSerializer      `json:"signal,omitempty"`
+	*SpliceEventSerializer      `json:"splice,omitempty"`
+	*UserContextSerializer      `json:"usr,omitempty"`
+	*ProcessContextSerializer   `json:"process,omitempty"`
+	*DDContextSerializer        `json:"dd,omitempty"`
+	*ContainerContextSerializer `json:"container,omitempty"`
+	Date                        time.Time `json:"date,omitempty"`
 }
 
 func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
@@ -387,22 +387,22 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(&pce.Process)
-	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(&pce.Process)
-	argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(&pce.Process)
+func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
+	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
+	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(ps)
+	argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(ps)
 
-	pceSerializer := &ProcessCacheEntrySerializer{
-		ForkTime: getTimeIfNotZero(pce.ForkTime),
-		ExecTime: getTimeIfNotZero(pce.ExecTime),
-		ExitTime: getTimeIfNotZero(pce.ExitTime),
+	psSerializer := &ProcessSerializer{
+		ForkTime: getTimeIfNotZero(ps.ForkTime),
+		ExecTime: getTimeIfNotZero(ps.ExecTime),
+		ExitTime: getTimeIfNotZero(ps.ExitTime),
 
-		Pid:           pce.Process.Pid,
-		Tid:           pce.Process.Tid,
-		PPid:          pce.Process.PPid,
-		Comm:          pce.Process.Comm,
-		TTY:           pce.Process.TTYName,
-		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
+		Pid:           ps.Pid,
+		Tid:           ps.Tid,
+		PPid:          ps.PPid,
+		Comm:          ps.Comm,
+		TTY:           ps.TTYName,
+		Executable:    newProcessFileSerializerWithResolvers(ps, e.resolvers),
 		Argv0:         argv0,
 		Args:          argv,
 		ArgsTruncated: argvTruncated,
@@ -410,44 +410,53 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		EnvsTruncated: EnvsTruncated,
 	}
 
-	credsSerializer := newCredentialsSerializer(&pce.Credentials)
+	credsSerializer := newCredentialsSerializer(&ps.Credentials)
 	// Populate legacy user / group fields
-	pceSerializer.UID = credsSerializer.UID
-	pceSerializer.User = credsSerializer.User
-	pceSerializer.GID = credsSerializer.GID
-	pceSerializer.Group = credsSerializer.Group
-	pceSerializer.Credentials = &ProcessCredentialsSerializer{
+	psSerializer.UID = credsSerializer.UID
+	psSerializer.User = credsSerializer.User
+	psSerializer.GID = credsSerializer.GID
+	psSerializer.Group = credsSerializer.Group
+	psSerializer.Credentials = &ProcessCredentialsSerializer{
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if len(pce.ContainerID) != 0 {
-		pceSerializer.Container = &ContainerContextSerializer{
-			ID: pce.ContainerID,
+	if len(ps.ContainerID) != 0 {
+		psSerializer.Container = &ContainerContextSerializer{
+			ID: ps.ContainerID,
 		}
 	}
-	return pceSerializer
+	return psSerializer
 }
 
-func newDDContextSerializer(e *Event) DDContextSerializer {
-	return DDContextSerializer{
+func newDDContextSerializer(e *Event) *DDContextSerializer {
+	return &DDContextSerializer{
 		SpanID:  e.SpanContext.SpanID,
 		TraceID: e.SpanContext.TraceID,
 	}
 }
 
-func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) ProcessContextSerializer {
+func newUserContextSerializer(e *Event) *UserContextSerializer {
+	return &UserContextSerializer{
+		User:  e.ProcessContext.User,
+		Group: e.ProcessContext.Group,
+	}
+}
+
+func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolvers) *ProcessContextSerializer {
+	if pc == nil || pc.Pid == 0 {
+		return nil
+	}
+
 	var ps ProcessContextSerializer
 
 	if e == nil {
 		// custom events create an empty event
 		e = NewEvent(r, nil)
-		e.ProcessContext = model.ProcessContext{
-			Ancestor: entry,
-		}
+		e.ProcessContext = *pc
 	}
 
 	ps = ProcessContextSerializer{
-		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
+		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
 	ctx := eval.NewContext(e.GetPointer())
@@ -455,13 +464,13 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
-	var prev *ProcessCacheEntrySerializer
+	var prev *ProcessSerializer
 	first := true
 
 	for ptr != nil {
 		ancestor := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessCacheEntrySerializer(ancestor, e)
+		s := newProcessSerializer(&ancestor.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -483,7 +492,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 
 		ptr = it.Next()
 	}
-	return ps
+	return &ps
 }
 
 func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
@@ -564,16 +573,11 @@ func newMProtectEventSerializer(e *Event) *MProtectEventSerializer {
 }
 
 func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
-	ptes := &PTraceEventSerializer{
+	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
+		Tracee:  newProcessContextSerializer(&e.PTrace.Tracee, e, e.resolvers),
 	}
-
-	if e.PTrace.TraceeProcessCacheEntry != nil {
-		pcs := newProcessContextSerializer(e.PTrace.TraceeProcessCacheEntry, e, e.resolvers)
-		ptes.Tracee = &pcs
-	}
-	return ptes
 }
 
 func newLoadModuleEventSerializer(e *Event) *ModuleEventSerializer {
@@ -592,12 +596,9 @@ func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
 
 func newSignalEventSerializer(e *Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
-		Type: model.Signal(e.Signal.Type).String(),
-		PID:  e.Signal.PID,
-	}
-	if e.Signal.TargetProcessCacheEntry != nil {
-		pcs := newProcessContextSerializer(e.Signal.TargetProcessCacheEntry, e, e.resolvers)
-		ses.Target = &pcs
+		Type:   model.Signal(e.Signal.Type).String(),
+		PID:    e.Signal.PID,
+		Target: newProcessContextSerializer(&e.Signal.Target, e, e.resolvers),
 	}
 	return ses
 }
@@ -623,12 +624,18 @@ func serializeSyscallRetval(retval int64) string {
 
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
+	var pc model.ProcessContext
+	if entry := event.ResolveProcessCacheEntry(); entry != nil {
+		pc = entry.ProcessContext
+	}
+
 	s := &EventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name: model.EventType(event.Type).String(),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(event.ResolveProcessCacheEntry(), event, event.resolvers),
+		ProcessContextSerializer: newProcessContextSerializer(&pc, event, event.resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
+		UserContextSerializer:    newUserContextSerializer(event),
 		Date:                     event.ResolveEventTimestamp(),
 	}
 
@@ -637,9 +644,6 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			ID: id,
 		}
 	}
-
-	s.UserContextSerializer.User = s.ProcessContextSerializer.User
-	s.UserContextSerializer.Group = s.ProcessContextSerializer.Group
 
 	eventType := model.EventType(event.Type)
 
