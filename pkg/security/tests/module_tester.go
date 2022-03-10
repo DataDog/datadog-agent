@@ -674,7 +674,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	}
 
 	var status strings.Builder
-	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
+	status.WriteString(fmt.Sprintf("%d lost, ", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
 	perEvents := make([]string, 0, model.MaxEventType)
 	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
