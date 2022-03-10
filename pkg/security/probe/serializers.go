@@ -261,6 +261,13 @@ type ModuleEventSerializer struct {
 	LoadedFromMemory *bool  `json:"loaded_from_memory,omitempty" jsonschema_description:"indicates if a module was loaded from memory, as opposed to a file"`
 }
 
+// SpliceEventSerializer serializes a splice event to JSON
+// easyjson:json
+type SpliceEventSerializer struct {
+	PipeEntryFlag string `json:"pipe_entry_flag" jsonschema_description:"entry flag of the fd_out pipe passed to the splice syscall"`
+	PipeExitFlag  string `json:"pipe_exit_flag" jsonschema_description:"exit flag of the fd_out pipe passed to the splice syscall"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -273,6 +280,7 @@ type EventSerializer struct {
 	*PTraceEventSerializer     `json:"ptrace,omitempty"`
 	*ModuleEventSerializer     `json:"module,omitempty"`
 	*SignalEventSerializer     `json:"signal,omitempty"`
+	*SpliceEventSerializer     `json:"splice,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -589,6 +597,13 @@ func newSignalEventSerializer(e *Event) *SignalEventSerializer {
 	return ses
 }
 
+func newSpliceEventSerializer(e *Event) *SpliceEventSerializer {
+	return &SpliceEventSerializer{
+		PipeEntryFlag: model.PipeBufFlag(e.Splice.PipeEntryFlag).String(),
+		PipeExitFlag:  model.PipeBufFlag(e.Splice.PipeExitFlag).String(),
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case retval < 0:
@@ -813,6 +828,14 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.SignalEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Signal.Retval)
 		s.SignalEventSerializer = newSignalEventSerializer(event)
+	case model.SpliceEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Splice.Retval)
+		s.SpliceEventSerializer = newSpliceEventSerializer(event)
+		if event.Splice.File.Inode != 0 {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.Splice.File, event),
+			}
+		}
 	}
 
 	return s
