@@ -26,6 +26,14 @@ int classifier_egress(struct __sk_buff *skb) {
             if (!(parse_iphdr(&c, &pkt->ipv4)))
                 return ACT_OK;
 
+            // adjust cursor with variable ipv4 options
+            if (pkt->ipv4.ihl > 5) {
+                c.pos += (pkt->ipv4.ihl - 5) * 4;
+                if (c.pos > c.end) {
+                    return ACT_OK;
+                }
+            }
+
             pkt->l4_protocol = pkt->ipv4.protocol;
             pkt->ns_flow.flow.saddr[0] = pkt->ipv4.saddr;
             pkt->ns_flow.flow.daddr[0] = pkt->ipv4.daddr;
