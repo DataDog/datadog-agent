@@ -44,7 +44,11 @@ import (
 {{ range .Operators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
+	{{ else }}
+	isDc := isArithmDeterministic(a, b, state)
+	{{ end }}
 
 	{{ if eq .ValueType "BitmaskValueType" }}
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -56,12 +60,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if a.isPartial {
+				if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if b.isPartial {
+				if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
 					eb = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
@@ -69,7 +73,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
+		{{/* optimize the evaluation if needed, moving the evaluation with more weight at the right */}}
 		{{ if .Commutative }}
 			if a.Weight > b.Weight {
 				tmp := ea
@@ -85,7 +89,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
 			Weight: a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 	{{ end }}
@@ -93,23 +97,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
 
-		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-		if state.field != "" {
-			if a.isPartial {
-				ea = true
-			}
-			if b.isPartial {
-				eb = true
-			}
-		}
-		{{ end }}
-
 		ctx := NewContext(nil)
 		_ = ctx
 
 		return &{{ .FuncReturnType }}{
 			Value: {{ call .Op "ea" "eb" }},
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -124,12 +117,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if a.isPartial {
+				if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if b.isPartial {
+				if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
 					eb = true
 				}
 			}
@@ -143,7 +136,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			EvalFnc: evalFnc,
 			Field: a.Field,
 			Weight: a.Weight,
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -157,10 +150,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 		if state.field != "" {
-			if a.isPartial {
+			if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
 				ea = true
 			}
-			if b.isPartial {
+			if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
 				eb = func(ctx *Context) {{ .EvalReturnType }} {
 					return true
 				}
@@ -176,7 +169,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		EvalFnc: evalFnc,
 		Field: b.Field,
 		Weight: b.Weight,
-		isPartial: isPartialLeaf,
+		isDeterministic: isDc,
 	}, nil
 }
 {{ end }}
@@ -184,7 +177,11 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 {{ range .ArrayOperators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
+	{{ else }}
+	isDc := isArithmDeterministic(a, b, state)
+	{{ end }}
 
 	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
 		for _, v := range b {
@@ -205,7 +202,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		return &{{ .FuncReturnType }}{
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -215,7 +212,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		return &{{ .FuncReturnType }}{
 			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -237,7 +234,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		return &{{ .FuncReturnType }}{
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -256,7 +253,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 	return &{{ .FuncReturnType }}{
 		EvalFnc:   evalFnc,
 		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		isDeterministic: isDc,
 	}, nil
 }
 {{end}}
