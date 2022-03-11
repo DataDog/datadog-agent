@@ -17,10 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -48,11 +46,11 @@ func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 		return pipelineStatsErrorHandler(err)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
-	if orch := r.conf.FargateOrchestrator; orch != fargate.Unknown {
+	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
 	}
-	return newPipelineStatsProxy(r.conf.NewHTTPTransport(), target, key, tags)
+	return newPipelineStatsProxy(r.conf, target, key, tags)
 }
 
 func pipelineStatsErrorHandler(err error) http.Handler {
@@ -64,7 +62,7 @@ func pipelineStatsErrorHandler(err error) http.Handler {
 
 // newPipelineStatsProxy creates an http.ReverseProxy which forwards requests to the pipeline stats intake.
 // The tags will be added as a header to all proxied requests.
-func newPipelineStatsProxy(transport http.RoundTripper, target *url.URL, key string, tags string) *httputil.ReverseProxy {
+func newPipelineStatsProxy(conf *config.AgentConfig, target *url.URL, key string, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -74,7 +72,7 @@ func newPipelineStatsProxy(transport http.RoundTripper, target *url.URL, key str
 			req.Header.Set("User-Agent", "")
 		}
 		containerID := req.Header.Get(headerContainerID)
-		if ctags := getContainerTags(containerID); ctags != "" {
+		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
@@ -83,10 +81,10 @@ func newPipelineStatsProxy(transport http.RoundTripper, target *url.URL, key str
 		req.URL = target
 		req.Header.Set("DD-API-KEY", key)
 	}
-	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "pipeline_stats.Proxy: ", 0),
-		Transport: transport,
+		Transport: conf.NewHTTPTransport(),
 	}
 }

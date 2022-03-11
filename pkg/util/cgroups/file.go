@@ -133,21 +133,6 @@ func parse2ColumnStats(fr fileReader, path string, keyColumn, valueColumn int, v
 	return err
 }
 
-func parse2ColumnStatsWithMapping(fr fileReader, path string, keyColumn, valueColumn int, mapping map[string]**uint64) error {
-	return parse2ColumnStats(fr, path, keyColumn, valueColumn, func(key, value string) error {
-		if storeVal, found := mapping[key]; found {
-			intVal, err := strconv.ParseUint(value, 10, 64)
-			if err != nil {
-				reportError(newValueError(value, err))
-			}
-
-			*storeVal = &intVal
-		}
-
-		return nil
-	})
-}
-
 // format is "some avg10=0.00 avg60=0.00 avg300=0.00 total=0"
 func parsePSI(fr fileReader, path string, somePsi, fullPsi *PSIStats) error {
 	return parseColumnStats(fr, path, func(fields []string) error {

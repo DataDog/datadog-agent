@@ -15,7 +15,6 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -112,7 +111,7 @@ func (w *KMemCheck) Configure(data integration.Data, initConfig integration.Data
 
 // Run executes the check
 func (w *KMemCheck) Run() error {
-	sender, err := aggregator.GetSender(w.ID())
+	sender, err := w.GetSender()
 	if err != nil {
 		return err
 	}

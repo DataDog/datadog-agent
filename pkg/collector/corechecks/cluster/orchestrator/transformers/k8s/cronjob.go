@@ -54,5 +54,7 @@ func ExtractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
 		})
 	}
 
+	cronJob.ResourceRequirements = ExtractPodTemplateResourceRequirements(cj.Spec.JobTemplate.Spec.Template)
+
 	return &cronJob
 }

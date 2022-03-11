@@ -208,7 +208,7 @@
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/snmp/                              @DataDog/infrastructure-integrations
-/pkg/appsec/                            @DataDog/agent-appsec
+/pkg/trace/appsec/                      @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
 /pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/integrations-tools-and-libraries
