@@ -44,6 +44,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
+	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
@@ -58,6 +59,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.35.0-rc.4
@@ -120,7 +122,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6
-	github.com/google/gofuzz v1.2.0
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1
 	github.com/gorilla/mux v1.8.0

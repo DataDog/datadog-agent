@@ -18,17 +18,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 const testAPIKey = "123"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Disabled, "error")
+	log.SetLogger(log.NoopLogger)
 	os.Exit(m.Run())
 }
 
@@ -57,14 +56,10 @@ func TestSender(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		client := httputils.NewResetClient(
-			0,
-			func() *http.Client {
-				return &http.Client{}
-			},
-		)
+		cfg := config.New()
+		cfg.ConnectionResetInterval = 0
 		return &senderConfig{
-			client:    client,
+			client:    cfg.NewHTTPClient(),
 			url:       url,
 			maxConns:  climit,
 			maxQueued: 40,
