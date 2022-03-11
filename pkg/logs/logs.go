@@ -10,19 +10,20 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	metaScheduler "github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
+	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
+	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
+	trapsScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -53,13 +54,13 @@ var (
 // instead of directly using it.
 // The parameter serverless indicates whether or not this Logs Agent is running
 // in a serverless environment.
-func Start(getAC func() *autodiscovery.AutoConfig) error {
-	return start(getAC, false, nil, nil)
+func Start(getAC func() *autodiscovery.AutoConfig) (*Agent, error) {
+	return start(getAC, false)
 }
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *config.ChannelMessage, extraTags []string) error {
-	return start(getAC, true, logsChan, extraTags)
+func StartServerless(getAC func() *autodiscovery.AutoConfig) (*Agent, error) {
+	return start(getAC, true)
 }
 
 // buildEndpoints builds endpoints for the logs agent
@@ -68,23 +69,20 @@ func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 	}
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	return config.BuildEndpoints(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverride(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
-func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {
+func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 	if IsAgentRunning() {
-		return nil
+		return agent, nil
 	}
 
 	// setup the sources and the services
 	sources := config.NewLogSources()
 	services := service.NewServices()
-
-	// setup the config scheduler
-	scheduler.CreateScheduler(sources, services)
 
 	// setup the server config
 	endpoints, err := buildEndpoints(serverless)
@@ -92,7 +90,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)
-		return errors.New(message)
+		return nil, errors.New(message)
 	}
 	status.CurrentTransport = status.TransportTCP
 	if endpoints.UseHTTP {
@@ -108,7 +106,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
-		return errors.New(message)
+		return nil, errors.New(message)
 	}
 
 	if config.HasMultiLineRule(processingRules) {
@@ -131,51 +129,11 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
 
-	if serverless {
-		log.Debug("Adding AWS Logs collection source")
+	agent.AddScheduler(adScheduler.New())
+	agent.AddScheduler(ccaScheduler.New(getAC()))
+	agent.AddScheduler(trapsScheduler.New())
 
-		chanSource := config.NewLogSource("AWS Logs", &config.LogsConfig{
-			Type:    config.StringChannelType,
-			Source:  "lambda", // TODO(remy): do we want this to be configurable at some point?
-			Tags:    extraTags,
-			Channel: logsChan,
-		})
-		sources.AddSource(chanSource)
-	}
-
-	// add SNMP traps source forwarding SNMP traps as logs if enabled.
-	if source := config.SNMPTrapsSource(); source != nil {
-		log.Debug("Adding SNMPTraps source to the Logs Agent")
-		sources.AddSource(source)
-	}
-
-	// adds the source collecting logs from all containers if enabled,
-	// but ensure that it is enabled after the AutoConfig initialization
-	if source := config.ContainerCollectAllSource(); source != nil {
-		go func() {
-			BlockUntilAutoConfigRanOnce(getAC, time.Millisecond*time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
-			log.Debug("Adding ContainerCollectAll source to the Logs Agent")
-			sources.AddSource(source)
-		}()
-	}
-
-	return nil
-}
-
-// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been run once.
-// It also returns after the given timeout.
-func BlockUntilAutoConfigRanOnce(getAC func() *autodiscovery.AutoConfig, timeout time.Duration) {
-	now := time.Now()
-	for {
-		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if getAC().HasRunOnce() {
-			return
-		}
-		if time.Since(now) > timeout {
-			log.Error("BlockUntilAutoConfigRanOnce timeout after", timeout)
-			return
-		}
-	}
+	return agent, nil
 }
 
 // Stop stops properly the logs-agent to prevent data loss,
@@ -186,9 +144,6 @@ func Stop() {
 		if agent != nil {
 			agent.Stop()
 			agent = nil
-		}
-		if scheduler.GetScheduler() != nil {
-			scheduler.GetScheduler().Stop()
 		}
 		status.Clear()
 		atomic.StoreInt32(&isRunning, 0)
@@ -216,6 +171,12 @@ func IsAgentRunning() bool {
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	return status.Get()
+}
+
+// SetADMetaScheduler supplies this package with a reference to the AD MetaScheduler,
+// once it has been started.
+func SetADMetaScheduler(sched *metaScheduler.MetaScheduler) {
+	adScheduler.SetADMetaScheduler(sched)
 }
 
 // GetMessageReceiver returns the diagnostic message receiver

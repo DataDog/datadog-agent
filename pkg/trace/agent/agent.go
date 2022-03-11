@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -25,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -99,11 +98,11 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ctx:                   ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
-	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf.OTLPReceiver)
+	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
 	return agnt
 }
 
-// Run starts routers routines and individual pieces then stop them when the exit order is received
+// Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
@@ -351,7 +350,7 @@ func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 var _ api.StatsProcessor = (*Agent)(nil)
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != fargate.Unknown)
+	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if !enableContainers || features.Has("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
@@ -428,7 +427,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
-	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
+	atomic.AddInt64(&ts.EventsExtracted, numExtracted)
 	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
 	return numEvents, sampled, filteredChunk

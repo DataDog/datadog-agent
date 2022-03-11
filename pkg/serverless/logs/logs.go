@@ -244,19 +244,6 @@ func removeInvalidTracingItem(data []byte) []byte {
 	return []byte(strings.ReplaceAll(string(data), ",\"tracing\":}", ""))
 }
 
-// GetLambdaSource returns the LogSource used by the extension
-func GetLambdaSource() *logConfig.LogSource {
-	currentScheduler := scheduler.GetScheduler()
-	if currentScheduler != nil {
-		source := currentScheduler.GetSourceFromName("lambda")
-		if source != nil {
-			return source
-		}
-	}
-	log.Debug("Impossible to retrieve the lambda LogSource")
-	return nil
-}
-
 // ServeHTTP - see type LambdaLogsCollector comment.
 func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)

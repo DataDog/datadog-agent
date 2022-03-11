@@ -152,31 +152,6 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestGetLambdaSourceNilScheduler(t *testing.T) {
-	assert.Nil(t, GetLambdaSource())
-}
-
-func TestGetLambdaSourceNilSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services)
-	assert.Nil(t, GetLambdaSource())
-}
-
-func TestGetLambdaSourceValidSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	chanSource := config.NewLogSource("TestLog", &config.LogsConfig{
-		Type:    config.StringChannelType,
-		Source:  "lambda",
-		Tags:    nil,
-		Channel: nil,
-	})
-	logSources.AddSource(chanSource)
-	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services)
-	assert.NotNil(t, GetLambdaSource())
-}
-
 func TestProcessMessageValid(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)

@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ReceiverStats is used to store all the stats per tags.

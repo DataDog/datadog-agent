@@ -356,10 +356,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 		}
 		d.setTraceTags(tagMap)
 		d.ExtraTags.Tags = tagArray
-		source := serverlessLog.GetLambdaSource()
-		if source != nil {
-			source.Config.Tags = tagArray
-		}
+		serverlessLog.UpdateLogsTags(tagArray)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"context"
 	json "encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -222,8 +223,17 @@ func (a *APIServer) start(ctx context.Context) {
 
 				// recopy tags
 				var tags []string
+				hasService := len(msg.service) != 0
 				for tag := range msg.tags {
 					tags = append(tags, tag)
+
+					// look for the service tag if we don't have one yet
+					if !hasService {
+						if strings.HasPrefix(tag, "service:") {
+							msg.service = strings.TrimPrefix(tag, "service:")
+							hasService = true
+						}
+					}
 				}
 
 				m := &api.SecurityEventMessage{

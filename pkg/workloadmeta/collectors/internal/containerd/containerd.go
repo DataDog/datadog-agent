@@ -10,6 +10,7 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -84,7 +85,7 @@ func init() {
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Containerd) {
-		return errors.NewDisabled(componentName, "Agent is not running on containerd")
+		return agentErrors.NewDisabled(componentName, "Agent is not running on containerd")
 	}
 
 	c.store = store
@@ -235,6 +236,11 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 
 	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container)
 	if err != nil {
+		if errors.Is(err, errNoContainer) {
+			log.Debugf("No event could be built as container is nil, skipping event. CID: %s, event: %+v", containerID, containerdEvent)
+			return nil
+		}
+
 		return fmt.Errorf("cannot build collector event: %w", err)
 	}
 
@@ -273,7 +279,7 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 	// ignore NotFound errors, since they happen for every deleted
 	// container, but these events still need to be handled
 	container, err := c.containerdClient.ContainerWithContext(ctx, containerID)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !agentErrors.IsNotFound(err) {
 		return "", nil, err
 	}
 
