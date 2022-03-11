@@ -245,7 +245,7 @@ profiles:
 		},
 	}
 
-	sess.On("GetNext", []string{"1"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
 	sess.On("Get", []string{
 		"1.2.3.4.5",
