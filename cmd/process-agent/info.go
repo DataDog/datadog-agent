@@ -367,6 +367,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	var info StatusInfo
 	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		// Since the request failed, we can't get the version of the remote agent.
 		clientVersion, _ := version.Agent()
 		program, banner := getProgramBanner(clientVersion.GetNumber())
 		_ = infoErrorTmpl.Execute(w, struct {
