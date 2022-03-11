@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/fatih/color"
 	"runtime"
 	"strings"
 	"testing"
@@ -22,7 +23,7 @@ func setVersionForTest(agentVersion, commit, agentPayloadVersion string) (reset 
 }
 
 func TestVersion(t *testing.T) {
-	reset := setVersionForTest("1.33.7", "asdf", "1")
+	reset := setVersionForTest("1.33.7+yeet", "asdf", "1")
 	defer reset()
 
 	var s strings.Builder
@@ -30,7 +31,14 @@ func TestVersion(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t,
-		fmt.Sprintf("Agent 1.33.7 - Commit: asdf - Serialization version: 1 - Go version: %s\n", runtime.Version()),
+		fmt.Sprintf(
+			"Agent %s - Meta: %s - Commit: %s - Serialization version: %s - Go version: %s\n",
+			color.CyanString("1.33.7"),
+			color.YellowString("yeet"),
+			color.GreenString("asdf"),
+			color.YellowString("1"),
+			color.RedString(runtime.Version()),
+		),
 		s.String(),
 	)
 }

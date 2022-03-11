@@ -3,9 +3,9 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
 	"runtime"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -17,19 +17,24 @@ var VersionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version info",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return WriteVersion(os.Stdout)
+		return WriteVersion(color.Output)
 	},
 	SilenceUsage: true,
 }
 
 // versionString returns the version information filled in at build time
 func versionString(v version.Version) string {
+	var meta string
+	if v.Meta != "" {
+		meta = fmt.Sprintf("- Meta: %s ", color.YellowString(v.Meta))
+	}
 	return fmt.Sprintf(
-		"Agent %s - Commit: %s - Serialization version: %s - Go version: %s",
-		v.GetNumberAndPre(),
-		v.Commit,
-		serializer.AgentPayloadVersion,
-		runtime.Version(),
+		"Agent %s %s- Commit: %s - Serialization version: %s - Go version: %s",
+		color.CyanString(v.GetNumberAndPre()),
+		meta,
+		color.GreenString(v.Commit),
+		color.YellowString(serializer.AgentPayloadVersion),
+		color.RedString(runtime.Version()),
 	)
 }
 

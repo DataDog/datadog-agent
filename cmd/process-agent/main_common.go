@@ -15,6 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/agent-payload/v5/process"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -44,8 +47,6 @@ import (
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
-
-	"github.com/spf13/cobra"
 )
 
 const loggerName ddconfig.LoggerName = "PROCESS"
@@ -137,7 +138,7 @@ Exiting.`
 func runAgent(exit chan struct{}) {
 	if opts.version {
 		fmt.Println("WARNING: --version is deprecated and will be removed in a future version. Please use `process-agent version` instead.")
-		_ = app.WriteVersion(os.Stdout)
+		_ = app.WriteVersion(color.Output)
 		cleanupAndExit(0)
 	}
 
