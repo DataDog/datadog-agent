@@ -68,6 +68,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSizeOfUpid(f.kernelVersion)
 	case "dentry_sb_offset":
 		value = getDentrySuperBlockOffset(f.kernelVersion)
+	case "pipe_inode_info_bufs_offset":
+		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -420,5 +422,24 @@ func getDentrySuperBlockOffset(kv *kernel.Version) uint64 {
 		offset = 128
 	}
 
+	return offset
+}
+
+func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
+	offset := uint64(120)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 128
+	case kv.IsRH8Kernel():
+		offset = 120
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel5_6):
+		offset = 120
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_8):
+		offset = 144
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_8:
+		offset = 152
+	}
 	return offset
 }
