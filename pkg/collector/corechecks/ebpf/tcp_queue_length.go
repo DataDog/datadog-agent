@@ -15,7 +15,6 @@ package ebpf
 import (
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -93,7 +92,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	sender, err := aggregator.GetSender(t.ID())
+	sender, err := t.GetSender()
 	if err != nil {
 		return err
 	}
