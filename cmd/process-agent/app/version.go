@@ -2,10 +2,11 @@ package app
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"io"
 	"os"
 	"runtime"
+
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -39,6 +40,6 @@ func WriteVersion(w io.Writer) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintln(w, versionString(v))
-	return nil
+	_, err = fmt.Fprintln(w, versionString(v))
+	return err
 }

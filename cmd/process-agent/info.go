@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"html/template"
 	"io"
 	"net/http"
@@ -23,6 +22,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (

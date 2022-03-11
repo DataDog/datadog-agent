@@ -7,7 +7,6 @@ package main
 
 import (
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,8 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
