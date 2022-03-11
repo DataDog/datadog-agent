@@ -245,7 +245,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
 	// ---------------------------
-
+	config.Datadog.SetConfigFile(datadogConfigPath)
 	if !config.Datadog.IsSet("api_key") {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
