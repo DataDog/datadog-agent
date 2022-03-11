@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    The DEB package now depends on the datadog-signing-keys package. This package contains the latest signing keys used to sign the packages and repo metadata.
