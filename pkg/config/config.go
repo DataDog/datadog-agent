@@ -231,7 +231,7 @@ func InitConfig(config Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")
-	config.BindEnv("dd_url")
+	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle"})
 	config.SetDefault("proxy", nil)
@@ -1358,6 +1358,11 @@ func getMainInfraEndpointWithConfig(config Config) string {
 
 // GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
 func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
+
+	if envVarAreSetAndNotEqual(config, "DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. URL key is set to 'DD_DD_URL' value")
+	}
+
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
 		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
@@ -1367,6 +1372,15 @@ func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (r
 		resolvedDDURL = prefix + DefaultSite
 	}
 	return
+}
+
+// envVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
+func envVarAreSetAndNotEqual(config Config, lhsName string, rhsName string) bool {
+
+	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
+	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
+
+	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
 // GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
