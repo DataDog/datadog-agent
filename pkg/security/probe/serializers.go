@@ -264,8 +264,8 @@ type ModuleEventSerializer struct {
 // SpliceEventSerializer serializes a splice event to JSON
 // easyjson:json
 type SpliceEventSerializer struct {
-	PipeEntryFlag string `json:"pipe_entry_flag" jsonschema_description:"entry flag of the fd_out pipe passed to the splice syscall"`
-	PipeExitFlag  string `json:"pipe_exit_flag" jsonschema_description:"exit flag of the fd_out pipe passed to the splice syscall"`
+	PipeEntryFlag string `json:"pipe_entry_flag" jsonschema_description:"Entry flag of the fd_out pipe passed to the splice syscall"`
+	PipeExitFlag  string `json:"pipe_exit_flag" jsonschema_description:"Exit flag of the fd_out pipe passed to the splice syscall"`
 }
 
 // EventSerializer serializes an event to JSON
