@@ -34,7 +34,7 @@ func NewLogSources() *LogSources {
 
 // AddSource adds a new source.
 //
-// Any subscribers registered for this source's type (src.Config.Type) will be
+// One of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
@@ -53,7 +53,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 
 // RemoveSource removes a source.
 //
-// Any subscribers registered for this source's type (src.Config.Type) will be
+// One of the subscribers registered for this source's type (src.Config.Type) will be
 // notified of its removal.
 func (s *LogSources) RemoveSource(source *LogSource) {
 	s.mu.Lock()
