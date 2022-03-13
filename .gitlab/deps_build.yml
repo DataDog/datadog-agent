@@ -42,6 +42,7 @@
       -DLLVM_ENABLE_BINDINGS=OFF \
       -DLLVM_PARALLEL_COMPILE_JOBS=4 \
       -DLLVM_PARALLEL_LINK_JOBS=4 \
+      -DLLVM_ENABLE_UNWIND_TABLES=OFF \
       ../llvm
     - cmake --build . --target install
     # fail if references to glibc >= 2.18
