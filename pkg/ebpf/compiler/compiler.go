@@ -11,7 +11,7 @@ package compiler
 import (
 	"bytes"
 	"context"
-	"embed"
+	_ "embed"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -32,9 +32,6 @@ var (
 
 	//go:embed stdarg.h
 	stdargHData []byte
-
-	// Use the embed class in a trivial manner in order to get around 'imported and not used: "embed"' error
-	_ embed.FS
 )
 
 const compilationStepTimeout = 15 * time.Second
