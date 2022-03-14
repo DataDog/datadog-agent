@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/rapdev-io/datadog-secret-backend/backend/aws"
+	"github.com/rapdev-io/datadog-secret-backend/backend/azure"
 	"github.com/rapdev-io/datadog-secret-backend/backend/file"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 
@@ -83,7 +84,7 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 			b.Backends[backendId] = backend
 		}
 	case "azure.keyvault":
-		backend, err := azure.NewAzureKeyvaultBackend(backendId, config)
+		backend, err := azure.NewAzureKeyVaultBackend(backendId, config)
 		if err != nil {
 			b.Backends[backendId] = NewErrorBackend(backendId, err)
 		} else {

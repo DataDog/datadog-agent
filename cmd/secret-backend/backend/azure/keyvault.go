@@ -23,7 +23,7 @@ type AzureKeyVaultBackend struct {
 	Secret    map[string]string
 }
 
-func NewAzureKeyVaultBackendConfig(backendId string, bc map[string]interface{}) (*AzureKeyVaultBackend, error) {
+func NewAzureKeyVaultBackend(backendId string, bc map[string]interface{}) (*AzureKeyVaultBackend, error) {
 	backendConfig := AzureKeyVaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
@@ -39,15 +39,15 @@ func NewAzureKeyVaultBackendConfig(backendId string, bc map[string]interface{}) 
 		return nil, err
 	}
 	client := keyvault.New()
-	client.Authorizer = cfg
+	client.Authorizer = *cfg
 
-	out, err := client.GetSecret(context.Background(), AzureKeyVaultBackendConfig.KeyVaultURL, AzureKeyVaultBackendConfig.SecretId)
+	out, err := client.GetSecret(context.Background(), backendConfig.KeyVaultURL, backendConfig.SecretId, "latest")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"backend_id": backendId,
 			"backend_type": backendConfig.BackendType,
 			"secret_id": backendConfig.SecretId,
-			"keyvaulturl": backendConfig.KeyVaultURL
+			"keyvaulturl": backendConfig.KeyVaultURL,
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
@@ -58,23 +58,32 @@ func NewAzureKeyVaultBackendConfig(backendId string, bc map[string]interface{}) 
 			"backend_id": backendId,
 			"backend_type": backendConfig.BackendType,
 			"secret_id": backendConfig.SecretId,
-			"keyvaulturl": backendConfig.KeyVaultURL
+			"keyvaulturl": backendConfig.KeyVaultURL,
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
+
+	backend := &AzureKeyVaultBackend{
+		BackendId: backendId,
+		Config:    backendConfig,
+		Secret:    secretValue,
+	}
+
+	return backend, nil
 }
 
 func (b *AzureKeyVaultBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
 	if val, ok := b.Secret[secretKey]; ok {
-		return secret.SecretOutput{Value &val, Error: nil}
+		return secret.SecretOutput{Value: &val, Error: nil}
 	}
 	es := errors.New("backend does not provide secret key").Error()
 	
 	log.WithFields(log.Fields{
-		"backend_id": backendId,
-		"backend_type": backendConfig.BackendType,
-		"secret_id": backendConfig.SecretId,
-		"keyvaulturl": backendConfig.KeyVaultURL
+		"backend_id":   b.BackendId,
+		"backend_type": b.Config.BackendType,
+		"secret_id":    b.Config.SecretId,
+		"keyvaulturl":  b.Config.KeyVaultURL,
+		"secret_key":   secretKey,
 	}).Error("backend does not provide secret key")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }
