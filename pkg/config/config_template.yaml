@@ -1877,13 +1877,13 @@ api_key:
 
 ## @param jmx_statsd_client_queue_size - integer - optional - default: 4096
 ## @env DD_JMX_STATSD_CLIENT_QUEUE_SIZE - integer - optional - default: 4096
-## Determines the size of the JMXFetch statds client queue size (in number of elements).
+## Determines the size of the JMXFetch statds client queue (in number of elements).
 #
 # jmx_statsd_client_queue_size: 4096
 
 ## @param jmx_statsd_telemetry_enabled - boolean - optional - default: false
 ## @env DD_JMX_STATSD_TELEMETRY_ENABLED - boolean - optional - default: false
-## Defines whether or not JMXFetch statsd client telemetry will enabled.
+## Specifies whether the JMXFetch statsd client telemetry is enabled.
 #
 # jmx_statsd_telemetry_enabled: false
 
