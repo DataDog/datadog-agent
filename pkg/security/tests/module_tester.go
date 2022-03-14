@@ -347,14 +347,32 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 }
 
 //nolint:deadcode,unused
-func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayNotEmptyIntersection(t *testing.T, e *sprobe.Event, field string, values []string, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
-	return assert.Contains(t, values, fieldValue)
+
+	if fieldValues, ok := fieldValue.([]string); ok {
+		notEmptyIntersection := false
+		for _, leftValue := range fieldValues {
+			for _, rightValue := range values {
+				if leftValue == rightValue {
+					notEmptyIntersection = true
+				}
+			}
+		}
+
+		if !notEmptyIntersection {
+			return assert.Fail(t, "intersection not empty", msgAndArgs...)
+		}
+		return true
+	}
+
+	t.Errorf("failed to get field '%s' as an array", field)
+	return false
 }
 
 func setTestConfig(dir string, opts testOpts) (string, error) {

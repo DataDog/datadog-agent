@@ -746,7 +746,7 @@ func TestProcessExec(t *testing.T) {
 		return cmd.Run()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assertFieldEqual(t, event, "exec.file.path", executable)
-		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
+		assertFieldStringArrayNotEmptyIntersection(t, event, "process.ancestors.file.name", []string{"sh", "bash", "dash"})
 	})
 }
 
