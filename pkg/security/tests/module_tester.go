@@ -347,7 +347,7 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 }
 
 //nolint:deadcode,unused
-func assertFieldStringArrayNotEmptyIntersection(t *testing.T, e *sprobe.Event, field string, values []string, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -356,19 +356,7 @@ func assertFieldStringArrayNotEmptyIntersection(t *testing.T, e *sprobe.Event, f
 	}
 
 	if fieldValues, ok := fieldValue.([]string); ok {
-		notEmptyIntersection := false
-		for _, leftValue := range fieldValues {
-			for _, rightValue := range values {
-				if leftValue == rightValue {
-					notEmptyIntersection = true
-				}
-			}
-		}
-
-		if !notEmptyIntersection {
-			return assert.Fail(t, "intersection not empty", msgAndArgs...)
-		}
-		return true
+		return assert.Contains(t, values, fieldValues[index])
 	}
 
 	t.Errorf("failed to get field '%s' as an array", field)
