@@ -70,6 +70,43 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
 					Annotations: map[string]string{
+						"ad.datadoghq.com/endpoints.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My endpoint",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
+					},
+					Name:      "myservice",
+					Namespace: "default",
+				},
+			},
+			expectedOut: []configInfo{
+				{
+					tpl: integration.Config{
+						Name:                    "http_check",
+						ADIdentifiers:           []string{"kube_endpoint_uid://default/myservice/"},
+						InitConfig:              integration.Data("{}"),
+						Instances:               []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+						ClusterCheck:            false,
+						Source:                  "kube_endpoints:kube_endpoint_uid://default/myservice/",
+						IgnoreAutodiscoveryTags: false,
+					},
+					namespace: "default",
+					name:      "myservice",
+				},
+			},
+		},
+		{
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
 						"ad.datadoghq.com/endpoints.check_names":               "[\"http_check\"]",
 						"ad.datadoghq.com/endpoints.init_configs":              "[{}]",
 						"ad.datadoghq.com/endpoints.instances":                 "[{\"name\": \"My endpoint\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
