@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
-	kubeServicesName            = "kube_services"
+	kubeServiceID    = "service"
+	kubeServicesName = "kube_services"
 )
 
 // KubeServiceListener listens to kubernetes service creation
@@ -152,7 +152,7 @@ func servicesDiffer(first, second *v1.Service) bool {
 		return false
 	}
 	// AD annotations - check templates
-	if isServiceAnnotated(first, kubeServiceAnnotationFormat) != isServiceAnnotated(second, kubeServiceAnnotationFormat) {
+	if isServiceAnnotated(first, kubeServiceID) != isServiceAnnotated(second, kubeServiceID) {
 		return true
 	}
 	// AD labels - standard tags
@@ -185,7 +185,7 @@ func (l *KubeServiceListener) shouldIgnore(ksvc *v1.Service) bool {
 	}
 
 	// Ignore services with no AD or Prometheus AD include annotation
-	return !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
+	return !isServiceAnnotated(ksvc, kubeServiceID) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
 func (l *KubeServiceListener) createService(ksvc *v1.Service) {

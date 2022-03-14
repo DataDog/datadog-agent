@@ -15,6 +15,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -118,11 +119,20 @@ func standardTagsDigest(labels map[string]string) string {
 
 // isServiceAnnotated returns true if the Service has an annotation with a given key
 func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
-	if ksvc != nil {
-		if _, found := ksvc.GetAnnotations()[annotationKey]; found {
-			return true
-		}
+	if ksvc == nil {
+		return false
 	}
+
+	annotations := ksvc.GetAnnotations()
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".checks"]; found {
+		return true
+	}
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".instances"]; found {
+		return true
+	}
+
 	return false
 }
 

@@ -67,7 +67,7 @@ func TestExtractCheckNames(t *testing.T) {
 	}
 }
 
-func TestExtractTemplatesFromPodAnnotations(t *testing.T) {
+func TestExtractTemplatesFromAnnotations(t *testing.T) {
 	const adID = "docker://foobar"
 
 	tests := []struct {
@@ -323,7 +323,7 @@ func TestExtractTemplatesFromPodAnnotations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configs, errs := ExtractTemplatesFromPodAnnotations(adID, tt.annotations, tt.adIdentifier)
+			configs, errs := ExtractTemplatesFromAnnotations(adID, tt.annotations, tt.adIdentifier)
 			assert.ElementsMatch(t, tt.output, configs)
 			assert.ElementsMatch(t, tt.errs, errs)
 		})
