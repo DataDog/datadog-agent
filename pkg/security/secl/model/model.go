@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go -doc ../../../../docs/cloud-workload-security/secl.json
 
 package model
 
@@ -573,7 +572,7 @@ type SetXAttrEvent struct {
 	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
 	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
 
-	NameRaw [200]byte
+	NameRaw [200]byte `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event

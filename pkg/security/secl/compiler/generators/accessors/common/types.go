@@ -36,3 +36,33 @@ type StructField struct {
 	CommentText   string
 	OpOverrides   string
 }
+
+// GetEvaluatorType returns the evaluator type name
+func (sf *StructField) GetEvaluatorType() string {
+	var evaluatorType string
+	if sf.ReturnType == "int" {
+		evaluatorType = "eval.IntEvaluator"
+		if sf.Iterator != nil || sf.IsArray {
+			evaluatorType = "eval.IntArrayEvaluator"
+		}
+	} else if sf.ReturnType == "bool" {
+		evaluatorType = "eval.BoolEvaluator"
+		if sf.Iterator != nil || sf.IsArray {
+			evaluatorType = "eval.BoolArrayEvaluator"
+		}
+	} else {
+		evaluatorType = "eval.StringEvaluator"
+		if sf.Iterator != nil || sf.IsArray {
+			evaluatorType = "eval.StringArrayEvaluator"
+		}
+	}
+	return evaluatorType
+}
+
+// GetArrayPrefix returns the array prefix of this field
+func (sf *StructField) GetArrayPrefix() string {
+	if sf.IsArray {
+		return "[]"
+	}
+	return ""
+}
