@@ -109,10 +109,11 @@ func TestExtractCronJob(t *testing.T) {
 				},
 			},
 			expected: model.CronJob{
-				Metadata:             &model.Metadata{},
-				Spec:                 &model.CronJobSpec{},
-				Status:               &model.CronJobStatus{},
-				ResourceRequirements: getExpectedModelResourceRequirements(),
+				Metadata: &model.Metadata{},
+				Spec: &model.CronJobSpec{
+					ResourceRequirements: getExpectedModelResourceRequirements(),
+				},
+				Status: &model.CronJobStatus{},
 			},
 		},
 	}
