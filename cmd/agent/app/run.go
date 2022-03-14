@@ -476,9 +476,6 @@ func StopAgent() {
 		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	// gracefully shut down any component
-	common.MainCtxCancel()
-
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}
@@ -505,6 +502,10 @@ func StopAgent() {
 	profiler.Stop()
 
 	os.Remove(pidfilePath)
+
+	// gracefully shut down any component
+	common.MainCtxCancel()
+
 	log.Info("See ya!")
 	log.Flush()
 }
