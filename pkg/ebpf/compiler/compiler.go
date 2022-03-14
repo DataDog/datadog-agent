@@ -96,6 +96,10 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		return fmt.Errorf("error compiling asset to bytecode: %s", errMsg)
 	}
 
+	if len(clangErr.String()) > 0 {
+		log.Debugf("%s", clangErr.String())
+	}
+
 	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer llcCancel()
 
@@ -118,5 +122,10 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		}
 		return fmt.Errorf("error compiling bytecode to object file: %s", errMsg)
 	}
+
+	if len(llcErr.String()) > 0 {
+		log.Debugf("%s", clangErr.String())
+	}
+
 	return nil
 }
