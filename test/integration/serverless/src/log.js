@@ -9,7 +9,8 @@ async function myHandler(event, context) {
   await sleep();
   console.error("XXX LOG 2 XXX");
   await sleep();
-  
+  console.log("XXX OBFUSCATED LOG M12345M XXX")
+
   return {
     statusCode: 200,
     body: 'ok'
