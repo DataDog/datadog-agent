@@ -400,6 +400,14 @@ func (nr *NamespaceResolver) flushNamespaces(ctx context.Context) {
 	}
 }
 
+// FlushNetworkNamespace flushes the cached entries for the provided network namespace.
+func (nr *NamespaceResolver) FlushNetworkNamespace(netns *NetworkNamespace) {
+	nr.Lock()
+	defer nr.Unlock()
+
+	nr.flushNetworkNamespace(netns)
+}
+
 // flushNetworkNamespace flushes the cached entries for the provided network namespace.
 func (nr *NamespaceResolver) flushNetworkNamespace(netns *NetworkNamespace) {
 
