@@ -2,7 +2,7 @@ name: "CodeQL config"
 disable-default-queries: true
 queries:
   - name: Go Custom Crypto Queries
-    uses: urnfdog/qlpack/go-queries/Security/FIPS@urnfdog/fipsrules
+    uses: datadog/qlpack/go-queries/CryptographicFootprint@klai/cryptographic-footprint
   - name: Go Queries
     uses: datadog/qlpack/go-queries/codeql-suites/go-code-scanning.qls@main
   - name: Python Queries
