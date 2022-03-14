@@ -731,6 +731,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
+	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
+	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
