@@ -166,6 +166,19 @@ func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GeneratePro
 	return nil, fmt.Errorf("monitor not configured")
 }
 
+// GenerateGraph generates a graph from an activity dump
+func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.GenerateGraph(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
 func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Lock()
 	a.queue = append(a.queue, msg)

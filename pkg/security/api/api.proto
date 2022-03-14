@@ -85,6 +85,15 @@ message SecurityProfileGeneratedMessage {
     string Error = 2;
 }
 
+message GenerateGraphParams {
+    string ActivityDumpFile = 1;
+}
+
+message SecurityGraphGeneratedMessage {
+    string GraphPath = 1;
+    string Error = 2;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
@@ -92,6 +101,7 @@ service SecurityModule {
     rpc ListActivityDumps(ListActivityDumpsParams) returns (SecurityActivityDumpListMessage) {}
     rpc StopActivityDump(StopActivityDumpParams) returns (SecurityActivityDumpStoppedMessage) {}
     rpc GenerateProfile(GenerateProfileParams) returns (SecurityProfileGeneratedMessage) {}
+    rpc GenerateGraph(GenerateGraphParams) returns (SecurityGraphGeneratedMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}

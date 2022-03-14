@@ -265,3 +265,13 @@ func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (*api.Secur
 	}
 	return m.activityDumpManager.GenerateProfile(params)
 }
+
+// GenerateGraph returns a graph from the provided activity dump
+func (m *Monitor) GenerateGraph(params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
+	if !m.probe.config.ActivityDumpEnabled {
+		return &api.SecurityGraphGeneratedMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
+	}
+	return m.activityDumpManager.GenerateGraph(params)
+}

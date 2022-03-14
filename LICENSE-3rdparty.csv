@@ -885,7 +885,6 @@ core,go.uber.org/zap/zapcore,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Uber Technologies, Inc"
 core,go4.org/intern,BSD-3-Clause,Brad Fitzpatrick
 core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,Brad Fitzpatrick
-core,golang.org/x/crypto/blake2b,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cast5,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,The Go Authors

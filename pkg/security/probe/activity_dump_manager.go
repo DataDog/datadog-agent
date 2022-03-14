@@ -10,12 +10,8 @@ package probe
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -357,68 +353,29 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 	}
 }
 
-var profileTmpl = `---
-name: {{ .Name }}
-selector:
-  - {{ .Selector }}
-
-rules:{{ range .Rules }}
-  - id: {{ .ID }}
-    expression: {{ .Expression }}
-{{ end }}
-`
-
 // GenerateProfile returns a profile generated from the provided activity dump
 func (adm *ActivityDumpManager) GenerateProfile(params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
 	var resp api.SecurityProfileGeneratedMessage
-
-	// open and parse activity dump file
-	f, err := os.Open(params.ActivityDumpFile)
+	file, err := GenerateProfile(params.ActivityDumpFile)
 	if err != nil {
-		errMsg := fmt.Errorf("couldn't open activity dump file: %w", err)
-		resp.Error = errMsg.Error()
-		return &resp, errMsg
+		resp.Error = err.Error()
+		return &resp, err
 	}
+	resp.ProfilePath = file
+	seclog.Debugf("profile generated from %s: %s", params.ActivityDumpFile, resp.ProfilePath)
+	return &resp, nil
+}
 
-	data, err := io.ReadAll(f)
+// GenerateGraph returns a graph generated from the provided activity dump
+func (adm *ActivityDumpManager) GenerateGraph(params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
+	var resp api.SecurityGraphGeneratedMessage
+	file, err := GenerateGraph(params.ActivityDumpFile)
 	if err != nil {
-		errMsg := fmt.Errorf("couldn't read activity dump file: %w", err)
-		resp.Error = errMsg.Error()
-		return &resp, errMsg
+		resp.Error = err.Error()
+		return &resp, err
 	}
-
-	var dump ActivityDump
-	err = json.Unmarshal(data, &dump)
-	if err != nil {
-		errMsg := fmt.Errorf("couldn't parse activity dump file: %w", err)
-		resp.Error = errMsg.Error()
-		return &resp, errMsg
-	}
-
-	// create profile output file
-	var profile *os.File
-	profile, err = os.CreateTemp("/tmp", "profile-")
-	if err != nil {
-		errMsg := fmt.Errorf("couldn't create profile file: %w", err)
-		resp.Error = errMsg.Error()
-		return &resp, errMsg
-	}
-
-	if err = os.Chmod(profile.Name(), 0400); err != nil {
-		errMsg := fmt.Errorf("couldn't change the mode of the profile file: %w", err)
-		resp.Error = errMsg.Error()
-		return &resp, errMsg
-	}
-
-	t := template.Must(template.New("tmpl").Parse(profileTmpl))
-	err = t.Execute(profile, dump.GenerateProfileData())
-	if err != nil {
-		errMsg := fmt.Errorf("couldn't generate profile: %w", err)
-		resp.Error = errMsg.Error()
-		return &resp, errMsg
-	}
-
-	resp.ProfilePath = profile.Name()
+	resp.GraphPath = file
+	seclog.Debugf("graph generated from %s: %s", params.ActivityDumpFile, resp.GraphPath)
 	return &resp, nil
 }
 

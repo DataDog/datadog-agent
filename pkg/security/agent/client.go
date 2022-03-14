@@ -66,6 +66,13 @@ func (c *RuntimeSecurityClient) GenerateProfile(file string) (*api.SecurityProfi
 	})
 }
 
+func (c *RuntimeSecurityClient) GenerateGraph(file string) (*api.SecurityGraphGeneratedMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.GenerateGraph(context.Background(), &api.GenerateGraphParams{
+		ActivityDumpFile: file,
+	})
+}
+
 // GetConfig retrieves the config of the runtime security module
 func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) {
 	response, err := c.apiClient.GetConfig(context.Background(), &api.GetConfigParams{})

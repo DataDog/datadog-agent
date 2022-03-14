@@ -93,18 +93,30 @@ var (
 		withGraph         bool
 		differentiateArgs bool
 		outputDirectory   string
+		remote            bool
 	}{}
 
 	activityDumpGenerateCmd = &cobra.Command{
 		Use:   "generate",
+		Short: "generate command for activity dumps",
+	}
+
+	activityDumpGenerateDumpCmd = &cobra.Command{
+		Use:   "dump",
 		Short: "generate an activity dump",
 		RunE:  generateActivityDump,
 	}
 
 	activityDumpGenerateProfileCmd = &cobra.Command{
-		Use:   "generate-profile",
+		Use:   "profile",
 		Short: "generate a profile from an activity dump",
 		RunE:  generateProfileFromActivityDump,
+	}
+
+	activityDumpGenerateGraphCmd = &cobra.Command{
+		Use:   "graph",
+		Short: "generate a graph from an activity dump",
+		RunE:  generateGraphFromActivityDump,
 	}
 
 	activityDumpStopCmd = &cobra.Command{
@@ -164,31 +176,31 @@ var (
 func init() {
 	processCacheDumpCmd.Flags().BoolVar(&processCacheDumpArgs.withArgs, "with-args", false, "add process arguments to the dump")
 
-	activityDumpGenerateCmd.Flags().StringVar(
+	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&activityDumpArgs.comm,
 		"comm",
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
-	activityDumpGenerateCmd.Flags().IntVar(
+	activityDumpGenerateDumpCmd.Flags().IntVar(
 		&activityDumpArgs.timeout,
 		"timeout",
 		60,
 		"timeout for the activity dump in minutes",
 	)
-	activityDumpGenerateCmd.Flags().BoolVar(
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.withGraph,
 		"graph",
 		false,
 		"generate a graph from the generated dump",
 	)
-	activityDumpGenerateCmd.Flags().BoolVar(
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.differentiateArgs,
 		"differentiate-args",
 		false,
 		"add the arguments in the process node merge algorithm",
 	)
-	activityDumpGenerateCmd.Flags().StringVar(
+	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&activityDumpArgs.outputDirectory,
 		"output",
 		"/tmp/activity_dumps/",
@@ -206,17 +218,42 @@ func init() {
 		&activityDumpArgs.file,
 		"input",
 		"",
-		"path to the activity dump file from which a profile will be generated",
+		"path to the activity dump file",
 	)
 	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
+	activityDumpGenerateProfileCmd.Flags().BoolVar(
+		&activityDumpArgs.remote,
+		"remote",
+		false,
+		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
+	)
+
+	activityDumpGenerateGraphCmd.Flags().StringVar(
+		&activityDumpArgs.file,
+		"input",
+		"",
+		"path to the activity dump file",
+	)
+	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
+	activityDumpGenerateGraphCmd.Flags().BoolVar(
+		&activityDumpArgs.remote,
+		"remote",
+		false,
+		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
+	)
 
 	processCacheCmd.AddCommand(processCacheDumpCmd)
 	runtimeCmd.AddCommand(processCacheCmd)
 
+	activityDumpGenerateCmd.AddCommand(activityDumpGenerateDumpCmd)
+	activityDumpGenerateCmd.AddCommand(activityDumpGenerateProfileCmd)
+	activityDumpGenerateCmd.AddCommand(activityDumpGenerateGraphCmd)
 	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
+
 	activityDumpCmd.AddCommand(activityDumpListCmd)
 	activityDumpCmd.AddCommand(activityDumpStopCmd)
 	activityDumpCmd.AddCommand(activityDumpGenerateProfileCmd)
+	activityDumpCmd.AddCommand(activityDumpGenerateGraphCmd)
 	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
@@ -372,21 +409,67 @@ func generateProfileFromActivityDump(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return errors.Wrap(err, "unable to generate a profile")
-	}
-	defer client.Close()
+	var profilePath string
 
-	output, err := client.GenerateProfile(activityDumpArgs.file)
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("profile generation request failed: %s", output.Error)
+	if activityDumpArgs.remote {
+		client, err := secagent.NewRuntimeSecurityClient()
+		if err != nil {
+			return fmt.Errorf("profile generation failed: %w", err)
+		}
+		defer client.Close()
+
+		output, err := client.GenerateProfile(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("couldn't send request to system-probe: %w", err)
+		}
+		if len(output.Error) > 0 {
+			return fmt.Errorf("profile generation failed: %s", output.Error)
+		}
+		profilePath = output.ProfilePath
+	} else {
+		output, err := sprobe.GenerateProfile(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("profile generation failed: %w", err)
+		}
+		profilePath = output
 	}
 
-	fmt.Printf("Generated profile: %s\n", output.ProfilePath)
+	fmt.Printf("Generated profile: %s\n", profilePath)
+	return nil
+}
+
+func generateGraphFromActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	var graphPath string
+
+	if activityDumpArgs.remote {
+		client, err := secagent.NewRuntimeSecurityClient()
+		if err != nil {
+			return fmt.Errorf("graph generation failed: %w", err)
+		}
+		defer client.Close()
+
+		output, err := client.GenerateGraph(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("couldn't send request to system-probe: %w", err)
+		}
+		if len(output.Error) > 0 {
+			return fmt.Errorf("graph generation failed: %s", output.Error)
+		}
+		graphPath = output.GraphPath
+	} else {
+		output, err := sprobe.GenerateGraph(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("graph generation failed: %w", err)
+		}
+		graphPath = output
+	}
+
+	fmt.Printf("Generated graph: %s\n", graphPath)
 	return nil
 }
 

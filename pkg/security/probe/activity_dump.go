@@ -224,17 +224,17 @@ func (ad *ActivityDump) Done() {
 	}
 
 	ad.End = time.Now()
-	//ad.debug()
 	ad.dump()
+
 	if ad.graphFile != nil {
-		title := fmt.Sprintf("Activity tree: %s", ad.GetSelectorStr())
-		err := ad.generateGraph(title)
+		err := ad.generateGraph()
 		if err != nil {
 			seclog.Errorf("couldn't generate activity graph: %v", err)
 		} else {
 			seclog.Infof("activity graph for [%s] written at: %s", ad.GetSelectorStr(), ad.GraphFile)
 		}
 	}
+
 	ad.close()
 
 	// release all shared resources
@@ -613,11 +613,20 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.SecurityActivityDum
 
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
+	id             string
 	Process        model.Process      `json:"process"`
 	GenerationType NodeGenerationType `json:"creation_type"`
 
 	Files    map[string]*FileActivityNode `json:"files"`
 	Children []*ProcessActivityNode       `json:"children"`
+}
+
+// GetID returns a unique ID to identify the current node
+func (pan *ProcessActivityNode) GetID() string {
+	if len(pan.id) == 0 {
+		pan.id = eval.RandString(5)
+	}
+	return pan.id
 }
 
 // NewProcessActivityNode returns a new ProcessActivityNode instance
@@ -627,6 +636,7 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 		GenerationType: generationType,
 		Files:          make(map[string]*FileActivityNode),
 	}
+	_ = pan.GetID()
 	pan.retain()
 	return &pan
 }
@@ -858,6 +868,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
+	id             string
 	Name           string             `json:"name"`
 	File           *model.FileEvent   `json:"file,omitempty"`
 	GenerationType NodeGenerationType `json:"generation_type"`
@@ -866,6 +877,14 @@ type FileActivityNode struct {
 	Open *OpenNode `json:"open,omitempty"`
 
 	Children map[string]*FileActivityNode `json:"children"`
+}
+
+// GetID returns a unique ID to identify the current node
+func (fan *FileActivityNode) GetID() string {
+	if len(fan.id) == 0 {
+		fan.id = eval.RandString(5)
+	}
+	return fan.id
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -882,6 +901,7 @@ func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, 
 		GenerationType: generationType,
 		Children:       make(map[string]*FileActivityNode),
 	}
+	_ = fan.GetID()
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
