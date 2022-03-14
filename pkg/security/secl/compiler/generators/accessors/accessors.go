@@ -40,7 +40,7 @@ var (
 	output    string
 	verbose   bool
 	mock      bool
-	genDoc    bool
+	docOutput string
 	buildTags string
 )
 
@@ -431,11 +431,10 @@ func main() {
 		panic(err)
 	}
 
-	if genDoc {
-		if err := doc.GenerateDocJSON(module, output); err != nil {
+	if docOutput != "" {
+		if err := doc.GenerateDocJSON(module, docOutput); err != nil {
 			panic(err)
 		}
-		return
 	}
 
 	tmpfile, err := os.CreateTemp(path.Dir(output), "accessors")
@@ -464,7 +463,7 @@ func main() {
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flag.BoolVar(&mock, "mock", false, "Mock accessors")
-	flag.BoolVar(&genDoc, "doc", false, "Generate documentation JSON")
+	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
