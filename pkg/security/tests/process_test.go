@@ -746,7 +746,8 @@ func TestProcessExec(t *testing.T) {
 		return cmd.Run()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assertFieldEqual(t, event, "exec.file.path", executable)
-		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
+		// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+		assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
 	})
 }
 
