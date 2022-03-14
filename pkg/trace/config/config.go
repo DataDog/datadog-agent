@@ -394,8 +394,7 @@ type RemoteClient interface {
 
 // SamplingUpdate ...
 type SamplingUpdate struct {
-	ID      string
-	Version uint64
+	Configs map[string]uint64
 	Rates   []pb.APMSampling
 }
 
