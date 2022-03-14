@@ -54,7 +54,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.17
+	github.com/DataDog/agent-payload/v5 v5.0.18
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.4

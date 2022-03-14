@@ -277,10 +277,11 @@ func TestExtractJob(t *testing.T) {
 				},
 			},
 			expected: model.Job{
-				Metadata:             &model.Metadata{},
-				Spec:                 &model.JobSpec{},
-				Status:               &model.JobStatus{},
-				ResourceRequirements: getExpectedModelResourceRequirements(),
+				Metadata: &model.Metadata{},
+				Spec: &model.JobSpec{
+					ResourceRequirements: getExpectedModelResourceRequirements(),
+				},
+				Status: &model.JobStatus{},
 			},
 		},
 	}

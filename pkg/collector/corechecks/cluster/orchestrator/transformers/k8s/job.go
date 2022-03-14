@@ -54,7 +54,7 @@ func ExtractJob(j *batchv1.Job) *model.Job {
 		job.Status.CompletionTime = j.Status.CompletionTime.Unix()
 	}
 
-	job.ResourceRequirements = ExtractPodTemplateResourceRequirements(j.Spec.Template)
+	job.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(j.Spec.Template)
 
 	return &job
 }
