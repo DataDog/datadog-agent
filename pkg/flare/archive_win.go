@@ -259,3 +259,61 @@ func zipServiceStatus(tempDir, hostname string) error {
 	}
 	return nil
 }
+
+// There are two ways to implement this functionality with its own pros and cons
+// 1. Calling Registry API (https://pkg.go.dev/golang.org/x/sys/windows/registry)
+//    recursively enumerating and dumping Keys and Values. While high performing
+//    one need to implement many special cases to do it generally and accurately.
+//    Consider following example output which may demonstrate nuances of supporting
+//    all registry value types
+//
+//          [HKEY_LOCAL_MACHINE\Software\Datadog\Len-Test]
+//          "str"="asdfasdf"
+//          "bin"=hex:ad,fd,fa,a0
+//          "dword"=dword:00000000
+//          "multi-str"=hex(7):61,00,73,00,64,00,66,00,61,00,73,00,64,00,66,00,00,00,61,00,73,\
+//            00,64,00,66,00,61,00,73,00,64,00,66,00,66,00,66,00,66,00,66,00,66,00,00,00,\
+//            73,00,73,00,73,00,73,00,00,00,73,00,73,00,73,00,00,00,00,00
+//          "expand-str"=hex(2):25,00,61,00,70,00,70,00,64,00,61,00,74,00,61,00,25,00,00,00
+//
+// 2. Spawning reg.exe process (https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg)
+//    It is builtin command and will do the heavy lifting of the recursion and value dumping but it
+//    creating process is relatively slow and generate a file which need to be scrubbed. From
+//    security standpoint it is still secure since generated file can be read only by an administrator
+//    or a ddagentuser.
+//
+func zipDatadogRegistry(tempDir, hostname string) error {
+	// Generate raw exported registry file which we will scrub just in case
+	rawf := filepath.Join(tempDir, hostname, "datadog-raw.reg")
+	err := ensureParentDirsExist(rawf)
+	if err != nil {
+		return fmt.Errorf("Error in ensureParentDirsExist %v", err)
+	}
+
+	// reg.exe is built in Windows utility which will be always present
+	// https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg
+	cmd := exec.Command("reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if stderr.Len() > 0 {
+			return fmt.Errorf("Error getting Datadog registry exported via reg command. %v [%s]", stderr.String(), err)
+		}
+		return fmt.Errorf("Error getting Datadog registry exported via reg command. %v", err)
+	}
+	defer os.Remove(rawf)
+
+	// Read raw registry file in memory, scrub it and write it back
+	f := filepath.Join(tempDir, hostname, "datadog.reg")
+	data, err := ioutil.ReadFile(rawf)
+	if err != nil {
+		return err
+	}
+
+	err = writeScrubbedFile(f, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
