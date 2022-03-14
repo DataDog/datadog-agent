@@ -6,6 +6,7 @@
 package containerlifecycle
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -109,7 +110,9 @@ func (c *Check) Run() error {
 	)
 
 	pollInterval := time.Duration(c.instance.pollInterval) * time.Second
-	c.processor.start(c.stopCh, pollInterval)
+
+	processorCtx, stopProcessor := context.WithCancel(context.Background())
+	c.processor.start(processorCtx, pollInterval)
 
 	for {
 		select {
@@ -118,6 +121,7 @@ func (c *Check) Run() error {
 		case eventBundle := <-podEventsCh:
 			c.processor.processEvents(eventBundle)
 		case <-c.stopCh:
+			stopProcessor()
 			return nil
 		}
 	}
