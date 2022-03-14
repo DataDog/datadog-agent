@@ -137,6 +137,7 @@ func getIOStatsCgroupV1(blkioStat *v1.BlkIOStat) *provider.ContainerIOStats {
 
 func getNetworkStatsCgroupV1(networkStats []*v1.NetworkStat) *provider.ContainerNetworkStats {
 	containerNetworkStats := provider.ContainerNetworkStats{
+		Timestamp:   time.Now(),
 		BytesSent:   pointer.Float64Ptr(0),
 		BytesRcvd:   pointer.Float64Ptr(0),
 		PacketsSent: pointer.Float64Ptr(0),

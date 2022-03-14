@@ -454,6 +454,16 @@ func TestPartial(t *testing.T) {
 		},
 	}
 
+	variables := make(map[string]VariableValue)
+	variables["var"] = NewBoolVariable(
+		func(ctx *Context) bool {
+			return false
+		},
+		func(ctx *Context, value interface{}) error {
+			return nil
+		},
+	)
+
 	tests := []struct {
 		Expr        string
 		Field       Field
@@ -461,6 +471,7 @@ func TestPartial(t *testing.T) {
 	}{
 		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: false},
 		{Expr: `false || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: true},
+		{Expr: `1 != 1 || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: true},
 		{Expr: `true || process.name == "abc"`, Field: "process.name", IsDiscarder: false},
 		{Expr: `false || process.name == "abc"`, Field: "process.name", IsDiscarder: false},
 		{Expr: `true && process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: true},
@@ -488,7 +499,7 @@ func TestPartial(t *testing.T) {
 		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: false},
 		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: true},
 		{Expr: `open.filename == open.filename`, Field: "open.filename", IsDiscarder: false},
-		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscarder: false},
+		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscarder: true},
 		{Expr: `open.filename == "test1" && process.uid == 456`, Field: "process.uid", IsDiscarder: true},
 		{Expr: `open.filename == "test1" && process.uid == 123`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `open.filename == "test1" && !process.is_root`, Field: "process.is_root", IsDiscarder: true},
@@ -496,13 +507,24 @@ func TestPartial(t *testing.T) {
 		{Expr: `open.filename =~ "*test1*"`, Field: "open.filename", IsDiscarder: true},
 		{Expr: `process.uid & (1 | 1024) == 1`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.uid & (1 | 2) == 1`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: true},
+		{Expr: `process.uid == 123 && ${var} == true`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.uid == 123 && ${var} != true`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.uid == 678 && ${var} == true`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `process.uid == 678 && ${var} != true`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `process.name == "abc" && ^process.uid != 0`, Field: "process.name", IsDiscarder: false},
+		{Expr: `process.name == "abc" && ^process.uid == 0`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `process.name == "abc" && ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.name == "abc" || ^process.uid == 0`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.name == "abc" || ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
 	}
 
 	ctx := NewContext(unsafe.Pointer(&event))
 
 	for _, test := range tests {
 		model := &testModel{}
-		opts := &Opts{Constants: testConstants}
+		opts := &Opts{Constants: testConstants, Variables: variables}
 
 		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
@@ -518,7 +540,7 @@ func TestPartial(t *testing.T) {
 		}
 
 		if !result != test.IsDiscarder {
-			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, !result, test.Expr)
 		}
 	}
 }

@@ -113,13 +113,12 @@ func (c *Client) State() (State, error) {
 	}
 
 	targets, err := c.unsafeTargets()
-	if err != nil {
-		return State{}, err
-	}
-	for targetName := range targets {
-		content, err := c.unsafeTargetFile(targetName)
-		if err == nil {
-			s.TargetFilenames[targetName] = metaHash(content)
+	if err == nil {
+		for targetName := range targets {
+			content, err := c.unsafeTargetFile(targetName)
+			if err == nil {
+				s.TargetFilenames[targetName] = metaHash(content)
+			}
 		}
 	}
 	return s, nil

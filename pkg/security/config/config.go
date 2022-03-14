@@ -92,6 +92,11 @@ type Config struct {
 	EnableRuntimeCompiledConstants bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
+	// ActivityDumpEnabled defines if the activity dump manager should be enabled
+	ActivityDumpEnabled bool
+	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
+	// operation.
+	ActivityDumpCleanupPeriod time.Duration
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -134,6 +139,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
 		EnableRuntimeCompiledConstants:     aconfig.Datadog.GetBool("runtime_security_config.enable_runtime_compiled_constants"),
 		RuntimeCompiledConstantsIsSet:      aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants"),
+		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump_manager.enabled"),
+		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.cleanup_period")) * time.Second,
 	}
 
 	// if runtime is enabled then we force fim

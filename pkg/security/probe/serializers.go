@@ -218,6 +218,7 @@ type BPFEventSerializer struct {
 }
 
 // MMapEventSerializer serializes a mmap event to JSON
+// easyjson:json
 type MMapEventSerializer struct {
 	Address    string `json:"address" jsonschema_description:"memory segment address"`
 	Offset     uint64 `json:"offset" jsonschema_description:"file offset"`
@@ -227,6 +228,7 @@ type MMapEventSerializer struct {
 }
 
 // MProtectEventSerializer serializes a mmap event to JSON
+// easyjson:json
 type MProtectEventSerializer struct {
 	VMStart       string `json:"vm_start" jsonschema_description:"memory segment start address"`
 	VMEnd         string `json:"vm_end" jsonschema_description:"memory segment end address"`
@@ -235,6 +237,7 @@ type MProtectEventSerializer struct {
 }
 
 // PTraceEventSerializer serializes a mmap event to JSON
+// easyjson:json
 type PTraceEventSerializer struct {
 	Request string                    `json:"request" jsonschema_description:"ptrace request"`
 	Address string                    `json:"address" jsonschema_description:"address at which the ptrace request was executed"`
@@ -242,6 +245,7 @@ type PTraceEventSerializer struct {
 }
 
 // SignalEventSerializer serializes a signal event to JSON
+// easyjson:json
 type SignalEventSerializer struct {
 	Type   string                    `json:"type" jsonschema_description:"signal type"`
 	PID    uint32                    `json:"pid" jsonschema_description:"signal target pid"`
@@ -256,9 +260,17 @@ type DDContextSerializer struct {
 }
 
 // ModuleEventSerializer serializes a module event to JSON
+// easyjson:json
 type ModuleEventSerializer struct {
 	Name             string `json:"name" jsonschema_description:"module name"`
 	LoadedFromMemory *bool  `json:"loaded_from_memory,omitempty" jsonschema_description:"indicates if a module was loaded from memory, as opposed to a file"`
+}
+
+// SpliceEventSerializer serializes a splice event to JSON
+// easyjson:json
+type SpliceEventSerializer struct {
+	PipeEntryFlag string `json:"pipe_entry_flag" jsonschema_description:"Entry flag of the fd_out pipe passed to the splice syscall"`
+	PipeExitFlag  string `json:"pipe_exit_flag" jsonschema_description:"Exit flag of the fd_out pipe passed to the splice syscall"`
 }
 
 // EventSerializer serializes an event to JSON
@@ -273,6 +285,7 @@ type EventSerializer struct {
 	*PTraceEventSerializer     `json:"ptrace,omitempty"`
 	*ModuleEventSerializer     `json:"module,omitempty"`
 	*SignalEventSerializer     `json:"signal,omitempty"`
+	*SpliceEventSerializer     `json:"splice,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -463,6 +476,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 			if prev.PPid == s.Pid && prev.Comm == s.Comm {
 				prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
 				prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
+				prev.Argv0 = ""
 			}
 		}
 		prev = s
@@ -586,6 +600,13 @@ func newSignalEventSerializer(e *Event) *SignalEventSerializer {
 		ses.Target = &pcs
 	}
 	return ses
+}
+
+func newSpliceEventSerializer(e *Event) *SpliceEventSerializer {
+	return &SpliceEventSerializer{
+		PipeEntryFlag: model.PipeBufFlag(e.Splice.PipeEntryFlag).String(),
+		PipeExitFlag:  model.PipeBufFlag(e.Splice.PipeExitFlag).String(),
+	}
 }
 
 func serializeSyscallRetval(retval int64) string {
@@ -800,8 +821,10 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.PTraceEventSerializer = newPTraceEventSerializer(event)
 	case model.LoadModuleEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
-		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+		if !event.LoadModule.LoadedFromMemory {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+			}
 		}
 		s.ModuleEventSerializer = newLoadModuleEventSerializer(event)
 	case model.UnloadModuleEventType:
@@ -810,6 +833,14 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.SignalEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Signal.Retval)
 		s.SignalEventSerializer = newSignalEventSerializer(event)
+	case model.SpliceEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Splice.Retval)
+		s.SpliceEventSerializer = newSpliceEventSerializer(event)
+		if event.Splice.File.Inode != 0 {
+			s.FileEventSerializer = &FileEventSerializer{
+				FileSerializer: *newFileSerializer(&event.Splice.File, event),
+			}
+		}
 	}
 
 	return s

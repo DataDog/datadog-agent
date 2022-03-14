@@ -88,7 +88,7 @@ def fix_data(data):
         # https://docs.mongodb.com/v2.6/faq/developers/#dollar-sign-operator-escaping
         patch_key=lambda x: x.translate(str.maketrans('.$', '\uff0e\uff04')),
         # Values that cannot fit in a 64 bits integer must be represented as a float.
-        patch_leaf=lambda x: float(x) if isinstance(x, int) and x > 2 ** 63 - 1 else x,
+        patch_leaf=lambda x: float(x) if isinstance(x, int) and x > 2**63 - 1 else x,
     )
 
 

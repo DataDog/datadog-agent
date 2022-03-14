@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	minimalRefreshInterval = time.Second * 5
-	defaultClientsTTL      = 10 * time.Second
+	minimalRefreshInterval = 5 * time.Second
+	defaultClientsTTL      = 30 * time.Second
+	maxClientsTTL          = 60 * time.Second
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -137,9 +138,9 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 
-	clientsTTL := time.Second * config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
-	if clientsTTL <= 5*time.Second || clientsTTL >= 60*time.Second {
-		log.Warnf("Configured clients ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, clientsTTL, defaultClientsTTL)
+	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
+	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
+		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
 		clientsTTL = defaultClientsTTL
 	}
 	clock := clock.New()
@@ -168,13 +169,13 @@ func (s *Service) Start(ctx context.Context) error {
 
 		for {
 			refreshInterval := s.calculateRefreshInterval()
-
+			err := s.refresh()
+			if err != nil {
+				log.Errorf("could not refresh remote-config: %v", err)
+			}
 			select {
 			case <-s.clock.After(refreshInterval):
-				err := s.refresh()
-				if err != nil {
-					log.Errorf("could not refresh remote-config: %v", err)
-				}
+				continue
 			case <-ctx.Done():
 				return
 			}

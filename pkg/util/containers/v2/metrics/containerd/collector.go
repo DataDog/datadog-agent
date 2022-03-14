@@ -91,7 +91,7 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 	// We got the main stats, best effort to fill remaining fields
 	container, err := c.client.Container(containerID)
 	if err != nil {
-		log.Debugf("Could not fetch container with ID %s: %w", containerID, err)
+		log.Debugf("Could not fetch container with ID %s: %v", containerID, err)
 		return containerStats, nil
 	}
 
@@ -110,7 +110,7 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 			}
 		}
 	} else {
-		log.Debugf("Unable to get TaskPids for containerwith ID %s: %w", containerID, err)
+		log.Debugf("Unable to get TaskPids for containerwith ID %s: %v", containerID, err)
 	}
 
 	// Filling information from Spec
@@ -118,7 +118,7 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 	if err == nil {
 		fillStatsFromSpec(containerStats, OCISpec)
 	} else {
-		log.Debugf("could not retrieve OCI Spec from container with ID %s: %w", containerID, err)
+		log.Debugf("could not retrieve OCI Spec from container with ID %s: %v", containerID, err)
 	}
 
 	return containerStats, nil

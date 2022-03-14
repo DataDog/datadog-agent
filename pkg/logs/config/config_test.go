@@ -45,23 +45,6 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(true, suite.config.GetBool("logs_config.use_v2_api"))
 }
 
-func (suite *ConfigTestSuite) TestDefaultSources() {
-	// container collect all source
-
-	source := ContainerCollectAllSource()
-	suite.Nil(source)
-
-	suite.config.Set("logs_config.container_collect_all", true)
-
-	source = ContainerCollectAllSource()
-	suite.NotNil(source)
-
-	suite.Equal("container_collect_all", source.Name)
-	suite.Equal(DockerType, source.Config.Type)
-	suite.Equal("docker", source.Config.Source)
-	suite.Equal("docker", source.Config.Service)
-}
-
 func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEmptyValues() {
 	var (
 		rules []*ProcessingRule
@@ -604,7 +587,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("vector.logs.enabled", true)
 	suite.config.Set("vector.logs.url", "http://vector.host:8080/")
-	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
 	suite.Nil(err)
@@ -615,7 +598,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("vector.logs.enabled", true)
 	suite.config.Set("vector.logs.url", "https://vector.host:8443/")
-	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
 	suite.Nil(err)
@@ -626,7 +609,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() 
 	suite.config.Set("api_key", "123")
 	suite.config.Set("vector.logs.enabled", true)
 	suite.config.Set("vector.logs.url", "vector.host:8443")
-	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
 	suite.Nil(err)
@@ -638,9 +621,21 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverri
 	suite.config.Set("logs_config.logs_no_ssl", true)
 	suite.config.Set("vector.logs.enabled", true)
 	suite.config.Set("vector.logs.url", "vector.host:8443")
-	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, false))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.logs_no_ssl", true)
+	suite.config.Set("vector.logs.enabled", true)
+	suite.config.Set("vector.logs.url", "vector.host:8443")
+	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }

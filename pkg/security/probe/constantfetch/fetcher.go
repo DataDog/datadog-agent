@@ -17,7 +17,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-const errorSentinel uint64 = ^uint64(0)
+// ErrorSentinel is the value of an unavailable offset or size
+const ErrorSentinel uint64 = ^uint64(0)
 
 // ConstantFetcher represents a source of constants that can be used to fill up
 // eBPF relocations
@@ -60,7 +61,7 @@ func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName, headerName st
 		typeName:   typeName,
 		fieldName:  "",
 		headerName: headerName,
-		value:      errorSentinel,
+		value:      ErrorSentinel,
 	})
 }
 
@@ -72,7 +73,7 @@ func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, 
 		typeName:   typeName,
 		fieldName:  fieldName,
 		headerName: headerName,
-		value:      errorSentinel,
+		value:      ErrorSentinel,
 	})
 }
 
@@ -89,7 +90,7 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 
 	for _, fetcher := range f.fetchers {
 		for _, req := range f.requests {
-			if req.value == errorSentinel {
+			if req.value == ErrorSentinel {
 				if req.sizeof {
 					fetcher.AppendSizeofRequest(req.id, req.typeName, req.headerName)
 				} else {
@@ -104,7 +105,7 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 		}
 
 		for _, req := range f.requests {
-			if req.value == errorSentinel {
+			if req.value == ErrorSentinel {
 				if newValue, present := res[req.id]; present {
 					req.value = newValue
 				}
@@ -136,7 +137,7 @@ type composeRequest struct {
 func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor {
 	res := make([]manager.ConstantEditor, 0, len(constants))
 	for name, value := range constants {
-		if value == errorSentinel {
+		if value == ErrorSentinel {
 			log.Errorf("failed to fetch constant for %s", name)
 			value = 0
 		}

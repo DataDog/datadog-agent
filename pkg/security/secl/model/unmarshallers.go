@@ -184,6 +184,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += n
 
+	if len(data[read:]) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
@@ -717,4 +721,20 @@ func (e *SignalEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.PID = ByteOrder.Uint32(data[read : read+4])
 	e.Type = ByteOrder.Uint32(data[read+4 : read+8])
 	return read + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.PipeEntryFlag = ByteOrder.Uint32(data[read : read+4])
+	e.PipeExitFlag = ByteOrder.Uint32(data[read+4 : read+8])
+	return read + 4, nil
 }

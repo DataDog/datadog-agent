@@ -13,14 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	testServiceA = "service-a"
-	testServiceB = "service-b"
 )
 
 func randomTraceID() uint64 {
@@ -28,9 +22,6 @@ func randomTraceID() uint64 {
 }
 
 func getTestPrioritySampler() *PrioritySampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
@@ -150,7 +141,7 @@ func TestPrioritySamplerWithRemote(t *testing.T) {
 		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
-	s.remoteRates = newRemoteRates(10)
+	s.remoteRates = newRemoteRates(nil, 10, "6.0.0")
 	s.Start()
 	s.updateRates()
 	s.reportStats()

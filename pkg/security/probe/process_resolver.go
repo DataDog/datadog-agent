@@ -1007,6 +1007,16 @@ func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
+}
+
 // NewProcessVariables returns a provider for variables attached to a process cache entry
 func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
 	scoper := func(ctx *eval.Context) unsafe.Pointer {

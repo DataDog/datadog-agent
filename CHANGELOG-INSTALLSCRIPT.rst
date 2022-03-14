@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.8.0:
+
+installscript-1.8.0
+===================
+
+.. _Release Notes_installscript-1.8.0_New Features:
+
+New Features
+------------
+
+- Enable installation of the datadog-dogstatsd package.
+
+
+.. _Release Notes_installscript-1.8.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Don't require ``DD_API_KEY`` when the configuration file already exists.
+
+
+.. _Release Notes_installscript-1.8.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Zypper repofile is now created correctly with only one gpgkey entry
+  on OpenSUSE 42.
+
+
 .. _Release Notes_installscript-1.7.1:
 
 installscript-1.7.1

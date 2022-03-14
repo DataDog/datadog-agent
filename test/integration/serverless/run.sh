@@ -17,11 +17,13 @@
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
 # DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
+# ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
 DEFAULT_DOTNET_TRACE_LAYER_VERSION=1
+DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -59,7 +61,7 @@ if [ "$BUILD_EXTENSION" != "false" ]; then
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
     echo "Skipping extension build, reusing previously built extension"
 fi
@@ -86,6 +88,12 @@ fi
 if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
     export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
 fi
+
+if [ -z "$ARCHITECTURE" ]; then
+    export ARCHITECTURE=$DEFAULT_ARCHITECTURE
+fi
+
+echo "Testing for $ARCHITECTURE architecture"
 
 echo "Using dd-lambda-js layer version: $NODE_LAYER_VERSION"
 echo "Using dd-lambda-python version: $PYTHON_LAYER_VERSION"
@@ -240,7 +248,13 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g"
+                perl -p -e "s/[ ]$//g" |
+                # ignore a Lambda error that occurs sporadically for log-csharp
+                # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
+                perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
+                 /An error occurred while attempting to execute your code.: LambdaException/ or \
+                 /terminate called after throwing an instance of 'std::logic_error'/ or \
+                 /basic_string::_M_construct null not valid/"
         )
     else
         # Normalize traces
@@ -262,7 +276,7 @@ for function_name in "${all_functions[@]}"; do
         )
     fi
 
-    function_snapshot_path="./snapshots/${function_name}"
+    function_snapshot_path="./snapshots/${ARCHITECTURE}/${function_name}"
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
@@ -273,6 +287,11 @@ for function_name in "${all_functions[@]}"; do
     else
         if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
+            continue
+        fi
+        # Skip all csharp tests when on arm64, .NET is not supported at all for arm architecture
+        if [[ $ARCHITECTURE == "arm64" && $function_name =~ "csharp" ]]; then
+            printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
             continue
         fi
         diff_output=$(echo "$logs" | diff - "$function_snapshot_path")

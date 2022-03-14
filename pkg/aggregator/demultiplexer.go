@@ -112,6 +112,7 @@ type AgentDemultiplexer struct {
 // DemultiplexerOptions are the options used to initialize a Demultiplexer.
 type DemultiplexerOptions struct {
 	SharedForwarderOptions         *forwarder.Options
+	UseNoopForwarder               bool
 	UseNoopEventPlatformForwarder  bool
 	UseEventPlatformForwarder      bool
 	UseOrchestratorForwarder       bool
@@ -133,7 +134,7 @@ type statsd struct {
 }
 
 type forwarders struct {
-	shared             *forwarder.DefaultForwarder
+	shared             forwarder.Forwarder
 	orchestrator       *forwarder.DefaultForwarder
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
@@ -228,7 +229,12 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		containerLifecycleForwarder = containerlifecycle.NewForwarder()
 	}
 
-	sharedForwarder := forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
+	var sharedForwarder forwarder.Forwarder
+	if options.UseNoopForwarder {
+		sharedForwarder = forwarder.NoopForwarder{}
+	} else {
+		sharedForwarder = forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
+	}
 
 	// prepare the serializer
 	// ----------------------
@@ -584,7 +590,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 		log.Debug("Flushing the following Sketches:")
 		for _, s := range sketches {
-			log.Debugf("%s", s)
+			log.Debugf("%v", s)
 		}
 	}
 
@@ -762,7 +768,6 @@ type ServerlessDemultiplexer struct {
 
 	flushLock *sync.Mutex
 
-	aggregator *BufferedAggregator
 	*senders
 }
 
@@ -771,7 +776,6 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil, nil)
-	aggregator := InitAggregator(serializer, nil, hostname)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
@@ -779,13 +783,11 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel{enabled: false}, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
-		aggregator:       aggregator,
 		forwarder:        forwarder,
 		statsdSampler:    statsdSampler,
 		statsdWorker:     statsdWorker,
 		serializer:       serializer,
 		metricSamplePool: metricSamplePool,
-		senders:          newSenders(aggregator),
 		flushLock:        &sync.Mutex{},
 	}
 
@@ -793,7 +795,6 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	demultiplexerInstance = demux
 
 	// start routines
-	go statsdWorker.run()
 	go demux.Run()
 
 	// we're done with the initialization
@@ -810,7 +811,7 @@ func (d *ServerlessDemultiplexer) Run() {
 	}
 
 	log.Debug("Demultiplexer started")
-	d.aggregator.run()
+	d.statsdWorker.run()
 }
 
 // Stop stops the wrapped aggregator and the forwarder.
@@ -820,10 +821,6 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 	}
 
 	d.statsdWorker.stop()
-
-	// no need to flush the aggregator, it doesn't contain any data
-	// for the serverless agent
-	d.aggregator.Stop()
 
 	if d.forwarder != nil {
 		d.forwarder.Stop()
@@ -896,9 +893,9 @@ func (d *ServerlessDemultiplexer) Serializer() serializer.MetricSerializer {
 	return d.serializer
 }
 
-// Aggregator returns the main buffered aggregator
+// Aggregator returns nil since the Serverless Agent doesn't run an Aggregator.
 func (d *ServerlessDemultiplexer) Aggregator() *BufferedAggregator {
-	return d.aggregator
+	return nil
 }
 
 // GetMetricSamplePool returns a shared resource used in the whole DogStatsD

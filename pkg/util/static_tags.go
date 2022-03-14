@@ -33,7 +33,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {
-			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
+			log.Infof("Couldn't build the 'eks_fargate_node' tag: %v", err)
 		} else {
 			tags = append(tags, "eks_fargate_node:"+node)
 		}

@@ -93,7 +93,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	response := &pbgo.LatestConfigsResponse{}
 	err = proto.Unmarshal(body, response)
 	if err != nil {
-		log.Debugf("Error decoding response, %w, response body: %s", err, string(body))
+		log.Debugf("Error decoding response, %v, response body: %s", err, string(body))
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 

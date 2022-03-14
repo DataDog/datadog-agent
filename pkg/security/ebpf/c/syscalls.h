@@ -185,6 +185,15 @@ struct syscall_cache_t {
             u32 pid;
             u32 type;
         } signal;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            struct pipe_buffer *bufs;
+            u32 file_found;
+            u32 pipe_entry_flag;
+            u32 pipe_exit_flag;
+        } splice;
     };
 };
 
@@ -276,6 +285,13 @@ int __attribute__((always_inline)) mark_as_discarded(struct syscall_cache_t *sys
 int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscall, int (*check_approvers)(struct syscall_cache_t *syscall)) {
     if (syscall->policy.mode == NO_FILTER)
         return 0;
+
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &tgid);
+    if (tgid_exec_ts != NULL) {
+        // return immediately
+        return 0;
+    }
 
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 

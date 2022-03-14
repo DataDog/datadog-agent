@@ -28,7 +28,7 @@ func TestComputeAvailableSpace(t *testing.T) {
 			Total:     100,
 		}}
 	maxSizeInBytes := int64(30)
-	diskUsageLimit := newDiskUsageLimit("", disk, maxSizeInBytes, 0.9)
+	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 0.9)
 
 	max, err := diskUsageLimit.computeAvailableSpace(10)
 	r.NoError(err)
