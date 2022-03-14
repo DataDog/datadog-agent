@@ -89,7 +89,7 @@ func (m *Module) sanityChecks() error {
 		return err
 	}
 
-	if version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Confidentiality {
+	if kernel.GetLockdownMode() == kernel.Confidentiality {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
