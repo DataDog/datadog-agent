@@ -218,6 +218,7 @@ type BPFEventSerializer struct {
 }
 
 // MMapEventSerializer serializes a mmap event to JSON
+// easyjson:json
 type MMapEventSerializer struct {
 	Address    string `json:"address" jsonschema_description:"memory segment address"`
 	Offset     uint64 `json:"offset" jsonschema_description:"file offset"`
@@ -227,6 +228,7 @@ type MMapEventSerializer struct {
 }
 
 // MProtectEventSerializer serializes a mmap event to JSON
+// easyjson:json
 type MProtectEventSerializer struct {
 	VMStart       string `json:"vm_start" jsonschema_description:"memory segment start address"`
 	VMEnd         string `json:"vm_end" jsonschema_description:"memory segment end address"`
@@ -235,6 +237,7 @@ type MProtectEventSerializer struct {
 }
 
 // PTraceEventSerializer serializes a mmap event to JSON
+// easyjson:json
 type PTraceEventSerializer struct {
 	Request string                    `json:"request" jsonschema_description:"ptrace request"`
 	Address string                    `json:"address" jsonschema_description:"address at which the ptrace request was executed"`
@@ -242,6 +245,7 @@ type PTraceEventSerializer struct {
 }
 
 // SignalEventSerializer serializes a signal event to JSON
+// easyjson:json
 type SignalEventSerializer struct {
 	Type   string                    `json:"type" jsonschema_description:"signal type"`
 	PID    uint32                    `json:"pid" jsonschema_description:"signal target pid"`
@@ -256,6 +260,7 @@ type DDContextSerializer struct {
 }
 
 // ModuleEventSerializer serializes a module event to JSON
+// easyjson:json
 type ModuleEventSerializer struct {
 	Name             string `json:"name" jsonschema_description:"module name"`
 	LoadedFromMemory *bool  `json:"loaded_from_memory,omitempty" jsonschema_description:"indicates if a module was loaded from memory, as opposed to a file"`
