@@ -15,6 +15,10 @@ import (
 )
 
 const (
+	// KubeAnnotationPrefix is the prefix used by AD in Kubernetes
+	// annotations.
+	KubeAnnotationPrefix = "ad.datadoghq.com/"
+
 	instancePath   = "instances"
 	checkNamePath  = "check_names"
 	initConfigPath = "init_configs"
@@ -22,10 +26,9 @@ const (
 	checksPath     = "checks"
 	checkIDPath    = "check.id"
 
-	podAnnotationPrefix       = "ad.datadoghq.com/"
 	legacyPodAnnotationPrefix = "service-discovery.datadoghq.com/"
 
-	podAnnotationFormat       = podAnnotationPrefix + "%s."
+	podAnnotationFormat       = KubeAnnotationPrefix + "%s."
 	legacyPodAnnotationFormat = legacyPodAnnotationPrefix + "%s."
 
 	checkIDAnnotationFormat = podAnnotationFormat + checkIDPath
@@ -85,10 +88,10 @@ func ExtractCheckNames(annotations map[string]string, adIdentifier string) ([]st
 	return nil, nil
 }
 
-// ExtractTemplatesFromPodAnnotations looks for autodiscovery configurations in
-// a pod's annotations and returns them if found. In order of priority, it
+// ExtractTemplatesFromAnnotations looks for autodiscovery configurations in
+// a map of annotations and returns them if found. In order of priority, it
 // prefers annotations v2, v1, and legacy.
-func ExtractTemplatesFromPodAnnotations(entityName string, annotations map[string]string, adIdentifier string) ([]integration.Config, []error) {
+func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]string, adIdentifier string) ([]integration.Config, []error) {
 	var (
 		configs []integration.Config
 		errors  []error

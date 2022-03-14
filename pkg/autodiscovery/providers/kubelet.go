@@ -151,7 +151,7 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 			}
 
 			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
-			c, errors := utils.ExtractTemplatesFromPodAnnotations(
+			c, errors := utils.ExtractTemplatesFromAnnotations(
 				containerEntity,
 				pod.Annotations,
 				adIdentifier,

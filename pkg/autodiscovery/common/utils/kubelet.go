@@ -20,22 +20,22 @@ func ValidateAnnotationsMatching(annotations map[string]string, containerIdentif
 	var errors []error
 
 	for annotation := range annotations {
-		if !strings.HasPrefix(annotation, podAnnotationPrefix) {
+		if !strings.HasPrefix(annotation, KubeAnnotationPrefix) {
 			continue
 		}
 		var idToValidate string
 		checkIDIndex := strings.LastIndex(annotation, checkIDSuffix)
 		adSuffixIndex := strings.LastIndex(annotation, ".")
-		if checkIDIndex >= len(podAnnotationPrefix) {
+		if checkIDIndex >= len(KubeAnnotationPrefix) {
 			// validate check.id annotation
-			idToValidate = annotation[len(podAnnotationPrefix):checkIDIndex]
+			idToValidate = annotation[len(KubeAnnotationPrefix):checkIDIndex]
 			err := validateIdentifier(annotation, containerNames, idToValidate)
 			if err != nil {
 				errors = append(errors, err)
 			}
-		} else if adSuffixIndex >= len(podAnnotationPrefix) {
+		} else if adSuffixIndex >= len(KubeAnnotationPrefix) {
 			// validate other AD annotations
-			idToValidate = annotation[len(podAnnotationPrefix):adSuffixIndex]
+			idToValidate = annotation[len(KubeAnnotationPrefix):adSuffixIndex]
 			err := validateIdentifier(annotation, containerIdentifiers, idToValidate)
 			if err != nil {
 				errors = append(errors, err)
