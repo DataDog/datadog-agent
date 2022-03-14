@@ -79,7 +79,7 @@ func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data
 
 	// Set service for this check
 	if len(commonGlobalOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.checkID)
+		s, err := c.GetSender()
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 			return err
@@ -93,7 +93,7 @@ func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data
 	}
 
 	// Add the possibly configured service as a tag for this check
-	s, err := aggregator.GetSender(c.checkID)
+	s, err := c.GetSender()
 	if err != nil {
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 		return err
@@ -120,7 +120,7 @@ func (c *CheckBase) CommonConfigure(instance integration.Data, source string) er
 
 	// Disable default hostname if specified
 	if commonOptions.EmptyDefaultHostname {
-		s, err := aggregator.GetSender(c.checkID)
+		s, err := c.GetSender()
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 			return err
@@ -130,7 +130,7 @@ func (c *CheckBase) CommonConfigure(instance integration.Data, source string) er
 
 	// Set custom tags configured for this check
 	if len(commonOptions.Tags) > 0 {
-		s, err := aggregator.GetSender(c.checkID)
+		s, err := c.GetSender()
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 			return err
@@ -140,7 +140,7 @@ func (c *CheckBase) CommonConfigure(instance integration.Data, source string) er
 
 	// Set configured service for this check, overriding the one possibly defined globally
 	if len(commonOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.checkID)
+		s, err := c.GetSender()
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 			return err
@@ -233,9 +233,29 @@ func (c *CheckBase) GetWarnings() []error {
 	return w
 }
 
+// GetSender gets the object to which metrics for this check should be sent.
+//
+// This is a "safe" sender, specialized to avoid some common errors, at a very
+// small cost to performance.  Performance-sensitive checks can use GetRawSender()
+// to avoid this performance cost, as long as they are careful to avoid errors.
+//
+// See `safesender.go` for details on the managed errors.
+func (c *CheckBase) GetSender() (aggregator.Sender, error) {
+	sender, err := c.GetRawSender()
+	if err != nil {
+		return nil, err
+	}
+	return newSafeSender(sender), err
+}
+
+// GetRawSender is similar to GetSender, but does not provide the safety wrapper.
+func (c *CheckBase) GetRawSender() (aggregator.Sender, error) {
+	return aggregator.GetSender(c.ID())
+}
+
 // GetSenderStats returns the stats from the last run of the check.
 func (c *CheckBase) GetSenderStats() (check.SenderStats, error) {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return check.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
 	}

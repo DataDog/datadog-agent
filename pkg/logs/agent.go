@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
@@ -36,12 +37,18 @@ import (
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type Agent struct {
+	sources                   *config.LogSources
+	services                  *service.Services
+	schedulers                *schedulers.Schedulers
 	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
 	inputs                    []restart.Restartable
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+
+	// started is true if the agent has ever been started
+	started bool
 }
 
 // NewAgent returns a new Logs Agent
@@ -104,6 +111,9 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	}
 
 	return &Agent{
+		sources:                   sources,
+		services:                  services,
+		schedulers:                schedulers.NewSchedulers(sources, services),
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
@@ -134,6 +144,9 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	}
 
 	return &Agent{
+		sources:                   sources,
+		services:                  services,
+		schedulers:                schedulers.NewSchedulers(sources, services),
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
@@ -146,10 +159,24 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	starter := restart.NewStarter(a.destinationsCtx, a.auditor, a.pipelineProvider, a.diagnosticMessageReceiver)
-	for _, input := range a.inputs {
-		starter.Add(input)
+	if a.started {
+		panic("logs agent cannot be started more than once")
 	}
+	a.started = true
+
+	inputs := restart.NewStarter()
+	for _, input := range a.inputs {
+		inputs.Add(input)
+	}
+
+	starter := restart.NewStarter(
+		a.destinationsCtx,
+		a.auditor,
+		a.pipelineProvider,
+		a.diagnosticMessageReceiver,
+		inputs,
+		a.schedulers,
+	)
 	starter.Start()
 }
 
@@ -166,6 +193,7 @@ func (a *Agent) Stop() {
 		inputs.Add(input)
 	}
 	stopper := restart.NewSerialStopper(
+		a.schedulers,
 		inputs,
 		a.pipelineProvider,
 		a.auditor,
@@ -207,4 +235,9 @@ func (a *Agent) Stop() {
 			}
 		}
 	}
+}
+
+// AddScheduler adds the given scheduler to the agent.
+func (a *Agent) AddScheduler(scheduler schedulers.Scheduler) {
+	a.schedulers.AddScheduler(scheduler)
 }

@@ -90,7 +90,7 @@ func (c *CRICheck) Configure(config, initConfig integration.Data, source string)
 
 // Run executes the check
 func (c *CRICheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

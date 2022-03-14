@@ -270,6 +270,19 @@ func TestExtractJob(t *testing.T) {
 				},
 			},
 		},
+		"job with resources": {
+			input: batchv1.Job{
+				Spec: batchv1.JobSpec{
+					Template: getTemplateWithResourceRequirements(),
+				},
+			},
+			expected: model.Job{
+				Metadata:             &model.Metadata{},
+				Spec:                 &model.JobSpec{},
+				Status:               &model.JobStatus{},
+				ResourceRequirements: getExpectedModelResourceRequirements(),
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

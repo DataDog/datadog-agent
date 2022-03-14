@@ -55,7 +55,15 @@ func newBatcher(demux aggregator.Demultiplexer) *batcher {
 
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
-	e, sc := agg.GetBufferedChannels()
+	var e chan []*metrics.Event
+	var sc chan []*metrics.ServiceCheck
+
+	// the Serverless Agent doesn't have to support service checks nor events so
+	// it doesn't run an Aggregator.
+	if agg != nil {
+		e, sc = agg.GetBufferedChannels()
+	}
+
 	samples := make([][]metrics.MetricSample, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
 
@@ -132,6 +140,7 @@ func (b *batcher) flush() {
 
 		b.events = []*metrics.Event{}
 	}
+
 	if len(b.serviceChecks) > 0 {
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks

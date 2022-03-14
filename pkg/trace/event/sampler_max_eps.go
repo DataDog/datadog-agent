@@ -8,11 +8,11 @@ package event
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxEPSReportFrequency = 10 * time.Second
@@ -26,8 +26,7 @@ type maxEPSSampler struct {
 	maxEPS      float64
 	rateCounter rateCounter
 
-	reportFrequency time.Duration
-	reportDone      chan bool
+	reportDone chan bool
 }
 
 // NewMaxEPSSampler creates a new instance of a maxEPSSampler with the provided maximum amount of events per second.

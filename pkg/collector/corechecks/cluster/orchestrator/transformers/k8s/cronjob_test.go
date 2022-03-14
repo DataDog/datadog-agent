@@ -15,6 +15,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/stretchr/testify/assert"
+	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -97,6 +98,21 @@ func TestExtractCronJob(t *testing.T) {
 					},
 					LastScheduleTime: lastScheduleTime.Unix(),
 				},
+			},
+		},
+		"cronjob with resources": {
+			input: batchv1beta1.CronJob{
+				Spec: batchv1beta1.CronJobSpec{
+					JobTemplate: batchv1beta1.JobTemplateSpec{
+						Spec: batchv1.JobSpec{Template: getTemplateWithResourceRequirements()},
+					},
+				},
+			},
+			expected: model.CronJob{
+				Metadata:             &model.Metadata{},
+				Spec:                 &model.CronJobSpec{},
+				Status:               &model.CronJobStatus{},
+				ResourceRequirements: getExpectedModelResourceRequirements(),
 			},
 		},
 	}

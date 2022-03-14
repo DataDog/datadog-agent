@@ -37,6 +37,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/SignalEvent"
     },
+    "splice": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SpliceEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -837,6 +841,24 @@
         "target": {
           "$ref": "#/definitions/ProcessContext",
           "description": "process context of the signal target"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SpliceEvent": {
+      "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+      ],
+      "properties": {
+        "pipe_entry_flag": {
+          "type": "string",
+          "description": "Entry flag of the fd_out pipe passed to the splice syscall"
+        },
+        "pipe_exit_flag": {
+          "type": "string",
+          "description": "Exit flag of the fd_out pipe passed to the splice syscall"
         }
       },
       "additionalProperties": false,

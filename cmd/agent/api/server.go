@@ -25,8 +25,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
-	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"

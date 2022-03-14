@@ -24,7 +24,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -83,7 +83,7 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	// and it tries to write in it
 	err := suite.tailer.StartFromBeginning()
 	suite.Nil(err)
-	<-suite.tailer.OutputChan
+	<-suite.tailer.outputChan
 
 	// Ask the tailer to stop after a file rotation
 	suite.tailer.StopAfterFileRotation()

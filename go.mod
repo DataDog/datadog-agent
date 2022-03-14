@@ -44,6 +44,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
+	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
@@ -53,11 +54,12 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.16
+	github.com/DataDog/agent-payload/v5 v5.0.17
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.35.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.35.0-rc.4
@@ -66,9 +68,9 @@ require (
 	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
 	github.com/DataDog/ebpf-manager v0.0.0-20220223090948-29871766cdd0
 	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
-	github.com/DataDog/gopsutil v0.0.0-20211117161807-6301733ae21b
-	github.com/DataDog/nikos v1.7.4
-	github.com/DataDog/sketches-go v1.2.1
+	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
+	github.com/DataDog/nikos v1.7.5
+	github.com/DataDog/sketches-go v1.3.0
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
 	github.com/DataDog/zstd v1.5.0
@@ -120,7 +122,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.7
-	github.com/google/gofuzz v1.2.0
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1
 	github.com/gorilla/mux v1.8.0

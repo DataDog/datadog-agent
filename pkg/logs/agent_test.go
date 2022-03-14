@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -110,10 +110,6 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-
-	// Validate that we can restart it without obvious breakages.
-	agent.Start()
-	agent.Stop()
 }
 
 func (suite *AgentTestSuite) TestAgentTcp() {

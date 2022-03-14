@@ -33,7 +33,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 	// increased, so the check that size < offset is valid as long as size is
 	// polled before the offset.
 	sz := st.Size()
-	offset := t.GetReadOffset()
+	offset := t.getLastReadOffset()
 
 	if sz < offset {
 		return true, nil

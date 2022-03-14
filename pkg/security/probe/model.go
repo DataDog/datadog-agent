@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"syscall"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/mailru/easyjson/jwriter"
@@ -32,6 +34,28 @@ var eventZero Event
 // Model describes the data model for the runtime security agent probe events
 type Model struct {
 	model.Model
+	probe *Probe
+}
+
+// ValidateField validates the value of a field
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+	if err := m.Model.ValidateField(field, fieldValue); err != nil {
+		return err
+	}
+
+	switch field {
+	case "bpf.map.name":
+		if offset, found := m.probe.constantOffsets["bpf_map_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+
+	case "bpf.prog.name":
+		if offset, found := m.probe.constantOffsets["bpf_prog_aux_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+	}
+
+	return nil
 }
 
 // NewEvent returns a new Event

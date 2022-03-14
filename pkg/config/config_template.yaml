@@ -21,7 +21,7 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
-## @env DD_URL - string - optional - default: https://app.datadoghq.com
+## @env DD_DD_URL - string - optional - default: https://app.datadoghq.com
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
 ## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
@@ -1036,7 +1036,7 @@ api_key:
   # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
-  ## @env DD_APM_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
+  ## @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
   #

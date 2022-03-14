@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,17 +57,18 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		atomic.AddUint64(&endpointCalled, 1)
 		return nil
 	})
-	defer mockConfigMap(map[string]interface{}{
-		"api_key":                     "test_apikey",
-		"apm_config.telemetry.dd_url": srv.URL,
-		"hostname":                    "test_hostname",
-		"skip_ssl_validation":         true,
-		"env":                         "test_env",
-	})() // reset config after the test
 
 	req, rec := newRequestRecorder(t)
-	cfg, err := traceconfig.Load("/does/not/exists.yaml")
-	assert.NoError(err)
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test_apikey"
+	cfg.TelemetryConfig.Enabled = true
+	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+		APIKey: "test_apikey",
+		Host:   srv.URL,
+	}}
+	cfg.Hostname = "test_hostname"
+	cfg.SkipSSLValidation = true
+	cfg.DefaultEnv = "test_env"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -103,22 +104,24 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		return nil
 	})
 
-	defer mockConfigMap(map[string]interface{}{
-		"apm_config.telemetry.additional_endpoints": map[string]string{
-			additionalBackend.URL + "/": "test_apikey_2",
-			// proxy must ignore malformed urls
-			"111://malformed_url.example.com": "test_apikey_3",
-		},
-		"apm_config.telemetry.dd_url": mainBackend.URL,
-		"api_key":                     "test_apikey_1",
-		"hostname":                    "test_hostname",
-		"skip_ssl_validation":         true,
-		"env":                         "test_env",
-	})()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test_apikey_1"
+	cfg.TelemetryConfig.Enabled = true
+	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+		APIKey: "test_apikey_1",
+		Host:   mainBackend.URL,
+	}, {
+		APIKey: "test_apikey_3",
+		Host:   "111://malformed_url.example.com",
+	}, {
+		APIKey: "test_apikey_2",
+		Host:   additionalBackend.URL + "/",
+	}}
+	cfg.Hostname = "test_hostname"
+	cfg.SkipSSLValidation = true
+	cfg.DefaultEnv = "test_env"
 
 	req, rec := newRequestRecorder(t)
-	cfg, err := traceconfig.Load("/does/not/exists.yaml")
-	assert.NoError(err)
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -134,28 +137,23 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 
 func TestTelemetryConfig(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.telemetry.enabled": false,
-			"api_key":                      "api_key",
-		})()
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "api_key"
 
 		req, rec := newRequestRecorder(t)
-		cfg, err := traceconfig.Load("/does/not/exists.yaml")
-		assert.NoError(t, err)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 		assert.Equal(t, 404, rec.Result().StatusCode)
 	})
 
 	t.Run("no-endpoints", func(t *testing.T) {
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.telemetry.dd_url": "111://malformed.dd_url.com",
-			"api_key":                     "api_key",
-		})()
-
+		cfg := config.New()
+		cfg.TelemetryConfig.Enabled = true
+		cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+			APIKey: "api_key",
+			Host:   "111://malformed.dd_url.com",
+		}}
 		req, rec := newRequestRecorder(t)
-		cfg, err := traceconfig.Load("/does/not/exists.yaml")
-		assert.NoError(t, err)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 
@@ -164,17 +162,19 @@ func TestTelemetryConfig(t *testing.T) {
 
 	t.Run("fallback-endpoint", func(t *testing.T) {
 		srv := assertingServer(t, func(req *http.Request, body []byte) error { return nil })
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.telemetry.dd_url": "111://malformed.dd_url.com",
-			"apm_config.telemetry.additional_endpoints": map[string]string{
-				srv.URL: "api_key",
-			},
-			"skip_ssl_validation": true,
-			"api_key":             "api_key",
-		})()
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "api_key"
+		cfg.TelemetryConfig.Enabled = true
+		cfg.SkipSSLValidation = true
+		cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+			APIKey: "api_key",
+			Host:   "111://malformed.dd_url.com",
+		}, {
+			APIKey: "api_key",
+			Host:   srv.URL,
+		}}
+
 		req, rec := newRequestRecorder(t)
-		cfg, err := traceconfig.Load("/does/not/exists.yaml")
-		assert.NoError(t, err)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 

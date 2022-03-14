@@ -15,6 +15,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -22,9 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // newSenders returns a list of senders based on the given agent configuration, using climit
@@ -33,17 +32,17 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	client := httputils.NewResetClient(cfg.ConnectionResetInterval, cfg.NewHTTPClient)
 	// spread out the the maximum connection limit (climit) between senders
 	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
 	senders := make([]*sender, len(cfg.Endpoints))
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
-			osutil.Exitf("Invalid host endpoint: %q", endpoint.Host)
+			log.Criticalf("Invalid host endpoint: %q", endpoint.Host)
+			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:    client,
+			client:    cfg.NewHTTPClient(),
 			maxConns:  int(maxConns),
 			maxQueued: qsize,
 			url:       url,
@@ -112,7 +111,7 @@ type eventData struct {
 // senderConfig specifies the configuration for the sender.
 type senderConfig struct {
 	// client specifies the HTTP client to use when sending requests.
-	client *httputils.ResetClient
+	client *config.ResetClient
 	// url specifies the URL to send requests too.
 	url *url.URL
 	// apiKey specifies the Datadog API key to use.
@@ -344,7 +343,9 @@ func (s *sender) do(req *http.Request) error {
 	// From https://golang.org/pkg/net/http/#Response:
 	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
 	// TCP connections if the Body is not read to completion and closed.
-	io.Copy(ioutil.Discard, resp.Body)
+	if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+		log.Debugf("Error discarding request body: %v", err)
+	}
 	resp.Body.Close()
 
 	if isRetriable(resp.StatusCode) {
@@ -402,7 +403,9 @@ func (p *payload) clone() *payload {
 		headers[k] = v
 	}
 	clone := newPayload(headers)
-	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
+	if _, err := clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes())); err != nil {
+		log.Errorf("Error cloning writer payload: %v", err)
+	}
 	return clone
 }
 
