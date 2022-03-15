@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
@@ -60,24 +59,6 @@ func main() {
 	flavor.SetFlavor(flavor.Dogstatsd)
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
-	// go_expvar server
-	port := config.Datadog.GetInt("dogstatsd_stats_port")
-	s := &http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
-		Handler: http.DefaultServeMux,
-	}
-	defer func() {
-		if err := s.Shutdown(context.Background()); err != nil {
-			log.Errorf("Error shutting down dogstatsd stats server on port %d: %s", port, err)
-		}
-	}()
-	go func() {
-		err := s.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
-		}
-	}()
-
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
@@ -91,10 +72,7 @@ func main() {
 
 	if err = dogstatsdCmd.Execute(); err != nil {
 		log.Error(err)
-		// os.Exit() must be called last because it terminates immediately;
-		// deferred functions are not run. Deferred function calls are executed
-		// in Last In First Out order after the surrounding function returns.
-		defer os.Exit(-1)
+		os.Exit(-1)
 	}
 }
 
