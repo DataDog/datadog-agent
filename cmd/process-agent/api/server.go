@@ -42,8 +42,9 @@ func StartServer() error {
 	log.Infof("API server listening on %s", addr)
 
 	srv := &http.Server{
-		Handler: handler,
-		Addr:    addr,
+		Handler:     handler,
+		Addr:        addr,
+		ReadTimeout: timeout,
 	}
 
 	go func() {
