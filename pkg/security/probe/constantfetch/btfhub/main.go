@@ -35,17 +35,24 @@ func main() {
 }
 
 type TreeWalkCollector struct {
-	infos []ConstantsInfo
+	infos   []ConstantsInfo
+	counter int
 }
 
 func NewTreeWalkCollector() *TreeWalkCollector {
 	return &TreeWalkCollector{
-		infos: make([]ConstantsInfo, 0),
+		infos:   make([]ConstantsInfo, 0),
+		counter: 0,
 	}
 }
 
 func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
+		c.counter += 1
+		if c.counter%10 != 0 {
+			return nil
+		}
+
 		if err != nil {
 			return err
 		}
@@ -80,7 +87,6 @@ func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 			distribVersion: distribVersion,
 			arch:           arch,
 			constants:      constants,
-			err:            err,
 		})
 
 		return err
@@ -92,7 +98,6 @@ type ConstantsInfo struct {
 	distribVersion string
 	arch           string
 	constants      map[string]uint64
-	err            error
 }
 
 func extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
