@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func main() {
@@ -27,8 +28,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// defer os.RemoveAll(tmpDir)
-	fmt.Printf("tmp dir: %s\n", tmpDir)
+	defer os.RemoveAll(tmpDir)
 
 	extractCmd := exec.Command("tar", "xvf", archivePath, "-C", tmpDir)
 	if err := extractCmd.Run(); err != nil {
@@ -39,9 +39,13 @@ func main() {
 	btfFileName := strings.TrimSuffix(archiveFileName, ".tar.xz")
 	btfPath := path.Join(tmpDir, btfFileName)
 
-	kv, err := kernel.NewKernelVersion()
+	releasePart := strings.Split(btfFileName, "-")[0]
+	kvCode, err := utilKernel.ParseReleaseString(releasePart)
 	if err != nil {
 		panic(err)
+	}
+	kv := &kernel.Version{
+		Code: kvCode,
 	}
 
 	fetcher := NewConstantCollector(btfPath)
@@ -119,7 +123,6 @@ func parsePaholeOutput(tyName, btfPath string, lineF func(string) (uint64, bool)
 		btfArg = fmt.Sprintf("--btf_base=%s", btfPath)
 	}
 	cmd := exec.Command("pahole", tyName, btfArg)
-	fmt.Println(cmd)
 	cmd.Stdin = os.Stdin
 	output, err := cmd.Output()
 	if err != nil {
