@@ -147,54 +147,121 @@ func extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
 }
 
 type constantCollector struct {
-	constants   map[string]uint64
-	paholeCache paholeCache
+	btfPath  string
+	requests []constantRequest
 }
 
 func newConstantCollector(btfPath string) *constantCollector {
 	return &constantCollector{
-		constants: make(map[string]uint64),
-		paholeCache: paholeCache{
-			btfPath: btfPath,
-		},
+		btfPath:  btfPath,
+		requests: make([]constantRequest, 0),
 	}
 }
 
 var sizeRe = regexp.MustCompile(`size: (\d+), cachelines: \d+, members: \d+`)
 var offsetRe = regexp.MustCompile(`/\*\s*(\d+)\s*\d+\s*\*/`)
 
+type constantRequest struct {
+	id                  string
+	sizeof              bool
+	typeName, fieldName string
+}
+
 func (cc *constantCollector) AppendSizeofRequest(id, typeName, headerName string) {
-	value := cc.paholeCache.parsePaholeOutput(getActualTypeName(typeName), func(line string) (uint64, bool) {
-		if matches := sizeRe.FindStringSubmatch(line); len(matches) != 0 {
-			size, err := strconv.ParseUint(matches[1], 10, 64)
-			if err != nil {
-				panic(err)
-			}
-			return size, true
-		}
-		return 0, false
+	cc.requests = append(cc.requests, constantRequest{
+		id:       id,
+		sizeof:   true,
+		typeName: getActualTypeName(typeName),
 	})
-	cc.constants[id] = value
 }
 
 func (cc *constantCollector) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
-	value := cc.paholeCache.parsePaholeOutput(getActualTypeName(typeName), func(line string) (uint64, bool) {
-		if strings.Contains(line, fieldName) {
-			if matches := offsetRe.FindStringSubmatch(line); len(matches) != 0 {
-				size, err := strconv.ParseUint(matches[1], 10, 64)
-				if err != nil {
-					panic(err)
-				}
-				return size, true
-			}
-		}
-		return 0, false
+	cc.requests = append(cc.requests, constantRequest{
+		id:        id,
+		sizeof:    false,
+		typeName:  getActualTypeName(typeName),
+		fieldName: fieldName,
 	})
-	cc.constants[id] = value
 }
 
 func (c *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
-	return c.constants, nil
+	typeNames := make([]string, 0, len(c.requests))
+	for _, r := range c.requests {
+		typeNames = append(typeNames, r.typeName)
+	}
+	typeNamesArg := strings.Join(typeNames, ",")
+
+	var btfArg string
+	if c.btfPath != "" {
+		btfArg = fmt.Sprintf("--btf_base=%s", c.btfPath)
+	}
+
+	cmd := exec.Command("pahole", typeNamesArg, btfArg)
+	cmd.Stdin = os.Stdin
+	output, err := cmd.Output()
+	if err != nil {
+		exitErr := err.(*exec.ExitError)
+		fmt.Println(string(exitErr.Stderr))
+		panic(err)
+	}
+
+	perStruct := make(map[string]string)
+
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+
+	var currentTypeName string
+	var currentTypeContent string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "struct ") || strings.HasPrefix(line, "enum ") {
+			currentTypeName = getActualTypeName(strings.TrimSuffix(line, " {"))
+			currentTypeContent = line + "\n"
+		} else if strings.HasPrefix(line, "};") {
+			perStruct[currentTypeName] = currentTypeContent + "};"
+			currentTypeContent = ""
+			currentTypeName = ""
+		} else {
+			currentTypeContent += line + "\n"
+		}
+	}
+
+	pc := paholeCache{
+		perStruct: perStruct,
+	}
+	constants := make(map[string]uint64)
+
+	for _, r := range c.requests {
+		if r.sizeof {
+			value := pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
+				if matches := sizeRe.FindStringSubmatch(line); len(matches) != 0 {
+					size, err := strconv.ParseUint(matches[1], 10, 64)
+					if err != nil {
+						panic(err)
+					}
+					return size, true
+				}
+				return 0, false
+			})
+			constants[r.id] = value
+		} else {
+			value := pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
+				if strings.Contains(line, r.fieldName) {
+					if matches := offsetRe.FindStringSubmatch(line); len(matches) != 0 {
+						size, err := strconv.ParseUint(matches[1], 10, 64)
+						if err != nil {
+							panic(err)
+						}
+						return size, true
+					}
+				}
+				return 0, false
+			})
+			constants[r.id] = value
+		}
+	}
+
+	return constants, nil
 }
 
 func getActualTypeName(tn string) string {
@@ -206,31 +273,11 @@ func getActualTypeName(tn string) string {
 }
 
 type paholeCache struct {
-	btfPath string
-	cache   map[string]string
+	perStruct map[string]string
 }
 
 func (pc *paholeCache) parsePaholeOutput(tyName string, lineF func(string) (uint64, bool)) uint64 {
-	var output string
-	if value, ok := pc.cache[tyName]; ok {
-		output = value
-	} else {
-		var btfArg string
-		if pc.btfPath != "" {
-			btfArg = fmt.Sprintf("--btf_base=%s", pc.btfPath)
-		}
-		cmd := exec.Command("pahole", tyName, btfArg)
-		cmd.Stdin = os.Stdin
-		cmdOutput, err := cmd.Output()
-		if err != nil {
-			exitErr := err.(*exec.ExitError)
-			fmt.Println(string(exitErr.Stderr))
-			panic(err)
-		}
-		output = string(cmdOutput)
-	}
-
-	scanner := bufio.NewScanner(strings.NewReader(output))
+	scanner := bufio.NewScanner(strings.NewReader(pc.perStruct[tyName]))
 	for scanner.Scan() {
 		line := scanner.Text()
 		value, ok := lineF(line)
