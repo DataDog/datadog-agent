@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -31,6 +32,8 @@ func StartServer() error {
 	// Set up routes
 	r := mux.NewRouter()
 	setupHandlers(r)
+	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
+	handler := http.TimeoutHandler(r, timeout, "timed out")
 
 	addr, err := GetAPIAddressPort()
 	if err != nil {
@@ -39,7 +42,7 @@ func StartServer() error {
 	log.Infof("API server listening on %s", addr)
 
 	srv := &http.Server{
-		Handler: r,
+		Handler: handler,
 		Addr:    addr,
 	}
 
