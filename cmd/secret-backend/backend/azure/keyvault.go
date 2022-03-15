@@ -2,7 +2,6 @@ package azure
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
 	"github.com/mitchellh/mapstructure"
@@ -53,15 +52,7 @@ func NewAzureKeyVaultBackend(backendId string, bc map[string]interface{}) (*Azur
 	}
 
 	secretValue := make(map[string]string, 0)
-	if err := json.Unmarshal([]byte(*out.Value), &secretValue); err != nil {
-		log.WithFields(log.Fields{
-			"backend_id": backendId,
-			"backend_type": backendConfig.BackendType,
-			"secret_id": backendConfig.SecretId,
-			"keyvaulturl": backendConfig.KeyVaultURL,
-		}).WithError(err).Error("failed to retrieve secret value")
-		return nil, err
-	}
+	secretValue[backendConfig.SecretId] = *out.Value
 
 	backend := &AzureKeyVaultBackend{
 		BackendId: backendId,
