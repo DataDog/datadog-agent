@@ -1045,11 +1045,12 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 				linkName = ""
 			}
 			// ignore interfaces that are lazily deleted
-			if !p.resolvers.NamespaceResolver.IsLazyDeletionInterface(linkName) {
+			if link.Attrs().HardwareAddr.String() != "" && !p.resolvers.NamespaceResolver.IsLazyDeletionInterface(linkName) {
 				probesCountNoLazyDeletion[tcKey.NetNS]++
 			}
 		}
 	}
+
 	return probesCountNoLazyDeletion
 }
 

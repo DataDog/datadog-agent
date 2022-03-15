@@ -307,7 +307,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 
 		if err = nr.probe.setupNewTCClassifierWithNetNSHandle(device, handle); err == nil {
 			// ignore interfaces that are lazily deleted
-			if !nr.IsLazyDeletionInterface(device.Name) {
+			if !nr.IsLazyDeletionInterface(device.Name) && attrs.HardwareAddr.String() != "" {
 				attachedDeviceCountNoLazyDeletion++
 			}
 		}
