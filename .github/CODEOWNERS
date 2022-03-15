@@ -18,7 +18,8 @@
 /*.md                                   @DataDog/agent-platform @DataDog/documentation
 /NOTICE                                 @DataDog/agent-platform @DataDog/documentation
 
-/LICENSE*                               @DataDog/do-not-notify
+# Do not notify anyone on LICENSE* file changes
+/LICENSE*
 
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
@@ -30,7 +31,8 @@
 
 /.circleci/                             @DataDog/agent-platform
 
-/.github/CODEOWNERS                                 @DataDog/do-not-notify
+# Do not notify anyone on CODEOWNERS file changes
+/.github/CODEOWNERS
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
@@ -117,10 +119,10 @@
 /google-marketplace/                    @DataDog/container-integrations
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
-# Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
-# that should be fine since rarely we make PRs that only change those files alone.
-/go.mod                                 @DataDog/do-not-notify
-/go.sum                                 @DataDog/do-not-notify
+# Explicitly assigning them to nobody avoids any notification, but that should be fine since we
+# rarely make PRs that only change those files alone.
+/go.mod
+/go.sum
 
 /Makefile.trace                         @DataDog/agent-apm
 
@@ -199,7 +201,7 @@
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
-/pkg/proto/pbgo/                        @DataDog/do-not-notify
+/pkg/proto/pbgo/
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/agent-network
 /pkg/ebpf/                              @DataDog/agent-network
