@@ -1,9 +1,9 @@
-name: Dependabot-Tidy
+name: Dependabot-Tidier
 on:
   pull_request:
     types: [ labeled ]
 jobs:
-  go_mod_tidy:
+  mod_tidier:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'dependencies') }}
     runs-on: ubuntu-latest
     steps:
