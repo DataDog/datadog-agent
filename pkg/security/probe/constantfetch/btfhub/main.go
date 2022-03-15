@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,12 +21,30 @@ import (
 )
 
 func main() {
+	archivePath := os.Args[1]
+
+	tmpDir, err := os.MkdirTemp("", "extract-dir")
+	if err != nil {
+		panic(err)
+	}
+	// defer os.RemoveAll(tmpDir)
+	fmt.Printf("tmp dir: %s\n", tmpDir)
+
+	extractCmd := exec.Command("tar", "xvf", archivePath, "-C", tmpDir)
+	if err := extractCmd.Run(); err != nil {
+		panic(err)
+	}
+
+	archiveFileName := path.Base(archivePath)
+	btfFileName := strings.TrimSuffix(archiveFileName, ".tar.xz")
+	btfPath := path.Join(tmpDir, btfFileName)
+
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		panic(err)
 	}
 
-	fetcher := NewConstantCollector("")
+	fetcher := NewConstantCollector(btfPath)
 
 	constants, err := probe.GetOffsetConstantsFromFetcher(fetcher, kv)
 	if err != nil {
@@ -95,10 +114,17 @@ func getActualTypeName(tn string) string {
 }
 
 func parsePaholeOutput(tyName, btfPath string, lineF func(string) (uint64, bool)) uint64 {
-	cmd := exec.Command("pahole", tyName, btfPath)
+	var btfArg string
+	if btfPath != "" {
+		btfArg = fmt.Sprintf("--btf_base=%s", btfPath)
+	}
+	cmd := exec.Command("pahole", tyName, btfArg)
+	fmt.Println(cmd)
 	cmd.Stdin = os.Stdin
 	output, err := cmd.Output()
 	if err != nil {
+		exitErr := err.(*exec.ExitError)
+		fmt.Println(string(exitErr.Stderr))
 		panic(err)
 	}
 
