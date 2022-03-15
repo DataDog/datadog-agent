@@ -1,10 +1,9 @@
-name: Dependabot-Tidier
+name: "Run Go Mod Tidy And Generate Licenses"
 on:
-  issues:
-    types: [ milestoned ]
+  workflow_dispatch:
+    inputs: {}
 jobs:
-  mod_tidier:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'dependencies') }}
+  mod_tidy_and_generate_licenses:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
