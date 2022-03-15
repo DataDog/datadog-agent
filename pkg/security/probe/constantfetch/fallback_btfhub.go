@@ -47,7 +47,7 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 		res:           make(map[string]uint64),
 	}
 
-	currentKernelInfos, ok := NewKernelInfos(kv)
+	currentKernelInfos, ok := newKernelInfos(kv)
 	if !ok {
 		return nil, errors.New("failed to collect current kernel infos")
 	}
@@ -67,6 +67,7 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 	return fetcher, nil
 }
 
+// HasConstantsInStore returns true if there is constants in store in BTFHub
 func (f *BTFHubConstantFetcher) HasConstantsInStore() bool {
 	return len(f.inStore) != 0
 }
@@ -101,7 +102,7 @@ type kernelInfos struct {
 	unameRelease   string
 }
 
-func NewKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
+func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
 	releaseID, ok := kv.OsRelease["ID"]
 	if !ok {
 		return nil, false
@@ -130,6 +131,8 @@ func NewKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
 	}, true
 }
 
+// BTFHubConstantsInfo represents all the information required for identifying
+// a unique btf file from BTFHub
 type BTFHubConstantsInfo struct {
 	Distribution   string            `json:"distrib"`
 	DistribVersion string            `json:"version"`

@@ -35,7 +35,7 @@ func main() {
 	flag.IntVar(&sampling, "sampling", 1, "Sampling rate, take 1 over n elements")
 	flag.Parse()
 
-	twCollector := NewTreeWalkCollector(sampling)
+	twCollector := newTreeWalkCollector(sampling)
 
 	if err := filepath.WalkDir(archiveRootPath, twCollector.treeWalkerBuilder(archiveRootPath)); err != nil {
 		panic(err)
@@ -52,21 +52,21 @@ func main() {
 	}
 }
 
-type TreeWalkCollector struct {
+type treeWalkCollector struct {
 	infos    []constantfetch.BTFHubConstantsInfo
 	counter  int
 	sampling int
 }
 
-func NewTreeWalkCollector(sampling int) *TreeWalkCollector {
-	return &TreeWalkCollector{
+func newTreeWalkCollector(sampling int) *treeWalkCollector {
+	return &treeWalkCollector{
 		infos:    make([]constantfetch.BTFHubConstantsInfo, 0),
 		counter:  0,
 		sampling: sampling,
 	}
 }
 
-func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
+func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
 		c.counter++
 		if c.counter != c.sampling {
@@ -141,20 +141,20 @@ func extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
 		Code: kvCode,
 	}
 
-	fetcher := NewConstantCollector(btfPath)
+	fetcher := newConstantCollector(btfPath)
 
 	return probe.GetOffsetConstantsFromFetcher(fetcher, kv)
 }
 
-type ConstantCollector struct {
+type constantCollector struct {
 	constants   map[string]uint64
-	paholeCache PaholeCache
+	paholeCache paholeCache
 }
 
-func NewConstantCollector(btfPath string) *ConstantCollector {
-	return &ConstantCollector{
+func newConstantCollector(btfPath string) *constantCollector {
+	return &constantCollector{
 		constants: make(map[string]uint64),
-		paholeCache: PaholeCache{
+		paholeCache: paholeCache{
 			btfPath: btfPath,
 		},
 	}
@@ -163,7 +163,7 @@ func NewConstantCollector(btfPath string) *ConstantCollector {
 var sizeRe = regexp.MustCompile(`size: (\d+), cachelines: \d+, members: \d+`)
 var offsetRe = regexp.MustCompile(`/\*\s*(\d+)\s*\d+\s*\*/`)
 
-func (cc *ConstantCollector) AppendSizeofRequest(id, typeName, headerName string) {
+func (cc *constantCollector) AppendSizeofRequest(id, typeName, headerName string) {
 	value := cc.paholeCache.parsePaholeOutput(getActualTypeName(typeName), func(line string) (uint64, bool) {
 		if matches := sizeRe.FindStringSubmatch(line); len(matches) != 0 {
 			size, err := strconv.ParseUint(matches[1], 10, 64)
@@ -177,7 +177,7 @@ func (cc *ConstantCollector) AppendSizeofRequest(id, typeName, headerName string
 	cc.constants[id] = value
 }
 
-func (cc *ConstantCollector) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (cc *constantCollector) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
 	value := cc.paholeCache.parsePaholeOutput(getActualTypeName(typeName), func(line string) (uint64, bool) {
 		if strings.Contains(line, fieldName) {
 			if matches := offsetRe.FindStringSubmatch(line); len(matches) != 0 {
@@ -193,7 +193,7 @@ func (cc *ConstantCollector) AppendOffsetofRequest(id, typeName, fieldName, head
 	cc.constants[id] = value
 }
 
-func (c *ConstantCollector) FinishAndGetResults() (map[string]uint64, error) {
+func (c *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
 	return c.constants, nil
 }
 
@@ -205,12 +205,12 @@ func getActualTypeName(tn string) string {
 	return tn
 }
 
-type PaholeCache struct {
+type paholeCache struct {
 	btfPath string
 	cache   map[string]string
 }
 
-func (pc *PaholeCache) parsePaholeOutput(tyName string, lineF func(string) (uint64, bool)) uint64 {
+func (pc *paholeCache) parsePaholeOutput(tyName string, lineF func(string) (uint64, bool)) uint64 {
 	var output string
 	if value, ok := pc.cache[tyName]; ok {
 		output = value
