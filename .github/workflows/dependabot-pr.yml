@@ -1,7 +1,7 @@
 name: Dependabot-Tidy
 on:
   pull_request:
-    types: [ milestoned ]
+    types: [ labeled ]
 jobs:
   go_mod_tidy:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'dependencies') && github.event.pull_request.milestone.title != 'Triage' }}
