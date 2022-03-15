@@ -50,8 +50,6 @@ type Launcher struct {
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
 	kubeutil           kubelet.KubeUtilInterface
-	addedServices      chan *service.Service
-	removedServices    chan *service.Service
 	retryOperations    chan *retryOps
 	collectAll         bool
 	pendingRetries     map[string]*retryOps
@@ -108,8 +106,8 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 	}
 
 	log.Info("Starting Kubernetes launcher")
-	l.addedServices = l.services.GetAllAddedServices()
-	l.removedServices = l.services.GetAllRemovedServices()
+	addedServices := l.services.GetAllAddedServices()
+	removedServices := l.services.GetAllRemovedServices()
 
 	// kubeutil should be available now, as containersorpods.Wait waits until that
 	// is the case.
@@ -122,9 +120,9 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 
 	for {
 		select {
-		case service := <-l.addedServices:
+		case service := <-addedServices:
 			l.addSource(service)
-		case service := <-l.removedServices:
+		case service := <-removedServices:
 			l.removeSource(service)
 		case ops := <-l.retryOperations:
 			l.addSource(ops.service)

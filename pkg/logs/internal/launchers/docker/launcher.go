@@ -40,10 +40,6 @@ type sourceInfoPair struct {
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
-	addedSources       chan *config.LogSource
-	removedSources     chan *config.LogSource
-	addedServices      chan *service.Service
-	removedServices    chan *service.Service
 	activeSources      []*config.LogSource
 	pendingContainers  map[string]*Container
 	tailers            map[string]*tailer.Tailer
@@ -138,14 +134,15 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 	log.Info("Starting Docker launcher")
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
-	l.addedSources = sourceProvider.GetAddedForType(config.DockerType)
-	l.removedSources = sourceProvider.GetRemovedForType(config.DockerType)
-	l.addedServices = l.services.GetAddedServicesForType(config.DockerType)
-	l.removedServices = l.services.GetRemovedServicesForType(config.DockerType)
+
+	addedSources := sourceProvider.GetAddedForType(config.DockerType)
+	removedSources := sourceProvider.GetRemovedForType(config.DockerType)
+	addedServices := l.services.GetAddedServicesForType(config.DockerType)
+	removedServices := l.services.GetRemovedServicesForType(config.DockerType)
 
 	for {
 		select {
-		case service := <-l.addedServices:
+		case service := <-addedServices:
 			// detected a new container running on the host,
 			dockerutil, err := dockerutilpkg.GetDockerUtil()
 			if err != nil {
@@ -169,7 +166,7 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 				// so it's put in a cache until a matching source is found.
 				l.pendingContainers[service.Identifier] = container
 			}
-		case source := <-l.addedSources:
+		case source := <-addedSources:
 			// detected a new source that has been created either from a configuration file,
 			// a docker label or a pod annotation.
 			l.activeSources = append(l.activeSources, source)
@@ -185,7 +182,7 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 			}
 			// keep the containers that have not found any source yet for next iterations
 			l.pendingContainers = pendingContainers
-		case source := <-l.removedSources:
+		case source := <-removedSources:
 			for i, src := range l.activeSources {
 				if src == source {
 					// no need to stop any tailer here, it will be stopped after receiving a
@@ -194,7 +191,7 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 					break
 				}
 			}
-		case service := <-l.removedServices:
+		case service := <-removedServices:
 			// detected that a container has been stopped.
 			containerID := service.Identifier
 			l.stopTailer(containerID)
