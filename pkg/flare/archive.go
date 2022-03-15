@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -52,6 +53,7 @@ var (
 		config.Datadog.GetString("expvar_port"))
 	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
 		config.Datadog.GetString("expvar_port"))
+	procStatusURL string
 
 	// Match .yaml and .yml to ship configuration files in the flare.
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
@@ -137,7 +139,7 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/block",
 		},
 	} {
-		b, err := apiutil.DoGet(c, prof.URL)
+		b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
 		if err != nil {
 			return err
 		}
@@ -525,6 +527,24 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 	return writeScrubbedFile(sysProbeFile, sysProbeBuf)
 }
 
+// zipProcessAgentFullConfig fetches process-agent runtime config as YAML and writes it to process_agent_runtime_config_dump.yaml
+func zipProcessAgentFullConfig(tempDir, hostname string) error {
+	// procStatusURL can be manually set for test purposes
+	if procStatusURL == "" {
+		addressPort, err := api.GetAPIAddressPort()
+		if err != nil {
+			return fmt.Errorf("wrong configuration to connect to process-agent")
+		}
+
+		procStatusURL = fmt.Sprintf("http://%s/config/all", addressPort)
+	}
+
+	cfgB := status.GetProcessAgentRuntimeConfig(procStatusURL)
+	f := filepath.Join(tempDir, hostname, "process_agent_runtime_config_dump.yaml")
+
+	return writeScrubbedFile(f, cfgB)
+}
+
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
@@ -540,6 +560,12 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	err = writeScrubbedFile(f, c)
 	if err != nil {
 		return err
+	}
+
+	// Use best effort to write process-agent runtime configs
+	err = zipProcessAgentFullConfig(tempDir, hostname)
+	if err != nil {
+		log.Warnf("could not zip process_agent_runtime_config_dump.yaml: %s", err)
 	}
 
 	err = walkConfigFilePaths(tempDir, hostname, confSearchPaths, permsInfos)
@@ -693,7 +719,7 @@ func zipTaggerList(tempDir, hostname string) error {
 
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, taggerListURL)
+	r, err := apiutil.DoGet(c, taggerListURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return err
 	}
@@ -732,7 +758,7 @@ func zipWorkloadList(tempDir, hostname string) error {
 
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, workloadListURL)
+	r, err := apiutil.DoGet(c, workloadListURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return err
 	}

@@ -22,6 +22,51 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+func getTemplateWithResourceRequirements() v1.PodTemplateSpec {
+	parseRequests := resource.MustParse("250M")
+	parseLimits := resource.MustParse("550M")
+	return v1.PodTemplateSpec{
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name: "aContainer",
+					Resources: v1.ResourceRequirements{
+						Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
+						Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
+					},
+				},
+			},
+			InitContainers: []v1.Container{
+				{
+					Name: "aContainer",
+					Resources: v1.ResourceRequirements{
+						Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
+						Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
+					},
+				},
+			},
+		},
+	}
+}
+
+func getExpectedModelResourceRequirements() []*model.ResourceRequirements {
+	parseRequests := resource.MustParse("250M")
+	parseLimits := resource.MustParse("550M")
+	return []*model.ResourceRequirements{
+		{
+			Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
+			Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
+			Name:     "aContainer",
+			Type:     model.ResourceRequirementsType_container,
+		}, {
+			Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
+			Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
+			Name:     "aContainer",
+			Type:     model.ResourceRequirementsType_initContainer,
+		},
+	}
+}
+
 func TestExtractPod(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
@@ -416,6 +461,22 @@ func TestConvertResourceRequirements(t *testing.T) {
 				Name: "test",
 			},
 			expected: nil,
+		},
+		"0 ResourceRequirement explicitly set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					// 1024 = 1Ki
+					Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("0"), v1.ResourceCPU: resource.MustParse("0.5")},
+					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("0")}, // explicitly set the "0" value, that means if not set, it will not be in the map
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Limits:   map[string]int64{v1.ResourceCPU.String(): 500, v1.ResourceMemory.String(): 0},
+				Requests: map[string]int64{v1.ResourceMemory.String(): 0},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
 		},
 		"only mem set": {
 			input: v1.Container{

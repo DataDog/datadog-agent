@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Helper functions to run tests and benchmarks for context resolver, time and check samplers.
@@ -36,7 +37,7 @@ func benchWithTagsStore(t *testing.B, test func(*testing.B, *tags.Store)) {
 func assertContext(t *testing.T, cx *Context, name string, tags []string, host string) {
 	assert.Equal(t, cx.Name, name)
 	assert.Equal(t, cx.Host, host)
-	assert.Equal(t, cx.Tags(), tags)
+	metrics.AssertCompositeTagsEqual(t, cx.Tags(), tagset.CompositeTagsFromSlice(tags))
 }
 
 func TestGenerateContextKey(t *testing.T) {
@@ -50,7 +51,7 @@ func TestGenerateContextKey(t *testing.T) {
 	}
 
 	contextKey := generateContextKey(&mSample)
-	assert.Equal(t, ckey.ContextKey(0x14298ff49d0c6bb9), contextKey)
+	assert.Equal(t, ckey.ContextKey(0x8cdd8c0c59c767db), contextKey)
 }
 
 func testTrackContext(t *testing.T, store *tags.Store) {
@@ -181,8 +182,8 @@ func testTagDeduplication(t *testing.T, store *tags.Store) {
 		Tags: []string{"bar", "bar"},
 	})
 
-	assert.Equal(t, len(resolver.contextsByKey[ckey].Tags()), 1)
-	assert.Equal(t, resolver.contextsByKey[ckey].Tags(), []string{"bar"})
+	assert.Equal(t, resolver.contextsByKey[ckey].Tags().Len(), 1)
+	metrics.AssertCompositeTagsEqual(t, resolver.contextsByKey[ckey].Tags(), tagset.CompositeTagsFromSlice([]string{"bar"}))
 }
 func TestTagDeduplication(t *testing.T) {
 	testWithTagsStore(t, testTagDeduplication)

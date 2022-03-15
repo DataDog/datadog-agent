@@ -15,12 +15,12 @@ func TestParseFilePath(t *testing.T) {
 		{
 			input:  "datadog/2/APM_SAMPLING/fc18c18f-939a-4017-b428-af03678f6c1a/file1",
 			err:    false,
-			output: PathMeta{Type: TypeDatadog, OrgID: 2, Product: ProductAPMSampling, ConfigID: "fc18c18f-939a-4017-b428-af03678f6c1a", Name: "file1"},
+			output: PathMeta{Source: SourceDatadog, OrgID: 2, Product: ProductAPMSampling, ConfigID: "fc18c18f-939a-4017-b428-af03678f6c1a", Name: "file1"},
 		},
 		{
 			input:  "user/5343/TESTING1/static_id/f3045934w_dogfile",
 			err:    false,
-			output: PathMeta{Type: TypeUnknown, OrgID: 5343, Product: ProductTesting1, ConfigID: "static_id", Name: "f3045934w_dogfile"},
+			output: PathMeta{Source: SourceUser, OrgID: 5343, Product: ProductTesting1, ConfigID: "static_id", Name: "f3045934w_dogfile"},
 		},
 		{
 			input: "user/5343/TESTING1/static_id/f3045934w_dogfile/other_file",

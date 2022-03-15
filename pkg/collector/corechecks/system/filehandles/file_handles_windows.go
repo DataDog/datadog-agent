@@ -13,8 +13,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 const fileHandlesCheckName = "file_handle"
@@ -27,7 +25,7 @@ type fhCheck struct {
 // Run executes the check
 func (c *fhCheck) Run() error {
 
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,4 @@
-#include <linux/compiler.h>
-
 #include <linux/kconfig.h>
-#include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/version.h>
 #include <linux/tcp.h>

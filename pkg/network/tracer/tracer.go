@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
 )
 
@@ -66,7 +66,6 @@ type Tracer struct {
 	expiredTCPConns  int64
 	closedConns      int64
 	connStatsMapSize int64
-	lastCheck        int64
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -110,11 +109,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := (!config.EnableRuntimeCompiler ||
-		config.AllowPrecompiledFallback ||
-		// hotfix: always force offset guessing for kernel < 4.6 when HTTPS monitoring is enabled
-		(config.EnableHTTPSMonitoring && currKernelVersion < kernel.VersionCode(4, 6, 0)))
-
+	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {
@@ -241,17 +236,16 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	}
 
 	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
-			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
+		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
+			offsetOptions.ExcludedSections = append(offsetOptions.ExcludedSections, p.Section)
 		}
 	}
-	for probeName, funcName := range enabledProbes {
+	for probeName := range enabledProbes {
 		offsetOptions.ActivatedProbes = append(
 			offsetOptions.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
-					EBPFFuncName: funcName,
+					Section: string(probeName),
 				},
 			})
 	}
@@ -331,7 +325,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.getConnTelemetry(len(active))
 	rctm := t.getRuntimeCompilationTelemetry()
-	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -343,41 +336,41 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}, nil
 }
 
-func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
+func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
-	tm := &network.ConnectionsTelemetry{
-		MonotonicKprobesTriggered: kprobeStats.Hits,
-		MonotonicKprobesMissed:    kprobeStats.Misses,
-		ConnsBpfMapSize:           int64(mapSize),
-		MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
+	tm := map[network.ConnTelemetryType]int64{
+		network.MonotonicKprobesTriggered: kprobeStats.Hits,
+		network.MonotonicKprobesMissed:    kprobeStats.Misses,
+		network.ConnsBpfMapSize:           int64(mapSize),
+		network.MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
 	}
 
 	conntrackStats := t.conntracker.GetStats()
 	if rt, ok := conntrackStats["registers_total"]; ok {
-		tm.MonotonicConntrackRegisters = rt
+		tm[network.MonotonicConntrackRegisters] = rt
 	}
 	if rtd, ok := conntrackStats["registers_dropped"]; ok {
-		tm.MonotonicConntrackRegistersDropped = rtd
+		tm[network.MonotonicConntrackRegistersDropped] = rtd
 	}
 	if sp, ok := conntrackStats["sampling_pct"]; ok {
-		tm.ConntrackSamplingPercent = sp
+		tm[network.ConntrackSamplingPercent] = sp
 	}
 
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm.MonotonicDNSPacketsProcessed = pp
+		tm[network.MonotonicDNSPacketsProcessed] = pp
 	}
 
 	if ds, ok := dnsStats["dropped_stats"]; ok {
-		tm.DNSStatsDropped = ds
+		tm[network.DNSStatsDropped] = ds
 	}
 
 	ebpfStats := t.ebpfTracer.GetTelemetry()
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
-		tm.MonotonicUDPSendsProcessed = usp
+		tm[network.MonotonicUDPSendsProcessed] = usp
 	}
 	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
-		tm.MonotonicUDPSendsMissed = usm
+		tm[network.MonotonicUDPSendsMissed] = usm
 	}
 
 	return tm
@@ -546,7 +539,6 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"conn_valid_skipped":  skipped, // Skipped connections (e.g. Local DNS requests)
 		"expired_tcp_conns":   expiredTCP,
 		"conn_stats_map_size": connStatsMapSize,
-		"last_check":          atomic.LoadInt64(&t.lastCheck),
 	}
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v

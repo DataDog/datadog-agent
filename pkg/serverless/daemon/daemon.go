@@ -170,7 +170,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
 		LogChannel:             logsChan,
-		MetricChannel:          d.MetricAgent.GetMetricChannel(),
+		Demux:                  d.MetricAgent.Demux,
 		LogsEnabled:            logsEnabled,
 		EnhancedMetricsEnabled: enhancedMetricsEnabled,
 		HandleRuntimeDone:      d.HandleRuntimeDone,
@@ -352,10 +352,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 		}
 		d.setTraceTags(tagMap)
 		d.ExtraTags.Tags = tagArray
-		source := serverlessLog.GetLambdaSource()
-		if source != nil {
-			source.Config.Tags = tagArray
-		}
+		serverlessLog.UpdateLogsTags(tagArray)
 	}
 }
 

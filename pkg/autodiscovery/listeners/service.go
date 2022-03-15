@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -27,7 +26,6 @@ type service struct {
 	ports           []ContainerPort
 	pid             int
 	hostname        string
-	creationTime    integration.CreationTime
 	ready           bool
 	checkNames      []string
 	extraConfig     map[string]string
@@ -93,12 +91,6 @@ func (s *service) GetPid(_ context.Context) (int, error) {
 // GetHostname returns the service's hostname.
 func (s *service) GetHostname(_ context.Context) (string, error) {
 	return s.hostname, nil
-}
-
-// GetCreationTime returns whether the service was created before or after the
-// first run of the collector that created it.
-func (s *service) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady returns whether the service is ready.
@@ -185,6 +177,5 @@ func svcEqual(a, b Service) bool {
 		return false
 	}
 
-	return a.GetCreationTime() == b.GetCreationTime() &&
-		a.IsReady(ctx) == b.IsReady(ctx)
+	return a.IsReady(ctx) == b.IsReady(ctx)
 }

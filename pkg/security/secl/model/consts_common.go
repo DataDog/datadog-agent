@@ -21,7 +21,11 @@ const (
 	MaxSegmentLength = 255
 
 	// MaxPathDepth defines the maximum depth of a path
-	MaxPathDepth = 1500
+	// see pkg/security/ebpf/c/dentry_resolver.h: DR_MAX_TAIL_CALL * DR_MAX_ITERATION_DEPTH
+	MaxPathDepth = 1380
+
+	// MaxBpfObjName defines the maximum length of a Bpf object name
+	MaxBpfObjName = 16
 
 	// PathSuffix defines the suffix used for path fields
 	PathSuffix = ".path"
@@ -389,6 +393,17 @@ var (
 		"BPF_SK_SKB_VERDICT":           BpfSkSkbVerdict,
 	}
 
+	// PipeBufFlagConstants is the list of pipe buffer flags
+	PipeBufFlagConstants = map[string]PipeBufFlag{
+		"PIPE_BUF_FLAG_LRU":       PipeBufFlagLRU,
+		"PIPE_BUF_FLAG_ATOMIC":    PipeBufFlagAtomic,
+		"PIPE_BUF_FLAG_GIFT":      PipeBufFlagGift,
+		"PIPE_BUF_FLAG_PACKET":    PipeBufFlagPacket,
+		"PIPE_BUF_FLAG_CAN_MERGE": PipeBufFlagCanMerge,
+		"PIPE_BUF_FLAG_WHOLE":     PipeBufFlagWhole,
+		"PIPE_BUF_FLAG_LOSS":      PipeBufFlagLoss,
+	}
+
 	// SECLConstants are constants available in runtime security agent rules
 	SECLConstants = map[string]interface{}{
 		// boolean
@@ -411,6 +426,8 @@ var (
 	vmStrings                 = map[int]string{}
 	protStrings               = map[int]string{}
 	mmapFlagStrings           = map[int]string{}
+	signalStrings             = map[int]string{}
+	pipeBufFlagStrings        = map[int]string{}
 )
 
 // File flags
@@ -541,6 +558,23 @@ func initMMapFlagsConstants() {
 	}
 }
 
+func initSignalConstants() {
+	for k, v := range signalConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+
+	for k, v := range signalConstants {
+		signalStrings[v] = k
+	}
+}
+
+func initPipeBufFlagConstants() {
+	for k, v := range PipeBufFlagConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		pipeBufFlagStrings[int(v)] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -556,6 +590,8 @@ func initConstants() {
 	initVMConstants()
 	initProtConstansts()
 	initMMapFlagsConstants()
+	initSignalConstants()
+	initPipeBufFlagConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1371,3 +1407,34 @@ type MMapFlag int
 func (mmf MMapFlag) String() string {
 	return bitmaskToString(int(mmf), mmapFlagStrings)
 }
+
+// Signal represents a type of unix signal (ie, SIGKILL, SIGSTOP etc)
+type Signal int
+
+func (sig Signal) String() string {
+	return signalStrings[int(sig)]
+}
+
+// PipeBufFlag represents a pipe buffer flag
+type PipeBufFlag int
+
+func (pbf PipeBufFlag) String() string {
+	return bitmaskToString(int(pbf), pipeBufFlagStrings)
+}
+
+const (
+	// PipeBufFlagLRU pipe buffer flag
+	PipeBufFlagLRU PipeBufFlag = 0x1 /* page is on the LRU */
+	// PipeBufFlagAtomic pipe buffer flag
+	PipeBufFlagAtomic PipeBufFlag = 0x2 /* was atomically mapped */
+	// PipeBufFlagGift pipe buffer flag
+	PipeBufFlagGift PipeBufFlag = 0x4 /* page is a gift */
+	// PipeBufFlagPacket pipe buffer flag
+	PipeBufFlagPacket PipeBufFlag = 0x8 /* read() as a packet */
+	// PipeBufFlagCanMerge pipe buffer flag
+	PipeBufFlagCanMerge PipeBufFlag = 0x10 /* can merge buffers */
+	// PipeBufFlagWhole pipe buffer flag
+	PipeBufFlagWhole PipeBufFlag = 0x20 /* read() must return entire buffer or error */
+	// PipeBufFlagLoss pipe buffer flag
+	PipeBufFlagLoss PipeBufFlag = 0x40 /* Message loss happened after this buffer */
+)

@@ -39,16 +39,14 @@ func newWorker(s *Server) *worker {
 	}
 }
 
-func (w *worker) flush() {
-	w.batcher.flush()
-}
-
 func (w *worker) run() {
 	for {
 		select {
 		case <-w.server.stopChan:
 			return
 		case <-w.server.health.C:
+		case <-w.server.serverlessFlushChan:
+			w.batcher.flush()
 		case packets := <-w.server.packetsIn:
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended

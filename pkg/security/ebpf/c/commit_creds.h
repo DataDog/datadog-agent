@@ -381,9 +381,28 @@ int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_e
     return credentials_update_ret(args, args->ret);
 }
 
+struct cred_ids {
+    kuid_t uid;
+    kgid_t gid;
+    kuid_t suid;
+    kgid_t sgid;
+    kuid_t euid;
+    kgid_t egid;
+    kuid_t fsuid;
+    kgid_t fsgid;
+    unsigned securebits;
+    kernel_cap_t cap_inheritable;
+    kernel_cap_t cap_permitted;
+    kernel_cap_t cap_effective;
+    kernel_cap_t cap_bset;
+    kernel_cap_t cap_ambient;
+};
+
 SEC("kprobe/commit_creds")
 int kprobe_commit_creds(struct pt_regs *ctx) {
-    struct cred *credentials = (struct cred *)PT_REGS_PARM1(ctx);
+    u64 creds_uid_offset;
+    LOAD_CONSTANT("creds_uid_offset", creds_uid_offset);
+    struct cred_ids *credentials = (struct cred_ids *)(PT_REGS_PARM1(ctx) + creds_uid_offset);
     struct pid_cache_t new_pid_entry = {};
 
     // update pid_cache entry for the current process

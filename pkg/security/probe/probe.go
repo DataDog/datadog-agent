@@ -77,6 +77,7 @@ type Probe struct {
 	approvers          map[eval.EventType]activeApprovers
 
 	inodeDiscardersCounters map[model.EventType]*int64
+	constantOffsets         map[string]uint64
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -506,19 +507,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
-		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
-
-		if _, err = p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
-			log.Debugf("failed to resolve exec path: %s", err)
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.processCacheEntry); err != nil {
+			log.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
-		p.resolvers.ProcessResolver.SetProcessFilesystem(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.SetProcessTTY(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.SetProcessUsersGroups(event.processCacheEntry)
-
-		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
 
@@ -526,7 +517,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		event.Exec.Process = event.processCacheEntry.Process
 		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
 	case model.ExitEventType:
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
+		// do nothing
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
@@ -576,6 +567,31 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.LoadModuleEventType:
+		if _, err = event.LoadModule.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case model.UnloadModuleEventType:
+		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+		}
+	case model.SignalEventType:
+		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode signal event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// resolve target process context
+		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
+		if cacheEntry != nil {
+			event.Signal.TargetProcessCacheEntry = cacheEntry
+			event.Signal.Target = cacheEntry.ProcessContext
+		}
+	case model.SpliceEventType:
+		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -584,16 +600,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	// resolve event context
 	if eventType != model.ExitEventType {
 		event.ResolveProcessCacheEntry()
-
-		// in case of exec event we take the parent a process context as this is
-		// the parent which generated the exec
-		if eventType == model.ExecEventType {
-			if ancestor := event.processCacheEntry.ProcessContext.Ancestor; ancestor != nil {
-				event.ProcessContext = ancestor.ProcessContext
-			}
-		} else {
-			event.ProcessContext = event.processCacheEntry.ProcessContext
+		event.ProcessContext = event.processCacheEntry.ProcessContext
+	} else {
+		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+			return
 		}
+
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
@@ -874,9 +887,9 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber)
 	}
-	opts.Logger = &seclog.PatternLogger{}
+	opts.WithLogger(&seclog.PatternLogger{})
 
-	return rules.NewRuleSet(&Model{}, eventCtor, opts)
+	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts)
 }
 
 // NewProbe instantiates a new runtime security agent probe
@@ -907,6 +920,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
+	p.ensureConfigDefaults()
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
@@ -931,13 +946,13 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	constants, err := GetOffsetConstants(config, p)
+	p.constantOffsets, err = GetOffsetConstants(config, p)
 	if err != nil {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
 
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(constants)...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1043,13 +1058,55 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
+func (p *Probe) ensureConfigDefaults() {
+	// enable runtime compiled constants on COS by default
+	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
+		p.config.EnableRuntimeCompiledConstants = true
+	}
+}
+
 // GetOffsetConstants returns the offsets and struct sizes constants
 func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+	kv, err := probe.GetKernelVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
+	}
+	return GetOffsetConstantsFromFetcher(constantFetcher, kv)
+}
 
+// GetOffsetConstantsFromFetcher returns the offsets and struct sizes constants, from a constant fetcher
+func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) (map[string]uint64, error) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("dentry_sb_offset", "struct dentry", "d_sb", "linux/dcache.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
+	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
+	// bpf offsets
+	constantFetcher.AppendOffsetofRequest("bpf_map_id_offset", "struct bpf_map", "id", "linux/bpf.h")
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
+		constantFetcher.AppendOffsetofRequest("bpf_map_name_offset", "struct bpf_map", "name", "linux/bpf.h")
+	}
+	constantFetcher.AppendOffsetofRequest("bpf_map_type_offset", "struct bpf_map", "map_type", "linux/bpf.h")
+	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_id_offset", "struct bpf_prog_aux", "id", "linux/bpf.h")
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
+		constantFetcher.AppendOffsetofRequest("bpf_prog_aux_name_offset", "struct bpf_prog_aux", "name", "linux/bpf.h")
+	}
+	constantFetcher.AppendOffsetofRequest("bpf_prog_tag_offset", "struct bpf_prog", "tag", "linux/filter.h")
+	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
+	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
+
+	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSLES12Kernel() || kv.IsSLES15Kernel()) {
+		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
+	}
+	// namespace nr offsets
+	constantFetcher.AppendOffsetofRequest("pid_level_offset", "struct pid", "level", "linux/pid.h")
+	constantFetcher.AppendOffsetofRequest("pid_numbers_offset", "struct pid", "numbers", "linux/pid.h")
+	constantFetcher.AppendSizeofRequest("sizeof_upid", "struct upid", "linux/pid.h")
+
+	// splice event
+	constantFetcher.AppendOffsetofRequest("pipe_inode_info_bufs_offset", "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
+
 	return constantFetcher.FinishAndGetResults()
 }

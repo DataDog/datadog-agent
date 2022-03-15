@@ -64,7 +64,7 @@ func (m *mapProvider) Shutdown(context.Context) error {
 // NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *config.Map.
 func NewConfigProviderFromMap(cfg *config.Map) service.ConfigProvider {
 	provider := &mapProvider{cfg}
-	return service.NewConfigProvider(
+	return service.MustNewConfigProvider(
 		[]string{mapLocation},
 		map[string]configmapprovider.Provider{
 			"map": provider,

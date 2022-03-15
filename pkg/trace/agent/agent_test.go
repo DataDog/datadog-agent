@@ -15,6 +15,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,16 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -550,7 +550,7 @@ func TestConcentratorInput(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			if tc.withFargate {
-				cfg.FargateOrchestrator = fargate.ECS
+				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
 			agent := NewAgent(context.TODO(), cfg)
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
@@ -841,7 +841,7 @@ func TestSampling(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := &config.AgentConfig{DisableRareSampler: tt.disableRareSampler}
-			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, ErrorTPS: 10, DisableRareSampler: tt.disableRareSampler}
+			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, DisableRareSampler: tt.disableRareSampler}
 
 			a := &Agent{
 				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
@@ -876,10 +876,88 @@ func TestSampling(t *testing.T) {
 				}
 			}
 
-			sampled := a.runSamplers(pt, tt.hasPriority)
+			sampled := a.runSamplers(time.Now(), pt, tt.hasPriority)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
 	}
+}
+
+func TestPartialSamplingFree(t *testing.T) {
+	cfg := &config.AgentConfig{DisableRareSampler: true, BucketInterval: 10 * time.Second}
+	statsChan := make(chan pb.StatsPayload, 100)
+	writerChan := make(chan *writer.SampledChunks, 100)
+	dynConf := sampler.NewDynamicConfig()
+	in := make(chan *api.Payload, 1000)
+	agnt := &Agent{
+		Concentrator:      stats.NewConcentrator(cfg, statsChan, time.Now()),
+		Blacklister:       filters.NewBlacklister(cfg.Ignore["resource"]),
+		Replacer:          filters.NewReplacer(cfg.ReplaceTags),
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		EventProcessor:    newEventProcessor(cfg),
+		RareSampler:       sampler.NewRareSampler(),
+		TraceWriter:       &writer.TraceWriter{In: writerChan},
+		conf:              cfg,
+	}
+	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt)
+	now := time.Now()
+	smallKeptSpan := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Service:  "s",
+		Name:     "n",
+		Resource: "aaaa",
+		Type:     "web",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_sampling_priority_v1": 1.0},
+	}
+
+	tracerPayload := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(smallKeptSpan))
+
+	runtime.GC()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
+
+	droppedSpan := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Service:  "s",
+		Name:     "n",
+		Resource: "bbb",
+		Type:     "web",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_sampling_priority_v1": 0.0},
+		Meta:     map[string]string{},
+	}
+	for i := 0; i < 5*1e3; i++ {
+		droppedSpan.Meta[strconv.Itoa(i)] = strings.Repeat("0123456789", 1e3)
+	}
+	bigChunk := testutil.TraceChunkWithSpan(droppedSpan)
+	bigChunk.Origin = strings.Repeat("0123456789", 50*1e6)
+	tracerPayload.Chunks = append(tracerPayload.Chunks, bigChunk)
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
+	agnt.Process(&api.Payload{
+		TracerPayload: tracerPayload,
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+	})
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
+
+	<-agnt.Concentrator.In
+	// big chunk should be cleaned as unsampled and passed through stats
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
+
+	p := <-agnt.TraceWriter.In
+	assert.Len(t, p.TracerPayload.Chunks, 1)
 }
 
 func TestEventProcessorFromConf(t *testing.T) {
@@ -1000,7 +1078,7 @@ func generateTraffic(processor *event.Processor, serviceName string, operationNa
 	eventTicker := time.NewTicker(tickerInterval)
 	defer eventTicker.Stop()
 	numTicksInSecond := float64(time.Second) / float64(tickerInterval)
-	spansPerTick := int(math.Round(float64(intakeSPS) / numTicksInSecond))
+	spansPerTick := int(math.Round(intakeSPS / numTicksInSecond))
 
 Loop:
 	for {
@@ -1063,7 +1141,6 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	ta := NewAgent(ctx, c)
-	seelog.UseLogger(seelog.Disabled)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1091,7 +1168,7 @@ func BenchmarkThroughput(b *testing.B) {
 		b.SkipNow()
 	}
 
-	ddlog.SetupLogger(seelog.Disabled, "") // disable logging
+	log.SetLogger(log.NoopLogger) // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
@@ -1410,7 +1487,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	defer cancel()
 
 	span := testutil.RandomSpan()
-	numEvents, keep, _ := agnt.sample(info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
+	numEvents, keep, _ := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
 		TraceChunk: testutil.TraceChunkWithSpan(span),
 		Root:       span,
 	})

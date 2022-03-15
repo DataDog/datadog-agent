@@ -6,6 +6,7 @@
 package containerlifecycle
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -29,8 +30,8 @@ func newProcessor(sender aggregator.Sender, chunkSize int) *processor {
 }
 
 // start spawns a go routine to consume event queues
-func (p *processor) start(stop chan struct{}, pollInterval time.Duration) {
-	go p.processQueues(stop, pollInterval)
+func (p *processor) start(ctx context.Context, pollInterval time.Duration) {
+	go p.processQueues(ctx, pollInterval)
 }
 
 // processEvents handles workloadmeta events, supports pods and container unset events.
@@ -52,14 +53,14 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 					continue
 				}
 
-				err := p.processContainer(container, event.Sources)
+				err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceRuntime})
 				if err != nil {
-					log.Debugf("Couldn't process container %q: %w", container.ID, err)
+					log.Debugf("Couldn't process container %q: %v", container.ID, err)
 				}
 			case workloadmeta.KindKubernetesPod:
 				err := p.processPod(event.Entity)
 				if err != nil {
-					log.Debugf("Couldn't process pod %q: %w", event.Entity.GetID().ID, err)
+					log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
 				}
 			case workloadmeta.KindECSTask: // not supported
 			default:
@@ -103,31 +104,46 @@ func (p *processor) processPod(pod workloadmeta.Entity) error {
 	event.withObjectKind(types.ObjectKindPod)
 	event.withEventType(types.EventNameDelete)
 	event.withObjectID(pod.GetID().ID)
-	event.withSource(string(workloadmeta.SourceKubelet))
+	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
 
 	return p.podsQueue.add(event)
 }
 
 // processQueues consumes the data available in the queues
-func (p *processor) processQueues(stop chan struct{}, pollInterval time.Duration) {
+func (p *processor) processQueues(ctx context.Context, pollInterval time.Duration) {
 	ticker := time.NewTicker(pollInterval)
 
 	for {
 		select {
 		case <-ticker.C:
-			if !p.containersQueue.isEmpty() {
-				msgs := p.containersQueue.dump()
-				p.containersQueue.reset()
-				p.sender.ContainerLifecycleEvent(msgs)
-			}
-
-			if !p.podsQueue.isEmpty() {
-				msgs := p.podsQueue.dump()
-				p.podsQueue.reset()
-				p.sender.ContainerLifecycleEvent(msgs)
-			}
-		case <-stop:
+			p.flush()
+		case <-ctx.Done():
+			p.flush()
 			return
 		}
+	}
+}
+
+// flush forwards all queued events to the aggregator
+func (p *processor) flush() {
+	p.flushContainers()
+	p.flushPods()
+}
+
+// flushContainers forwards queued container events to the aggregator
+func (p *processor) flushContainers() {
+	if !p.containersQueue.isEmpty() {
+		msgs := p.containersQueue.dump()
+		p.containersQueue.reset()
+		p.sender.ContainerLifecycleEvent(msgs)
+	}
+}
+
+// flushPods forwards queued pod events to the aggregator
+func (p *processor) flushPods() {
+	if !p.podsQueue.isEmpty() {
+		msgs := p.podsQueue.dump()
+		p.podsQueue.reset()
+		p.sender.ContainerLifecycleEvent(msgs)
 	}
 }

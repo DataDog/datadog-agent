@@ -134,7 +134,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 func (fh *forwarderHealth) computeDomainsURL() {
 	for domain, dr := range fh.domainResolvers {
 		apiDomain := ""
-		re := regexp.MustCompile(`((us|eu)\d\.)?(datadoghq.[a-z]+|ddog-gov.com)$`)
+		re := regexp.MustCompile(`((us|eu)\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
 		if re.MatchString(domain) {
 			apiDomain = "https://api." + re.FindString(domain)
 		} else {
@@ -203,7 +203,12 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {
-				log.Debug(err)
+				log.Debugf(
+					"api_key '%s' for domain %s could not be validated: %s",
+					apiKey,
+					domain,
+					err.Error(),
+				)
 				apiError = true
 			} else if v {
 				log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)

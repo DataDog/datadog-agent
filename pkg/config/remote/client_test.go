@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/theupdateframework/go-tuf/data"
+	"github.com/theupdateframework/go-tuf/pkg/keys"
 	"github.com/theupdateframework/go-tuf/sign"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -160,22 +161,22 @@ func TestClientValidResponse(t *testing.T) {
 	}, apmUpdate)
 }
 
-func generateKey() *sign.PrivateKey {
-	key, _ := sign.GenerateEd25519Key()
+func generateKey() keys.Signer {
+	key, _ := keys.GenerateEd25519Key()
 	return key
 }
 
-func generateTargets(key *sign.PrivateKey, version int, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Targets = targets
-	signed, _ := sign.Marshal(&meta, key.Signer())
+	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
 
-func generateRoot(key *sign.PrivateKey, version int, targetsKey *sign.PrivateKey) []byte {
+func generateRoot(key keys.Signer, version int, targetsKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -197,7 +198,7 @@ func generateRoot(key *sign.PrivateKey, version int, targetsKey *sign.PrivateKey
 		KeyIDs:    key.PublicData().IDs(),
 		Threshold: 1,
 	}
-	signedRoot, _ := sign.Marshal(&root, key.Signer())
+	signedRoot, _ := sign.Marshal(&root, key)
 	serializedRoot, _ := json.Marshal(signedRoot)
 	return serializedRoot
 }

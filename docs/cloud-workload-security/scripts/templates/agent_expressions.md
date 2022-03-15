@@ -60,9 +60,9 @@ SECL operators are used to combine event attributes together into a full express
 | `=~`                  | File             | String matching                          | 7.27          |
 | `!~`                  | File             | String not matching                      | 7.27          |
 | `&`                   | File             | Binary and                               | 7.27          |
-| `|`                   | File             | Binary or                                | 7.27          |
+| `\|`                  | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
-| `||`                  | File             | Logical or                               | 7.27          |
+| `\|\|`                | File             | Logical or                               | 7.27          |
 
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.

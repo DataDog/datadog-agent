@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb/otlppb"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -115,12 +115,12 @@ var (
 
 func TestOTLPReceiver(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, nil)
-		assert.NotNil(t, o.cfg)
+		cfg := config.New()
+		assert.NotNil(t, NewOTLPReceiver(nil, cfg).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, nil)
+		o := NewOTLPReceiver(nil, config.New())
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.httpsrv)
@@ -129,10 +129,12 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/http", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		o := NewOTLPReceiver(nil, &config.OTLP{
+		cfg := config.New()
+		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
 			HTTPPort: port,
-		})
+		}
+		o := NewOTLPReceiver(nil, cfg)
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -142,10 +144,12 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		o := NewOTLPReceiver(nil, &config.OTLP{
+		cfg := config.New()
+		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
 			GRPCPort: port,
-		})
+		}
+		o := NewOTLPReceiver(nil, cfg)
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -159,11 +163,13 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/http+grpc", func(t *testing.T) {
 		port1, port2 := testutil.FreeTCPPort(t), testutil.FreeTCPPort(t)
-		o := NewOTLPReceiver(nil, &config.OTLP{
+		cfg := config.New()
+		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
 			HTTPPort: port1,
 			GRPCPort: port2,
-		})
+		}
+		o := NewOTLPReceiver(nil, cfg)
 		o.Start()
 		defer o.Stop()
 		assert.NotNil(t, o.grpcsrv)
@@ -172,7 +178,7 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, nil)
+		o := NewOTLPReceiver(out, config.New())
 		o.processRequest(otlpProtocolGRPC, http.Header(map[string][]string{
 			headerLang:        {"go"},
 			headerContainerID: {"containerdID"},

@@ -98,11 +98,6 @@ func (h *ReplicaSetHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorCont
 func (h *ReplicaSetHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*appsv1.ReplicaSet)
 	if ctx.Cfg.IsScrubbingEnabled {
-		for c := 0; c < len(r.Spec.Template.Spec.InitContainers); c++ {
-			redact.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], ctx.Cfg.Scrubber)
-		}
-		for c := 0; c < len(r.Spec.Template.Spec.Containers); c++ {
-			redact.ScrubContainer(&r.Spec.Template.Spec.Containers[c], ctx.Cfg.Scrubber)
-		}
+		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
 	}
 }

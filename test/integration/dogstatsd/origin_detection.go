@@ -57,6 +57,9 @@ func testUDSOriginDetection(t *testing.T) {
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
 
+	// Env dectection
+	config.DetectFeatures()
+
 	// Start DSD
 	packetsChannel := make(chan packets.Packets)
 	sharedPacketPool := packets.NewPool(32)

@@ -30,6 +30,7 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -37,6 +38,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -63,6 +65,7 @@ log_level: DEBUG
 system_probe_config:
   enabled: true
   sysprobe_socket: /tmp/test-sysprobe.sock
+  enable_kernel_header_download: true
 
 runtime_security_config:
   enabled: true
@@ -104,6 +107,20 @@ rules:
   - id: {{$Rule.ID}}
     expression: >-
       {{$Rule.Expression}}
+    actions:
+{{- range $Action := .Actions}}
+{{- if $Action.Set}}
+      - set:
+          name: {{$Action.Set.Name}}
+		  {{- if $Action.Set.Value}}
+          value: {{$Action.Set.Value}}
+          {{- else if $Action.Set.Field}}
+          field: {{$Action.Set.Field}}
+          {{- end}}
+          scope: {{$Action.Set.Scope}}
+          append: {{$Action.Set.Append}}
+{{- end}}
+{{- end}}
 {{end}}
 `
 
@@ -197,7 +214,7 @@ type testcustomEventHandler struct {
 
 type testProbeHandler struct {
 	sync.RWMutex
-	reloading          sync.RWMutex
+	reloading          sync.Mutex
 	module             *module.Module
 	eventHandler       *testEventHandler
 	customEventHandler *testcustomEventHandler
@@ -330,14 +347,20 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 }
 
 //nolint:deadcode,unused
-func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
-	return assert.Contains(t, values, fieldValue)
+
+	if fieldValues, ok := fieldValue.([]string); ok {
+		return assert.Contains(t, values, fieldValues[index])
+	}
+
+	t.Errorf("failed to get field '%s' as an array", field)
+	return false
 }
 
 func setTestConfig(dir string, opts testOpts) (string, error) {
@@ -510,7 +533,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		cmdWrapper:   cmdWrapper,
 	}
 
-	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet) {
+	var loadErr *multierror.Error
+	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+		loadErr = err
 		log.Infof("Adding test module as listener")
 		rs.AddListener(testMod)
 	})
@@ -523,6 +548,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, errors.Wrap(err, "failed to start module")
+	}
+
+	if loadErr.ErrorOrNil() != nil {
+		defer testMod.Close()
+		return nil, loadErr.ErrorOrNil()
 	}
 
 	if logStatusMetrics {
@@ -1201,4 +1231,17 @@ func randStringRunes(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+//nolint:deadcode,unused
+func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		t.Errorf("failed to get kernel version: %w", err)
+		return
+	}
+
+	if skipCheck(kv) {
+		t.Skipf("kernel version not supported: %s", why)
+	}
 }

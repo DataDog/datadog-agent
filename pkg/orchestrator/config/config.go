@@ -63,7 +63,7 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// Load load orchestrator-specific configuration
+// Load loads orchestrator-specific configuration
 // at this point secrets should already be resolved by the core/process/cluster agent
 func (oc *OrchestratorConfig) Load() error {
 	URL, err := extractOrchestratorDDUrl()

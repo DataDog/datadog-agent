@@ -16,12 +16,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -80,25 +83,14 @@ func initExtraHeaders() {
 	}
 }
 
-// EventsStreamJSONMarshaler handles two serialization logics.
-type EventsStreamJSONMarshaler interface {
-	marshaler.Marshaler
-
-	// Create a single marshaler.
-	CreateSingleMarshaler() marshaler.StreamJSONMarshaler
-
-	// If the single marshaler cannot serialize, use smaller marshalers.
-	CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler
-}
-
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
-	SendEvents(e EventsStreamJSONMarshaler) error
-	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
-	SendSeries(series marshaler.StreamJSONMarshaler) error
-	SendIterableSeries(series marshaler.IterableMarshaler) error
+	SendEvents(e metrics.Events) error
+	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
+	SendSeries(series metrics.Series) error
+	SendIterableSeries(series *metrics.IterableSeries) error
 	IsIterableSeriesSupported() bool
-	SendSketch(sketches marshaler.Marshaler) error
+	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
@@ -169,11 +161,15 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcy
 	return s
 }
 
-func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializePayload(
+	jsonMarshaler marshaler.JSONMarshaler,
+	protoMarshaler marshaler.ProtoMarshaler,
+	compress bool,
+	useV1API bool) (forwarder.Payloads, http.Header, error) {
 	if useV1API {
-		return s.serializePayloadJSON(payload, compress)
+		return s.serializePayloadJSON(jsonMarshaler, compress)
 	}
-	return s.serializePayloadProto(payload, compress)
+	return s.serializePayloadProto(protoMarshaler, compress)
 }
 
 func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compress bool) (forwarder.Payloads, http.Header, error) {
@@ -228,8 +224,8 @@ func (s Serializer) serializeIterableStreamablePayload(payload marshaler.Iterabl
 //
 // If none of the previous methods work, we fallback to the old serialization method (Serializer.serializePayload).
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
-	eventsStreamJSONMarshaler EventsStreamJSONMarshaler, useV1API bool) (forwarder.Payloads, http.Header, error) {
-	marshaler := eventsStreamJSONMarshaler.CreateSingleMarshaler()
+	eventsSerializer metricsserializer.Events, useV1API bool) (forwarder.Payloads, http.Header, error) {
+	marshaler := eventsSerializer.CreateSingleMarshaler()
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, stream.FailOnErrItemTooBig)
 
 	if err == stream.ErrItemTooBig {
@@ -238,10 +234,10 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 		// Do not use CreateMarshalersBySourceType when there are too many source types (Performance issue).
 		if marshaler.Len() > maxItemCountForCreateMarshalersBySourceType {
 			expvarsSendEventsErrItemTooBigsFallback.Add(1)
-			eventPayloads, extraHeaders, err = s.serializePayload(eventsStreamJSONMarshaler, true, useV1API)
+			eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, eventsSerializer, true, useV1API)
 		} else {
 			eventPayloads = nil
-			for _, v := range eventsStreamJSONMarshaler.CreateMarshalersBySourceType() {
+			for _, v := range eventsSerializer.CreateMarshalersBySourceType() {
 				var eventPayloadsForSourceType forwarder.Payloads
 				eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, stream.DropItemOnErrItemTooBig)
 				if err != nil {
@@ -255,7 +251,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
+func (s *Serializer) SendEvents(events metrics.Events) error {
 	if !s.enableEvents {
 		log.Debug("events payloads are disabled: dropping it")
 		return nil
@@ -265,10 +261,11 @@ func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 	var extraHeaders http.Header
 	var err error
 
+	eventsSerializer := metricsserializer.Events(events)
 	if s.enableEventsJSONStream {
-		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e, true)
+		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer, true)
 	} else {
-		eventPayloads, extraHeaders, err = s.serializePayload(e, true, true)
+		eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, eventsSerializer, true, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
@@ -278,20 +275,21 @@ func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
+func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) error {
 	if !s.enableServiceChecks {
 		log.Debug("service_checks payloads are disabled: dropping it")
 		return nil
 	}
 
+	serviceChecksSerializer := metricsserializer.ServiceChecks(serviceChecks)
 	var serviceCheckPayloads forwarder.Payloads
 	var extraHeaders http.Header
 	var err error
 
 	if s.enableServiceChecksJSONStream {
-		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, stream.DropItemOnErrItemTooBig)
+		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(serviceChecksSerializer, stream.DropItemOnErrItemTooBig)
 	} else {
-		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(sc, true)
+		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(serviceChecksSerializer, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
@@ -301,12 +299,13 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 }
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
-func (s *Serializer) SendIterableSeries(series marshaler.IterableMarshaler) error {
+func (s *Serializer) SendIterableSeries(series *metrics.IterableSeries) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
 
+	seriesSerializer := metricsserializer.IterableSeries{IterableSeries: series}
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesPayloads forwarder.Payloads
@@ -314,9 +313,9 @@ func (s *Serializer) SendIterableSeries(series marshaler.IterableMarshaler) erro
 	var err error
 
 	if useV1API {
-		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(series, stream.DropItemOnErrItemTooBig)
+		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 	} else {
-		seriesPayloads, err = series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		seriesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
@@ -337,12 +336,12 @@ func (s *Serializer) IsIterableSeriesSupported() bool {
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
+func (s *Serializer) SendSeries(series metrics.Series) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
-
+	seriesSerializer := metricsserializer.Series(series)
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesPayloads forwarder.Payloads
@@ -350,11 +349,11 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, stream.DropItemOnErrItemTooBig)
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 	} else if useV1API && !s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(series, true)
+		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		seriesPayloads, err = series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		seriesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
@@ -369,14 +368,14 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
+func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	if !s.enableSketches {
 		log.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}
-
+	sketchesSerializer := metricsserializer.SketchSeriesList(sketches)
 	if s.enableSketchProtobufStream {
-		payloads, err := sketches.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		if err == nil {
 			return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
 		}
@@ -385,7 +384,7 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 
 	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
-	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
+	splitSketches, extraHeaders, err := s.serializePayload(sketchesSerializer, sketchesSerializer, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
@@ -463,6 +462,9 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 		extraHeaders.Set(headers.HostHeader, hostName)
 		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+		extraHeaders.Set(headers.EVPOriginHeader, "agent")
+		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
 		body, err := processPayloadEncoder(m)
 		if err != nil {

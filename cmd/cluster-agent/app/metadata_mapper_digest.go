@@ -78,7 +78,7 @@ func getMetadataMap(nodeName string) error {
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr)
+	r, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if e != nil {
 		fmt.Printf(`
 		Could not reach agent: %v

@@ -7,10 +7,7 @@ package rules
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-// Approvers associates field names with their filter values
-type Approvers map[eval.Field]FilterValues
-
-// FilterValues - list of FilterValue
+// FilterValues is a list of FilterValue
 type FilterValues []FilterValue
 
 // FilterValue represents a field, its value, its type and whether it's a used
@@ -20,16 +17,19 @@ type FilterValue struct {
 	Value interface{}
 	Type  eval.FieldValueType
 
-	not    bool
-	ignore bool
+	// indicate process.uid == process.gid for example
+	isScalar bool
+	// opposite value of the field Value
+	notValue interface{}
+	not      bool
 }
 
 // Merge merges to FilterValues ensuring there is no duplicate value
-func (fv FilterValues) Merge(n FilterValues) FilterValues {
+func (fv FilterValues) Merge(n ...FilterValue) FilterValues {
 LOOP:
 	for _, v1 := range n {
 		for _, v2 := range fv {
-			if v1.Value == v2.Value {
+			if v1.Field == v2.Field && v1.Value == v2.Value && v1.not == v2.not {
 				continue LOOP
 			}
 		}

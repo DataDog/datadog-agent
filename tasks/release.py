@@ -34,7 +34,7 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 REPOSITORY_NAME = "DataDog/datadog-agent"
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
-UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby"]
+UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
 
 
 @task

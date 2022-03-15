@@ -10,6 +10,7 @@ package otlp
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -72,20 +73,36 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	// TODO (AP-1550): Fix this once we can disable changing the gRPC logger
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows, see AP-1550 for details")
+	}
+
 	tests := []struct {
 		path string
 		err  string
 	}{
-		{path: "port/nobindhost.yaml"},
-		{path: "port/nonlocal.yaml"},
+		{path: "experimental/port/nobindhost.yaml"},
+		{path: "experimental/port/nonlocal.yaml"},
 		{
-			path: "receiver/noprotocols.yaml",
+			path: "experimental/receiver/noprotocols.yaml",
 			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
 		},
-		{path: "receiver/simple.yaml"},
-		{path: "receiver/advanced.yaml"},
+		{path: "experimental/receiver/simple.yaml"},
+		{path: "experimental/receiver/advanced.yaml"},
 		{
-			path: "receiver/typo.yaml",
+			path: "experimental/receiver/typo.yaml",
+			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
+		},
+
+		{
+			path: "stable/receiver/noprotocols.yaml",
+			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
+		},
+		{path: "stable/receiver/simple.yaml"},
+		{path: "stable/receiver/advanced.yaml"},
+		{
+			path: "stable/receiver/typo.yaml",
 			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
 		},
 	}

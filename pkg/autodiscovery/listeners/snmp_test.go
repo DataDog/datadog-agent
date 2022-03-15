@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 
@@ -170,7 +169,6 @@ func TestExtraConfig(t *testing.T) {
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 
@@ -247,7 +245,6 @@ func TestExtraConfigExtraTags(t *testing.T) {
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 
@@ -271,7 +268,6 @@ func TestExtraConfigv3(t *testing.T) {
 		adIdentifier: "snmp",
 		entityID:     "id",
 		deviceIP:     "192.168.0.1",
-		creationTime: integration.Before,
 		config:       snmpConfig,
 	}
 

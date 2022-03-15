@@ -93,6 +93,15 @@ func TestExtractReplicaSet(t *testing.T) {
 			},
 		},
 		"empty rs": {input: appsv1.ReplicaSet{}, expected: model.ReplicaSet{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
+		"rs with resources": {
+			input: appsv1.ReplicaSet{
+				Spec: appsv1.ReplicaSetSpec{Template: getTemplateWithResourceRequirements()},
+			},
+			expected: model.ReplicaSet{
+				Metadata:             &model.Metadata{},
+				ReplicasDesired:      1,
+				ResourceRequirements: getExpectedModelResourceRequirements(),
+			}},
 		"partial rs": {
 			input: appsv1.ReplicaSet{
 				ObjectMeta: metav1.ObjectMeta{

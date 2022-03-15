@@ -464,9 +464,14 @@ def lint_teamassignment(_):
         res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         issue = res.json()
 
-        for label in issue.get('labels', {}):
-            if re.match('team/', label['name']):
-                print(f"Team Assignment: {label['name']}")
+        labels = {l['name'] for l in issue.get('labels', [])}
+        if "qa/skip-qa" in labels:
+            print("qa/skip-qa label set -- no need for team assignment")
+            return
+
+        for label in labels:
+            if label.startswith('team/'):
+                print(f"Team Assignment: {label}")
                 return
 
         print(f"PR {pr_url} requires team assignment")
@@ -608,7 +613,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow="default"):
     """
     Run e2e tests in several environments.
     """

@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -45,7 +47,7 @@ func TestSplitPayloadsSeries(t *testing.T) {
 }
 
 func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
-	testSeries := metrics.Series{}
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < numPoints; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -65,7 +67,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -74,9 +76,9 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	require.Nil(t, err)
 
 	originalLength := len(testSeries)
-	var splitSeries = []metrics.Series{}
+	var splitSeries = []metricsserializer.Series{}
 	for _, payload := range payloads {
-		var s = map[string]metrics.Series{}
+		var s = map[string]metricsserializer.Series{}
 
 		if compress {
 			*payload, err = compression.Decompress(nil, *payload)
@@ -88,7 +90,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		splitSeries = append(splitSeries, s["series"])
 	}
 
-	unrolledSeries := metrics.Series{}
+	unrolledSeries := metricsserializer.Series{}
 	for _, series := range splitSeries {
 		for _, s := range series {
 			unrolledSeries = append(unrolledSeries, s)
@@ -101,7 +103,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 var result forwarder.Payloads
 
 func BenchmarkSplitPayloadsSeries(b *testing.B) {
-	testSeries := metrics.Series{}
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < 400000; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -111,7 +113,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -168,7 +170,7 @@ func TestSplitPayloadsEvents(t *testing.T) {
 }
 
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
-	testEvent := metrics.Events{}
+	testEvent := metricsserializer.Events{}
 	for i := 0; i < numPoints; i++ {
 		event := metrics.Event{
 			Title:          "test title",
@@ -234,7 +236,7 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 }
 
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
-	testServiceChecks := metrics.ServiceChecks{}
+	testServiceChecks := metricsserializer.ServiceChecks{}
 	for i := 0; i < numPoints; i++ {
 		sc := metrics.ServiceCheck{
 			CheckName: "test.check",
@@ -297,17 +299,17 @@ func TestSplitPayloadsSketches(t *testing.T) {
 }
 
 func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
-	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
+	testSketchSeries := make(metricsserializer.SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries[i] = metrics.Makeseries(i)
+		testSketchSeries[i] = metricsserializer.Makeseries(i)
 	}
 
 	payloads, err := Payloads(testSketchSeries, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
-	var splitSketches = []metrics.SketchSeriesList{}
+	var splitSketches = []metricsserializer.SketchSeriesList{}
 	for _, payload := range payloads {
-		var s = map[string]metrics.SketchSeriesList{}
+		var s = map[string]metricsserializer.SketchSeriesList{}
 
 		if compress {
 			*payload, err = compression.Decompress(nil, *payload)
@@ -321,7 +323,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 	}
 
 	originalLength := len(testSketchSeries)
-	unrolledSketches := metrics.SketchSeriesList{}
+	unrolledSketches := metricsserializer.SketchSeriesList{}
 	for _, sketches := range splitSketches {
 		for _, s := range sketches {
 			unrolledSketches = append(unrolledSketches, s)

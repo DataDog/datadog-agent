@@ -22,6 +22,7 @@ if [[ -n ${CI_JOB_URL+x} ]] && [[ -n ${DD_API_KEY+x} ]]; then
   "alert_type": "${alert_type}",
   "tags": [
     "app:agent-e2e-tests",
+    "argo-workflow:$ARGO_WORKFLOW",
     "datadog-agent-image:$DATADOG_AGENT_IMAGE",
     "datadog-cluster-agent-image:$DATADOG_CLUSTER_AGENT_IMAGE"
   ]

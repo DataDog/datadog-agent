@@ -6,7 +6,11 @@
 package traceutil
 
 import (
+	"bytes"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 const (
@@ -84,4 +88,36 @@ func GetMetaDefault(s *pb.Span, key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+// SetMetaStruct sets the structured metadata at key to the val on the span s.
+func SetMetaStruct(s *pb.Span, key string, val interface{}) error {
+	var b bytes.Buffer
+
+	if s.MetaStruct == nil {
+		s.MetaStruct = make(map[string][]byte)
+	}
+	writer := msgp.NewWriter(&b)
+	err := writer.WriteIntf(val)
+	if err != nil {
+		return err
+	}
+	writer.Flush()
+	s.MetaStruct[key] = b.Bytes()
+	return nil
+}
+
+// GetMetaStruct gets the structured metadata value in the span MetaStruct map.
+func GetMetaStruct(s *pb.Span, key string) (interface{}, bool) {
+	if s.MetaStruct == nil {
+		return nil, false
+	}
+	if rawVal, ok := s.MetaStruct[key]; ok {
+		val, _, err := msgp.ReadIntfBytes(rawVal)
+		if err != nil {
+			ok = false
+		}
+		return val, ok
+	}
+	return nil, false
 }

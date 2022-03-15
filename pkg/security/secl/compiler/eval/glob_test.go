@@ -28,6 +28,10 @@ func TestGlobPattern(t *testing.T) {
 }
 
 func TestGlobContains(t *testing.T) {
+	if glob, _ := NewGlob("/var/log/*"); !glob.Contains("/var/log") {
+		t.Error("should contain the filename")
+	}
+
 	if glob, _ := NewGlob("/var/log/*"); !glob.Contains("/var/log/httpd") {
 		t.Error("should contain the filename")
 	}
@@ -102,6 +106,50 @@ func TestGlobContains(t *testing.T) {
 }
 
 func TestGlobMatches(t *testing.T) {
+	if glob, _ := NewGlob("/tmp/test/test789"); !glob.Matches("/tmp/test/test789") {
+		t.Error("should contain the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/test/test789*"); !glob.Matches("/tmp/test/test7890") {
+		t.Error("should contain the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/test/test789*"); glob.Matches("/tmp/test") {
+		t.Error("shouldn't contain the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/test/*st*"); glob.Matches("/tmp/test") {
+		t.Error("shouldn't contain the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/test/*st*"); !glob.Matches("/tmp/test/ast") {
+		t.Error("should contain the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/*/test789"); !glob.Matches("/tmp/test/test789") {
+		t.Error("should contain the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/*/test789"); glob.Matches("/tmp/test/test") {
+		t.Error("shouldn't contain the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/**"); !glob.Matches("/tmp/test/ast") {
+		t.Error("should the filename")
+	}
+
+	if glob, _ := NewGlob("/tmp/*"); glob.Matches("/tmp/test/ast") {
+		t.Error("shouldn't the filename")
+	}
+
+	if glob, _ := NewGlob("*"); glob.Matches("/tmp/test/ast") {
+		t.Error("shouldn't the filename")
+	}
+
+	if glob, _ := NewGlob("**"); !glob.Matches("/tmp/test/ast") {
+		t.Error("should the filename")
+	}
+
 	if glob, _ := NewGlob("/var/log/*"); !glob.Matches("/var/log/httpd") {
 		t.Error("should match the filename")
 	}

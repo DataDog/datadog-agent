@@ -18,14 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NetworkRoute holds one network destination subnet and it's linked interface name
-type NetworkRoute struct {
-	Interface string
-	Subnet    uint64
-	Gateway   uint64
-	Mask      uint64
-}
-
 // ParseProcessRoutes parses /proc/<pid>/net/route into a list of NetworkDestionation
 // If PID is 0, it parses /proc/net/route instead
 func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {

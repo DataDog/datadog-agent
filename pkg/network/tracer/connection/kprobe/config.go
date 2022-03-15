@@ -17,74 +17,70 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
-	if fn, ok := mainProbes[name]; ok {
-		enabled[name] = fn
-		return
-	}
-	if fn, ok := altProbes[name]; ok {
-		enabled[name] = fn
-	}
-}
-
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]string, error) {
-	enabled := make(map[probes.ProbeName]string, 0)
+func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]struct{}, error) {
+	enabled := make(map[probes.ProbeName]struct{}, 0)
 
-	kv410 := kernel.VersionCode(4, 1, 0)
-	kv470 := kernel.VersionCode(4, 7, 0)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
 	}
+	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
 	if c.CollectTCPConns {
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
-		enableProbe(enabled, probes.TCPCleanupRBuf)
-		enableProbe(enabled, probes.TCPClose)
-		enableProbe(enabled, probes.TCPCloseReturn)
-		enableProbe(enabled, probes.InetCskAcceptReturn)
-		enableProbe(enabled, probes.InetCskListenStop)
-		enableProbe(enabled, probes.TCPSetState)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
+		if !runtimeTracer && pre410Kernel {
+			enabled[probes.TCPSendMsgPre410] = struct{}{}
+		} else {
+			enabled[probes.TCPSendMsg] = struct{}{}
+		}
+		enabled[probes.TCPCleanupRBuf] = struct{}{}
+		enabled[probes.TCPClose] = struct{}{}
+		enabled[probes.TCPCloseReturn] = struct{}{}
+		enabled[probes.InetCskAcceptReturn] = struct{}{}
+		enabled[probes.InetCskListenStop] = struct{}{}
+		enabled[probes.TCPSetState] = struct{}{}
+
+		if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
+			enabled[probes.TCPRetransmitPre470] = struct{}{}
+		} else {
+			enabled[probes.TCPRetransmit] = struct{}{}
+		}
 
 		missing, err := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"})
 		if err == nil && len(missing) == 0 {
-			enableProbe(enabled, probes.SockFDLookup)
-			enableProbe(enabled, probes.SockFDLookupRet)
-			enableProbe(enabled, probes.DoSendfile)
-			enableProbe(enabled, probes.DoSendfileRet)
+			enabled[probes.SockFDLookup] = struct{}{}
+			enabled[probes.SockFDLookupRet] = struct{}{}
+			enabled[probes.DoSendfile] = struct{}{}
+			enabled[probes.DoSendfileRet] = struct{}{}
 		}
 	}
 
 	if c.CollectUDPConns {
-		enableProbe(enabled, probes.UDPDestroySock)
-		enableProbe(enabled, probes.UDPDestroySockReturn)
-		enableProbe(enabled, probes.IPMakeSkb)
-		enableProbe(enabled, probes.InetBind)
-		enableProbe(enabled, probes.InetBindRet)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsg, probes.UDPRecvMsgPre410, kv410))
-		enableProbe(enabled, probes.UDPRecvMsgReturn)
+		enabled[probes.UDPRecvMsgReturn] = struct{}{}
+		enabled[probes.UDPDestroySock] = struct{}{}
+		enabled[probes.UDPDestroySockReturn] = struct{}{}
+		enabled[probes.IPMakeSkb] = struct{}{}
+		enabled[probes.InetBind] = struct{}{}
+		enabled[probes.InetBindRet] = struct{}{}
 
 		if c.CollectIPv6Conns {
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
-			enableProbe(enabled, probes.Inet6Bind)
-			enableProbe(enabled, probes.Inet6BindRet)
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsg, probes.UDPv6RecvMsgPre410, kv410))
-			enableProbe(enabled, probes.UDPv6RecvMsgReturn)
+			if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
+				enabled[probes.IP6MakeSkbPre470] = struct{}{}
+			} else {
+				enabled[probes.IP6MakeSkb] = struct{}{}
+			}
+
+			enabled[probes.Inet6Bind] = struct{}{}
+			enabled[probes.Inet6BindRet] = struct{}{}
+		}
+
+		if !runtimeTracer && pre410Kernel {
+			enabled[probes.UDPRecvMsgPre410] = struct{}{}
+		} else {
+			enabled[probes.UDPRecvMsg] = struct{}{}
 		}
 	}
 
 	return enabled, nil
-}
-
-func selectVersionBasedProbe(runtimeTracer bool, kv kernel.Version, dfault probes.ProbeName, versioned probes.ProbeName, reqVer kernel.Version) probes.ProbeName {
-	if runtimeTracer {
-		return dfault
-	}
-	if kv < reqVer {
-		return versioned
-	}
-	return dfault
 }

@@ -73,16 +73,30 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
             bpf_probe_read(&container_d, sizeof(container_d), cgroup + 72); // offsetof(struct cgroup, dentry)
             bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
             container_id = (void*) container_qstr.name;
-            char prefix[4];
-            bpf_probe_read(&prefix, sizeof(prefix), container_id);
-            if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k') {
-                container_id += 7; // skip "docker-"
-            }
             break;
         }
         default:
             // ignore
             return 0;
+    }
+
+    char prefix[15];
+    bpf_probe_read(&prefix, sizeof(prefix), container_id);
+    if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e'
+        && prefix[5] == 'r' && prefix[6] == '-') {
+        container_id += 7; // skip "docker-"
+    }
+    if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == 'o' && prefix[4] == '-') {
+        container_id += 5; // skip "crio-"
+    }
+    if (prefix[0] == 'l' && prefix[1] == 'i' && prefix[2] == 'b' && prefix[3] == 'p' && prefix[4] == 'o'
+        && prefix[5] == 'd' && prefix[6] == '-') {
+        container_id += 7; // skip "libpod-"
+    }
+    if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == '-' && prefix[4] == 'c'
+        && prefix[5] == 'o' && prefix[6] == 'n' && prefix[7] == 't' && prefix[8] == 'a' && prefix[9] == 'i'
+        && prefix[10] == 'n' && prefix[11] == 'e' && prefix[12] == 'r' && prefix[13] == 'd' && prefix[14] == '-') {
+        container_id += 15; // skip "cri-containerd-"
     }
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);

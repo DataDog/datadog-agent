@@ -16,7 +16,7 @@ package attributes
 
 import (
 	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/azure"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/ec2"
@@ -79,6 +79,11 @@ func unsanitizedHostnameFromAttributes(attrs pdata.AttributeMap) (string, bool) 
 	// Custom hostname: useful for overriding in k8s/cloud envs
 	if customHostname, ok := attrs.Get(AttributeDatadogHostname); ok {
 		return customHostname.StringVal(), true
+	}
+
+	if launchType, ok := attrs.Get(conventions.AttributeAWSECSLaunchtype); ok && launchType.StringVal() == conventions.AttributeAWSECSLaunchtypeFargate {
+		// If on AWS ECS Fargate, return a valid but empty hostname
+		return "", true
 	}
 
 	// Kubernetes: node-cluster if cluster name is available, else node

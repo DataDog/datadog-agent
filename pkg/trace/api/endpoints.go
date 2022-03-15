@@ -9,11 +9,10 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
-// endpoint specifies an API endpoint definition.
-type endpoint struct {
+// Endpoint specifies an API endpoint definition.
+type Endpoint struct {
 	// Pattern specifies the API pattern, as registered by the HTTP handler.
 	Pattern string
 
@@ -29,8 +28,13 @@ type endpoint struct {
 	IsEnabled func(conf *config.AgentConfig) bool
 }
 
+// AttachEndpoint attaches an additional endpoint to the trace-agent. It is not thread-safe
+// and should be called before (pkg/trace.*Agent).Run or (*HTTPReceiver).Start. In other
+// words, endpoint setup must be final before the agent or HTTP receiver starts.
+func AttachEndpoint(e Endpoint) { endpoints = append(endpoints, e) }
+
 // endpoints specifies the list of endpoints registered for the trace-agent API.
-var endpoints = []endpoint{
+var endpoints = []Endpoint{
 	{
 		Pattern: "/spans",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v01, r.handleTraces) },
@@ -83,7 +87,7 @@ var endpoints = []endpoint{
 	},
 	{
 		Pattern: "/v0.7/traces",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v07, r.handleTraces) },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V07, r.handleTraces) },
 	},
 	{
 		Pattern: "/profiling/v1/input",
@@ -111,10 +115,5 @@ var endpoints = []endpoint{
 	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
-	},
-	{
-		Pattern:   "/v0.7/config",
-		Handler:   func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleGetConfig) },
-		IsEnabled: func(_ *config.AgentConfig) bool { return features.Has("config_endpoint") },
 	},
 }

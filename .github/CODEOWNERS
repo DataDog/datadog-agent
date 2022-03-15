@@ -62,11 +62,11 @@
 /.gitlab/functional_test/system_probe.yml            @DataDog/agent-network @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/agent-network @DataDog/agent-platform
 
-/.gitlab/image_build/                                @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/image_deploy/                               @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/image_scan.yml                              @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/internal_deploy.yml                         @DataDog/agent-network @DataDog/agent-platform
 
@@ -82,7 +82,8 @@
 /cmd/                                   @DataDog/agent-core
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/app/integrations*.go         @trishankatdatadog @DataDog/agent-integrations @DataDog/agent-core
-/cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
+/cmd/agent/app/remote_config.go         @Datadog/remote-config
+/cmd/agent/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-core
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/infrastructure-integrations
 /cmd/agent/*.manifest                   @DataDog/agent-platform
@@ -154,6 +155,7 @@
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
@@ -164,7 +166,7 @@
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
-/pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
+/pkg/config/config_template.yaml        @DataDog/agent-core @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
@@ -207,10 +209,10 @@
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/snmp/                              @DataDog/infrastructure-integrations
-/pkg/appsec/                            @DataDog/agent-appsec
+/pkg/trace/appsec/                      @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
-/pkg/workloadmeta/collectors/cloudfoundry @DataDog/integrations-tools-and-libraries
+/pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/integrations-tools-and-libraries
 
 /pkg-config/                            @DataDog/agent-platform
 

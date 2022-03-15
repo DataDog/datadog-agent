@@ -17,7 +17,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -117,6 +116,15 @@ func TestExtractDeployment(t *testing.T) {
 			},
 		},
 		"empty deploy": {input: appsv1.Deployment{}, expected: model.Deployment{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
+		"deploy with resources": {
+			input: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{Template: getTemplateWithResourceRequirements()},
+			},
+			expected: model.Deployment{
+				Metadata:             &model.Metadata{},
+				ReplicasDesired:      1,
+				ResourceRequirements: getExpectedModelResourceRequirements(),
+			}},
 		"partial deploy": {
 			input: appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -148,7 +156,7 @@ func TestExtractDeployment(t *testing.T) {
 
 func TestExtractDeploymentConditionMessage(t *testing.T) {
 	for nb, tc := range []struct {
-		conditions []v1.DeploymentCondition
+		conditions []appsv1.DeploymentCondition
 		message    string
 	}{
 		{

@@ -22,6 +22,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -41,6 +42,7 @@ var (
 	infoProcessQueueBytes   int
 	infoRTProcessQueueBytes int
 	infoPodQueueBytes       int
+	infoEnabledChecks       []string
 )
 
 const (
@@ -89,13 +91,13 @@ func publishUptime() interface{} {
 	return int(time.Since(infoStart) / time.Second)
 }
 
+func publishUptimeNano() interface{} {
+	return infoStart.UnixNano()
+}
+
 func publishVersion() interface{} {
-	return infoVersion{
-		Version:   Version,
-		GitCommit: GitCommit,
-		BuildDate: BuildDate,
-		GoVersion: GoVersion,
-	}
+	agentVersion, _ := version.Agent()
+	return agentVersion
 }
 
 func publishDockerSocket() interface{} {
@@ -158,6 +160,18 @@ func updateQueueSize(processQueueSize, rtProcessQueueSize, podQueueSize int) {
 	infoProcessQueueSize = processQueueSize
 	infoRTProcessQueueSize = rtProcessQueueSize
 	infoPodQueueSize = podQueueSize
+}
+
+func updateEnabledChecks(enabledChecks []string) {
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
+	infoEnabledChecks = enabledChecks
+}
+
+func publishEnabledChecks() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoEnabledChecks
 }
 
 func publishProcessQueueSize() interface{} {
@@ -236,18 +250,30 @@ func publishContainerID() interface{} {
 	return containerID
 }
 
+func publishEndpoints() interface{} {
+	eps, err := getAPIEndpoints()
+	if err != nil {
+		return err
+	}
+
+	endpointsInfo := make(map[string][]string)
+
+	// obfuscate the api keys
+	for _, endpoint := range eps {
+		apiKey := endpoint.APIKey
+		if len(apiKey) > 5 {
+			apiKey = apiKey[len(apiKey)-5:]
+		}
+
+		endpointsInfo[endpoint.Endpoint.String()] = append(endpointsInfo[endpoint.Endpoint.String()], apiKey)
+	}
+	return endpointsInfo
+}
+
 func getProgramBanner(version string) (string, string) {
 	program := fmt.Sprintf("Processes and Containers Agent (v %s)", version)
 	banner := strings.Repeat("=", len(program))
 	return program, banner
-}
-
-type infoVersion struct {
-	Version   string
-	GitCommit string
-	GitBranch string
-	BuildDate string
-	GoVersion string
 }
 
 // StatusInfo is a structure to get information from expvar and feed to template
@@ -255,7 +281,7 @@ type StatusInfo struct {
 	Pid                 int                    `json:"pid"`
 	Uptime              int                    `json:"uptime"`
 	MemStats            struct{ Alloc uint64 } `json:"memstats"`
-	Version             infoVersion            `json:"version"`
+	Version             version.Version        `json:"version"`
 	Config              config.AgentConfig     `json:"config"`
 	DockerSocket        string                 `json:"docker_socket"`
 	LastCollectTime     string                 `json:"last_collect_time"`
@@ -286,6 +312,7 @@ func initInfo(_ *config.AgentConfig) error {
 	infoOnce.Do(func() {
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
 		expvar.Publish("uptime", expvar.Func(publishUptime))
+		expvar.Publish("uptime_nano", expvar.Func(publishUptimeNano))
 		expvar.Publish("version", expvar.Func(publishVersion))
 		expvar.Publish("docker_socket", expvar.Func(publishDockerSocket))
 		expvar.Publish("last_collect_time", expvar.Func(publishLastCollectTime))
@@ -298,6 +325,8 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("rtprocess_queue_bytes", expvar.Func(publishRTProcessQueueBytes))
 		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
+		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
+		expvar.Publish("endpoints", expvar.Func(publishEndpoints))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {
@@ -318,11 +347,12 @@ func initInfo(_ *config.AgentConfig) error {
 
 // Info is called when --info flag is enabled when executing the agent binary
 func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
+	agentVersion, _ := version.Agent()
 	var err error
 	client := http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(expvarURL)
 	if err != nil {
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(agentVersion.GetNumber())
 		_ = infoNotRunningTmpl.Execute(w, struct {
 			Banner  string
 			Program string
@@ -337,7 +367,9 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	var info StatusInfo
 	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(Version)
+		// Since the request failed, we can't get the version of the remote agent.
+		clientVersion, _ := version.Agent()
+		program, banner := getProgramBanner(clientVersion.GetNumber())
 		_ = infoErrorTmpl.Execute(w, struct {
 			Banner  string
 			Program string
@@ -350,7 +382,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 		return err
 	}
 
-	program, banner := getProgramBanner(info.Version.Version)
+	program, banner := getProgramBanner(info.Version.GetNumber())
 	err = infoTmpl.Execute(w, struct {
 		Banner  string
 		Program string

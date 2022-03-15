@@ -154,6 +154,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
 	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
 	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
 }
 
 func TestSiteEnvVar(t *testing.T) {

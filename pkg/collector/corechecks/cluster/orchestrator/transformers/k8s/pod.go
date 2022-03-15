@@ -55,19 +55,30 @@ func ExtractPod(p *corev1.Pod) *model.Pod {
 	podModel.Status = computeStatus(p)
 	podModel.ConditionMessage = getConditionMessage(p)
 
-	for _, c := range p.Spec.Containers {
-		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container); modelReq != nil {
-			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
-		}
-	}
-
-	for _, c := range p.Spec.InitContainers {
-		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
-			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
-		}
-	}
+	podModel.ResourceRequirements = extractPodResourceRequirements(p.Spec.Containers, p.Spec.InitContainers)
 
 	return &podModel
+}
+
+// ExtractPodTemplateResourceRequirements extracts resource requirements of containers and initContainers into model.ResourceRequirements
+func ExtractPodTemplateResourceRequirements(template corev1.PodTemplateSpec) []*model.ResourceRequirements {
+	return extractPodResourceRequirements(template.Spec.Containers, template.Spec.InitContainers)
+}
+func extractPodResourceRequirements(containers []corev1.Container, initContainers []corev1.Container) []*model.ResourceRequirements {
+	var resReq []*model.ResourceRequirements
+	for _, c := range containers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container); modelReq != nil {
+			resReq = append(resReq, modelReq)
+		}
+	}
+
+	for _, c := range initContainers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
+			resReq = append(resReq, modelReq)
+		}
+	}
+
+	return resReq
 }
 
 // GenerateUniqueK8sStaticPodHash is used to create a UID for static pods.
@@ -214,27 +225,20 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 	setLimits := false
 	limits := map[string]int64{}
 
-	cpuLimit := rq.Limits.Cpu()
-	if !cpuLimit.IsZero() {
-		limits[corev1.ResourceCPU.String()] = cpuLimit.MilliValue()
+	for t, v := range rq.Limits {
+		if t == corev1.ResourceCPU {
+			limits[t.String()] = v.MilliValue()
+		} else {
+			limits[t.String()] = v.Value()
+		}
 		setLimits = true
 	}
-
-	memLimit := rq.Limits.Memory()
-	if !memLimit.IsZero() {
-		limits[corev1.ResourceMemory.String()] = memLimit.Value()
-		setLimits = true
-	}
-
-	cpuRequest := rq.Requests.Cpu()
-	if !cpuRequest.IsZero() {
-		requests[corev1.ResourceCPU.String()] = cpuRequest.MilliValue()
-		setRequests = true
-	}
-
-	memRequest := rq.Requests.Memory()
-	if !memRequest.IsZero() {
-		requests[corev1.ResourceMemory.String()] = memRequest.Value()
+	for t, v := range rq.Requests {
+		if t == corev1.ResourceCPU {
+			requests[t.String()] = v.MilliValue()
+		} else {
+			requests[t.String()] = v.Value()
+		}
 		setRequests = true
 	}
 

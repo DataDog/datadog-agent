@@ -17,20 +17,16 @@ import (
 )
 
 func TestGetPath(t *testing.T) {
-	t.Run("use_podman_logs=false", func(t *testing.T) {
-		mockConfig := config.Mock()
-		mockConfig.Set("logs_config.use_podman_logs", false)
-
+	t.Run("runtime=Docker", func(t *testing.T) {
+		l := &Launcher{runtime: config.Docker}
 		require.Equal(t,
 			filepath.Join(basePath, "123abc/123abc-json.log"),
-			getPath("123abc"))
+			l.getContainerLogfilePath("123abc"))
 	})
-	t.Run("use_podman_logs=true", func(t *testing.T) {
-		mockConfig := config.Mock()
-		mockConfig.Set("logs_config.use_podman_logs", true)
-
+	t.Run("runtime=Podman", func(t *testing.T) {
+		l := &Launcher{runtime: config.Podman}
 		require.Equal(t,
 			"/var/lib/containers/storage/overlay-containers/123abc/userdata/ctr.log",
-			getPath("123abc"))
+			l.getContainerLogfilePath("123abc"))
 	})
 }

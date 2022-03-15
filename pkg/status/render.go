@@ -52,30 +52,58 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
+	processAgentStatus := stats["processAgentStatus"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
-	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
-	renderStatusTemplate(b, "/jmxfetch.tmpl", stats)
-	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
-	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
-	renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
-	if config.Datadog.GetBool("system_probe_config.enabled") {
-		renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
+
+	headerFunc := func() { renderStatusTemplate(b, "/header.tmpl", stats) }
+	checkStatsFunc := func() {
+		renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats,
+			inventoriesStats, "")
 	}
-	renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"])
-	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
-	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
-	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
-		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+	jmxFetchFunc := func() { renderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
+	forwarderFunc := func() { renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats) }
+	endpointsFunc := func() { renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos) }
+	logsAgentFunc := func() { renderStatusTemplate(b, "/logsagent.tmpl", logsStats) }
+	systemProbeFunc := func() {
+		if config.Datadog.GetBool("system_probe_config.enabled") {
+			renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
+		}
 	}
-	if traps.IsEnabled() {
-		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+	processAgentFunc := func() { renderStatusTemplate(b, "/process-agent.tmpl", processAgentStatus) }
+	traceAgentFunc := func() { renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"]) }
+	aggregatorFunc := func() { renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
+	dogstatsdFunc := func() { renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats) }
+	clusterAgentFunc := func() {
+		if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
+			renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+		}
 	}
-	if config.IsContainerized() {
-		renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
+	snmpTrapFunc := func() {
+		if traps.IsEnabled() {
+			renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+		}
 	}
+	autodiscoveryFunc := func() {
+		if config.IsContainerized() {
+			renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"],
+				stats["filterErrors"])
+		}
+	}
+
+	var renderFuncs []func()
+
+	if config.IsCLCRunner() {
+		renderFuncs = []func(){headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc,
+			autodiscoveryFunc}
+	} else {
+		renderFuncs = []func(){headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc,
+			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc,
+			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}
+	}
+
+	renderAgentSections(renderFuncs)
 
 	return b.String(), nil
 }
@@ -133,6 +161,17 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
 	renderComplianceChecksStats(b, runnerStats, complianceChecks, complianceStatus)
+
+	return b.String(), nil
+}
+
+// FormatProcessAgentStatus takes a json bytestring and prints out the formatted status for process-agent
+func FormatProcessAgentStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats) //nolint:errcheck
+	renderStatusTemplate(b, "/process-agent.tmpl", stats)
 
 	return b.String(), nil
 }
@@ -213,5 +252,11 @@ func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
 	err := t.Execute(w, stats)
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+func renderAgentSections(renderFuncs []func()) {
+	for _, f := range renderFuncs {
+		f()
 	}
 }

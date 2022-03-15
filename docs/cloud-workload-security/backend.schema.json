@@ -29,6 +29,18 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/PTraceEvent"
     },
+    "module": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/ModuleEvent"
+    },
+    "signal": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SignalEvent"
+    },
+    "splice": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SpliceEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -93,6 +105,10 @@
         "name": {
           "type": "string",
           "description": "Name of the BPF program"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Hash (sha1) of the BPF program"
         },
         "program_type": {
           "type": "string",
@@ -378,10 +394,6 @@
         "flags": {
           "type": "string",
           "description": "memory segment flags"
-        },
-        "file": {
-          "$ref": "#/definitions/File",
-          "description": "mmaped file"
         }
       },
       "additionalProperties": false,
@@ -392,7 +404,7 @@
         "vm_start",
         "vm_end",
         "vm_protection",
-        "new_protection"
+        "req_protection"
       ],
       "properties": {
         "vm_start": {
@@ -405,11 +417,28 @@
         },
         "vm_protection": {
           "type": "string",
-          "description": "memory segment protection"
+          "description": "initial memory segment protection"
         },
-        "new_protection": {
+        "req_protection": {
           "type": "string",
           "description": "new memory segment protection"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ModuleEvent": {
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "module name"
+        },
+        "loaded_from_memory": {
+          "type": "boolean",
+          "description": "indicates if a module was loaded from memory, as opposed to a file"
         }
       },
       "additionalProperties": false,
@@ -790,6 +819,46 @@
           "$schema": "http://json-schema.org/draft-04/schema#",
           "$ref": "#/definitions/SELinuxBoolCommit",
           "description": "SELinux boolean commit"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SignalEvent": {
+      "required": [
+        "type",
+        "pid"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "signal type"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "signal target pid"
+        },
+        "target": {
+          "$ref": "#/definitions/ProcessContext",
+          "description": "process context of the signal target"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SpliceEvent": {
+      "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+      ],
+      "properties": {
+        "pipe_entry_flag": {
+          "type": "string",
+          "description": "Entry flag of the fd_out pipe passed to the splice syscall"
+        },
+        "pipe_exit_flag": {
+          "type": "string",
+          "description": "Exit flag of the fd_out pipe passed to the splice syscall"
         }
       },
       "additionalProperties": false,

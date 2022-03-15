@@ -11,7 +11,6 @@ package listeners
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -79,8 +78,7 @@ func TestECSFargateCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"awsvpc": "127.0.0.1",
 						},
-						creationTime: integration.After,
-						ready:        true,
+						ready: true,
 					},
 				},
 			},
@@ -91,7 +89,7 @@ func TestECSFargateCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newECSFargateListener(t)
 
-			listener.createContainerService(tt.task, tt.container, integration.After)
+			listener.createContainerService(tt.task, tt.container)
 
 			wlm.assertServices(tt.expectedServices)
 		})

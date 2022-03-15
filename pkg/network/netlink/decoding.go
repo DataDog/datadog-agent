@@ -45,7 +45,7 @@ const (
 // Con represents a conntrack entry, along with any network namespace info (nsid)
 type Con struct {
 	ct.Con
-	NetNS uint32
+	NetNS int32
 }
 
 func (c Con) String() string {

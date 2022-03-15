@@ -29,6 +29,19 @@ FROM ubuntu:21.10
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
+ ARG CIBUILD
+# NOTE about APT mirrorlists:
+# It seems that this feature could use some improvement. If you just get mirrorlist
+# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
+# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
+# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
+# should be reliable enough in combination and also well maintained.
+ RUN if [ "$CIBUILD" = "true" ]; then \
+  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist && \
+  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' \
+         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' /etc/apt/sources.list; \
+   fi
+
 ENV PATH="/opt/datadog-agent/bin/:$PATH" \
     DOCKER_DD_AGENT="true" \
     # Allow User Group to exec the secret backend script.

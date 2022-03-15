@@ -35,7 +35,7 @@ type ClusterRoleCollector struct {
 func NewClusterRoleCollector() *ClusterRoleCollector {
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "clusterroles",
 			NodeType: orchestrator.K8sClusterRole,
 		},
@@ -53,6 +53,9 @@ func (c *ClusterRoleCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().ClusterRoles()
 	c.lister = c.informer.Lister()
 }
+
+// IsAvailable returns whether the collector is available.
+func (c *ClusterRoleCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ClusterRoleCollector) Metadata() *collectors.CollectorMetadata {

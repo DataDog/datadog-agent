@@ -93,6 +93,15 @@ func TestExtractStatefulSet(t *testing.T) {
 			},
 		},
 		"empty sts": {input: appsv1.StatefulSet{}, expected: model.StatefulSet{Metadata: &model.Metadata{}, Spec: &model.StatefulSetSpec{}, Status: &model.StatefulSetStatus{}}},
+		"sts with resources": {
+			input: appsv1.StatefulSet{
+				Spec: appsv1.StatefulSetSpec{
+					Template: getTemplateWithResourceRequirements(),
+				},
+			}, expected: model.StatefulSet{
+				Metadata: &model.Metadata{},
+				Spec:     &model.StatefulSetSpec{ResourceRequirements: getExpectedModelResourceRequirements()},
+				Status:   &model.StatefulSetStatus{}}},
 		"partial sts": {
 			input: appsv1.StatefulSet{
 				ObjectMeta: metav1.ObjectMeta{

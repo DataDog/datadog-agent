@@ -80,7 +80,7 @@ func (k *KubeletConfigProvider) listen() {
 
 	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		[]workloadmeta.Source{workloadmeta.SourceKubelet},
+		workloadmeta.SourceNodeOrchestrator,
 	))
 
 	for {

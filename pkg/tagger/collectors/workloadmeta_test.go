@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -859,13 +860,14 @@ func TestHandleContainer(t *testing.T) {
 			},
 		},
 		{
-			name: "opencontainers image revision",
+			name: "opencontainers image revision and source",
 			container: workloadmeta.Container{
 				EntityID: entityID,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: containerName,
 					Labels: map[string]string{
 						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+						"org.opencontainers.image.source":   "https://github.com/my-company/repo",
 					},
 				},
 			},
@@ -878,8 +880,11 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags:          []string{"git.commit.sha:758691a28aa920070651d360814c559bc26af907"},
-					StandardTags:         []string{},
+					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/my-company/repo",
+					},
+					StandardTags: []string{},
 				},
 			},
 		},
@@ -1319,7 +1324,7 @@ func TestFargateStaticTags(t *testing.T) {
 			tt.loadFunc()
 			defer tt.cleanupFunc()
 
-			assert.EqualValues(t, tt.want, fargateStaticTags(context.TODO()))
+			assert.EqualValues(t, tt.want, util.GetStaticTags(context.TODO()))
 		})
 	}
 }

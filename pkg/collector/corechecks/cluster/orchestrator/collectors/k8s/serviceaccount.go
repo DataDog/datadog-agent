@@ -35,7 +35,7 @@ type ServiceAccountCollector struct {
 func NewServiceAccountCollector() *ServiceAccountCollector {
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "serviceaccounts",
 			NodeType: orchestrator.K8sServiceAccount,
 		},
@@ -53,6 +53,9 @@ func (c *ServiceAccountCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.informer = rcfg.APIClient.InformerFactory.Core().V1().ServiceAccounts()
 	c.lister = c.informer.Lister()
 }
+
+// IsAvailable returns whether the collector is available.
+func (c *ServiceAccountCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ServiceAccountCollector) Metadata() *collectors.CollectorMetadata {

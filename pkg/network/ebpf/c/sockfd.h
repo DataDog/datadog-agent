@@ -5,7 +5,7 @@
 #include <linux/types.h>
 
 // This map is used to to temporarily store function arguments (sockfd) for
-// sockfd_lookup_light function calls, so they can be acessed by the corresponding kretprobe.
+// sockfd_lookup_light function calls, so they can be accessed by the corresponding kretprobe.
 // * Key is the pid_tgid;
 // * Value the socket FD;
 struct bpf_map_def SEC("maps/sockfd_lookup_args") sockfd_lookup_args = {
