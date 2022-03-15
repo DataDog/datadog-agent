@@ -49,7 +49,7 @@ func NewTreeWalkCollector() *TreeWalkCollector {
 func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
 		c.counter += 1
-		if c.counter%10 != 0 {
+		if c.counter%40 != 0 {
 			return nil
 		}
 
@@ -74,6 +74,7 @@ func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 		distribution := btfParts[0]
 		distribVersion := btfParts[1]
 		arch := btfParts[2]
+		unameRelease := strings.TrimPrefix(btfParts[3], ".btf.tar.xz")
 
 		fmt.Println(path)
 
@@ -86,6 +87,7 @@ func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 			distribution:   distribution,
 			distribVersion: distribVersion,
 			arch:           arch,
+			unameRelease:   unameRelease,
 			constants:      constants,
 		})
 
@@ -97,6 +99,7 @@ type ConstantsInfo struct {
 	distribution   string
 	distribVersion string
 	arch           string
+	unameRelease   string
 	constants      map[string]uint64
 }
 
