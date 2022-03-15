@@ -57,6 +57,17 @@ func TestExtractCheckNames(t *testing.T) {
 			adIdentifier: "redis",
 			checkNames:   []string{"redisdb"},
 		},
+		{
+			name: "v2 annotations, multiple checks",
+			annotations: map[string]string{
+				"ad.datadoghq.com/redis.checks": `{
+					"redisdb": {},
+					"foobar": {}
+				}`,
+			},
+			adIdentifier: "redis",
+			checkNames:   []string{"redisdb", "foobar"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -603,7 +614,7 @@ func TestParseJSONValue(t *testing.T) {
 		{
 			name:                "empty value",
 			inputValue:          "",
-			expectedErr:         fmt.Errorf("Value is empty"),
+			expectedErr:         fmt.Errorf("value is empty"),
 			expectedReturnValue: nil,
 		},
 		{
