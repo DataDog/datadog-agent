@@ -67,6 +67,10 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 	return fetcher, nil
 }
 
+func (f *BTFHubConstantFetcher) HasConstantsInStore() bool {
+	return len(f.inStore) != 0
+}
+
 func (f *BTFHubConstantFetcher) appendRequest(id string) {
 	if value, ok := f.inStore[id]; ok {
 		f.res[id] = value

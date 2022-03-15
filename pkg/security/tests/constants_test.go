@@ -38,17 +38,48 @@ func TestFallbackConstants(t *testing.T) {
 	fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 	rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-	fallbackConstants, err := probe.GetOffsetConstantsFromFetcher(fallbackFetcher, kv)
+	compareFetchers(t, fallbackFetcher, rcFetcher, kv)
+}
+
+func TestBTFHubConstants(t *testing.T) {
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	kv, err := test.probe.GetKernelVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := test.config
+
+	btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !btfhubFetcher.HasConstantsInStore() {
+		t.Skip("btfhub has no constant for this OS")
+	}
+
+	rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+
+	compareFetchers(t, btfhubFetcher, rcFetcher, kv)
+}
+
+func compareFetchers(t *testing.T, a, b constantfetch.ConstantFetcher, kv *kernel.Version) {
+	t.Helper()
+	aConstants, err := probe.GetOffsetConstantsFromFetcher(a, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rcConstants, err := probe.GetOffsetConstantsFromFetcher(rcFetcher, kv)
+	bConstants, err := probe.GetOffsetConstantsFromFetcher(b, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if !assert.Equal(t, fallbackConstants, rcConstants) {
+	if !assert.Equal(t, aConstants, bConstants) {
 		t.Logf("kernel version: %v", kv)
 	}
 }

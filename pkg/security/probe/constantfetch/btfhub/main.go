@@ -52,24 +52,17 @@ func main() {
 }
 
 type TreeWalkCollector struct {
-	infos   []constantfetch.BTFHubConstantsInfo
-	counter int
+	infos []constantfetch.BTFHubConstantsInfo
 }
 
 func NewTreeWalkCollector() *TreeWalkCollector {
 	return &TreeWalkCollector{
-		infos:   make([]constantfetch.BTFHubConstantsInfo, 0),
-		counter: 0,
+		infos: make([]constantfetch.BTFHubConstantsInfo, 0),
 	}
 }
 
 func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
-		c.counter += 1
-		if c.counter%160 != 0 {
-			return nil
-		}
-
 		if err != nil {
 			return err
 		}
