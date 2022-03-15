@@ -12,7 +12,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -52,8 +51,6 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 	if !ok {
 		return nil, errors.New("failed to collect current kernel infos")
 	}
-
-	fmt.Println(currentKernelInfos)
 
 	var constantsInfos []BTFHubConstantsInfo
 	if err := json.Unmarshal(btfhubConstants, &constantsInfos); err != nil {
