@@ -1,14 +1,18 @@
 name: "Run Go Mod Tidy And Generate Licenses"
 on:
   workflow_dispatch:
-    inputs: {}
+    inputs:
+      pr_id:
+        description: 'PR number'     
+        required: true
+        type: number
 jobs:
   mod_tidy_and_generate_licenses:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
       with:
-        ref: ${{ github.head_ref }}
+        ref: pull/${{ inputs.pr_id }}/head
     - name: Install go
       uses: actions/setup-go@v2
       with:
