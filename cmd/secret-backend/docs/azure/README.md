@@ -6,7 +6,7 @@ The `datadog-secret-backend` utility currently supports the following Azure serv
 
 | Backend Type | Azure Service |
 | --- | --- |
-| [Azure.keyvault](keyvault.md) | [Azure Keyvault](https://docs.microsoft.com/en-us/Azure/key-vault/secrets/quick-create-portal) |
+| [azure.keyvault](keyvault.md) | [Azure Keyvault](https://docs.microsoft.com/en-us/Azure/key-vault/secrets/quick-create-portal) |
 
 
 ## Azure Session
