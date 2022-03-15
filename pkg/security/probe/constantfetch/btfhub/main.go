@@ -8,6 +8,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -25,20 +26,18 @@ import (
 )
 
 func main() {
-	archivePath := os.Args[1]
-	twCollector := TreeWalkCollector{}
+	var archiveRootPath string
+	var constantOutputPath string
+	var sampling int
 
-	/*
-		kv, err := kernel.NewKernelVersion()
-		if err != nil {
-			panic(err)
-		}
-		fetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
-		fmt.Println(fetcher, err)
-		return
-	*/
+	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
+	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
+	flag.IntVar(&sampling, "sampling", 1, "Sampling rate, take 1 over n elements")
+	flag.Parse()
 
-	if err := filepath.WalkDir(archivePath, twCollector.treeWalkerBuilder(archivePath)); err != nil {
+	twCollector := NewTreeWalkCollector(sampling)
+
+	if err := filepath.WalkDir(archiveRootPath, twCollector.treeWalkerBuilder(archiveRootPath)); err != nil {
 		panic(err)
 	}
 	fmt.Println(len(twCollector.infos))
@@ -48,21 +47,33 @@ func main() {
 		panic(err)
 	}
 
-	os.WriteFile(os.Args[2], output, 0644)
+	if err := os.WriteFile(constantOutputPath, output, 0644); err != nil {
+		panic(err)
+	}
 }
 
 type TreeWalkCollector struct {
-	infos []constantfetch.BTFHubConstantsInfo
+	infos    []constantfetch.BTFHubConstantsInfo
+	counter  int
+	sampling int
 }
 
-func NewTreeWalkCollector() *TreeWalkCollector {
+func NewTreeWalkCollector(sampling int) *TreeWalkCollector {
 	return &TreeWalkCollector{
-		infos: make([]constantfetch.BTFHubConstantsInfo, 0),
+		infos:    make([]constantfetch.BTFHubConstantsInfo, 0),
+		counter:  0,
+		sampling: sampling,
 	}
 }
 
 func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
+		c.counter++
+		if c.counter != c.sampling {
+			return nil
+		}
+		c.counter = 0
+
 		if err != nil {
 			return err
 		}
