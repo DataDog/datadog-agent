@@ -7,6 +7,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -27,21 +28,37 @@ func main() {
 	archivePath := os.Args[1]
 	twCollector := TreeWalkCollector{}
 
+	/*
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			panic(err)
+		}
+		fetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
+		fmt.Println(fetcher, err)
+		return
+	*/
+
 	if err := filepath.WalkDir(archivePath, twCollector.treeWalkerBuilder(archivePath)); err != nil {
 		panic(err)
 	}
 	fmt.Println(len(twCollector.infos))
-	fmt.Println(twCollector.infos[:5])
+
+	output, err := json.MarshalIndent(twCollector.infos, "", "\t")
+	if err != nil {
+		panic(err)
+	}
+
+	os.WriteFile(os.Args[2], output, 0644)
 }
 
 type TreeWalkCollector struct {
-	infos   []ConstantsInfo
+	infos   []constantfetch.BTFHubConstantsInfo
 	counter int
 }
 
 func NewTreeWalkCollector() *TreeWalkCollector {
 	return &TreeWalkCollector{
-		infos:   make([]ConstantsInfo, 0),
+		infos:   make([]constantfetch.BTFHubConstantsInfo, 0),
 		counter: 0,
 	}
 }
@@ -49,7 +66,7 @@ func NewTreeWalkCollector() *TreeWalkCollector {
 func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
 		c.counter += 1
-		if c.counter%40 != 0 {
+		if c.counter%160 != 0 {
 			return nil
 		}
 
@@ -74,7 +91,7 @@ func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 		distribution := btfParts[0]
 		distribVersion := btfParts[1]
 		arch := btfParts[2]
-		unameRelease := strings.TrimPrefix(btfParts[3], ".btf.tar.xz")
+		unameRelease := strings.TrimSuffix(btfParts[3], ".btf.tar.xz")
 
 		fmt.Println(path)
 
@@ -83,24 +100,16 @@ func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 			return err
 		}
 
-		c.infos = append(c.infos, ConstantsInfo{
-			distribution:   distribution,
-			distribVersion: distribVersion,
-			arch:           arch,
-			unameRelease:   unameRelease,
-			constants:      constants,
+		c.infos = append(c.infos, constantfetch.BTFHubConstantsInfo{
+			Distribution:   distribution,
+			DistribVersion: distribVersion,
+			Arch:           arch,
+			UnameRelease:   unameRelease,
+			Constants:      constants,
 		})
 
 		return err
 	}
-}
-
-type ConstantsInfo struct {
-	distribution   string
-	distribVersion string
-	arch           string
-	unameRelease   string
-	constants      map[string]uint64
 }
 
 func extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
