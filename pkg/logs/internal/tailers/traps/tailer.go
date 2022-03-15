@@ -6,7 +6,6 @@
 package traps
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -18,19 +17,25 @@ import (
 // Tailer consumes and processes a stream of trap packets, and sends them to a stream of log messages.
 type Tailer struct {
 	source     *config.LogSource
+	formatter  traps.Formatter
 	inputChan  traps.PacketsChannel
 	outputChan chan *message.Message
 	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, inputChan traps.PacketsChannel, outputChan chan *message.Message) *Tailer {
+func NewTailer(oidResolver traps.OIDResolver, source *config.LogSource, inputChan traps.PacketsChannel, outputChan chan *message.Message) (*Tailer, error) {
+	formatter, err := traps.NewJSONFormatter(oidResolver)
+	if err != nil {
+		return nil, err
+	}
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,
 		outputChan: outputChan,
+		formatter:  formatter,
 		done:       make(chan interface{}, 1),
-	}
+	}, nil
 }
 
 // Start starts the tailer.
@@ -50,19 +55,14 @@ func (t *Tailer) run() {
 
 	// Loop terminates when the channel is closed.
 	for packet := range t.inputChan {
-		data, err := traps.FormatPacketToJSON(packet)
+		data, err := t.formatter.FormatPacket(packet)
 		if err != nil {
 			log.Errorf("failed to format packet: %s", err)
 			continue
 		}
 		t.source.BytesRead.Add(int64(len(data)))
-		content, err := json.Marshal(data)
-		if err != nil {
-			log.Errorf("failed to serialize packet data to JSON: %s", err)
-			continue
-		}
 		origin := message.NewOrigin(t.source)
-		origin.SetTags(traps.GetTags(packet))
-		t.outputChan <- message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
+		origin.SetTags(t.formatter.GetTags(packet))
+		t.outputChan <- message.NewMessage(data, origin, message.StatusInfo, time.Now().UnixNano())
 	}
 }
