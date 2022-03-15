@@ -247,7 +247,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
-                perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3\(masked)/g" |
+                perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/[ ]$//g" |
                 # ignore a Lambda error that occurs sporadically for log-csharp
                 # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
