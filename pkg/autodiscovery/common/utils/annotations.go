@@ -47,7 +47,7 @@ func GetCustomCheckID(annotations map[string]string, containerName string) (stri
 	return id, found
 }
 
-// ExtractCheckNames check names from a map of pod annotations. In order of
+// ExtractCheckNames returns check names from a map of pod annotations. In order of
 // priority, it prefers annotations v2, v1, and legacy.
 func ExtractCheckNames(annotations map[string]string, adIdentifier string) ([]string, error) {
 	// AD annotations v2: "ad.datadoghq.com/redis.checks"
@@ -69,7 +69,7 @@ func ExtractCheckNames(annotations map[string]string, adIdentifier string) ([]st
 	if checkNamesJSON, found := annotations[fmt.Sprintf(v1PodAnnotationCheckNamesFormat, adIdentifier)]; found {
 		checkNames, err := ParseCheckNames(checkNamesJSON)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %w", err)
+			return nil, fmt.Errorf("cannot parse check names: %w", err)
 		}
 
 		return checkNames, nil
@@ -79,7 +79,7 @@ func ExtractCheckNames(annotations map[string]string, adIdentifier string) ([]st
 	if checkNamesJSON, found := annotations[fmt.Sprintf(legacyPodAnnotationCheckNamesFormat, adIdentifier)]; found {
 		checkNames, err := ParseCheckNames(checkNamesJSON)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %w", err)
+			return nil, fmt.Errorf("cannot parse check names: %w", err)
 		}
 
 		return checkNames, nil
@@ -142,17 +142,17 @@ func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]s
 }
 
 // parseChecksJSON parses an AD annotation v2
-// (ad.datadoghq.com/redis.check_names) JSON string into []integration.Config.
+// (ad.datadoghq.com/redis.checks) JSON string into []integration.Config.
 func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Config, error) {
 	var namedChecks map[string]struct {
-		Name       string           `json:"name"`
-		InitConfig integration.Data `json:"init_config"`
-		Instances  []interface{}    `json:"instances"`
+		Name       string            `json:"name"`
+		InitConfig *integration.Data `json:"init_config"`
+		Instances  []interface{}     `json:"instances"`
 	}
 
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot parse check configuration: %w", err)
+		return nil, fmt.Errorf("cannot parse check configuration: %w", err)
 	}
 
 	checks := make([]integration.Config, 0, len(namedChecks))
@@ -161,8 +161,10 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 			name = config.Name
 		}
 
-		initConfig := config.InitConfig
-		if initConfig == nil {
+		var initConfig integration.Data
+		if config.InitConfig != nil {
+			initConfig = *config.InitConfig
+		} else {
 			initConfig = integration.Data("{}")
 		}
 
@@ -289,7 +291,7 @@ func ParseCheckNames(names string) (res []string, err error) {
 // contained in the `value` parameter
 func ParseJSONValue(value string) ([][]integration.Data, error) {
 	if value == "" {
-		return nil, fmt.Errorf("Value is empty")
+		return nil, fmt.Errorf("value is empty")
 	}
 
 	var rawRes []interface{}
