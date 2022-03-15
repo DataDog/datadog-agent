@@ -275,14 +275,10 @@ func getInode(t *testing.T, path string) uint64 {
 }
 
 //nolint:deadcode,unused
-func which(name string) string {
-	executable := "/usr/bin/" + name
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/" + name
-		}
+func which(t *testing.T, name string) string {
+	executable, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatalf("")
 	}
 	return executable
 }

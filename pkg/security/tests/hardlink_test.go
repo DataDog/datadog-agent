@@ -36,7 +36,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	defer test.Close()
 
 	// copy touch to make sure it is place on the same fs, hard link constraint
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	testOrigExecutable, _, err := test.Path("orig-touch")
 	if err != nil {
