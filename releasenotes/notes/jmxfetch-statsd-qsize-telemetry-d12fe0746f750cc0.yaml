@@ -6,9 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
-    Addition of two knobs to configure JMXFetch stastsd client:
+    Addition of two knobs to configure JMXFetch statsd client:
 
     * ``jmx_statsd_client_queue_size`` to set the client queue size.
     * ``jmx_statsd_telemetry_enabled`` to enable the client telemetry.
