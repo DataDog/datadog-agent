@@ -1,6 +1,6 @@
 name: Dependabot-Tidier
 on:
-  pull_request:
+  issues:
     types: [ milestoned ]
 jobs:
   mod_tidier:
