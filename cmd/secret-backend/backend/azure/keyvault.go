@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault"
+	"github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 	log "github.com/sirupsen/logrus"
@@ -41,7 +41,7 @@ func NewAzureKeyVaultBackend(backendId string, bc map[string]interface{}) (*Azur
 	client := keyvault.New()
 	client.Authorizer = *cfg
 
-	out, err := client.GetSecret(context.Background(), backendConfig.KeyVaultURL, backendConfig.SecretId, "latest")
+	out, err := client.GetSecret(context.Background(), backendConfig.KeyVaultURL, backendConfig.SecretId, "")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"backend_id": backendId,

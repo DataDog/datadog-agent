@@ -47,6 +47,8 @@ func NewAzureConfigFromBackendConfig(backendId string, sessionConfig AzureSessio
 		os.Setenv("AZURE_PASSWORD", sessionConfig.AzurePassword)
 	}
 
+	os.Setenv("AZURE_AD_RESOURCE", "https://vault.azure.net")
+
 	cfg, err := auth.NewAuthorizerFromEnvironment()
 	return &cfg, err
 }
