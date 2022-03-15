@@ -380,7 +380,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 
 	// add netns
-	entry.NetNS, _ = utils.GetProcessNetworkNamespace(pid)
+	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
 
 	if p.probe.config.NetworkEnabled {
 		// snapshot pid routes in kernel space

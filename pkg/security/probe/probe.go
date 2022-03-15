@@ -383,7 +383,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, event.ProcessContext.Tid)
+	nsPath := utils.NetNSPathFromPid(event.ProcessContext.Pid)
+	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, nsPath)
 
 	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
@@ -407,6 +408,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		err = p.resolvers.MountResolver.Insert(event.Mount)
 		if err != nil {
 			log.Errorf("failed to insert mount event: %v", err)
+		}
+
+		if event.Mount.GetFSType() == "nsfs" {
+			nsid := uint32(event.Mount.RootInode)
+			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID)
+			_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountPath)
 		}
 
 		// There could be entries of a previous mount_id in the cache for instance,

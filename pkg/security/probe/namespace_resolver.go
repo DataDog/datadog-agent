@@ -86,23 +86,22 @@ func NewNetworkNamespace(nsID uint32) *NetworkNamespace {
 	}
 }
 
-// NewNetworkNamespaceWithTID returns a new NetworkNamespace instance if a handle to the network namespace of the
-// provided tid was created.
-func NewNetworkNamespaceWithTID(nsID uint32, tid uint32) (*NetworkNamespace, error) {
+// NewNetworkNamespaceWithPath returns a new NetworkNamespace instance from a path.
+func NewNetworkNamespaceWithPath(nsID uint32, nsPath string) (*NetworkNamespace, error) {
 	netns := NewNetworkNamespace(nsID)
-	if err := netns.openHandle(tid); err != nil {
+	if err := netns.openHandle(nsPath); err != nil {
 		return nil, err
 	}
 	return netns, nil
 }
 
 // openHandle tries to create a network namespace handle with the provided thread ID
-func (nn *NetworkNamespace) openHandle(tid uint32) error {
+func (nn *NetworkNamespace) openHandle(nsPath string) error {
 	nn.Lock()
 	defer nn.Unlock()
 
 	// check that the handle matches the expected netns ID
-	threadNetnsID, err := utils.GetProcessNetworkNamespace(tid)
+	threadNetnsID, err := utils.GetProcessNetworkNamespace(nsPath)
 	if err != nil {
 		return err
 	}
@@ -115,7 +114,7 @@ func (nn *NetworkNamespace) openHandle(tid uint32) error {
 		return fmt.Errorf("the provided doesn't match the expected netns ID: got %d, expected %d", threadNetnsID, nn.nsID)
 	}
 
-	handle, err := os.Open(utils.NetNSPath(tid))
+	handle, err := os.Open(nsPath)
 	if err != nil {
 		return err
 	}
@@ -230,8 +229,8 @@ func (nr *NamespaceResolver) GetState() int64 {
 
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new entry was added.
-func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, tid uint32) (*NetworkNamespace, bool) {
-	if !nr.probe.config.NetworkEnabled || nsID == 0 || tid == 0 {
+func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath string) (*NetworkNamespace, bool) {
+	if !nr.probe.config.NetworkEnabled || nsID == 0 || nsPath == "" {
 		return nil, false
 	}
 
@@ -242,7 +241,7 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, tid uint32)
 	value, found := nr.networkNamespaces.Get(nsID)
 	if !found {
 		var err error
-		netns, err = NewNetworkNamespaceWithTID(nsID, tid)
+		netns, err = NewNetworkNamespaceWithPath(nsID, nsPath)
 		if err != nil {
 			// we'll get this namespace another time, ignore
 			return nil, false
@@ -254,7 +253,7 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, tid uint32)
 			// we already have a handle for this network namespace, ignore
 			return netns, false
 		}
-		if err := netns.openHandle(tid); err != nil {
+		if err := netns.openHandle(nsPath); err != nil {
 			// we'll get this namespace another time, ignore
 			return nil, false
 		}
@@ -315,6 +314,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 		if attrs == nil {
 			continue
 		}
+
 		device := model.NetDevice{
 			Name:    attrs.Name,
 			IfIndex: uint32(attrs.Index),
@@ -348,13 +348,13 @@ func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
 		return false
 	}
 
-	pid := uint32(proc.Pid)
-	nsID, err := utils.GetProcessNetworkNamespace(pid)
+	nsPath := utils.NetNSPathFromPid(uint32(proc.Pid))
+	nsID, err := utils.GetProcessNetworkNamespace(nsPath)
 	if err != nil {
 		return false
 	}
 
-	_, isNewEntry := nr.SaveNetworkNamespaceHandle(nsID, pid)
+	_, isNewEntry := nr.SaveNetworkNamespaceHandle(nsID, nsPath)
 	if !isNewEntry {
 		return false
 	}

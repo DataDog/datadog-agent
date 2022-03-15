@@ -37,9 +37,9 @@ func Getpid() int32 {
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
 
 // GetProcessNetworkNamespace returns the network namespace of a pid after parsing /proc/[pid]/ns/net
-func GetProcessNetworkNamespace(pid uint32) (uint32, error) {
+func GetProcessNetworkNamespace(nsPath string) (uint32, error) {
 	// open netns
-	f, err := os.Open(NetNSPath(pid))
+	f, err := os.Open(nsPath)
 	if err != nil {
 		return 0, err
 	}
@@ -72,8 +72,8 @@ func ProcExePath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
 }
 
-// NetNSPath returns the path to the net ns file of a pid in /proc
-func NetNSPath(pid uint32) string {
+// NetNSPathFromPid returns the path to the net ns file of a pid in /proc
+func NetNSPathFromPid(pid uint32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/ns/net", pid))
 }
 
