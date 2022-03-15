@@ -118,7 +118,7 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 		// URL, Host and key are set in the transport for each outbound request
 	}
-  transport := conf.NewHTTPTransport()
+	transport := conf.NewHTTPTransport()
 	// The intake's connection timeout is 60 seconds, which is similar to the default profiling periodicity of our
 	// tracers. When a new profile upload is simultaneous to the intake closing the connection, Go's ReverseProxy
 	// returns a 502 error to the tracer. Ensuring that the agent closes the connection before the intake solves this
