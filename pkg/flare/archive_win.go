@@ -260,28 +260,10 @@ func zipServiceStatus(tempDir, hostname string) error {
 	return nil
 }
 
-// There are two ways to implement this functionality with its own pros and cons
-// 1. Calling Registry API (https://pkg.go.dev/golang.org/x/sys/windows/registry)
-//    recursively enumerating and dumping Keys and Values. While high performing
-//    one need to implement many special cases to do it generally and accurately.
-//    Consider following example output which may demonstrate nuances of supporting
-//    all registry value types
-//
-//          [HKEY_LOCAL_MACHINE\Software\Datadog\Len-Test]
-//          "str"="asdfasdf"
-//          "bin"=hex:ad,fd,fa,a0
-//          "dword"=dword:00000000
-//          "multi-str"=hex(7):61,00,73,00,64,00,66,00,61,00,73,00,64,00,66,00,00,00,61,00,73,\
-//            00,64,00,66,00,61,00,73,00,64,00,66,00,66,00,66,00,66,00,66,00,66,00,00,00,\
-//            73,00,73,00,73,00,73,00,00,00,73,00,73,00,73,00,00,00,00,00
-//          "expand-str"=hex(2):25,00,61,00,70,00,70,00,64,00,61,00,74,00,61,00,25,00,00,00
-//
-// 2. Spawning reg.exe process (https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg)
-//    It is builtin command and will do the heavy lifting of the recursion and value dumping but it
-//    creating process is relatively slow and generate a file which need to be scrubbed. From
-//    security standpoint it is still secure since generated file can be read only by an administrator
-//    or a ddagentuser.
-//
+// zipDatadogRegistry function saves all Datadog registry keys and values from HKLM\Software\Datadog.
+// The implementation is based on the invoking Windows built-in reg.exe command, which does all
+// heavy lifting (instead of relying on explicit and recursive Registry API calls).
+// More technical details can be found in the PR https://github.com/DataDog/datadog-agent/pull/11290
 func zipDatadogRegistry(tempDir, hostname string) error {
 	// Generate raw exported registry file which we will scrub just in case
 	rawf := filepath.Join(tempDir, hostname, "datadog-raw.reg")
@@ -301,15 +283,17 @@ func zipDatadogRegistry(tempDir, hostname string) error {
 		}
 		return fmt.Errorf("Error getting Datadog registry exported via reg command. %v", err)
 	}
+	// Temporary datadog-raw.reg is created. Remove it when the function exits
 	defer os.Remove(rawf)
 
-	// Read raw registry file in memory, scrub it and write it back
-	f := filepath.Join(tempDir, hostname, "datadog.reg")
+	// Read raw registry file in memory ...
 	data, err := ioutil.ReadFile(rawf)
 	if err != nil {
 		return err
 	}
 
+	// ... scrub it and write it back
+	f := filepath.Join(tempDir, hostname, "datadog.reg")
 	err = writeScrubbedFile(f, data)
 	if err != nil {
 		return err
