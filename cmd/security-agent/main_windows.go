@@ -61,28 +61,6 @@ func main() {
 	flavor.SetFlavor(flavor.Dogstatsd)
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
-	// go_expvar server
-	var port = coreconfig.Datadog.GetString("security_agent.expvar_port")
-	coreconfig.Datadog.Set("expvar_port", port)
-	if coreconfig.Datadog.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
-	}
-	expvarServer := &http.Server{
-		Addr:    "127.0.0.1:" + port,
-		Handler: http.DefaultServeMux,
-	}
-	defer func() {
-		if err := expvarServer.Shutdown(context.Background()); err != nil {
-			log.Errorf("Error shutdowning expvar server on port %s: %v", port, err)
-		}
-	}()
-	go func() {
-		err := expvarServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
-		}
-	}()
-
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
@@ -94,12 +72,9 @@ func main() {
 	}
 	defer log.Flush()
 
-	err = app.SecurityAgentCmd.Execute()
-	if err != nil {
+	if err = app.SecurityAgentCmd.Execute(); err != nil {
 		log.Error(err)
-		// os.Exit() must be called last because it terminates immediately; deferred functions are not run.
-		// Deferred function calls are executed in Last In First Out order after the surrounding function returns.
-		defer os.Exit(-1)
+		os.Exit(-1)
 	}
 }
 
