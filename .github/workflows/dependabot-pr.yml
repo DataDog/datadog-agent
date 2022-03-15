@@ -1,7 +1,7 @@
 name: Dependabot-Tidier
 on:
   pull_request:
-    types: [ labeled ]
+    types: [ milestoned ]
 jobs:
   mod_tidier:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'dependencies') }}
