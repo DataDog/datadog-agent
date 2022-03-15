@@ -8,9 +8,11 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -23,7 +25,77 @@ import (
 
 func main() {
 	archivePath := os.Args[1]
+	twCollector := TreeWalkCollector{}
 
+	if err := filepath.WalkDir(archivePath, twCollector.treeWalkerBuilder(archivePath)); err != nil {
+		panic(err)
+	}
+	fmt.Println(len(twCollector.infos))
+	fmt.Println(twCollector.infos[:5])
+}
+
+type TreeWalkCollector struct {
+	infos []ConstantsInfo
+}
+
+func NewTreeWalkCollector() *TreeWalkCollector {
+	return &TreeWalkCollector{
+		infos: make([]ConstantsInfo, 0),
+	}
+}
+
+func (c *TreeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
+	return func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".tar.xz") {
+			return nil
+		}
+
+		pathSuffix := strings.TrimPrefix(path, prefix)
+
+		btfParts := strings.Split(pathSuffix, "/")
+		if len(btfParts) != 4 {
+			return fmt.Errorf("file has wront format: %s", pathSuffix)
+		}
+
+		distribution := btfParts[0]
+		distribVersion := btfParts[1]
+		arch := btfParts[2]
+
+		fmt.Println(path)
+
+		constants, err := extractConstantsFromBTF(path)
+		if err != nil {
+			return err
+		}
+
+		c.infos = append(c.infos, ConstantsInfo{
+			distribution:   distribution,
+			distribVersion: distribVersion,
+			arch:           arch,
+			constants:      constants,
+			err:            err,
+		})
+
+		return err
+	}
+}
+
+type ConstantsInfo struct {
+	distribution   string
+	distribVersion string
+	arch           string
+	constants      map[string]uint64
+	err            error
+}
+
+func extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
 	tmpDir, err := os.MkdirTemp("", "extract-dir")
 	if err != nil {
 		panic(err)
@@ -42,7 +114,7 @@ func main() {
 	releasePart := strings.Split(btfFileName, "-")[0]
 	kvCode, err := utilKernel.ParseReleaseString(releasePart)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	kv := &kernel.Version{
 		Code: kvCode,
@@ -50,25 +122,20 @@ func main() {
 
 	fetcher := NewConstantCollector(btfPath)
 
-	constants, err := probe.GetOffsetConstantsFromFetcher(fetcher, kv)
-	if err != nil {
-		panic(err)
-	}
-
-	for name, value := range constants {
-		fmt.Println(name, value)
-	}
+	return probe.GetOffsetConstantsFromFetcher(fetcher, kv)
 }
 
 type ConstantCollector struct {
-	btfPath   string
-	constants map[string]uint64
+	constants   map[string]uint64
+	paholeCache PaholeCache
 }
 
 func NewConstantCollector(btfPath string) *ConstantCollector {
 	return &ConstantCollector{
-		btfPath:   btfPath,
 		constants: make(map[string]uint64),
+		paholeCache: PaholeCache{
+			btfPath: btfPath,
+		},
 	}
 }
 
@@ -76,7 +143,7 @@ var sizeRe = regexp.MustCompile(`size: (\d+), cachelines: \d+, members: \d+`)
 var offsetRe = regexp.MustCompile(`/\*\s*(\d+)\s*\d+\s*\*/`)
 
 func (cc *ConstantCollector) AppendSizeofRequest(id, typeName, headerName string) {
-	value := parsePaholeOutput(getActualTypeName(typeName), cc.btfPath, func(line string) (uint64, bool) {
+	value := cc.paholeCache.parsePaholeOutput(getActualTypeName(typeName), func(line string) (uint64, bool) {
 		if matches := sizeRe.FindStringSubmatch(line); len(matches) != 0 {
 			size, err := strconv.ParseUint(matches[1], 10, 64)
 			if err != nil {
@@ -90,7 +157,7 @@ func (cc *ConstantCollector) AppendSizeofRequest(id, typeName, headerName string
 }
 
 func (cc *ConstantCollector) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
-	value := parsePaholeOutput(getActualTypeName(typeName), cc.btfPath, func(line string) (uint64, bool) {
+	value := cc.paholeCache.parsePaholeOutput(getActualTypeName(typeName), func(line string) (uint64, bool) {
 		if strings.Contains(line, fieldName) {
 			if matches := offsetRe.FindStringSubmatch(line); len(matches) != 0 {
 				size, err := strconv.ParseUint(matches[1], 10, 64)
@@ -117,21 +184,32 @@ func getActualTypeName(tn string) string {
 	return tn
 }
 
-func parsePaholeOutput(tyName, btfPath string, lineF func(string) (uint64, bool)) uint64 {
-	var btfArg string
-	if btfPath != "" {
-		btfArg = fmt.Sprintf("--btf_base=%s", btfPath)
-	}
-	cmd := exec.Command("pahole", tyName, btfArg)
-	cmd.Stdin = os.Stdin
-	output, err := cmd.Output()
-	if err != nil {
-		exitErr := err.(*exec.ExitError)
-		fmt.Println(string(exitErr.Stderr))
-		panic(err)
+type PaholeCache struct {
+	btfPath string
+	cache   map[string]string
+}
+
+func (pc *PaholeCache) parsePaholeOutput(tyName string, lineF func(string) (uint64, bool)) uint64 {
+	var output string
+	if value, ok := pc.cache[tyName]; ok {
+		output = value
+	} else {
+		var btfArg string
+		if pc.btfPath != "" {
+			btfArg = fmt.Sprintf("--btf_base=%s", pc.btfPath)
+		}
+		cmd := exec.Command("pahole", tyName, btfArg)
+		cmd.Stdin = os.Stdin
+		cmdOutput, err := cmd.Output()
+		if err != nil {
+			exitErr := err.(*exec.ExitError)
+			fmt.Println(string(exitErr.Stderr))
+			panic(err)
+		}
+		output = string(cmdOutput)
 	}
 
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
 		value, ok := lineF(line)
