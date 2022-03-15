@@ -183,10 +183,10 @@ func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 }
 
 // OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
-func OrchestratorScopeTag() ([]string, error) {
+func OrchestratorScopeTag(cardinality collectors.TagCardinality) ([]string, error) {
 	mux.RLock()
 	if captureTagger != nil {
-		tags, err := captureTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+		tags, err := captureTagger.Tag(collectors.OrchestratorScopeEntityID, cardinality)
 		if err == nil && len(tags) > 0 {
 			mux.RUnlock()
 			return tags, nil
@@ -194,15 +194,15 @@ func OrchestratorScopeTag() ([]string, error) {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, cardinality)
 }
 
 // OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
 // task_arn in ECS Fargate) and appends them to the TagAccumulator
-func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
+func OrchestratorScopeTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, cardinality, tb)
 
 		if err == nil {
 			mux.RUnlock()
@@ -211,7 +211,7 @@ func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+	return defaultTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, cardinality, tb)
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -272,7 +272,7 @@ func EnrichTags(tb tagset.TagAccumulator, udsOrigin string, clientOrigin string,
 
 	// Include orchestrator scope tags if the cardinality is set to orchestrator
 	if cardinality == collectors.OrchestratorCardinality {
-		if err := OrchestratorScopeTagBuilder(tb); err != nil {
+		if err := OrchestratorScopeTagBuilder(cardinality, tb); err != nil {
 			log.Error(err.Error())
 		}
 	}
