@@ -67,7 +67,7 @@ require (
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
 	github.com/DataDog/ebpf-manager v0.0.0-20220223090948-29871766cdd0
-	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
+	github.com/DataDog/gohai v0.0.0-20220321112924-fb06c09f7924
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.5
 	github.com/DataDog/sketches-go v1.3.0
@@ -162,7 +162,7 @@ require (
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil v3.21.11+incompatible
+	github.com/shirou/gopsutil/v3 v3.22.2
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/afero v1.6.0
@@ -354,7 +354,6 @@ require (
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.3.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.22.2 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014 // indirect

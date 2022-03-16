@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

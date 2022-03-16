@@ -644,16 +644,11 @@ core,github.com/sassoftware/go-rpmutils,Apache-2.0,"SAS Institute, Inc."
 core,github.com/sassoftware/go-rpmutils/cpio,Apache-2.0,"SAS Institute, Inc."
 core,github.com/sassoftware/go-rpmutils/fileutil,Apache-2.0,"SAS Institute, Inc."
 core,github.com/secure-systems-lab/go-securesystemslib/cjson,MIT,NYU Secure Systems Lab
-core,github.com/shirou/gopsutil/cpu,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
-core,github.com/shirou/gopsutil/disk,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
-core,github.com/shirou/gopsutil/host,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
-core,github.com/shirou/gopsutil/internal/common,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
-core,github.com/shirou/gopsutil/load,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
-core,github.com/shirou/gopsutil/mem,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
-core,github.com/shirou/gopsutil/net,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
-core,github.com/shirou/gopsutil/process,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/v3/cpu,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/shirou/gopsutil/v3/disk,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/shirou/gopsutil/v3/host,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/v3/internal/common,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/shirou/gopsutil/v3/load,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/v3/mem,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/v3/net,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/v3/process,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
