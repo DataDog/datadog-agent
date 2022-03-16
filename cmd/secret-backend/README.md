@@ -10,7 +10,7 @@
 | :-- | :-- | :-- |
 | [aws.secrets](docs/aws/secrets.md) | [aws](docs/aws/README.md) | Datadog secrets in AWS Secrets Manager |
 | [aws.ssm](docs/aws/ssm.md) | [aws](docs/aws/README.md) | Datadog secrets in AWS Systems Manager Parameter Store |
-| [azure.keyvault] (docs/azure/keyvault.md) |  [azure] (docs/azure/README.md) | Datadog secrets in Azure Key Vault |
+| [azure.keyvault](docs/azure/keyvault.md) | [azure](docs/azure/README.md) | Datadog secrets in Azure Key Vault |
 | [file.json](docs/file/json.md) | [file](docs/file/README.md) | Datadog secrets in local JSON files|
 | [file.yaml](docs/file/yaml.md) | [file](docs/file/README.md) | Datadog secrets in local YAML files|
 
