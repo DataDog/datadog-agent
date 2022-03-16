@@ -533,7 +533,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				{
 					Source:       taskSource,
-					Entity:       OrchestratorScopeEntityID,
+					Entity:       GlobalEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
