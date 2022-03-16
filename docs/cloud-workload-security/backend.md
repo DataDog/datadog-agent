@@ -699,7 +699,7 @@ CWS logs have the following JSON schema:
 | ---------- |
 | [ProcessContext](#processcontext) |
 
-## `ProcessCacheEntry`
+## `Process`
 
 
 {{< code-block lang="json" collapsible="true" >}}
@@ -943,12 +943,12 @@ CWS logs have the following JSON schema:
             "description": "Indicator of environments variable truncation"
         },
         "parent": {
-            "$ref": "#/definitions/ProcessCacheEntry",
+            "$ref": "#/definitions/Process",
             "description": "Parent process"
         },
         "ancestors": {
             "items": {
-                "$ref": "#/definitions/ProcessCacheEntry"
+                "$ref": "#/definitions/Process"
             },
             "type": "array",
             "description": "Ancestor processes"
@@ -991,7 +991,7 @@ CWS logs have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
-| [ProcessCacheEntry](#processcacheentry) |
+| [Process](#process) |
 
 ## `ProcessCredentials`
 
