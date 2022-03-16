@@ -2,13 +2,14 @@ package backend
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"strings"
 
+	"gopkg.in/yaml.v2"
 	"github.com/rs/zerolog/log"
 
 	"github.com/rapdev-io/datadog-secret-backend/backend/aws"
+	"github.com/rapdev-io/datadog-secret-backend/backend/azure"
 	"github.com/rapdev-io/datadog-secret-backend/backend/file"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 )
@@ -75,6 +76,13 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 		}
 	case "aws.ssm":
 		backend, err := aws.NewAwsSsmParameterStoreBackend(backendId, config)
+		if err != nil {
+			b.Backends[backendId] = NewErrorBackend(backendId, err)
+		} else {
+			b.Backends[backendId] = backend
+		}
+	case "azure.keyvault":
+		backend, err := azure.NewAzureKeyVaultBackend(backendId, config)
 		if err != nil {
 			b.Backends[backendId] = NewErrorBackend(backendId, err)
 		} else {
