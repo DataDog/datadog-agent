@@ -56,7 +56,7 @@ func TestBTFHubConstants(t *testing.T) {
 
 	btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("btfhub constant fetcher is not available: %v", err)
 	}
 	if !btfhubFetcher.HasConstantsInStore() {
 		t.Skip("btfhub has no constant for this OS")
