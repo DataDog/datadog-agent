@@ -45,6 +45,7 @@ message DumpActivityParams {
     bool WithGraph = 3;
     bool DifferentiateArgs = 4;
     string OutputDirectory = 5;
+    string OutputFormat = 6;
 }
 
 message SecurityActivityDumpMessage {

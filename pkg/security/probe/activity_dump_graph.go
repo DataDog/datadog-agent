@@ -9,12 +9,12 @@
 package probe
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"text/template"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 var (
@@ -126,9 +126,9 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 }
 
 func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID string) {
-	mergedId := processID + f.GetID()
+	mergedID := processID + f.GetID()
 	fn := node{
-		ID:    mergedId,
+		ID:    mergedID,
 		Label: f.getNodeLabel(),
 		Size:  30,
 		Color: fileColor,
@@ -139,11 +139,11 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 	case Snapshot:
 		fn.FillColor = fileSnapshotColor
 	}
-	data.Nodes[mergedId] = fn
+	data.Nodes[mergedID] = fn
 
 	for _, child := range f.Children {
 		data.Edges = append(data.Edges, edge{
-			Link:  mergedId + " -> " + processID + child.GetID(),
+			Link:  mergedID + " -> " + processID + child.GetID(),
 			Color: fileColor,
 		})
 		ad.prepareFileNode(child, data, prefix+f.Name, processID)
@@ -158,13 +158,9 @@ func GenerateGraph(inputFile string) (string, error) {
 		return "", fmt.Errorf("couldn't open activity dump file: %w", err)
 	}
 
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return "", fmt.Errorf("couldn't read activity dump file: %w", err)
-	}
-
 	var dump ActivityDump
-	err = json.Unmarshal(data, &dump)
+	msgpReader := msgp.NewReader(f)
+	err = dump.DecodeMsg(msgpReader)
 	if err != nil {
 		return "", fmt.Errorf("couldn't parse activity dump file: %w", err)
 	}

@@ -93,6 +93,7 @@ var (
 		withGraph         bool
 		differentiateArgs bool
 		outputDirectory   string
+		outputFormat      string
 		remote            bool
 	}{}
 
@@ -205,6 +206,12 @@ func init() {
 		"output",
 		"/tmp/activity_dumps/",
 		"output directory",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&activityDumpArgs.outputFormat,
+		"format",
+		"msgp",
+		"output format. Available options are \"msgp\" and \"json\".",
 	)
 
 	activityDumpStopCmd.Flags().StringVar(
@@ -335,7 +342,7 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	output, err := client.GenerateActivityDump(activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs, activityDumpArgs.outputDirectory)
+	output, err := client.GenerateActivityDump(activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs, activityDumpArgs.outputDirectory, activityDumpArgs.outputFormat)
 	if err != nil {
 		return fmt.Errorf("unable send request to system-probe: %w", err)
 	}

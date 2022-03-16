@@ -33,7 +33,7 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 }
 
 // GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityClient) GenerateActivityDump(comm string, timeout int32, withGraph bool, differentiateArgs bool, outputDirectory string) (*api.SecurityActivityDumpMessage, error) {
+func (c *RuntimeSecurityClient) GenerateActivityDump(comm string, timeout int32, withGraph bool, differentiateArgs bool, outputDirectory string, outputFormat string) (*api.SecurityActivityDumpMessage, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 	return apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
 		Comm:              comm,
@@ -41,6 +41,7 @@ func (c *RuntimeSecurityClient) GenerateActivityDump(comm string, timeout int32,
 		WithGraph:         withGraph,
 		DifferentiateArgs: differentiateArgs,
 		OutputDirectory:   outputDirectory,
+		OutputFormat:      outputFormat,
 	})
 }
 
@@ -66,6 +67,7 @@ func (c *RuntimeSecurityClient) GenerateProfile(file string) (*api.SecurityProfi
 	})
 }
 
+// GenerateGraph generates a graph from the provided activity dump
 func (c *RuntimeSecurityClient) GenerateGraph(file string) (*api.SecurityGraphGeneratedMessage, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 	return apiClient.GenerateGraph(context.Background(), &api.GenerateGraphParams{
