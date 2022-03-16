@@ -456,7 +456,7 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 	timeout := now.Add(lonelyTimeout)
 
 	// compute the list of network namespaces without any probe
-	for nsID := range nr.networkNamespaces.Keys() {
+	for _, nsID := range nr.networkNamespaces.Keys() {
 		value, _ := nr.networkNamespaces.Peek(nsID)
 		netns := value.(*NetworkNamespace)
 
@@ -500,7 +500,7 @@ func (nr *NamespaceResolver) SendStats() error {
 	var queuedNetworkDevicesCount float64
 	var lonelyNetworkNamespacesCount float64
 
-	for nsID := range nr.networkNamespaces.Keys() {
+	for _, nsID := range nr.networkNamespaces.Keys() {
 		value, _ := nr.networkNamespaces.Peek(nsID)
 		netns := value.(*NetworkNamespace)
 
