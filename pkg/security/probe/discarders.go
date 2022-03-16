@@ -616,6 +616,13 @@ func init() {
 			}))
 	SupportedDiscarders["mmap.file.path"] = true
 
+	allDiscarderHandlers["splice"] = processDiscarderWrapper(model.SpliceEventType,
+		filenameDiscarderWrapper(model.SpliceEventType, nil,
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "splice.file.path", &event.Splice.File, false
+			}))
+	SupportedDiscarders["splice.file.path"] = true
+
 	allDiscarderHandlers["mprotect"] = processDiscarderWrapper(model.MProtectEventType, nil)
 	allDiscarderHandlers["ptrace"] = processDiscarderWrapper(model.PTraceEventType, nil)
 	allDiscarderHandlers["load_module"] = processDiscarderWrapper(model.LoadModuleEventType, nil)

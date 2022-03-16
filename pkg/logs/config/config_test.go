@@ -45,23 +45,6 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(true, suite.config.GetBool("logs_config.use_v2_api"))
 }
 
-func (suite *ConfigTestSuite) TestDefaultSources() {
-	// container collect all source
-
-	source := ContainerCollectAllSource()
-	suite.Nil(source)
-
-	suite.config.Set("logs_config.container_collect_all", true)
-
-	source = ContainerCollectAllSource()
-	suite.NotNil(source)
-
-	suite.Equal("container_collect_all", source.Name)
-	suite.Equal(DockerType, source.Config.Type)
-	suite.Equal("docker", source.Config.Source)
-	suite.Equal("docker", source.Config.Service)
-}
-
 func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEmptyValues() {
 	var (
 		rules []*ProcessingRule

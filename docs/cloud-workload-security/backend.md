@@ -44,6 +44,9 @@ CWS logs have the following JSON schema:
         "signal": {
             "$ref": "#/definitions/SignalEvent"
         },
+        "splice": {
+            "$ref": "#/definitions/SpliceEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -78,6 +81,7 @@ CWS logs have the following JSON schema:
 | `ptrace` | $ref | Please see [PTraceEvent](#ptraceevent) |
 | `module` | $ref | Please see [ModuleEvent](#moduleevent) |
 | `signal` | $ref | Please see [SignalEvent](#signalevent) |
+| `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -695,7 +699,7 @@ CWS logs have the following JSON schema:
 | ---------- |
 | [ProcessContext](#processcontext) |
 
-## `ProcessCacheEntry`
+## `Process`
 
 
 {{< code-block lang="json" collapsible="true" >}}
@@ -939,12 +943,12 @@ CWS logs have the following JSON schema:
             "description": "Indicator of environments variable truncation"
         },
         "parent": {
-            "$ref": "#/definitions/ProcessCacheEntry",
+            "$ref": "#/definitions/Process",
             "description": "Parent process"
         },
         "ancestors": {
             "items": {
-                "$ref": "#/definitions/ProcessCacheEntry"
+                "$ref": "#/definitions/Process"
             },
             "type": "array",
             "description": "Ancestor processes"
@@ -987,7 +991,7 @@ CWS logs have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
-| [ProcessCacheEntry](#processcacheentry) |
+| [Process](#process) |
 
 ## `ProcessCredentials`
 
@@ -1243,6 +1247,37 @@ CWS logs have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessContext](#processcontext) |
+
+## `SpliceEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+    ],
+    "properties": {
+        "pipe_entry_flag": {
+            "type": "string",
+            "description": "Entry flag of the fd_out pipe passed to the splice syscall"
+        },
+        "pipe_exit_flag": {
+            "type": "string",
+            "description": "Exit flag of the fd_out pipe passed to the splice syscall"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `pipe_entry_flag` | Entry flag of the fd_out pipe passed to the splice syscall |
+| `pipe_exit_flag` | Exit flag of the fd_out pipe passed to the splice syscall |
+
 
 ## `UserContext`
 

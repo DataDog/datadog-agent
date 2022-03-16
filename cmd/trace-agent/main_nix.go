@@ -13,7 +13,6 @@ import (
 	"flag"
 
 	"github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -32,5 +31,5 @@ func main() {
 
 	flag.Parse()
 
-	agent.Run(ctx)
+	Run(ctx)
 }

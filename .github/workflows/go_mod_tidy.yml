@@ -1,0 +1,36 @@
+name: "Run Go Mod Tidy And Generate Licenses"
+on:
+  workflow_dispatch:
+    inputs:
+      pr_id:
+        description: 'PR number'     
+        required: true
+        type: number
+jobs:
+  mod_tidy_and_generate_licenses:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: pull/${{ inputs.pr_id }}/head
+    - name: Install go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.17.6'
+    - name: Install python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8.10'
+    - name: Go mod tidy
+      run: |
+        python3 -m pip install -r requirements.txt
+        inv -e install-tools
+        inv -e tidy-all
+        inv -e generate-licenses
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      id: autocommit
+      with:
+        commit_message: Auto-generate go.sum and LICENSE-3rdparty.csv changes
+    - name: changes
+      run: |
+        echo "Changes detected: ${{ steps.autocommit.outputs.changes_detected }}"

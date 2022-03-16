@@ -59,10 +59,8 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 	var containers []*model.Container
 	var pidToCid map[int]string
 	var lastContainerRates map[string]*util.ContainerRateMetrics
-	containerTime := time.Now()
-	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityRT, p.lastContainerRates, p.lastContainerRun, containerTime)
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityRT, p.lastContainerRates)
 	if err == nil {
-		p.lastContainerRun = containerTime
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)

@@ -43,7 +43,6 @@ type ProcessCheck struct {
 	lastRun            time.Time
 	containerProvider  util.ContainerProvider
 	lastContainerRates map[string]*util.ContainerRateMetrics
-	lastContainerRun   time.Time
 	networkID          string
 
 	realtimeLastCPUTime cpu.TimesStat
@@ -156,10 +155,9 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	if collectRealTime {
 		cacheValidity = cacheValidityRT
 	}
-	containerTime := time.Now()
-	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates, p.lastContainerRun, containerTime)
+
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates)
 	if err == nil {
-		p.lastContainerRun = containerTime
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)

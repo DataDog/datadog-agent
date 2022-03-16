@@ -10,7 +10,6 @@ package docker
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/docker/docker/api/types"
 
@@ -25,7 +24,7 @@ import (
 
 func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 	return &provider.ContainerStats{
-		Timestamp: time.Now(),
+		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),
 		Memory:    convertMemoryStats(&stats.MemoryStats),
 		IO:        convertIOStats(&stats.BlkioStats),

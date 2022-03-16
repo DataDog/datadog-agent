@@ -11,17 +11,18 @@ There are two major "parts" of the logs agent: what to log, and the mechanics of
 The first part has an architecture like this:
 
 ```
-                          Autodiscovery
-                                │
-                                │integration.Config
-                                │
-                                ▼
-                          ┌────────────┐
-                          │ Scheduler  │
-                          └──┬──────┬──┘
-             config.LogSource│      │service.Service
-                             │      │
-                             ▼      ▼
+                                  Autodiscovery
+                                        │
+                                        │integration.Config
+                                        │
+             ┌ -Schedulers - - - - - - -▼- - - - - - ┐
+               ┌──────────────┐   ┌──────────────┐
+             | │   Scheduler  │   │ ad.Scheduler │ … |
+               └──────────────┘   └──────────────┘
+             └ - - - - - - - - - - - - - - - - - - - ┘
+              config.LogSource│    │service.Service
+                              │    │
+                              ▼    ▼
                      ┌─────────┐  ┌──────────┐
             ┌────────┤ Sources │  │ Services │
             ▼        └┬──┬─────┘  └─┬──────┬─┘
@@ -44,14 +45,19 @@ tailers
 
 #### Scheduling
 
-The Autodiscovery component (`pkg/autodiscovery`) provides a sequence of configs (`integration.Config`) to the logs *Scheduler*.
-The scheduler categorizes each config as either
+The logs agent maintains a collection of *schedulers*, which are responsible for managing logs sources and logs services.
+Schedulers add and remove sources and services dynamically during agent runtime.
 
- * *Source* - an integration with LogsConfig that immediately provides a source of log messages to be handled.
- * *Service* - a container
+A *Source* is an integration with LogsConfig that describes a source of log messages to be handled.
+A *Service* is a container, used to support `container_collect_all`.
 
-These go into two separate stores of active sources and active services.
-The remaining components of the logs agent subscribe to these stores.
+Sources and services go into separate stores of active sources and active services.
+The remaining components of the logs agent subscribe to these stores and take appropriate action.
+
+Schedulers can be implemented outside of the logs-agent, but some built-in schedulers are in sub-packages of `pkg/logs/schedulers`.
+One particularly important scheduler is the *AD scheduler* in `pkg/logs/schedulers/ad`.
+The Autodiscovery component (`pkg/autodiscovery`) provides a sequence of configs (`integration.Config`) to the AD scheduler.
+The AD scheduler categorizes each config as either a source or a service and submits it accordingly.
 
 #### Launchers
 

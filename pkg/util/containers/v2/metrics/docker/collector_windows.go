@@ -9,8 +9,6 @@
 package docker
 
 import (
-	"time"
-
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
@@ -20,7 +18,7 @@ import (
 
 func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 	return &provider.ContainerStats{
-		Timestamp: time.Now(),
+		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),
 		Memory:    convertMemoryStats(&stats.MemoryStats),
 		IO:        convertIOStats(&stats.StorageStats),

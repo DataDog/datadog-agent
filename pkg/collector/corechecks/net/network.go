@@ -118,7 +118,7 @@ func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 // Run executes the check
 func (c *NetworkCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

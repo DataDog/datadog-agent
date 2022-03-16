@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -169,7 +170,7 @@ func (d *ContainerConfigProvider) generateConfigs() ([]integration.Config, error
 	var configs []integration.Config
 	for containerID, container := range d.containerCache {
 		containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
-		c, errors := extractTemplatesFromMap(containerEntityName, container.Labels, containerADLabelPrefix)
+		c, errors := utils.ExtractTemplatesFromMap(containerEntityName, container.Labels, containerADLabelPrefix)
 
 		for _, err := range errors {
 			log.Errorf("Can't parse template for container %s: %s", containerID, err)

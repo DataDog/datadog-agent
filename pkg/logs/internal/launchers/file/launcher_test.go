@@ -206,7 +206,6 @@ func TestLauncherTestSuiteWithConfigID(t *testing.T) {
 func TestLauncherScanStartNewTailer(t *testing.T) {
 	var path string
 	var file *os.File
-	var tailer *filetailer.Tailer
 	var msg *message.Message
 
 	IDs := []string{"", "123456789"}
@@ -220,7 +219,9 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		openFilesLimit := 2
 		sleepDuration := 20 * time.Millisecond
 		registry := auditor.NewRegistry()
-		launcher := NewLauncher(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
+		provider := mock.NewMockProvider()
+		outputChan := provider.NextPipelineChan()
+		launcher := NewLauncher(config.NewLogSources(), openFilesLimit, provider, registry, sleepDuration, false, 10*time.Second)
 		source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
@@ -241,10 +242,9 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		// test scan from beginning
 		launcher.scan()
 		assert.Equal(t, 1, len(launcher.tailers))
-		tailer = launcher.tailers[getScanKey(path, source)]
-		msg = <-tailer.OutputChan
+		msg = <-outputChan
 		assert.Equal(t, "hello", string(msg.Content))
-		msg = <-tailer.OutputChan
+		msg = <-outputChan
 		assert.Equal(t, "world", string(msg.Content))
 	}
 }
@@ -258,7 +258,9 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
 	registry := auditor.NewRegistry()
-	launcher := NewLauncher(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
+	provider := mock.NewMockProvider()
+	outputChan := provider.NextPipelineChan()
+	launcher := NewLauncher(config.NewLogSources(), openFilesLimit, provider, registry, sleepDuration, false, 10*time.Second)
 	firstSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "123456789"})
 	secondSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "987654321"})
 
@@ -282,14 +284,13 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	_, err = file.WriteString("Time\n")
 	assert.Nil(t, err)
 
-	tailer := launcher.tailers[getScanKey(path, firstSource)]
-	msg := <-tailer.OutputChan
+	msg := <-outputChan
 	assert.Equal(t, "Once", string(msg.Content))
-	msg = <-tailer.OutputChan
+	msg = <-outputChan
 	assert.Equal(t, "Upon", string(msg.Content))
-	msg = <-tailer.OutputChan
+	msg = <-outputChan
 	assert.Equal(t, "A", string(msg.Content))
-	msg = <-tailer.OutputChan
+	msg = <-outputChan
 	assert.Equal(t, "Time", string(msg.Content))
 
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
@@ -305,7 +306,9 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
 	registry := auditor.NewRegistry()
-	launcher := NewLauncher(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
+	provider := mock.NewMockProvider()
+	outputChan := provider.NextPipelineChan()
+	launcher := NewLauncher(config.NewLogSources(), openFilesLimit, provider, registry, sleepDuration, false, 10*time.Second)
 	sources := []*config.LogSource{
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/test.log", testDir), TailingMode: "beginning"}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/container.log", testDir), TailingMode: "beginning", Identifier: "123456789"}),
@@ -334,14 +337,13 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 		_, err = file.WriteString("Time\n")
 		assert.Nil(t, err)
 
-		tailer := launcher.tailers[getScanKey(source.Config.Path, source)]
-		msg := <-tailer.OutputChan
+		msg := <-outputChan
 		assert.Equal(t, "Once", string(msg.Content))
-		msg = <-tailer.OutputChan
+		msg = <-outputChan
 		assert.Equal(t, "Upon", string(msg.Content))
-		msg = <-tailer.OutputChan
+		msg = <-outputChan
 		assert.Equal(t, "A", string(msg.Content))
-		msg = <-tailer.OutputChan
+		msg = <-outputChan
 		assert.Equal(t, "Time", string(msg.Content))
 	}
 }

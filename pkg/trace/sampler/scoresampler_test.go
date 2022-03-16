@@ -15,16 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
 const defaultEnv = "testEnv"
 
 func getTestErrorsSampler(tps float64) *ErrorsSampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1,

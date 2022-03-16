@@ -9,7 +9,6 @@
 package cgroups
 
 import (
-	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,15 +21,37 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-// ReadCgroupReferences returns all cgroups paths for pid
-func ReadCgroupReferences(procPath string, pid string) (string, error) {
-	cgPath := filepath.Join(procPath, pid, procCgroupFile)
-	content, err := ioutil.ReadFile(cgPath)
-	if err != nil {
-		return "", err
-	}
+// ContainerIDFromCgroupReferences returns container id extracted from <proc>/<pid>/cgroup
+func ContainerIDFromCgroupReferences(procPath, pid, baseCgroupController string) (string, string, error) {
+	var containerID string
+	var relativeCgroupPath string
 
-	return string(content), nil
+	err := parseFile(defaultFileReader, filepath.Join(procPath, pid, procCgroupFile), func(s string) error {
+		var err error
+
+		parts := strings.Split(s, ":")
+		// Skip potentially malformed lines
+		if len(parts) != 3 {
+			return nil
+		}
+
+		if parts[1] != baseCgroupController {
+			return nil
+		}
+
+		// We need to remove first / as the path produced in Readers may not include it
+		relativeCgroupPath = strings.TrimLeft(parts[2], "/")
+		containerID, err = ContainerFilter(relativeCgroupPath, filepath.Base(relativeCgroupPath))
+		if err != nil {
+			return err
+		}
+
+		return &stopParsingError{}
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return containerID, relativeCgroupPath, err
 }
 
 // Unfortunately, the reading of `<host_path>/sys/fs/cgroup/pids/.../cgroup.procs` is PID-namespace aware,
@@ -39,11 +60,11 @@ type pidMapper interface {
 	getPIDsForCgroup(relativeCgroupPath string, cacheValidity time.Duration) []int
 }
 
-// cgroupRoot is cgroup base directory (like /host/sys/fs/cgroup)
+// cgroupRoot is cgroup base directory (like /host/sys/fs/cgroup/<baseController>)
 func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilter) pidMapper {
 	// Checking if we are in host pid. If that's the case `cgroup.procs` in any controller will contain PIDs
 	// In cgroupv2, the file contains 0 values, filtering for that
-	cgroupProcsTestFilePath := filepath.Join(cgroupRoot, baseController, cgroupProcsFile)
+	cgroupProcsTestFilePath := filepath.Join(cgroupRoot, cgroupProcsFile)
 	cgroupProcsUsable := false
 	err := parseFile(defaultFileReader, cgroupProcsTestFilePath, func(s string) error {
 		if s != "" && s != "0" {
@@ -57,7 +78,7 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 		return &cgroupProcsPidMapper{
 			fr: defaultFileReader,
 			cgroupProcsFilePathBuilder: func(relativeCgroupPath string) string {
-				return filepath.Join(cgroupRoot, baseController, relativeCgroupPath, cgroupProcsFile)
+				return filepath.Join(cgroupRoot, relativeCgroupPath, cgroupProcsFile)
 			},
 		}
 	}
@@ -66,8 +87,6 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	// Checking if we're in host cgroup namespace, other the method below cannot be used either
 	// (we'll still return it in case the cgroup namespace detection failed but log a warning)
 	pidMapper := &procPidMapper{
-		fr:               defaultFileReader,
-		readerFilter:     filter,
 		procPath:         procPath,
 		cgroupController: baseController,
 	}
@@ -119,8 +138,6 @@ func (pm *cgroupProcsPidMapper) getPIDsForCgroup(relativeCgroupPath string, cach
 type procPidMapper struct {
 	lock              sync.Mutex
 	refreshTimestamp  time.Time
-	fr                fileReader
-	readerFilter      ReaderFilter
 	procPath          string
 	cgroupController  string
 	cgroupPidsMapping map[string][]int
@@ -148,27 +165,13 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 				return godirwalk.SkipThis
 			}
 
-			_ = parseFile(pm.fr, filepath.Join(fullPath, procCgroupFile), func(s string) error {
-				parts := strings.Split(s, ":")
-				// Skip potentially malformed lines
-				if len(parts) != 3 {
-					return nil
-				}
-
-				if parts[1] != pm.cgroupController {
-					return nil
-				}
-
-				// We need to remove first / as the path produced in Readers may not include it
-				cgroupRelativePath := strings.TrimLeft(parts[2], "/")
-				id, err := pm.readerFilter(cgroupRelativePath, filepath.Base(cgroupRelativePath))
-				if id == "" || err != nil {
-					return nil
-				}
-
+			containerID, cgroupRelativePath, err := ContainerIDFromCgroupReferences(pm.procPath, de.Name(), pm.cgroupController)
+			if err != nil {
+				log.Debugf("Unable to parse cgroup file for pid: %s, err: %v", de.Name(), err)
+			}
+			if containerID != "" {
 				cgroupPidMapping[cgroupRelativePath] = append(cgroupPidMapping[cgroupRelativePath], int(pid))
-				return &stopParsingError{}
-			})
+			}
 
 			return godirwalk.SkipThis
 		},

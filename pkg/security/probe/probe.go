@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
@@ -77,6 +76,7 @@ type Probe struct {
 	approvers          map[eval.EventType]activeApprovers
 
 	inodeDiscardersCounters map[model.EventType]*int64
+	constantOffsets         map[string]uint64
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -238,10 +238,7 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		seclog.Tracef("Dispatching event %s\n", prettyEvent)
-	}
+	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
 
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
@@ -253,10 +250,7 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		seclog.Tracef("Dispatching custom event %s\n", prettyEvent)
-	}
+	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
 	if p.handler != nil && p.config.AgentMonitoringEvents {
 		p.handler.HandleCustomEvent(rule, event)
@@ -553,7 +547,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve tracee process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
 		if cacheEntry != nil {
-			event.PTrace.TraceeProcessCacheEntry = cacheEntry
 			event.PTrace.Tracee = cacheEntry.ProcessContext
 		}
 	case model.MMapEventType:
@@ -583,8 +576,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve target process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
 		if cacheEntry != nil {
-			event.Signal.TargetProcessCacheEntry = cacheEntry
 			event.Signal.Target = cacheEntry.ProcessContext
+		}
+	case model.SpliceEventType:
+		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
@@ -594,16 +591,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	// resolve event context
 	if eventType != model.ExitEventType {
 		event.ResolveProcessCacheEntry()
-
-		// in case of exec event we take the parent a process context as this is
-		// the parent which generated the exec
-		if eventType == model.ExecEventType {
-			if ancestor := event.processCacheEntry.ProcessContext.Ancestor; ancestor != nil {
-				event.ProcessContext = ancestor.ProcessContext
-			}
-		} else {
-			event.ProcessContext = event.processCacheEntry.ProcessContext
-		}
+		event.ProcessContext = event.processCacheEntry.ProcessContext
 	} else {
 		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 			return
@@ -892,7 +880,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	}
 	opts.WithLogger(&seclog.PatternLogger{})
 
-	return rules.NewRuleSet(&Model{}, eventCtor, opts)
+	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts)
 }
 
 // NewProbe instantiates a new runtime security agent probe
@@ -949,13 +937,13 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	constants, err := GetOffsetConstants(config, p)
+	p.constantOffsets, err = GetOffsetConstants(config, p)
 	if err != nil {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
 
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(constants)...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1088,10 +1076,14 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest("bpf_map_id_offset", "struct bpf_map", "id", "linux/bpf.h")
-	constantFetcher.AppendOffsetofRequest("bpf_map_name_offset", "struct bpf_map", "name", "linux/bpf.h")
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
+		constantFetcher.AppendOffsetofRequest("bpf_map_name_offset", "struct bpf_map", "name", "linux/bpf.h")
+	}
 	constantFetcher.AppendOffsetofRequest("bpf_map_type_offset", "struct bpf_map", "map_type", "linux/bpf.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_id_offset", "struct bpf_prog_aux", "id", "linux/bpf.h")
-	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_name_offset", "struct bpf_prog_aux", "name", "linux/bpf.h")
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
+		constantFetcher.AppendOffsetofRequest("bpf_prog_aux_name_offset", "struct bpf_prog_aux", "name", "linux/bpf.h")
+	}
 	constantFetcher.AppendOffsetofRequest("bpf_prog_tag_offset", "struct bpf_prog", "tag", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
@@ -1103,6 +1095,9 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("pid_level_offset", "struct pid", "level", "linux/pid.h")
 	constantFetcher.AppendOffsetofRequest("pid_numbers_offset", "struct pid", "numbers", "linux/pid.h")
 	constantFetcher.AppendSizeofRequest("sizeof_upid", "struct upid", "linux/pid.h")
+
+	// splice event
+	constantFetcher.AppendOffsetofRequest("pipe_inode_info_bufs_offset", "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
 
 	return constantFetcher.FinishAndGetResults()
 }

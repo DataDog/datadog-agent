@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go -doc ../../../../docs/cloud-workload-security/secl.json
 
 package model
 
@@ -142,8 +141,9 @@ type Event struct {
 	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
 	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
-	Exec        ExecEvent     `field:"exec" event:"exec"`               // [7.27] [Process] A process was executed or forked
+	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 
+	Exec   ExecEvent   `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
 	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
@@ -572,7 +572,7 @@ type SetXAttrEvent struct {
 	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
 	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
 
-	NameRaw [200]byte
+	NameRaw [200]byte `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -632,11 +632,10 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request                 uint32             `field:"request"` //  ptrace request
-	PID                     uint32             `field:"-"`
-	Address                 uint64             `field:"-"`
-	Tracee                  ProcessContext     `field:"tracee"` // process context of the tracee
-	TraceeProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	Request uint32         `field:"request"` //  ptrace request
+	PID     uint32         `field:"-"`
+	Address uint64         `field:"-"`
+	Tracee  ProcessContext `field:"tracee"` // process context of the tracee
 }
 
 // MMapEvent represents a mmap event
@@ -681,8 +680,16 @@ type UnloadModuleEvent struct {
 type SignalEvent struct {
 	SyscallEvent
 
-	Type                    uint32             `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID                     uint32             `field:"pid"`    // Target PID
-	Target                  ProcessContext     `field:"target"` // Target process context
-	TargetProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	Type   uint32         `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID    uint32         `field:"pid"`    // Target PID
+	Target ProcessContext `field:"target"` // Target process context
+}
+
+// SpliceEvent represents a splice event
+type SpliceEvent struct {
+	SyscallEvent
+
+	File          FileEvent `field:"file"`            // File modified by the splice syscall
+	PipeEntryFlag uint32    `field:"pipe_entry_flag"` // Entry flag of the "fd_out" pipe passed to the splice syscall
+	PipeExitFlag  uint32    `field:"pipe_exit_flag"`  // Exit flag of the "fd_out" pipe passed to the splice syscall
 }
