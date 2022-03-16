@@ -32,19 +32,19 @@ func StartServer() error {
 	// Set up routes
 	r := mux.NewRouter()
 	setupHandlers(r)
-	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
-	handler := http.TimeoutHandler(r, timeout, "timed out")
 
 	addr, err := GetAPIAddressPort()
 	if err != nil {
 		return err
 	}
 	log.Infof("API server listening on %s", addr)
-
+	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
 	srv := &http.Server{
-		Handler:     handler,
-		Addr:        addr,
-		ReadTimeout: timeout,
+		Handler:      r,
+		Addr:         addr,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+		IdleTimeout:  timeout,
 	}
 
 	go func() {
