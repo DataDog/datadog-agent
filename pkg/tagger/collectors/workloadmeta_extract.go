@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	// OrchestratorScopeEntityID defines the orchestrator scope entity ID
-	OrchestratorScopeEntityID = "internal://orchestrator-scope-entity-id"
+	// GlobalEntityID defines the entity ID that holds global tags
+	GlobalEntityID = "internal://global-entity-id"
 
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
@@ -377,7 +377,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 		low, orch, high, standard := tags.Compute()
 		tagInfos = append(tagInfos, &TagInfo{
 			Source:               taskSource,
-			Entity:               OrchestratorScopeEntityID,
+			Entity:               GlobalEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
