@@ -15,7 +15,7 @@ The following authentication methods are supported for authenticating to Azure, 
 
 1. **Service Principal Client Credentials**. The Azure tenant ID, service principal client ID, and service principal client secret defined on the backed configuration's `azure_session` section within the datadog-secret-backend.yaml file.
 
-2. **Service Principal Certificate Credential**.The Azure tenant ID, application client ID, service principal certificate path, and service principal certificate password (if applicable) defined on the backed configuration's `azure_session` section within the datadog-secret-backend.yaml file.
+2. **Service Principal Certificate Credential**. The Azure tenant ID, application client ID, service principal certificate path, and service principal certificate password (if applicable) defined on the backed configuration's `azure_session` section within the datadog-secret-backend.yaml file.
 
 3. **Azure Managed Identity**. No `azure_session` block needs to be defined at all, since this is all handled through the standard Azure credential chain.
 
