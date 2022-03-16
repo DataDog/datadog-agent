@@ -12,11 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
+	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
@@ -53,23 +54,37 @@ const (
 // https://helm.sh/docs/faq/changes_since_helm2/#secrets-as-the-default-storage-driver
 type HelmCheck struct {
 	core.CheckBase
-	releases          map[helmStorage]map[string]*release
-	releasesMutex     sync.Mutex
+	instance          *checkConfig
+	store             *releasesStore
 	runLeaderElection bool
+	eventsManager     *eventsManager
+
+	// existingReleasesStored indicates whether the releases deployed before the
+	// agent was started have already been stored. This is needed to avoid
+	// emitting events for those releases.
+	existingReleasesStored bool
+}
+
+type checkConfig struct {
+	CollectEvents bool `yaml:"collect_events"`
+}
+
+// Parse parses the config and sets default values
+func (cc *checkConfig) Parse(data []byte) error {
+	// default values
+	cc.CollectEvents = false
+
+	return yaml.Unmarshal(data, cc)
 }
 
 func factory() check.Check {
-	helmCheck := &HelmCheck{
+	return &HelmCheck{
 		CheckBase:         core.NewCheckBase(checkName),
-		releases:          make(map[helmStorage]map[string]*release),
+		instance:          &checkConfig{},
+		store:             newReleasesStore(),
 		runLeaderElection: !config.IsCLCRunner(),
+		eventsManager:     &eventsManager{},
 	}
-
-	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
-		helmCheck.releases[storageDriver] = make(map[string]*release)
-	}
-
-	return helmCheck
 }
 
 // Configure configures the Helm check
@@ -78,6 +93,10 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 
 	err := hc.CommonConfigure(config, source)
 	if err != nil {
+		return err
+	}
+
+	if err = hc.instance.Parse(config); err != nil {
 		return err
 	}
 
@@ -91,6 +110,13 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 
 	apiClient, err := apiserver.WaitForAPIClient(apiCtx)
 	if err != nil {
+		return err
+	}
+
+	// Add the releases present before setting up the informers. This allows us
+	// to avoid emitting events for releases that were deployed before the agent
+	// started.
+	if err = hc.addExistingReleases(apiClient); err != nil {
 		return err
 	}
 
@@ -117,13 +143,14 @@ func (hc *HelmCheck) Run() error {
 		}
 	}
 
-	hc.releasesMutex.Lock()
-	defer hc.releasesMutex.Unlock()
-
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
-		for _, rel := range hc.releases[storageDriver] {
-			sender.Gauge("helm.release", 1, "", helmTags(rel, storageDriver))
+		for _, rel := range hc.store.getAll(storageDriver) {
+			sender.Gauge("helm.release", 1, "", helmTags(rel, storageDriver, true))
 		}
+	}
+
+	if hc.instance.CollectEvents {
+		hc.eventsManager.sendEvents(sender)
 	}
 
 	return nil
@@ -157,12 +184,45 @@ func (hc *HelmCheck) setupInformers(sharedInformerFactory informers.SharedInform
 	)
 }
 
-func helmTags(release *release, storageDriver helmStorage) []string {
+func (hc *HelmCheck) addExistingReleases(apiClient *apiserver.APIClient) error {
+	selector := labels.Set{"owner": "helm"}.AsSelector()
+
+	initialHelmSecrets, err := apiClient.Cl.CoreV1().Secrets(v1.NamespaceAll).List(
+		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, secret := range initialHelmSecrets.Items {
+		hc.addSecret(&secret)
+	}
+
+	initialHelmConfigMaps, err := apiClient.Cl.CoreV1().ConfigMaps(v1.NamespaceAll).List(
+		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, configMap := range initialHelmConfigMaps.Items {
+		hc.addConfigmap(&configMap)
+	}
+
+	hc.existingReleasesStored = true
+
+	return nil
+}
+
+func helmTags(release *release, storageDriver helmStorage, includeRevision bool) []string {
 	tags := []string{
 		fmt.Sprintf("helm_release:%s", release.Name),
 		fmt.Sprintf("helm_namespace:%s", release.Namespace),
-		fmt.Sprintf("helm_revision:%d", release.Version),
 		fmt.Sprintf("helm_storage:%s", storageDriver),
+	}
+
+	if includeRevision {
+		tags = append(tags, fmt.Sprintf("helm_revision:%d", release.Version))
 	}
 
 	// I've found releases without a chart reference. Not sure if it's due to
@@ -254,9 +314,17 @@ func (hc *HelmCheck) addRelease(encodedRelease string, storageDriver helmStorage
 		return
 	}
 
-	hc.releasesMutex.Lock()
-	defer hc.releasesMutex.Unlock()
-	hc.releases[storageDriver][decodedRelease.ID()] = decodedRelease
+	needToEmitEvent := hc.instance.CollectEvents && hc.existingReleasesStored
+
+	if needToEmitEvent {
+		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
+			hc.eventsManager.addEventForUpdatedRelease(previous, decodedRelease, storageDriver)
+		} else {
+			hc.eventsManager.addEventForNewRelease(decodedRelease, storageDriver)
+		}
+	}
+
+	hc.store.add(decodedRelease, storageDriver)
 }
 
 func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
@@ -266,9 +334,14 @@ func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStor
 		return
 	}
 
-	hc.releasesMutex.Lock()
-	defer hc.releasesMutex.Unlock()
-	delete(hc.releases[storageDriver], decodedRelease.ID())
+	wasLastRevision := hc.store.delete(decodedRelease, storageDriver)
+
+	// When a release is deleted, all its revisions are deleted at the same
+	// time. To avoid generating many events with the same info, we just emit
+	// one when the last remaining revision has been deleted.
+	if hc.instance.CollectEvents && wasLastRevision {
+		hc.eventsManager.addEventForDeletedRelease(decodedRelease, storageDriver)
+	}
 }
 
 func isManagedByHelm(object metav1.Object) bool {
