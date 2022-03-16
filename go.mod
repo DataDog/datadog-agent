@@ -166,7 +166,7 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/afero v1.6.0
-	github.com/spf13/cobra v1.3.0
+	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
@@ -180,8 +180,8 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.1
-	go.opentelemetry.io/collector v0.46.0
-	go.opentelemetry.io/collector/model v0.46.0
+	go.opentelemetry.io/collector v0.47.0
+	go.opentelemetry.io/collector/model v0.47.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
@@ -196,7 +196,7 @@ require (
 	golang.org/x/tools v0.1.9
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
-	google.golang.org/grpc v1.44.0
+	google.golang.org/grpc v1.45.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.34.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
@@ -308,7 +308,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v0.0.0-20200817173448-b6b71def0850 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.14.4 // indirect
+	github.com/klauspost/compress v1.15.1 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knadh/koanf v1.4.0 // indirect
 	github.com/lib/pq v1.10.0 // indirect
@@ -354,7 +354,7 @@ require (
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.3.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.22.1 // indirect
+	github.com/shirou/gopsutil/v3 v3.22.2 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014 // indirect
