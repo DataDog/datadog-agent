@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
@@ -196,16 +197,25 @@ type NamespaceResolver struct {
 	probe  *Probe
 	client *statsd.Client
 
-	networkNamespaces map[uint32]*NetworkNamespace
+	networkNamespaces *simplelru.LRU
 }
 
 // NewNamespaceResolver returns a new instance of NamespaceResolver
-func NewNamespaceResolver(probe *Probe) *NamespaceResolver {
-	return &NamespaceResolver{
-		probe:             probe,
-		client:            probe.statsdClient,
-		networkNamespaces: make(map[uint32]*NetworkNamespace),
+func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
+	nr := &NamespaceResolver{
+		probe:  probe,
+		client: probe.statsdClient,
 	}
+
+	lru, err := simplelru.NewLRU(1024, func(key interface{}, value interface{}) {
+		nr.flushNetworkNamespace(value.(*NetworkNamespace))
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	nr.networkNamespaces = lru
+	return nr, nil
 }
 
 // SetState sets state of the namespace resolver
@@ -228,16 +238,18 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, tid uint32)
 	nr.Lock()
 	defer nr.Unlock()
 
-	netns, ok := nr.networkNamespaces[nsID]
-	if !ok {
+	var netns *NetworkNamespace
+	value, found := nr.networkNamespaces.Get(nsID)
+	if !found {
 		var err error
 		netns, err = NewNetworkNamespaceWithTID(nsID, tid)
 		if err != nil {
 			// we'll get this namespace another time, ignore
 			return nil, false
 		}
-		nr.networkNamespaces[nsID] = netns
+		nr.networkNamespaces.Add(nsID, netns)
 	} else {
+		netns = value.(*NetworkNamespace)
 		if netns.hasValidHandle() {
 			// we already have a handle for this network namespace, ignore
 			return netns, false
@@ -269,7 +281,11 @@ func (nr *NamespaceResolver) ResolveNetworkNamespace(nsID uint32) *NetworkNamesp
 	nr.RLock()
 	defer nr.RUnlock()
 
-	return nr.networkNamespaces[nsID]
+	if ns, found := nr.networkNamespaces.Get(nsID); found {
+		return ns.(*NetworkNamespace)
+	}
+
+	return nil
 }
 
 // snapshotNetworkDevicesWithHandle snapshots the network devices of the provided network namespace. This function returns the
@@ -360,10 +376,13 @@ func (nr *NamespaceResolver) QueueNetworkDevice(device model.NetDevice) {
 	nr.Lock()
 	defer nr.Unlock()
 
-	netns := nr.networkNamespaces[device.NetNS]
-	if netns == nil {
+	var netns *NetworkNamespace
+	value, found := nr.networkNamespaces.Get(device.NetNS)
+	if !found {
 		netns = NewNetworkNamespace(device.NetNS)
-		nr.networkNamespaces[device.NetNS] = netns
+		nr.networkNamespaces.Add(device.NetNS, netns)
+	} else {
+		netns = value.(*NetworkNamespace)
 	}
 
 	netns.queueNetworkDevice(device)
@@ -422,7 +441,7 @@ func (nr *NamespaceResolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	netns.close()
 
 	// delete map entry
-	delete(nr.networkNamespaces, netns.nsID)
+	nr.networkNamespaces.Remove(netns.nsID)
 
 	// remove all references to this network namespace from the manager
 	_ = nr.probe.manager.CleanupNetworkNamespace(netns.nsID)
@@ -437,7 +456,9 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 	timeout := now.Add(lonelyTimeout)
 
 	// compute the list of network namespaces without any probe
-	for _, netns := range nr.networkNamespaces {
+	for nsID := range nr.networkNamespaces.Keys() {
+		value, _ := nr.networkNamespaces.Peek(nsID)
+		netns := value.(*NetworkNamespace)
 
 		netns.Lock()
 		netnsCount := probesCount[netns.nsID]
@@ -471,7 +492,7 @@ func (nr *NamespaceResolver) SendStats() error {
 	nr.RLock()
 	defer nr.RUnlock()
 
-	networkNamespacesCount := float64(len(nr.networkNamespaces))
+	networkNamespacesCount := float64(nr.networkNamespaces.Len())
 	if networkNamespacesCount > 0 {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverNetNSHandle, networkNamespacesCount, []string{}, 1.0)
 	}
@@ -479,7 +500,10 @@ func (nr *NamespaceResolver) SendStats() error {
 	var queuedNetworkDevicesCount float64
 	var lonelyNetworkNamespacesCount float64
 
-	for _, netns := range nr.networkNamespaces {
+	for nsID := range nr.networkNamespaces.Keys() {
+		value, _ := nr.networkNamespaces.Peek(nsID)
+		netns := value.(*NetworkNamespace)
+
 		if count := len(netns.networkDevicesQueue); count > 0 {
 			queuedNetworkDevicesCount += float64(count)
 		}
@@ -536,7 +560,10 @@ func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []Netw
 	var err error
 
 	// iterate over the list of network namespaces
-	for _, netns := range nr.networkNamespaces {
+	for nsID := range nr.networkNamespaces.Keys() {
+		value, _ := nr.networkNamespaces.Peek(nsID)
+		netns := value.(*NetworkNamespace)
+
 		netns.Lock()
 
 		netnsDump := NetworkNamespaceDump{
