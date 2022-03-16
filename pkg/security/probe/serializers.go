@@ -253,6 +253,7 @@ type SignalEventSerializer struct {
 }
 
 // NetworkDeviceSerializer serializes the network device context to JSON
+// easyjson:json
 type NetworkDeviceSerializer struct {
 	NetNS   uint32 `json:"netns" jsonschema_description:"netns is the interface ifindex"`
 	IfIndex uint32 `json:"ifindex" jsonschema_description:"ifindex is the network interface ifindex"`
@@ -260,12 +261,14 @@ type NetworkDeviceSerializer struct {
 }
 
 // IPPortSerializer is used to serialize an IP and Port context to JSON
+// easyjson:json
 type IPPortSerializer struct {
 	IP   string `json:"ip" jsonschema_description:"IP address"`
 	Port uint16 `json:"port" jsonschema_description:"Port number"`
 }
 
 // NetworkContextSerializer serializes the network context to JSON
+// easyjson:json
 type NetworkContextSerializer struct {
 	Device *NetworkDeviceSerializer `json:"device,omitempty" jsonschema_description:"device is the network device on which the event was captured"`
 
@@ -277,6 +280,7 @@ type NetworkContextSerializer struct {
 }
 
 // DNSQuestionSerializer serializes a DNS question to JSON
+// easyjson:json
 type DNSQuestionSerializer struct {
 	Class string `json:"class" jsonschema_description:"class is the class looked up by the DNS question"`
 	Type  string `json:"type" jsonschema_description:"type is a two octet code which specifies the DNS question type"`
@@ -286,6 +290,7 @@ type DNSQuestionSerializer struct {
 }
 
 // DNSEventSerializer serializes a dns event to JSON
+// easyjson:json
 type DNSEventSerializer struct {
 	ID       uint16                 `json:"id" jsonschema_description:"id is the unique identifier of the DNS request"`
 	Question *DNSQuestionSerializer `json:"question,omitempty" jsonschema_description:"question is a DNS question for the DNS request"`

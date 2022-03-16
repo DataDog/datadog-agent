@@ -50,6 +50,9 @@ CWS logs have the following JSON schema:
         "dns": {
             "$ref": "#/definitions/DNSEvent"
         },
+        "network": {
+            "$ref": "#/definitions/NetworkContext"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -65,9 +68,6 @@ CWS logs have the following JSON schema:
         "date": {
             "type": "string",
             "format": "date-time"
-        },
-        "network": {
-            "$ref": "#/definitions/NetworkContext"
         }
     },
     "additionalProperties": false,
@@ -89,12 +89,12 @@ CWS logs have the following JSON schema:
 | `signal` | $ref | Please see [SignalEvent](#signalevent) |
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
+| `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `date` | string |  |
-| `network` | $ref | Please see [NetworkContext](#networkcontext) |
 
 ## `BPFEvent`
 

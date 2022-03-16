@@ -45,6 +45,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/DNSEvent"
     },
+    "network": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/NetworkContext"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -62,10 +66,6 @@
     "date": {
       "type": "string",
       "format": "date-time"
-    },
-    "network": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/NetworkContext"
     }
   },
   "additionalProperties": false,
