@@ -10,4 +10,4 @@ upgrade:
   - |
     APM Breaking change: The `default head based sampling mechanism <https://docs.datadoghq.com/tracing/trace_ingestion/mechanisms?tab=environmentvariables#head-based-default-mechanism>`_
     settings `apm_config.max_traces_per_second` or `DD_APM_MAX_TPS`, when set to 0, will be sending 
-    0% of traces to Datadog, instead of 100% in previous agent versions. 
+    0% of traces to Datadog, instead of 100% in previous Agent versions. 
