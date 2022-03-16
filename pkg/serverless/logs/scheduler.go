@@ -50,6 +50,7 @@ func UpdateLogsTags(tags []string) {
 		// NOTE(dustin): this is unsafe and susceptible to "write tearing", if
 		// the logs agent happens to be reading from this value at the same
 		// time as we write to it.
+		// test
 		chanSource.Config.Tags = tags
 	}
 }
