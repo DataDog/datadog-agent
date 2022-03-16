@@ -32,18 +32,11 @@ func TestScheduler(t *testing.T) {
 	assert.Equal(t, config.StringChannelType, source.Config.Type)
 	assert.Equal(t, "testy", source.Config.Source)
 	assert.Nil(t, source.Config.Tags)
+	assert.Nil(t, source.Config.ChannelTags)
 
 	s.SetLogsTags([]string{"foo"})
 
-	require.Equal(t, len(spy.Events), 3)
-	require.False(t, spy.Events[1].Add)
-	source = spy.Events[1].Source
+	require.Equal(t, len(spy.Events), 1) // no change
 	assert.Nil(t, source.Config.Tags)
-
-	require.True(t, spy.Events[2].Add)
-	source = spy.Events[2].Source
-	assert.Equal(t, "test source", source.Name)
-	assert.Equal(t, config.StringChannelType, source.Config.Type)
-	assert.Equal(t, "testy", source.Config.Source)
-	assert.Equal(t, []string{"foo"}, source.Config.Tags)
+	assert.Equal(t, []string{"foo"}, source.Config.ChannelTags)
 }

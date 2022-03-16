@@ -11,7 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// Launcher starts a channel reader on the given channel of string.
+// Launcher reacts to sources with Config.Type = Channel, by creating a tailer
+// reading from that channel.
+//
+// WARNING: removing a source does not stop the corresponding tailer.
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *config.LogSource

@@ -66,10 +66,10 @@ func (s *Scheduler) setSource() {
 	}
 
 	s.logSource = config.NewLogSource(s.sourceName, &config.LogsConfig{
-		Type:    config.StringChannelType,
-		Source:  s.source,
-		Tags:    s.extraTags,
-		Channel: s.logsChan,
+		Type:        config.StringChannelType,
+		Source:      s.source,
+		ChannelTags: s.extraTags,
+		Channel:     s.logsChan,
 	})
 	s.sourceMgr.AddSource(s.logSource)
 }
@@ -82,6 +82,7 @@ func (s *Scheduler) Stop() {}
 // This method retains the given tags slice, which must not be modified after this
 // call.
 func (s *Scheduler) SetLogsTags(tags []string) {
-	s.extraTags = tags
-	s.setSource()
+	s.logSource.Config.ChannelTagsMutex.Lock()
+	defer s.logSource.Config.ChannelTagsMutex.Unlock()
+	s.logSource.Config.ChannelTags = tags
 }

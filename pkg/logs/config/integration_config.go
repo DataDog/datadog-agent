@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -61,6 +62,13 @@ type LogsConfig struct {
 	// used as input only by the Channel tailer.
 	// could have been unidirectional but the tailer could not close it in this case.
 	Channel chan *ChannelMessage
+
+	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
+	// modified at runtime (as long as ChannelTagsMutex is held).
+	ChannelTags []string
+
+	// ChannelTagsMutex guards ChannelTags.
+	ChannelTagsMutex sync.Mutex
 
 	Service         string
 	Source          string
