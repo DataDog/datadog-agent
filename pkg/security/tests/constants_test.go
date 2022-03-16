@@ -38,7 +38,7 @@ func TestFallbackConstants(t *testing.T) {
 	fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 	rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-	compareFetchers(t, fallbackFetcher, rcFetcher, kv)
+	compareFetchers(t, rcFetcher, fallbackFetcher, kv)
 }
 
 func TestBTFHubConstants(t *testing.T) {
@@ -64,7 +64,7 @@ func TestBTFHubConstants(t *testing.T) {
 
 	rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-	compareFetchers(t, btfhubFetcher, rcFetcher, kv)
+	compareFetchers(t, rcFetcher, btfhubFetcher, kv)
 }
 
 func compareFetchers(t *testing.T, a, b constantfetch.ConstantFetcher, kv *kernel.Version) {

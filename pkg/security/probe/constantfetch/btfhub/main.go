@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -40,9 +41,15 @@ func main() {
 	if err := filepath.WalkDir(archiveRootPath, twCollector.treeWalkerBuilder(archiveRootPath)); err != nil {
 		panic(err)
 	}
-	fmt.Println(len(twCollector.infos))
+	fmt.Printf("%d kernels\n", len(twCollector.kernels))
+	fmt.Printf("%d unique constants\n", len(twCollector.constants))
 
-	output, err := json.MarshalIndent(twCollector.infos, "", "\t")
+	export := constantfetch.BTFHubConstants{
+		Constants: twCollector.constants,
+		Kernels:   twCollector.kernels,
+	}
+
+	output, err := json.MarshalIndent(export, "", "\t")
 	if err != nil {
 		panic(err)
 	}
@@ -53,17 +60,42 @@ func main() {
 }
 
 type treeWalkCollector struct {
-	infos    []constantfetch.BTFHubConstantsInfo
-	counter  int
-	sampling int
+	constants []map[string]uint64
+	kernels   []constantfetch.BTFHubKernel
+	counter   int
+	sampling  int
 }
 
 func newTreeWalkCollector(sampling int) *treeWalkCollector {
 	return &treeWalkCollector{
-		infos:    make([]constantfetch.BTFHubConstantsInfo, 0),
-		counter:  0,
-		sampling: sampling,
+		constants: make([]map[string]uint64, 0),
+		kernels:   make([]constantfetch.BTFHubKernel, 0),
+		counter:   0,
+		sampling:  sampling,
 	}
+}
+
+func (c *treeWalkCollector) appendConstants(distrib, version, arch, unameRelease string, constants map[string]uint64) {
+	index := -1
+	for i, other := range c.constants {
+		if reflect.DeepEqual(other, constants) {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		index = len(c.constants)
+		c.constants = append(c.constants, constants)
+	}
+
+	c.kernels = append(c.kernels, constantfetch.BTFHubKernel{
+		Distribution:   distrib,
+		DistribVersion: version,
+		Arch:           arch,
+		UnameRelease:   unameRelease,
+		ConstantsIndex: index,
+	})
 }
 
 func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
@@ -99,24 +131,17 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 
 		fmt.Println(path)
 
-		constants, err := extractConstantsFromBTF(path)
+		constants, err := extractConstantsFromBTF(path, distribution, distribVersion)
 		if err != nil {
 			return err
 		}
 
-		c.infos = append(c.infos, constantfetch.BTFHubConstantsInfo{
-			Distribution:   distribution,
-			DistribVersion: distribVersion,
-			Arch:           arch,
-			UnameRelease:   unameRelease,
-			Constants:      constants,
-		})
-
-		return err
+		c.appendConstants(distribution, distribVersion, arch, unameRelease, constants)
+		return nil
 	}
 }
 
-func extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
+func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (map[string]uint64, error) {
 	tmpDir, err := os.MkdirTemp("", "extract-dir")
 	if err != nil {
 		return nil, err
@@ -137,8 +162,14 @@ func extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	osRelease := map[string]string{
+		"ID":         distribution,
+		"VERSION_ID": distribVersion,
+	}
 	kv := &kernel.Version{
-		Code: kvCode,
+		Code:      kvCode,
+		OsRelease: osRelease,
 	}
 
 	fetcher := newConstantCollector(btfPath)
@@ -241,7 +272,7 @@ func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
 			constants[r.id] = value
 		} else {
 			value := pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
-				if strings.Contains(line, r.fieldName+";") || strings.Contains(line, r.fieldName+"[") {
+				if strings.Contains(line, " "+r.fieldName+";") || strings.Contains(line, " "+r.fieldName+"[") {
 					if matches := offsetRe.FindStringSubmatch(line); len(matches) != 0 {
 						size, err := strconv.ParseUint(matches[1], 10, 64)
 						if err != nil {

@@ -21,9 +21,10 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
 	if err != nil {
-		log.Errorf("failed to create btfhub constant fetcher: %w", err)
+		log.Errorf("failed to create btfhub constant fetcher: %v", err)
+	} else {
+		fetchers = append(fetchers, btfhubFetcher)
 	}
-	fetchers = append(fetchers, btfhubFetcher)
 
 	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)
 	fetchers = append(fetchers, fallbackConstantFetcher)

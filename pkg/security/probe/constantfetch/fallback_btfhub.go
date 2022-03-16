@@ -52,14 +52,14 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 		return nil, errors.New("failed to collect current kernel infos")
 	}
 
-	var constantsInfos []BTFHubConstantsInfo
+	var constantsInfos BTFHubConstants
 	if err := json.Unmarshal(btfhubConstants, &constantsInfos); err != nil {
 		return nil, err
 	}
 
-	for _, ci := range constantsInfos {
-		if ci.Distribution == currentKernelInfos.distribution && ci.DistribVersion == currentKernelInfos.distribVersion && ci.Arch == currentKernelInfos.arch && ci.UnameRelease == currentKernelInfos.unameRelease {
-			fetcher.inStore = ci.Constants
+	for _, kernel := range constantsInfos.Kernels {
+		if kernel.Distribution == currentKernelInfos.distribution && kernel.DistribVersion == currentKernelInfos.distribVersion && kernel.Arch == currentKernelInfos.arch && kernel.UnameRelease == currentKernelInfos.unameRelease {
+			fetcher.inStore = constantsInfos.Constants[kernel.ConstantsIndex]
 			break
 		}
 	}
@@ -131,12 +131,19 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
 	}, true
 }
 
-// BTFHubConstantsInfo represents all the information required for identifying
+// BTFHubConstants represents all the information required for identifying
 // a unique btf file from BTFHub
-type BTFHubConstantsInfo struct {
-	Distribution   string            `json:"distrib"`
-	DistribVersion string            `json:"version"`
-	Arch           string            `json:"arch"`
-	UnameRelease   string            `json:"uname_release"`
-	Constants      map[string]uint64 `json:"constants"`
+type BTFHubConstants struct {
+	Constants []map[string]uint64 `json:"constants"`
+	Kernels   []BTFHubKernel      `json:"kernels"`
+}
+
+// BTFHubKernel represents all the information required for identifying
+// a unique btf file from BTFHub
+type BTFHubKernel struct {
+	Distribution   string `json:"distrib"`
+	DistribVersion string `json:"version"`
+	Arch           string `json:"arch"`
+	UnameRelease   string `json:"uname_release"`
+	ConstantsIndex int    `json:"cindex"`
 }
