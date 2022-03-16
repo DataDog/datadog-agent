@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/rapdev-io/datadog-secret-backend/secret"
+	"github.com/rs/zerolog/log"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rapdev-io/datadog-secret-backend/secret"
 )
 
 type FileYamlBackendConfig struct {
@@ -28,21 +28,24 @@ func NewFileYamlBackend(backendId string, bc map[string]interface{}) (
 	backendConfig := FileYamlBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.WithError(err).Error("failed to map backend configuration")
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
 	content, err := ioutil.ReadFile(backendConfig.FilePath)
 	if err != nil {
-		log.WithField("file_path", backendConfig.FilePath).
-			WithError(err).Error("failed to read yaml secret file")
+		log.Error().Err(err).Str("backend_id", backendId).
+			Str("file_path", backendConfig.FilePath).
+			Msg("failed to read yaml secret file")
 		return nil, err
 	}
 
 	secretValue := make(map[string]string, 0)
 	if err := yaml.Unmarshal(content, secretValue); err != nil {
-		log.WithField("file_path", backendConfig.FilePath).
-			WithError(err).Error("failed to unmarshal yaml secret")
+		log.Error().Err(err).Str("backend_id", backendId).
+			Str("file_path", backendConfig.FilePath).
+			Msg("failed to unmarshal yaml secret")
 		return nil, err
 	}
 
@@ -60,11 +63,11 @@ func (b *FileYamlBackend) GetSecretOutput(secretKey string) secret.SecretOutput 
 	}
 	es := errors.New("backend does not provide secret key").Error()
 
-	log.WithFields(log.Fields{
-		"backend_id":   b.BackendId,
-		"backend_type": b.Config.BackendType,
-		"file_path":    b.Config.FilePath,
-		"secret_key":   secretKey,
-	}).Error("backend does not provide secret key")
+	log.Error().
+		Str("backend_id", b.BackendId).
+		Str("backend_type", b.Config.BackendType).
+		Str("file_path", b.Config.FilePath).
+		Str("secret_key", secretKey).
+		Msg("backend does not provide secret key")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }
