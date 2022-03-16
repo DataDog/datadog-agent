@@ -202,19 +202,22 @@ func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
 	scanner := bufio.NewScanner(strings.NewReader(output))
 
 	var currentTypeName string
-	var currentTypeContent string
+	var currentTypeContent strings.Builder
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "struct ") || strings.HasPrefix(line, "enum ") {
 			currentTypeName = getActualTypeName(strings.TrimSuffix(line, " {"))
-			currentTypeContent = line + "\n"
+			currentTypeContent.WriteString(line)
+			currentTypeContent.WriteRune('\n')
 		} else if strings.HasPrefix(line, "};") {
-			perStruct[currentTypeName] = currentTypeContent + "};"
-			currentTypeContent = ""
+			currentTypeContent.WriteString("};")
+			perStruct[currentTypeName] = currentTypeContent.String()
+			currentTypeContent.Reset()
 			currentTypeName = ""
 		} else {
-			currentTypeContent += line + "\n"
+			currentTypeContent.WriteString(line)
+			currentTypeContent.WriteRune('\n')
 		}
 	}
 
