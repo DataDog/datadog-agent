@@ -98,7 +98,7 @@ Each of the following examples will access the secret from the Datadog Agent con
 api_key: "ENC[MySecretBackend:apikey]" 
 ```
 
-**Azure Service Principal**
+**Azure Service Principal With Client Credentials**
 
 ```yaml
 # /opt/datadog-secret-backend/datadog-secret-backend.yaml
@@ -112,4 +112,49 @@ backends:
       azure_tenant_id: abcdef-*****
       azure_client_id: 123456-*****
       azure_client_secret: ************
+```
+
+**Azure Service Principal With Client Certificate Without Password Protection**
+
+```yaml
+# /opt/datadog-secret-backend/datadog-secret-backend.yaml
+---
+backends:
+  MySecretBackend:
+    backend_type: azure.keyvault
+    secret_id: apikey
+    keyvaulturl: https://mykeyvault.vault.azure.net
+    azure_session:
+      azure_tenant_id: abcdef-*****
+      azure_client_id: 123456-*****
+      azure_certificate_path: /path/to/cert.pfx
+```
+
+**Azure Service Principal With Client Certificate With Password Protection**
+
+```yaml
+# /opt/datadog-secret-backend/datadog-secret-backend.yaml
+---
+backends:
+  MySecretBackend:
+    backend_type: azure.keyvault
+    secret_id: apikey
+    keyvaulturl: https://mykeyvault.vault.azure.net
+    azure_session:
+      azure_tenant_id: abcdef-*****
+      azure_client_id: 123456-*****
+      azure_certificate_path: /path/to/cert.pfx
+      azure_certificate_password: mycertificatepassword
+```
+
+**Azure Managed Identity**
+
+```yaml
+# /opt/datadog-secret-backend/datadog-secret-backend.yaml
+---
+backends:
+  MySecretBackend:
+    backend_type: azure.keyvault
+    secret_id: apikey
+    keyvaulturl: https://mykeyvault.vault.azure.net
 ```
