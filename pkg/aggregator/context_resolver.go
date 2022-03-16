@@ -134,6 +134,10 @@ func (cr *timestampContextResolver) length() int {
 	return cr.resolver.length()
 }
 
+func (cr *timestampContextResolver) countsByMtype() []uint64 {
+	return cr.resolver.countsByMtype
+}
+
 func (cr *timestampContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	return cr.resolver.get(key)
 }

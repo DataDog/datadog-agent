@@ -217,8 +217,17 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink) metrics
 	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
 	s.lastCutOffTime = cutoffTime
 
-	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.length()))
-	tlmDogstatsdContexts.Set(float64(s.contextResolver.length()))
+	totalContexts := s.contextResolver.length()
+	aggregatorDogstatsdContexts.Set(int64(totalContexts))
+	tlmDogstatsdContexts.Set(float64(totalContexts))
+
+	byMtype := s.contextResolver.countsByMtype()
+	for i, count := range byMtype {
+		mtype := metrics.MetricType(i).String()
+		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
+		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
+	}
+
 	return sketches
 }
 
