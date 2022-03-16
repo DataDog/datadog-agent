@@ -2,7 +2,9 @@
 
 on: 
   release:
-    types: [created, published]
+    types:
+      - created
+      - published
 
 jobs:
   releases-matrix:
