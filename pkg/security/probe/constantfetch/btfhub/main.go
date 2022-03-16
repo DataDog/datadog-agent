@@ -258,8 +258,9 @@ func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
 	constants := make(map[string]uint64)
 
 	for _, r := range cc.requests {
+		var value uint64
 		if r.sizeof {
-			value := pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
+			value = pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
 				if matches := sizeRe.FindStringSubmatch(line); len(matches) != 0 {
 					size, err := strconv.ParseUint(matches[1], 10, 64)
 					if err != nil {
@@ -269,9 +270,8 @@ func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
 				}
 				return 0, false
 			})
-			constants[r.id] = value
 		} else {
-			value := pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
+			value = pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
 				if strings.Contains(line, " "+r.fieldName+";") || strings.Contains(line, " "+r.fieldName+"[") {
 					if matches := offsetRe.FindStringSubmatch(line); len(matches) != 0 {
 						size, err := strconv.ParseUint(matches[1], 10, 64)
@@ -283,6 +283,9 @@ func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
 				}
 				return 0, false
 			})
+		}
+
+		if value != constantfetch.ErrorSentinel {
 			constants[r.id] = value
 		}
 	}
