@@ -72,7 +72,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 	mSample3 := metrics.MetricSample{ // same as mSample2, with different Host
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      metrics.GaugeType,
+		Mtype:      metrics.CountType,
 		Tags:       []string{"foo", "bar", "baz"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
@@ -94,6 +94,10 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 
 	context3 := contextResolver.contextsByKey[contextKey3]
 	assertContext(t, context3, mSample3.Name, mSample3.Tags, mSample3.Host)
+
+	assert.Equal(t, uint64(2), contextResolver.countsByMtype[metrics.GaugeType])
+	assert.Equal(t, uint64(1), contextResolver.countsByMtype[metrics.CountType])
+	assert.Equal(t, uint64(0), contextResolver.countsByMtype[metrics.RateType])
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 	_, ok := contextResolver.contextsByKey[unknownContextKey]
