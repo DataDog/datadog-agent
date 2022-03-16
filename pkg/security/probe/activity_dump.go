@@ -313,6 +313,9 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 		return false
 	}
 
+	// resolve fields
+	event.ResolveFields()
+
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
 	atomic.AddUint64(ad.processedCount[event.GetEventType()], 1)
