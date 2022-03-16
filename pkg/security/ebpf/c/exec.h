@@ -390,6 +390,11 @@ int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
     u32 root_nr = bpf_get_current_pid_tgid();
     u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
 
+    // no namespace
+    if (!namespace_nr || root_nr == namespace_nr) {
+      return 0;
+    }
+
     register_nr(root_nr, namespace_nr);
     return 0;
 }
