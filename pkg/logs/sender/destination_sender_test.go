@@ -102,7 +102,7 @@ func TestDestinationSenderDeadlock(t *testing.T) {
 		for range dest.input {
 		}
 	}()
-	
+
 	syn := make(chan struct{})
 	wg := sync.WaitGroup{}
 	wg.Add(2)
