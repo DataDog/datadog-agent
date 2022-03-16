@@ -76,6 +76,10 @@ backends:
       azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
       azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
       azure_certificate_path: "/path/to/certificate.pem"
+<<<<<<< HEAD
+=======
+```
+>>>>>>> f09380c13840213a2c439df4653663ffcd603afc
 
 ### Azure Managed Identity
 ```yaml
