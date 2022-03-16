@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
@@ -239,10 +238,7 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		seclog.Tracef("Dispatching event %s\n", prettyEvent)
-	}
+	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
 
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
@@ -254,10 +250,7 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		seclog.Tracef("Dispatching custom event %s\n", prettyEvent)
-	}
+	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
 	if p.handler != nil && p.config.AgentMonitoringEvents {
 		p.handler.HandleCustomEvent(rule, event)
