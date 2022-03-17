@@ -36,6 +36,10 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  kernel_module 'veth' do
+    action :load
+  end
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update

@@ -37,6 +37,10 @@ func TestNetDevice(t *testing.T) {
 		t.Skip()
 	}
 
+	if err := loadModule("veth"); err != nil {
+		t.Fatal(err)
+	}
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
