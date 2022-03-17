@@ -135,7 +135,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
 
 	// Invoke the Agent
-	fixDeprecatedFlags()
+	fixDeprecatedFlags(os.Args, os.Stdout)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(-1)
 	}

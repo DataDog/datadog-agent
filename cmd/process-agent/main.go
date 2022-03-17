@@ -36,7 +36,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&opts.check, "check", "",
 		"Run a specific check and print the results. Choose from: process, connections, realtime, process_discovery")
 
-	fixDeprecatedFlags()
+	fixDeprecatedFlags(os.Args, os.Stdout)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(-1)
 	}
