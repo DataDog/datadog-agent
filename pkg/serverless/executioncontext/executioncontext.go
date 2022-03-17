@@ -26,8 +26,8 @@ type ExecutionContext struct {
 	startTime          time.Time
 }
 
-// ExecutionContextState represents the state of the execution context at a point in time
-type ExecutionContextState struct {
+// State represents the state of the execution context at a point in time
+type State struct {
 	ARN                string
 	LastRequestID      string
 	ColdstartRequestID string
@@ -37,10 +37,10 @@ type ExecutionContextState struct {
 }
 
 // GetCurrentState gets the current state of the execution context
-func (ec *ExecutionContext) GetCurrentState() ExecutionContextState {
+func (ec *ExecutionContext) GetCurrentState() State {
 	ec.m.Lock()
 	defer ec.m.Unlock()
-	return ExecutionContextState{
+	return State{
 		ARN:                ec.arn,
 		LastRequestID:      ec.lastRequestID,
 		ColdstartRequestID: ec.coldstartRequestID,
@@ -94,7 +94,7 @@ func (ec *ExecutionContext) RestoreCurrentStateFromFile() error {
 	if err != nil {
 		return err
 	}
-	var restoredExecutionContextState ExecutionContextState
+	var restoredExecutionContextState State
 	err = json.Unmarshal(file, &restoredExecutionContextState)
 	if err != nil {
 		return err

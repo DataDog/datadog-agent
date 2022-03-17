@@ -195,7 +195,7 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 }
 
 // shouldProcessLog returns whether or not the log should be further processed.
-func shouldProcessLog(ecs *executioncontext.ExecutionContextState, message logMessage) bool {
+func shouldProcessLog(ecs *executioncontext.State, message logMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
 	if len(ecs.ARN) == 0 || len(ecs.LastRequestID) == 0 {
 		return false

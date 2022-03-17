@@ -58,20 +58,20 @@ func TestShouldProcessLog(t *testing.T) {
 	nonEmptyRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	emptyRequestID := ""
 
-	assert.True(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.True(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
 
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
 
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
 }
 
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {

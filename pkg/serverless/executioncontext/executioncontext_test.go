@@ -44,14 +44,14 @@ func TestSetFromInvocationWarmStart(t *testing.T) {
 	assert := assert.New(t)
 
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
-	testRequestId := "8286a188-ba32-4475-8077-530cd35c09a9"
+	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 
 	ec := ExecutionContext{}
 	ec.SetFromInvocation(testArn, "coldstart-request-id")
-	ec.SetFromInvocation(testArn, testRequestId)
+	ec.SetFromInvocation(testArn, testRequestID)
 
 	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
-	assert.Equal(testRequestId, ec.lastRequestID)
+	assert.Equal(testRequestID, ec.lastRequestID)
 	assert.Equal(false, ec.coldstart)
 }
 
@@ -59,11 +59,11 @@ func TestUpdateFromStartLog(t *testing.T) {
 	assert := assert.New(t)
 
 	startTime := time.Now()
-	testRequestId := "8286a188-ba32-4475-8077-530cd35c09a9"
+	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	ec := ExecutionContext{}
-	ec.UpdateFromStartLog(testRequestId, startTime)
+	ec.UpdateFromStartLog(testRequestID, startTime)
 
-	assert.Equal(testRequestId, ec.lastLogRequestID)
+	assert.Equal(testRequestID, ec.lastLogRequestID)
 	assert.Equal(startTime, ec.startTime)
 }
 
@@ -71,11 +71,11 @@ func TestSaveAndRestoreFromFile(t *testing.T) {
 	assert := assert.New(t)
 
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:my-super-function"
-	testRequestId := "8286a188-ba32-4475-8077-530cd35c09a9"
+	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	startTime := time.Now()
 	ec := ExecutionContext{}
-	ec.SetFromInvocation(testArn, testRequestId)
-	ec.UpdateFromStartLog(testRequestId, startTime)
+	ec.SetFromInvocation(testArn, testRequestID)
+	ec.UpdateFromStartLog(testRequestID, startTime)
 
 	err := ec.SaveCurrentExecutionContext()
 	assert.Nil(err)
@@ -85,6 +85,6 @@ func TestSaveAndRestoreFromFile(t *testing.T) {
 	err = ec.RestoreCurrentStateFromFile()
 	assert.Nil(err)
 
-	assert.Equal(testRequestId, ec.lastRequestID)
+	assert.Equal(testRequestID, ec.lastRequestID)
 	assert.Equal(testArn, ec.arn)
 }
