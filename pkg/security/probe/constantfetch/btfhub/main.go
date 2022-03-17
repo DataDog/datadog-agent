@@ -9,13 +9,15 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	cbtf "github.com/paulcacheux/cilium-btf/fork/btf"
+	"github.com/smira/go-xz"
 )
 
 func main() {
@@ -144,20 +147,13 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 }
 
 func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (map[string]uint64, error) {
-	tmpDir, err := os.MkdirTemp("", "extract-dir")
+	btfReader, err := createBTFReaderFromTarball(archivePath)
 	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(tmpDir)
-
-	extractCmd := exec.Command("tar", "xvf", archivePath, "-C", tmpDir)
-	if err := extractCmd.Run(); err != nil {
 		return nil, err
 	}
 
 	archiveFileName := path.Base(archivePath)
 	btfFileName := strings.TrimSuffix(archiveFileName, ".tar.xz")
-	btfPath := path.Join(tmpDir, btfFileName)
 
 	releasePart := strings.Split(btfFileName, "-")[0]
 	kvCode, err := utilKernel.ParseReleaseString(releasePart)
@@ -174,20 +170,58 @@ func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (
 		OsRelease: osRelease,
 	}
 
-	fetcher := newConstantCollector(btfPath)
+	fetcher := newConstantCollector(btfReader)
 
 	return probe.GetOffsetConstantsFromFetcher(fetcher, kv)
 }
 
-type constantCollector struct {
-	btfPath  string
-	requests []constantRequest
+func createBTFReaderFromTarball(archivePath string) (io.ReaderAt, error) {
+	archiveFile, err := os.Open(archivePath)
+	if err != nil {
+		return nil, err
+	}
+
+	xzReader, err := xz.NewReader(archiveFile)
+	if err != nil {
+		return nil, err
+	}
+
+	tarReader := tar.NewReader(xzReader)
+
+	btfBuffer := bytes.NewBuffer([]byte{})
+outer:
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break // End of archive
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read entry from tarball: %w", err)
+		}
+
+		switch hdr.Typeflag {
+		case tar.TypeReg:
+			if strings.HasSuffix(hdr.Name, ".btf") {
+				if _, err := io.Copy(btfBuffer, tarReader); err != nil {
+					return nil, fmt.Errorf("failed to uncompress file %s: %w", hdr.Name, err)
+				}
+				break outer
+			}
+		}
+	}
+
+	return bytes.NewReader(btfBuffer.Bytes()), nil
 }
 
-func newConstantCollector(btfPath string) *constantCollector {
+type constantCollector struct {
+	btfReader io.ReaderAt
+	requests  []constantRequest
+}
+
+func newConstantCollector(btfReader io.ReaderAt) *constantCollector {
 	return &constantCollector{
-		btfPath:  btfPath,
-		requests: make([]constantRequest, 0),
+		btfReader: btfReader,
+		requests:  make([]constantRequest, 0),
 	}
 }
 
@@ -215,7 +249,7 @@ func (cc *constantCollector) AppendOffsetofRequest(id, typeName, fieldName, head
 }
 
 func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
-	return extractWithCiliumBTF(cc.btfPath, cc.requests)
+	return extractWithCiliumBTF(cc.btfReader, cc.requests)
 }
 
 func getActualTypeName(tn string) string {
@@ -226,13 +260,8 @@ func getActualTypeName(tn string) string {
 	return tn
 }
 
-func extractWithCiliumBTF(btfPath string, requests []constantRequest) (map[string]uint64, error) {
-	btfFile, err := os.Open(btfPath)
-	if err != nil {
-		return nil, err
-	}
-
-	spec, err := cbtf.LoadSpecFromReader(btfFile)
+func extractWithCiliumBTF(btfReader io.ReaderAt, requests []constantRequest) (map[string]uint64, error) {
+	spec, err := cbtf.LoadSpecFromReader(btfReader)
 	if err != nil {
 		return nil, err
 	}
