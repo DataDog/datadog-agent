@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -103,23 +104,39 @@ func init() {
 	rootCmd.AddCommand(configCommand, app.StatusCmd(), app.VersionCmd)
 }
 
+func deprecatedFlagWarning(deprecated, replaceWith string) string {
+	return fmt.Sprintf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `%s` instead.\n", deprecated, replaceWith)
+}
+
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
 // it also displays a warning when a non-posix flag is found
-func fixDeprecatedFlags() {
+func fixDeprecatedFlags(args []string, w io.Writer) {
 	deprecatedFlags := []string{
 		// Global flags
-		"-config", "-ddconfig", "-sysprobe-config", "-pid", "-info", "-version", "-check",
+		"-config", "--config", "-sysprobe-config", "-pid", "-info", "-version", "-check",
 		// Windows flags
 		"-install-service", "-uninstall-service", "-start-service", "-stop-service", "-foreground",
 	}
 
-	for i, arg := range os.Args {
+	replaceFlags := map[string]string{
+		"-config":  "--cfgpath",
+		"--config": "--cfgpath",
+	}
+
+	for i, arg := range args {
 		for _, f := range deprecatedFlags {
 			if !strings.HasPrefix(arg, f) {
 				continue
 			}
-			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", f)
-			os.Args[i] = "-" + os.Args[i]
+			replaceWith := replaceFlags[f]
+			if len(replaceWith) == 0 {
+				replaceWith = "-" + f
+				args[i] = "-" + args[i]
+			} else {
+				args[i] = strings.Replace(args[i], f, replaceWith, 1)
+			}
+
+			fmt.Fprint(w, deprecatedFlagWarning(f, replaceWith))
 		}
 	}
 }

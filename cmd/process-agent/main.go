@@ -24,9 +24,7 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 }
 
 func main() {
-	ignore := ""
-	rootCmd.PersistentFlags().StringVar(&opts.configPath, "config", flags.DefaultConfPath, "Path to datadog.yaml config")
-	rootCmd.PersistentFlags().StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, "cfgpath", flags.DefaultConfPath, "Path to datadog.yaml config")
 
 	if flags.DefaultSysProbeConfPath != "" {
 		rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, "sysprobe-config", flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
@@ -38,7 +36,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&opts.check, "check", "",
 		"Run a specific check and print the results. Choose from: process, connections, realtime, process_discovery")
 
-	fixDeprecatedFlags()
+	fixDeprecatedFlags(os.Args, os.Stdout)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(-1)
 	}

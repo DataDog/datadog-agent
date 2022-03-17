@@ -121,10 +121,8 @@ func runService(isDebug bool) {
 
 // main is the main application entry point
 func main() {
-	ignore := ""
-	rootCmd.PersistentFlags().StringVar(&opts.configPath, "config", defaultConfigPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, "cfgpath", defaultConfigPath, "Path to datadog.yaml config")
 	rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, "sysprobe-config", defaultSysProbeConfigPath, "Path to system-probe.yaml config")
-	rootCmd.PersistentFlags().StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
 	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
 	rootCmd.PersistentFlags().BoolVarP(&opts.version, "version", "v", false, "Print the version and exit")
 	rootCmd.PersistentFlags().StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime, process_discovery")
@@ -137,7 +135,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
 
 	// Invoke the Agent
-	fixDeprecatedFlags()
+	fixDeprecatedFlags(os.Args, os.Stdout)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(-1)
 	}
