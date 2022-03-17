@@ -1,0 +1,3 @@
+---
+enhancements:
+  - The flaire now includes output from the `processes` and `container` checks
