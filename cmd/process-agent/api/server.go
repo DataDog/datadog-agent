@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -37,10 +38,13 @@ func StartServer() error {
 		return err
 	}
 	log.Infof("API server listening on %s", addr)
-
+	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
 	srv := &http.Server{
-		Handler: r,
-		Addr:    addr,
+		Handler:      r,
+		Addr:         addr,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+		IdleTimeout:  timeout,
 	}
 
 	go func() {
