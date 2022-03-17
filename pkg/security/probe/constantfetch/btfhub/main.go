@@ -170,7 +170,10 @@ func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (
 		OsRelease: osRelease,
 	}
 
-	fetcher := newConstantCollector(btfReader)
+	fetcher, err := newConstantCollector(btfReader)
+	if err != nil {
+		return nil, err
+	}
 
 	return probe.GetOffsetConstantsFromFetcher(fetcher, kv)
 }
@@ -214,15 +217,21 @@ outer:
 }
 
 type constantCollector struct {
-	btfReader io.ReaderAt
-	requests  []constantRequest
+	spec      *cbtf.Spec
+	constants map[string]uint64
+	err       error
 }
 
-func newConstantCollector(btfReader io.ReaderAt) *constantCollector {
-	return &constantCollector{
-		btfReader: btfReader,
-		requests:  make([]constantRequest, 0),
+func newConstantCollector(btfReader io.ReaderAt) (*constantCollector, error) {
+	spec, err := cbtf.LoadSpecFromReader(btfReader)
+	if err != nil {
+		return nil, err
 	}
+
+	return &constantCollector{
+		spec:      spec,
+		constants: make(map[string]uint64),
+	}, nil
 }
 
 type constantRequest struct {
@@ -231,8 +240,35 @@ type constantRequest struct {
 	typeName, fieldName string
 }
 
+func (cc *constantCollector) runRequest(r constantRequest) {
+	actualTy := getActualTypeName(r.typeName)
+	types, err := cc.spec.AnyTypesByName(actualTy)
+	if err != nil || len(types) == 0 {
+		// if it doesn't exist, we can't do anything
+		return
+	}
+
+	finalValue := constantfetch.ErrorSentinel
+
+	// the spec can contain multiple types for the same name
+	// we check that they all return the same value for the same request
+	for _, ty := range types {
+		value := runRequestOnBTFType(r, ty)
+		if value != constantfetch.ErrorSentinel {
+			if finalValue != constantfetch.ErrorSentinel && finalValue != value {
+				cc.err = errors.New("mismatching values in multiple BTF types")
+			}
+			finalValue = value
+		}
+	}
+
+	if finalValue != constantfetch.ErrorSentinel {
+		cc.constants[r.id] = finalValue
+	}
+}
+
 func (cc *constantCollector) AppendSizeofRequest(id, typeName, headerName string) {
-	cc.requests = append(cc.requests, constantRequest{
+	cc.runRequest(constantRequest{
 		id:       id,
 		sizeof:   true,
 		typeName: getActualTypeName(typeName),
@@ -240,7 +276,7 @@ func (cc *constantCollector) AppendSizeofRequest(id, typeName, headerName string
 }
 
 func (cc *constantCollector) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
-	cc.requests = append(cc.requests, constantRequest{
+	cc.runRequest(constantRequest{
 		id:        id,
 		sizeof:    false,
 		typeName:  getActualTypeName(typeName),
@@ -249,7 +285,10 @@ func (cc *constantCollector) AppendOffsetofRequest(id, typeName, fieldName, head
 }
 
 func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
-	return extractWithCiliumBTF(cc.btfReader, cc.requests)
+	if cc.err != nil {
+		return nil, cc.err
+	}
+	return cc.constants, nil
 }
 
 func getActualTypeName(tn string) string {
@@ -258,37 +297,6 @@ func getActualTypeName(tn string) string {
 		tn = strings.TrimPrefix(tn, prefix+" ")
 	}
 	return tn
-}
-
-func extractWithCiliumBTF(btfReader io.ReaderAt, requests []constantRequest) (map[string]uint64, error) {
-	spec, err := cbtf.LoadSpecFromReader(btfReader)
-	if err != nil {
-		return nil, err
-	}
-
-	constants := make(map[string]uint64)
-
-	for _, r := range requests {
-		actualTy := getActualTypeName(r.typeName)
-		types, err := spec.AnyTypesByName(actualTy)
-		if err != nil {
-			continue
-		}
-
-		// the spec can contain multiple types for the same name
-		// we check that they all return the same value for the same request
-		for _, ty := range types {
-			value := runRequestOnBTFType(r, ty)
-			if value != constantfetch.ErrorSentinel {
-				if previous, ok := constants[r.id]; ok && previous != value {
-					return nil, errors.New("mismatching values in multiple BTF types")
-				}
-				constants[r.id] = value
-			}
-		}
-	}
-
-	return constants, nil
 }
 
 func runRequestOnBTFType(r constantRequest, ty cbtf.Type) uint64 {
