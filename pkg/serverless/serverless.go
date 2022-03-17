@@ -167,8 +167,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			ec := daemon.GetExecutionContext()
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ec.Coldstart)
+			ecs := daemon.ExecutionContext.GetCurrentState()
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 		}
@@ -188,7 +188,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
-		err := daemon.SaveCurrentExecutionContext()
+		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {
 			log.Debug("Unable to save the current state")
 		}
@@ -203,18 +203,18 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
 	daemon.TellDaemonRuntimeStarted()
 	log.Debug("Received invocation event...")
-	daemon.SetExecutionContextFromInvocation(arn, requestID)
+	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
-	ec := daemon.GetExecutionContext()
+	ecs := daemon.ExecutionContext.GetCurrentState()
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ec.Coldstart)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
 	}
 
-	if ec.Coldstart {
+	if ecs.Coldstart {
 		daemon.UpdateStrategy()
 	}
 

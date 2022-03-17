@@ -70,11 +70,11 @@ type EndInvocation struct {
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
 	endTime := time.Now()
-	ec := e.daemon.GetExecutionContext()
+	ecs := e.daemon.ExecutionContext.GetCurrentState()
 	var endDetails = invocationlifecycle.InvocationEndDetails{
 		EndTime:   endTime,
 		IsError:   r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
-		RequestID: ec.LastRequestID,
+		RequestID: ecs.LastRequestID,
 	}
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }

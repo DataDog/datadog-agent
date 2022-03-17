@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -36,10 +36,9 @@ type LambdaLogsCollector struct {
 	ExtraTags              *Tags
 	LogsEnabled            bool
 	EnhancedMetricsEnabled bool
+	ExecutionContext       *executioncontext.ExecutionContext
 	// HandleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
-	HandleRuntimeDone                  func()
-	GetExecutionContext                func() executioncontext.ExecutionContext
-	UpdateExecutionContextFromStartLog func(string, time.Time)
+	HandleRuntimeDone func()
 }
 
 // platformObjectRecord contains additional information found in Platform log messages
@@ -196,9 +195,9 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 }
 
 // shouldProcessLog returns whether or not the log should be further processed.
-func shouldProcessLog(executionContext *executioncontext.ExecutionContext, message logMessage) bool {
+func shouldProcessLog(ecs *executioncontext.ExecutionContextState, message logMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
-	if len(executionContext.ARN) == 0 || len(executionContext.LastRequestID) == 0 {
+	if len(ecs.ARN) == 0 || len(ecs.LastRequestID) == 0 {
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
@@ -259,7 +258,7 @@ func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	for _, message := range messages {
-		processMessage(message, c.GetExecutionContext, c.UpdateExecutionContextFromStartLog, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
+		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
@@ -267,8 +266,8 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 			if message.stringRecord == "" && message.logType != logTypeFunction {
 				continue
 			}
-			ec := c.GetExecutionContext()
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ec.ARN, ec.LastRequestID)
+			ecs := c.ExecutionContext.GetCurrentState()
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, ecs.LastRequestID)
 			c.LogChannel <- logMessage
 		}
 	}
@@ -277,28 +276,27 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 // processMessage performs logic about metrics and tags on the message
 func processMessage(
 	message logMessage,
-	getExecutionContext func() executioncontext.ExecutionContext,
-	updateExecutionContextFromStartLog func(string, time.Time),
+	ec *executioncontext.ExecutionContext,
 	enhancedMetricsEnabled bool,
 	metricTags []string,
 	demux aggregator.Demultiplexer,
 	handleRuntimeDone func(),
 ) {
-	ec := getExecutionContext()
+	ecs := ec.GetCurrentState()
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
-	if !shouldProcessLog(&ec, message) {
+	if !shouldProcessLog(&ecs, message) {
 		return
 	}
 
 	if message.logType == logTypePlatformStart {
 		lastLogRequestID := message.objectRecord.requestID
 		startTime := message.time
-		updateExecutionContextFromStartLog(lastLogRequestID, startTime)
-		ec = getExecutionContext()
+		ec.UpdateFromStartLog(lastLogRequestID, startTime)
+		ecs = ec.GetCurrentState()
 	}
 
 	if enhancedMetricsEnabled {
-		tags := tags.AddColdStartTag(metricTags, ec.LastLogRequestID == ec.ColdstartRequestID)
+		tags := tags.AddColdStartTag(metricTags, ecs.LastLogRequestID == ecs.ColdstartRequestID)
 		if message.logType == logTypeFunction {
 			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, demux)
 		}
@@ -312,7 +310,7 @@ func processMessage(
 				message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(ec.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
+			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
 		}
 	}
 
@@ -323,7 +321,7 @@ func processMessage(
 	// If we receive a runtimeDone log message for the current invocation, we know the runtime is done
 	// If we receive a runtimeDone message for a different invocation, we received the message too late and we ignore it
 	if message.logType == logTypePlatformRuntimeDone {
-		if ec.LastRequestID == message.objectRecord.requestID {
+		if ecs.LastRequestID == message.objectRecord.requestID {
 			log.Debugf("Received a runtimeDone log message for the current invocation %s", message.objectRecord.requestID)
 			handleRuntimeDone()
 		} else {

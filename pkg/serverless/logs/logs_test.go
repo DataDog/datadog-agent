@@ -16,8 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
@@ -60,20 +58,20 @@ func TestShouldProcessLog(t *testing.T) {
 	nonEmptyRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	emptyRequestID := ""
 
-	assert.True(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.True(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
 
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
 
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContextState{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
 }
 
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
@@ -174,21 +172,17 @@ func TestProcessMessageValid(t *testing.T) {
 	metricTags := []string{"functionname:test-function"}
 
 	computeEnhancedMetrics := true
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return executioncontext.ExecutionContext{
-			ARN:           arn,
-			LastRequestID: lastRequestID,
-		}
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {}
-	go processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, len(received), 6)
 	demux.Reset()
 
 	computeEnhancedMetrics = false
-	go processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received = demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, len(received), 0, "we should NOT have received metrics")
@@ -209,16 +203,8 @@ func TestProcessMessageStartValid(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           arn,
-		LastRequestID: lastRequestID,
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(lastRequestID string, time time.Time) {
-		mockExecutionContext.LastLogRequestID = lastRequestID
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
 	computeEnhancedMetrics := true
 
@@ -227,8 +213,9 @@ func TestProcessMessageStartValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
-	assert.Equal(t, lastRequestID, mockExecutionContext.LastLogRequestID)
+	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	ecs := mockExecutionContext.GetCurrentState()
+	assert.Equal(t, lastRequestID, ecs.LastLogRequestID)
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
@@ -248,28 +235,17 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
-	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	computeEnhancedMetrics := true
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           arn,
-		LastRequestID: lastRequestID,
-		StartTime:     startTime,
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
 	runtimeDoneCallbackWasCalled := false
 	mockRuntimeDone := func() {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
-	assert.Equal(t, startTime, mockExecutionContext.StartTime)
+	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
 	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
 }
 
@@ -293,29 +269,16 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 	lastRequestID := currentRequestID
 	metricTags := []string{"functionname:test-function"}
 
-	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
-	executionContext := &executioncontext.ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
 	computeEnhancedMetrics := true
-
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           arn,
-		LastRequestID: lastRequestID,
-		StartTime:     startTime,
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
 	runtimeDoneCallbackWasCalled := false
 	mockRuntimeDone := func() {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
-	assert.Equal(t, startTime, executionContext.StartTime)
+	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
 	// Runtime done callback should NOT be called if the log message was for a previous invocation
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
@@ -339,19 +302,10 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 	metricTags := []string{"functionname:test-function"}
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           "",
-		LastRequestID: "",
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
 
 	computeEnhancedMetrics := true
-	go processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
@@ -371,18 +325,10 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	metricTags := []string{"functionname:test-function"}
 	computeEnhancedMetrics := true
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           arn,
-		LastRequestID: lastRequestID,
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	go processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
@@ -402,18 +348,10 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	metricTags := []string{"functionname:test-function"}
 	computeEnhancedMetrics := true
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           arn,
-		LastRequestID: lastRequestID,
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	go processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, len(received), 2)
@@ -425,16 +363,8 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           "myARN",
-		LastRequestID: "myRequestID",
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
 
 	logCollection := &LambdaLogsCollector{
 		LogsEnabled: true,
@@ -442,8 +372,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
-		GetExecutionContext:                mockGetExecutionContext,
-		UpdateExecutionContextFromStartLog: mockUpdateExecutionContext,
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -462,7 +391,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 	select {
 	case received := <-logChannel:
 		assert.NotNil(t, received)
-		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
@@ -473,25 +402,15 @@ func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           "myARN",
-		LastRequestID: "myRequestID",
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
-
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
 	logCollection := &LambdaLogsCollector{
 		LogsEnabled: true,
 		LogChannel:  logChannel,
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
-		GetExecutionContext:                mockGetExecutionContext,
-		UpdateExecutionContextFromStartLog: mockUpdateExecutionContext,
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -513,16 +432,8 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           "myARN",
-		LastRequestID: "myRequestID",
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
 
 	logCollection := &LambdaLogsCollector{
 		LogsEnabled: true,
@@ -530,8 +441,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
-		GetExecutionContext:                mockGetExecutionContext,
-		UpdateExecutionContextFromStartLog: mockUpdateExecutionContext,
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -544,7 +454,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 	select {
 	case received := <-logChannel:
 		assert.NotNil(t, received)
-		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
@@ -555,16 +465,8 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           "myARN",
-		LastRequestID: "myRequestID",
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
 
 	logCollection := &LambdaLogsCollector{
 		LogsEnabled: false,
@@ -572,8 +474,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
-		GetExecutionContext:                mockGetExecutionContext,
-		UpdateExecutionContextFromStartLog: mockUpdateExecutionContext,
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -600,16 +501,8 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 func TestServeHTTPInvalidPayload(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           "myARN",
-		LastRequestID: "myRequestID",
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
 
 	logCollection := &LambdaLogsCollector{
 		LogsEnabled: false,
@@ -617,8 +510,7 @@ func TestServeHTTPInvalidPayload(t *testing.T) {
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
-		GetExecutionContext:                mockGetExecutionContext,
-		UpdateExecutionContextFromStartLog: mockUpdateExecutionContext,
+		ExecutionContext: mockExecutionContext,
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -631,16 +523,8 @@ func TestServeHTTPInvalidPayload(t *testing.T) {
 func TestServeHTTPSuccess(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
-	mockExecutionContext := executioncontext.ExecutionContext{
-		ARN:           "myARN",
-		LastRequestID: "myRequestID",
-	}
-	mockGetExecutionContext := func() executioncontext.ExecutionContext {
-		return mockExecutionContext
-	}
-	mockUpdateExecutionContext := func(string, time.Time) {
-		// do nothing
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
 
 	logCollection := &LambdaLogsCollector{
 		LogsEnabled: false,
@@ -648,8 +532,7 @@ func TestServeHTTPSuccess(t *testing.T) {
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
-		GetExecutionContext:                mockGetExecutionContext,
-		UpdateExecutionContextFromStartLog: mockUpdateExecutionContext,
+		ExecutionContext: mockExecutionContext,
 	}
 
 	raw, err := ioutil.ReadFile("./testdata/extension_log.json")

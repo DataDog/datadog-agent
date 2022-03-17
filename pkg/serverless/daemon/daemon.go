@@ -73,10 +73,7 @@ type Daemon struct {
 	ExtraTags *serverlessLog.Tags
 
 	// ExecutionContext stores the context of the current invocation
-	executionContext *executioncontext.ExecutionContext
-
-	// executionContextMutex is used to ensure that modifying ExecutionContext is thread-safe
-	executionContextMutex sync.Mutex
+	ExecutionContext *executioncontext.ExecutionContext
 
 	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout).
 	// We store a pointer to a sync.Once, which should be reset to a new pointer at the beginning of each invocation.
@@ -112,7 +109,7 @@ func StartDaemon(addr string) *Daemon {
 		useAdaptiveFlush:  true,
 		flushStrategy:     &flush.AtTheEnd{},
 		ExtraTags:         &serverlessLog.Tags{},
-		executionContext:  &executioncontext.ExecutionContext{},
+		ExecutionContext:  &executioncontext.ExecutionContext{},
 		metricsFlushMutex: sync.Mutex{},
 		tracesFlushMutex:  sync.Mutex{},
 		logsFlushMutex:    sync.Mutex{},
@@ -169,14 +166,13 @@ func (d *Daemon) GetFlushStrategy() string {
 // SetupLogCollectionHandler configures the log collection route handler
 func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
 	d.mux.Handle(route, &serverlessLog.LambdaLogsCollector{
-		ExtraTags:                          d.ExtraTags,
-		LogChannel:                         logsChan,
-		LogsEnabled:                        logsEnabled,
-		EnhancedMetricsEnabled:             enhancedMetricsEnabled,
-		HandleRuntimeDone:                  d.HandleRuntimeDone,
-		GetExecutionContext:                d.GetExecutionContext,
-		UpdateExecutionContextFromStartLog: d.UpdateExecutionContextFromStartLog,
-		Demux:                              d.MetricAgent.Demux,
+		ExtraTags:              d.ExtraTags,
+		LogChannel:             logsChan,
+		LogsEnabled:            logsEnabled,
+		EnhancedMetricsEnabled: enhancedMetricsEnabled,
+		HandleRuntimeDone:      d.HandleRuntimeDone,
+		Demux:                  d.MetricAgent.Demux,
+		ExecutionContext:       d.ExecutionContext,
 	})
 }
 
@@ -348,8 +344,8 @@ func (d *Daemon) WaitForDaemon() {
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
-		ec := d.GetExecutionContext()
-		tagMap := tags.BuildTagMap(ec.ARN, configTags)
+		ecs := d.ExecutionContext.GetCurrentState()
+		tagMap := tags.BuildTagMap(ecs.ARN, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)
