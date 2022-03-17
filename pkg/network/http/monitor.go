@@ -12,9 +12,7 @@ import (
 	"fmt"
 
 	"sync"
-	"sync/atomic"
 	"time"
-	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -22,6 +20,14 @@ import (
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 )
+
+// HTTPMonitorStats is used for holding two kinds of stats:
+// * requestsStats which are the http data stats
+// * telemetry which are telemetry stats
+type HTTPMonitorStats struct {
+	requestStats map[Key]RequestStats
+	telemetry    telemetry
+}
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -36,7 +42,7 @@ type Monitor struct {
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
 	telemetrySnapshot      *telemetry
-	pollRequests           chan chan map[Key]RequestStats
+	pollRequests           chan chan HTTPMonitorStats
 	statkeeper             *httpStatKeeper
 
 	// termination
@@ -96,7 +102,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
 		telemetrySnapshot:      nil,
-		pollRequests:           make(chan chan map[Key]RequestStats),
+		pollRequests:           make(chan chan HTTPMonitorStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
 	}, nil
@@ -148,12 +154,10 @@ func (m *Monitor) Start() error {
 				// we're extracting via network tracer.
 				delta.report()
 
-				// `statkeeper` stats and telemetry data need to be snapshot'd at the same time for consistency.
-				// However, `pollRequest` only needs to receive the former, so we need to keep the telemetry around
-				// for when `getStats` will be called.
-				atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&m.telemetrySnapshot)), unsafe.Pointer(&delta))
-
-				reply <- m.statkeeper.GetAndResetAllStats()
+				reply <- HTTPMonitorStats{
+					requestStats: m.statkeeper.GetAndResetAllStats(),
+					telemetry:    delta,
+				}
 			case <-report.C:
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
@@ -177,21 +181,31 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 		return nil
 	}
 
-	reply := make(chan map[Key]RequestStats, 1)
+	reply := make(chan HTTPMonitorStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
-	return <-reply
+	stats := <-reply
+	m.telemetrySnapshot = &stats.telemetry
+	return stats.requestStats
 }
 
 func (m *Monitor) GetStats() map[string]int64 {
-	telemPtr := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&m.telemetrySnapshot)))
-	if telemPtr == nil {
+	if m == nil {
 		return map[string]int64{}
 	}
 
-	telem := (*telemetry)(telemPtr)
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if m.stopped {
+		return map[string]int64{}
+	}
+
+	if m.telemetrySnapshot == nil {
+		return map[string]int64{}
+	}
+
 	return map[string]int64{
-		"dropped_stats": telem.dropped,
+		"dropped_stats": m.telemetrySnapshot.dropped,
 	}
 }
 
