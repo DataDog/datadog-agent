@@ -12,7 +12,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -23,7 +22,6 @@ import (
 	"reflect"
 	"strings"
 
-	cbtf "github.com/DataDog/btf-internals/btf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
@@ -170,7 +168,7 @@ func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (
 		OsRelease: osRelease,
 	}
 
-	fetcher, err := newConstantCollector(btfReader)
+	fetcher, err := constantfetch.NewBTFConstantFetcher(btfReader)
 	if err != nil {
 		return nil, err
 	}
@@ -214,106 +212,4 @@ outer:
 	}
 
 	return bytes.NewReader(btfBuffer.Bytes()), nil
-}
-
-type constantCollector struct {
-	spec      *cbtf.Spec
-	constants map[string]uint64
-	err       error
-}
-
-func newConstantCollector(btfReader io.ReaderAt) (*constantCollector, error) {
-	spec, err := cbtf.LoadSpecFromReader(btfReader)
-	if err != nil {
-		return nil, err
-	}
-
-	return &constantCollector{
-		spec:      spec,
-		constants: make(map[string]uint64),
-	}, nil
-}
-
-type constantRequest struct {
-	id                  string
-	sizeof              bool
-	typeName, fieldName string
-}
-
-func (cc *constantCollector) runRequest(r constantRequest) {
-	actualTy := getActualTypeName(r.typeName)
-	types, err := cc.spec.AnyTypesByName(actualTy)
-	if err != nil || len(types) == 0 {
-		// if it doesn't exist, we can't do anything
-		return
-	}
-
-	finalValue := constantfetch.ErrorSentinel
-
-	// the spec can contain multiple types for the same name
-	// we check that they all return the same value for the same request
-	for _, ty := range types {
-		value := runRequestOnBTFType(r, ty)
-		if value != constantfetch.ErrorSentinel {
-			if finalValue != constantfetch.ErrorSentinel && finalValue != value {
-				cc.err = errors.New("mismatching values in multiple BTF types")
-			}
-			finalValue = value
-		}
-	}
-
-	if finalValue != constantfetch.ErrorSentinel {
-		cc.constants[r.id] = finalValue
-	}
-}
-
-func (cc *constantCollector) AppendSizeofRequest(id, typeName, headerName string) {
-	cc.runRequest(constantRequest{
-		id:       id,
-		sizeof:   true,
-		typeName: getActualTypeName(typeName),
-	})
-}
-
-func (cc *constantCollector) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
-	cc.runRequest(constantRequest{
-		id:        id,
-		sizeof:    false,
-		typeName:  getActualTypeName(typeName),
-		fieldName: fieldName,
-	})
-}
-
-func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
-	if cc.err != nil {
-		return nil, cc.err
-	}
-	return cc.constants, nil
-}
-
-func getActualTypeName(tn string) string {
-	prefixes := []string{"struct", "enum"}
-	for _, prefix := range prefixes {
-		tn = strings.TrimPrefix(tn, prefix+" ")
-	}
-	return tn
-}
-
-func runRequestOnBTFType(r constantRequest, ty cbtf.Type) uint64 {
-	sTy, ok := ty.(*cbtf.Struct)
-	if !ok {
-		return constantfetch.ErrorSentinel
-	}
-
-	if r.sizeof {
-		return uint64(sTy.Size)
-	}
-
-	for _, m := range sTy.Members {
-		if m.Name == r.fieldName {
-			return uint64(m.OffsetBits) / 8
-		}
-	}
-
-	return constantfetch.ErrorSentinel
 }
