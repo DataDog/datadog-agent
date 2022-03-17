@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go -doc ../../../../docs/cloud-workload-security/secl.json -fields-resolver ../../probe/fields_resolver.go
 
 package model
 
@@ -285,13 +284,13 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,ResolveProcessArgv0:100"`                                                                                         // First argument of the process
-	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                           // Arguments of the process (as a string)
-	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags" field:"args_options,ResolveProcessArgsOptions"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                            // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variable names of the process
-	Envp          []string `field:"envp,ResolveProcessEnvp:100"`                                                                                           // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
+	Argv0         string   `field:"argv0,ResolveProcessArgv0:100"`                                                                                                                                     // First argument of the process
+	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                                                                       // Arguments of the process (as a string)
+	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags,,cacheless_resolution" field:"args_options,ResolveProcessArgsOptions,,cacheless_resolution"` // Arguments of the process (as an array)
+	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                                                                        // Indicator of arguments truncation
+	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                                                                       // Environment variable names of the process
+	Envp          []string `field:"envp,ResolveProcessEnvp:100"`                                                                                                                                       // Environment variables of the process
+	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                                                                        // Indicator of environment variables truncation
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-"`
@@ -313,13 +312,13 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid"`                               // UID of the file's owner
-	User  string `field:"user,ResolveFileFieldsUser"`        // User of the file's owner
-	GID   uint32 `field:"gid"`                               // GID of the file's owner
-	Group string `field:"group,ResolveFileFieldsGroup"`      // Group of the file's owner
-	Mode  uint16 `field:"mode" field:"rights,ResolveRights"` // Mode/rights of the file
-	CTime uint64 `field:"change_time"`                       // Change time of the file
-	MTime uint64 `field:"modification_time"`                 // Modification time of the file
+	UID   uint32 `field:"uid"`                                                     // UID of the file's owner
+	User  string `field:"user,ResolveFileFieldsUser"`                              // User of the file's owner
+	GID   uint32 `field:"gid"`                                                     // GID of the file's owner
+	Group string `field:"group,ResolveFileFieldsGroup"`                            // Group of the file's owner
+	Mode  uint16 `field:"mode" field:"rights,ResolveRights,,cacheless_resolution"` // Mode/rights of the file
+	CTime uint64 `field:"change_time"`                                             // Change time of the file
+	MTime uint64 `field:"modification_time"`                                       // Modification time of the file
 
 	MountID      uint32 `field:"mount_id"`                                     // Mount ID of the file
 	Inode        uint64 `field:"inode"`                                        // Inode of the file
@@ -573,7 +572,7 @@ type SetXAttrEvent struct {
 	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
 	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
 
-	NameRaw [200]byte
+	NameRaw [200]byte `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -633,11 +632,10 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request                 uint32             `field:"request"` //  ptrace request
-	PID                     uint32             `field:"-"`
-	Address                 uint64             `field:"-"`
-	Tracee                  ProcessContext     `field:"tracee"` // process context of the tracee
-	TraceeProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	Request uint32         `field:"request"` //  ptrace request
+	PID     uint32         `field:"-"`
+	Address uint64         `field:"-"`
+	Tracee  ProcessContext `field:"tracee"` // process context of the tracee
 }
 
 // MMapEvent represents a mmap event
@@ -682,10 +680,9 @@ type UnloadModuleEvent struct {
 type SignalEvent struct {
 	SyscallEvent
 
-	Type                    uint32             `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID                     uint32             `field:"pid"`    // Target PID
-	Target                  ProcessContext     `field:"target"` // Target process context
-	TargetProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	Type   uint32         `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID    uint32         `field:"pid"`    // Target PID
+	Target ProcessContext `field:"target"` // Target process context
 }
 
 // SpliceEvent represents a splice event

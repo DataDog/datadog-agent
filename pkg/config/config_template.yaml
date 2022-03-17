@@ -1049,16 +1049,8 @@ api_key:
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
-  ## @param extra_sample_rate - float - optional - default: 1.0
-  ## @env DD_APM_EXTRA_SAMPLE_RATE - float - optional - default: 1.0
-  ## Extra global sample rate to apply on all the traces
-  ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
-  ## From 1 (no extra rate) to 0 (don't sample at all)
-  #
-  # extra_sample_rate: 1.0
-
   ## @param max_traces_per_second - integer - optional - default: 10
-  ## @env DD_APM_MAX_TRACES_PER_SECOND - integer - optional - default: 10
+  ## @env DD_APM_MAX_TPS - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
   ## the received traffic and communicated to tracers. This configures head base sampling.
   ## Set to 0 to disable sampling.
@@ -1074,7 +1066,7 @@ api_key:
   # errors_per_second: 10
 
   ## @param max_events_per_second - integer - optional - default: 200
-  ## @env DD_APM_MAX_EVENTS_PER_SECOND - integer - optional - default: 200
+  ## @env DD_APM_MAX_EPS - integer - optional - default: 200
   ## Maximum number of APM events per second to sample.
   #
   # max_events_per_second: 200
@@ -1874,6 +1866,12 @@ api_key:
 ## Determines the maximum waiting period in seconds before timing up on instance reconnection.
 #
 # jmx_reconnection_timeout: 60
+
+## @param jmx_statsd_telemetry_enabled - boolean - optional - default: false
+## @env DD_JMX_STATSD_TELEMETRY_ENABLED - boolean - optional - default: false
+## Specifies whether the JMXFetch statsd client telemetry is enabled.
+#
+# jmx_statsd_telemetry_enabled: false
 
 {{ end -}}
 {{- if .Logging }}
@@ -2922,7 +2920,7 @@ api_key:
 
   ## @param receiver - custom object - optional
   ## The receiver configuration. It follows the OpenTelemetry Collector's OTLP Receiver Configuration.
-  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation 
+  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
   ## https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/otlpreceiver/config.md
   #
@@ -2942,14 +2940,14 @@ api_key:
           ## @param endpoint - string - optional - default: 0.0.0.0:4317
           ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT - string - optional - default: 0.0.0.0:4317
           ## The OTLP/gRPC listener endpoint.
-          # 
+          #
           # endpoint: 0.0.0.0:4317
 
           ## @param transport - string - optional - default: tcp
           ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT - string - optional - default: tcp
-          ## The OTLP/gRPC listener transport protocol. 
+          ## The OTLP/gRPC listener transport protocol.
           ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
-          # 
+          #
           # transport: tcp
 
         ## @param http - custom object - optional
@@ -2961,7 +2959,7 @@ api_key:
           ## @param endpoint - string - optional - default: 0.0.0.0:4318
           ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT - string - optional - default: 0.0.0.0:4318
           ## The OTLP/HTTP listener endpoint.
-          # 
+          #
           # endpoint: 0.0.0.0:4318
 
   ## @param metrics - custom object - optional
@@ -3003,11 +3001,11 @@ api_key:
 
     ## @param report_quantiles - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
-    ## Whether to report quantile metrics for OTLP Summary points. 
+    ## Whether to report quantile metrics for OTLP Summary points.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
     #
     # report_quantiles: true
-    
+
     ## @param send_monotonic_counter - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_SEND_MONOTONIC_COUNTER - boolean - optional - default: false
     ## Whether to report monotonic metrics as counters or gauges (raw value).
@@ -3024,15 +3022,15 @@ api_key:
     # delta_ttl: 3600
 
     ## @param histograms - custom object - optional
-    ## Configuration for OTLP Histograms. 
+    ## Configuration for OTLP Histograms.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=histogram for details.
-    # 
+    #
     # histograms:
 
       ## @param mode - string - optional - default: distributions
       ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE - string - optional - default: distributions
       ## How to report histograms. Valid values are:
-      ## 
+      ##
       ## - `distributions` to report metrics as Datadog distributions (recommended).
       ## - `nobuckets` to not report bucket metrics,
       ## - `counters` to report one metric per histogram bucket.

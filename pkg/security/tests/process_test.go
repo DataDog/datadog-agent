@@ -281,7 +281,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("argv", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ll")
@@ -292,7 +292,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-flags", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ls", "--escape")
@@ -303,7 +303,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-options", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "--block-size", "123")
@@ -399,7 +399,7 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		executable := which("tail")
+		executable := which(t, "tail")
 
 		test.WaitSignal(t, func() error {
 			var wg sync.WaitGroup
@@ -562,7 +562,7 @@ func TestProcessContext(t *testing.T) {
 }
 
 func TestProcessExecCTime(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
@@ -594,7 +594,7 @@ func TestProcessExecCTime(t *testing.T) {
 }
 
 func TestProcessPIDVariable(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_var",
@@ -728,7 +728,7 @@ func TestProcessMutableVariable(t *testing.T) {
 }
 
 func TestProcessExec(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -746,7 +746,8 @@ func TestProcessExec(t *testing.T) {
 		return cmd.Run()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assertFieldEqual(t, event, "exec.file.path", executable)
-		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
+		// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+		assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
 	})
 }
 
@@ -820,7 +821,7 @@ func TestProcessMetadata(t *testing.T) {
 }
 
 func TestProcessExecExit(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

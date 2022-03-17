@@ -376,8 +376,9 @@ int kprobe_dentry_resolver_erpc(struct pt_regs *ctx) {
         state->key.ino = map_value->parent.ino;
         state->key.path_id = map_value->parent.path_id;
         state->key.mount_id = map_value->parent.mount_id;
-        if (state->key.ino == 0)
+        if (state->key.ino == 0) {
             goto exit;
+        }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
         bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);

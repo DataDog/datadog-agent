@@ -145,9 +145,12 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
         .id = array_ref->id,
     };
 
-    int i = 0, n = 0, buff_offset = 0, perf_offset = 0;
+    int i = 0;
+    int n = 0;
+    int buff_offset = 0;
+    int perf_offset = 0;
 
-    #pragma unroll
+#pragma unroll
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
         void *ptr = &(buff->value[(buff_offset + sizeof(n)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
 
@@ -390,6 +393,11 @@ int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
     u32 root_nr = bpf_get_current_pid_tgid();
     u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
 
+    // no namespace
+    if (!namespace_nr || root_nr == namespace_nr) {
+      return 0;
+    }
+
     register_nr(root_nr, namespace_nr);
     return 0;
 }
@@ -404,8 +412,9 @@ int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
     bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
 
     struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
-    if (exec_count == NULL)
+    if (exec_count == NULL) {
         return 0;
+    }
 
     u64 zero = 0;
     u64 *count = bpf_map_lookup_or_try_init(exec_count, &key, &zero);

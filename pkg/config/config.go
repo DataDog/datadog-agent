@@ -731,6 +731,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
+	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
+	// this is an internal setting and will not be documented in the config template.
+	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
+	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -970,6 +974,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.flush_discarder_window", 3)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.runtime_monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.tags_cardinality", "high")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)

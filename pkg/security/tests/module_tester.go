@@ -275,14 +275,10 @@ func getInode(t *testing.T, path string) uint64 {
 }
 
 //nolint:deadcode,unused
-func which(name string) string {
-	executable := "/usr/bin/" + name
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/" + name
-		}
+func which(t *testing.T, name string) string {
+	executable, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatalf("")
 	}
 	return executable
 }
@@ -347,14 +343,20 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 }
 
 //nolint:deadcode,unused
-func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
-	return assert.Contains(t, values, fieldValue)
+
+	if fieldValues, ok := fieldValue.([]string); ok {
+		return assert.Contains(t, values, fieldValues[index])
+	}
+
+	t.Errorf("failed to get field '%s' as an array", field)
+	return false
 }
 
 func setTestConfig(dir string, opts testOpts) (string, error) {

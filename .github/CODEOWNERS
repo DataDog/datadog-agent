@@ -155,6 +155,7 @@
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
@@ -226,7 +227,7 @@
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/agent-network
-/tasks/trace.py                         @DataDog/agent-apm
+/tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 
 /test/                                  @DataDog/agent-platform

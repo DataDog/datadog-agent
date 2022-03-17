@@ -11,6 +11,7 @@ package helm
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -209,6 +210,86 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRun_withCollectEvents(t *testing.T) {
+	check := factory().(*HelmCheck)
+	check.runLeaderElection = false
+	check.instance.CollectEvents = true
+	check.existingReleasesStored = true
+
+	rel := release{
+		Name: "my_datadog",
+		Info: &info{
+			Status: "deployed",
+		},
+		Chart: &chart{
+			Metadata: &metadata{
+				Name:       "datadog",
+				Version:    "2.30.5",
+				AppVersion: "7",
+			},
+		},
+		Version:   1,
+		Namespace: "default",
+	}
+
+	secret, err := secretForRelease(&rel)
+	assert.NoError(t, err)
+
+	k8sClient := fake.NewSimpleClientset()
+	sharedK8sInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute)
+	err = check.setupInformers(sharedK8sInformerFactory)
+	assert.NoError(t, err)
+
+	mockedSender := mocksender.NewMockSender(checkName)
+	mockedSender.SetupAcceptAll()
+
+	// Create a new release and check that it creates the appropriate event.
+	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		err = check.Run()
+		assert.NoError(t, err)
+		return mockedSender.AssertEvent(
+			t,
+			eventForRelease(&rel, k8sSecrets, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", false),
+			10*time.Second,
+		)
+	}, 5*time.Second, time.Millisecond*100)
+
+	// Upgrade the release and check that it creates the appropriate event.
+	upgradedRel := rel
+	upgradedRel.Version = 2
+	secretUpgradedRel, err := secretForRelease(&upgradedRel)
+	assert.NoError(t, err)
+	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secretUpgradedRel, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		err = check.Run()
+		assert.NoError(t, err)
+		return mockedSender.AssertEvent(
+			t,
+			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", false),
+			10*time.Second,
+		)
+	}, 5*time.Second, time.Millisecond*100)
+
+	// Delete the release (all revisions) and check that it creates the
+	// appropriate event.
+	err = k8sClient.CoreV1().Secrets("default").Delete(context.TODO(), rel.Name+".1", metav1.DeleteOptions{})
+	assert.NoError(t, err)
+	err = k8sClient.CoreV1().Secrets("default").Delete(context.TODO(), rel.Name+".2", metav1.DeleteOptions{})
+	assert.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		err = check.Run()
+		assert.NoError(t, err)
+		return mockedSender.AssertEvent(
+			t,
+			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", true),
+			10*time.Second,
+		)
+	}, 5*time.Second, time.Millisecond*100)
 }
 
 // secretForRelease returns a Kubernetes secret that contains the info of the
