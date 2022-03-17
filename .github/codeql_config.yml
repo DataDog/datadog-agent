@@ -11,3 +11,6 @@ queries:
     uses: datadog/qlpack/cpp-queries/codeql-suites/cpp-code-scanning.qls@main
   - name: Javascript Queries
     uses: datadog/qlpack/javascript-queries/codeql-suites/javascript-code-scanning.qls@main
+paths-ignore:
+  - 'test/**'
+  - 'pkg/trace/testutil/**'
