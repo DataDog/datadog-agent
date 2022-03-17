@@ -222,11 +222,6 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 		utils.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tags)
 	}
 
-	// static tags for ECS and EKS Fargate containers
-	for tag, value := range c.staticTags {
-		tags.AddLow(tag, value)
-	}
-
 	low, orch, high, standard := tags.Compute()
 	return []*TagInfo{
 		{
@@ -278,11 +273,6 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		tags.AddOrchestrator(kubernetes.OwnerRefNameTagName, owner.Name)
 
 		c.extractTagsFromPodOwner(pod, owner, tags)
-	}
-
-	// static tags for EKS Fargate pods
-	for tag, value := range c.staticTags {
-		tags.AddLow(tag, value)
 	}
 
 	low, orch, high, standard := tags.Compute()
@@ -366,15 +356,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 	}
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		tags := taskTags.Copy()
-
-		// add static tags only to OrchestratorScopeEntityID since
-		// they'll be added to the containers by handleContainer
-		for tag, value := range c.staticTags {
-			tags.AddLow(tag, value)
-		}
-
-		low, orch, high, standard := tags.Compute()
+		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &TagInfo{
 			Source:               taskSource,
 			Entity:               GlobalEntityID,

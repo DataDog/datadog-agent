@@ -58,7 +58,7 @@ func (t *Tagger) Init(ctx context.Context) error {
 	)
 
 	go t.tagStore.Run(t.ctx)
-	go t.collector.Stream(t.ctx)
+	go t.collector.Run(t.ctx)
 
 	return nil
 }
