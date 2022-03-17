@@ -206,6 +206,7 @@ func (m *Monitor) GetStats() map[string]int64 {
 
 	return map[string]int64{
 		"dropped_stats": m.telemetrySnapshot.dropped,
+		"misses_stats":  m.telemetrySnapshot.misses,
 	}
 }
 

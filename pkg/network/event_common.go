@@ -144,6 +144,7 @@ const (
 	NPMDriverFlowsMissedMaxExceeded                      = "driver_flows_missed_max_exceeded"
 	MonotonicDNSPacketsDropped                           = "dns_packets_dropped"
 	HTTPStatsDropped                                     = "http_stats_dropped"
+	HTTPStatsMisses                                      = "http_stats_misses"
 )
 
 //revive:enable
@@ -157,6 +158,7 @@ var (
 		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
 		HTTPStatsDropped,
+		HTTPStatsMisses,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled

@@ -93,6 +93,9 @@ func TestUnknownMethodRegression(t *testing.T) {
 	require.NotEmpty(t, telemetry)
 	_, ok := telemetry["dropped_stats"]
 	require.True(t, ok)
+	_, ok = telemetry["misses_stats"]
+	require.True(t, ok)
+
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
