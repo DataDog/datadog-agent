@@ -46,6 +46,10 @@ type State interface {
 		http map[http.Key]http.RequestStats,
 	) Delta
 
+	// RegisterClient starts tracking stateful data for the given client
+	// If the client is already registered, it does nothing.
+	RegisterClient(clientID string)
+
 	// RemoveClient stops tracking stateful data for a given client
 	RemoveClient(clientID string)
 
@@ -190,28 +194,11 @@ func (ns *networkState) GetDelta(
 	connsByKey := getConnsByKey(active, ns.buf)
 
 	clientBuffer := clientPool.Get(id)
-	client, ok := ns.getClient(id)
+	client, _ := ns.getClient(id)
 	defer client.Reset(connsByKey)
 
-	if !ok {
-		for key, c := range connsByKey {
-			ns.createStatsForKey(client, key)
-			ns.updateConnWithStats(client, key, c)
-
-			// We force last stats to be 0 on a new client this is purely to
-			// have a coherent definition of LastXYZ and should not have an impact
-			// on collection since we drop the first get in the process-agent
-			c.LastSentBytes = 0
-			c.LastRecvBytes = 0
-			c.LastRetransmits = 0
-			c.LastTCPEstablished = 0
-			c.LastTCPClosed = 0
-		}
-		clientBuffer.Append(active)
-	} else {
-		// Update all connections with relevant up-to-date stats for client
-		ns.mergeConnections(id, connsByKey, clientBuffer)
-	}
+	// Update all connections with relevant up-to-date stats for client
+	ns.mergeConnections(id, connsByKey, clientBuffer)
 
 	conns := clientBuffer.Connections()
 	ns.determineConnectionIntraHost(conns)
@@ -230,6 +217,14 @@ func (ns *networkState) GetDelta(
 		HTTP:     client.httpStatsDelta,
 		DNSStats: client.dnsStats,
 	}
+}
+
+// RegisterClient registers a client before it first gets stream of data.
+// This call is not strictly mandatory, although it is useful when users
+// want to first register and then start getting data at regular intervals.
+// If the client is already registered, this call simply does nothing.
+func (ns *networkState) RegisterClient(id string) {
+	_, _ = ns.getClient(id)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -367,11 +362,12 @@ func (ns *networkState) getClient(clientID string) (*client, bool) {
 	}
 
 	c := &client{
-		lastFetch:         time.Now(),
-		stats:             map[string]*stats{},
-		closedConnections: make([]ConnectionStats, 0, minClosedCapacity),
-		dnsStats:          dns.StatsByKeyByNameByType{},
-		httpStatsDelta:    map[http.Key]http.RequestStats{},
+		lastFetch:             time.Now(),
+		stats:                 map[string]*stats{},
+		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
+		closedConnectionsKeys: make(map[string]int),
+		dnsStats:              dns.StatsByKeyByNameByType{},
+		httpStatsDelta:        map[http.Key]http.RequestStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false

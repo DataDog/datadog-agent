@@ -336,6 +336,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}, nil
 }
 
+func (t *Tracer) RegisterClient(clientID string) error {
+	t.state.RegisterClient(clientID)
+	return nil
+}
+
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
 	tm := map[network.ConnTelemetryType]int64{

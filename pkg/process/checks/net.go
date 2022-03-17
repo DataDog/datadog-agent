@@ -8,8 +8,6 @@ package checks
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -37,6 +35,10 @@ var (
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
+
+	// ProcessAgentClientID process-agent unique ID
+	// FIXME: what should this be?
+	ProcessAgentClientID = "process-agent-unique-id"
 )
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
@@ -55,20 +57,28 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
-	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
+	c.tracerClientID = ProcessAgentClientID
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
 	net.SetSystemProbePath(cfg.SystemProbeAddress)
-	_, _ = net.GetRemoteSystemProbeUtil()
+	tu, err := net.GetRemoteSystemProbeUtil()
+
+	if err != nil {
+		log.Warnf("could not initiate connection with system probe: %s", err)
+	} else {
+		// Register process agent as a system probe's client
+		// This ensures we start recording data from now to the first call to `Run`
+		err = tu.Register(c.tracerClientID)
+		if err != nil {
+			log.Warnf("could not register process-agent to system-probe: %s", err)
+		}
+	}
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
-
-	// Run the check one time on init to register the client on the system probe
-	_, _ = c.Run(cfg, 0)
 }
 
 // Name returns the name of the ConnectionsCheck.
