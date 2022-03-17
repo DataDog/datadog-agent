@@ -88,6 +88,7 @@ func processMessage(id string, message *containerdevents.Envelope) containerdEve
 }
 
 type subscriber struct {
+	sync.Mutex
 	Name                string
 	Filters             []string
 	Events              []containerdEvent
