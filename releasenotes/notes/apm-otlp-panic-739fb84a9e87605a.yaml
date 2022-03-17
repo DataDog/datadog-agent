@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Fixed an issue which caused a panic when receiving OpenTelemetry traces with invalid data (specifically duplicate SpanIDs).
+    APM: Fixed an issue which caused a panic when receiving OTLP traces with invalid data (specifically duplicate SpanIDs).
