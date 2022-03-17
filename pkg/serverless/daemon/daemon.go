@@ -23,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
-
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
