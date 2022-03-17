@@ -154,6 +154,15 @@ jobs:
           name: run license linting
           command: inv -e lint-licenses
 
+  copyrights_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run copyrights linting
+          command: inv -e lint-copyrights
+
   filename_linting:
     <<: *job_template
     steps:
