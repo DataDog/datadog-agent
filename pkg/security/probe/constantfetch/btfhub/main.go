@@ -168,7 +168,7 @@ func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (
 		OsRelease: osRelease,
 	}
 
-	fetcher, err := constantfetch.NewBTFConstantFetcher(btfReader)
+	fetcher, err := constantfetch.NewBTFConstantFetcherFromReader(btfReader)
 	if err != nil {
 		return nil, err
 	}

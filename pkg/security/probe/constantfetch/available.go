@@ -14,6 +14,10 @@ import (
 func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient *statsd.Client) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
 
+	if coreFetcher, err := NewBTFConstantFetcherFromCurrentKernel(); err == nil {
+		fetchers = append(fetchers, coreFetcher)
+	}
+
 	if config.EnableRuntimeCompiledConstants {
 		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
 		fetchers = append(fetchers, rcConstantFetcher)

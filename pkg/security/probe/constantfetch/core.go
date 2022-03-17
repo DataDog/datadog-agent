@@ -22,16 +22,27 @@ type BTFConstantFetcher struct {
 	err       error
 }
 
-func NewBTFConstantFetcher(btfReader io.ReaderAt) (*BTFConstantFetcher, error) {
+func NewBTFConstantFetcherFromSpec(spec *cbtf.Spec) *BTFConstantFetcher {
+	return &BTFConstantFetcher{
+		spec:      spec,
+		constants: make(map[string]uint64),
+	}
+}
+
+func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher, error) {
 	spec, err := cbtf.LoadSpecFromReader(btfReader)
 	if err != nil {
 		return nil, err
 	}
+	return NewBTFConstantFetcherFromSpec(spec), nil
+}
 
-	return &BTFConstantFetcher{
-		spec:      spec,
-		constants: make(map[string]uint64),
-	}, nil
+func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
+	spec, err := cbtf.LoadKernelSpec()
+	if err != nil {
+		return nil, err
+	}
+	return NewBTFConstantFetcherFromSpec(spec), nil
 }
 
 type constantRequest struct {
