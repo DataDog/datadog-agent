@@ -109,9 +109,14 @@ func init() {
 func fixDeprecatedFlags() {
 	deprecatedFlags := []string{
 		// Global flags
-		"-config", "-ddconfig", "-sysprobe-config", "-pid", "-info", "-version", "-check",
+		"-config", "--config", "-sysprobe-config", "-pid", "-info", "-version", "-check",
 		// Windows flags
 		"-install-service", "-uninstall-service", "-start-service", "-stop-service", "-foreground",
+	}
+
+	replaceFlags := map[string]string{
+		"-config":  "--cfgpath",
+		"--config": "--cfgpath",
 	}
 
 	for i, arg := range os.Args {
@@ -119,8 +124,15 @@ func fixDeprecatedFlags() {
 			if !strings.HasPrefix(arg, f) {
 				continue
 			}
-			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", f)
-			os.Args[i] = "-" + os.Args[i]
+			replaceWith := replaceFlags[f]
+			if len(replaceWith) == 0 {
+				os.Args[i] = "-" + f
+				os.Args[i] = "-" + os.Args[i]
+			} else {
+				os.Args[i] = strings.Replace(os.Args[i], f, replaceWith, 1)
+			}
+
+			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `%s` instead.\n", f, replaceWith)
 		}
 	}
 }
