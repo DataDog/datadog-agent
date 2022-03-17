@@ -1534,6 +1534,15 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
 
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if kv >= kernel.VersionCode(5, 5, 0) {
+		// starting linux 5.5.0, `sockfd_lookup_light` is not being called by `connect` or
+		// `accept` system calls anymore.
+		// thus, this prevents us from being able to map sock structure to pid and file descriptor.
+		t.Skip("Kernel version >= 5.5.0 not supported")
+	}
+
 	if strings.HasPrefix(runtime.GOARCH, "arm") {
 		t.Skip("this feature is not yet support on arm")
 	}
