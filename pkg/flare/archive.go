@@ -226,6 +226,11 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		if err != nil {
 			log.Errorf("Could not zip workload list: %s", err)
 		}
+
+		err = zipProcessChecks(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip process agent checks: %s", err)
+		}
 	}
 
 	// auth token permissions info (only if existing)
@@ -619,6 +624,26 @@ func zipSecrets(tempDir, hostname string) error {
 	}
 
 	return writeScrubbedFile(f, b.Bytes())
+}
+
+func zipProcessChecks(tempDir, hostname string) error {
+	addressPort, err := api.GetAPIAddressPort()
+	if err != nil {
+		return fmt.Errorf("wrong configuration to connect to process-agent")
+	}
+	checkURL := fmt.Sprintf("http://%s", addressPort)
+
+	err = zipHTTPCallContent(tempDir, hostname, "process_check_output.json", checkURL+"/check/process")
+	if err != nil {
+		return fmt.Errorf("could not connect to process-agent: %v", err)
+	}
+
+	err = zipHTTPCallContent(tempDir, hostname, "container_check_output.json", checkURL+"/check/container")
+	if err != nil {
+		return fmt.Errorf("could not connect to process-agent: %v", err)
+	}
+
+	return nil
 }
 
 func zipDiagnose(tempDir, hostname string) error {
