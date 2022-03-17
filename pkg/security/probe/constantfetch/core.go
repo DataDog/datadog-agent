@@ -16,12 +16,14 @@ import (
 	cbtf "github.com/DataDog/btf-internals/btf"
 )
 
+// BTFConstantFetcher is a constant fetcher based on BTF data (from file or current kernel)
 type BTFConstantFetcher struct {
 	spec      *cbtf.Spec
 	constants map[string]uint64
 	err       error
 }
 
+// NewBTFConstantFetcherFromSpec creates a BTFConstantFetcher directly from a BTF spec
 func NewBTFConstantFetcherFromSpec(spec *cbtf.Spec) *BTFConstantFetcher {
 	return &BTFConstantFetcher{
 		spec:      spec,
@@ -29,6 +31,7 @@ func NewBTFConstantFetcherFromSpec(spec *cbtf.Spec) *BTFConstantFetcher {
 	}
 }
 
+// NewBTFConstantFetcherFromReader creates a BTFConstantFetcher from a reader pointing to a BTF file
 func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher, error) {
 	spec, err := cbtf.LoadSpecFromReader(btfReader)
 	if err != nil {
@@ -37,6 +40,7 @@ func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher
 	return NewBTFConstantFetcherFromSpec(spec), nil
 }
 
+// NewBTFConstantFetcherFromCurrentKernel creates a BTFConstantFetcher, reading BTF from current kernel
 func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
 	spec, err := cbtf.LoadKernelSpec()
 	if err != nil {
@@ -78,6 +82,7 @@ func (f *BTFConstantFetcher) runRequest(r constantRequest) {
 	}
 }
 
+// AppendSizeofRequest appends a sizeof request
 func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
 	f.runRequest(constantRequest{
 		id:       id,
@@ -86,6 +91,7 @@ func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, headerName string
 	})
 }
 
+// AppendOffsetofRequest appends an offset request
 func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
 	f.runRequest(constantRequest{
 		id:        id,
@@ -95,6 +101,7 @@ func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, head
 	})
 }
 
+// FinishAndGetResults returns the results
 func (f *BTFConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	if f.err != nil {
 		return nil, f.err
