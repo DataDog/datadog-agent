@@ -108,8 +108,9 @@ int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap
 
 int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MMAP);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
        return 0;
@@ -156,8 +157,9 @@ int tracepoint_syscalls_sys_exit_mmap(struct tracepoint_syscalls_sys_exit_t *arg
 SEC("kretprobe/fget")
 int kretprobe_fget(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct file *f = (struct file*) PT_REGS_RC(ctx);
     syscall->mmap.dentry = get_file_dentry(f);
