@@ -297,8 +297,7 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
     return 0;
 };
 
-SEC("kprobe/dev_change_net_namespace")
-int kprobe_dev_change_net_namespace(struct pt_regs *ctx) {
+__attribute__((always_inline)) void trace_dev_change_net_namespace(struct pt_regs *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     struct net *net = (struct net *)PT_REGS_PARM2(ctx);
 
@@ -339,6 +338,16 @@ int kprobe_dev_change_net_namespace(struct pt_regs *ctx) {
 
     send_event(ctx, EVENT_VETH_PAIR, evt);
     return 0;
+}
+
+SEC("kprobe/dev_change_net_namespace")
+int kprobe_dev_change_net_namespace(struct pt_regs *ctx) {
+    return trace_dev_change_net_namespace(ctx);
 };
+
+SEC("kprobe/__dev_change_net_namespace")
+int kprobe___dev_change_net_namespace(struct pt_regs *ctx) {
+    return trace_dev_change_net_namespace(ctx);
+}
 
 #endif

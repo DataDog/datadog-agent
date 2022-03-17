@@ -42,7 +42,10 @@ var NetworkSelectors = []manager.ProbesSelector{
 	// network device probes
 	&manager.AllOf{Selectors: []manager.ProbesSelector{
 		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/register_netdevice", EBPFFuncName: "kprobe_register_netdevice"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/dev_change_net_namespace", EBPFFuncName: "kprobe_dev_change_net_namespace"}},
+		&manager.OneOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/dev_change_net_namespace", EBPFFuncName: "kprobe_dev_change_net_namespace"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__dev_change_net_namespace", EBPFFuncName: "kprobe___dev_change_net_namespace"}},
+		}},
 		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/register_netdevice", EBPFFuncName: "kretprobe_register_netdevice"}},
 	}},
 	&manager.BestEffort{Selectors: []manager.ProbesSelector{
