@@ -55,6 +55,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.18
+	github.com/DataDog/btf-internals v0.0.0-20220317155923-e1a7b770b6a1
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.35.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.35.0-rc.4
@@ -413,8 +414,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
-
-require github.com/DataDog/btf-internals v0.0.0-20220317155923-e1a7b770b6a1
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
