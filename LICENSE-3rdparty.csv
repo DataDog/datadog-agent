@@ -26,6 +26,10 @@ core,github.com/AlekSi/pointer,MIT,Alexey Palazhchenko
 core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Datadog, Inc"
+core,github.com/DataDog/btf-internals,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/DataDog/btf-internals/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/DataDog/btf-internals/sys,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/DataDog/btf-internals/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc"
 core,github.com/DataDog/ebpf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
@@ -973,12 +977,12 @@ core,google.golang.org/api/transport/http,BSD-3-Clause,Google Inc. | LightStep I
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/api/transport/internal/dca,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/appengine,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/app_identity,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/base,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/datastore,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/log,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/modules,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/remote_api,Apache-2.0,the Go App Engine Maintainers

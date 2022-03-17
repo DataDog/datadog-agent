@@ -23,11 +23,11 @@ import (
 	"reflect"
 	"strings"
 
+	cbtf "github.com/DataDog/btf-internals/btf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	cbtf "github.com/paulcacheux/cilium-btf/fork/btf"
 	"github.com/smira/go-xz"
 )
 
