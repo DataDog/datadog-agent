@@ -155,27 +155,33 @@ func (o *appsecEventsObfuscator) obfuscateRuleMatchParameters(scanner *scanner, 
 	for ; i < len(input); i++ {
 		i, err = o.obfuscateRuleMatchParameter(scanner, input, i, diff)
 		if err != nil {
-			if actual, ok := err.(unexpectedScannerOpError); ok {
-				if actual == scanEndArray {
-					// The previous call failed because we reached the end of the array
-					return i
-				}
-				// Try to step until the next array value
-				i, err = stepUntil(scanner, input, i, scanArrayValue)
-				if err != nil {
-					return i
-				}
-				continue // Next value reached, and we can proceed trying to obfuscate it
+			got, ok := err.(unexpectedScannerOpError)
+			if !ok {
+				return i // Abort due to an unexpected error (syntax error or end of json)
 			}
-			return i // Abort due to an unexpected error (syntax error or end of json)
+			switch got {
+			case scanEndArray:
+				// The previous call failed because we reached the end of the array
+				// This case happens for the empty array value
+				return i
+			case scanBeginObject:
+				// Try to step until the next object value
+				i, err = stepUntil(scanner, input, i, scanEndObject)
+			case scanBeginArray:
+				// Try to step until the end of the array value
+				i, err = stepUntil(scanner, input, i, scanEndArray)
+			case scanBeginLiteral:
+				// Let the following stepToOneOf do the job and scan until the next array value
+				err = nil
+			}
+			if err != nil {
+				return i
+			}
 		}
 		// Step to the beginning of the next array value or end of the array
 		var op int
 		i, op, err = stepToOneOf(scanner, input, i, scanArrayValue, scanEndArray)
-		if err != nil {
-			return i
-		}
-		if op == scanEndArray {
+		if err != nil || op == scanEndArray {
 			return i
 		}
 	}
@@ -468,16 +474,25 @@ func stepToOneOf(scanner *scanner, input string, i int, to ...int) (j int, op in
 }
 
 // Helper function to keep scanning until the scanner operation `until` is
-// reached.
+// reached at depth 0.
 func stepUntil(scanner *scanner, input string, i int, until int) (int, error) {
+	depth := 0
 	for ; i < len(input); i++ {
 		switch op := scanner.step(scanner, input[i]); op {
 		case scanError:
 			return i + 1, scanner.err
 		case scanSkipSpace, scanContinue:
 			continue
-		case until:
-			return i + 1, nil
+		default:
+			if depth == 0 && op == until {
+				return i + 1, nil
+			}
+			switch op {
+			case scanBeginArray, scanBeginObject:
+				depth++
+			case scanEndArray, scanEndObject:
+				depth--
+			}
 		}
 	}
 	scanner.eof()

@@ -323,6 +323,73 @@ func TestObfuscateAppSec(t *testing.T) {
 	}
 }
 
+func TestObfuscateRuleMatchParameters(t *testing.T) {
+	i := []struct {
+		name                     string
+		input                    string
+		expectedOutput           string
+		expectedSyntaxError      bool
+		unexpectedScannerOpError int
+	}{
+		{
+			name:           "value-alone",
+			input:          `[ { "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE" } ]`,
+			expectedOutput: `[ { "value": "i am a ? value with many ?" } ]`,
+		},
+		{
+			name:           "value-alone",
+			input:          `[ "simple", { "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE" } ]`,
+			expectedOutput: `[ "simple", { "value": "i am a ? value with many ?" } ]`,
+		},
+		{
+			name:           "value-alone",
+			input:          `[ ["try", "to", "break"], { "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE" } ]`,
+			expectedOutput: `[ ["try", "to", "break"], { "value": "i am a ? value with many ?" } ]`,
+		},
+		{
+			name:           "value-alone",
+			input:          `[ ["try", "to", "break"], "something", [], {}, null, 1.1, [["try", "to", "break"],["try", "to", "break"],["try", "to", "break",["try", "to", "break",["try", "to", "break",["try", "to", "break"]]]]], { "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE" } ]`,
+			expectedOutput: `[ ["try", "to", "break"], "something", [], {}, null, 1.1, [["try", "to", "break"],["try", "to", "break"],["try", "to", "break",["try", "to", "break",["try", "to", "break",["try", "to", "break"]]]]], { "value": "i am a ? value with many ?" } ]`,
+		},
+		{
+			name:           "empty-array",
+			input:          `[  ]`,
+			expectedOutput: `[  ]`,
+		},
+		{
+			name:           "empty-array",
+			input:          `[]`,
+			expectedOutput: `[]`,
+		},
+		{
+			name:                "unterminated-json",
+			input:               `[ { "highlight": [ "i am a SENSITIVE_VALUE value", "i am not a a sensitive value", "i am another SENSITIVE_VALUE value" ], "key 1": "SENSITIVE_VALUE", "key_path": ["SENSITIVE_KEY"], "key 2": [ "SENSITIVE_VALUE" ], "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE", "key 3": { "SENSITIVE_KEY": "SENSITIVE_VALUE" }, "SENSITIVE_KEY": null`,
+			expectedOutput:      `[ { "highlight": [ "i am a SENSITIVE_VALUE value", "i am not a a sensitive value", "i am another SENSITIVE_VALUE value" ], "key 1": "SENSITIVE_VALUE", "key_path": ["SENSITIVE_KEY"], "key 2": [ "SENSITIVE_VALUE" ], "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE", "key 3": { "SENSITIVE_KEY": "SENSITIVE_VALUE" }, "SENSITIVE_KEY": null`,
+			expectedSyntaxError: true,
+		},
+		{
+			name:                "syntax-error",
+			input:               `[ { "highlight": [ "i am a SENSITIVE_VALUE value", "i am not a a sensitive value", "i am another SENSITIVE_VALUE value" ], "key 1": "SENSITIVE_VALUE", "key_path": ["SENSITIVE_KEY"], "key 2": [ "SENSITIVE_VALUE" ], "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE", "key 3": { "SENSITIVE_KEY": "SENSITIVE_VALUE" }, "SENSITIVE_KEY": i`,
+			expectedOutput:      `[ { "highlight": [ "i am a SENSITIVE_VALUE value", "i am not a a sensitive value", "i am another SENSITIVE_VALUE value" ], "key 1": "SENSITIVE_VALUE", "key_path": ["SENSITIVE_KEY"], "key 2": [ "SENSITIVE_VALUE" ], "value": "i am a SENSITIVE_VALUE value with many SENSITIVE_VALUE", "key 3": { "SENSITIVE_KEY": "SENSITIVE_VALUE" }, "SENSITIVE_KEY": i`,
+			expectedSyntaxError: true,
+		},
+	}
+	for _, tc := range i {
+		t.Run(tc.name, func(t *testing.T) {
+			o := appsecEventsObfuscator{
+				keyRE:   regexp.MustCompile("SENSITIVE_KEY"),
+				valueRE: regexp.MustCompile("SENSITIVE_VALUE"),
+			}
+			var diff inputDiff
+			scanner := &scanner{}
+			scanner.reset()
+			o.obfuscateRuleMatchParameters(scanner, tc.input, 0, &diff)
+			output := diff.apply(tc.input)
+			require.Equal(t, tc.expectedOutput, output)
+		})
+	}
+}
+
 func TestObfuscateRuleMatchParameter(t *testing.T) {
 	i := []struct {
 		name                     string
