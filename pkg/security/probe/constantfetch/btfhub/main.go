@@ -9,8 +9,8 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -19,14 +19,13 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	cbtf "github.com/paulcacheux/cilium-btf/fork/btf"
 )
 
 func main() {
@@ -192,10 +191,6 @@ func newConstantCollector(btfPath string) *constantCollector {
 	}
 }
 
-var sizeRe = regexp.MustCompile(`size: (\d+), cachelines: \d+, members: \d+`)
-var offsetRe = regexp.MustCompile(`/\*\s*(\d+)\s*\d+\s*\*/`)
-var notFoundRe = regexp.MustCompile(`pahole: type '(\w+)' not found`)
-
 type constantRequest struct {
 	id                  string
 	sizeof              bool
@@ -220,80 +215,7 @@ func (cc *constantCollector) AppendOffsetofRequest(id, typeName, fieldName, head
 }
 
 func (cc *constantCollector) FinishAndGetResults() (map[string]uint64, error) {
-	typeNames := make([]string, 0, len(cc.requests))
-	for _, r := range cc.requests {
-		typeNames = append(typeNames, r.typeName)
-	}
-	output, err := loopRunPahole(cc.btfPath, typeNames)
-	if err != nil {
-		exitErr := err.(*exec.ExitError)
-		fmt.Println(string(exitErr.Stderr))
-		return nil, err
-	}
-
-	perStruct := make(map[string]string)
-
-	scanner := bufio.NewScanner(strings.NewReader(output))
-
-	var currentTypeName string
-	var currentTypeContent strings.Builder
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "struct ") || strings.HasPrefix(line, "enum ") {
-			currentTypeName = getActualTypeName(strings.TrimSuffix(line, " {"))
-			currentTypeContent.WriteString(line)
-			currentTypeContent.WriteRune('\n')
-		} else if strings.HasPrefix(line, "};") {
-			currentTypeContent.WriteString("};")
-			perStruct[currentTypeName] = currentTypeContent.String()
-			currentTypeContent.Reset()
-			currentTypeName = ""
-		} else {
-			currentTypeContent.WriteString(line)
-			currentTypeContent.WriteRune('\n')
-		}
-	}
-
-	pc := paholeCache{
-		perStruct: perStruct,
-	}
-	constants := make(map[string]uint64)
-
-	for _, r := range cc.requests {
-		var value uint64
-		if r.sizeof {
-			value = pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
-				if matches := sizeRe.FindStringSubmatch(line); len(matches) != 0 {
-					size, err := strconv.ParseUint(matches[1], 10, 64)
-					if err != nil {
-						panic(err)
-					}
-					return size, true
-				}
-				return 0, false
-			})
-		} else {
-			value = pc.parsePaholeOutput(r.typeName, func(line string) (uint64, bool) {
-				if strings.Contains(line, " "+r.fieldName+";") || strings.Contains(line, " "+r.fieldName+"[") {
-					if matches := offsetRe.FindStringSubmatch(line); len(matches) != 0 {
-						size, err := strconv.ParseUint(matches[1], 10, 64)
-						if err != nil {
-							panic(err)
-						}
-						return size, true
-					}
-				}
-				return 0, false
-			})
-		}
-
-		if value != constantfetch.ErrorSentinel {
-			constants[r.id] = value
-		}
-	}
-
-	return constants, nil
+	return extractWithCiliumBTF(cc.btfPath, cc.requests)
 }
 
 func getActualTypeName(tn string) string {
@@ -304,70 +226,57 @@ func getActualTypeName(tn string) string {
 	return tn
 }
 
-type paholeCache struct {
-	perStruct map[string]string
-}
-
-func (pc *paholeCache) parsePaholeOutput(tyName string, lineF func(string) (uint64, bool)) uint64 {
-	scanner := bufio.NewScanner(strings.NewReader(pc.perStruct[tyName]))
-	for scanner.Scan() {
-		line := scanner.Text()
-		value, ok := lineF(line)
-		if ok {
-			return value
-		}
-	}
-	return constantfetch.ErrorSentinel
-}
-
-func loopRunPahole(btfPath string, typeNames []string) (string, error) {
-	typeMap := make(map[string]bool)
-	for _, ty := range typeNames {
-		typeMap[ty] = true
-	}
-
-	for {
-		paholeTyNames := make([]string, 0, len(typeMap))
-		for k, ok := range typeMap {
-			if ok {
-				paholeTyNames = append(paholeTyNames, k)
-			}
-		}
-
-		output, err := runPahole(btfPath, paholeTyNames)
-		if err != nil {
-			return "", err
-		}
-		scanner := bufio.NewScanner(strings.NewReader(output))
-		hasError := false
-		for scanner.Scan() {
-			line := scanner.Text()
-			if matches := notFoundRe.FindStringSubmatch(line); len(matches) != 0 {
-				errorTy := matches[1]
-				typeMap[errorTy] = false
-				hasError = true
-			}
-		}
-
-		if !hasError {
-			return output, nil
-		}
-	}
-}
-
-func runPahole(btfPath string, typeNames []string) (string, error) {
-	typeNamesArg := strings.Join(typeNames, ",")
-
-	var btfArg string
-	if btfPath != "" {
-		btfArg = fmt.Sprintf("--btf_base=%s", btfPath)
-	}
-
-	cmd := exec.Command("pahole", typeNamesArg, btfArg)
-	cmd.Stdin = os.Stdin
-	output, err := cmd.CombinedOutput()
+func extractWithCiliumBTF(btfPath string, requests []constantRequest) (map[string]uint64, error) {
+	btfFile, err := os.Open(btfPath)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(output), nil
+
+	spec, err := cbtf.LoadSpecFromReader(btfFile)
+	if err != nil {
+		return nil, err
+	}
+
+	constants := make(map[string]uint64)
+
+	for _, r := range requests {
+		actualTy := getActualTypeName(r.typeName)
+		types, err := spec.AnyTypesByName(actualTy)
+		if err != nil {
+			continue
+		}
+
+		// the spec can contain multiple types for the same name
+		// we check that they all return the same value for the same request
+		for _, ty := range types {
+			value := runRequestOnBTFType(r, ty)
+			if value != constantfetch.ErrorSentinel {
+				if previous, ok := constants[r.id]; ok && previous != value {
+					return nil, errors.New("mismatching values in multiple BTF types")
+				}
+				constants[r.id] = value
+			}
+		}
+	}
+
+	return constants, nil
+}
+
+func runRequestOnBTFType(r constantRequest, ty cbtf.Type) uint64 {
+	sTy, ok := ty.(*cbtf.Struct)
+	if !ok {
+		return constantfetch.ErrorSentinel
+	}
+
+	if r.sizeof {
+		return uint64(sTy.Size)
+	}
+
+	for _, m := range sTy.Members {
+		if m.Name == r.fieldName {
+			return uint64(m.OffsetBits) / 8
+		}
+	}
+
+	return constantfetch.ErrorSentinel
 }
