@@ -102,6 +102,7 @@ func (h *PodHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 		ClusterId:   ctx.ClusterID,
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
+		HostName:    ctx.HostName,
 		Pods:        models,
 		Tags:        ctx.Cfg.ExtraTags,
 	}
