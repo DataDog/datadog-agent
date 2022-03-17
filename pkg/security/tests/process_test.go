@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestProcess(t *testing.T) {
@@ -62,26 +60,18 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
-	proc, err := process.NewProcess(utils.Getpid())
-	if err != nil {
-		t.Fatalf("unable to find proc entry: %s", err)
-	}
-
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		t.Fatal("unable to find proc entry")
-	}
-	execSince := time.Since(time.Unix(0, filledProc.CreateTime*int64(time.Millisecond)))
-	waitUntil := execSince + getEventTimeout + time.Second
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_inode",
 			Expression: `open.file.path == "{{.Root}}/test-process-context" && open.flags & O_CREAT != 0`,
 		},
 		{
-			ID:         "test_exec_time",
-			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-exec-time" && process.created_at > %ds`, int(waitUntil.Seconds())),
+			ID:         "test_exec_time_1",
+			Expression: `open.file.path == "{{.Root}}/test-exec-time-1" && process.created_at == 0`,
+		},
+		{
+			ID:         "test_exec_time_2",
+			Expression: `open.file.path == "{{.Root}}/test-exec-time-2" && process.created_at > 1s`,
 		},
 		{
 			ID:         "test_rule_ancestors",
@@ -128,7 +118,7 @@ func TestProcessContext(t *testing.T) {
 	defer test.Close()
 
 	t.Run("exec-time", func(t *testing.T) {
-		testFile, _, err := test.Path("test-exec-time")
+		testFile, _, err := test.Path("test-exec-time-1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -138,8 +128,10 @@ func TestProcessContext(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			f.Close()
+			os.Remove(testFile)
 
-			return f.Close()
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: got event: %s", event)
 		})
@@ -147,19 +139,22 @@ func TestProcessContext(t *testing.T) {
 			t.Fatal("shouldn't get an event")
 		}
 
-		defer os.Remove(testFile)
-
-		// ensure to exceed the delay
-		time.Sleep(2 * time.Second)
-
 		test.WaitSignal(t, func() error {
-			f, err := os.OpenFile(testFile, os.O_RDONLY, 0)
+			testFile, _, err := test.Path("test-exec-time-2")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			f, err := os.Create(testFile)
 			if err != nil {
 				return err
 			}
-			return f.Close()
+			f.Close()
+			os.Remove(testFile)
+
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_exec_time")
+			assertTriggeredRule(t, rule, "test_exec_time_2")
 
 			if !validateExecSchema(t, event) {
 				t.Error(event.String())
