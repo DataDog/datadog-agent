@@ -973,12 +973,12 @@ core,google.golang.org/api/transport/http,BSD-3-Clause,Google Inc. | LightStep I
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/api/transport/internal/dca,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/appengine,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/app_identity,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/base,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/datastore,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/log,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/modules,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/remote_api,Apache-2.0,the Go App Engine Maintainers
