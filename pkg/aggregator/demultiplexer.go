@@ -858,7 +858,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	}
 
 	d.serializer.SendSeries(series) //nolint:errcheck
-	log.DebugfServerless("Sending sketches payload : %+v", sketches)
+	log.DebugfServerless("Sending sketches payload : %+v", sketches.String())
 	if len(sketches) > 0 {
 		d.serializer.SendSketch(sketches) //nolint:errcheck
 	}
