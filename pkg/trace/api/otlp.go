@@ -219,6 +219,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 				TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
 				EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
 			},
+			Stats: info.NewStats(),
 		}
 		tracesByID := make(map[uint64]pb.Trace)
 		for _, libspans := range rspans.InstrumentationLibrarySpans {
