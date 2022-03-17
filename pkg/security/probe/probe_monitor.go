@@ -35,6 +35,7 @@ type Monitor struct {
 	syscallMonitor      *SyscallMonitor
 	reordererMonitor    *ReordererMonitor
 	activityDumpManager *ActivityDumpManager
+	runtimeMonitor      *RuntimeMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -75,6 +76,10 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if p.config.RuntimeMonitor {
+		m.runtimeMonitor = NewRuntimeMonitor(client)
 	}
 	return m, nil
 }
@@ -136,6 +141,12 @@ func (m *Monitor) SendStats() error {
 	if m.activityDumpManager != nil {
 		if err := m.activityDumpManager.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send activity dump maanger stats")
+		}
+	}
+
+	if m.probe.config.RuntimeMonitor {
+		if err := m.runtimeMonitor.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send runtime monitor stats")
 		}
 	}
 
