@@ -2,7 +2,7 @@ name: "Run Go Mod Tidy And Generate Licenses"
 on:
   workflow_dispatch:
     inputs:
-      pr_id:
+      pr_number:
         description: 'PR number'     
         required: true
         type: number
