@@ -110,10 +110,6 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-
-	// Validate that we can restart it without obvious breakages.
-	agent.Start()
-	agent.Stop()
 }
 
 func (suite *AgentTestSuite) TestAgentTcp() {

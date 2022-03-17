@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go -doc ../../../../docs/cloud-workload-security/secl.json
 
 package model
 
@@ -573,7 +572,7 @@ type SetXAttrEvent struct {
 	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
 	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
 
-	NameRaw [200]byte
+	NameRaw [200]byte `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -633,11 +632,10 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request                 uint32             `field:"request"` //  ptrace request
-	PID                     uint32             `field:"-"`
-	Address                 uint64             `field:"-"`
-	Tracee                  ProcessContext     `field:"tracee"` // process context of the tracee
-	TraceeProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	Request uint32         `field:"request"` //  ptrace request
+	PID     uint32         `field:"-"`
+	Address uint64         `field:"-"`
+	Tracee  ProcessContext `field:"tracee"` // process context of the tracee
 }
 
 // MMapEvent represents a mmap event
@@ -682,10 +680,9 @@ type UnloadModuleEvent struct {
 type SignalEvent struct {
 	SyscallEvent
 
-	Type                    uint32             `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID                     uint32             `field:"pid"`    // Target PID
-	Target                  ProcessContext     `field:"target"` // Target process context
-	TargetProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	Type   uint32         `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID    uint32         `field:"pid"`    // Target PID
+	Target ProcessContext `field:"target"` // Target process context
 }
 
 // SpliceEvent represents a splice event
