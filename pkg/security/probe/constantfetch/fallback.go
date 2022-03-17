@@ -133,8 +133,10 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 608
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		sizeOf = 584
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_15):
 		sizeOf = 592
+	case kv.Code >= kernel.Kernel5_15:
+		sizeOf = 632
 	}
 
 	return sizeOf
@@ -200,6 +202,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		}
 	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
 		ttyOffset = 368
+	case kv.Code >= kernel.Kernel5_16:
+		ttyOffset = 416
 	}
 
 	return ttyOffset
@@ -223,6 +227,8 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 368
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_14):
 		nameOffset = 360
+	case kv.Code >= kernel.Kernel5_14:
+		nameOffset = 352
 	}
 
 	return nameOffset
@@ -240,7 +246,14 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {
-	return uint64(48)
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		return 52
+	case kv.Code >= kernel.Kernel5_16:
+		return 60
+	default:
+		return 48
+	}
 }
 
 func getBpfMapNameOffset(kv *kernel.Version) uint64 {
@@ -270,8 +283,12 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 88
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_13):
 		nameOffset = 80
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_15):
 		nameOffset = 80
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		nameOffset = 88
+	case kv.Code >= kernel.Kernel5_16:
+		nameOffset = 96
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		return ErrorSentinel
 	}
@@ -289,7 +306,7 @@ func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		auxOffset = 24
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.Code >= kernel.Kernel5_13:
 		auxOffset = 56
 	}
 
@@ -372,8 +389,10 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 496
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_13):
 		nameOffset = 504
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_16):
 		nameOffset = 528
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_16:
+		nameOffset = 544
 	}
 
 	return nameOffset
@@ -478,10 +497,8 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 		offset = 264
 	case kv.Code >= kernel.Kernel5_8 && kv.Code < kernel.Kernel5_12:
 		offset = 256
-	case kv.Code >= kernel.Kernel5_12 && kv.Code < kernel.Kernel5_16:
+	case kv.Code >= kernel.Kernel5_12:
 		offset = 208
-	case kv.Code >= kernel.Kernel5_16:
-		offset = 212
 	}
 
 	return offset
