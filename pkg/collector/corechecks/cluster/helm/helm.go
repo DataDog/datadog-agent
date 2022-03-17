@@ -334,12 +334,12 @@ func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStor
 		return
 	}
 
-	wasLastRevision := hc.store.delete(decodedRelease, storageDriver)
+	moreRevisionsLeft := hc.store.delete(decodedRelease, storageDriver)
 
 	// When a release is deleted, all its revisions are deleted at the same
 	// time. To avoid generating many events with the same info, we just emit
-	// one when the last remaining revision has been deleted.
-	if hc.instance.CollectEvents && wasLastRevision {
+	// one when there are no more revisions left.
+	if hc.instance.CollectEvents && !moreRevisionsLeft {
 		hc.eventsManager.addEventForDeletedRelease(decodedRelease, storageDriver)
 	}
 }

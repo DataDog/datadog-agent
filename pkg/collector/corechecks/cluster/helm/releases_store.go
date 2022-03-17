@@ -68,22 +68,22 @@ func (rs *releasesStore) getAll(storage helmStorage) []*release {
 	return res
 }
 
-// delete removes a release. It returns a bool that indicates whether the
-// release deleted was the only existing revision.
+// delete removes a release. It returns a bool that indicates whether there are
+// any revisions left for the release.
 func (rs *releasesStore) delete(rel *release, storage helmStorage) bool {
 	rs.storeMutex.Lock()
 	defer rs.storeMutex.Unlock()
 
 	if rs.store[storage][rel.namespacedName()] == nil {
-		return true
+		return false
 	}
 
 	delete(rs.store[storage][rel.namespacedName()], rel.revision())
 
-	if len(rs.store[storage][rel.namespacedName()]) == 0 {
-		delete(rs.store[storage], rel.namespacedName())
+	if len(rs.store[storage][rel.namespacedName()]) > 0 {
 		return true
 	}
 
+	delete(rs.store[storage], rel.namespacedName())
 	return false
 }

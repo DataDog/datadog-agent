@@ -144,12 +144,12 @@ func TestDelete(t *testing.T) {
 		store.add(rel, k8sSecrets)
 	}
 
-	// Should return false when there are more revisions
-	assert.False(t, store.delete(releases[0], k8sSecrets))
+	// Should return true when there are more revisions
+	assert.True(t, store.delete(releases[0], k8sSecrets))
 
-	// Should return true when it was the last revision
-	assert.True(t, store.delete(releases[1], k8sSecrets))
+	// Should return false when it was the last revision
+	assert.False(t, store.delete(releases[1], k8sSecrets))
 
-	// Should return true when it doesn't exist
-	assert.True(t, store.delete(releases[1], k8sSecrets))
+	// Should return false when it doesn't exist
+	assert.False(t, store.delete(releases[1], k8sSecrets))
 }
