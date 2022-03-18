@@ -121,11 +121,11 @@ func runService(isDebug bool) {
 
 // main is the main application entry point
 func main() {
-	rootCmd.PersistentFlags().StringVar(&opts.configPath, "cfgpath", defaultConfigPath, "Path to datadog.yaml config")
-	rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, "sysprobe-config", defaultSysProbeConfigPath, "Path to system-probe.yaml config")
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, flags.CfgPath, defaultConfigPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, flags.SysProbeConfig, defaultSysProbeConfigPath, "Path to system-probe.yaml config")
 	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
-	rootCmd.PersistentFlags().BoolVarP(&opts.version, "version", "v", false, "Print the version and exit")
-	rootCmd.PersistentFlags().StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime, process_discovery")
+	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
+	rootCmd.PersistentFlags().String("check", "", "[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")
 
 	// windows-specific options for installing the service, uninstalling the service, etc.
 	rootCmd.PersistentFlags().BoolVar(&winopts.installService, "install-service", false, "Install the process agent to the Service Control Manager")
@@ -135,7 +135,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
 
 	// Invoke the Agent
-	fixDeprecatedFlags(os.Args, os.Stdout)
+	os.Args = fixDeprecatedFlags(os.Args, os.Stdout)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(-1)
 	}
