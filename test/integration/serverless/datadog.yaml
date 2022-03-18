@@ -4,4 +4,4 @@ logs_config:
       name: masked_value
       replace_placeholder: "masked"
       ##One pattern that contains capture groups
-      pattern: M(\d*)M
+      pattern: __[\w|_]*__
