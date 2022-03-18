@@ -92,7 +92,7 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 
 	sysInfo, err := checks.CollectSystemInfo(cfg)
 	if err != nil {
-		log.Errorf("failed tp collect system info: %s", err)
+		log.Errorf("failed to collect system info: %s", err)
 	}
 
 	check := args[0]

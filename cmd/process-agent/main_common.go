@@ -170,12 +170,12 @@ func fixDeprecatedFlags(args []string, w io.Writer) []string {
 	}
 
 	var newArgs []string
-	for i, arg := range args {
+	for _, arg := range args {
 		var replaced bool
 
 		for f, replacer := range deprecatedFlags {
 			if strings.HasPrefix(arg, f) {
-				replacement := replacer(args[i], f)
+				replacement := replacer(arg, f)
 				newArgs = append(newArgs, replacement.args...)
 
 				fmt.Fprint(w, deprecatedFlagWarning(f, replacement.hint))
@@ -185,7 +185,7 @@ func fixDeprecatedFlags(args []string, w io.Writer) []string {
 		}
 
 		if !replaced {
-			newArgs = append(newArgs, args[i])
+			newArgs = append(newArgs, arg)
 		}
 	}
 	return newArgs
