@@ -34,6 +34,7 @@
                 {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}<br>
                 {{- end -}}
                 Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
+                Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
                 Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
                 Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
                 Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>

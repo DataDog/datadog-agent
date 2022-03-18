@@ -8,6 +8,7 @@
         Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
         Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
         Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
+        Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
         Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
         Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
       {{- if .LastError}}
