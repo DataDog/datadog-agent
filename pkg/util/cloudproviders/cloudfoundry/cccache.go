@@ -10,8 +10,12 @@ package cloudfoundry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +56,9 @@ type CCCacheI interface {
 
 	// GetCFApplications returns all CF applications in the cache
 	GetCFApplications() ([]*CFApplication, error)
+
+	// GetSideCarsByApp returns all CF Sidecards for the given App GUID
+	GetSideCarsByApp() ([]*CFSideCar, error)
 }
 
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
@@ -70,6 +77,7 @@ type CCCache struct {
 	spacesByGUID         map[string]*cfclient.V3Space
 	processesByAppGUID   map[string][]*cfclient.Process
 	cfApplicationsByGUID map[string]*CFApplication
+	sideCarsByAppGUID    map[string][]*CFSideCar
 	appsBatchSize        int
 }
 
@@ -79,6 +87,8 @@ type CCClientI interface {
 	ListV3SpacesByQuery(url.Values) ([]cfclient.V3Space, error)
 	ListAllProcessesByQuery(url.Values) ([]cfclient.Process, error)
 	ListOrgQuotasByQuery(url.Values) ([]cfclient.OrgQuota, error)
+	NewRequest(method, path string) *cfclient.Request
+	DoRequest(r *cfclient.Request) (*http.Response, error)
 }
 
 var globalCCCache = &CCCache{}
@@ -100,6 +110,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 			ClientID:          ccClientID,
 			ClientSecret:      ccClientSecret,
 			SkipSslValidation: skipSSLValidation,
+			UserAgent:         "datadog-cluster-agent",
 		}
 		var err error
 		globalCCCache.ccAPIClient, err = cfclient.NewClient(clientConfig)
@@ -368,46 +379,102 @@ func (ccc *CCCache) readData() {
 		}
 	}()
 
-	// put new data in cache
+	// wait for CF resources acquisition
 	wg.Wait()
 
+	// prepare CFApplications
 	var cfApplicationsByGUID map[string]*CFApplication
-
 	if ccc.serveNozzleData {
-		cfApplicationsByGUID = make(map[string]*CFApplication, len(apps))
-		// Populate cfApplications
-		for _, cfapp := range apps {
-			updatedApp := CFApplication{}
-			updatedApp.extractDataFromV3App(cfapp)
-			appGUID := updatedApp.GUID
-			spaceGUID := updatedApp.SpaceGUID
-			processes, exists := processesByAppGUID[appGUID]
-			if exists {
-				updatedApp.extractDataFromV3Process(processes)
-			} else {
-				log.Infof("could not fetch processes info for app guid %s", appGUID)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cfApplicationsByGUID = make(map[string]*CFApplication, len(apps))
+			// Populate cfApplications
+			for _, cfapp := range apps {
+				updatedApp := CFApplication{}
+				updatedApp.extractDataFromV3App(cfapp)
+				appGUID := updatedApp.GUID
+				spaceGUID := updatedApp.SpaceGUID
+				processes, exists := processesByAppGUID[appGUID]
+				if exists {
+					updatedApp.extractDataFromV3Process(processes)
+				} else {
+					log.Infof("could not fetch processes info for app guid %s", appGUID)
+				}
+				// Fill space then org data. Order matters for labels and annotations.
+				space, exists := spacesByGUID[spaceGUID]
+				if exists {
+					updatedApp.extractDataFromV3Space(space)
+				} else {
+					log.Infof("could not fetch space info for space guid %s", spaceGUID)
+				}
+				orgGUID := updatedApp.OrgGUID
+				org, exists := orgsByGUID[orgGUID]
+				if exists {
+					updatedApp.extractDataFromV3Org(org)
+				} else {
+					log.Infof("could not fetch org info for org guid %s", orgGUID)
+				}
+				cfApplicationsByGUID[appGUID] = &updatedApp
 			}
-			// Fill space then org data. Order matters for labels and annotations.
-			space, exists := spacesByGUID[spaceGUID]
-			if exists {
-				updatedApp.extractDataFromV3Space(space)
-			} else {
-				log.Infof("could not fetch space info for space guid %s", spaceGUID)
-			}
-			orgGUID := updatedApp.OrgGUID
-			org, exists := orgsByGUID[orgGUID]
-			if exists {
-				updatedApp.extractDataFromV3Org(org)
-			} else {
-				log.Infof("could not fetch org info for org guid %s", orgGUID)
-			}
-			cfApplicationsByGUID[appGUID] = &updatedApp
-		}
+		}()
 	}
+
+	// List SideCars
+	wg.Add(1)
+	var sideCarsByAppGUID map[string][]*CFSideCar
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+
+		sideCarsByAppGUID = make(map[string][]*CFSideCar)
+		for appGUID, _ := range appsByGUID {
+			var sideCars []*CFSideCar
+			for page := 1; ; page++ {
+				q := url.Values{}
+				query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+				q.Set("page", strconv.Itoa(page))
+				r := ccc.ccAPIClient.NewRequest("GET", "/v3/apps/"+appGUID+"/sidecars?"+q.Encode())
+				resp, err := ccc.ccAPIClient.DoRequest(r)
+				if err != nil {
+					log.Errorf("Error requesting sidecars for app %s page %s", appGUID, err)
+					return
+				}
+				// Read body response
+				defer resp.Body.Close()
+				resBody, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					log.Errorf("Error reading sidecars response for app %s for page %d", appGUID, page)
+					return
+				}
+				// Unmarshal body response into SideCarsResponse objects
+				var sideCarsResponse SideCarsResponse
+				err = json.Unmarshal(resBody, &sideCarsResponse)
+				if err != nil {
+					log.Errorf("Error unmarshalling sidecars response for app %s for page %d", appGUID, page)
+					return
+				}
+
+				for _, sideCar := range sideCarsResponse.Resources {
+					s := sideCar
+					sideCars = append(sideCars, &s)
+				}
+
+				if sideCarsResponse.Pagination.TotalPages <= page {
+					break
+				}
+			}
+			sideCarsByAppGUID[appGUID] = sideCars
+		}
+	}()
+
+	// put new data in cache
+	wg.Wait()
 
 	ccc.Lock()
 	defer ccc.Unlock()
 
+	ccc.sideCarsByAppGUID = sideCarsByAppGUID
 	ccc.appsByGUID = appsByGUID
 	ccc.spacesByGUID = spacesByGUID
 	ccc.orgsByGUID = orgsByGUID

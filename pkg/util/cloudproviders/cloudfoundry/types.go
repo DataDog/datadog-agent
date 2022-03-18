@@ -144,6 +144,23 @@ type CFApplication struct {
 	Annotations    map[string]string
 }
 
+type CFSideCar struct {
+	Name          string
+	GUID          string
+	Command       string
+	ProcessTypes  []string
+	Memory        int
+	Origin        string
+	Relationships map[string]cfclient.V3ToOneRelationship
+	CreatedAt     string
+	UpdatedAt     string
+}
+
+type SideCarsResponse struct {
+	Pagination cfclient.Pagination `json:"pagination"`
+	Resources  []CFSideCar     `json:"resources"`
+}
+
 type CFOrgQuota struct {
 	GUID        string
 	MemoryLimit int
