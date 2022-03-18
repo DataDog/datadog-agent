@@ -53,7 +53,7 @@ else
   end
 
   if debian?
-    runtime_dependency 'datadog-signing-keys'
+    runtime_recommended_dependency 'datadog-signing-keys'
   end
 
   if osx?
@@ -205,6 +205,31 @@ package :msi do
     'Platform' => "#{arch}",
     'IncludeSysprobe' => "#{include_sysprobe}",
   })
+  # This block runs before harvesting with heat.exe
+  # It runs in the scope of the packager, so all variables access are from the point-of-view of the packager.
+  # Therefore, `install_dir` does not refer to the `install_dir` of the Project but that of the Packager.
+  pre_heat do
+    def generate_embedded_archive(version)
+      safe_embedded_path = windows_safe_path(install_dir, "embedded#{version}")
+      safe_embedded_archive_path = windows_safe_path(install_dir, "embedded#{version}.7z")
+
+      shellout!(
+        <<-EOH.strip
+          7z a -mx=5 -ms=on #{safe_embedded_archive_path} #{safe_embedded_path}
+      EOH
+      )
+      FileUtils.rm_rf "#{safe_embedded_path}"
+    end
+
+    # Create the embedded zips and delete their folders
+    if File.exist?(windows_safe_path(install_dir, "embedded3"))
+      generate_embedded_archive(3)
+    end
+
+    if File.exist?(windows_safe_path(install_dir, "embedded2"))
+      generate_embedded_archive(2)
+    end
+  end
 end
 
 # ------------------------------------

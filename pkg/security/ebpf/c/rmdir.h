@@ -36,8 +36,9 @@ int __attribute__((always_inline)) rmdir_predicate(u64 type) {
 SEC("kprobe/security_inode_rmdir")
 int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
@@ -106,10 +107,12 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
 SEC("kprobe/dr_security_inode_rmdir_callback")
 int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_RMDIR);
         return mark_as_discarded(syscall);
     }
     return 0;
@@ -117,8 +120,9 @@ int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struc
 
 int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;

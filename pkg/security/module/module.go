@@ -89,7 +89,7 @@ func (m *Module) sanityChecks() error {
 		return err
 	}
 
-	if version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Confidentiality {
+	if kernel.GetLockdownMode() == kernel.Confidentiality {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
@@ -567,7 +567,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
-	seclog.SetPatterns(cfg.LogPatterns)
+	seclog.SetPatterns(cfg.LogPatterns...)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 

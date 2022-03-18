@@ -8,7 +8,7 @@ package aggregator
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 

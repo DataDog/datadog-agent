@@ -137,7 +137,7 @@ func StatusCmd() *cobra.Command {
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
-	err := config.LoadConfigIfExists(cmd.Flag("config").Value.String())
+	err := config.LoadConfigIfExists(cmd.Flag("cfgpath").Value.String())
 	if err != nil {
 		writeError(os.Stdout, err)
 		return err

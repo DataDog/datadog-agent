@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -84,7 +85,7 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP *cloudfoundry.D
 		for k, v := range adVal {
 			convertedADVal[k] = string(v)
 		}
-		parsedConfigs, errs := extractTemplatesFromMap(id.String(), convertedADVal, "")
+		parsedConfigs, errs := utils.ExtractTemplatesFromMap(id.String(), convertedADVal, "")
 		for _, err := range errs {
 			log.Errorf("Cannot parse endpoint template for service %s of app %s: %s, skipping",
 				adName, desiredLRP.AppGUID, err)

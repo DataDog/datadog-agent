@@ -81,7 +81,7 @@ func NewTraceServiceClient(cc *grpc.ClientConn) TraceServiceClient {
 
 func (c *traceServiceClient) Export(ctx context.Context, in *ExportTraceServiceRequest, opts ...grpc.CallOption) (*ExportTraceServiceResponse, error) {
 	out := new(ExportTraceServiceResponse)
-	err := grpc.Invoke(ctx, "/otlppb.TraceService/Export", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/opentelemetry.proto.collector.trace.v1.TraceService/Export", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func _TraceService_Export_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/otlppb.TraceService/Export",
+		FullMethod: "/opentelemetry.proto.collector.trace.v1.TraceService/Export",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TraceServiceServer).Export(ctx, req.(*ExportTraceServiceRequest))

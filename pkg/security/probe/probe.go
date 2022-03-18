@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -76,8 +74,7 @@ type Probe struct {
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
 
-	inodeDiscardersCounters map[model.EventType]*int64
-	constantOffsets         map[string]uint64
+	constantOffsets map[string]uint64
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -239,10 +236,7 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		seclog.Tracef("Dispatching event %s\n", prettyEvent)
-	}
+	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
 
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
@@ -254,34 +248,15 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		seclog.Tracef("Dispatching custom event %s\n", prettyEvent)
-	}
+	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
 	if p.handler != nil && p.config.AgentMonitoringEvents {
 		p.handler.HandleCustomEvent(rule, event)
 	}
 }
 
-func (p *Probe) countNewInodeDiscarder(eventType model.EventType) {
-	atomic.AddInt64(p.inodeDiscardersCounters[eventType], 1)
-}
-
-func (p *Probe) sendDiscardersStats() {
-	for eventType, value := range p.inodeDiscardersCounters {
-		val := atomic.SwapInt64(value, 0)
-		if val > 0 {
-			tag := fmt.Sprintf("event_type:%s", eventType)
-			_ = p.statsdClient.Count(metrics.MetricInodeDiscardersAdded, val, []string{tag}, 1.0)
-		}
-	}
-}
-
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
-	p.sendDiscardersStats()
-
 	return p.monitor.SendStats()
 }
 
@@ -554,7 +529,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve tracee process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
 		if cacheEntry != nil {
-			event.PTrace.TraceeProcessCacheEntry = cacheEntry
 			event.PTrace.Tracee = cacheEntry.ProcessContext
 		}
 	case model.MMapEventType:
@@ -584,8 +558,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve target process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
 		if cacheEntry != nil {
-			event.Signal.TargetProcessCacheEntry = cacheEntry
 			event.Signal.Target = cacheEntry.ProcessContext
+		}
+	case model.SpliceEventType:
+		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
@@ -927,15 +905,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	// discarders stats
-	p.inodeDiscardersCounters = make(map[model.EventType]*int64)
-	for eventType := range allDiscarderHandlers {
-		value := int64(0)
-
-		evt := model.ParseEvalEventType(eventType)
-		p.inodeDiscardersCounters[evt] = &value
-	}
-
 	if p.config.SyscallMonitor {
 		// Add syscall monitor probes
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
@@ -1099,6 +1068,9 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("pid_level_offset", "struct pid", "level", "linux/pid.h")
 	constantFetcher.AppendOffsetofRequest("pid_numbers_offset", "struct pid", "numbers", "linux/pid.h")
 	constantFetcher.AppendSizeofRequest("sizeof_upid", "struct upid", "linux/pid.h")
+
+	// splice event
+	constantFetcher.AppendOffsetofRequest("pipe_inode_info_bufs_offset", "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
 
 	return constantFetcher.FinishAndGetResults()
 }

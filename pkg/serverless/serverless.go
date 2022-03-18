@@ -163,8 +163,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
-	}
-	if payload.EventType == Shutdown {
+	} else if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {

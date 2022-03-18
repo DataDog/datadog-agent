@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ReceiverStats is used to store all the stats per tags.
@@ -124,7 +124,7 @@ type TagStats struct {
 }
 
 func newTagStats(tags Tags) *TagStats {
-	return &TagStats{tags, Stats{TracesDropped: &TracesDropped{}, SpansMalformed: &SpansMalformed{}}}
+	return &TagStats{Tags: tags, Stats: NewStats()}
 }
 
 // AsTags returns all the tags contained in the TagStats.
@@ -332,6 +332,8 @@ func (s *samplingPriorityStats) TagValues() map[string]int64 {
 
 // Stats holds the metrics that will be reported every 10s by the agent.
 // Its fields require to be accessed in an atomic way.
+//
+// Use NewStats to initialise.
 type Stats struct {
 	// TracesReceived is the total number of traces received, including the dropped ones.
 	TracesReceived int64
@@ -365,6 +367,14 @@ type Stats struct {
 	PayloadAccepted int64
 	// PayloadRefused counts the number of payloads that have been rejected by the rate limiter.
 	PayloadRefused int64
+}
+
+// NewStats returns new, ready to use stats.
+func NewStats() Stats {
+	return Stats{
+		TracesDropped:  new(TracesDropped),
+		SpansMalformed: new(SpansMalformed),
+	}
 }
 
 func (s *Stats) update(recent *Stats) {

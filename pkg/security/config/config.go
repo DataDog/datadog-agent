@@ -7,11 +7,13 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -97,11 +99,24 @@ type Config struct {
 	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
 	// operation.
 	ActivityDumpCleanupPeriod time.Duration
+	// RuntimeMonitor defines if the runtime monitor should be enabled
+	RuntimeMonitor bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *Config) IsEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+func setEnv() {
+	if aconfig.IsContainerized() && util.PathExists("/host") {
+		if v := os.Getenv("HOST_PROC"); v == "" {
+			os.Setenv("HOST_PROC", "/host/proc")
+		}
+		if v := os.Getenv("HOST_SYS"); v == "" {
+			os.Setenv("HOST_SYS", "/host/sys")
+		}
+	}
 }
 
 // NewConfig returns a new Config object
@@ -141,6 +156,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RuntimeCompiledConstantsIsSet:      aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants"),
 		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump_manager.enabled"),
 		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.cleanup_period")) * time.Second,
+		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -177,5 +193,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
 
+	setEnv()
 	return c, nil
 }
