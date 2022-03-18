@@ -32,7 +32,7 @@ func (e *Entry) Tags() []string {
 // Release decrements internal reference counter, potentially marking
 // the entry as unused.
 //
-// Can be called concurrently with Insert and Shrink.
+// Can be called concurrently with other store operations.
 func (e *Entry) Release() {
 	const minusOne = ^uint64(0)
 	atomic.AddUint64(&e.refs, minusOne)
@@ -40,6 +40,9 @@ func (e *Entry) Release() {
 
 // Store is a reference counted container of tags slices, to be shared
 // between contexts.
+//
+// Store is generally not thread-safe, except Release may be called
+// concurrently with other methods.
 type Store struct {
 	tagsByKey map[ckey.TagsKey]*Entry
 	cap       int
@@ -62,8 +65,8 @@ func NewStore(enabled bool, name string) *Store {
 // for the returned entry; callers should call Entry.Release() when
 // the returned pointer is no longer in use.
 //
-// Must not be called concurrently.
-// Must not be called concurrently with Shrink.
+// Store is generally not thread-safe, except Release may be called
+// concurrently with other methods.
 func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
 		return &Entry{
@@ -92,8 +95,8 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 
 // Shrink will try to release memory if cache usage drops low enough.
 //
-// Must not be called concurrently.
-// Must not be called concurrently with Insert.
+// Store is generally not thread-safe, except Release may be called
+// concurrently with other methods.
 func (tc *Store) Shrink() {
 	stats := entryStats{}
 	for key, entry := range tc.tagsByKey {
