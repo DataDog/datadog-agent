@@ -366,12 +366,12 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 	}
 
 	httpStats := t.httpMonitor.GetStats()
-	if ds, ok := httpStats["dropped_stats"]; ok {
-		tm[network.HTTPStatsDropped] = ds
+	if ds, ok := httpStats["http_requests_dropped"]; ok {
+		tm[network.HTTPRequestsDropped] = ds
 	}
 
-	if ms, ok := httpStats["misses_stats"]; ok {
-		tm[network.HTTPStatsMisses] = ms
+	if ms, ok := httpStats["http_requests_missed"]; ok {
+		tm[network.HTTPRequestsMissed] = ms
 	}
 
 	ebpfStats := t.ebpfTracer.GetTelemetry()

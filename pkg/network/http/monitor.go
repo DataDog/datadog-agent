@@ -191,22 +191,22 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 
 func (m *Monitor) GetStats() map[string]int64 {
 	if m == nil {
-		return map[string]int64{}
+		return nil
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
-		return map[string]int64{}
+		return nil
 	}
 
 	if m.telemetrySnapshot == nil {
-		return map[string]int64{}
+		return nil
 	}
 
 	return map[string]int64{
-		"dropped_stats": m.telemetrySnapshot.dropped,
-		"misses_stats":  m.telemetrySnapshot.misses,
+		"http_requests_dropped": m.telemetrySnapshot.dropped,
+		"http_requests_missed":  m.telemetrySnapshot.misses,
 	}
 }
 
