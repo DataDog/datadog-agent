@@ -46,6 +46,10 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     exit 0
 fi
 
+if [ -z "$ARCHITECTURE" ]; then
+    export ARCHITECTURE=$DEFAULT_ARCHITECTURE
+fi
+
 # Move into the root directory, so this script can be called from any directory
 SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
@@ -87,10 +91,6 @@ fi
 
 if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
     export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
-fi
-
-if [ -z "$ARCHITECTURE" ]; then
-    export ARCHITECTURE=$DEFAULT_ARCHITECTURE
 fi
 
 echo "Testing for $ARCHITECTURE architecture"
@@ -167,7 +167,7 @@ functions_to_skip=(
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" >/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
 done
 wait
 
@@ -179,7 +179,7 @@ sleep $SECONDS_BETWEEN_INVOCATIONS
 # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
 echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" >/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
 done
 wait
 
