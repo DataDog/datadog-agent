@@ -67,19 +67,41 @@ func TestBTFHubConstants(t *testing.T) {
 	compareFetchers(t, rcFetcher, btfhubFetcher, kv)
 }
 
-func compareFetchers(t *testing.T, a, b constantfetch.ConstantFetcher, kv *kernel.Version) {
+func TestBTFConstants(t *testing.T) {
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	kv, err := test.probe.GetKernelVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	btfFetcher, err := constantfetch.NewBTFConstantFetcherFromCurrentKernel()
+	if err != nil {
+		t.Skipf("btf constant fetcher is not available: %v", err)
+	}
+
+	fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
+
+	compareFetchers(t, btfFetcher, fallbackFetcher, kv)
+}
+
+func compareFetchers(t *testing.T, expected, actual constantfetch.ConstantFetcher, kv *kernel.Version) {
 	t.Helper()
-	aConstants, err := probe.GetOffsetConstantsFromFetcher(a, kv)
+	expectedConstants, err := probe.GetOffsetConstantsFromFetcher(expected, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
-	bConstants, err := probe.GetOffsetConstantsFromFetcher(b, kv)
+	actualConstants, err := probe.GetOffsetConstantsFromFetcher(actual, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if !assert.Equal(t, aConstants, bConstants) {
+	if !assert.Equal(t, expectedConstants, actualConstants) {
 		t.Logf("kernel version: %v", kv)
 	}
 }
