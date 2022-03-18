@@ -64,8 +64,8 @@ type TUFVersions struct {
 
 // TUFVersionState TODO <remote-config>
 func (c *Client) TUFVersionState() (TUFVersions, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	drv, err := c.directorLocalStore.GetMetaVersion(metaRoot)
 	if err != nil {
@@ -97,9 +97,8 @@ func (c *Client) TUFVersionState() (TUFVersions, error) {
 
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
-	c.Lock()
-	defer c.Unlock()
-
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	s := State{
 		ConfigState:     map[string]MetaState{},
 		DirectorState:   map[string]MetaState{},

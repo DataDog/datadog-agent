@@ -44,7 +44,7 @@ const (
 // Service defines the remote config management service responsible for fetching, storing
 // and dispatching the configurations
 type Service struct {
-	sync.Mutex
+	mutex       sync.RWMutex
 	firstUpdate bool
 
 	defaultRefreshInterval time.Duration
@@ -195,7 +195,8 @@ func (s *Service) calculateRefreshInterval() time.Duration {
 }
 
 func (s *Service) refresh() error {
-	s.Lock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
@@ -220,10 +221,9 @@ func (s *Service) refresh() error {
 		}
 	}
 	request := buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
-	s.Unlock()
+	s.mutex.Unlock()
 	response, err := s.api.Fetch(s.ctx, request)
-	s.Lock()
-	defer s.Unlock()
+	s.mutex.Lock()
 	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
@@ -274,8 +274,8 @@ func (s *Service) getClientState() ([]byte, error) {
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	err := validateRequest(request)
 	if err != nil {
 		return nil, err
