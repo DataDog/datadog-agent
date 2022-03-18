@@ -89,7 +89,7 @@ type ObfuscationConfig struct {
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
 
 	// AppSec holds the obfuscation settings for the AppSec meta value.
-	AppSec AppSecObfuscationConfig
+	AppSec AppSecObfuscation
 }
 
 // Export returns an obfuscate.Config matching o.
@@ -274,8 +274,8 @@ type AppSecConfig struct {
 	DDURL string
 }
 
-// AppSecObfuscationConfig holds the configuration settings for HTTP obfuscation.
-type AppSecObfuscationConfig struct {
+// AppSecObfuscation holds the configuration settings for HTTP obfuscation.
+type AppSecObfuscation struct {
 	// ParameterKeyRegexp is the appsec event parameter key regular expression used to detect sensitive keys in appsec
 	// events.
 	ParameterKeyRegexp *regexp.Regexp
@@ -479,7 +479,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation: &ObfuscationConfig{
-			AppSec: AppSecObfuscationConfig{
+			AppSec: AppSecObfuscation{
 				ParameterKeyRegexp:   obfuscate.CompileRegexp(DefaultAppSecObfuscationKeyRegexp),
 				ParameterValueRegexp: obfuscate.CompileRegexp(DefaultAppSecObfuscationValueRegexp),
 			},

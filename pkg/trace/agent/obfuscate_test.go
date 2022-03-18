@@ -387,7 +387,7 @@ func TestObfuscateConfig(t *testing.T) {
 
 	t.Run("appsec", func(t *testing.T) {
 		// Custom testConfig to easily compare the json value results
-		testConfig := func(t *testing.T, typ, val, exp string, ocfg config.AppSecObfuscationConfig) {
+		testConfig := func(t *testing.T, typ, val, exp string, ocfg config.AppSecObfuscation) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
@@ -481,7 +481,7 @@ func TestObfuscateConfig(t *testing.T) {
 			t.Run(fmt.Sprintf("%s-span", typ), func(t *testing.T) {
 				t.Run("disabled", func(t *testing.T) {
 					out := in
-					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+					testConfig(t, typ, in, out, config.AppSecObfuscation{
 						ParameterKeyRegexp:   nil,
 						ParameterValueRegexp: nil,
 					})
@@ -557,7 +557,7 @@ func TestObfuscateConfig(t *testing.T) {
 					  ]
 					}`
 
-					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+					testConfig(t, typ, in, out, config.AppSecObfuscation{
 						ParameterKeyRegexp:   nil,
 						ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
 					})
@@ -633,7 +633,7 @@ func TestObfuscateConfig(t *testing.T) {
 					  ]
 					}`
 
-					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+					testConfig(t, typ, in, out, config.AppSecObfuscation{
 						ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
 						ParameterValueRegexp: nil,
 					})
@@ -709,7 +709,7 @@ func TestObfuscateConfig(t *testing.T) {
 					  ]
 					}`
 
-					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+					testConfig(t, typ, in, out, config.AppSecObfuscation{
 						ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
 						ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
 					})

@@ -291,7 +291,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			c.Obfuscation.CreditCards.Luhn = coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
 		}
 	}
-	c.Obfuscation.AppSec = config.AppSecObfuscationConfig{
+	c.Obfuscation.AppSec = config.AppSecObfuscation{
 		ParameterKeyRegexp:   obfuscate.CompileRegexp(coreconfig.Datadog.GetString("appsec_config.obfuscation.parameter_key_regexp")),
 		ParameterValueRegexp: obfuscate.CompileRegexp(coreconfig.Datadog.GetString("appsec_config.obfuscation.parameter_value_regexp")),
 	}
