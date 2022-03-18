@@ -36,6 +36,7 @@ type Monitor struct {
 	reordererMonitor    *ReordererMonitor
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
+	discarderMonitor    *DiscarderMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -81,6 +82,12 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 	if p.config.RuntimeMonitor {
 		m.runtimeMonitor = NewRuntimeMonitor(client)
 	}
+
+	m.discarderMonitor, err = NewDiscarderMonitor(p, client)
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't create the discarder monitor")
+	}
+
 	return m, nil
 }
 
@@ -148,6 +155,10 @@ func (m *Monitor) SendStats() error {
 		if err := m.runtimeMonitor.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send runtime monitor stats")
 		}
+	}
+
+	if err := m.discarderMonitor.SendStats(); err != nil {
+		return errors.Wrap(err, "failed to send discarder stats")
 	}
 
 	return nil

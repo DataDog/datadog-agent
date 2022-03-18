@@ -11,7 +11,6 @@ package probe
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -99,7 +98,7 @@ func NewActivityDump(params *api.DumpActivityParams, tracedPIDs *ebpf.Map, resol
 	}
 
 	// generate random output file
-	ad.outputFile, err = ioutil.TempFile("/tmp", "activity-dump-")
+	ad.outputFile, err = os.CreateTemp("/tmp", "activity-dump-")
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +110,7 @@ func NewActivityDump(params *api.DumpActivityParams, tracedPIDs *ebpf.Map, resol
 
 	// generate random graph file
 	if params.WithGraph {
-		ad.graphFile, err = ioutil.TempFile("/tmp", "graph-dump-")
+		ad.graphFile, err = os.CreateTemp("/tmp", "graph-dump-")
 		if err != nil {
 			return nil, err
 		}

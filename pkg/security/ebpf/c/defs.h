@@ -519,8 +519,9 @@ struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
 static __attribute__((always_inline)) u64 get_enabled_events(void) {
     u32 key = 0;
     u64 *mask = bpf_map_lookup_elem(&enabled_events, &key);
-    if (mask)
+    if (mask) {
         return *mask;
+    }
     return 0;
 }
 
@@ -627,4 +628,20 @@ struct bpf_map_def SEC("maps/traced_inodes") traced_inodes = {
     .namespace = "",
 };
 
+static __attribute__((always_inline))
+void *bpf_map_lookup_or_try_init(struct bpf_map_def *map, void *key, void *zero) {
+    if (map == NULL) {
+        return NULL;
+    }
+
+    void *value = bpf_map_lookup_elem(map, key);
+    if (value != NULL)
+        return value;
+
+    // Use BPF_NOEXIST to prevent race condition
+    if (bpf_map_update_elem(map, key, zero, BPF_NOEXIST) < 0)
+        return NULL;
+
+    return bpf_map_lookup_elem(map, key);
+}
 #endif

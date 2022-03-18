@@ -20,14 +20,14 @@ import (
 
 // Tagger defines a Tagger for the Tags Resolver
 type Tagger interface {
-	Init() error
+	Init(context.Context) error
 	Stop() error
 	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 }
 
 type nullTagger struct{}
 
-func (n *nullTagger) Init() error {
+func (n *nullTagger) Init(context.Context) error {
 	return nil
 }
 
@@ -47,7 +47,7 @@ type TagsResolver struct {
 // Start the resolver
 func (t *TagsResolver) Start(ctx context.Context) error {
 	go func() {
-		if err := t.tagger.Init(); err != nil {
+		if err := t.tagger.Init(ctx); err != nil {
 			log.Errorf("failed to init tagger: %s", err)
 		}
 	}()

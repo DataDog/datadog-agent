@@ -6,6 +6,7 @@
 package tagger
 
 import (
+	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -52,7 +53,7 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 	nil, "Dogstatsd UDP origin detection error count")
 
 // Init must be called once config is available, call it in your cmd
-func Init() error {
+func Init(ctx context.Context) error {
 	initOnce.Do(func() {
 		var err error
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")
@@ -75,7 +76,7 @@ func Init() error {
 			return
 		}
 
-		initErr = defaultTagger.Init()
+		initErr = defaultTagger.Init(ctx)
 	})
 
 	return initErr
@@ -250,7 +251,10 @@ func ResetCaptureTagger() {
 }
 
 func init() {
-	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+	// all binaries are expected to provide their own tagger at startup. we
+	// provide a fake tagger on init for testing purposes, as calling
+	// the global tagger without proper initialization is very common there.
+	SetDefaultTagger(local.NewFakeTagger())
 }
 
 // EnrichTags extends a tag list with origin detection tags

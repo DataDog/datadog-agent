@@ -17,18 +17,6 @@ enum erpc_op {
     EXPIRE_INODE_DISCARDER_OP,
 };
 
-int __attribute__((always_inline)) handle_discard(void *data, u64 *event_type, u64 *timeout) {
-    u64 value;
-
-    bpf_probe_read(&value, sizeof(value), data);
-    *event_type = value;
-
-    bpf_probe_read(&value, sizeof(value), data + sizeof(value));
-    *timeout = value;
-
-    return 2*sizeof(value);
-}
-
 struct discard_request_t {
     u64 event_type;
     u64 timeout;
