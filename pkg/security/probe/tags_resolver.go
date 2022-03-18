@@ -66,6 +66,11 @@ func (t *TagsResolver) Resolve(id string) []string {
 	return tags
 }
 
+// ResolveWithErr returns the tags for the given id
+func (t *TagsResolver) ResolveWithErr(id string) ([]string, error) {
+	return t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
+}
+
 // GetValue return the tag value for the given id and tag name
 func (t *TagsResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))

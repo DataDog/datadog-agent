@@ -885,7 +885,6 @@ core,go.uber.org/zap/zapcore,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Uber Technologies, Inc"
 core,go4.org/intern,BSD-3-Clause,Brad Fitzpatrick
 core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,Brad Fitzpatrick
-core,golang.org/x/crypto/blake2b,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cast5,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,The Go Authors
@@ -973,12 +972,12 @@ core,google.golang.org/api/transport/http,BSD-3-Clause,Google Inc. | LightStep I
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/api/transport/internal/dca,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/appengine,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/app_identity,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/base,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/datastore,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/log,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/modules,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/remote_api,Apache-2.0,the Go App Engine Maintainers

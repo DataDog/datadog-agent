@@ -19,13 +19,13 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, 64)
+	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
 	e.ID = FindContainerID(id)
 
-	return 64, nil
+	return ContainerIDLen, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -147,7 +147,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ExecTime = time.Unix(0, int64(ByteOrder.Uint64(data[read:read+8])))
+	e.ExecTime = unmarshalTime(data[read : read+8])
 	read += 8
 
 	var ttyRaw [64]byte
@@ -170,7 +170,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += 16
 
 	// Unmarshal pid_cache_t
-	e.Cookie = ByteOrder.Uint32(data[read : read+4])
+	cookie := ByteOrder.Uint32(data[read : read+4])
+	if cookie > 0 {
+		e.Cookie = cookie
+	}
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
 	e.ForkTime = unmarshalTime(data[read+8 : read+16])
@@ -737,4 +740,19 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.PipeEntryFlag = ByteOrder.Uint32(data[read : read+4])
 	e.PipeExitFlag = ByteOrder.Uint32(data[read+4 : read+8])
 	return read + 4, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.TimeoutRaw = ByteOrder.Uint64(data[read : read+8])
+	return read + 8, nil
 }
