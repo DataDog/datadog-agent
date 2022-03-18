@@ -281,7 +281,7 @@ func which(t *testing.T, name string) string {
 		t.Fatalf("")
 	}
 
-	if dest, err := os.Readlink(executable); err == nil {
+	if dest, err := filepath.EvalSymlinks(executable); err == nil {
 		return dest
 	}
 
