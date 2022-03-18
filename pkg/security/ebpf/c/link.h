@@ -102,6 +102,7 @@ int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *c
     }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_LINK);
         return mark_as_discarded(syscall);
     }
 

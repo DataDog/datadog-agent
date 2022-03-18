@@ -66,8 +66,12 @@ var (
 
 	// filtering metrics
 
-	// MetricInodeDiscardersAdded is the number of inode discarder added
-	MetricInodeDiscardersAdded = newRuntimeMetric(".discarders.inode.added")
+	// MetricDiscarderAdded is the number of discarder added
+	// Tags: discarder_type, event_type
+	MetricDiscarderAdded = newRuntimeMetric(".discarders.discarder_added")
+	// MetricEventDiscarded is the number of event discarded
+	// Tags: discarder_type, event_type
+	MetricEventDiscarded = newRuntimeMetric(".discarders.event_discarded")
 
 	// Perf buffer metrics
 
