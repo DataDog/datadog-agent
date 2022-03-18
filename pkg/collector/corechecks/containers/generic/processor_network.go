@@ -48,7 +48,7 @@ func (pn *ProcessorNetwork) PreProcess(sender SenderFunc, aggSender aggregator.S
 func (pn *ProcessorNetwork) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
 	containerNetworkStats, err := collector.GetContainerNetworkStats(container.ID, cacheValidity)
 	if err != nil {
-		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return
 	}
 

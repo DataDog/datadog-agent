@@ -38,22 +38,17 @@ func TestFallbackConstants(t *testing.T) {
 	fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 	rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-	fallbackConstants, err := probe.GetOffsetConstantsFromFetcher(fallbackFetcher, test.probe)
+	fallbackConstants, err := probe.GetOffsetConstantsFromFetcher(fallbackFetcher, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rcConstants, err := probe.GetOffsetConstantsFromFetcher(rcFetcher, test.probe)
+	rcConstants, err := probe.GetOffsetConstantsFromFetcher(rcFetcher, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
 	if !assert.Equal(t, fallbackConstants, rcConstants) {
-		kernelVersion, err := test.probe.GetKernelVersion()
-		if err != nil {
-			t.Error("failed to get probe kernel version")
-		} else {
-			t.Logf("kernel version: %v", kernelVersion)
-		}
+		t.Logf("kernel version: %v", kv)
 	}
 }

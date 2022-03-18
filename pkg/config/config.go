@@ -468,8 +468,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_storage_path", "")
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
-	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
-	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80) // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
+	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)                // 0 means disabled. This is a BETA feature.
+	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80)                // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
+	config.BindEnvAndSetDefault("forwarder_retry_queue_capacity_time_interval_sec", 900) // 15 mins
 
 	// Forwarder channels buffer size
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
@@ -730,6 +731,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
+	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
+	// this is an internal setting and will not be documented in the config template.
+	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
+	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -808,11 +813,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
-
-	// If true, the agent looks for container logs in the location used by podman, rather
-	// than docker.  This is a temporary configuration parameter to support podman logs until
-	// a more substantial refactor of autodiscovery is made to determine this automatically.
-	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
 
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
@@ -974,6 +974,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.flush_discarder_window", 3)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.runtime_monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.tags_cardinality", "high")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
@@ -993,6 +994,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
 	config.BindEnv("runtime_security_config.enable_runtime_compiled_constants")
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.cleanup_period", 30)
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)

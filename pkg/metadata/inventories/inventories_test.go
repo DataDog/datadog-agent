@@ -286,9 +286,9 @@ func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
 
 // Test the `initializeConfig` function and especially its scrubbing of secret values.
 func TestInitializeConfig(t *testing.T) {
-	cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 
 	testString := func(cfgName, invName, input, output string) func(*testing.T) {
+		cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 		return func(t *testing.T) {
 			cfg.Set(cfgName, input)
 			initializeConfig(cfg)
@@ -297,8 +297,11 @@ func TestInitializeConfig(t *testing.T) {
 	}
 
 	testStringSlice := func(cfgName, invName string, input, output []string) func(*testing.T) {
+		cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 		return func(t *testing.T) {
-			cfg.Set(cfgName, input)
+			if input != nil {
+				cfg.Set(cfgName, input)
+			}
 			initializeConfig(cfg)
 			require.Equal(t, output, agentMetadata[invName].([]string))
 		}
@@ -337,6 +340,13 @@ func TestInitializeConfig(t *testing.T) {
 		"config_no_proxy",
 		[]string{"http://noprox.example.com", "http://name:sekrit@proxy.example.com/"},
 		[]string{"http://noprox.example.com", "http://name:********@proxy.example.com/"},
+	))
+
+	t.Run("config_no_proxy-nil", testStringSlice(
+		"proxy.no_proxy",
+		"config_no_proxy",
+		nil,
+		[]string{},
 	))
 
 	t.Run("config_process_dd_url", testString(

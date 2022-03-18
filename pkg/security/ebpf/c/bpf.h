@@ -310,7 +310,6 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
 
     // send event
     send_event(ctx, EVENT_BPF, event);
-    return;
 }
 
 SYSCALL_KPROBE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
@@ -334,8 +333,9 @@ SYSCALL_KPROBE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 
 __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     syscall->bpf.retval = retval;
 
@@ -364,8 +364,9 @@ int tracepoint_syscalls_sys_exit_bpf(struct tracepoint_syscalls_sys_exit_t *args
 SEC("kprobe/security_bpf_map")
 int kprobe_security_bpf_map(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct bpf_map *map = (struct bpf_map *)PT_REGS_PARM1(ctx);
 
@@ -386,8 +387,9 @@ int kprobe_security_bpf_map(struct pt_regs *ctx) {
 SEC("kprobe/security_bpf_prog")
 int kprobe_security_bpf_prog(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct bpf_prog *prog = (struct bpf_prog *)PT_REGS_PARM1(ctx);
     struct bpf_prog_aux *prog_aux = 0;
@@ -420,8 +422,9 @@ SEC("kprobe/check_helper_call")
 int kprobe_check_helper_call(struct pt_regs *ctx) {
     int func_id = 0;
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     u64 input = get_check_helper_call_input();
     if (input == CHECK_HELPER_CALL_FUNC_ID) {

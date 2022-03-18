@@ -76,7 +76,7 @@ func IsAvailable() (bool, *retry.Retrier) {
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
-		log.Errorf("KubeUtil not available, failed to create launcher", err)
+		log.Errorf("KubeUtil not available, failed to create launcher: %v", err)
 		return nil
 	}
 	launcher := &Launcher{

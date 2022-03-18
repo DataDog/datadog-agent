@@ -80,7 +80,7 @@ func getActionCallback(action string) (func(), string, error) {
 }
 
 // NewMemoryMonitor instantiates a new memory monitor
-func NewMemoryMonitor(pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
+func NewMemoryMonitor(kind string, pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
 	var memoryMonitors []cgroups.MemoryMonitor
 
 	for pressureLevel, action := range pressureLevels {
@@ -129,5 +129,5 @@ func NewMemoryMonitor(pressureLevels map[string]string, thresholds map[string]st
 		memoryMonitors = append(memoryMonitors, memoryMonitor)
 	}
 
-	return cgroups.NewMemoryController(memoryMonitors...)
+	return cgroups.NewMemoryController(kind, memoryMonitors...)
 }

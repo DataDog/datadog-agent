@@ -222,10 +222,11 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			continue
 		}
 
+		agentVersion, _ := version.Agent()
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
 		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
-		extraHeaders.Set(headers.ProcessVersionHeader, Version)
+		extraHeaders.Set(headers.ProcessVersionHeader, agentVersion.GetNumber())
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
@@ -307,9 +308,10 @@ func (l *Collector) run(exit chan struct{}) error {
 		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
+		agentVersion, _ := version.Agent()
 		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
+			fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
+			fmt.Sprintf("revision:%s", agentVersion.Commit),
 		}
 		for {
 			select {

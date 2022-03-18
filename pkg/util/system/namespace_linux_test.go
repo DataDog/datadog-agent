@@ -28,14 +28,14 @@ func TestNamespacesInodes(t *testing.T) {
 	assert.NoError(t, os.Link(filepath.Join(fakeProc, "1", "ns", "net"), filepath.Join(fakeProc, "2", "ns", "net")))
 	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeProc, "3", "ns", "net"), []byte{}, 0o644))
 
-	pid2inode, err := GetProcessNamespaceInode(fakeProc, 2, "net")
+	pid2inode, err := GetProcessNamespaceInode(fakeProc, "2", "net")
 	assert.NoError(t, err)
 
 	pid2HostNet := IsProcessHostNetwork(fakeProc, pid2inode)
 	assert.NotNil(t, pid2HostNet)
 	assert.True(t, *pid2HostNet)
 
-	pid3inode, err := GetProcessNamespaceInode(fakeProc, 3, "net")
+	pid3inode, err := GetProcessNamespaceInode(fakeProc, "3", "net")
 	assert.NoError(t, err)
 
 	pid3HostNet := IsProcessHostNetwork(fakeProc, pid3inode)

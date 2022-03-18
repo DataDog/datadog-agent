@@ -48,6 +48,11 @@ func StatusPath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
 }
 
+// RootPath returns the path to the root folder of a pid in /proc
+func RootPath(pid int32) string {
+	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
+}
+
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process
 func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 	var capEff, capPrm uint64

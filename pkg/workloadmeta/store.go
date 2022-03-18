@@ -398,24 +398,15 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				}
 			}
 		default:
-			log.Errorf("cannot handle event of type %d. event dump: %+v", ev)
+			log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
 		}
 	}
 
-	// unlock the store before notifying subscribers, as they might need to
-	// read it for related entities (such as a pod's containers) while they
-	// process an event.
-	s.storeMut.Unlock()
-
-	// copy the list of subscribers to hold locks for as little as
-	// possible, since notifyChannel is a blocking operation.
 	s.subscribersMut.RLock()
-	subscribers := append([]subscriber{}, s.subscribers...)
-	s.subscribersMut.RUnlock()
-
-	for _, sub := range subscribers {
+	filteredEvents := make(map[subscriber][]Event, len(s.subscribers))
+	for _, sub := range s.subscribers {
 		filter := sub.filter
-		filteredEvents := make([]Event, 0, len(evs))
+		filteredEvents[sub] = make([]Event, 0, len(evs))
 
 		for _, ev := range evs {
 			entityID := ev.Entity.GetID()
@@ -435,7 +426,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			if entity != nil {
 				// setting an entity (EventTypeSet) or entity
 				// had one source removed, but others remain
-				filteredEvents = append(filteredEvents, Event{
+				filteredEvents[sub] = append(filteredEvents[sub], Event{
 					Type:   EventTypeSet,
 					Entity: entity,
 				})
@@ -443,14 +434,22 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			} else {
 				// entity has been removed entirely, unsetting
 				// is straight forward too
-				filteredEvents = append(filteredEvents, Event{
+				filteredEvents[sub] = append(filteredEvents[sub], Event{
 					Type:   EventTypeUnset,
 					Entity: ev.Entity,
 				})
 			}
 		}
+	}
+	s.subscribersMut.RUnlock()
 
-		notifyChannel(sub.name, sub.ch, filteredEvents, true)
+	// unlock the store before notifying subscribers, as they might need to
+	// read it for related entities (such as a pod's containers) while they
+	// process an event.
+	s.storeMut.Unlock()
+
+	for sub, evs := range filteredEvents {
+		notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
 

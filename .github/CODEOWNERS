@@ -83,7 +83,7 @@
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/app/integrations*.go         @trishankatdatadog @DataDog/agent-integrations @DataDog/agent-core
 /cmd/agent/app/remote_config.go         @Datadog/remote-config
-/cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
+/cmd/agent/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-core
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/infrastructure-integrations
 /cmd/agent/*.manifest                   @DataDog/agent-platform
@@ -155,6 +155,7 @@
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
@@ -208,10 +209,10 @@
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/snmp/                              @DataDog/infrastructure-integrations
-/pkg/appsec/                            @DataDog/agent-appsec
+/pkg/trace/appsec/                      @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
-/pkg/workloadmeta/collectors/cloudfoundry @DataDog/integrations-tools-and-libraries
+/pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/integrations-tools-and-libraries
 
 /pkg-config/                            @DataDog/agent-platform
 
@@ -226,7 +227,7 @@
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/agent-network
-/tasks/trace.py                         @DataDog/agent-apm
+/tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 
 /test/                                  @DataDog/agent-platform

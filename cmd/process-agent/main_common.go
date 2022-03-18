@@ -6,15 +6,18 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/agent-payload/v5/process"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
@@ -33,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -45,8 +47,6 @@ import (
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
-
-	"github.com/spf13/cobra"
 )
 
 const loggerName ddconfig.LoggerName = "PROCESS"
@@ -60,15 +60,6 @@ var opts struct {
 	check              string
 	info               bool
 }
-
-// version info sourced from build flags
-var (
-	Version   string
-	GitCommit string
-	GitBranch string
-	BuildDate string
-	GoVersion string
-)
 
 var (
 	rootCmd = &cobra.Command{
@@ -110,51 +101,44 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand, app.StatusCmd())
+	rootCmd.AddCommand(configCommand, app.StatusCmd(), app.VersionCmd)
+}
+
+func deprecatedFlagWarning(deprecated, replaceWith string) string {
+	return fmt.Sprintf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `%s` instead.\n", deprecated, replaceWith)
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
 // it also displays a warning when a non-posix flag is found
-func fixDeprecatedFlags() {
+func fixDeprecatedFlags(args []string, w io.Writer) {
 	deprecatedFlags := []string{
 		// Global flags
-		"-config", "-ddconfig", "-sysprobe-config", "-pid", "-info", "-version", "-check",
+		"-config", "--config", "-sysprobe-config", "-pid", "-info", "-version", "-check",
 		// Windows flags
 		"-install-service", "-uninstall-service", "-start-service", "-stop-service", "-foreground",
 	}
 
-	for i, arg := range os.Args {
+	replaceFlags := map[string]string{
+		"-config":  "--cfgpath",
+		"--config": "--cfgpath",
+	}
+
+	for i, arg := range args {
 		for _, f := range deprecatedFlags {
 			if !strings.HasPrefix(arg, f) {
 				continue
 			}
-			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", f)
-			os.Args[i] = "-" + os.Args[i]
+			replaceWith := replaceFlags[f]
+			if len(replaceWith) == 0 {
+				replaceWith = "-" + f
+				args[i] = "-" + args[i]
+			} else {
+				args[i] = strings.Replace(args[i], f, replaceWith, 1)
+			}
+
+			fmt.Fprint(w, deprecatedFlagWarning(f, replaceWith))
 		}
 	}
-}
-
-// versionString returns the version information filled in at build time
-func versionString(sep string) string {
-	var buf bytes.Buffer
-
-	if Version != "" {
-		fmt.Fprintf(&buf, "Version: %s%s", Version, sep)
-	}
-	if GitCommit != "" {
-		fmt.Fprintf(&buf, "Git hash: %s%s", GitCommit, sep)
-	}
-	if GitBranch != "" {
-		fmt.Fprintf(&buf, "Git branch: %s%s", GitBranch, sep)
-	}
-	if BuildDate != "" {
-		fmt.Fprintf(&buf, "Build date: %s%s", BuildDate, sep)
-	}
-	if GoVersion != "" {
-		fmt.Fprintf(&buf, "Go Version: %s%s", GoVersion, sep)
-	}
-
-	return buf.String()
 }
 
 const (
@@ -169,7 +153,8 @@ Exiting.`
 
 func runAgent(exit chan struct{}) {
 	if opts.version {
-		fmt.Print(versionString("\n"))
+		fmt.Println("WARNING: --version is deprecated and will be removed in a future version. Please use `process-agent version` instead.")
+		_ = app.WriteVersion(color.Output)
 		cleanupAndExit(0)
 	}
 
@@ -228,20 +213,22 @@ func runAgent(exit chan struct{}) {
 	// Now that the logger is configured log host info
 	hostInfo := host.GetStatusInformation()
 	log.Infof("running on platform: %s", hostInfo.Platform)
-	log.Infof("running version: %s", versionString(", "))
+	agentVersion, _ := version.Agent()
+	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
 	// Start workload metadata store before tagger (used for containerCollection)
-	workloadmeta.GetGlobalStore().Start(context.Background())
+	store := workloadmeta.GetGlobalStore()
+	store.Start(mainCtx)
 
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
 		t = remote.NewTagger()
 	} else {
-		t = local.NewTagger(collectors.DefaultCatalog)
+		t = local.NewTagger(store)
 	}
 	tagger.SetDefaultTagger(t)
-	err = tagger.Init()
+	err = tagger.Init(mainCtx)
 	if err != nil {
 		log.Errorf("failed to start the tagger: %s", err)
 	}

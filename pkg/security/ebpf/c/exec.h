@@ -25,6 +25,13 @@ struct str_array_buffer_t {
     char value[MAX_STR_BUFF_LEN];
 };
 
+struct bpf_map_def SEC("maps/traced_comms") traced_comms = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = TASK_COMM_LEN,
+    .value_size = sizeof(u32),
+    .max_entries = 200,
+};
+
 struct bpf_map_def SEC("maps/args_envs_progs") args_envs_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
@@ -138,9 +145,12 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
         .id = array_ref->id,
     };
 
-    int i = 0, n = 0, buff_offset = 0, perf_offset = 0;
+    int i = 0;
+    int n = 0;
+    int buff_offset = 0;
+    int perf_offset = 0;
 
-    #pragma unroll
+#pragma unroll
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
         void *ptr = &(buff->value[(buff_offset + sizeof(n)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
 
@@ -383,6 +393,11 @@ int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
     u32 root_nr = bpf_get_current_pid_tgid();
     u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
 
+    // no namespace
+    if (!namespace_nr || root_nr == namespace_nr) {
+      return 0;
+    }
+
     register_nr(root_nr, namespace_nr);
     return 0;
 }
@@ -397,8 +412,9 @@ int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
     bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
 
     struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
-    if (exec_count == NULL)
+    if (exec_count == NULL) {
         return 0;
+    }
 
     u64 zero = 0;
     u64 *count = bpf_map_lookup_or_try_init(exec_count, &key, &zero);
@@ -472,6 +488,12 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // send the entry to maintain userspace cache
     send_event(args, EVENT_FORK, event);
 
+    // if the parent is traced, trace the child too
+    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &ppid);
+    if (tgid_exec_ts != NULL) {
+        bpf_map_update_elem(&traced_pids, &pid, &ts, BPF_ANY);
+    }
+
     return 0;
 }
 
@@ -505,6 +527,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
+
+        // delete pid from traced_pids
+        bpf_map_delete_elem(&traced_pids, &tgid);
     }
 
     // remove nr translations
@@ -593,6 +618,13 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             // copy proc_cache entry data
             copy_proc_cache_except_comm(proc_entry, &event.proc_entry);
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
+
+            // lookup comm to see if the process should be traced
+            u32 *traced = bpf_map_lookup_elem(&traced_comms, event.proc_entry.comm);
+            if (traced != NULL && *traced == 1) {
+                u64 ts = bpf_ktime_get_ns();
+                bpf_map_update_elem(&traced_pids, &tgid, &ts, BPF_ANY);
+            }
 
             // copy pid_cache entry data
             copy_pid_cache_except_exit_ts(pid_entry, &event.pid_entry);

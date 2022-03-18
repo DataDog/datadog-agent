@@ -33,7 +33,7 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 	// We only need it for PIDs
 	containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
 	if err != nil {
-		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return
 	}
 

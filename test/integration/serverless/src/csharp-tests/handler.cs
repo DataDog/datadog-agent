@@ -19,9 +19,14 @@ namespace AwsDotnetCsharp
 
       public Response Logs()
       {
+        // Sleep to ensure correct log ordering
+        Thread.Sleep(250);
         Console.WriteLine("XXX Log 0 XXX");
+        Thread.Sleep(250);
         Console.WriteLine("XXX Log 1 XXX");
+        Thread.Sleep(250);
         Console.WriteLine("XXX Log 2 XXX");
+        Thread.Sleep(250);
         return new Response(200, "ok");
       }
 

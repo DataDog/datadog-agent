@@ -24,24 +24,26 @@ import (
 func TestConvertNetworkStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          map[string]types.NetworkStats
+		input          *types.StatsJSON
 		networks       map[string]string
 		expectedOutput provider.ContainerNetworkStats
 	}{
 		{
 			name: "basic",
-			input: map[string]types.NetworkStats{
-				"eth0": {
-					RxBytes:   42,
-					RxPackets: 43,
-					TxBytes:   44,
-					TxPackets: 45,
-				},
-				"eth1": {
-					RxBytes:   46,
-					RxPackets: 47,
-					TxBytes:   48,
-					TxPackets: 49,
+			input: &types.StatsJSON{
+				Networks: map[string]types.NetworkStats{
+					"eth0": {
+						RxBytes:   42,
+						RxPackets: 43,
+						TxBytes:   44,
+						TxPackets: 45,
+					},
+					"eth1": {
+						RxBytes:   46,
+						RxPackets: 47,
+						TxBytes:   48,
+						TxPackets: 49,
+					},
 				},
 			},
 			expectedOutput: provider.ContainerNetworkStats{

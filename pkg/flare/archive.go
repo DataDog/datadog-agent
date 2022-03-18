@@ -336,6 +336,10 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	if err != nil {
 		log.Errorf("Could not export Windows driver status: %s", err)
 	}
+	err = zipDatadogRegistry(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not export Windows Datadog Registry: %s", err)
+	}
 
 	// force a log flush before zipping them
 	log.Flush()
