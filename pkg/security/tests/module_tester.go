@@ -657,28 +657,30 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 
 // GetStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetStatusMetrics(probe *sprobe.Probe) string {
-	var status string
-
 	if probe == nil {
-		return status
+		return ""
 	}
 	monitor := probe.GetMonitor()
 	if monitor == nil {
-		return status
+		return ""
 	}
 	perfBufferMonitor := monitor.GetPerfBufferMonitor()
 	if perfBufferMonitor == nil {
-		return status
+		return ""
 	}
 
-	status = fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1))
+	var status strings.Builder
+	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
 	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
-		status = fmt.Sprintf("%s, %s user:%d kernel:%d lost:%d", status, i, stats.Count, kernelStats.Count, kernelStats.Lost)
+		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
+			continue
+		}
+		status.WriteString(fmt.Sprintf(", %s user:%d kernel:%d lost:%d", i, stats.Count, kernelStats.Count, kernelStats.Lost))
 	}
 
-	return status
+	return status.String()
 }
 
 // ErrTimeout is used to indicate that a test timed out
