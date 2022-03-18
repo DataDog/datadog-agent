@@ -280,6 +280,11 @@ func which(t *testing.T, name string) string {
 	if err != nil {
 		t.Fatalf("")
 	}
+
+	if dest, err := os.Readlink(executable); err == nil {
+		return dest
+	}
+
 	return executable
 }
 
