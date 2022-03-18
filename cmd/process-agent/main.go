@@ -34,7 +34,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
 	rootCmd.PersistentFlags().String("check", "",
-		"[deprecated] Run a specific check and print the results. Choose from: process, connections, realtime, process_discovery")
+		"[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")
 
 	os.Args = fixDeprecatedFlags(os.Args, os.Stdout)
 	if err := rootCmd.Execute(); err != nil {

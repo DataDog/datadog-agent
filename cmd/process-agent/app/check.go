@@ -31,7 +31,7 @@ import (
 // CheckCmd is a command that runs the process-agent version data
 var CheckCmd = &cobra.Command{
 	Use:          "check",
-	Short:        "Run a specific check and print the results. Choose from: process, connections, realtime, process_discovery",
+	Short:        "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery",
 	Args:         cobra.ExactArgs(1),
 	RunE:         runCheckCmd,
 	SilenceUsage: true,
@@ -46,8 +46,7 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 
 	configPath := cmd.Flag(flags.CfgPath).Value.String()
 	sysprobePath := cmd.Flag(flags.SysProbeConfig).Value.String()
-	// `GetContainers` will panic when running in docker if the config hasn't called `DetectFeatures`.
-	// `LoadConfigIfExists` does the job of loading the config and calling `DetectFeatures` so that we can detect containers.
+
 	if err := config.LoadConfigIfExists(configPath); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
