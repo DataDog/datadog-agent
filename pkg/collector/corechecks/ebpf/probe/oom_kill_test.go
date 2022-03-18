@@ -50,9 +50,17 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 }
 
 func TestOOMKillCompile(t *testing.T) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kv < kernel.VersionCode(4, 9, 0) {
+		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+	}
+
 	cfg := ebpf.NewConfig()
 	cfg.BPFDebug = true
-	_, err := runtime.OomKill.Compile(cfg, nil)
+	_, err = runtime.OomKill.Compile(cfg, nil)
 	require.NoError(t, err)
 }
 
