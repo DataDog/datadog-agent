@@ -387,11 +387,11 @@ func TestObfuscateConfig(t *testing.T) {
 
 	t.Run("appsec", func(t *testing.T) {
 		// Custom testConfig to easily compare the json value results
-		testConfig := func(t *testing.T, typ, val, exp string, ocfg *config.ObfuscationConfig) {
+		testConfig := func(t *testing.T, typ, val, exp string, ocfg config.AppSecObfuscationConfig) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
-			cfg.Obfuscation = ocfg
+			cfg.Obfuscation.AppSec = ocfg
 			agnt := NewAgent(ctx, cfg)
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{tagAppSec: val}}
@@ -481,11 +481,9 @@ func TestObfuscateConfig(t *testing.T) {
 			t.Run(fmt.Sprintf("%s-span", typ), func(t *testing.T) {
 				t.Run("disabled", func(t *testing.T) {
 					out := in
-					testConfig(t, typ, in, out, &config.ObfuscationConfig{
-						AppSec: config.AppSecObfuscationConfig{
-							ParameterKeyRegexp:   nil,
-							ParameterValueRegexp: nil,
-						},
+					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+						ParameterKeyRegexp:   nil,
+						ParameterValueRegexp: nil,
 					})
 				})
 
@@ -559,11 +557,9 @@ func TestObfuscateConfig(t *testing.T) {
 					  ]
 					}`
 
-					testConfig(t, typ, in, out, &config.ObfuscationConfig{
-						AppSec: config.AppSecObfuscationConfig{
-							ParameterKeyRegexp:   nil,
-							ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
-						},
+					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+						ParameterKeyRegexp:   nil,
+						ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
 					})
 				})
 
@@ -637,11 +633,9 @@ func TestObfuscateConfig(t *testing.T) {
 					  ]
 					}`
 
-					testConfig(t, typ, in, out, &config.ObfuscationConfig{
-						AppSec: config.AppSecObfuscationConfig{
-							ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
-							ParameterValueRegexp: nil,
-						},
+					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+						ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
+						ParameterValueRegexp: nil,
 					})
 				})
 
@@ -715,11 +709,9 @@ func TestObfuscateConfig(t *testing.T) {
 					  ]
 					}`
 
-					testConfig(t, typ, in, out, &config.ObfuscationConfig{
-						AppSec: config.AppSecObfuscationConfig{
-							ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
-							ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
-						},
+					testConfig(t, typ, in, out, config.AppSecObfuscationConfig{
+						ParameterKeyRegexp:   regexp.MustCompile(`DD_API_KEY`),
+						ParameterValueRegexp: regexp.MustCompile(`SENSITIVE`),
 					})
 				})
 			})

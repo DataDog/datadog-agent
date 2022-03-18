@@ -252,6 +252,16 @@ type DebuggerProxyConfig struct {
 	APIKey string
 }
 
+// Default AppSec configuration values
+const (
+	DefaultAppSecEnabled        = true
+	DefaultAppSecDDUrl          = ""
+	DefaultAppSecMaxPayloadSize = 5 * 1024 * 1024
+
+	DefaultAppSecObfuscationKeyRegexp   = `(?i)(p(ass)?w(((or)?d))|(phrase))|(secret)|(authorization)|(api_?key)|((access_?)?token)`
+	DefaultAppSecObfuscationValueRegexp = ``
+)
+
 // AppSecConfig hold the AppSec reverse proxy settings.
 type AppSecConfig struct {
 	// Enabled reports whether AppSec is enabled.
@@ -468,7 +478,12 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
-		Obfuscation:                 &ObfuscationConfig{},
+		Obfuscation: &ObfuscationConfig{
+			AppSec: AppSecObfuscationConfig{
+				ParameterKeyRegexp:   obfuscate.CompileRegexp(DefaultAppSecObfuscationKeyRegexp),
+				ParameterValueRegexp: obfuscate.CompileRegexp(DefaultAppSecObfuscationValueRegexp),
+			},
+		},
 
 		GlobalTags: make(map[string]string),
 
@@ -479,8 +494,9 @@ func New() *AgentConfig {
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		AppSec: AppSecConfig{
-			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
+			Enabled:        DefaultAppSecEnabled,
+			MaxPayloadSize: DefaultAppSecMaxPayloadSize,
+			DDURL:          DefaultAppSecDDUrl,
 		},
 	}
 }
