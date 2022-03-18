@@ -164,13 +164,15 @@ func AllPerfMaps() []*manager.PerfMap {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled bool, networkEnabled bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
-	routes = append(routes, getTCTailCallRoutes()...)
+	if networkEnabled {
+		routes = append(routes, getTCTailCallRoutes()...)
+	}
 
 	return routes
 }

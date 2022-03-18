@@ -267,7 +267,7 @@ type Process struct {
 
 	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
 	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
-	NetNS uint32 `field:"-"`
+	NetNS uint32 `field:"-" msg:"-"`
 
 	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
 	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
@@ -745,6 +745,7 @@ type CgroupTracingEvent struct {
 }
 
 // NetworkDeviceContext represents the network device context of a network event
+//msgp:ignore NetworkDeviceContext
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-"`
 	IfIndex uint32 `field:"ifindex"`                           // interface ifindex
@@ -752,12 +753,14 @@ type NetworkDeviceContext struct {
 }
 
 // IPPortContext is used to hold an IP and Port
+//msgp:ignore IPPortContext
 type IPPortContext struct {
 	IP   net.IP `field:"-"`
 	Port uint16 `field:"port"` // Port number
 }
 
 // NetworkContext represents the network context of the event
+//msgp:ignore NetworkContext
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
@@ -769,6 +772,7 @@ type NetworkContext struct {
 }
 
 // DNSEvent represents a DNS event
+//msgp:ignore DNSEvent
 type DNSEvent struct {
 	ID    uint16 `field:"-"`
 	Name  string `field:"question.name"`  // the queried domain name
@@ -779,6 +783,7 @@ type DNSEvent struct {
 }
 
 // NetDevice represents a network device
+//msgp:ignore NetDevice
 type NetDevice struct {
 	Name        string
 	NetNS       uint32
@@ -793,6 +798,7 @@ func (d NetDevice) GetKey() string {
 }
 
 // NetDeviceEvent represents a network device event
+//msgp:ignore NetDeviceEvent
 type NetDeviceEvent struct {
 	SyscallEvent
 
@@ -800,6 +806,7 @@ type NetDeviceEvent struct {
 }
 
 // VethPairEvent represents a veth pair event
+//msgp:ignore VethPairEvent
 type VethPairEvent struct {
 	SyscallEvent
 

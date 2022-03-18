@@ -259,7 +259,8 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
 
         case STATE_REGISTER_PEER_DEVICE: {
             // this is the host device
-            struct device_t *peer_device = bpf_map_lookup_elem(&veth_devices, &state->peer_device_key);
+            struct device_ifindex_t lookup_key = state->peer_device_key; // for compatibility with older kernels
+            struct device_t *peer_device = bpf_map_lookup_elem(&veth_devices, &lookup_key);
             if (peer_device == NULL) {
                 // peer device not found, should never happen
                 return 0;
@@ -297,7 +298,7 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
     return 0;
 };
 
-__attribute__((always_inline)) void trace_dev_change_net_namespace(struct pt_regs *ctx) {
+__attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     struct net *net = (struct net *)PT_REGS_PARM2(ctx);
 

@@ -37,8 +37,8 @@ func TestNetDevice(t *testing.T) {
 		t.Skip()
 	}
 
-	if err := loadModule("veth"); err != nil {
-		t.Fatal(err)
+	if out, err := loadModule("veth"); err != nil {
+		t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
 	}
 
 	rule := &rules.RuleDefinition{
@@ -57,7 +57,7 @@ func TestNetDevice(t *testing.T) {
 		t.Errorf("couldn't retrieve current network namespace ID: %v", err)
 	}
 	var testNetns uint32
-	executable := which("ip")
+	executable := which(t, "ip")
 	defer func() {
 		_ = exec.Command(executable, "netns", "delete", "test_netns").Run()
 	}()

@@ -31,6 +31,10 @@ func TestDNS(t *testing.T) {
 		t.Skip()
 	}
 
+	if out, err := loadModule("veth"); err != nil {
+		t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+	}
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,

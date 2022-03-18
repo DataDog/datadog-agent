@@ -95,7 +95,7 @@ __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, stru
     for (int i = 0; i < DNS_MAX_LENGTH; i++) {
         if (end_of_name) {
             evt->name[i] = 0;
-            continue;
+            break;
         }
 
         if (bpf_skb_load_bytes(skb, pkt->offset, &evt->name[i], sizeof(u8)) < 0) {
@@ -188,7 +188,7 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
     }
 
     // send DNS event
-    send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + qname_length);
+    send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + (qname_length & (DNS_MAX_LENGTH - 1)));
 
     if (!is_dns_request_parsing_done(skb, pkt)) {
         tail_call_to_classifier(skb, DNS_REQUEST_PARSER);

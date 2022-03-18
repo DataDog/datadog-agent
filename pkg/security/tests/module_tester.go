@@ -284,7 +284,7 @@ func getInode(t *testing.T, path string) uint64 {
 func which(t *testing.T, name string) string {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		t.Fatalf("")
+		t.Fatalf("couldn't resolve %s: %v", name, err)
 	}
 
 	if dest, err := filepath.EvalSymlinks(executable); err == nil {
