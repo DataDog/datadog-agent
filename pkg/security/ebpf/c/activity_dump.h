@@ -198,7 +198,13 @@ __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
 __attribute__((always_inline)) void fill_activity_dump_discarder_state(void *ctx, struct is_discarded_by_inode_t *params) {
     struct proc_cache_t *proc_entry = get_proc_cache(params->tgid);
     if (proc_entry != NULL) {
-        should_trace_new_process(ctx, params->now, params->tgid, proc_entry->container.container_id, proc_entry->comm);
+        // prepare cgroup and comm (for compatibility with old kernels)
+        char cgroup[CONTAINER_ID_LEN] = {};
+        bpf_probe_read(&cgroup, sizeof(cgroup), proc_entry->container.container_id);
+        char comm[TASK_COMM_LEN] = {};
+        bpf_probe_read(&comm, sizeof(comm), proc_entry->comm);
+
+        should_trace_new_process(ctx, params->now, params->tgid, cgroup, comm);
     }
 
     u64 timeout = lookup_or_delete_traced_pid_timeout(params->tgid, params->now);

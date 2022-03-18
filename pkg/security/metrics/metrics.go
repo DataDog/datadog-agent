@@ -142,7 +142,7 @@ var (
 	MetricActivityDumpEventAdded = newRuntimeMetric(".activity_dump.event.added")
 	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in
 	// bytes
-	// Tags: -
+	// Tags: format
 	MetricActivityDumpSizeInBytes = newRuntimeMetric(".activity_dump.size_in_bytes")
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -

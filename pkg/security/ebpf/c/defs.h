@@ -382,7 +382,8 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event->event.cpu, kernel_event, kernel_event_size);      \
                                                                                                                        \
     if (kernel_event->event.type < EVENT_MAX) {                                                                        \
-        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event->event.type);                \
+        u64 lookup_type = event_type;                                                                                  \
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &lookup_type);                             \
         if (stats != NULL) {                                                                                           \
             if (!perf_ret) {                                                                                           \
                 __sync_fetch_and_add(&stats->bytes, kernel_event_size + 4);                                            \
