@@ -235,13 +235,7 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 		AdmissionReviewVersions: []string{"v1beta1"},
 	}
 
-	labelSelector := buildLabelSelector()
-	if c.config.useNamespaceSelector() {
-		webhook.NamespaceSelector = labelSelector
-		return webhook
-	}
-
-	webhook.ObjectSelector = labelSelector
+	webhook.NamespaceSelector, webhook.ObjectSelector = buildLabelSelectors(c.config.useNamespaceSelector())
 
 	return webhook
 }
