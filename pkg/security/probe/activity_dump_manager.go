@@ -11,7 +11,7 @@ package probe
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -233,7 +233,7 @@ func (adm *ActivityDumpManager) GenerateProfile(params *api.GenerateProfileParam
 		return "", errors.Wrap(err, "couldn't open activity dump file")
 	}
 
-	data, err := ioutil.ReadAll(f)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return "", errors.Wrap(err, "couldn't read activity dump file")
 	}
@@ -246,7 +246,7 @@ func (adm *ActivityDumpManager) GenerateProfile(params *api.GenerateProfileParam
 
 	// create profile output file
 	var profile *os.File
-	profile, err = ioutil.TempFile("/tmp", "profile-")
+	profile, err = os.CreateTemp("/tmp", "profile-")
 	if err != nil {
 		return "", errors.Wrap(err, "couldn't create profile file")
 	}
