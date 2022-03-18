@@ -29,6 +29,7 @@ FROM baseimage AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
+ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
 COPY datadog-agent*_amd64.deb /
@@ -38,8 +39,10 @@ WORKDIR /output
 # Hack: PGP key store locally as it's currently not available from https://keybase.io/justcontainers/key.asc
 COPY hack/s6-pgp-key /tmp/s6-pgp-key
 ENV S6_VERSION v1.22.1.0
-ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
-ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
+ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
+ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
+ADD ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
+ADD ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
 RUN apt install --no-install-recommends -y gpg gpg-agent \
  && cat /tmp/s6-pgp-key | gpg --import \
  && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
