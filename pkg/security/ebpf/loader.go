@@ -37,7 +37,7 @@ func (l *Loader) Close() error {
 // Load eBPF programs
 func (l *Loader) Load() (bytecode.AssetReader, error) {
 	var err error
-	if l.config.EnableRuntimeCompiler {
+	if l.config.RuntimeCompilationEnabled {
 		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper)
 		if err != nil {
 			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)

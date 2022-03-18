@@ -18,8 +18,8 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 		fetchers = append(fetchers, coreFetcher)
 	}
 
-	if config.EnableRuntimeCompiledConstants {
-		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(config, statsdClient)
+	if config.RuntimeCompiledConstantsEnabled {
+		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
 		fetchers = append(fetchers, rcConstantFetcher)
 	}
 

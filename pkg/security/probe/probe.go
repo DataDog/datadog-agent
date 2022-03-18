@@ -1317,7 +1317,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.config.EnableRuntimeCompiledConstants = true
+		p.config.RuntimeCompiledConstantsEnabled = true
 	}
 }
 
