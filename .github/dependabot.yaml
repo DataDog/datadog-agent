@@ -146,10 +146,11 @@ updates:
     directory: /internal/tools
     labels:
       - dependencies
-      # NOTE: We don't want to add the label dependencies-go here, because that
-      # label triggers a github action with write access to the repo that runs
-      # some go tools from this package. A malicious dependency could push a new
-      # release that exploits that we run it automatically after it updates.
+      - dependencies-go
+      - dependencies-go-tools # This makes the go_mod_tidy Github Action not run go tools from this
+                              # package on Dependabot PRs. Otherwise, a malicious dependency could
+                              # publish a new version exploiting that it runs automatically after it
+                              # is updated to write to our repo.
       - dev/tooling
       - team/agent-platform
       - changelog/no-changelog

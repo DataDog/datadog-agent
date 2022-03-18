@@ -31,11 +31,14 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.8.10'
+    - name: Install python requirements.txt
+      run: python3 -m pip install -r requirements.txt
     - name: Go mod tidy
+      run: inv -e tidy-all
+    - name: Update LICENSE-3rdparty.csv
+      if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
       run: |
-        python3 -m pip install -r requirements.txt
         inv -e install-tools
-        inv -e tidy-all
         inv -e generate-licenses
     - uses: stefanzweifel/git-auto-commit-action@v4
       id: autocommit
