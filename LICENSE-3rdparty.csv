@@ -9,7 +9,7 @@ core,cloud.google.com/go/internal/version,Apache-2.0,Google LLC
 core,cloud.google.com/go/storage,Apache-2.0,Google LLC
 core,code.cloudfoundry.org/bbs,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/bbs/encryption,Apache-2.0,"CloudFoundry.org Foundation, Inc"
-core,code.cloudfoundry.org/bbs/events,Apache-2.0,"CloudFoundry.org Foundation, Inc"
+Foundation, Inc"
 core,code.cloudfoundry.org/bbs/format,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/bbs/models,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/cfhttp/v2,Apache-2.0,"CloudFoundry.org Foundation, Inc"
