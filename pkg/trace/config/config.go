@@ -127,8 +127,8 @@ func (o *ObfuscationConfig) Export() obfuscate.Config {
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
 		},
 		AppSec: obfuscate.AppSecConfig{
-			ParameterKeyRegexp:   o.AppSec.ParameterKeyRegexp,
-			ParameterValueRegexp: o.AppSec.ParameterValueRegexp,
+			KeyRegexp:   o.AppSec.ParameterKeyRegexp,
+			ValueRegexp: o.AppSec.ParameterValueRegexp,
 		},
 		Logger: debugLogger{},
 	}

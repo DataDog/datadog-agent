@@ -178,11 +178,11 @@ type JSONConfig struct {
 
 // AppSecConfig holds the configuration settings for AppSec obfuscation.
 type AppSecConfig struct {
-	// ParameterKeyRegexp is the regular expression used on AppSec event parameter keys. Parameters whose keys
-	// match this regular expression are obfuscated regardless of the ParameterValueRegexp regular expression.
-	ParameterKeyRegexp *regexp.Regexp
-	// ParameterValueRegexp is the regular expression used to obfuscate AppSec event parameter values and highlights.
-	ParameterValueRegexp *regexp.Regexp
+	// KeyRegexp is the regular expression used on AppSec event parameter keys. Parameters whose keys
+	// match this regular expression are obfuscated regardless of the ValueRegexp regular expression.
+	KeyRegexp *regexp.Regexp
+	// ValueRegexp is the regular expression used to obfuscate AppSec event parameter values and highlights.
+	ValueRegexp *regexp.Regexp
 }
 
 // NewObfuscator creates a new obfuscator

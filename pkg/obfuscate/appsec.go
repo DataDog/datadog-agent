@@ -7,52 +7,44 @@ package obfuscate
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 )
 
-// ObfuscateAppSec obfuscates the given appsec tag value in order to remove
-// sensitive values from the appsec security events.
-func (o *Obfuscator) ObfuscateAppSec(val string) string {
-	keyRE := o.opts.AppSec.ParameterKeyRegexp
-	valueRE := o.opts.AppSec.ParameterValueRegexp
-	if keyRE == nil && valueRE == nil {
-		return val
-	}
-	ob := appsecEventsObfuscator{
-		keyRE:   keyRE,
-		valueRE: valueRE,
-	}
-	output, err := ob.obfuscate(val)
-	if err != nil {
-		o.log.Errorf("unexpected error while obfuscating the appsec events: %v", err)
-		return val
-	}
-	return output
-}
-
-type appsecEventsObfuscator struct {
-	keyRE, valueRE *regexp.Regexp
-}
-
+// unexpectedScannerOpError is an error wrapper type around a scanner operation
+// that was unexpectedly encountered a scanning function. Returning such an
+// error allows the caller to adapt its parsing to what was actually encountered
+// and proceed accordingly, for example by actually returning successfully when
+// the end of an array was encountered instead of an array value.
 type unexpectedScannerOpError int
 
 func (err unexpectedScannerOpError) Error() string {
 	return fmt.Sprintf("unexpected json scanner operation %d", err)
 }
 
-// inputDiff holds the list of diffs, built by the obfuscator, and to ultimately
-// apply to the input.
-type inputDiff []struct {
+// diff specifies a set of changes consisting of byte offsets and a string to
+// replace them in an original input.
+type diff []struct {
 	from, to int
 	value    string
 }
 
-// Add a new entry to the list. Note that due to how the apply() method works
-// by creating the output string by walking this list, the list entries must be
-// sorted in ascending "input offset" order.
-func (d *inputDiff) add(from, to int, value string) {
+// Apply the diff to the input if any.
+func (d diff) apply(input string) string {
+	from := 0
+	var output strings.Builder
+	for _, diff := range d {
+		output.WriteString(input[from:diff.from])
+		from = diff.to + 1
+		output.WriteString(diff.value)
+	}
+	output.WriteString(input[from:])
+	return output.String()
+}
+
+// Add a new modification to the diff, starting at from and ending at to, to
+// be replaced with value.
+func (d *diff) add(from, to int, value string) {
 	elt := struct {
 		from  int
 		to    int
@@ -75,25 +67,28 @@ func (d *inputDiff) add(from, to int, value string) {
 	(*d)[i] = elt
 }
 
-// Apply the diff to the input if any.
-func (d inputDiff) apply(input string) string {
-	from := 0
-	var output strings.Builder
-	for _, diff := range d {
-		output.WriteString(input[from:diff.from])
-		from = diff.to + 1
-		output.WriteString(diff.value)
+// Merge the given diff to the current one, shifted by the given offset.
+// Cf. method obfuscateRuleMatchParameter()
+func (d *diff) merge(diff diff, offset int) {
+	for _, diff := range diff {
+		d.add(diff.from+offset, diff.to+offset, diff.value)
 	}
-	output.WriteString(input[from:])
-	return output.String()
 }
 
-// Append the given diff to the current one, shifted by the given offset.
-// Cf. method obfuscateRuleMatchParameter()
-func (d *inputDiff) appendTo(diff *inputDiff, offset int) {
-	for _, d := range *d {
-		diff.add(d.from+offset, d.to+offset, d.value)
+// ObfuscateAppSec obfuscates the given appsec tag value in order to remove
+// sensitive values from the appsec security events.
+func (o *Obfuscator) ObfuscateAppSec(val string) string {
+	keyRE := o.opts.AppSec.KeyRegexp
+	valueRE := o.opts.AppSec.ValueRegexp
+	if keyRE == nil && valueRE == nil {
+		return val
 	}
+	output, err := o.obfuscateAppSec(val)
+	if err != nil {
+		o.log.Errorf("unexpected error while obfuscating the appsec events: %v", err)
+		return val
+	}
+	return output
 }
 
 // Entrypoint of the appsec obfuscator based on a json scanner and which tries
@@ -101,10 +96,10 @@ func (d *inputDiff) appendTo(diff *inputDiff, offset int) {
 // and targeting objects of the form
 // `{ "parameters": <appsec rule match parameters>, <any other keys>: <any other values> }`
 // When such object is found, its parameters' value is obfuscated.
-func (o *appsecEventsObfuscator) obfuscate(input string) (output string, err error) {
+func (o *Obfuscator) obfuscateAppSec(input string) (output string, err error) {
 	var (
 		scanner scanner
-		diff    inputDiff
+		diff    diff
 	)
 	scanner.reset()
 	keyFrom := -1
@@ -147,7 +142,7 @@ func (o *appsecEventsObfuscator) obfuscate(input string) (output string, err err
 
 // Obfuscate the array of parameters of the form `[ <parameter 1>, <...>, <parameter N> ]`.
 // The implementation accepts elements of unexpected types.
-func (o *appsecEventsObfuscator) obfuscateRuleMatchParameters(scanner *scanner, input string, i int, diff *inputDiff) int {
+func (o *Obfuscator) obfuscateRuleMatchParameters(scanner *scanner, input string, i int, diff *diff) int {
 	i, err := stepTo(scanner, input, i, scanBeginArray)
 	if err != nil {
 		return i
@@ -193,7 +188,7 @@ func (o *appsecEventsObfuscator) obfuscateRuleMatchParameters(scanner *scanner, 
 // keys `key_path`, `highlight` and `value` that we need to obfuscate.
 // Note that the overall parameter obfuscation directly depends on the presence of a sensitive key in the key_path.
 // As a result, the parameter object needs to be entirely walked to firstly find the key_path.
-func (o *appsecEventsObfuscator) obfuscateRuleMatchParameter(scanner *scanner, input string, i int, diff *inputDiff) (int, error) {
+func (o *Obfuscator) obfuscateRuleMatchParameter(scanner *scanner, input string, i int, d *diff) (int, error) {
 	// Walk the object and save the `key_path` value along with the offsets of the
 	// `highlight` and `value` values, if any.
 	var (
@@ -223,14 +218,14 @@ func (o *appsecEventsObfuscator) obfuscateRuleMatchParameter(scanner *scanner, i
 	}
 	// Finally, obfuscate the `highlight` and `value` values
 	if highlights := input[paramHighlightFrom:paramHighlightTo]; highlights != "" {
-		var tmpDiff inputDiff
+		var tmpDiff diff
 		o.obfuscateRuleMatchParameterHighlights(highlights, &tmpDiff, hasSensitiveKey)
-		tmpDiff.appendTo(diff, paramHighlightFrom)
+		d.merge(tmpDiff, paramHighlightFrom)
 	}
 	if value := input[paramValueFrom:paramValueTo]; value != "" {
-		var tmpDiff inputDiff
+		var tmpDiff diff
 		o.obfuscateRuleMatchParameterValue(value, &tmpDiff, hasSensitiveKey)
-		tmpDiff.appendTo(diff, paramValueFrom)
+		d.merge(tmpDiff, paramValueFrom)
 	}
 	return i, nil
 }
@@ -240,9 +235,10 @@ func (o *appsecEventsObfuscator) obfuscateRuleMatchParameter(scanner *scanner, i
 // applies to key path elements of string type.
 // The expected key path value is of the form `[ <path 1>, <...>, <path N> ]`.
 // The implementation is permissive so that any array value type is accepted.
-func (o *appsecEventsObfuscator) hasSensitiveKeyPath(keyPath string) (hasSensitiveKey bool) {
+func (o *Obfuscator) hasSensitiveKeyPath(keyPath string) (hasSensitiveKey bool) {
 	// Shortcut the call if the key regular expression is disabled
-	if o.keyRE == nil {
+	keyRE := o.opts.AppSec.KeyRegexp
+	if keyRE == nil {
 		return false
 	}
 	// Walk the array values of type string
@@ -257,7 +253,7 @@ func (o *appsecEventsObfuscator) hasSensitiveKeyPath(keyPath string) (hasSensiti
 		if !ok {
 			return
 		}
-		if o.keyRE.MatchString(value) {
+		if keyRE.MatchString(value) {
 			hasSensitiveKey = true
 		}
 	})
@@ -270,10 +266,11 @@ func (o *appsecEventsObfuscator) hasSensitiveKeyPath(keyPath string) (hasSensiti
 // The implementation is permissive so that it accepts any value type and only obfuscates the strings.
 // Note that this obfuscator method is a bit different from the others due to the way obfuscateRuleMatchParameter()
 // works.
-func (o *appsecEventsObfuscator) obfuscateRuleMatchParameterHighlights(input string, diff *inputDiff, hasSensitiveKey bool) {
+func (o *Obfuscator) obfuscateRuleMatchParameterHighlights(input string, diff *diff, hasSensitiveKey bool) {
 	// Shortcut the call when the value regular expression is disabled and there
 	// is no sensitive key (which acts as a regexp obfuscating everything)
-	if o.valueRE == nil && !hasSensitiveKey {
+	valueRE := o.opts.AppSec.ValueRegexp
+	if valueRE == nil && !hasSensitiveKey {
 		return
 	}
 	walkArrayStrings(input, func(from, to int) {
@@ -285,10 +282,10 @@ func (o *appsecEventsObfuscator) obfuscateRuleMatchParameterHighlights(input str
 		if !ok {
 			return
 		}
-		if !o.valueRE.MatchString(value) {
+		if !valueRE.MatchString(value) {
 			return
 		}
-		value = o.valueRE.ReplaceAllString(value, "?")
+		value = valueRE.ReplaceAllString(value, "?")
 		value, err := quote(value)
 		if err != nil {
 			return
@@ -303,10 +300,11 @@ func (o *appsecEventsObfuscator) obfuscateRuleMatchParameterHighlights(input str
 // sub-strings matching the value regular expression.
 // Note that this obfuscator method is a bit different from the others due to
 // the way obfuscateRuleMatchParameter() works.
-func (o *appsecEventsObfuscator) obfuscateRuleMatchParameterValue(input string, diff *inputDiff, hasSensitiveKey bool) {
+func (o *Obfuscator) obfuscateRuleMatchParameterValue(input string, diff *diff, hasSensitiveKey bool) {
 	// Shortcut the call when the value regular expression is disabled and there
 	// is no sensitive key (which acts as a regexp obfuscating everything)
-	if o.valueRE == nil && !hasSensitiveKey {
+	valueRE := o.opts.AppSec.ValueRegexp
+	if valueRE == nil && !hasSensitiveKey {
 		return
 	}
 	from, to, err := scanString(input)
@@ -322,10 +320,10 @@ func (o *appsecEventsObfuscator) obfuscateRuleMatchParameterValue(input string, 
 	if !ok {
 		return
 	}
-	if !o.valueRE.MatchString(value) {
+	if !valueRE.MatchString(value) {
 		return
 	}
-	value = o.valueRE.ReplaceAllString(value, "?")
+	value = valueRE.ReplaceAllString(value, "?")
 	value, err = quote(value)
 	if err != nil {
 		return

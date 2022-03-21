@@ -284,11 +284,8 @@ func TestObfuscateAppSec(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("enabled", func(t *testing.T) {
-				o := appsecEventsObfuscator{
-					keyRE:   regexp.MustCompile("SENSITIVE_KEY"),
-					valueRE: regexp.MustCompile("SENSITIVE_VALUE"),
-				}
-				output, err := o.obfuscate(tc.input)
+				o := newAppSecObfuscator(regexp.MustCompile("SENSITIVE_KEY"), regexp.MustCompile("SENSITIVE_VALUE"))
+				output, err := o.obfuscateAppSec(tc.input)
 				if err != nil {
 					if tc.expectedSyntaxError {
 						_, ok := err.(*SyntaxError)
@@ -303,10 +300,9 @@ func TestObfuscateAppSec(t *testing.T) {
 			})
 
 			t.Run("disabled", func(t *testing.T) {
-				o := appsecEventsObfuscator{
-					// Disabled via nil regular expressions
-				}
-				output, err := o.obfuscate(tc.input)
+				// Disabled via nil regular expressions
+				o := newAppSecObfuscator(nil, nil)
+				output, err := o.obfuscateAppSec(tc.input)
 				if err != nil {
 					if tc.expectedSyntaxError {
 						_, ok := err.(*SyntaxError)
@@ -376,11 +372,8 @@ func TestObfuscateRuleMatchParameters(t *testing.T) {
 	}
 	for _, tc := range i {
 		t.Run(tc.name, func(t *testing.T) {
-			o := appsecEventsObfuscator{
-				keyRE:   regexp.MustCompile("SENSITIVE_KEY"),
-				valueRE: regexp.MustCompile("SENSITIVE_VALUE"),
-			}
-			var diff inputDiff
+			o := newAppSecObfuscator(regexp.MustCompile("SENSITIVE_KEY"), regexp.MustCompile("SENSITIVE_VALUE"))
+			var diff diff
 			scanner := &scanner{}
 			scanner.reset()
 			o.obfuscateRuleMatchParameters(scanner, tc.input, 0, &diff)
@@ -488,11 +481,8 @@ func TestObfuscateRuleMatchParameter(t *testing.T) {
 	}
 	for _, tc := range i {
 		t.Run(tc.name, func(t *testing.T) {
-			o := appsecEventsObfuscator{
-				keyRE:   regexp.MustCompile("SENSITIVE_KEY"),
-				valueRE: regexp.MustCompile("SENSITIVE_VALUE"),
-			}
-			var diff inputDiff
+			o := newAppSecObfuscator(regexp.MustCompile("SENSITIVE_KEY"), regexp.MustCompile("SENSITIVE_VALUE"))
+			var diff diff
 			scanner := &scanner{}
 			scanner.reset()
 			_, err := o.obfuscateRuleMatchParameter(scanner, tc.input, 0, &diff)
@@ -593,11 +583,8 @@ func TestObfuscateRuleMatchParameterValue(t *testing.T) {
 					name = "without-sensitive-key"
 				}
 				t.Run(name, func(t *testing.T) {
-					o := appsecEventsObfuscator{
-						keyRE:   regexp.MustCompile("SENSITIVE_KEY"),
-						valueRE: regexp.MustCompile("SENSITIVE_VALUE"),
-					}
-					var diff inputDiff
+					o := newAppSecObfuscator(regexp.MustCompile("SENSITIVE_KEY"), regexp.MustCompile("SENSITIVE_VALUE"))
+					var diff diff
 					o.obfuscateRuleMatchParameterValue(tc.input, &diff, hasSensitiveKey)
 					output := diff.apply(tc.input)
 					if tc.expectedIgnored {
@@ -703,11 +690,8 @@ func TestObfuscateRuleMatchParameterHighlights(t *testing.T) {
 					name = "without-sensitive-key"
 				}
 				t.Run(name, func(t *testing.T) {
-					o := appsecEventsObfuscator{
-						keyRE:   regexp.MustCompile("SENSITIVE_KEY"),
-						valueRE: regexp.MustCompile("SENSITIVE_VALUE"),
-					}
-					var diff inputDiff
+					o := newAppSecObfuscator(regexp.MustCompile("SENSITIVE_KEY"), regexp.MustCompile("SENSITIVE_VALUE"))
+					var diff diff
 					scanner := &scanner{}
 					scanner.reset()
 					o.obfuscateRuleMatchParameterHighlights(tc.input, &diff, hasSensitiveKey)
@@ -723,7 +707,7 @@ func TestObfuscateRuleMatchParameterHighlights(t *testing.T) {
 	}
 }
 
-func TestHasSentitiveKeyPath(t *testing.T) {
+func TestHasSensitiveKeyPath(t *testing.T) {
 	for _, tc := range []struct {
 		name                 string
 		input                string
@@ -831,10 +815,7 @@ func TestHasSentitiveKeyPath(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			o := appsecEventsObfuscator{
-				keyRE:   regexp.MustCompile("SENSITIVE_KEY"),
-				valueRE: regexp.MustCompile("SENSITIVE_VALUE"),
-			}
+			o := newAppSecObfuscator(regexp.MustCompile("SENSITIVE_KEY"), regexp.MustCompile("SENSITIVE_VALUE"))
 			hasSensitiveKey := o.hasSensitiveKeyPath(tc.input)
 			require.Equal(t, tc.expectedSensitiveKey, hasSensitiveKey)
 		})
@@ -1234,14 +1215,11 @@ func BenchmarkObfuscator(b *testing.B) {
 	} {
 		b.Run(bc.name, func(b *testing.B) {
 			b.Run("scanner", func(b *testing.B) {
-				o := appsecEventsObfuscator{
-					keyRE:   keyRE,
-					valueRE: valueRE,
-				}
+				o := newAppSecObfuscator(keyRE, valueRE)
 				b.ReportAllocs()
 				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
-					_, err := o.obfuscate(bc.input)
+					_, err := o.obfuscateAppSec(bc.input)
 					if err != nil {
 						b.Fatal(err)
 					}
@@ -1373,4 +1351,15 @@ func matchString(re *regexp.Regexp, s string) bool {
 		return false
 	}
 	return re.MatchString(s)
+}
+
+func newAppSecObfuscator(keyRE, valueRE *regexp.Regexp) *Obfuscator {
+	return &Obfuscator{
+		opts: &Config{
+			AppSec: AppSecConfig{
+				KeyRegexp:   keyRE,
+				ValueRegexp: valueRE,
+			},
+		},
+	}
 }
