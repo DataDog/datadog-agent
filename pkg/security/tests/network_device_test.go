@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -37,8 +38,10 @@ func TestNetDevice(t *testing.T) {
 		t.Skip()
 	}
 
-	if out, err := loadModule("veth"); err != nil {
-		t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+		}
 	}
 
 	rule := &rules.RuleDefinition{
