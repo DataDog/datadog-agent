@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Adds `sidecar_present` and `sidecar_count` tags on Cloud Foundry containers
+    Adds ``sidecar_present`` and ``sidecar_count`` tags on Cloud Foundry containers
     that run apps with sidecar processes.
