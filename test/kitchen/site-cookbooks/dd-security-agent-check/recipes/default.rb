@@ -82,7 +82,7 @@ if node['platform_family'] != 'windows'
       content <<-EOF
       FROM centos:7
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
-      RUN yum -y install xfsprogs e2fsprogs
+      RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
       EOF
       action :create
