@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	procmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -563,5 +564,82 @@ process_config:
 		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
 		require.NoError(t, err)
 		assert.Equal(t, exp, string(content))
+	})
+}
+
+func TestZipProcessAgentChecks(t *testing.T) {
+	expectedProcesses := []procmodel.MessageBody{
+		&procmodel.CollectorProc{
+			Processes: []*procmodel.Process{
+				{
+					Pid: 1337,
+				},
+			},
+		},
+	}
+	expectedContainers := []procmodel.MessageBody{
+		&procmodel.CollectorProc{
+			Containers: []*procmodel.Container{
+				{
+					Id: "yeet",
+				},
+			},
+		},
+	}
+
+	t.Run("without process-agent running", func(t *testing.T) {
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentCheckOutput")
+		require.NoError(t, err)
+		defer os.RemoveAll(dir)
+		fmt.Println(dir)
+
+		err = zipProcessChecks(dir, "", func() (string, error) { return "fake:1337", nil })
+		require.NoError(t, err)
+
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, "error: process-agent is not running or is unreachable", string(content))
+	})
+	t.Run("with process-agent running", func(t *testing.T) {
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			var payload []procmodel.MessageBody
+			if r.URL.Path == "/checks/process" {
+				payload = expectedProcesses
+			} else if r.URL.Path == "/checks/container" {
+				payload = expectedContainers
+			}
+
+			b, err := yaml.Marshal(payload)
+			require.NoError(t, err)
+
+			_, err = w.Write(b)
+			require.NoError(t, err)
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
+
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentCheckOutput")
+		require.NoError(t, err)
+		defer os.RemoveAll(dir)
+
+		err = zipProcessChecks(dir, "", func() (string, error) { return strings.TrimPrefix(srv.URL, "http//"), nil })
+		require.NoError(t, err)
+
+		var processOutput, containerOutput []procmodel.MessageBody
+
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		require.NoError(t, err)
+		err = json.Unmarshal(content, &processOutput)
+		require.NoError(t, err)
+		assert.Equal(t, processOutput, expectedProcesses)
+
+		content, err = ioutil.ReadFile(filepath.Join(dir, "container_check_output.json"))
+		require.NoError(t, err)
+		err = json.Unmarshal(content, &containerOutput)
+		require.NoError(t, err)
+		assert.Equal(t, containerOutput, expectedContainers)
 	})
 }

@@ -227,7 +227,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 			log.Errorf("Could not zip workload list: %s", err)
 		}
 
-		err = zipProcessChecks(tempDir, hostname)
+		err = zipProcessChecks(tempDir, hostname, api.GetAPIAddressPort)
 		if err != nil {
 			log.Errorf("Could not zip process agent checks: %s", err)
 		}
@@ -626,8 +626,8 @@ func zipSecrets(tempDir, hostname string) error {
 	return writeScrubbedFile(f, b.Bytes())
 }
 
-func zipProcessChecks(tempDir, hostname string) error {
-	addressPort, err := api.GetAPIAddressPort()
+func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url string, err error)) error {
+	addressPort, err := getAddressPort()
 	if err != nil {
 		return fmt.Errorf("wrong configuration to connect to process-agent")
 	}
@@ -635,12 +635,31 @@ func zipProcessChecks(tempDir, hostname string) error {
 
 	err = zipHTTPCallContent(tempDir, hostname, "process_check_output.json", checkURL+"/check/process")
 	if err != nil {
+		_ = log.Error(err)
+		err = ioutil.WriteFile(
+			filepath.Join(tempDir, hostname, "process_check_output.json"),
+			[]byte("error: process-agent is not running or is unreachable"),
+			os.ModePerm,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	if err != nil {
 		return fmt.Errorf("could not connect to process-agent: %v", err)
 	}
 
 	err = zipHTTPCallContent(tempDir, hostname, "container_check_output.json", checkURL+"/check/container")
 	if err != nil {
-		return fmt.Errorf("could not connect to process-agent: %v", err)
+		_ = log.Error(err)
+		err = ioutil.WriteFile(
+			filepath.Join(tempDir, hostname, "container_check_output.json"),
+			[]byte("error: process-agent is not running or is unreachable"),
+			os.ModePerm,
+		)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
