@@ -22,6 +22,7 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
+	staticSource    = workloadmetaCollectorName + "-static"
 	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
 	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
@@ -44,7 +45,6 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags             map[string]string
 	labelsAsTags           map[string]string
 	annotationsAsTags      map[string]string
 	nsLabelsAsTags         map[string]string
@@ -68,9 +68,27 @@ func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTag
 	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
 }
 
-// Stream runs the continuous event watching loop and sends new tags to the
+// Run runs the continuous event watching loop and sends new tags to the
 // tagger based on the events sent by the workloadmeta.
-func (c *WorkloadMetaCollector) Stream(ctx context.Context) {
+func (c *WorkloadMetaCollector) Run(ctx context.Context) {
+	c.collectStaticGlobalTags(ctx)
+	c.stream(ctx)
+}
+
+func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
+	staticTags := util.GetStaticTagsSlice(ctx)
+	if len(staticTags) > 0 {
+		c.tagProcessor.ProcessTagInfo([]*TagInfo{
+			{
+				Source:      staticSource,
+				Entity:      GlobalEntityID,
+				LowCardTags: staticTags,
+			},
+		})
+	}
+}
+
+func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 	const name = "tagger-workloadmeta"
 
 	health := health.RegisterLiveness(name)
@@ -127,8 +145,6 @@ func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, p p
 	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
 	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
-
-	c.staticTags = util.GetStaticTags(ctx)
 
 	return c
 }

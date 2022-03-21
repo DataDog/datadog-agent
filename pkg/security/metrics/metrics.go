@@ -132,14 +132,21 @@ var (
 
 	// Activity dump metrics
 
-	// MetricActivityDumpProcessed is the name of the metric used to count the number of events processed while
-	// creating the activity dump.
+	// MetricActivityDumpEventProcessed is the name of the metric used to count the number of events processed while
+	// creating an activity dump.
 	// Tags: event_type
-	MetricActivityDumpProcessed = newRuntimeMetric(".activity_dump.processed")
-	// MetricActivityDumpAdded is the name of the metric used to count the number of events that were added in the
+	MetricActivityDumpEventProcessed = newRuntimeMetric(".activity_dump.event.processed")
+	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to an
 	// activity dump.
 	// Tags: event_type
-	MetricActivityDumpAdded = newRuntimeMetric(".activity_dump.added")
+	MetricActivityDumpEventAdded = newRuntimeMetric(".activity_dump.event.added")
+	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in
+	// bytes
+	// Tags: format
+	MetricActivityDumpSizeInBytes = newRuntimeMetric(".activity_dump.size_in_bytes")
+	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
+	// Tags: -
+	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
 
 	// Custom events
 

@@ -1,8 +1,7 @@
 #ifndef __IP_H
 #define __IP_H
 
-#include <linux/kconfig.h>
-
+#include "kconfig.h"
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 

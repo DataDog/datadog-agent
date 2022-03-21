@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run github.com/tinylib/msgp -tests=false
+
 package model
 
 import (
@@ -108,6 +110,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 }*/
 
 // ArgsEnvs raw value for args and envs
+//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
@@ -115,6 +118,7 @@ type ArgsEnvs struct {
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
+//msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	ArgsEnvs
 
@@ -205,10 +209,10 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry
+	*ArgsEnvsCacheEntry `msg:"-"`
 
-	Values    []string
-	Truncated bool
+	Values    []string `msg:"values"`
+	Truncated bool     `msg:"-"`
 
 	parsed bool
 }
@@ -232,10 +236,10 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry
+	*ArgsEnvsCacheEntry `msg:"-"`
 
-	Values    []string
-	Truncated bool
+	Values    []string `msg:"values"`
+	Truncated bool     `msg:"-"`
 
 	parsed bool
 	keys   []string

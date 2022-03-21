@@ -1,4 +1,4 @@
-#include <linux/kconfig.h>
+#include "kconfig.h"
 #include <linux/version.h>
 #include <linux/types.h>
 
