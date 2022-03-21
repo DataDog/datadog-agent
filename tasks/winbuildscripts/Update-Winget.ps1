@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
-$WINGET_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/winget"} else {"https://github.com/microsoft/winget-create/releases/download"}
+$WINGET_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/winget"} else {"https://github.com/microsoft/winget-create/releases/download"}
 
 (New-Object System.Net.WebClient).DownloadFile("${WINGET_DOWNLOAD_URL}/v0.4.0.3-preview/wingetcreate.exe", "$(Get-Location)\wingetcreate.exe")
 (Get-FileHash -Algorithm SHA256 "$(Get-Location)\wingetcreate.exe") -eq "977363979f0616b11cdea94cf9474b590b489fc3769168a3a7a66e83e0be817d"
