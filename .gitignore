@@ -53,7 +53,6 @@ datadog-agent*_amd64.deb
 pkg/process/config/testdata/secret
 
 auth_token
-/test/e2e/scripts/run-instance/argo
 /test/e2e/scripts/setup-instance/instance-id.json
 /test/e2e/scripts/setup-instance/specification.json
 /test/e2e/scripts/setup-instance/spot-instance-request.json
@@ -159,3 +158,12 @@ pkg/network/netlink/testdata/message_dump*
 # serverless
 .layers
 .extension
+
+# Emacs
+*~
+
+# etags
+TAGS
+
+# cscope
+cscope.out

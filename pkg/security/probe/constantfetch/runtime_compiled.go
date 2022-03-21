@@ -55,7 +55,7 @@ func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, h
 		Id:        id,
 		Operation: fmt.Sprintf("sizeof(%s)", typeName),
 	})
-	cf.result[id] = errorSentinel
+	cf.result[id] = ErrorSentinel
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
@@ -67,11 +67,14 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 		Id:        id,
 		Operation: fmt.Sprintf("offsetof(%s, %s)", typeName, fieldName),
 	})
-	cf.result[id] = errorSentinel
+	cf.result[id] = ErrorSentinel
 }
 
 const runtimeCompilationTemplate = `
 #include <linux/kconfig.h>
+#ifdef CONFIG_HAVE_ARCH_COMPILER_H
+#include <asm/compiler.h>
+#endif
 {{ range .headers }}
 #include <{{ . }}>
 {{ end }}

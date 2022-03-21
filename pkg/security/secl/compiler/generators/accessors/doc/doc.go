@@ -67,7 +67,7 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 			return properties[i].Name < properties[j].Name
 		})
 
-		info := extractVersionAndDefinition(module.EventTypeDocs[name])
+		info := extractVersionAndDefinition(module.EventTypes[name])
 		eventTypes = append(eventTypes, eventType{
 			Name:             name,
 			Definition:       info.Definition,
@@ -110,7 +110,11 @@ type eventTypeInfo struct {
 	FromAgentVersion string
 }
 
-func extractVersionAndDefinition(comment string) eventTypeInfo {
+func extractVersionAndDefinition(evtType *common.EventTypeMetadata) eventTypeInfo {
+	var comment string
+	if evtType != nil {
+		comment = evtType.Doc
+	}
 	trimmed := strings.TrimSpace(comment)
 
 	if matches := minVersionRE.FindStringSubmatch(trimmed); matches != nil {

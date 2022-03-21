@@ -1,3 +1,4 @@
+#include "kconfig.h"
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "ip.h"

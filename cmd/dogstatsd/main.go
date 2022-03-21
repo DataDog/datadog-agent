@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -213,11 +212,11 @@ func runAgent(ctx context.Context) (err error) {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		// Start workload metadata store before tagger
-		workloadmeta.GetGlobalStore().Start(context.Background())
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
 
-		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		if err := tagger.Init(); err != nil {
+		tagger.SetDefaultTagger(local.NewTagger(store))
+		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}

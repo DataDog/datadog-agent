@@ -11,7 +11,6 @@ package checks
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -40,7 +39,7 @@ func TestFileCheck(t *testing.T) {
 	cleanUpDirs := make([]string, 0)
 	createTempFiles := func(t *testing.T, numFiles int) (string, []string) {
 		paths := make([]string, 0, numFiles)
-		dir, err := ioutil.TempDir("", "cmplFileTest")
+		dir, err := os.MkdirTemp("", "cmplFileTest")
 		assert.NoError(err)
 		cleanUpDirs = append(cleanUpDirs, dir)
 

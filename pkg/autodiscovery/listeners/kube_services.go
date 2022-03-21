@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -29,8 +30,8 @@ import (
 )
 
 const (
-	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
-	kubeServicesName            = "kube_services"
+	kubeServiceID    = "service"
+	kubeServicesName = "kube_services"
 )
 
 // KubeServiceListener listens to kubernetes service creation
@@ -61,11 +62,20 @@ func init() {
 
 // isServiceAnnotated returns true if the Service has an annotation with a given key
 func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
-	if ksvc != nil {
-		if _, found := ksvc.GetAnnotations()[annotationKey]; found {
-			return true
-		}
+	if ksvc == nil {
+		return false
 	}
+
+	annotations := ksvc.GetAnnotations()
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".checks"]; found {
+		return true
+	}
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".instances"]; found {
+		return true
+	}
+
 	return false
 }
 
@@ -162,7 +172,7 @@ func servicesDiffer(first, second *v1.Service) bool {
 		return false
 	}
 	// AD annotations - check templates
-	if isServiceAnnotated(first, kubeServiceAnnotationFormat) != isServiceAnnotated(second, kubeServiceAnnotationFormat) {
+	if isServiceAnnotated(first, kubeServiceID) != isServiceAnnotated(second, kubeServiceID) {
 		return true
 	}
 	// AD labels - standard tags
@@ -195,7 +205,7 @@ func (l *KubeServiceListener) shouldIgnore(ksvc *v1.Service) bool {
 	}
 
 	// Ignore services with no AD or Prometheus AD include annotation
-	return !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
+	return !isServiceAnnotated(ksvc, kubeServiceID) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
 func (l *KubeServiceListener) createService(ksvc *v1.Service) {

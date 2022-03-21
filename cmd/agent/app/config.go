@@ -8,7 +8,7 @@ package app
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
+	"github.com/DataDog/datadog-agent/cmd/agent/app/internal/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"

@@ -12,38 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetCustomCheckID(t *testing.T) {
-	tests := []struct {
-		name          string
-		annotations   map[string]string
-		containerName string
-		want          string
-		found         bool
-	}{
-		{
-			name:          "found",
-			annotations:   map[string]string{"ad.datadoghq.com/foo.check.id": "bar"},
-			containerName: "foo",
-			want:          "bar",
-			found:         true,
-		},
-		{
-			name:          "not found",
-			annotations:   map[string]string{"ad.datadoghq.com/foo.check.id": "bar"},
-			containerName: "baz",
-			want:          "",
-			found:         false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, found := GetCustomCheckID(tt.annotations, tt.containerName)
-			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.found, found)
-		})
-	}
-}
-
 func TestValidateAnnotationsMatching(t *testing.T) {
 	type args struct {
 		annotations    map[string]string

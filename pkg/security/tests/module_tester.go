@@ -30,6 +30,7 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -274,15 +275,16 @@ func getInode(t *testing.T, path string) uint64 {
 }
 
 //nolint:deadcode,unused
-func which(name string) string {
-	executable := "/usr/bin/" + name
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/" + name
-		}
+func which(t *testing.T, name string) string {
+	executable, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatalf("")
 	}
+
+	if dest, err := filepath.EvalSymlinks(executable); err == nil {
+		return dest
+	}
+
 	return executable
 }
 
@@ -346,14 +348,20 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 }
 
 //nolint:deadcode,unused
-func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
-	return assert.Contains(t, values, fieldValue)
+
+	if fieldValues, ok := fieldValue.([]string); ok {
+		return assert.Contains(t, values, fieldValues[index])
+	}
+
+	t.Errorf("failed to get field '%s' as an array", field)
+	return false
 }
 
 func setTestConfig(dir string, opts testOpts) (string, error) {
@@ -526,7 +534,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		cmdWrapper:   cmdWrapper,
 	}
 
-	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet) {
+	var loadErr *multierror.Error
+	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+		loadErr = err
 		log.Infof("Adding test module as listener")
 		rs.AddListener(testMod)
 	})
@@ -539,6 +549,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, errors.Wrap(err, "failed to start module")
+	}
+
+	if loadErr.ErrorOrNil() != nil {
+		defer testMod.Close()
+		return nil, loadErr.ErrorOrNil()
 	}
 
 	if logStatusMetrics {
@@ -647,28 +662,30 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 
 // GetStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetStatusMetrics(probe *sprobe.Probe) string {
-	var status string
-
 	if probe == nil {
-		return status
+		return ""
 	}
 	monitor := probe.GetMonitor()
 	if monitor == nil {
-		return status
+		return ""
 	}
 	perfBufferMonitor := monitor.GetPerfBufferMonitor()
 	if perfBufferMonitor == nil {
-		return status
+		return ""
 	}
 
-	status = fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1))
+	var status strings.Builder
+	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
 	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
-		status = fmt.Sprintf("%s, %s user:%d kernel:%d lost:%d", status, i, stats.Count, kernelStats.Count, kernelStats.Lost)
+		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
+			continue
+		}
+		status.WriteString(fmt.Sprintf(", %s user:%d kernel:%d lost:%d", i, stats.Count, kernelStats.Count, kernelStats.Lost))
 	}
 
-	return status
+	return status.String()
 }
 
 // ErrTimeout is used to indicate that a test timed out
