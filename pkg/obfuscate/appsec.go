@@ -55,11 +55,12 @@ func (d *diff) add(from, to int, value string) {
 		value: value,
 	}
 	diff := *d
-	l := len(diff)
-	i := sort.Search(l, func(i int) bool {
-		return (*d)[i].to > from
+	// We want the list sorted incrementally: use binary search to find the
+	// index for the new entry.
+	i := sort.Search(len(diff), func(i int) bool {
+		return diff[i].to > from
 	})
-	if i == l {
+	if i == len(diff) {
 		*d = append(diff, elt)
 		return
 	}
@@ -85,7 +86,7 @@ func (o *Obfuscator) ObfuscateAppSec(val string) string {
 	}
 	output, err := o.obfuscateAppSec(val)
 	if err != nil {
-		o.log.Errorf("unexpected error while obfuscating the appsec events: %v", err)
+		o.log.Errorf("Unexpected error while obfuscating the appsec events: %v", err)
 		return val
 	}
 	return output
@@ -134,6 +135,7 @@ func (o *Obfuscator) obfuscateAppSec(input string) (output string, err error) {
 			keyTo = -1
 		}
 	}
+	// Tell the scanner the end of the input has been reach
 	if scanner.eof() == scanError {
 		return input, scanner.err
 	}
@@ -427,33 +429,39 @@ func walkObject(scanner *scanner, input string, i int, visit func(keyFrom, keyTo
 			return i, scanner.err
 		}
 	}
-	scanner.eof()
+	scanner.eof() // tell the scanner the end of the input has been reached
 	return i, scanner.err
 }
 
-// Helper function to step to the given expected scanner operation `to`.
+// stepTo steps the scanner with `input` starting at `i` until it finds the
+// operation `to`. It returns its index when it succeeds or an error when the
+// scanner gets an error or an error in case of a syntax error.
 func stepTo(scanner *scanner, input string, i int, to int) (int, error) {
 	for ; i < len(input); i++ {
 		switch op := scanner.step(scanner, input[i]); op {
-		default:
-			return i + 1, unexpectedScannerOpError(op)
+		case to:
+			return i + 1, nil
 		case scanSkipSpace, scanContinue:
 			continue
 		case scanError:
 			return i + 1, scanner.err
-		case to:
-			return i + 1, nil
+		default:
+			return i + 1, unexpectedScannerOpError(op)
 		}
 	}
-	scanner.eof()
+	scanner.eof() // tell the scanner the end of the input has been reached
 	return i, scanner.err
 }
 
-// Helper function to step to one of the given expected scanner operations `to`.
-// An error is returned if another operation is found.
+// stepToOneOf is the variadic equivalent of stepTo() by taking the list of
+// operations to step to, and returning the operation it found when successfully.
 func stepToOneOf(scanner *scanner, input string, i int, to ...int) (j int, op int, err error) {
 	for ; i < len(input); i++ {
 		switch op := scanner.step(scanner, input[i]); op {
+		case scanSkipSpace, scanContinue:
+			continue
+		case scanError:
+			return i + 1, op, scanner.err
 		default:
 			for _, to := range to {
 				if to == op {
@@ -461,18 +469,16 @@ func stepToOneOf(scanner *scanner, input string, i int, to ...int) (j int, op in
 				}
 			}
 			return i + 1, op, unexpectedScannerOpError(op)
-		case scanSkipSpace, scanContinue:
-			continue
-		case scanError:
-			return i + 1, op, scanner.err
 		}
 	}
-	scanner.eof()
+	scanner.eof() // tell the scanner the end of the input has been reached
 	return i, 0, scanner.err
 }
 
-// Helper function to keep scanning until the scanner operation `until` is
-// reached at depth 0.
+// stepUntil steps the scanner with `input` starting at `i` until it finds the
+// operation `until` at the current level of depth. Any nested arrays or objects
+// are ignored. It returns its index when it succeeds or an error in case of a
+// syntax error.
 func stepUntil(scanner *scanner, input string, i int, until int) (int, error) {
 	depth := 0
 	for ; i < len(input); i++ {
@@ -493,7 +499,7 @@ func stepUntil(scanner *scanner, input string, i int, until int) (int, error) {
 			}
 		}
 	}
-	scanner.eof()
+	scanner.eof() // tell the scanner the end of the input has been reached
 	return i, scanner.err
 }
 
@@ -530,7 +536,7 @@ func scanString(input string) (from, to int, err error) {
 		}
 	}
 	// We reached the end of the input without finding the last string
-	// double-quote and therefore results into a json syntax error.
-	scanner.eof()
+	// double-quote and therefore results into a json syntax error
+	scanner.eof() // tell the scanner that the end of the input has been reached
 	return 0, 0, scanner.err
 }
