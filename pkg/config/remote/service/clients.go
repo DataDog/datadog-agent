@@ -23,7 +23,7 @@ func (c *client) expired(clock clock.Clock, ttl time.Duration) bool {
 }
 
 type clients struct {
-	mutex sync.RWMutex
+	mutex sync.Mutex
 	clock clock.Clock
 
 	clientsTTL time.Duration
@@ -52,8 +52,8 @@ func (c *clients) seen(pbClient *pbgo.Client) {
 
 // activeClients returns the list of active clients
 func (c *clients) activeClients() []*pbgo.Client {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	var activeClients []*pbgo.Client
 	for id, client := range c.clients {
 		if client.expired(c.clock, c.clientsTTL) {
