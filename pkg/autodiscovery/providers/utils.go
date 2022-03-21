@@ -12,6 +12,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const (
+	// nolint needed as these constants are defined in a file without a build tag,
+	// but only used in multiple files with different build tags, none of which
+	// are used in the IoT Agent.
+	//nolint:unused,deadcode
+	instancePath string = "instances"
+	//nolint:unused,deadcode
+	checkNamePath string = "check_names"
+	//nolint:unused,deadcode
+	initConfigPath string = "init_configs"
+)
+
 func init() {
 	// Where to look for check templates if no custom path is defined
 	config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
