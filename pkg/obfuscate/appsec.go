@@ -77,7 +77,7 @@ func (d *diff) merge(diff diff, offset int) {
 }
 
 // ObfuscateAppSec obfuscates the given appsec tag value in order to remove
-// sensitive values from the appsec security events.
+// sensitive values from the security events.
 func (o *Obfuscator) ObfuscateAppSec(val string) string {
 	keyRE := o.opts.AppSec.KeyRegexp
 	valueRE := o.opts.AppSec.ValueRegexp
@@ -119,7 +119,7 @@ func (o *Obfuscator) obfuscateAppSec(input string) (output string, err error) {
 			}
 		case scanContinue:
 			// Continue the literal value
-			if keyFrom != -1 && input[i] == '"' && input[i-1] != '\\' {
+			if keyFrom != -1 && isJSONStringEnd(input, i) {
 				// Ending double-quote found
 				keyTo = i
 				// Only scanObjetKey will confirm this was an object key
@@ -359,7 +359,7 @@ func walkArrayStrings(input string, visit func(from int, to int)) {
 				stringFrom = i
 			}
 		case scanContinue:
-			if stringFrom != -1 && input[i] == '"' && input[i-1] != '\\' {
+			if stringFrom != -1 && isJSONStringEnd(input, i) {
 				visit(stringFrom, i)
 				stringFrom = -1
 			}
@@ -376,9 +376,9 @@ func walkObject(scanner *scanner, input string, i int, visit func(keyFrom, keyTo
 	if err != nil {
 		return i, err
 	}
-	keyFrom := -1
-	keyTo := -1
-	valueFrom := -1
+	keyFrom := -1   // marks the starting index of a JSON object key in bytes
+	keyTo := -1     // marks the end index of a JSON object key in bytes
+	valueFrom := -1 // marks the starting index of a JSON object value in bytes
 	depth := 0
 	for ; i < len(input); i++ {
 		switch scanner.step(scanner, input[i]) {
@@ -397,32 +397,36 @@ func walkObject(scanner *scanner, input string, i int, visit func(keyFrom, keyTo
 				visit(keyFrom, keyTo, valueFrom, i)
 			}
 			return i + 1, nil
-
 		case scanBeginLiteral:
+			// Maybe the beginning of an object key
 			if depth != 0 || keyFrom != -1 {
+				// We are in a nested object value or not parsing an object key
 				continue
 			}
 			if input[i] == '"' {
+				// Save the offset of the beginning of the object key
 				keyFrom = i
 			}
 		case scanContinue:
-			if keyFrom != -1 && keyTo == -1 && input[i] == '"' && input[i-1] != '\\' {
+			// Save the offset of the end of the object key if we are parsing one (keyFrom != -1 && keyTo == -1)
+			// and the current character is the ending double-quote
+			if keyFrom != -1 && keyTo == -1 && isJSONStringEnd(input, i) {
 				keyTo = i + 1
 			}
-
 		case scanObjectKey:
 			if depth == 0 {
+				// Save the beginning of the object value
 				valueFrom = i + 1
 			}
 		case scanObjectValue:
 			if depth != 0 {
 				continue
 			}
+			// Visit the object entry
 			visit(keyFrom, keyTo, valueFrom, i)
 			keyFrom = -1
 			keyTo = -1
 			valueFrom = -1
-
 		case scanError:
 			return i, scanner.err
 		}
@@ -525,7 +529,7 @@ func scanString(input string) (from, to int, err error) {
 		case scanContinue:
 			// Check if the current character is a double-quote ending the
 			// string by checking that it is not escaped by the previous one.
-			if input[i] == '"' && input[i-1] != '\\' {
+			if isJSONStringEnd(input, i) {
 				to := i + 1
 				return from, to, nil
 			}
@@ -537,4 +541,10 @@ func scanString(input string) (from, to int, err error) {
 	// double-quote and therefore results into a json syntax error
 	scanner.eof() // tell the scanner that the end of the input has been reached
 	return 0, 0, scanner.err
+}
+
+// Return true when the given input at offset i is the end of a JSON string.
+func isJSONStringEnd(input string, i int) bool {
+	// A JSON string should end with a double-quote that is not escaped.
+	return input[i] == '"' && input[i-1] != '\\'
 }
