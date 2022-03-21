@@ -180,14 +180,14 @@ func run(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
-	// initialize CC Cache
-	if err = initializeCCCache(mainCtx); err != nil {
-		_ = log.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
-	}
-
 	// initialize BBS Cache before starting provider/listener
 	if err = initializeBBSCache(mainCtx); err != nil {
 		return err
+	}
+
+	// initialize CC Cache
+	if err = initializeCCCache(mainCtx); err != nil {
+		_ = log.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
 	}
 
 	// create and setup the Autoconfig instance

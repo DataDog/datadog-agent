@@ -27,7 +27,6 @@ func installCloudFoundryMetadataEndpoints(r *mux.Router) {
 		r.HandleFunc("/cf/apps", getCFApplications).Methods("GET")
 		r.HandleFunc("/cf/org_quotas", getCFOrgQuotas).Methods("GET")
 		r.HandleFunc("/cf/orgs", getCFOrgs).Methods("GET")
-		r.HandleFunc("/cf/apps/sidecars/{guid}", getCFSidecars).Methods("GET")
 	}
 }
 
@@ -246,51 +245,6 @@ func getCFOrgQuotas(w http.ResponseWriter, r *http.Request) {
 		w.Write(orgQuotasBytes)
 		apiRequests.Inc(
 			"getCFOrgQuotas",
-			strconv.Itoa(http.StatusOK),
-		)
-		return
-	}
-}
-
-// getCFSidecars is only used when the PCF firehose nozzle hits the DCA for the list of sidecars for a given app GUID
-// It return a list of CF Sidecars belonging to the app with the given GUID
-func getCFSidecars(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	guid := vars["guid"]
-	ccCache, err := cloudfoundry.GetGlobalCCCache()
-	if err != nil {
-		log.Errorf("Could not retrieve CC cache: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc("getCFSidecars", strconv.Itoa(http.StatusInternalServerError))
-		return
-	}
-
-	sidecars, err := ccCache.GetSidecars(guid)
-	if err != nil {
-		log.Errorf("Error getting sidecars: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getCFSidecars",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
-		return
-	}
-
-	sidecarsBytes, err := json.Marshal(sidecars)
-	if err != nil {
-		log.Errorf("Could not process CF sidecars: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getCFSidecars",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
-		return
-	}
-	if len(sidecarsBytes) > 0 {
-		w.WriteHeader(http.StatusOK)
-		w.Write(sidecarsBytes)
-		apiRequests.Inc(
-			"getCFSidecars",
 			strconv.Itoa(http.StatusOK),
 		)
 		return
