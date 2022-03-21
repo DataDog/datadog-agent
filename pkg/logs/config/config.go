@@ -21,9 +21,6 @@ import (
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
 
-// SnmpTraps is the name of the integration that collects logs from SNMP traps received by the Agent
-const SnmpTraps = "snmp_traps"
-
 // logs-intake endpoint prefix.
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."

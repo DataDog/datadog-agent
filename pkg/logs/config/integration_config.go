@@ -20,7 +20,6 @@ const (
 	DockerType        = "docker"
 	JournaldType      = "journald"
 	WindowsEventType  = "windows_event"
-	SnmpTrapsType     = "snmp_traps"
 	StringChannelType = "string_channel"
 
 	// UTF16BE for UTF-16 Big endian encoding

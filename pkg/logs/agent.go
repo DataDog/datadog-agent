@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
@@ -102,7 +101,6 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
-		traps.NewLauncher(sources, pipelineProvider),
 	}
 
 	// Only try to start the container launchers if Docker or Kubernetes is available

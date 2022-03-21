@@ -9,13 +9,19 @@
 package traps
 
 import (
+	"encoding/json"
+	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -64,6 +70,42 @@ var (
 		},
 	}
 )
+var serverPort = getFreePort()
+
+func getFreePort() uint16 {
+	var port uint16
+	for i := 0; i < 5; i++ {
+		conn, err := net.ListenPacket("udp", ":0")
+		if err != nil {
+			continue
+		}
+		conn.Close()
+		port, err = parsePort(conn.LocalAddr().String())
+		if err != nil {
+			continue
+		}
+		listener, err := startSNMPTrapListener(Config{Port: port}, nil)
+		if err != nil {
+			continue
+		}
+		listener.Stop()
+		return port
+	}
+	panic("unable to find free port for starting the trap listener")
+}
+
+func parsePort(addr string) (uint16, error) {
+	_, portString, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0, err
+	}
+
+	port, err := strconv.ParseUint(portString, 10, 16)
+	if err != nil {
+		return 0, err
+	}
+	return uint16(port), nil
+}
 
 // Configure sets Datadog Agent configuration from a config object.
 func Configure(t *testing.T, trapConfig Config) {
@@ -163,17 +205,6 @@ func sendTestV3Trap(t *testing.T, trapConfig Config, securityParams *gosnmp.UsmS
 	return params
 }
 
-// receivePacket waits for a received trap packet and returns it.
-func receivePacket(t *testing.T) *SnmpPacket {
-	select {
-	case packet := <-GetPacketsChannel():
-		return packet
-	case <-time.After(3 * time.Second):
-		t.Error("Trap not received")
-		return nil
-	}
-}
-
 func assertIsValidV2Packet(t *testing.T, packet *SnmpPacket, trapConfig Config) {
 	require.Equal(t, gosnmp.Version2c, packet.Content.Version)
 	communityValid := false
@@ -209,11 +240,18 @@ func assertVariables(t *testing.T, packet *SnmpPacket) {
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))
 }
 
-func assertNoPacketReceived(t *testing.T) {
-	select {
-	case <-GetPacketsChannel():
-		t.Error("Unexpectedly received an unauthorized packet")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
+func getMockSender(t *testing.T) (*mocksender.MockSender, chan map[string]interface{}) {
+	packetOutChan := make(chan map[string]interface{})
+	mockSender := mocksender.NewMockSender("snmp-traps-listener")
+	mockSender.On("EventPlatformEvent", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Run(
+		func(args mock.Arguments) {
+			rawEvent := []byte(args.Get(0).(string))
+			eventType := args.Get(1).(string)
+			require.Equal(t, eventType, epforwarder.EventTypeNetworkDevicesMetadata)
+			dataOut := make(map[string]interface{})
+			json.Unmarshal(rawEvent, &dataOut)
+			packetOutChan <- dataOut
+		},
+	)
+	return mockSender, packetOutChan
 }

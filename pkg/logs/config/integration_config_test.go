@@ -23,7 +23,6 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 		{Type: UDPType, Port: 5678},
 		{Type: DockerType},
 		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}},
-		{Type: SnmpTrapsType},
 	}
 
 	for _, config := range validConfigs {
