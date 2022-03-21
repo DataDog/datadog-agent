@@ -376,7 +376,7 @@ func TestObfuscateRuleMatchParameters(t *testing.T) {
 			var diff diff
 			scanner := &scanner{}
 			scanner.reset()
-			o.obfuscateRuleMatchParameters(scanner, tc.input, 0, &diff)
+			o.obfuscateAppSecParameters(scanner, tc.input, 0, &diff)
 			output := diff.apply(tc.input)
 			require.Equal(t, tc.expectedOutput, output)
 		})
@@ -485,7 +485,7 @@ func TestObfuscateRuleMatchParameter(t *testing.T) {
 			var diff diff
 			scanner := &scanner{}
 			scanner.reset()
-			_, err := o.obfuscateRuleMatchParameter(scanner, tc.input, 0, &diff)
+			_, err := o.obfuscateAppSecParameter(scanner, tc.input, 0, &diff)
 			output := diff.apply(tc.input)
 			if err != nil {
 				if tc.expectedSyntaxError {
@@ -585,7 +585,7 @@ func TestObfuscateRuleMatchParameterValue(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					o := newAppSecObfuscator(regexp.MustCompile("SENSITIVE_KEY"), regexp.MustCompile("SENSITIVE_VALUE"))
 					var diff diff
-					o.obfuscateRuleMatchParameterValue(tc.input, &diff, hasSensitiveKey)
+					o.obfuscateAppSecValue(tc.input, &diff, hasSensitiveKey)
 					output := diff.apply(tc.input)
 					if tc.expectedIgnored {
 						require.Equal(t, tc.input, output)
@@ -694,7 +694,7 @@ func TestObfuscateRuleMatchParameterHighlights(t *testing.T) {
 					var diff diff
 					scanner := &scanner{}
 					scanner.reset()
-					o.obfuscateRuleMatchParameterHighlights(tc.input, &diff, hasSensitiveKey)
+					o.obfuscateAppSecHighlights(tc.input, &diff, hasSensitiveKey)
 					output := diff.apply(tc.input)
 					if hasSensitiveKey {
 						require.Equal(t, tc.expectedOutputWithSensitiveKey, output)
