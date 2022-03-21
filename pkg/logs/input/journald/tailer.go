@@ -28,12 +28,13 @@ const (
 
 // Tailer collects logs from a journal.
 type Tailer struct {
-	source     *config.LogSource
-	outputChan chan *message.Message
-	journal    *sdjournal.Journal
-	blacklist  map[string]bool
-	stop       chan struct{}
-	done       chan struct{}
+	source          *config.LogSource
+	outputChan      chan *message.Message
+	journal         *sdjournal.Journal
+	blacklistSystem map[string]bool
+	blacklistUser   map[string]bool
+	stop            chan struct{}
+	done            chan struct{}
 }
 
 // NewTailer returns a new tailer.
@@ -98,10 +99,26 @@ func (t *Tailer) setup() error {
 		}
 	}
 
-	t.blacklist = make(map[string]bool)
+	for _, unit := range config.IncludeUserUnits {
+		// add filters to collect only the logs of the units defined in the configuration,
+		// if no units are defined, collect all the logs of the journal by default.
+		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT + "=" + unit
+		err := t.journal.AddMatch(match)
+		if err != nil {
+			return fmt.Errorf("could not add filter %s: %s", match, err)
+		}
+	}
+
+	t.blacklistSystem = make(map[string]bool)
 	for _, unit := range config.ExcludeUnits {
 		// add filters to drop all the logs related to units to exclude.
-		t.blacklist[unit] = true
+		t.blacklistSystem[unit] = true
+	}
+
+	t.blacklistUser = make(map[string]bool)
+	for _, unit := range config.ExcludeUserUnits {
+		// add filters to drop all the logs related to units to exclude.
+		t.blacklistUser[unit] = true
 	}
 
 	return nil
@@ -167,7 +184,15 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 	if !exists {
 		return false
 	}
-	if _, blacklisted := t.blacklist[unit]; blacklisted {
+	if _, blacklisted := t.blacklistSystem[unit]; blacklisted {
+		// drop the entry
+		return true
+	}
+	unit, exists = entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT]
+	if !exists {
+		return false
+	}
+	if _, blacklisted := t.blacklistUser[unit]; blacklisted {
 		// drop the entry
 		return true
 	}
@@ -235,6 +260,7 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 // applicationKeys represents all the valid attributes used to extract the value of the application name of a journal entry.
 var applicationKeys = []string{
 	sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER, // "SYSLOG_IDENTIFIER"
+	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT, // "_SYSTEMD_USER_UNIT"
 	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT,      // "_SYSTEMD_UNIT"
 	sdjournal.SD_JOURNAL_FIELD_COMM,              // "_COMM"
 }
