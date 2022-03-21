@@ -780,7 +780,6 @@ core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Open Tele
 core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/consumer/consumerhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Open Telemetry Maintainers
@@ -805,6 +804,7 @@ core,go.opentelemetry.io/collector/model/internal/data/protogen/logs/v1,Apache-2
 core,go.opentelemetry.io/collector/model/internal/data/protogen/metrics/v1,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal/data/protogen/resource/v1,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal/data/protogen/trace/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/pdata,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/otlp,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/otlpgrpc,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/pdata,Apache-2.0,Open Telemetry Maintainers
@@ -969,12 +969,12 @@ core,google.golang.org/api/transport/http,BSD-3-Clause,Google Inc. | LightStep I
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/api/transport/internal/dca,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/appengine,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
+core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/app_identity,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/base,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/datastore,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudkey,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/appengine/datastore/internal/cloudpb,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/log,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/modules,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/remote_api,Apache-2.0,the Go App Engine Maintainers
