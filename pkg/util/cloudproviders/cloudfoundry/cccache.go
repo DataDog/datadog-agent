@@ -435,7 +435,7 @@ func (ccc *CCCache) readData() {
 		query := url.Values{}
 		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
 		sidecarsByAppGUID = make(map[string][]*CFSidecar)
-		for appGUID, _ := range appsByGUID {
+		for appGUID := range appsByGUID {
 			var allSidecars []*CFSidecar
 			sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, appGUID)
 			if err != nil {
