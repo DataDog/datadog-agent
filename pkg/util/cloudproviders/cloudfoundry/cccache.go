@@ -311,7 +311,6 @@ func (ccc *CCCache) readData() {
 			}
 			sidecarsByAppGUID[app.GUID] = allSidecars
 		}
-
 	}()
 
 	// List spaces
