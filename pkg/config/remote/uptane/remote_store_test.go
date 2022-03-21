@@ -99,7 +99,7 @@ func TestRemoteStoreConfig(t *testing.T) {
 
 	testUpdate1 := generateUpdate(1)
 	targetStore.storeTargetFiles(testUpdate1.TargetFiles)
-	store.update(testUpdate1.ConfigMetas)
+	store.update(testUpdate1)
 
 	// Checking that timestamp is the only role allowed to perform version-less retrivals
 	assertGetMeta(t, &store.remoteStore, "timestamp.json", testUpdate1.ConfigMetas.Timestamp.Raw, nil)
@@ -123,7 +123,7 @@ func TestRemoteStoreConfig(t *testing.T) {
 
 	testUpdate2 := generateUpdate(2)
 	targetStore.storeTargetFiles(testUpdate2.TargetFiles)
-	store.update(testUpdate2.ConfigMetas)
+	store.update(testUpdate2)
 
 	// Checking that update1 metas got properly evicted
 	assertGetMeta(t, &store.remoteStore, fmt.Sprintf("%d.timestamp.json", testUpdate1.ConfigMetas.Timestamp.Version), nil, client.ErrNotFound{File: fmt.Sprintf("%d.timestamp.json", testUpdate1.ConfigMetas.Timestamp.Version)})
@@ -164,7 +164,7 @@ func TestRemoteStoreDirector(t *testing.T) {
 
 	testUpdate1 := generateUpdate(1)
 	targetStore.storeTargetFiles(testUpdate1.TargetFiles)
-	store.update(testUpdate1.DirectorMetas)
+	store.update(testUpdate1)
 
 	// Checking that timestamp is the only role allowed to perform version-less retrivals
 	assertGetMeta(t, &store.remoteStore, "timestamp.json", testUpdate1.DirectorMetas.Timestamp.Raw, nil)
@@ -185,7 +185,7 @@ func TestRemoteStoreDirector(t *testing.T) {
 
 	testUpdate2 := generateUpdate(2)
 	targetStore.storeTargetFiles(testUpdate2.TargetFiles)
-	store.update(testUpdate2.DirectorMetas)
+	store.update(testUpdate2)
 
 	// Checking that update1 metas got properly evicted
 	assertGetMeta(t, &store.remoteStore, fmt.Sprintf("%d.timestamp.json", testUpdate1.DirectorMetas.Timestamp.Version), nil, client.ErrNotFound{File: fmt.Sprintf("%d.timestamp.json", testUpdate1.DirectorMetas.Timestamp.Version)})
