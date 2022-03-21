@@ -10,12 +10,8 @@ package cloudfoundry
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -77,7 +73,7 @@ type CCCache struct {
 	spacesByGUID         map[string]*cfclient.V3Space
 	processesByAppGUID   map[string][]*cfclient.Process
 	cfApplicationsByGUID map[string]*CFApplication
-	sideCarsByAppGUID    map[string][]*CFSidecar
+	sidecarsByAppGUID    map[string][]*CFSidecar
 	appsBatchSize        int
 }
 
@@ -87,8 +83,7 @@ type CCClientI interface {
 	ListV3SpacesByQuery(url.Values) ([]cfclient.V3Space, error)
 	ListAllProcessesByQuery(url.Values) ([]cfclient.Process, error)
 	ListOrgQuotasByQuery(url.Values) ([]cfclient.OrgQuota, error)
-	NewRequest(method, path string) *cfclient.Request
-	DoRequest(r *cfclient.Request) (*http.Response, error)
+	ListSidecarsByApp(url.Values, string) ([]CFSidecar, error)
 }
 
 var globalCCCache = &CCCache{}
@@ -113,7 +108,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 			UserAgent:         "datadog-cluster-agent",
 		}
 		var err error
-		globalCCCache.ccAPIClient, err = cfclient.NewClient(clientConfig)
+		globalCCCache.ccAPIClient, err = NewCFClient(clientConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +216,7 @@ func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
 	ccc.RLock()
 	defer ccc.RUnlock()
 
-	sidecars, ok := ccc.sideCarsByAppGUID[guid]
+	sidecars, ok := ccc.sidecarsByAppGUID[guid]
 	if !ok {
 		return nil, fmt.Errorf("could not find sidecars for app %s in cloud controller cache", guid)
 	}
@@ -434,49 +429,24 @@ func (ccc *CCCache) readData() {
 
 	// List Sidecars
 	wg.Add(1)
-	var sideCarsByAppGUID map[string][]*CFSidecar
+	var sidecarsByAppGUID map[string][]*CFSidecar
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-
-		sideCarsByAppGUID = make(map[string][]*CFSidecar)
-		for appGUID := range appsByGUID {
-			var sideCars []*CFSidecar
-			for page := 1; ; page++ {
-				q := url.Values{}
-				query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-				q.Set("page", strconv.Itoa(page))
-				r := ccc.ccAPIClient.NewRequest("GET", "/v3/apps/"+appGUID+"/sidecars?"+q.Encode())
-				resp, err := ccc.ccAPIClient.DoRequest(r)
-				if err != nil {
-					log.Errorf("Error requesting sidecars for app %s page %s", appGUID, err)
-					return
-				}
-				// Read body response
-				defer resp.Body.Close()
-				resBody, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					log.Errorf("Error reading sidecars response for app %s for page %d", appGUID, page)
-					return
-				}
-				// Unmarshal body response into SidecarsResponse objects
-				var sideCarsResponse SidecarsResponse
-				err = json.Unmarshal(resBody, &sideCarsResponse)
-				if err != nil {
-					log.Errorf("Error unmarshalling sidecars response for app %s for page %d", appGUID, page)
-					return
-				}
-
-				for _, sideCar := range sideCarsResponse.Resources {
-					s := sideCar
-					sideCars = append(sideCars, &s)
-				}
-
-				if sideCarsResponse.Pagination.TotalPages <= page {
-					break
-				}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		sidecarsByAppGUID = make(map[string][]*CFSidecar)
+		for appGUID, _ := range appsByGUID {
+			var allSidecars []*CFSidecar
+			sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, appGUID)
+			if err != nil {
+				log.Errorf("Failed listing processes from cloud controller: %v", err)
+				return
 			}
-			sideCarsByAppGUID[appGUID] = sideCars
+			for _, sidecar := range sidecars {
+				s := sidecar
+				allSidecars = append(allSidecars, &s)
+			}
+			sidecarsByAppGUID[appGUID] = allSidecars
 		}
 	}()
 
@@ -486,7 +456,7 @@ func (ccc *CCCache) readData() {
 	ccc.Lock()
 	defer ccc.Unlock()
 
-	ccc.sideCarsByAppGUID = sideCarsByAppGUID
+	ccc.sidecarsByAppGUID = sidecarsByAppGUID
 	ccc.appsByGUID = appsByGUID
 	ccc.spacesByGUID = spacesByGUID
 	ccc.orgsByGUID = orgsByGUID
