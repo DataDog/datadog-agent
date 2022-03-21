@@ -594,6 +594,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
+	config.BindEnvAndSetDefault("kubernetes_distribution", "")
+
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
