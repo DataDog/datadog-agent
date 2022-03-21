@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -135,7 +135,7 @@ func (s *defaultEventPlatformForwarder) Start() {
 
 func (s *defaultEventPlatformForwarder) Stop() {
 	log.Debugf("shutting down event platform forwarder")
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, p := range s.pipelines {
 		stopper.Add(p)
 	}

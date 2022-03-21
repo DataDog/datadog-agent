@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
@@ -29,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -40,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -85,24 +87,37 @@ var (
 	}
 
 	activityDumpArgs = struct {
-		tags              []string
 		comm              string
 		file              string
 		timeout           int
 		withGraph         bool
 		differentiateArgs bool
+		outputDirectory   string
+		outputFormat      string
+		remote            bool
 	}{}
 
 	activityDumpGenerateCmd = &cobra.Command{
 		Use:   "generate",
+		Short: "generate command for activity dumps",
+	}
+
+	activityDumpGenerateDumpCmd = &cobra.Command{
+		Use:   "dump",
 		Short: "generate an activity dump",
 		RunE:  generateActivityDump,
 	}
 
 	activityDumpGenerateProfileCmd = &cobra.Command{
-		Use:   "generate-profile",
+		Use:   "profile",
 		Short: "generate a profile from an activity dump",
 		RunE:  generateProfileFromActivityDump,
+	}
+
+	activityDumpGenerateGraphCmd = &cobra.Command{
+		Use:   "graph",
+		Short: "generate a graph from an activity dump",
+		RunE:  generateGraphFromActivityDump,
 	}
 
 	activityDumpStopCmd = &cobra.Command{
@@ -162,43 +177,43 @@ var (
 func init() {
 	processCacheDumpCmd.Flags().BoolVar(&processCacheDumpArgs.withArgs, "with-args", false, "add process arguments to the dump")
 
-	activityDumpGenerateCmd.Flags().StringArrayVar(
-		&activityDumpArgs.tags,
-		"tags",
-		[]string{},
-		"tags are used to filter the activity dump in order to select a specific workload. Tags should be provided in the \"tag_name:tag_value\" format.",
-	)
-	activityDumpGenerateCmd.Flags().StringVar(
+	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&activityDumpArgs.comm,
 		"comm",
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
-	activityDumpGenerateCmd.Flags().IntVar(
+	activityDumpGenerateDumpCmd.Flags().IntVar(
 		&activityDumpArgs.timeout,
 		"timeout",
-		10,
+		60,
 		"timeout for the activity dump in minutes",
 	)
-	activityDumpGenerateCmd.Flags().BoolVar(
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.withGraph,
 		"graph",
 		false,
 		"generate a graph from the generated dump",
 	)
-	activityDumpGenerateCmd.Flags().BoolVar(
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.differentiateArgs,
 		"differentiate-args",
 		false,
 		"add the arguments in the process node merge algorithm",
 	)
-
-	activityDumpStopCmd.Flags().StringArrayVar(
-		&activityDumpArgs.tags,
-		"tags",
-		[]string{},
-		"tags is used to select an activity dump. Tags should be provided in the [tag_name:tag_value] format.",
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&activityDumpArgs.outputDirectory,
+		"output",
+		"/tmp/activity_dumps/",
+		"output directory",
 	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&activityDumpArgs.outputFormat,
+		"format",
+		"msgp",
+		"output format. Available options are \"msgp\" and \"json\".",
+	)
+
 	activityDumpStopCmd.Flags().StringVar(
 		&activityDumpArgs.comm,
 		"comm",
@@ -210,17 +225,42 @@ func init() {
 		&activityDumpArgs.file,
 		"input",
 		"",
-		"path to the activity dump file from which a profile will be generated",
+		"path to the activity dump file",
 	)
 	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
+	activityDumpGenerateProfileCmd.Flags().BoolVar(
+		&activityDumpArgs.remote,
+		"remote",
+		false,
+		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
+	)
+
+	activityDumpGenerateGraphCmd.Flags().StringVar(
+		&activityDumpArgs.file,
+		"input",
+		"",
+		"path to the activity dump file",
+	)
+	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
+	activityDumpGenerateGraphCmd.Flags().BoolVar(
+		&activityDumpArgs.remote,
+		"remote",
+		false,
+		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
+	)
 
 	processCacheCmd.AddCommand(processCacheDumpCmd)
 	runtimeCmd.AddCommand(processCacheCmd)
 
+	activityDumpGenerateCmd.AddCommand(activityDumpGenerateDumpCmd)
+	activityDumpGenerateCmd.AddCommand(activityDumpGenerateProfileCmd)
+	activityDumpGenerateCmd.AddCommand(activityDumpGenerateGraphCmd)
 	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
+
 	activityDumpCmd.AddCommand(activityDumpListCmd)
 	activityDumpCmd.AddCommand(activityDumpStopCmd)
 	activityDumpCmd.AddCommand(activityDumpGenerateProfileCmd)
+	activityDumpCmd.AddCommand(activityDumpGenerateGraphCmd)
 	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
@@ -263,10 +303,37 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func printSecurityActivityDumpMessage(prefix string, msg *api.SecurityActivityDumpMessage) {
+	fmt.Printf("%s- start: %s\n", prefix, msg.Start)
+	fmt.Printf("%s  timeout: %s\n", prefix, msg.Timeout)
+	fmt.Printf("%s  left: %s\n", prefix, msg.Left)
+	if len(msg.OutputFilename) > 0 {
+		fmt.Printf("%s  output filename: %s\n", prefix, msg.OutputFilename)
+	}
+	if len(msg.GraphFilename) > 0 {
+		fmt.Printf("%s  graph filename: %s\n", prefix, msg.GraphFilename)
+	}
+	if len(msg.Comm) > 0 {
+		fmt.Printf("%s  comm: %s\n", prefix, msg.Comm)
+	}
+	if len(msg.ContainerID) > 0 {
+		fmt.Printf("%s  container ID: %s\n", prefix, msg.ContainerID)
+	}
+	if len(msg.Tags) > 0 {
+		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.Tags, ", "))
+	}
+	fmt.Printf("%s  with graph: %v\n", prefix, msg.WithGraph)
+	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.DifferentiateArgs)
+}
+
 func generateActivityDump(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
 	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
+	}
+
+	if len(activityDumpArgs.outputDirectory) == 0 && activityDumpArgs.withGraph {
+		return fmt.Errorf("the output directory cannot be empty if \"--graph\" is provided")
 	}
 
 	client, err := secagent.NewRuntimeSecurityClient()
@@ -275,17 +342,15 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	var filename, graph string
-	filename, graph, err = client.GenerateActivityDump(activityDumpArgs.tags, activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs)
+	output, err := client.GenerateActivityDump(activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs, activityDumpArgs.outputDirectory, activityDumpArgs.outputFormat)
 	if err != nil {
-		return errors.Wrap(err, "unable to an request activity dump for %s")
+		return fmt.Errorf("unable send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
 	}
 
-	fmt.Printf("Activity dump file: %s\n", filename)
-	if len(graph) > 0 {
-		fmt.Printf("Graph dump file: %s\n", graph)
-	}
-
+	printSecurityActivityDumpMessage("", output)
 	return nil
 }
 
@@ -301,16 +366,18 @@ func listActivityDumps(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	var activeDumps []string
-	activeDumps, err = client.ListActivityDumps()
+	output, err := client.ListActivityDumps()
 	if err != nil {
-		return errors.Wrap(err, "unable to request the list activity dumps")
+		return fmt.Errorf("unable send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("activity dump list request failed: %s", output.Error)
 	}
 
-	if len(activeDumps) > 0 {
+	if len(output.Dumps) > 0 {
 		fmt.Println("Active dumps:")
-		for _, d := range activeDumps {
-			fmt.Printf("\t- %s\n", d)
+		for _, d := range output.Dumps {
+			printSecurityActivityDumpMessage("\t", d)
 		}
 	} else {
 		fmt.Println("No active dumps found")
@@ -331,18 +398,15 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	var msg string
-	msg, err = client.StopActivityDump(activityDumpArgs.tags, activityDumpArgs.comm)
+	output, err := client.StopActivityDump(activityDumpArgs.comm)
 	if err != nil {
-		return errors.Wrap(err, "unable to stop the request activity dump")
+		return fmt.Errorf("unable send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("activity dump stop request failed: %s", output.Error)
 	}
 
-	if len(msg) == 0 {
-		fmt.Println("done!")
-	} else {
-		fmt.Println(msg)
-	}
-
+	fmt.Println("done!")
 	return nil
 }
 
@@ -352,19 +416,67 @@ func generateProfileFromActivityDump(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return errors.Wrap(err, "unable to generate a profile")
-	}
-	defer client.Close()
+	var profilePath string
 
-	var output string
-	output, err = client.GenerateProfile(activityDumpArgs.file)
-	if err != nil {
-		return errors.Wrapf(err, "couldn't generate a profile from: %s", activityDumpArgs.file)
+	if activityDumpArgs.remote {
+		client, err := secagent.NewRuntimeSecurityClient()
+		if err != nil {
+			return fmt.Errorf("profile generation failed: %w", err)
+		}
+		defer client.Close()
+
+		output, err := client.GenerateProfile(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("couldn't send request to system-probe: %w", err)
+		}
+		if len(output.Error) > 0 {
+			return fmt.Errorf("profile generation failed: %s", output.Error)
+		}
+		profilePath = output.ProfilePath
+	} else {
+		output, err := sprobe.GenerateProfile(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("profile generation failed: %w", err)
+		}
+		profilePath = output
 	}
 
-	fmt.Printf("Generated profile: %s\n", output)
+	fmt.Printf("Generated profile: %s\n", profilePath)
+	return nil
+}
+
+func generateGraphFromActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	var graphPath string
+
+	if activityDumpArgs.remote {
+		client, err := secagent.NewRuntimeSecurityClient()
+		if err != nil {
+			return fmt.Errorf("graph generation failed: %w", err)
+		}
+		defer client.Close()
+
+		output, err := client.GenerateGraph(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("couldn't send request to system-probe: %w", err)
+		}
+		if len(output.Error) > 0 {
+			return fmt.Errorf("graph generation failed: %s", output.Error)
+		}
+		graphPath = output.GraphPath
+	} else {
+		output, err := sprobe.GenerateGraph(activityDumpArgs.file)
+		if err != nil {
+			return fmt.Errorf("graph generation failed: %w", err)
+		}
+		graphPath = output
+	}
+
+	fmt.Printf("Generated graph: %s\n", graphPath)
 	return nil
 }
 
@@ -454,7 +566,7 @@ func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
@@ -483,7 +595,7 @@ func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, err
 	return newLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
 }
 
-func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
+func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")

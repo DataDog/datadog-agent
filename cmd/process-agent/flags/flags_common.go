@@ -3,15 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package restart
+package flags
 
-// Startable represents a startable object
-type Startable interface {
-	Start()
-}
-
-// Starter starts a group of startable objects from a data pipeline
-type Starter interface {
-	Startable
-	Add(components ...Startable)
-}
+const (
+	// CfgPath defines the cfgpath flag
+	CfgPath = "cfgpath"
+	// SysProbeConfig defines the sysprobe-config flag
+	SysProbeConfig = "sysprobe-config"
+)

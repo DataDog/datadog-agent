@@ -288,8 +288,9 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
     }
 
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &tgid);
-    if (tgid_exec_ts != NULL) {
+    u64 now = bpf_ktime_get_ns();
+    u64 timeout = lookup_or_delete_traced_pid_timeout(tgid, now);
+    if (timeout > 0) {
         // return immediately
         return 0;
     }

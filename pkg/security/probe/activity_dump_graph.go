@@ -10,10 +10,11 @@ package probe
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"text/template"
 
-	"golang.org/x/crypto/blake2b"
+	"github.com/tinylib/msgp/msgp"
 )
 
 var (
@@ -45,11 +46,7 @@ type graph struct {
 	Edges []edge
 }
 
-func (ad *ActivityDump) generateGraph(title string) error {
-	if ad.graphFile == nil {
-		return nil
-	}
-
+func (ad *ActivityDump) generateGraph() error {
 	tmpl := `digraph {
 		label = "{{ .Title }}"
 		labelloc =  "t"
@@ -71,6 +68,7 @@ func (ad *ActivityDump) generateGraph(title string) error {
 		{{ end }}
 }`
 
+	title := fmt.Sprintf("Activity tree: %s", ad.GetSelectorStr())
 	data := ad.prepareGraphData(title)
 	t := template.Must(template.New("tmpl").Parse(tmpl))
 	return t.Execute(ad.graphFile, data)
@@ -90,12 +88,16 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 }
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) {
-	processID := fmt.Sprintf("%s_%s_%d", p.Process.PathnameStr, p.Process.ExecTime, p.Process.Tid)
-	var args []string
-	args, _ = ad.resolvers.ProcessResolver.GetProcessArgv(&p.Process)
+	var args string
+	if p.Process.ArgsEntry != nil {
+		args = strings.ReplaceAll(strings.Join(p.Process.ArgsEntry.Values, " "), "\"", "\\\"")
+		args = strings.ReplaceAll(args, "\n", " ")
+		args = strings.ReplaceAll(args, ">", "\\>")
+		args = strings.ReplaceAll(args, "|", "\\|")
+	}
 	pan := node{
-		ID:    generateNodeID(processID),
-		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, strings.Join(args, " ")),
+		ID:    p.GetID(),
+		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, args),
 		Size:  60,
 		Color: processColor,
 	}
@@ -105,20 +107,18 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	case Snapshot:
 		pan.FillColor = processSnapshotColor
 	}
-	data.Nodes[processID] = pan
+	data.Nodes[p.GetID()] = pan
 
 	for _, f := range p.Files {
-		fileID := fmt.Sprintf("%s_%s_%s", processID, f.Name, f.Name)
 		data.Edges = append(data.Edges, edge{
-			Link:  generateNodeID(processID) + " -> " + generateNodeID(fileID),
+			Link:  p.GetID() + " -> " + p.GetID() + f.GetID(),
 			Color: fileColor,
 		})
-		ad.prepareFileNode(f, data, "", processID)
+		ad.prepareFileNode(f, data, "", p.GetID())
 	}
 	for _, child := range p.Children {
-		childID := fmt.Sprintf("%s_%s_%d", child.Process.PathnameStr, child.Process.ExecTime, child.Process.Tid)
 		data.Edges = append(data.Edges, edge{
-			Link:  generateNodeID(processID) + " -> " + generateNodeID(childID),
+			Link:  p.GetID() + " -> " + child.GetID(),
 			Color: processColor,
 		})
 		ad.prepareProcessActivityNode(child, data)
@@ -126,9 +126,9 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 }
 
 func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID string) {
-	fileID := fmt.Sprintf("%s_%s_%s", processID, f.Name, prefix+f.Name)
+	mergedID := processID + f.GetID()
 	fn := node{
-		ID:    generateNodeID(fileID),
+		ID:    mergedID,
 		Label: f.getNodeLabel(),
 		Size:  30,
 		Color: fileColor,
@@ -139,22 +139,45 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 	case Snapshot:
 		fn.FillColor = fileSnapshotColor
 	}
-	data.Nodes[fileID] = fn
+	data.Nodes[mergedID] = fn
 
 	for _, child := range f.Children {
-		childID := fmt.Sprintf("%s_%s_%s", processID, child.Name, prefix+f.Name+child.Name)
 		data.Edges = append(data.Edges, edge{
-			Link:  generateNodeID(fileID) + " -> " + generateNodeID(childID),
+			Link:  mergedID + " -> " + processID + child.GetID(),
 			Color: fileColor,
 		})
 		ad.prepareFileNode(child, data, prefix+f.Name, processID)
 	}
 }
 
-func generateNodeID(input string) string {
-	var id string
-	for _, b := range blake2b.Sum256([]byte(input)) {
-		id += fmt.Sprintf("%v", b)
+// GenerateGraph creates a graph from the input activity dump
+func GenerateGraph(inputFile string) (string, error) {
+	// open and parse activity dump file
+	f, err := os.Open(inputFile)
+	if err != nil {
+		return "", fmt.Errorf("couldn't open activity dump file: %w", err)
 	}
-	return id
+
+	var dump ActivityDump
+	msgpReader := msgp.NewReader(f)
+	err = dump.DecodeMsg(msgpReader)
+	if err != nil {
+		return "", fmt.Errorf("couldn't parse activity dump file: %w", err)
+	}
+
+	// create profile output file
+	dump.graphFile, err = os.CreateTemp("/tmp", "graph-")
+	if err != nil {
+		return "", fmt.Errorf("couldn't create profile file: %w", err)
+	}
+
+	if err = os.Chmod(dump.graphFile.Name(), 0400); err != nil {
+		return "", fmt.Errorf("couldn't change the mode of the profile file: %w", err)
+	}
+
+	if err = dump.generateGraph(); err != nil {
+		return "", fmt.Errorf("couldn't generate graph from activity dump %s: %w", inputFile, err)
+	}
+
+	return dump.graphFile.Name(), nil
 }

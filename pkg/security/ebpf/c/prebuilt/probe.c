@@ -1,6 +1,6 @@
 #include <linux/compiler.h>
 
-#include <linux/kconfig.h>
+#include "kconfig.h"
 #include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/version.h>
@@ -12,6 +12,7 @@
 #include "defs.h"
 #include "buffer_selector.h"
 #include "filters.h"
+#include "activity_dump.h"
 #include "approvers.h"
 #include "discarders.h"
 #include "dentry.h"

@@ -25,13 +25,6 @@ struct str_array_buffer_t {
     char value[MAX_STR_BUFF_LEN];
 };
 
-struct bpf_map_def SEC("maps/traced_comms") traced_comms = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = TASK_COMM_LEN,
-    .value_size = sizeof(u32),
-    .max_entries = 200,
-};
-
 struct bpf_map_def SEC("maps/args_envs_progs") args_envs_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
@@ -67,8 +60,7 @@ struct exit_event_t {
     struct container_context_t container;
 };
 
-struct _tracepoint_sched_process_fork
-{
+struct _tracepoint_sched_process_fork {
     unsigned short common_type;
     unsigned char common_flags;
     unsigned char common_preempt_count;
@@ -485,14 +477,11 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
 
+    // [activity_dump] inherit tracing state
+    inherit_traced_state(args, ppid, pid, event.proc_entry.container.container_id, event.proc_entry.comm);
+
     // send the entry to maintain userspace cache
     send_event(args, EVENT_FORK, event);
-
-    // if the parent is traced, trace the child too
-    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &ppid);
-    if (tgid_exec_ts != NULL) {
-        bpf_map_update_elem(&traced_pids, &pid, &ts, BPF_ANY);
-    }
 
     return 0;
 }
@@ -528,8 +517,8 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
         unregister_span_memory();
 
-        // delete pid from traced_pids
-        bpf_map_delete_elem(&traced_pids, &tgid);
+        // [activity_dump] cleanup tracing state for this pid
+        cleanup_traced_state(tgid);
     }
 
     // remove nr translations
@@ -607,6 +596,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
     // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
 
     struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
@@ -619,13 +609,6 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             copy_proc_cache_except_comm(proc_entry, &event.proc_entry);
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
 
-            // lookup comm to see if the process should be traced
-            u32 *traced = bpf_map_lookup_elem(&traced_comms, event.proc_entry.comm);
-            if (traced != NULL && *traced == 1) {
-                u64 ts = bpf_ktime_get_ns();
-                bpf_map_update_elem(&traced_pids, &tgid, &ts, BPF_ANY);
-            }
-
             // copy pid_cache entry data
             copy_pid_cache_except_exit_ts(pid_entry, &event.pid_entry);
 
@@ -634,6 +617,9 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
             copy_span_context(&syscall->exec.span_context, &event.span);
             fill_args_envs(&event, syscall);
+
+            // [activity_dump] check if this process should be traced
+            should_trace_new_process(ctx, now, tgid, event.proc_entry.container.container_id, event.proc_entry.comm);
 
             // send the entry to maintain userspace cache
             send_event(ctx, EVENT_EXEC, event);

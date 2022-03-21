@@ -216,7 +216,9 @@ func (p *ProcessResolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
-	return p.processCacheEntryPool.Get()
+	entry := p.processCacheEntryPool.Get()
+	entry.Cookie = eval.NewCookie()
+	return entry
 }
 
 // SendStats sends process resolver metrics
@@ -924,6 +926,26 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 
 	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
 		return nil, false
+	}
+
+	// insert new entry in kernel maps
+	procCacheEntryB := make([]byte, 224)
+	_, err := entry.Process.MarshalProcCache(procCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
+	} else {
+		if err = p.procCacheMap.Put(pid, procCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
+		}
+	}
+	pidCacheEntryB := make([]byte, 64)
+	_, err = entry.Process.MarshalPidCache(pidCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal prid_cache entry: %s", err)
+	} else {
+		if err = p.pidCacheMap.Put(pid, pidCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
+		}
 	}
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)

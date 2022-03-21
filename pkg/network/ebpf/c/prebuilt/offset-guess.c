@@ -1,6 +1,7 @@
+#include "kconfig.h"
 #include "offset-guess.h"
 #include "bpf_helpers.h"
-#include <linux/kconfig.h>
+
 #include <net/net_namespace.h>
 #include <net/sock.h>
 #include <net/flow.h>

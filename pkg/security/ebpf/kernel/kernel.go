@@ -16,6 +16,7 @@ import (
 
 	"github.com/acobaugh/osrelease"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -75,12 +76,13 @@ var (
 
 // Version defines a kernel version helper
 type Version struct {
-	osRelease map[string]string
-	Code      kernel.Version
+	OsRelease    map[string]string
+	Code         kernel.Version
+	UnameRelease string
 }
 
 func (k *Version) String() string {
-	return fmt.Sprintf("kernel %s - %v", k.Code, k.osRelease)
+	return fmt.Sprintf("kernel %s - %v - %s", k.Code, k.OsRelease, k.UnameRelease)
 }
 
 // NewKernelVersion returns a new kernel version helper
@@ -106,16 +108,23 @@ func NewKernelVersion() (*Version, error) {
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		return nil, errors.New("failed to detect kernel version")
+		return nil, fmt.Errorf("failed to detect kernel version: %w", err)
 	}
+
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
+		return nil, fmt.Errorf("error calling uname: %w", err)
+	}
+	unameRelease := unix.ByteSliceToString(uname.Release[:])
 
 	var release map[string]string
 	for _, osReleasePath := range osReleasePaths {
 		release, err = osrelease.ReadFile(osReleasePath)
 		if err == nil {
 			return &Version{
-				osRelease: release,
-				Code:      kv,
+				OsRelease:    release,
+				Code:         kv,
+				UnameRelease: unameRelease,
 			}, nil
 		}
 	}
@@ -125,42 +134,42 @@ func NewKernelVersion() (*Version, error) {
 
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
-	return (k.osRelease["ID"] == "centos" || k.osRelease["ID"] == "rhel") && k.osRelease["VERSION_ID"] == "7"
+	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
 }
 
 // IsRH8Kernel returns whether the kernel is a rh8 kernel
 func (k *Version) IsRH8Kernel() bool {
-	return k.osRelease["PLATFORM_ID"] == "platform:el8"
+	return k.OsRelease["PLATFORM_ID"] == "platform:el8"
 }
 
 // IsSuseKernel returns whether the kernel is a suse kernel
 func (k *Version) IsSuseKernel() bool {
-	return k.osRelease["ID"] == "sles" || k.osRelease["ID"] == "opensuse-leap"
+	return k.OsRelease["ID"] == "sles" || k.OsRelease["ID"] == "opensuse-leap"
 }
 
 // IsSLES12Kernel returns whether the kernel is a sles 12 kernel
 func (k *Version) IsSLES12Kernel() bool {
-	return k.IsSuseKernel() && strings.HasPrefix(k.osRelease["VERSION_ID"], "12")
+	return k.IsSuseKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "12")
 }
 
 // IsSLES15Kernel returns whether the kernel is a sles 15 kernel
 func (k *Version) IsSLES15Kernel() bool {
-	return k.IsSuseKernel() && strings.HasPrefix(k.osRelease["VERSION_ID"], "15")
+	return k.IsSuseKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "15")
 }
 
 // IsOracleUEKKernel returns whether the kernel is an oracle uek kernel
 func (k *Version) IsOracleUEKKernel() bool {
-	return k.osRelease["ID"] == "ol" && k.Code >= Kernel5_4
+	return k.OsRelease["ID"] == "ol" && k.Code >= Kernel5_4
 }
 
 // IsCOSKernel returns whether the kernel is a suse kernel
 func (k *Version) IsCOSKernel() bool {
-	return k.osRelease["ID"] == "cos"
+	return k.OsRelease["ID"] == "cos"
 }
 
 // IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
 func (k *Version) IsAmazonLinuxKernel() bool {
-	return k.osRelease["ID"] == "amzn"
+	return k.OsRelease["ID"] == "amzn"
 }
 
 // IsInRangeCloseOpen returns whether the kernel version is between the begin

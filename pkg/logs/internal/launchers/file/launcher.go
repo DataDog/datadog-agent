@@ -20,7 +20,7 @@ import (
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // rxContainerID is used in the shouldIgnore func to do a best-effort validation
@@ -109,7 +109,7 @@ func (s *Launcher) run() {
 
 // cleanup all tailers
 func (s *Launcher) cleanup() {
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for scanKey, tailer := range s.tailers {
 		stopper.Add(tailer)
 		delete(s.tailers, scanKey)

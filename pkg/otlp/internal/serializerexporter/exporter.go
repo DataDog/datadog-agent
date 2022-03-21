@@ -27,7 +27,7 @@ func newDefaultConfig() config.Exporter {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueSettings: exporterhelper.DefaultQueueSettings(),
+		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
 		Metrics: metricsConfig{
 			SendMonotonic: true,

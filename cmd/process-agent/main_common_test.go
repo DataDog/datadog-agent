@@ -12,6 +12,74 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestReplaceFlag(t *testing.T) {
+	tests := []struct {
+		name              string
+		arg               string
+		flag              string
+		replacer          replaceFlagFunc
+		expectReplaceFlag replaceFlag
+	}{
+		{
+			name:     "replace posix no value",
+			arg:      "-foo",
+			flag:     "-foo",
+			replacer: replaceFlagPosix,
+			expectReplaceFlag: replaceFlag{
+				hint: "--foo",
+				args: []string{"--foo"},
+			},
+		},
+		{
+			name:     "replace posix with value single arg",
+			arg:      "-foo=bar",
+			flag:     "-foo",
+			replacer: replaceFlagPosix,
+			expectReplaceFlag: replaceFlag{
+				hint: "--foo",
+				args: []string{"--foo=bar"},
+			},
+		},
+		{
+			name:     "replace flag exact",
+			arg:      "-version",
+			flag:     "-version",
+			replacer: replaceFlagExact("version"),
+			expectReplaceFlag: replaceFlag{
+				hint: "version",
+				args: []string{"version"},
+			},
+		},
+		{
+			name:     "replace flag subcommand positional",
+			arg:      "-check",
+			flag:     "-check",
+			replacer: replaceFlagSubCommandPosArg("check"),
+			expectReplaceFlag: replaceFlag{
+				hint: "check",
+				args: []string{"check"},
+			},
+		},
+		{
+			name:     "replace flag subcommand positional with value",
+			arg:      "-check=process",
+			flag:     "-check",
+			replacer: replaceFlagSubCommandPosArg("check"),
+			expectReplaceFlag: replaceFlag{
+				hint: "check",
+				args: []string{"check", "process"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actualReplaceFlag := tc.replacer(tc.arg, tc.flag)
+			assert.Equal(t, tc.expectReplaceFlag, actualReplaceFlag)
+		})
+	}
+}
+
 func TestFixDeprecatedFlags(t *testing.T) {
 	tests := []struct {
 		cli        string
@@ -65,17 +133,33 @@ func TestFixDeprecatedFlags(t *testing.T) {
 		{
 			cli: "-version",
 			expectArgs: []string{
-				"--version",
+				"version",
 			},
-			expectWarn: deprecatedFlagWarning("-version", "--version"),
+			expectWarn: deprecatedFlagWarning("-version", "version"),
 		},
 		{
 			cli: "-check process",
 			expectArgs: []string{
-				"--check",
+				"check",
 				"process",
 			},
-			expectWarn: deprecatedFlagWarning("-check", "--check"),
+			expectWarn: deprecatedFlagWarning("-check", "check"),
+		},
+		{
+			cli: "--check process",
+			expectArgs: []string{
+				"check",
+				"process",
+			},
+			expectWarn: deprecatedFlagWarning("--check", "check"),
+		},
+		{
+			cli: "-check=process",
+			expectArgs: []string{
+				"check",
+				"process",
+			},
+			expectWarn: deprecatedFlagWarning("-check", "check"),
 		},
 		{
 			cli: "-install-service",
@@ -117,10 +201,9 @@ func TestFixDeprecatedFlags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.cli, func(t *testing.T) {
 			w := strings.Builder{}
-			args := strings.Split(tc.cli, " ")
-			fixDeprecatedFlags(args, &w)
+			actualArgs := fixDeprecatedFlags(strings.Split(tc.cli, " "), &w)
 
-			assert.Equal(t, tc.expectArgs, args)
+			assert.Equal(t, tc.expectArgs, actualArgs)
 			assert.Equal(t, tc.expectWarn, w.String())
 		})
 	}

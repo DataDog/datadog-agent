@@ -6,6 +6,9 @@
 package metrics
 
 import (
+	"bytes"
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -29,3 +32,24 @@ type SketchPoint struct {
 
 // SketchSeriesList is a collection of SketchSeries
 type SketchSeriesList []SketchSeries
+
+// MarshalJSON serializes sketch series to JSON.
+func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
+	type SketchSeriesAlias SketchSeriesList
+	data := map[string]SketchSeriesAlias{
+		"sketches": SketchSeriesAlias(sl),
+	}
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
+}
+
+// String returns the JSON representation of a SketchSeriesList as a string
+// or an empty string in case of an error
+func (sl SketchSeriesList) String() string {
+	json, err := sl.MarshalJSON()
+	if err != nil {
+		return ""
+	}
+	return string(json)
+}
