@@ -369,7 +369,7 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsRH7Kernel():
 		nameOffset = 144
 	case kv.IsRH8Kernel():
-		nameOffset = 528
+		nameOffset = 520
 	case kv.IsSLES15Kernel():
 		nameOffset = 256
 	case kv.IsSLES12Kernel():
@@ -509,6 +509,8 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
 	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
 	// and is part of master since 5.1
+	case kv.IsRH8Kernel():
+		fallthrough
 	case (kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) && kv.Code.Patch() >= 168) ||
 		(kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() >= 111) ||
 		(kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && kv.Code.Patch() >= 34) ||
