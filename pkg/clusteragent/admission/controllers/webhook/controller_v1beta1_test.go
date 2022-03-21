@@ -397,10 +397,6 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 								Operator: metav1.LabelSelectorOpNotIn,
 								Values:   []string{"false"},
 							},
-							{
-								Key:      "control-plane",
-								Operator: metav1.LabelSelectorOpDoesNotExist,
-							},
 						},
 					},
 					&metav1.LabelSelector{

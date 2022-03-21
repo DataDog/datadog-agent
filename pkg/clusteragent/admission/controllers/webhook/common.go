@@ -58,12 +58,11 @@ func buildLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSe
 // Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
 // Ref: https://github.com/Azure/AKS/issues/1771
 func aksSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector) (namespaceSelector, objectSelector *metav1.LabelSelector) {
-	labelSelector.MatchExpressions = append(
-		labelSelector.MatchExpressions,
-		azureAKSLabelSelectorRequirement(),
-	)
-
 	if useNamespaceSelector {
+		labelSelector.MatchExpressions = append(
+			labelSelector.MatchExpressions,
+			azureAKSLabelSelectorRequirement(),
+		)
 		return &labelSelector, nil
 	}
 
