@@ -158,5 +158,4 @@ func isExternalPath(path string) bool {
 		strings.HasPrefix(path, "/api/v1/cf/orgs") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/cf/org_quotas") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/cf/apps/sidecars/") && len(strings.Split(path, "/")) == 7
-
 }

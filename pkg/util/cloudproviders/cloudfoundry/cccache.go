@@ -53,8 +53,8 @@ type CCCacheI interface {
 	// GetCFApplications returns all CF applications in the cache
 	GetCFApplications() ([]*CFApplication, error)
 
-	// GetSidecars returns all CF Sidecards for the given App GUID
-	GetSidecars() ([]*CFSidecar, error)
+	// GetSidecars returns all sidecars for the given application GUID in the cache
+	GetSidecars(string) ([]*CFSidecar, error)
 }
 
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
@@ -211,7 +211,7 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 	return cfapp, nil
 }
 
-// GetSidecars looks for an sidecars of an app with the given GUID in the cache
+// GetSidecars looks for sidecars of an app with the given GUID in the cache
 func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
 	ccc.RLock()
 	defer ccc.RUnlock()
@@ -281,6 +281,8 @@ func (ccc *CCCache) readData() {
 	var appsByGUID map[string]*cfclient.V3App
 	var apps []cfclient.V3App
 
+	var sidecarsByAppGUID map[string][]*CFSidecar
+
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
@@ -291,10 +293,25 @@ func (ccc *CCCache) readData() {
 			return
 		}
 		appsByGUID = make(map[string]*cfclient.V3App, len(apps))
+		sidecarsByAppGUID = make(map[string][]*CFSidecar)
 		for _, app := range apps {
 			v3App := app
 			appsByGUID[app.GUID] = &v3App
+
+			// list app sidecars
+			var allSidecars []*CFSidecar
+			sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, app.GUID)
+			if err != nil {
+				log.Errorf("Failed listing sidecars from cloud controller: %v", err)
+				return
+			}
+			for _, sidecar := range sidecars {
+				s := sidecar
+				allSidecars = append(allSidecars, &s)
+			}
+			sidecarsByAppGUID[app.GUID] = allSidecars
 		}
+
 	}()
 
 	// List spaces
@@ -386,73 +403,44 @@ func (ccc *CCCache) readData() {
 		}
 	}()
 
-	// wait for CF resources acquisition
+	// wait for resources acquisition
 	wg.Wait()
 
 	// prepare CFApplications
 	var cfApplicationsByGUID map[string]*CFApplication
 	if ccc.serveNozzleData {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cfApplicationsByGUID = make(map[string]*CFApplication, len(apps))
-			// Populate cfApplications
-			for _, cfapp := range apps {
-				updatedApp := CFApplication{}
-				updatedApp.extractDataFromV3App(cfapp)
-				appGUID := updatedApp.GUID
-				spaceGUID := updatedApp.SpaceGUID
-				processes, exists := processesByAppGUID[appGUID]
-				if exists {
-					updatedApp.extractDataFromV3Process(processes)
-				} else {
-					log.Infof("could not fetch processes info for app guid %s", appGUID)
-				}
-				// Fill space then org data. Order matters for labels and annotations.
-				space, exists := spacesByGUID[spaceGUID]
-				if exists {
-					updatedApp.extractDataFromV3Space(space)
-				} else {
-					log.Infof("could not fetch space info for space guid %s", spaceGUID)
-				}
-				orgGUID := updatedApp.OrgGUID
-				org, exists := orgsByGUID[orgGUID]
-				if exists {
-					updatedApp.extractDataFromV3Org(org)
-				} else {
-					log.Infof("could not fetch org info for org guid %s", orgGUID)
-				}
-				cfApplicationsByGUID[appGUID] = &updatedApp
+		cfApplicationsByGUID = make(map[string]*CFApplication, len(apps))
+		// Populate cfApplications
+		for _, cfapp := range apps {
+			updatedApp := CFApplication{}
+			updatedApp.extractDataFromV3App(cfapp)
+			appGUID := updatedApp.GUID
+			spaceGUID := updatedApp.SpaceGUID
+			processes, exists := processesByAppGUID[appGUID]
+			if exists {
+				updatedApp.extractDataFromV3Process(processes)
+			} else {
+				log.Infof("could not fetch processes info for app guid %s", appGUID)
 			}
-		}()
+			// Fill space then org data. Order matters for labels and annotations.
+			space, exists := spacesByGUID[spaceGUID]
+			if exists {
+				updatedApp.extractDataFromV3Space(space)
+			} else {
+				log.Infof("could not fetch space info for space guid %s", spaceGUID)
+			}
+			orgGUID := updatedApp.OrgGUID
+			org, exists := orgsByGUID[orgGUID]
+			if exists {
+				updatedApp.extractDataFromV3Org(org)
+			} else {
+				log.Infof("could not fetch org info for org guid %s", orgGUID)
+			}
+			cfApplicationsByGUID[appGUID] = &updatedApp
+		}
 	}
 
-	// List Sidecars
-	wg.Add(1)
-	var sidecarsByAppGUID map[string][]*CFSidecar
-	go func() {
-		defer wg.Done()
-		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-		sidecarsByAppGUID = make(map[string][]*CFSidecar)
-		for appGUID := range appsByGUID {
-			var allSidecars []*CFSidecar
-			sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, appGUID)
-			if err != nil {
-				log.Errorf("Failed listing processes from cloud controller: %v", err)
-				return
-			}
-			for _, sidecar := range sidecars {
-				s := sidecar
-				allSidecars = append(allSidecars, &s)
-			}
-			sidecarsByAppGUID[appGUID] = allSidecars
-		}
-	}()
-
 	// put new data in cache
-	wg.Wait()
-
 	ccc.Lock()
 	defer ccc.Unlock()
 
