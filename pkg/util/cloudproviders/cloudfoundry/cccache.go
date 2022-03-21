@@ -57,8 +57,8 @@ type CCCacheI interface {
 	// GetCFApplications returns all CF applications in the cache
 	GetCFApplications() ([]*CFApplication, error)
 
-	// GetSideCarsByApp returns all CF Sidecards for the given App GUID
-	GetSideCarsByApp() ([]*CFSideCar, error)
+	// GetSidecarsByApp returns all CF Sidecards for the given App GUID
+	GetSidecarsByApp() ([]*CFSidecar, error)
 }
 
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
@@ -77,7 +77,7 @@ type CCCache struct {
 	spacesByGUID         map[string]*cfclient.V3Space
 	processesByAppGUID   map[string][]*cfclient.Process
 	cfApplicationsByGUID map[string]*CFApplication
-	sideCarsByAppGUID    map[string][]*CFSideCar
+	sideCarsByAppGUID    map[string][]*CFSidecar
 	appsBatchSize        int
 }
 
@@ -214,6 +214,18 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 		}
 	}
 	return cfapp, nil
+}
+
+// GetSidecars looks for an sidecars of an app with the given GUID in the cache
+func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+
+	sidecars, ok := ccc.sideCarsByAppGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find sidecars for app %s in cloud controller cache", guid)
+	}
+	return sidecars, nil
 }
 
 // GetApp looks for an app with the given GUID in the cache
@@ -420,16 +432,16 @@ func (ccc *CCCache) readData() {
 		}()
 	}
 
-	// List SideCars
+	// List Sidecars
 	wg.Add(1)
-	var sideCarsByAppGUID map[string][]*CFSideCar
+	var sideCarsByAppGUID map[string][]*CFSidecar
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
 
-		sideCarsByAppGUID = make(map[string][]*CFSideCar)
+		sideCarsByAppGUID = make(map[string][]*CFSidecar)
 		for appGUID, _ := range appsByGUID {
-			var sideCars []*CFSideCar
+			var sideCars []*CFSidecar
 			for page := 1; ; page++ {
 				q := url.Values{}
 				query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
@@ -447,8 +459,8 @@ func (ccc *CCCache) readData() {
 					log.Errorf("Error reading sidecars response for app %s for page %d", appGUID, page)
 					return
 				}
-				// Unmarshal body response into SideCarsResponse objects
-				var sideCarsResponse SideCarsResponse
+				// Unmarshal body response into SidecarsResponse objects
+				var sideCarsResponse SidecarsResponse
 				err = json.Unmarshal(resBody, &sideCarsResponse)
 				if err != nil {
 					log.Errorf("Error unmarshalling sidecars response for app %s for page %d", appGUID, page)

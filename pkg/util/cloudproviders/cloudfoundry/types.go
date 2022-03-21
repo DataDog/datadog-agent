@@ -144,7 +144,7 @@ type CFApplication struct {
 	Annotations    map[string]string
 }
 
-type CFSideCar struct {
+type CFSidecar struct {
 	Name          string
 	GUID          string
 	Command       string
@@ -156,9 +156,9 @@ type CFSideCar struct {
 	UpdatedAt     string
 }
 
-type SideCarsResponse struct {
+type SidecarsResponse struct {
 	Pagination cfclient.Pagination `json:"pagination"`
-	Resources  []CFSideCar     `json:"resources"`
+	Resources  []CFSidecar         `json:"resources"`
 }
 
 type CFOrgQuota struct {
@@ -292,6 +292,10 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 				orgName = org.Name
 			} else {
 				log.Debugf("Could not find org %s in cc cache", orgGUID)
+			}
+			if sidecars, err := ccCache.GetSidecars(ccApp.GUID); err == nil && len(sidecars) > 0 {
+				customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "true"))
+				customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
 			}
 		}
 	} else {
