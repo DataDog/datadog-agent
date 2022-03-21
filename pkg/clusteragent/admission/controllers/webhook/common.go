@@ -9,6 +9,8 @@
 package webhook
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -83,5 +85,5 @@ func azureAKSLabelSelectorRequirement() metav1.LabelSelectorRequirement {
 }
 
 func runningOnAKS() bool {
-	return config.Datadog.GetString("kubernetes_distribution") == "aks"
+	return strings.ToLower(config.Datadog.GetString("kubernetes_distribution")) == "aks"
 }
