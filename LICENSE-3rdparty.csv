@@ -26,6 +26,10 @@ core,github.com/AlekSi/pointer,MIT,Alexey Palazhchenko
 core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Datadog, Inc"
+core,github.com/DataDog/btf-internals,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/DataDog/btf-internals/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/DataDog/btf-internals/sys,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/DataDog/btf-internals/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc"
 core,github.com/DataDog/ebpf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
