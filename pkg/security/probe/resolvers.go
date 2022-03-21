@@ -75,7 +75,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		NamespaceResolver: namespaceResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, NewProcessResolverOpts(probe.config.CookieCacheSize))
 	if err != nil {
 		return nil, err
 	}

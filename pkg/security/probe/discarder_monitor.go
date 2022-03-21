@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 )
@@ -28,7 +27,7 @@ type DiscarderStats struct {
 
 // DiscarderMonitor defines a discarder monitor
 type DiscarderMonitor struct {
-	client            *statsd.Client
+	probe             *Probe
 	stats             [2]*lib.Map
 	bufferSelector    *lib.Map
 	statsZero         []DiscarderStats
@@ -72,8 +71,8 @@ func (d *DiscarderMonitor) SendStats() error {
 			}
 		}
 
-		_ = d.client.Count(metrics.MetricDiscarderAdded, int64(stats.DiscardersAdded), tags, 1.0)
-		_ = d.client.Count(metrics.MetricEventDiscarded, int64(stats.EventDiscarded), tags, 1.0)
+		_ = d.probe.statsdClient.Count(metrics.MetricDiscarderAdded, int64(stats.DiscardersAdded), tags, 1.0)
+		_ = d.probe.statsdClient.Count(metrics.MetricEventDiscarded, int64(stats.EventDiscarded), tags, 1.0)
 
 	}
 	for i := uint32(0); i != uint32(model.LastDiscarderEventType); i++ {
@@ -85,14 +84,14 @@ func (d *DiscarderMonitor) SendStats() error {
 }
 
 // NewDiscarderMonitor returns a new DiscarderMonitor
-func NewDiscarderMonitor(p *Probe, client *statsd.Client) (*DiscarderMonitor, error) {
+func NewDiscarderMonitor(p *Probe) (*DiscarderMonitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
 	}
 
 	d := &DiscarderMonitor{
-		client:    client,
+		probe:     p,
 		statsZero: make([]DiscarderStats, numCPU),
 		numCPU:    numCPU,
 	}
