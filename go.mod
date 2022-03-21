@@ -168,7 +168,7 @@ require (
 	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/theupdateframework/go-tuf v0.0.0-20220127213825-87caa18db2a6
 	github.com/tinylib/msgp v1.1.6
