@@ -12,6 +12,7 @@ provider:
     lambda: true
     apiGateway: true
   environment:
+    AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
     DD_DD_URL: http://127.0.0.1:3333
     DD_API_KEY: NO_NEED_TO_BE_VALID
     DD_LOGS_CONFIG_LOGS_DD_URL: 127.0.0.1:3333
@@ -91,8 +92,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   metric-csharp:
     runtime: dotnetcore3.1
@@ -118,7 +117,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   error-node:
     runtime: nodejs14.x
@@ -147,8 +145,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   error-csharp:
     runtime: dotnetcore3.1
@@ -174,7 +170,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   timeout-node:
     runtime: nodejs14.x
@@ -214,8 +209,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   timeout-csharp:
     runtime: dotnetcore3.1
@@ -242,7 +235,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   log-node:
     runtime: nodejs14.x
@@ -294,8 +286,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
   
   log-proxy:
     runtime: nodejs14.x
@@ -305,7 +295,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   trace-node:
     runtime: nodejs14.x
@@ -347,7 +336,6 @@ functions:
     environment:
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar"'
       DD_JMXFETCH_ENABLED: false
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
 
   trace-csharp:
     runtime: dotnetcore3.1
@@ -373,4 +361,3 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
