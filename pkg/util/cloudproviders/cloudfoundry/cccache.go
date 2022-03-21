@@ -57,8 +57,8 @@ type CCCacheI interface {
 	// GetCFApplications returns all CF applications in the cache
 	GetCFApplications() ([]*CFApplication, error)
 
-	// GetSidecarsByApp returns all CF Sidecards for the given App GUID
-	GetSidecarsByApp() ([]*CFSidecar, error)
+	// GetSidecars returns all CF Sidecards for the given App GUID
+	GetSidecars() ([]*CFSidecar, error)
 }
 
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
@@ -440,7 +440,7 @@ func (ccc *CCCache) readData() {
 		query := url.Values{}
 
 		sideCarsByAppGUID = make(map[string][]*CFSidecar)
-		for appGUID, _ := range appsByGUID {
+		for appGUID := range appsByGUID {
 			var sideCars []*CFSidecar
 			for page := 1; ; page++ {
 				q := url.Values{}
