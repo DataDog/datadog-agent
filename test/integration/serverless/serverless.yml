@@ -12,7 +12,6 @@ provider:
     lambda: true
     apiGateway: true
   environment:
-    AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper.sh
     DD_DD_URL: http://127.0.0.1:3333
     DD_API_KEY: NO_NEED_TO_BE_VALID
     DD_LOGS_CONFIG_LOGS_DD_URL: 127.0.0.1:3333
@@ -92,6 +91,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
 
   metric-csharp:
     runtime: dotnetcore3.1
@@ -117,6 +119,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
 
   error-node:
     runtime: nodejs14.x
@@ -145,6 +148,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
 
   error-csharp:
     runtime: dotnetcore3.1
@@ -170,6 +176,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
 
   timeout-node:
     runtime: nodejs14.x
@@ -209,6 +216,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
 
   timeout-csharp:
     runtime: dotnetcore3.1
@@ -235,6 +245,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
 
   log-node:
     runtime: nodejs14.x
@@ -286,6 +297,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
   
   log-proxy:
     runtime: nodejs14.x
@@ -295,6 +309,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
 
   trace-node:
     runtime: nodejs14.x
@@ -334,7 +349,7 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar"'
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
 
   trace-csharp:
@@ -361,3 +376,4 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
