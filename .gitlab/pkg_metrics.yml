@@ -88,6 +88,7 @@ send_pkg_size-a7:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
     - dogstatsd_deb-x64
+  #  - heroku_agent_deb-x64
     - agent_rpm-x64-a7
     - iot_agent_rpm-x64
     - dogstatsd_rpm-x64
@@ -103,7 +104,7 @@ send_pkg_size-a7:
     - !reference [.add_metric_func, script]
 
     - source /root/.bashrc && conda activate ddpy3
-    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent
+    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent /tmp/deb/heroku-agent
     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd /tmp/rpm/iot-agent
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd /tmp/suse/iot-agent
 
@@ -116,6 +117,7 @@ send_pkg_size-a7:
             add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
             add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH
             add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH
+            if [[ "$os" == "debian" ]]; then add_metric datadog.agent.package.size $(du -sB1 ${base}/heroku-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH; fi
 
             # record the size of each of the important binaries in each package
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
@@ -133,6 +135,7 @@ send_pkg_size-a7:
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb /tmp/deb/agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb /tmp/deb/iot-agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb /tmp/deb/dogstatsd > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_7*_amd64.deb /tmp/deb/heroku-agent > /dev/null
     - add_metrics /tmp/deb debian
 
     # centos
@@ -218,6 +221,7 @@ check_pkg_size-a7:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
     - dogstatsd_deb-x64
+#    - heroku_agent_deb-x64
     - agent_rpm-x64-a7
     - iot_agent_rpm-x64
     - dogstatsd_rpm-x64
@@ -226,11 +230,12 @@ check_pkg_size-a7:
     - iot_agent_suse-x64
   variables:
     MAJOR_VERSION: 7
-    FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
+    FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
   before_script:
     - |
         declare -Ar max_sizes=(
             ["datadog-agent"]="15000000"
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
+            ["datadog-heroku-agent"]="10000000"
         )
