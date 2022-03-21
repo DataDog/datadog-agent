@@ -247,65 +247,99 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToA
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConnectivity() {
-	// When use_http is true always create HTTP endpoints
-	suite.config.Set("logs_config.use_http", "true")
-	suite.config.Set("logs_config.use_tcp", "false")
-	endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.True(endpoints.UseHTTP)
-	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.True(endpoints.UseHTTP)
 
-	// When use_tcp is true always create TCP endpoints
-	suite.config.Set("logs_config.use_http", "false")
-	suite.config.Set("logs_config.use_tcp", "true")
-	endpoints, err = BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.False(endpoints.UseHTTP)
-	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.False(endpoints.UseHTTP)
+	resetHTTPConfigValuesToFalse := func() {
+		suite.config.Set("logs_config.use_tcp", "false")
+		suite.config.Set("logs_config.force_use_tcp", "false")
+		suite.config.Set("logs_config.use_http", "false")
+		suite.config.Set("logs_config.force_use_http", "false")
+		suite.config.Set("logs_config.socks5_proxy_address", "")
+		suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{})
+	}
 
-	// When use_http & use_tcp are false create HTTP endpoints if HTTP connectivity is successful
-	suite.config.Set("logs_config.use_http", "false")
-	suite.config.Set("logs_config.use_tcp", "false")
-	endpoints, err = BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.True(endpoints.UseHTTP)
-	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.False(endpoints.UseHTTP)
-
-	// When socks5_proxy_address is set always create TCP endpoints
-	suite.config.Set("logs_config.use_http", "false")
-	suite.config.Set("logs_config.use_tcp", "false")
-	suite.config.Set("logs_config.socks5_proxy_address", "my-address")
-	endpoints, err = BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.False(endpoints.UseHTTP)
-	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.False(endpoints.UseHTTP)
-	suite.config.Set("logs_config.socks5_proxy_address", "")
-
-	// When additional_endpoints is not empty always create TCP endpoints
-	suite.config.Set("logs_config.use_http", "false")
-	suite.config.Set("logs_config.use_tcp", "false")
-	suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
-		{
-			"host":              "foo",
-			"api_key":           "1234",
-			"use_compression":   true,
-			"compression_level": 1,
-		},
+	suite.Run("When use_http is true always create HTTP endpoints", func() {
+		defer resetHTTPConfigValuesToFalse()
+		suite.config.Set("logs_config.use_http", "true")
+		endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.True(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.True(endpoints.UseHTTP)
 	})
-	endpoints, err = BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.False(endpoints.UseHTTP)
-	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
-	suite.False(endpoints.UseHTTP)
+
+	suite.Run("When force_use_http is true always create HTTP endpoints", func() {
+		defer resetHTTPConfigValuesToFalse()
+		suite.config.Set("logs_config.force_use_http", "true")
+		endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.True(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.True(endpoints.UseHTTP)
+	})
+
+	suite.Run("When use_tcp is true always create TCP endpoints", func() {
+		defer resetHTTPConfigValuesToFalse()
+		suite.config.Set("logs_config.use_tcp", "true")
+		endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+	})
+
+	suite.Run("When force_use_tcp is true always create TCP endpoints", func() {
+		defer resetHTTPConfigValuesToFalse()
+		suite.config.Set("logs_config.force_use_tcp", "true")
+		endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+	})
+
+	suite.Run("When (force_)use_http & (force_)use_tcp are false create HTTP endpoints if HTTP connectivity is successful", func() {
+		defer resetHTTPConfigValuesToFalse()
+		endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.True(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+	})
+
+	suite.Run("When socks5_proxy_address is set always create TCP endpoints", func() {
+		defer resetHTTPConfigValuesToFalse()
+		suite.config.Set("logs_config.socks5_proxy_address", "my-address")
+		endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+		suite.config.Set("logs_config.socks5_proxy_address", "")
+	})
+
+	suite.Run("When additional_endpoints is not empty always create TCP endpoints", func() {
+		defer resetHTTPConfigValuesToFalse()
+		suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
+			{
+				"host":              "foo",
+				"api_key":           "1234",
+				"use_compression":   true,
+				"compression_level": 1,
+			},
+		})
+		endpoints, err := BuildEndpoints(HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.False(endpoints.UseHTTP)
+	})
 }
 
 func (suite *EndpointsTestSuite) TestIsSetAndNotEmpty() {
