@@ -1,5 +1,3 @@
-// +build linux darwin
-
 package network
 
 func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
