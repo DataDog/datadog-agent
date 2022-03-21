@@ -493,7 +493,7 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	case kv.IsSLES15Kernel():
 		offset = 256
 
-	case kv.Code >= kernel.Kernel4_16 && kv.Code < kernel.Kernel5_8:
+	case kv.Code >= kernel.Kernel4_14 && kv.Code < kernel.Kernel5_8:
 		offset = 264
 	case kv.Code >= kernel.Kernel5_8 && kv.Code < kernel.Kernel5_12:
 		offset = 256
@@ -505,7 +505,19 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 }
 
 func getNetNSOffset(kv *kernel.Version) uint64 {
-	return uint64(120)
+	switch {
+	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
+	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
+	// and is part of master since 5.1
+	case (kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) && kv.Code.Patch() >= 168) ||
+		(kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() >= 111) ||
+		(kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && kv.Code.Patch() >= 34) ||
+		(kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1) && kv.Code.Patch() >= 7) ||
+		kv.Code >= kernel.Kernel5_1:
+		return 120
+	default:
+		return 112
+	}
 }
 
 func getNetProcINumOffset(kv *kernel.Version) uint64 {
