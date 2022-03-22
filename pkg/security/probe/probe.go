@@ -920,7 +920,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	p.constantOffsets, err = GetOffsetConstants(config, p)
+	p.constantOffsets, err = p.GetOffsetConstants()
 	if err != nil {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
@@ -1048,8 +1048,8 @@ func (p *Probe) ensureConfigDefaults() {
 }
 
 // GetOffsetConstants returns the offsets and struct sizes constants
-func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+func (probe *Probe) GetOffsetConstants() (map[string]uint64, error) {
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(probe.config, probe.kernelVersion, probe.statsdClient))
 	kv, err := probe.GetKernelVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
@@ -1058,8 +1058,8 @@ func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64,
 	return constantFetcher.FinishAndGetResults()
 }
 
-func GetConstantFetcherStatus(config *config.Config, probe *Probe) (map[string]constantfetch.ValueAndSource, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+func (probe *Probe) GetConstantFetcherStatus() (*constantfetch.ComposeFetcherStatus, error) {
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(probe.config, probe.kernelVersion, probe.statsdClient))
 	kv, err := probe.GetKernelVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)

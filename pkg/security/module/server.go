@@ -179,6 +179,26 @@ func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraph
 	return nil, fmt.Errorf("monitor not configured")
 }
 
+func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.GetConstantFetcherStatusParams) (*api.ConstantFetcherStatus, error) {
+	status, err := a.probe.GetConstantFetcherStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
+	for _, v := range status.Values {
+		constants = append(constants, &api.ConstantValueAndSource{
+			Id:     v.Id,
+			Value:  v.Value,
+			Source: v.FetcherName,
+		})
+	}
+	return &api.ConstantFetcherStatus{
+		Fetchers: status.Fetchers,
+		Values:   constants,
+	}, nil
+}
+
 func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Lock()
 	a.queue = append(a.queue, msg)
