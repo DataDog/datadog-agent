@@ -515,8 +515,6 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 		fallthrough
 	case (kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) && kv.Code.Patch() >= 168) ||
 		(kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() >= 111) ||
-		(kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && kv.Code.Patch() >= 34) ||
-		(kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1) && kv.Code.Patch() >= 7) ||
 		kv.Code >= kernel.Kernel5_1:
 		return 120
 	default:
