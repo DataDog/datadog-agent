@@ -173,7 +173,8 @@ func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (
 		return nil, err
 	}
 
-	return probe.GetOffsetConstantsFromFetcher(fetcher, kv)
+	probe.AppendProbeRequestsToFetcher(fetcher, kv)
+	return fetcher.FinishAndGetResults()
 }
 
 func createBTFReaderFromTarball(archivePath string) (io.ReaderAt, error) {
