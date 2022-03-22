@@ -15,7 +15,6 @@ import (
 )
 
 const ddsource string = "snmp-traps"
-const ddservice string = "snmp-traps"
 
 // Formatter is an interface to extract and format raw SNMP Traps
 type Formatter interface {
@@ -62,7 +61,6 @@ func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 		}
 	}
 	formattedTrap["ddsource"] = ddsource
-	formattedTrap["service"] = ddservice
 	formattedTrap["ddtags"] = strings.Join(f.getTags(packet), ",")
 	payload["trap"] = formattedTrap
 	return json.Marshal(payload)

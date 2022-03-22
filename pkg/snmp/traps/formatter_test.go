@@ -71,7 +71,6 @@ func TestFormatPacketV1Generic(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp-traps", trapContent["service"])
 	assert.Equal(t, "snmp_version:1,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.6.3.1.1.5.3", trapContent["snmpTrapOID"])
@@ -115,7 +114,6 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp-traps", trapContent["service"])
 	assert.Equal(t, "snmp_version:1,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.2.1.118.0.2", trapContent["snmpTrapOID"])
@@ -156,7 +154,6 @@ func TestFormatPacketToJSON(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp-traps", trapContent["service"])
 	assert.Equal(t, "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", trapContent["snmpTrapOID"])
@@ -251,7 +248,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 	trapContent := content["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp-traps", trapContent["service"])
 	assert.Equal(t, "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.EqualValues(t, "netSnmpExampleHeartbeatNotification", trapContent["snmpTrapName"])
@@ -278,7 +274,6 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	trapContent := content["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp-traps", trapContent["service"])
 	assert.Equal(t, "snmp_version:1,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.EqualValues(t, "ifDown", trapContent["snmpTrapName"])
