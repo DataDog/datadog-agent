@@ -87,11 +87,10 @@ func (f *ComposeConstantFetcher) getHash() []byte {
 	return f.hasher.Sum(nil)
 }
 
-// FinishAndGetResults does the actual fetching and returns the results
-func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
+func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 	currentHash := f.getHash()
 	if constantsCache.isMatching(currentHash) {
-		return constantsCache.getConstants(), nil
+		return
 	}
 
 	for _, fetcher := range f.fetchers {
@@ -120,9 +119,9 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 		}
 	}
 
-	finalRes := make(map[string]valueAndSource)
+	finalRes := make(map[string]ValueAndSource)
 	for _, req := range f.requests {
-		finalRes[req.id] = valueAndSource{
+		finalRes[req.id] = ValueAndSource{
 			value:       req.value,
 			fetcherName: req.fetcherName,
 		}
@@ -132,7 +131,18 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 		constants: finalRes,
 		hash:      currentHash,
 	}
+}
+
+// FinishAndGetResults does the actual fetching and returns the results
+func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
+	f.fillConstantCacheIfNeeded()
 	return constantsCache.getConstants(), nil
+}
+
+// FinishAndGetResults does the actual fetching and returns the status
+func (f *ComposeConstantFetcher) FinishAndGetStatus() (map[string]ValueAndSource, error) {
+	f.fillConstantCacheIfNeeded()
+	return constantsCache.constants, nil
 }
 
 type composeRequest struct {
@@ -168,13 +178,13 @@ func ClearConstantsCache() {
 	constantsCache = nil
 }
 
-type valueAndSource struct {
+type ValueAndSource struct {
 	value       uint64
 	fetcherName string
 }
 
 type cachedConstants struct {
-	constants map[string]valueAndSource
+	constants map[string]ValueAndSource
 	hash      []byte
 }
 

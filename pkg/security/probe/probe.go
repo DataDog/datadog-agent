@@ -1054,11 +1054,22 @@ func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64,
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
 	}
-	return GetOffsetConstantsFromFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	return constantFetcher.FinishAndGetResults()
 }
 
-// GetOffsetConstantsFromFetcher returns the offsets and struct sizes constants, from a constant fetcher
-func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) (map[string]uint64, error) {
+func GetConstantFetcherStatus(config *config.Config, probe *Probe) (map[string]constantfetch.ValueAndSource, error) {
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+	kv, err := probe.GetKernelVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
+	}
+	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	return constantFetcher.FinishAndGetStatus()
+}
+
+// AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher
+func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("dentry_sb_offset", "struct dentry", "d_sb", "linux/dcache.h")
@@ -1089,6 +1100,4 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 
 	// splice event
 	constantFetcher.AppendOffsetofRequest("pipe_inode_info_bufs_offset", "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
-
-	return constantFetcher.FinishAndGetResults()
 }
