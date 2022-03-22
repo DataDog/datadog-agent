@@ -13,13 +13,13 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/process/exports"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func checkHandler(w http.ResponseWriter, req *http.Request) {
 	requestedCheck := mux.Vars(req)["check"]
-	checkOutput, ok := exports.GetCheckOutput(requestedCheck)
+	checkOutput, ok := checks.GetCheckOutput(requestedCheck)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		_, err := io.WriteString(w, fmt.Sprintf("%s check is not running or has not been scheduled yet\n", requestedCheck))
