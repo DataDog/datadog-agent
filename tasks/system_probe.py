@@ -234,12 +234,20 @@ def kitchen_prepare(ctx, windows=is_windows):
 
 
 @task
-def kitchen_test(ctx, target=None, vagrant_arch="x86_64", provider="virtualbox"):
+def kitchen_test(ctx, target=None, provider="virtualbox"):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
+
+    vagrant_arch = ""
+    if CURRENT_ARCH == "x64":
+        vagrant_arch = "x86_64"
+    elif CURRENT_ARCH == "arm64":
+        vagrant_arch = "arm64"
+    else:
+        raise Exit(f"Unsupported vagrant arch", code=1)
 
     # Retrieve a list of all available vagrant images
     images = {}
