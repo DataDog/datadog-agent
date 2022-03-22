@@ -91,7 +91,7 @@ func (f *ComposeConstantFetcher) getHash() []byte {
 func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	currentHash := f.getHash()
 	if constantsCache.isMatching(currentHash) {
-		return constantsCache.constants, nil
+		return constantsCache.getConstants(), nil
 	}
 
 	for _, fetcher := range f.fetchers {
@@ -114,21 +114,25 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 			if req.value == ErrorSentinel {
 				if newValue, present := res[req.id]; present {
 					req.value = newValue
+					req.fetcherName = fetcher.String()
 				}
 			}
 		}
 	}
 
-	finalRes := make(map[string]uint64)
+	finalRes := make(map[string]valueAndSource)
 	for _, req := range f.requests {
-		finalRes[req.id] = req.value
+		finalRes[req.id] = valueAndSource{
+			value:       req.value,
+			fetcherName: req.fetcherName,
+		}
 	}
 
 	constantsCache = &cachedConstants{
 		constants: finalRes,
 		hash:      currentHash,
 	}
-	return finalRes, nil
+	return constantsCache.getConstants(), nil
 }
 
 type composeRequest struct {
@@ -137,6 +141,7 @@ type composeRequest struct {
 	typeName, fieldName string
 	headerName          string
 	value               uint64
+	fetcherName         string
 }
 
 // CreateConstantEditors creates constant editors based on the constants fetched
@@ -163,8 +168,13 @@ func ClearConstantsCache() {
 	constantsCache = nil
 }
 
+type valueAndSource struct {
+	value       uint64
+	fetcherName string
+}
+
 type cachedConstants struct {
-	constants map[string]uint64
+	constants map[string]valueAndSource
 	hash      []byte
 }
 
@@ -183,4 +193,12 @@ func (cc *cachedConstants) isMatching(hash []byte) bool {
 		}
 	}
 	return true
+}
+
+func (cc *cachedConstants) getConstants() map[string]uint64 {
+	res := make(map[string]uint64)
+	for k, v := range cc.constants {
+		res[k] = v.value
+	}
+	return res
 }
