@@ -14,6 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	instancePath   = "instances"
+	checkNamePath  = "check_names"
+	initConfigPath = "init_configs"
+	logsConfigPath = "logs"
+	checksPath     = "checks"
+	checkIDPath    = "check.id"
+)
+
 // ExtractTemplatesFromMap looks for autodiscovery configurations in a given
 // map and returns them if found.
 func ExtractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, []error) {
@@ -181,4 +190,115 @@ func parseJSONObjToData(r interface{}) (integration.Data, error) {
 	default:
 		return nil, fmt.Errorf("found non JSON object type, value is: '%v'", r)
 	}
+}
+
+func extractCheckNamesFromMap(annotations map[string]string, prefix string, legacyPrefix string) ([]string, error) {
+	// AD annotations v2: "ad.datadoghq.com/redis.checks"
+	if checksJSON, found := annotations[prefix+checksPath]; found {
+		// adIdentifier is an empty string since it's needed by
+		// parseChecksJSON but not used by this func
+		var adIdentifier string
+		checks, err := parseChecksJSON(adIdentifier, checksJSON)
+		if err != nil {
+			return nil, err
+		}
+
+		checkNames := make([]string, 0, len(checks))
+		for _, config := range checks {
+			checkNames = append(checkNames, config.Name)
+		}
+
+		return checkNames, nil
+	}
+
+	// AD annotations v1: "ad.datadoghq.com/redis.check_names"
+	if checkNamesJSON, found := annotations[prefix+checkNamePath]; found {
+		checkNames, err := ParseCheckNames(checkNamesJSON)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse check names: %w", err)
+		}
+
+		return checkNames, nil
+	}
+
+	if legacyPrefix != "" {
+		// AD annotations legacy: "service-discovery.datadoghq.com/redis.check_names"
+		if checkNamesJSON, found := annotations[legacyPrefix+checkNamePath]; found {
+			checkNames, err := ParseCheckNames(checkNamesJSON)
+			if err != nil {
+				return nil, fmt.Errorf("cannot parse check names: %w", err)
+			}
+
+			return checkNames, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func extractTemplatesFromMapWithV2(entityName string, annotations map[string]string, prefix string, legacyPrefix string) ([]integration.Config, []error) {
+	var (
+		configs      []integration.Config
+		errors       []error
+		actualPrefix string
+	)
+
+	var prefixCandidates = []string{prefix}
+	if legacyPrefix != "" {
+		prefixCandidates = append(prefixCandidates, legacyPrefix)
+	}
+
+	if checksJSON, found := annotations[prefix+checksPath]; found {
+		// AD annotations v2: "ad.datadoghq.com/redis.checks"
+		actualPrefix = prefix
+		c, err := parseChecksJSON(entityName, checksJSON)
+		if err != nil {
+			errors = append(errors, err)
+		} else {
+			configs = append(configs, c...)
+		}
+	} else {
+		// AD annotations v1: "ad.datadoghq.com/redis.check_names"
+		// AD annotations legacy: "service-discovery.datadoghq.com/redis.check_names"
+		actualPrefix = findPrefix(annotations, prefixCandidates, checkNamePath)
+
+		if actualPrefix != "" {
+			c, err := extractCheckTemplatesFromMap(entityName, annotations, actualPrefix)
+			if err != nil {
+				errors = append(errors, fmt.Errorf("could not extract checks config: %v", err))
+			} else {
+				configs = append(configs, c...)
+			}
+		}
+	}
+
+	// prefix might not have been detected if there are no check
+	// annotations, so we try to find a prefix for log configs
+	if actualPrefix == "" {
+		// AD annotations v1: "ad.datadoghq.com/redis.logs"
+		// AD annotations legacy: "service-discovery.datadoghq.com/redis.logs"
+		actualPrefix = findPrefix(annotations, prefixCandidates, logsConfigPath)
+	}
+
+	if actualPrefix != "" {
+		c, err := extractLogsTemplatesFromMap(entityName, annotations, actualPrefix)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
+		} else {
+			configs = append(configs, c...)
+		}
+	}
+
+	return configs, errors
+}
+
+func findPrefix(annotations map[string]string, prefixes []string, suffix string) string {
+	for _, prefix := range prefixes {
+		key := prefix + suffix
+		if _, ok := annotations[key]; ok {
+			return prefix
+		}
+	}
+
+	return ""
 }

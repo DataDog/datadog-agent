@@ -64,9 +64,11 @@ func TestExtractCheckNamesFromPodAnnotations(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		checkNames, err := ExtractCheckNamesFromPodAnnotations(tt.annotations, tt.adIdentifier)
-		assert.Nil(t, err)
-		assert.ElementsMatch(t, tt.checkNames, checkNames, "check names do not match")
+		t.Run(tt.name, func(t *testing.T) {
+			checkNames, err := ExtractCheckNamesFromPodAnnotations(tt.annotations, tt.adIdentifier)
+			assert.Nil(t, err)
+			assert.ElementsMatch(t, tt.checkNames, checkNames, "check names do not match")
+		})
 
 	}
 }

@@ -9,12 +9,11 @@
 package listeners
 
 import (
-	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -23,9 +22,8 @@ import (
 )
 
 const (
-	newIdentifierLabel            = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel         = "com.datadoghq.sd.check.id"
-	containerADTemplateCheckNames = "com.datadoghq.ad.check_names"
+	newIdentifierLabel    = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
 )
 
 func init() {
@@ -120,7 +118,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}
 	} else {
-		checkNames, err := getCheckNamesFromLabels(container.Labels)
+		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
 			log.Errorf("error getting check names from labels on container %s: %v", container.ID, err)
 		}
@@ -201,18 +199,4 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
-}
-
-// getCheckNamesFromLabels unmarshals the json string of check names defined in
-// container labels and returns a slice of check names
-func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
-	if checkLabels, found := labels[containerADTemplateCheckNames]; found {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(checkLabels), &checkNames)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %v", err)
-		}
-		return checkNames, nil
-	}
-	return nil, nil
 }
