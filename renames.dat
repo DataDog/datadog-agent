@@ -1,0 +1,81 @@
+github.com/DataDog/datadog-agent/cmd/agent/gui -> github.com/DataDog/datadog-agent/cmd/agent/internal/gui
+
+github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/app -> github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/internal/app
+github.com/DataDog/datadog-agent/cmd/cluster-agent/admission -> github.com/DataDog/datadog-agent/cmd/cluster-agent/internal/admission
+github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent -> github.com/DataDog/datadog-agent/cmd/cluster-agent/api/internal/agent
+github.com/DataDog/datadog-agent/cmd/cluster-agent/app -> github.com/DataDog/datadog-agent/cmd/cluster-agent/internal/app
+github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics -> github.com/DataDog/datadog-agent/cmd/cluster-agent/internal/custommetrics
+
+github.com/DataDog/datadog-agent/cmd/process-agent/app -> github.com/DataDog/datadog-agent/cmd/process-agent/internal/app
+github.com/DataDog/datadog-agent/cmd/process-agent/flags -> github.com/DataDog/datadog-agent/cmd/process-agent/internal/flags
+
+github.com/DataDog/datadog-agent/cmd/secrets/providers -> github.com/DataDog/datadog-agent/cmd/secrets/internal/providers
+
+github.com/DataDog/datadog-agent/cmd/security-agent/api -> github.com/DataDog/datadog-agent/cmd/security-agent/internal/api
+github.com/DataDog/datadog-agent/cmd/security-agent/api/agent -> github.com/DataDog/datadog-agent/cmd/security-agent/api/internal/agent
+github.com/DataDog/datadog-agent/cmd/security-agent/common -> github.com/DataDog/datadog-agent/cmd/security-agent/internal/common
+
+github.com/DataDog/datadog-agent/cmd/system-probe/app -> github.com/DataDog/datadog-agent/cmd/system-probe/internal/app
+github.com/DataDog/datadog-agent/cmd/system-probe/modules -> github.com/DataDog/datadog-agent/cmd/system-probe/internal/modules
+github.com/DataDog/datadog-agent/cmd/system-probe/utils -> github.com/DataDog/datadog-agent/cmd/system-probe/internal/utils
+github.com/DataDog/datadog-agent/cmd/system-probe/windows -> github.com/DataDog/datadog-agent/cmd/system-probe/internal/windows
+
+github.com/DataDog/datadog-agent/pkg/autodiscovery/common -> github.com/DataDog/datadog-agent/pkg/autodiscovery/internal/common
+github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver -> github.com/DataDog/datadog-agent/pkg/autodiscovery/internal/configresolver
+github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry -> github.com/DataDog/datadog-agent/pkg/autodiscovery/internal/telemetry
+
+github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common -> github.com/DataDog/datadog-agent/pkg/clusteragent/admission/internal/common
+github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers -> github.com/DataDog/datadog-agent/pkg/clusteragent/admission/internal/controllers
+github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model -> github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/internal/model
+
+github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors -> github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/internal/collectors
+github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers -> github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/internal/transformers
+
+github.com/DataDog/datadog-agent/pkg/collector/loaders -> github.com/DataDog/datadog-agent/pkg/collector/internal/loaders
+github.com/DataDog/datadog-agent/pkg/collector/metadata/agentchecks -> github.com/DataDog/datadog-agent/pkg/collector/metadata/internal/agentchecks
+github.com/DataDog/datadog-agent/pkg/collector/runner/expvars -> github.com/DataDog/datadog-agent/pkg/collector/internal/runner/expvars
+github.com/DataDog/datadog-agent/pkg/collector/runner/tracker -> github.com/DataDog/datadog-agent/pkg/collector/internal/runner/tracker
+github.com/DataDog/datadog-agent/pkg/collector/worker -> github.com/DataDog/datadog-agent/pkg/collector/internal/worker
+
+github.com/DataDog/datadog-agent/pkg/compliance/checks/custom -> github.com/DataDog/datadog-agent/pkg/compliance/checks/internal/custom
+github.com/DataDog/datadog-agent/pkg/compliance/eval -> github.com/DataDog/datadog-agent/pkg/compliance/internal/eval
+github.com/DataDog/datadog-agent/pkg/compliance/mocks -> github.com/DataDog/datadog-agent/pkg/compliance/internal/mocks
+
+github.com/DataDog/datadog-agent/pkg/ebpf/compiler -> github.com/DataDog/datadog-agent/pkg/ebpf/internal/compiler
+
+github.com/DataDog/datadog-agent/pkg/network/driver -> github.com/DataDog/datadog-agent/pkg/network/internal/driver
+github.com/DataDog/datadog-agent/pkg/network/ebpf -> github.com/DataDog/datadog-agent/pkg/network/internal/ebpf
+github.com/DataDog/datadog-agent/pkg/network/filter -> github.com/DataDog/datadog-agent/pkg/network/internal/filter
+github.com/DataDog/datadog-agent/pkg/network/netlink -> github.com/DataDog/datadog-agent/pkg/network/internal/netlink
+github.com/DataDog/datadog-agent/pkg/network/testutil -> github.com/DataDog/datadog-agent/pkg/network/internal/testutil
+github.com/DataDog/datadog-agent/pkg/network/tracer/connection -> github.com/DataDog/datadog-agent/pkg/network/tracer/internal/connection
+github.com/DataDog/datadog-agent/pkg/network/tracer/testutil -> github.com/DataDog/datadog-agent/pkg/network/tracer/internal/testutil
+
+github.com/DataDog/datadog-agent/pkg/process/dockerproxy -> github.com/DataDog/datadog-agent/pkg/process/internal/dockerproxy
+
+github.com/DataDog/datadog-agent/pkg/security/api -> github.com/DataDog/datadog-agent/pkg/security/internal/api
+github.com/DataDog/datadog-agent/pkg/security/ebpf -> github.com/DataDog/datadog-agent/pkg/security/internal/ebpf
+github.com/DataDog/datadog-agent/pkg/security/utils -> github.com/DataDog/datadog-agent/pkg/security/internal/utils
+
+github.com/DataDog/datadog-agent/pkg/serverless/logs -> github.com/DataDog/datadog-agent/pkg/serverless/internal/logs
+github.com/DataDog/datadog-agent/pkg/serverless/proc -> github.com/DataDog/datadog-agent/pkg/serverless/internal/proc
+github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan -> github.com/DataDog/datadog-agent/pkg/serverless/trace/internal/inferredspan
+
+github.com/DataDog/datadog-agent/pkg/tagger/subscriber -> github.com/DataDog/datadog-agent/pkg/tagger/internal/subscriber
+github.com/DataDog/datadog-agent/pkg/tagger/tagstore -> github.com/DataDog/datadog-agent/pkg/tagger/internal/tagstore
+
+github.com/DataDog/datadog-agent/pkg/util/containers/metrics -> github.com/DataDog/datadog-agent/pkg/util/internal/containers/metrics
+github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/containerd -> github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/internal/containerd
+github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/cri -> github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/internal/cri
+github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/docker -> github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/internal/docker
+github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/ecsfargate -> github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/internal/ecsfargate
+github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/kubelet -> github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/internal/kubelet
+github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/system -> github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/internal/system
+
+github.com/DataDog/datadog-agent/pkg/util/docker/fake -> github.com/DataDog/datadog-agent/pkg/util/docker/internal/fake
+
+github.com/DataDog/datadog-agent/pkg/util/ecs/common -> github.com/DataDog/datadog-agent/pkg/util/internal/ecs/common
+github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil -> github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/internal/testutil
+github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry -> github.com/DataDog/datadog-agent/pkg/util/ecs/internal/telemetry
+
+github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry -> github.com/DataDog/datadog-agent/pkg/workloadmeta/internal/telemetry

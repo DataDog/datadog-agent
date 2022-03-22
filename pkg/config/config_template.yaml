@@ -3010,6 +3010,7 @@ api_key:
 
     ## @param send_monotonic_counter - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_SEND_MONOTONIC_COUNTER - boolean - optional - default: false
+    ## DEPRECATED: [v7.36] Use `sums.cumulative_monotonic_mode` instead. Will be removed in v7.37.
     ## Whether to report monotonic metrics as counters or gauges (raw value).
     ## See https://docs.datadoghq.com/integrations/guide/prometheus-metrics/#counter
     ## for further details.
@@ -3044,6 +3045,18 @@ api_key:
       ## Whether to report sum and count as separate histogram metrics.
       #
       # send_count_sum_metrics: false
+
+    ## @param sums - custom object - optional
+    ## Configuration for OTLP Sums.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=sum for details.
+        ## @param cumulative_monotonic_mode - string - optional - default: to_delta
+        ## @env DD_OTLP_CONFIG_METRICS_SUMS_CUMULATIVE_MONOTONIC_MODE - string - optional - default: to_delta
+        ## How to report cumulative monotonic sums. Valid values are:
+        ##
+        ## - `to_delta` to calculate delta for sum in the client side and report as Datadog counts.
+        ## - `raw_value` to report the raw value as a Datadog gauge.
+        #
+        # cumulative_monotonic_mode: to_delta
 
   ## @param traces - custom object - optional
   ## Traces-specific configuration for OTLP ingest in the Datadog Agent.
