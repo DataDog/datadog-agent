@@ -37,13 +37,14 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 type ProcessCheck struct {
 	probe procutil.Probe
 
-	sysInfo            *model.SystemInfo
-	lastCPUTime        cpu.TimesStat
-	lastProcs          map[int32]*procutil.Process
-	lastRun            time.Time
-	containerProvider  util.ContainerProvider
-	lastContainerRates map[string]*util.ContainerRateMetrics
-	networkID          string
+	sysInfo                    *model.SystemInfo
+	lastCPUTime                cpu.TimesStat
+	lastProcs                  map[int32]*procutil.Process
+	lastRun                    time.Time
+	containerProvider          util.ContainerProvider
+	lastContainerRates         map[string]*util.ContainerRateMetrics
+	realtimeLastContainerRates map[string]*util.ContainerRateMetrics
+	networkID                  string
 
 	realtimeLastCPUTime cpu.TimesStat
 	realtimeLastProcs   map[int32]*procutil.Stats
