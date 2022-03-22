@@ -143,6 +143,8 @@ const (
 	ConntrackSamplingPercent                             = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded                      = "driver_flows_missed_max_exceeded"
 	MonotonicDNSPacketsDropped                           = "dns_packets_dropped"
+	HTTPRequestsDropped                                  = "http_requests_dropped"
+	HTTPRequestsMissed                                   = "http_requests_missed"
 )
 
 //revive:enable
@@ -155,6 +157,8 @@ var (
 		ConntrackSamplingPercent,
 		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
+		HTTPRequestsDropped,
+		HTTPRequestsMissed,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
