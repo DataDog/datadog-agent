@@ -18,11 +18,12 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-go/statsd"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type rcSymbolPair struct {

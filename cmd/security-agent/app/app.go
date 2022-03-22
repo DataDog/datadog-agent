@@ -43,7 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )

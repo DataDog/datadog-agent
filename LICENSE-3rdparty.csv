@@ -30,7 +30,7 @@ core,github.com/DataDog/btf-internals,MIT,Authors of Cilium | Cloudflare | Natha
 core,github.com/DataDog/btf-internals/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/DataDog/btf-internals/sys,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/DataDog/btf-internals/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
-core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
+core,github.com/DataDog/datadog-go/v5/statsd,MIT,"Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc"
 core,github.com/DataDog/ebpf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
 core,github.com/DataDog/ebpf-manager,MIT,Authors of Datadog
@@ -1077,6 +1077,7 @@ core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/osinfo,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pprofutils,Apache-2.0,"Datadog, Inc."

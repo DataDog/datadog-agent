@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -43,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
