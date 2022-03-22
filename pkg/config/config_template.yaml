@@ -321,8 +321,8 @@ api_key:
 ## higher maximum backoff time.
 # forwarder_backoff_max: 64
 
-## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle
+## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle ibm
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -339,6 +339,7 @@ api_key:
 ## "alibaba" Alibaba
 ## "tencent" Tencent
 ## "oracle"  Oracle Cloud
+## "ibm"     IBM Cloud
 #
 # cloud_provider_metadata:
 #   - "aws"
@@ -346,6 +347,7 @@ api_key:
 #   - "azure"
 #   - "alibaba"
 #   - "oracle"
+#   - "ibm"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
