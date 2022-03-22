@@ -185,6 +185,7 @@ type testModule struct {
 	cmdWrapper            cmdWrapper
 	ruleHandler           testRuleHandler
 	eventDiscarderHandler testEventDiscarderHandler
+	statsdClient          *StatsdClient
 }
 
 var testMod *testModule
@@ -521,7 +522,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	t.Log("Instantiating a new security module")
 
-	mod, err := module.NewModule(config)
+	statsdClient := NewStatsdClient()
+
+	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create module")
 	}
@@ -539,6 +542,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		probe:        mod.(*module.Module).GetProbe(),
 		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
 		cmdWrapper:   cmdWrapper,
+		statsdClient: statsdClient,
 	}
 
 	var loadErr *multierror.Error

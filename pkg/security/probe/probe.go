@@ -316,11 +316,6 @@ func (p *Probe) Start() error {
 	return p.monitor.Start(p.ctx, &p.wg)
 }
 
-// SetStatsdClient set the Statsd client
-func (p *Probe) SetStatsdClient(client statsd.ClientInterface) {
-	p.statsdClient = client
-}
-
 // SetEventHandler set the probe event handler
 func (p *Probe) SetEventHandler(handler EventHandler) {
 	p.handler = handler
@@ -1150,7 +1145,7 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config) (*Probe, error) {
+func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
 	erpc, err := NewERPC()
 	if err != nil {
 		return nil, err
@@ -1167,6 +1162,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		cancelFnc:      cancel,
 		erpc:           erpc,
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
+		statsdClient:   statsdClient,
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

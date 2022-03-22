@@ -44,6 +44,11 @@ const (
 	statsdPoolSize = 64
 )
 
+// Opts define module options
+type Opts struct {
+	StatsdClient statsd.ClientInterface
+}
+
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
@@ -52,7 +57,7 @@ type Module struct {
 	config           *sconfig.Config
 	currentRuleSet   atomic.Value
 	reloading        uint64
-	statsdClient     *statsd.Client
+	statsdClient     statsd.ClientInterface
 	apiServer        *APIServer
 	grpcServer       *grpc.Server
 	listener         net.Listener
@@ -497,7 +502,11 @@ func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multie
 	m.rulesLoaded = cb
 }
 
-func getStatdClient(cfg *sconfig.Config) (*statsd.Client, error) {
+func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, error) {
+	if len(opts) != 0 && opts[0].StatsdClient != nil {
+		return opts[0].StatsdClient, nil
+	}
+
 	statsdAddr := os.Getenv("STATSD_URL")
 	if statsdAddr == "" {
 		statsdAddr = cfg.StatsdAddr
@@ -507,17 +516,16 @@ func getStatdClient(cfg *sconfig.Config) (*statsd.Client, error) {
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config) (module.Module, error) {
-	statsdClient, err := getStatdClient(cfg)
+func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
+	statsdClient, err := getStatdClient(cfg, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	probe, err := sprobe.NewProbe(cfg)
+	probe, err := sprobe.NewProbe(cfg, statsdClient)
 	if err != nil {
 		return nil, err
 	}
-	probe.SetStatsdClient(statsdClient)
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
