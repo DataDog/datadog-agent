@@ -29,6 +29,10 @@ func NewFallbackConstantFetcher(kv *kernel.Version) *FallbackConstantFetcher {
 	}
 }
 
+func (f *FallbackConstantFetcher) String() string {
+	return "fallback"
+}
+
 func (f *FallbackConstantFetcher) appendRequest(id string) {
 	var value = ErrorSentinel
 	switch id {

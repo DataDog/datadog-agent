@@ -49,6 +49,10 @@ func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
 	return NewBTFConstantFetcherFromSpec(spec), nil
 }
 
+func (f *BTFConstantFetcher) String() string {
+	return "btf co-re"
+}
+
 type constantRequest struct {
 	id                  string
 	sizeof              bool

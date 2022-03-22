@@ -10,6 +10,7 @@ package constantfetch
 
 import (
 	"crypto/md5"
+	"fmt"
 	"hash"
 	"io"
 
@@ -23,6 +24,7 @@ const ErrorSentinel uint64 = ^uint64(0)
 // ConstantFetcher represents a source of constants that can be used to fill up
 // eBPF relocations
 type ConstantFetcher interface {
+	fmt.Stringer
 	AppendSizeofRequest(id, typeName, headerName string)
 	AppendOffsetofRequest(id, typeName, fieldName, headerName string)
 	FinishAndGetResults() (map[string]uint64, error)
@@ -43,6 +45,10 @@ func ComposeConstantFetchers(fetchers []ConstantFetcher) *ComposeConstantFetcher
 		hasher:   md5.New(),
 		fetchers: fetchers,
 	}
+}
+
+func (f *ComposeConstantFetcher) String() string {
+	return fmt.Sprintf("composition of %s", f.fetchers)
 }
 
 func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
