@@ -1,6 +1,7 @@
 import datetime
 import errno
 import os
+import platform
 import shutil
 import sys
 import tempfile
@@ -47,6 +48,18 @@ def get_go_env(ctx, go_version):
     return goenv
 
 
+arch_mapping = {
+    "amd64": "x64",
+    "x86_64": "x64",
+    "x64": "x64",
+    "i386": "x86",
+    "i686": "x86",
+    "aarch64": "arm64",  # linux
+    "arm64": "arm64",  # darwin
+}
+CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
+
+
 @task
 def build(
     ctx,
@@ -56,7 +69,7 @@ def build(
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
-    arch="x64",  # noqa: U100
+    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
 ):
@@ -241,7 +254,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch="x64", static=True):
+def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
@@ -258,7 +271,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -319,7 +332,7 @@ def build_stress_tests(
     ctx,
     output='pkg/security/tests/stresssuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
@@ -341,7 +354,7 @@ def stress_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/stresssuite',
     bundle_ebpf=True,
@@ -371,7 +384,7 @@ def functional_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
@@ -401,6 +414,7 @@ def kitchen_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
     testflags='',
@@ -410,19 +424,9 @@ def kitchen_functional_tests(
             ctx,
             verbose=verbose,
             go_version=go_version,
-            arch="x64",
+            arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
-            testflags=testflags,
-        )
-
-        functional_tests(
-            ctx,
-            verbose=verbose,
-            go_version=go_version,
-            major_version=major_version,
-            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite32",
-            arch="x86",
             testflags=testflags,
         )
 
@@ -440,7 +444,7 @@ def docker_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
     static=False,
