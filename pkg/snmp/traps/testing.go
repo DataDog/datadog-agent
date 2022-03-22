@@ -9,19 +9,15 @@
 package traps
 
 import (
-	"encoding/json"
 	"net"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -238,20 +234,4 @@ func assertVariables(t *testing.T, packet *SnmpPacket) {
 	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.2", heartBeatName.Name)
 	assert.Equal(t, gosnmp.OctetString, heartBeatName.Type)
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))
-}
-
-func getMockSender(t *testing.T) (*mocksender.MockSender, chan map[string]interface{}) {
-	packetOutChan := make(chan map[string]interface{})
-	mockSender := mocksender.NewMockSender("snmp-traps-listener")
-	mockSender.On("EventPlatformEvent", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Run(
-		func(args mock.Arguments) {
-			rawEvent := []byte(args.Get(0).(string))
-			eventType := args.Get(1).(string)
-			require.Equal(t, eventType, epforwarder.EventTypeNetworkDevicesMetadata)
-			dataOut := make(map[string]interface{})
-			json.Unmarshal(rawEvent, &dataOut)
-			packetOutChan <- dataOut
-		},
-	)
-	return mockSender, packetOutChan
 }

@@ -8,6 +8,7 @@ package traps
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,13 +21,14 @@ func TestStartFailure(t *testing.T) {
 	config := Config{Port: port, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
-	mockSender, _ := getMockSender(t)
+	mockSender := mocksender.NewMockSender("snmp-traps-listener")
+	mockSender.SetupAcceptAll()
+
 	sucessServer, err := NewTrapServer("dummy_hostname", &DummyFormatter{}, mockSender)
 	require.NoError(t, err)
 	require.NotNil(t, sucessServer)
 	defer sucessServer.Stop()
 
-	mockSender, _ = getMockSender(t)
 	failedServer, err := NewTrapServer("dummy_hostname", &DummyFormatter{}, mockSender)
 	require.Nil(t, failedServer)
 	require.Error(t, err)
