@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    AppSec: obfuscate security events. It is enabled by default so that it obfuscates
+    APM: obfuscate AppSec security events. It is enabled by default so that it obfuscates
     every security event value and highlights those with keys that match the regular expression
     `(?i)(p(ass)?w(((or)?d))|(phrase))|(secret)|(authorization)|(api_?key)|((access_?)?token)`.
     It can be further configured using the environment variables

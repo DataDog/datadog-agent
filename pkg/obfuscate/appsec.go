@@ -29,7 +29,7 @@ type diff []struct {
 	value    string
 }
 
-// Apply the diff to the input if any.
+// apply the diff to the input if any.
 func (d diff) apply(input string) string {
 	from := 0
 	var output strings.Builder
@@ -42,7 +42,7 @@ func (d diff) apply(input string) string {
 	return output.String()
 }
 
-// Add a new modification to the diff, starting at from and ending at to, to
+// add a new modification to the diff, starting at from and ending at to, to
 // be replaced with value.
 func (d *diff) add(from, to int, value string) {
 	elt := struct {
@@ -68,7 +68,7 @@ func (d *diff) add(from, to int, value string) {
 	(*d)[i] = elt
 }
 
-// Merge the given diff to the current one, shifted by the given offset.
+// merge the given diff to the current one, shifted by the given offset.
 // Cf. method obfuscateAppSecParameter()
 func (d *diff) merge(diff diff, offset int) {
 	for _, diff := range diff {
@@ -103,8 +103,8 @@ func (o *Obfuscator) obfuscateAppSec(input string) (output string, err error) {
 		diff    diff
 	)
 	scanner.reset()
-	keyFrom := -1
-	keyTo := -1
+	keyFrom := -1 // marks the starting index of a JSON key in bytes
+	keyTo := -1 // marks the end index of a JSON key in bytes
 	// Scan the input to discover its objects and see if they have the
 	// `parameters` key we are looking for.
 	for i := 0; i < len(input); i++ {
