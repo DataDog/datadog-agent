@@ -577,7 +577,7 @@ func TestZipProcessAgentChecks(t *testing.T) {
 			},
 		},
 	}
-	expectedProcessesJson, err := json.Marshal(&expectedProcesses)
+	expectedProcessesJSON, err := json.Marshal(&expectedProcesses)
 	require.NoError(t, err)
 
 	expectedContainers := []procmodel.MessageBody{
@@ -589,7 +589,19 @@ func TestZipProcessAgentChecks(t *testing.T) {
 			},
 		},
 	}
-	expectedContainersJson, err := json.Marshal(&expectedContainers)
+	expectedContainersJSON, err := json.Marshal(&expectedContainers)
+	require.NoError(t, err)
+
+	expectedProcessDiscoveries := []procmodel.MessageBody{
+		&procmodel.CollectorProcDiscovery{
+			ProcessDiscoveries: []*procmodel.ProcessDiscovery{
+				{
+					Pid: 9001,
+				},
+			},
+		},
+	}
+	expectedProcessDiscoveryJSON, err := json.Marshal(&expectedProcessDiscoveries)
 	require.NoError(t, err)
 
 	t.Run("without process-agent running", func(t *testing.T) {
@@ -603,17 +615,25 @@ func TestZipProcessAgentChecks(t *testing.T) {
 
 		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
 		require.NoError(t, err)
-		assert.Equal(t, "error: process-agent is not running or is unreachable", string(content))
+		assert.True(t, strings.HasPrefix(string(content), "error: process-agent is not running or is unreachable"))
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
+		cfg := config.Mock()
+		cfg.Set("process_config.process_collection.enabled", true)
+		cfg.Set("process_config.container_collection.enabled", true)
+		cfg.Set("process_config.process_discovery.enabled", true)
+
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			var err error
-			if r.URL.Path == "/check/process" {
-				_, err = w.Write(expectedProcessesJson)
-			} else if r.URL.Path == "/check/container" {
-				_, err = w.Write(expectedContainersJson)
-			} else {
-				t.Error("Unexpected url endpoint")
+			switch r.URL.Path {
+			case "/check/process":
+				_, err = w.Write(expectedProcessesJSON)
+			case "/check/container":
+				_, err = w.Write(expectedContainersJSON)
+			case "/check/process_discovery":
+				_, err = w.Write(expectedProcessDiscoveryJSON)
+			default:
+				t.Error("Unexpected url endpoint", r.URL.Path)
 			}
 			require.NoError(t, err)
 		}
@@ -630,10 +650,14 @@ func TestZipProcessAgentChecks(t *testing.T) {
 
 		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
 		require.NoError(t, err)
-		assert.Equal(t, expectedProcessesJson, content)
+		assert.Equal(t, expectedProcessesJSON, content)
 
 		content, err = ioutil.ReadFile(filepath.Join(dir, "container_check_output.json"))
 		require.NoError(t, err)
-		assert.Equal(t, expectedContainersJson, content)
+		assert.Equal(t, expectedContainersJSON, content)
+
+		content, err = ioutil.ReadFile(filepath.Join(dir, "process_discovery_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, expectedProcessDiscoveryJSON, content)
 	})
 }

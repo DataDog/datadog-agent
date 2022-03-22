@@ -629,37 +629,40 @@ func zipSecrets(tempDir, hostname string) error {
 func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url string, err error)) error {
 	addressPort, err := getAddressPort()
 	if err != nil {
-		return fmt.Errorf("wrong configuration to connect to process-agent")
+		return fmt.Errorf("wrong configuration to connect to process-agent: %s", err.Error())
 	}
-	checkURL := fmt.Sprintf("http://%s", addressPort)
+	checkURL := fmt.Sprintf("http://%s/check/", addressPort)
 
-	err = zipHTTPCallContent(tempDir, hostname, "process_check_output.json", checkURL+"/check/process")
-	if err != nil {
-		_ = log.Error(err)
-		err = ioutil.WriteFile(
-			filepath.Join(tempDir, hostname, "process_check_output.json"),
-			[]byte("error: process-agent is not running or is unreachable"),
-			os.ModePerm,
-		)
-		if err != nil {
-			return err
+	zipCheck := func(checkName, setting string) error {
+		if !config.Datadog.GetBool(setting) {
+			return nil
 		}
-	}
-	if err != nil {
-		return fmt.Errorf("could not connect to process-agent: %v", err)
+
+		filename := fmt.Sprintf("%s_check_output.json", checkName)
+		if err := zipHTTPCallContent(tempDir, hostname, filename, checkURL+checkName); err != nil {
+			_ = log.Error(err)
+			err = ioutil.WriteFile(
+				filepath.Join(tempDir, hostname, "process_check_output.json"),
+				[]byte(fmt.Sprintf("error: process-agent is not running or is unreachable: %s", err.Error())),
+				os.ModePerm,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
-	err = zipHTTPCallContent(tempDir, hostname, "container_check_output.json", checkURL+"/check/container")
-	if err != nil {
-		_ = log.Error(err)
-		err = ioutil.WriteFile(
-			filepath.Join(tempDir, hostname, "container_check_output.json"),
-			[]byte("error: process-agent is not running or is unreachable"),
-			os.ModePerm,
-		)
-		if err != nil {
-			return err
-		}
+	if err := zipCheck("process", "process_config.process_collection.enabled"); err != nil {
+		return err
+	}
+
+	if err := zipCheck("container", "process_config.container_collection.enabled"); err != nil {
+		return err
+	}
+
+	if err := zipCheck("process_discovery", "process_config.process_discovery.enabled"); err != nil {
+		return err
 	}
 
 	return nil
