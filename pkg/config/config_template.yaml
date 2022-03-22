@@ -2299,10 +2299,10 @@ api_key:
 
 ## @param admission_controller - custom object - optional
 ## Enter specific configurations for your admission controller.
-## The Datadog admission controller is a component of the Datadog Cluster Agent,
+## The Datadog admission controller is a component of the Datadog Cluster Agent.
 ## It has two main functionalities:
-## Inject environment variables (DD_AGENT_HOST and DD_ENTITY_ID) to configure DogStatsD and APM tracer libraries into the user’s application containers.
-## Inject Datadog standard tags (env, service, version) from application labels into the container environment variables.
+## Inject environment variables (DD_AGENT_HOST and DD_ENTITY_ID) to configure DogStatsD and APM tracer libraries into your application containers.
+## Inject Datadog reserved tags (env, service, version) from application labels into the container environment variables.
 ## Uncomment this parameter and the one below to enable it.
 ## See https://docs.datadoghq.com/agent/cluster_agent/admission_controller/
 #
@@ -2353,7 +2353,7 @@ api_key:
   ## @param namespace_selector_fallback - boolean - optional - default: false
   ## @env DD_ADMISSION_CONTROLLER_NAMESPACE_SELECTOR_FALLBACK - boolean - optional - default: false
   ## Use namespace selectors instead of object selectors to watch objects.
-  ## For Kubernetes versions from 1.10 to 1.14 (included)
+  ## For Kubernetes versions from 1.10 to 1.14 (inclusive)
   #
   # namespace_selector_fallback: false
 
@@ -2399,7 +2399,7 @@ api_key:
 
     ## @param mode - string - optional - default: hostip
     ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE - string - optional - default: hostip
-    ## The kind of configuration to be injected, it can be "hostip", "service" or "socket".
+    ## The kind of configuration to be injected, it can be "hostip", "service", or "socket".
     #
     # mode: hostip
 
