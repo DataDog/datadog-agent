@@ -247,7 +247,7 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
     elif CURRENT_ARCH == "arm64":
         vagrant_arch = "arm64"
     else:
-        raise Exit(f"Unsupported vagrant arch", code=1)
+        raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
 
     # Retrieve a list of all available vagrant images
     images = {}
