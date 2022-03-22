@@ -26,7 +26,7 @@ func TestDNS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if kv.IsRH7Kernel() || kv.IsSLES12Kernel() || kv.IsSLES15Kernel() {
+	if kv.IsRH7Kernel() || kv.IsSLES12Kernel() || kv.IsSLES15Kernel() || kv.IsOracleUEKKernel() {
 		t.Skip()
 	}
 

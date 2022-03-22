@@ -27,14 +27,12 @@ import (
 )
 
 func TestNetDevice(t *testing.T) {
-	var centos7 bool
-
 	kv, err := kernel.NewKernelVersion()
-	if err == nil {
-		centos7 = kv.IsRH7Kernel()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if centos7 {
+	if kv.IsRH7Kernel() || kv.IsSLES12Kernel() || kv.IsSLES15Kernel() || kv.IsOracleUEKKernel() {
 		t.Skip()
 	}
 
