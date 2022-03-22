@@ -577,8 +577,11 @@ func TestZipProcessAgentChecks(t *testing.T) {
 			},
 		},
 	}
+	expectedProcessesJson, err := json.Marshal(&expectedProcesses)
+	require.NoError(t, err)
+
 	expectedContainers := []procmodel.MessageBody{
-		&procmodel.CollectorProc{
+		&procmodel.CollectorContainer{
 			Containers: []*procmodel.Container{
 				{
 					Id: "yeet",
@@ -586,6 +589,8 @@ func TestZipProcessAgentChecks(t *testing.T) {
 			},
 		},
 	}
+	expectedContainersJson, err := json.Marshal(&expectedContainers)
+	require.NoError(t, err)
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		dir, err := ioutil.TempDir("", "TestZipProcessAgentCheckOutput")
@@ -602,19 +607,14 @@ func TestZipProcessAgentChecks(t *testing.T) {
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
 		handler := func(w http.ResponseWriter, r *http.Request) {
-			defer r.Body.Close()
-
-			var payload []procmodel.MessageBody
-			if r.URL.Path == "/checks/process" {
-				payload = expectedProcesses
-			} else if r.URL.Path == "/checks/container" {
-				payload = expectedContainers
+			var err error
+			if r.URL.Path == "/check/process" {
+				_, err = w.Write(expectedProcessesJson)
+			} else if r.URL.Path == "/check/container" {
+				_, err = w.Write(expectedContainersJson)
+			} else {
+				t.Error("Unexpected url endpoint")
 			}
-
-			b, err := yaml.Marshal(payload)
-			require.NoError(t, err)
-
-			_, err = w.Write(b)
 			require.NoError(t, err)
 		}
 
@@ -625,21 +625,15 @@ func TestZipProcessAgentChecks(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(dir)
 
-		err = zipProcessChecks(dir, "", func() (string, error) { return strings.TrimPrefix(srv.URL, "http//"), nil })
+		err = zipProcessChecks(dir, "", func() (string, error) { return strings.TrimPrefix(srv.URL, "http://"), nil })
 		require.NoError(t, err)
-
-		var processOutput, containerOutput []procmodel.MessageBody
 
 		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
 		require.NoError(t, err)
-		err = json.Unmarshal(content, &processOutput)
-		require.NoError(t, err)
-		assert.Equal(t, processOutput, expectedProcesses)
+		assert.Equal(t, expectedProcessesJson, content)
 
 		content, err = ioutil.ReadFile(filepath.Join(dir, "container_check_output.json"))
 		require.NoError(t, err)
-		err = json.Unmarshal(content, &containerOutput)
-		require.NoError(t, err)
-		assert.Equal(t, containerOutput, expectedContainers)
+		assert.Equal(t, expectedContainersJson, content)
 	})
 }
