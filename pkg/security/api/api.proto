@@ -98,7 +98,7 @@ message SecurityGraphGeneratedMessage {
 message GetConstantFetcherStatusParams {}
 
 message ConstantValueAndSource {
-    string Id = 1;
+    string ID = 1;
     uint64 Value = 2;
     string Source = 3;
 }

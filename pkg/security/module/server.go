@@ -179,6 +179,7 @@ func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraph
 	return nil, fmt.Errorf("monitor not configured")
 }
 
+// GetConstantFetcherStatus returns the status of the constant fetcher sub-system
 func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.GetConstantFetcherStatusParams) (*api.ConstantFetcherStatus, error) {
 	status, err := a.probe.GetConstantFetcherStatus()
 	if err != nil {
@@ -188,7 +189,7 @@ func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.Ge
 	constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
 	for _, v := range status.Values {
 		constants = append(constants, &api.ConstantValueAndSource{
-			Id:     v.Id,
+			ID:     v.ID,
 			Value:  v.Value,
 			Source: v.FetcherName,
 		})

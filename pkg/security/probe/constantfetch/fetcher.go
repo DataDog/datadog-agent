@@ -122,7 +122,7 @@ func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 	finalRes := make(map[string]ValueAndSource)
 	for _, req := range f.requests {
 		finalRes[req.id] = ValueAndSource{
-			Id:          req.id,
+			ID:          req.id,
 			Value:       req.value,
 			FetcherName: req.fetcherName,
 		}
@@ -140,8 +140,8 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 	return constantsCache.getConstants(), nil
 }
 
-// FinishAndGetResults does the actual fetching and returns the status
-func (f *ComposeConstantFetcher) FinishAndGetStatus() (*ComposeFetcherStatus, error) {
+// FinishAndGetStatus does the actual fetching and returns the status
+func (f *ComposeConstantFetcher) FinishAndGetStatus() (*ConstantFetcherStatus, error) {
 	f.fillConstantCacheIfNeeded()
 
 	fetcherNames := make([]string, 0, len(f.fetchers))
@@ -149,13 +149,14 @@ func (f *ComposeConstantFetcher) FinishAndGetStatus() (*ComposeFetcherStatus, er
 		fetcherNames = append(fetcherNames, fetcher.String())
 	}
 
-	return &ComposeFetcherStatus{
+	return &ConstantFetcherStatus{
 		Fetchers: fetcherNames,
 		Values:   constantsCache.constants,
 	}, nil
 }
 
-type ComposeFetcherStatus struct {
+// ConstantFetcherStatus represents the status of the constant fetcher sub-system
+type ConstantFetcherStatus struct {
 	Fetchers []string
 	Values   map[string]ValueAndSource
 }
@@ -193,8 +194,9 @@ func ClearConstantsCache() {
 	constantsCache = nil
 }
 
+// ValueAndSource represents the required information about a constant, its id, its value and its source
 type ValueAndSource struct {
-	Id          string
+	ID          string
 	Value       uint64
 	FetcherName string
 }
