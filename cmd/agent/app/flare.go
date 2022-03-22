@@ -12,6 +12,8 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -93,12 +95,28 @@ func readProfileData(pdata *flare.ProfileData) error {
 	}
 	defer resetRuntimeProfilingSettings(prevSettings)
 
-	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
-	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
-	if err := flare.CreatePerformanceProfile("core", coreDebugURL, profiling, pdata); err != nil {
-		return err
+	var errs error
+	if err := readCoreAgentProfileData(pdata); err != nil {
+		errs = multierror.Append(errs, errors.Wrap(err, "error collecting core agent profile"))
 	}
 
+	if err := readTraceAgentProfileData(pdata); err != nil {
+		errs = multierror.Append(errs, errors.Wrap(err, "error collecting trace agent profile"))
+	}
+
+	if err := readProcessAgentProfileData(pdata); err != nil {
+		errs = multierror.Append(errs, errors.Wrap(err, "error collecting process agent profile"))
+	}
+	return errs
+}
+
+func readCoreAgentProfileData(pdata *flare.ProfileData) error {
+	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
+	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
+	return flare.CreatePerformanceProfile("core", coreDebugURL, profiling, pdata)
+}
+
+func readTraceAgentProfileData(pdata *flare.ProfileData) error {
 	if k := "apm_config.enabled"; config.Datadog.IsSet(k) && !config.Datadog.GetBool(k) {
 		return nil
 	}
@@ -117,6 +135,13 @@ func readProfileData(pdata *flare.ProfileData) error {
 	return flare.CreatePerformanceProfile("trace", traceDebugURL, cpusec, pdata)
 }
 
+func readProcessAgentProfileData(pdata *flare.ProfileData) error {
+	// We are unconditionally collecting process agent profile in the flare as best effort
+	processDebugURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", config.Datadog.GetInt("process_config.expvar_port"))
+	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from process.", profiling))
+	return flare.CreatePerformanceProfile("process", processDebugURL, profiling, pdata)
+}
+
 func makeFlare(caseID string) error {
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
@@ -133,8 +158,7 @@ func makeFlare(caseID string) error {
 	)
 	if profiling >= 30 {
 		if err := readProfileData(&profile); err != nil {
-			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
-			return err
+			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
 		}
 	} else if profiling != -1 {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", profiling)))

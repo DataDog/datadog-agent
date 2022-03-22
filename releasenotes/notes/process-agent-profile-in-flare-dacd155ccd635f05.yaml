@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Agent flare command now collects Process Agent performance profile data in the flare bundle (when ``--profile`` flag is used).
