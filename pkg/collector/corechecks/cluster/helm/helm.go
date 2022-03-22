@@ -34,6 +34,7 @@ const (
 	checkName               = "helm"
 	maximumWaitForAPIServer = 10 * time.Second
 	informerSyncTimeout     = 60 * time.Second
+	labelSelector           = "owner=helm"
 )
 
 func init() {
@@ -58,6 +59,7 @@ type HelmCheck struct {
 	store             *releasesStore
 	runLeaderElection bool
 	eventsManager     *eventsManager
+	informerFactory   informers.SharedInformerFactory
 
 	// existingReleasesStored indicates whether the releases deployed before the
 	// agent was started have already been stored. This is needed to avoid
@@ -120,7 +122,9 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 		return err
 	}
 
-	return hc.setupInformers(apiClient.InformerFactory)
+	hc.informerFactory = sharedInformerFactory(apiClient)
+
+	return hc.setupInformers()
 }
 
 // Run executes the check
@@ -156,10 +160,10 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
-func (hc *HelmCheck) setupInformers(sharedInformerFactory informers.SharedInformerFactory) error {
+func (hc *HelmCheck) setupInformers() error {
 	stopCh := make(chan struct{})
 
-	secretInformer := sharedInformerFactory.Core().V1().Secrets()
+	secretInformer := hc.informerFactory.Core().V1().Secrets()
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
@@ -167,7 +171,7 @@ func (hc *HelmCheck) setupInformers(sharedInformerFactory informers.SharedInform
 	})
 	go secretInformer.Informer().Run(stopCh)
 
-	configmapInformer := sharedInformerFactory.Core().V1().ConfigMaps()
+	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
 	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addConfigmap,
 		DeleteFunc: hc.deleteConfigmap,
@@ -181,6 +185,16 @@ func (hc *HelmCheck) setupInformers(sharedInformerFactory informers.SharedInform
 			"helm-configmaps": configmapInformer.Informer(),
 		},
 		informerSyncTimeout,
+	)
+}
+
+func sharedInformerFactory(apiClient *apiserver.APIClient) informers.SharedInformerFactory {
+	return informers.NewSharedInformerFactoryWithOptions(
+		apiClient.Cl,
+		time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))*time.Second,
+		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.LabelSelector = labelSelector
+		}),
 	)
 }
 

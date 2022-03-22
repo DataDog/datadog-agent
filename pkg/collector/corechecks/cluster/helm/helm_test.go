@@ -194,9 +194,11 @@ func TestRun(t *testing.T) {
 			check := factory().(*HelmCheck)
 			check.runLeaderElection = false
 
-			k8sClient := fake.NewSimpleClientset(kubeObjects...)
-			sharedK8sInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute)
-			err := check.setupInformers(sharedK8sInformerFactory)
+			check.informerFactory = informers.NewSharedInformerFactory(
+				fake.NewSimpleClientset(kubeObjects...),
+				time.Minute,
+			)
+			err := check.setupInformers()
 			assert.NoError(t, err)
 
 			mockedSender := mocksender.NewMockSender(checkName)
@@ -238,8 +240,8 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
-	sharedK8sInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute)
-	err = check.setupInformers(sharedK8sInformerFactory)
+	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
+	err = check.setupInformers()
 	assert.NoError(t, err)
 
 	mockedSender := mocksender.NewMockSender(checkName)
