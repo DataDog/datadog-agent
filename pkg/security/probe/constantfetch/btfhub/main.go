@@ -123,14 +123,14 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 		pathSuffix := strings.TrimPrefix(path, prefix)
 
 		btfParts := strings.Split(pathSuffix, "/")
-		if len(btfParts) != 4 {
-			return fmt.Errorf("file has wront format: %s", pathSuffix)
+		if len(btfParts) < 4 {
+			return fmt.Errorf("file has wrong format: %s", pathSuffix)
 		}
 
-		distribution := btfParts[0]
-		distribVersion := btfParts[1]
-		arch := btfParts[2]
-		unameRelease := strings.TrimSuffix(btfParts[3], ".btf.tar.xz")
+		distribution := btfParts[len(btfParts)-4]
+		distribVersion := btfParts[len(btfParts)-3]
+		arch := btfParts[len(btfParts)-2]
+		unameRelease := strings.TrimSuffix(btfParts[len(btfParts)-1], ".btf.tar.xz")
 
 		fmt.Println(path)
 
