@@ -1,7 +1,6 @@
 import datetime
 import errno
 import os
-import platform
 import shutil
 import sys
 import tempfile
@@ -12,7 +11,7 @@ from invoke import task
 from .build_tags import get_default_build_tags
 from .go import golangci_lint, staticcheck, vet
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
-from .system_probe import get_ebpf_build_flags
+from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -46,18 +45,6 @@ def get_go_env(ctx, go_version):
         goenv["PATH"] += ":" + os.environ["PATH"]
 
     return goenv
-
-
-arch_mapping = {
-    "amd64": "x64",
-    "x86_64": "x64",
-    "x64": "x64",
-    "i386": "x86",
-    "i686": "x86",
-    "aarch64": "arm64",  # linux
-    "arm64": "arm64",  # darwin
-}
-CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 
 
 @task
