@@ -52,7 +52,7 @@ def build(
     ctx,
     race=False,
     go_version=None,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.

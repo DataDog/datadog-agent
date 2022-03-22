@@ -52,7 +52,7 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 def build(
     ctx,
     race=False,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
