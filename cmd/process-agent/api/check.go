@@ -7,39 +7,34 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/exports"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func checkHandler(w http.ResponseWriter, req *http.Request) {
 	requestedCheck := mux.Vars(req)["check"]
-	for _, check := range checks.All {
-		if check.Name() == requestedCheck {
-			payload, err := check.Run(nil, 0)
-			if err != nil {
-				writeError(err, http.StatusInternalServerError, w)
-				_ = log.Error(err)
-				return
-			}
-
-			b, err := json.Marshal(&payload)
-			if err != nil {
-				writeError(err, http.StatusInternalServerError, w)
-				_ = log.Error(err)
-				return
-			}
-
-			_, err = w.Write(b)
-			if err != nil {
-				_ = log.Error(err)
-			}
-			return
+	checkOutput, ok := exports.GetCheckOutput(requestedCheck)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		_, err := io.WriteString(w, fmt.Sprintf("%s check is not running or has not been scheduled yet\n", requestedCheck))
+		if err != nil {
+			_ = log.Error()
 		}
+		return
 	}
 
-	w.WriteHeader(http.StatusNotFound)
+	e := json.NewEncoder(w)
+	e.SetIndent("", "  ")
+	err := e.Encode(checkOutput)
+	if err != nil {
+		writeError(err, http.StatusInternalServerError, w)
+		_ = log.Error(err)
+		return
+	}
 }
