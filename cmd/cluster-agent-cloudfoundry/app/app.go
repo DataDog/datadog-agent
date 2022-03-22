@@ -240,6 +240,7 @@ func initializeCCCache(ctx context.Context) error {
 		pollInterval,
 		config.Datadog.GetInt("cloud_foundry_cc.apps_batch_size"),
 		config.Datadog.GetBool("cluster_agent.serve_nozzle_data"),
+		config.Datadog.GetBool("cluster_agent.advanced_tagging"),
 		nil,
 	)
 	if err != nil {

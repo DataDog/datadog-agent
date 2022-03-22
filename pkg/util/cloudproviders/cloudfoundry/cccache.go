@@ -63,6 +63,7 @@ type CCCache struct {
 	cancelContext        context.Context
 	configured           bool
 	serveNozzleData      bool
+	advancedTagging      bool
 	ccAPIClient          CCClientI
 	pollInterval         time.Duration
 	lastUpdated          time.Time
@@ -89,7 +90,7 @@ type CCClientI interface {
 var globalCCCache = &CCCache{}
 
 // ConfigureGlobalCCCache configures the global instance of CCCache from provided config
-func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, serveNozzleData bool, testing CCClientI) (*CCCache, error) {
+func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, serveNozzleData, advancedTagging bool, testing CCClientI) (*CCCache, error) {
 	globalCCCache.Lock()
 	defer globalCCCache.Unlock()
 
@@ -121,6 +122,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.cancelContext = ctx
 	globalCCCache.configured = true
 	globalCCCache.serveNozzleData = serveNozzleData
+	globalCCCache.advancedTagging = advancedTagging
 
 	go globalCCCache.start()
 
@@ -298,18 +300,20 @@ func (ccc *CCCache) readData() {
 			v3App := app
 			appsByGUID[app.GUID] = &v3App
 
-			// list app sidecars
-			var allSidecars []*CFSidecar
-			sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, app.GUID)
-			if err != nil {
-				log.Errorf("Failed listing sidecars from cloud controller: %v", err)
-				return
+			if ccc.advancedTagging {
+				// list app sidecars
+				var allSidecars []*CFSidecar
+				sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, app.GUID)
+				if err != nil {
+					log.Errorf("Failed listing sidecars from cloud controller: %v", err)
+					return
+				}
+				for _, sidecar := range sidecars {
+					s := sidecar
+					allSidecars = append(allSidecars, &s)
+				}
+				sidecarsByAppGUID[app.GUID] = allSidecars
 			}
-			for _, sidecar := range sidecars {
-				s := sidecar
-				allSidecars = append(allSidecars, &s)
-			}
-			sidecarsByAppGUID[app.GUID] = allSidecars
 		}
 	}()
 
