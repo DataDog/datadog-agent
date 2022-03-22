@@ -150,18 +150,12 @@ type CFApplication struct {
 	TotalMemory    int
 	Labels         map[string]string
 	Annotations    map[string]string
+	Sidecars       []CFSidecar
 }
 
 type CFSidecar struct {
-	Name          string
-	GUID          string
-	Command       string
-	ProcessTypes  []string
-	Memory        int
-	Origin        string
-	Relationships map[string]cfclient.V3ToOneRelationship
-	CreatedAt     string
-	UpdatedAt     string
+	Name string
+	GUID string
 }
 
 type listSidecarsResponse struct {

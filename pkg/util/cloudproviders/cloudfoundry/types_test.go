@@ -81,15 +81,13 @@ var cfOrgQuota2 = cfclient.OrgQuota{
 }
 
 var cfSidecar1 = CFSidecar{
-	GUID:          "sidecar_guid_1",
-	Name:          "sidecar_name_1",
-	Relationships: map[string]cfclient.V3ToOneRelationship{"app": {Data: cfclient.V3Relationship{GUID: "random_app_guid"}}},
+	GUID: "sidecar_guid_1",
+	Name: "sidecar_name_1",
 }
 
 var cfSidecar2 = CFSidecar{
-	GUID:          "sidecar_guid_1",
-	Name:          "sidecar_name_1",
-	Relationships: map[string]cfclient.V3ToOneRelationship{"app": {Data: cfclient.V3Relationship{GUID: "guid2"}}},
+	GUID: "sidecar_guid_2",
+	Name: "sidecar_name_2",
 }
 
 type Links struct {
@@ -141,6 +139,9 @@ var cfApp1 = CFApplication{
 		"tags.datadoghq.com/service": "test-service",
 		"foo":                        "bar",
 	},
+	Sidecars: []CFSidecar{
+		cfSidecar1,
+	},
 }
 
 var cfApp2 = CFApplication{
@@ -158,6 +159,9 @@ var cfApp2 = CFApplication{
 	TotalMemory:    0,
 	Labels:         map[string]string{},
 	Annotations:    map[string]string{},
+	Sidecars: []CFSidecar{
+		cfSidecar2,
+	},
 }
 
 var BBSModelA1 = models.ActualLRP{

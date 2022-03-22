@@ -439,6 +439,9 @@ func (ccc *CCCache) readData() {
 			} else {
 				log.Infof("could not fetch org info for org guid %s", orgGUID)
 			}
+			for _, sidecar := range sidecarsByAppGUID[appGUID] {
+				updatedApp.Sidecars = append(updatedApp.Sidecars, *sidecar)
+			}
 			cfApplicationsByGUID[appGUID] = &updatedApp
 		}
 	}
