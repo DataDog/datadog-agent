@@ -1,5 +1,6 @@
 # IAM permissions require service name to begin with 'integration-tests'
 service: integration-tests-extension
+frameworkVersion: "3"
 
 resources:
   Description: "[Serverless] Integration tests application for lambda extension"
@@ -24,7 +25,6 @@ provider:
     DD_SERVICE: integration-tests-service
     DD_TAGS: tagA:valueA tagB:valueB
     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-  lambdaHashingVersion: 20201221
   timeout: 15
   deploymentBucket:
     name: integration-tests-deployment-bucket-lambda-extension
@@ -91,6 +91,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
 
   metric-csharp:
     runtime: dotnetcore3.1
@@ -145,6 +148,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
 
   error-csharp:
     runtime: dotnetcore3.1
@@ -210,6 +216,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
 
   timeout-csharp:
     runtime: dotnetcore3.1
@@ -288,6 +297,9 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
   
   log-proxy:
     runtime: nodejs14.x
@@ -337,7 +349,7 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar"'
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
 
   trace-csharp:
