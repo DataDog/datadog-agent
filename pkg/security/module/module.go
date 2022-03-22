@@ -78,7 +78,7 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-func (m *Module) sanityChecks() error {
+func sanityChecks(cfg *sconfig.Config) error {
 	// make sure debugfs is mounted
 	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
 		return err
@@ -95,9 +95,9 @@ func (m *Module) sanityChecks() error {
 
 	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
 
-	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
+	if cfg.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
 		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		m.config.ERPCDentryResolutionEnabled = false
+		cfg.ERPCDentryResolutionEnabled = false
 	}
 
 	return nil
@@ -105,10 +105,6 @@ func (m *Module) sanityChecks() error {
 
 // Init initializes the module
 func (m *Module) Init() error {
-	if err := m.sanityChecks(); err != nil {
-		return err
-	}
-
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -522,6 +518,10 @@ func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multie
 
 // NewModule instantiates a runtime security system-probe module
 func NewModule(cfg *sconfig.Config) (module.Module, error) {
+	if err := sanityChecks(cfg); err != nil {
+		return nil, err
+	}
+
 	var statsdClient *statsd.Client
 	var err error
 	if cfg != nil {
