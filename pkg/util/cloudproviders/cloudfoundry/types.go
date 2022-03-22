@@ -542,14 +542,11 @@ func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
 
 func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSidecar, error) {
 	var sidecars []CFSidecar
-	requestURL := "/v3/apps/" + appGUID + "/sidecars"
-	if e := query.Encode(); len(e) > 0 {
-		requestURL += "?" + e
-	}
 
+	requestURL := "/v3/apps/" + appGUID + "/sidecars"
 	for page := 1; ; page++ {
 		query.Set("page", strconv.Itoa(page))
-		r := c.NewRequest("GET", requestURL)
+		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
 		resp, err := c.DoRequest(r)
 		if err != nil {
 			return nil, fmt.Errorf("Error requesting sidecars for app: %s", err)
@@ -562,13 +559,13 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		defer resp.Body.Close()
 		resBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d", appGUID, page)
+			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
 		}
 
 		var data listSidecarsResponse
 		err = json.Unmarshal(resBody, &data)
 		if err != nil {
-			return nil, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d", appGUID, page)
+			return nil, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d: %s", appGUID, page, err)
 		}
 
 		sidecars = append(sidecars, data.Resources...)
