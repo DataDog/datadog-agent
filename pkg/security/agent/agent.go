@@ -143,11 +143,20 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 
 // GetStatus returns the current status on the agent
 func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
-	return map[string]interface{}{
+	base := map[string]interface{}{
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
 		"endpoints":     rsa.endpoints.GetStatus(),
 	}
+
+	if rsa.client != nil {
+		cfStatus, err := rsa.client.GetConstantFetcherStatus()
+		if err == nil {
+			base["constantFetchers"] = cfStatus
+		}
+	}
+
+	return base
 }
 
 // newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs
