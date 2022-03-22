@@ -53,28 +53,6 @@ var (
 // runtimeCompilationEnvVar forces use of the runtime compiler for ebpf functionality
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
-func TestCloseLoop(t *testing.T) {
-
-	skipIfNotWindows(t)
-	// this test is not a guarantee. However, if we get through 9 minutes
-	// (out of 10 before the timeout hits) then we've at least done something.
-	ctx, cancelfunc := context.WithTimeout(context.Background(), 9 *time.Minute)
-	defer cancelfunc()
-	
-	go func() {
-		for true {
-			cfg := testConfig()
-			tr, _:= NewTracer(cfg)
-			tr.Stop()
-		}
-	}()
-	<-ctx.Done()
-	// this looks like a silly test... but failure is that the machine crashed.  So
-	// if we get this far, then we're OK to continue.
-	assert.True(t, true)
-	return
-
-}
 func TestMain(m *testing.M) {
 	log.SetupLogger(seelog.Default, "warn")
 	cfg := testConfig()
@@ -1663,4 +1641,34 @@ func skipIfNotWindows(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("test only available on windows")
 	}
+}
+
+func TestCloseLoop(t *testing.T) {
+
+	skipIfNotWindows(t)
+	// this test is not a guarantee. However, if we get through 9 minutes
+	// (out of 10 before the timeout hits) then we've at least done something.
+	ctx, cancelfunc := context.WithTimeout(context.Background(), 9 *time.Minute)
+	defer cancelfunc()
+	done := make(chan bool)
+	go func() {
+		cfg := testConfig()
+		start := time.Now()
+		for start.Add(8 * time.Minute).After(time.Now()) {
+			tr, _:= NewTracer(cfg)
+			tr.Stop()
+		}
+		done <-true
+	}()
+	select {
+	case <-ctx.Done():
+		fmt.Printf("context done")
+	case <-done:
+		fmt.Printf("function done")
+	}
+	// this looks like a silly test... but failure is that the machine crashed.  So
+	// if we get this far, then we're OK to continue.
+	assert.True(t, true)
+	return
+
 }
