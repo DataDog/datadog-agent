@@ -60,9 +60,6 @@ func (t *Tailer) run() {
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
 		origin := message.NewOrigin(t.source)
-		// tags already contains t.source.Config.Tags
-		tags := origin.Tags()
-
 		origin.SetService(computeServiceName(logline.Lambda, os.Getenv(serviceEnvVar)))
 
 		t.source.Config.ChannelTagsMutex.Lock()
@@ -72,10 +69,11 @@ func (t *Tailer) run() {
 		channelTags := t.source.Config.ChannelTags
 		t.source.Config.ChannelTagsMutex.Unlock()
 
+		// add additional tags (beyond those from t.source.Config.Tags) to the agent
 		if len(channelTags) > 0 {
-			tags = append(tags, channelTags...)
+			origin.SetTags(channelTags)
 		}
-		origin.SetTags(tags)
+
 		if logline.Lambda != nil {
 			t.outputChan <- message.NewMessageFromLambda(logline.Content, origin, message.StatusInfo, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
 		} else {
