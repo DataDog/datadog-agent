@@ -294,7 +294,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		if expr := coreconfig.Datadog.GetString(k); expr != "" {
 			re, err := regexp.Compile(expr)
 			if err != nil {
-				log.Errorf("Could not compile the regular expression %s: %v", err)
+				log.Errorf("Could not compile the configured regular expression %s: %v", k, err)
 			} else {
 				c.Obfuscation.AppSec.ParameterKeyRegexp = re
 			}
@@ -304,7 +304,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		if expr := coreconfig.Datadog.GetString(k); expr != "" {
 			re, err := regexp.Compile(expr)
 			if err != nil {
-				log.Errorf("Could not compile the regular expression %s: %v", err)
+				log.Errorf("Could not compile the configured regular expression %s: %v", k, err)
 			} else {
 				c.Obfuscation.AppSec.ParameterValueRegexp = re
 			}
