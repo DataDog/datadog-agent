@@ -1,9 +1,8 @@
 package vault
 
 import (
-	"context"
 	"errors"
-	"github.com/hashicorp/vault/api"
+
 	"github.com/mitchellh/mapstructure"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 	log "github.com/sirupsen/logrus"
@@ -12,7 +11,9 @@ import (
 type VaultBackendConfig struct {
 	VaultSession VaultSessionBackendConfig `mapstructure:"vault_session"`
 	BackendType  string                    `mapstructure:"backend_type"`
-	SecretID     string                    `mapstructure:"secret_id"`
+	VaultAddress string                    `mapstructure:"vault_address"`
+	SecretPath   string                    `mapstructure:"secret_path"`
+	Secrets      []string                  `mapstructure:"secrets"`
 }
 
 type VaultBackend struct {
@@ -37,11 +38,40 @@ func NewVaultBackend(backendId string, bc map[string]interface{}) (*VaultBackend
 		return nil, err
 	}
 
-	token, err := *cfg.TokenID()
+	secret, err := cfg.Read(backendConfig.SecretPath)
 	if err != nil {
-		log.WithError(err).Error("failed to get token for given secret")
+		return nil, err
 	}
-	log.WithFields(log.Fields{
-		"token": token
-	})
+	secretValue := make(map[string]string, 0)
+
+	if backendConfig.SecretPath != "" {
+		if len(backendConfig.Secrets) > 0 {
+			for _, item := range backendConfig.Secrets {
+				secretValue[item] = secret.Data[item].(string)
+			}
+		}
+	}
+
+	backend := &VaultBackend{
+		BackendId: backendId,
+		Config:    backendConfig,
+		Secret:    secretValue,
+	}
+	return backend, nil
+}
+
+func (b *VaultBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
+	if val, ok := b.Secret[secretKey]; ok {
+		return secret.SecretOutput{Value: &val, Error: nil}
+	}
+	es := errors.New("backend does not provide secret key").Error()
+	
+	log.Error().
+		Str("backend_id",   b.BackendId).
+		Str("backend_type", b.Config.BackendType).
+		Strs("secrets",     b.Config.Secrets).
+		Str("secret_path",  b.Config.SecretPath).
+		Str("secret_key",   secretKey).
+		Msg("failed to retrieve secrets")	
+	return secret.SecretOutput{Value: nil, Error: &es}
 }
