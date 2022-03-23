@@ -883,6 +883,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
+	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
