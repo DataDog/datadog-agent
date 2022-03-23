@@ -37,11 +37,7 @@ type sourceInfoPair struct {
 	info   *config.MappedInfo
 }
 
-// A Launcher starts and stops new tailers for every new containers discovered
-// by autodiscovery.
-//
-// Note that despite being named "Docker", this is a generic container-related
-// launcher.
+// A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
 	addedSources       chan *config.LogSource
@@ -52,7 +48,6 @@ type Launcher struct {
 	pendingContainers  map[string]*Container
 	tailers            map[string]*tailer.Tailer
 	registry           auditor.Registry
-	runtime            coreConfig.Feature
 	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
@@ -89,25 +84,11 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		return nil
 	}
 
-	var runtime coreConfig.Feature
-	for _, rt := range []coreConfig.Feature{
-		coreConfig.Docker,
-		coreConfig.Containerd,
-		coreConfig.Cri,
-		coreConfig.Podman,
-	} {
-		if coreConfig.IsFeaturePresent(rt) {
-			runtime = rt
-			break
-		}
-	}
-
 	launcher := &Launcher{
 		pipelineProvider:       pipelineProvider,
 		tailers:                make(map[string]*tailer.Tailer),
 		pendingContainers:      make(map[string]*Container),
 		registry:               registry,
-		runtime:                runtime,
 		stop:                   make(chan struct{}),
 		erroredContainerID:     make(chan string),
 		lock:                   &sync.Mutex{},
@@ -121,7 +102,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	}
 
 	if tailFromFile {
-		if err := launcher.checkContainerLogfileAccess(); err != nil {
+		if err := checkReadAccess(); err != nil {
 			log.Errorf("Could not access container log files: %v; falling back on tailing from container runtime socket", err)
 			launcher.tailFromFile = false
 		}
@@ -282,7 +263,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	}
 
 	// Update parent source with additional information
-	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", dockerutilpkg.ShortContainerID(containerID), shortName, container.container.Created, l.getContainerLogfilePath(containerID)))
+	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", dockerutilpkg.ShortContainerID(containerID), shortName, container.container.Created, getPath(containerID)))
 
 	// When ContainerCollectAll is not enabled, we try to derive the service and source names from container labels
 	// provided by AD (in this case, the parent source config). Otherwise we use the standard service or short image
@@ -303,14 +284,13 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 
 	// New file source that inherit most of its parent properties
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
-		Type:             config.FileType,
-		Identifier:       containerID,
-		Path:             l.getContainerLogfilePath(containerID),
-		Service:          serviceName,
-		Source:           sourceName,
-		Tags:             source.Config.Tags,
-		ProcessingRules:  source.Config.ProcessingRules,
-		ContainerRuntime: l.runtime,
+		Type:            config.FileType,
+		Identifier:      containerID,
+		Path:            getPath(containerID),
+		Service:         serviceName,
+		Source:          sourceName,
+		Tags:            source.Config.Tags,
+		ProcessingRules: source.Config.ProcessingRules,
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
 	fileSource.Status = source.Status
