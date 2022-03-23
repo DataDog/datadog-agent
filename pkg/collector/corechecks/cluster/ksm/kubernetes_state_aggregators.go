@@ -9,12 +9,10 @@
 package ksm
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -164,15 +162,9 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state metri
 		return
 	}
 
-	dashPosition := strings.LastIndexByte(jobName, '-')
-	if dashPosition == -1 {
-		return
-	}
-
-	cronjobName := jobName[:dashPosition]
-	cronjobID := jobName[dashPosition+1:]
-	id, err := strconv.Atoi(cronjobID)
-	if err != nil {
+	cronjobName, id := kubernetes.ParseCronJobForJob(jobName)
+	if cronjobName == "" {
+		log.Debug("%s isn't a valid CronJbo name", jobName)
 		return
 	}
 

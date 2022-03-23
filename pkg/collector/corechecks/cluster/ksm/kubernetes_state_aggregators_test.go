@@ -207,7 +207,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				{
 					Labels: map[string]string{
 						"namespace": "foo",
-						"job_name":  "bar-12",
+						"job_name":  "bar-112",
 						"condition": "true",
 					},
 					Val: 1,
@@ -215,7 +215,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				{
 					Labels: map[string]string{
 						"namespace": "foo",
-						"job_name":  "bar-14",
+						"job_name":  "bar-114",
 						"condition": "true",
 					},
 					Val: 1,
@@ -225,7 +225,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				{
 					Labels: map[string]string{
 						"namespace": "foo",
-						"job_name":  "bar-13",
+						"job_name":  "bar-113",
 						"condition": "true",
 					},
 					Val: 1,
@@ -244,7 +244,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				{
 					Labels: map[string]string{
 						"namespace": "foo",
-						"job_name":  "bar-12",
+						"job_name":  "bar-112",
 						"condition": "true",
 					},
 					Val: 1,
@@ -252,7 +252,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				{
 					Labels: map[string]string{
 						"namespace": "foo",
-						"job_name":  "bar-14",
+						"job_name":  "bar-114",
 						"condition": "true",
 					},
 					Val: 1,
@@ -262,7 +262,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				{
 					Labels: map[string]string{
 						"namespace": "foo",
-						"job_name":  "bar-13",
+						"job_name":  "bar-113",
 						"condition": "true",
 					},
 					Val: 1,

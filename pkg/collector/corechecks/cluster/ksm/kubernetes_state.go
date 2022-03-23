@@ -691,7 +691,7 @@ func ownerTags(kind, name string) []string {
 	tags := []string{fmt.Sprintf(tagFormat, tagKey, name)}
 	switch kind {
 	case kubernetes.JobKind:
-		if cronjob := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
 			return append(tags, fmt.Sprintf(tagFormat, kubernetes.CronJobTagName, cronjob))
 		}
 	case kubernetes.ReplicaSetKind:
