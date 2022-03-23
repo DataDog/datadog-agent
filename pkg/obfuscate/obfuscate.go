@@ -269,19 +269,3 @@ func replaceDigits(buffer []byte) []byte {
 	}
 	return filtered
 }
-
-// CompileRegexp compiles the given expression into a Go regular expression.
-// It returns nil when the given expression cannot be compiled and logs the
-// compilation error. The empty string expression is considered the special
-// expression value to use in order to disable the regular expression.
-func CompileRegexp(expr string) *regexp.Regexp {
-	if expr == "" {
-		return nil
-	}
-	re, err := regexp.Compile(expr)
-	if err != nil {
-		//log.Errorf("Failed to parse the regular expression `%s`: %s", expr, err)
-		return nil
-	}
-	return re
-}

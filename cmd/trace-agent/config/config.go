@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -292,10 +291,24 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 	if k := "appsec_config.obfuscation.parameter_key_regexp"; coreconfig.Datadog.IsSet(k) {
-		c.Obfuscation.AppSec.ParameterKeyRegexp = obfuscate.CompileRegexp(coreconfig.Datadog.GetString(k))
+		if expr := coreconfig.Datadog.GetString(k); expr != "" {
+			re, err := regexp.Compile(expr)
+			if err != nil {
+				log.Errorf("Could not compile the regular expression %s: %v", err)
+			} else {
+				c.Obfuscation.AppSec.ParameterKeyRegexp = re
+			}
+		}
 	}
 	if k := "appsec_config.obfuscation.parameter_value_regexp"; coreconfig.Datadog.IsSet(k) {
-		c.Obfuscation.AppSec.ParameterValueRegexp = obfuscate.CompileRegexp(coreconfig.Datadog.GetString(k))
+		if expr := coreconfig.Datadog.GetString(k); expr != "" {
+			re, err := regexp.Compile(expr)
+			if err != nil {
+				log.Errorf("Could not compile the regular expression %s: %v", err)
+			} else {
+				c.Obfuscation.AppSec.ParameterValueRegexp = re
+			}
+		}
 	}
 	if coreconfig.Datadog.IsSet("apm_config.filter_tags.require") {
 		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags.require")
