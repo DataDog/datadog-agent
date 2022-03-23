@@ -164,10 +164,11 @@ const (
 	TransactionPriorityHigh Priority = iota
 )
 
-type ContextKey string
+type contextKey string
 
 const (
-	ContextKeyRetry ContextKey = "retry"
+	// ContextKeyRetry is the key set to the context to indicates whether or not we're currently retrying a failed transcation
+	ContextKeyRetry contextKey = "retry"
 )
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
