@@ -249,7 +249,7 @@ def build_latency_tools(ctx, build_dir, static=True):
     return build_c_latency_common(ctx, "bench_net_DNS", build_dir, libs=["-lpthread"], static=static)
 
 @task
-def build_embed_latency_tools(ctx, arch="x64", static=True):
+def build_embed_latency_tools(ctx, static=True):
     build_dir = os.path.join(".", "pkg", "security", "tests", "latency")
     create_dir_if_needed(build_dir)
     build_latency_tools(ctx, build_dir, static=static)
