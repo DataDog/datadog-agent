@@ -172,22 +172,31 @@ send_pkg_size-a7:
     - |
         for flavor in ${FLAVORS}; do
             mkdir -p "/tmp/stable/${flavor}" "/tmp/stable/${flavor}/suse"
+
             curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_amd64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
-            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
-            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
-            
+
             add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_amd64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
 
             set +e
-            inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_amd64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
-            failures=$((${failures}+$?))
-            inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
-            failures=$((${failures}+$?))
-            inv package.compare-size --package-type "${flavor} suse rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
-            failures=$((${failures}+$?))
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
             set -e
+
+            if [[ "$flavor" != "datadog-heroku-agent" ]];
+            then
+              curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
+              curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+
+              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+
+              set +e
+              inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
+              failures=$((${failures}+$?))
+              inv package.compare-size --package-type "${flavor} suse rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+              failures=$((${failures}+$?))
+              set -e
+            fi
         done
 
     # Send package size metrics
