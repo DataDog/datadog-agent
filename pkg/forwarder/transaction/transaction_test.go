@@ -169,3 +169,54 @@ func Test_truncateBodyForLog(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateRequestSuccess(t *testing.T) {
+	transaction := NewHTTPTransaction()
+	payload := []byte("test payload")
+	transaction.Payload = &payload
+	transaction.Domain = "example.com"
+	transaction.Endpoint.Route = "/endpoint/test"
+	req, err := transaction.createRequest(context.TODO())
+	assert.NotNil(t, req)
+	assert.Nil(t, err)
+	assert.Equal(t, "example.com/endpoint/test", req.URL.Path)
+	assert.False(t, req.Close)
+}
+
+func TestCreateRequestError(t *testing.T) {
+	transaction := NewHTTPTransaction()
+	payload := []byte("test payload")
+	transaction.Payload = &payload
+	transaction.Domain = ":inv al id:"
+	transaction.Endpoint.Route = ":inv al id:"
+	req, err := transaction.createRequest(context.TODO())
+	assert.Nil(t, req)
+	assert.NotNil(t, err)
+}
+
+func TestCreateRequestServerlessNoRetry(t *testing.T) {
+	transaction := NewHTTPTransaction()
+	payload := []byte("test payload")
+	transaction.Payload = &payload
+	transaction.Domain = "example.com"
+	transaction.Endpoint.Route = "/endpoint/test"
+	transaction.CloseAfterCreation = true
+	req, err := transaction.createRequest(context.TODO())
+	assert.NotNil(t, req)
+	assert.Nil(t, err)
+	assert.False(t, req.Close)
+}
+
+func TestCreateRequestServerlessRetry(t *testing.T) {
+	transaction := NewHTTPTransaction()
+	payload := []byte("test payload")
+	transaction.Payload = &payload
+	transaction.Domain = "example.com"
+	transaction.Endpoint.Route = "/endpoint/test"
+	transaction.CloseAfterCreation = true
+	testContext := context.WithValue(context.TODO(), ContextKeyRetry, true)
+	req, err := transaction.createRequest(testContext)
+	assert.NotNil(t, req)
+	assert.Nil(t, err)
+	assert.True(t, req.Close)
+}

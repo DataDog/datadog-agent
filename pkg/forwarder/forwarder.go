@@ -104,6 +104,7 @@ type Options struct {
 	DomainResolvers                map[string]resolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	CompletionHandler              transaction.HTTPCompletionHandler
+	ServerlessMode                 bool
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -195,6 +196,9 @@ type DefaultForwarder struct {
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
 
+	// ServerlessMode tells whether or not  the agent is running in a serverless mode
+	ServerlessMode bool
+
 	domainForwarders map[string]*domainForwarder
 	domainResolvers  map[string]resolver.DomainResolver
 	healthChecker    *forwarderHealth
@@ -223,6 +227,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		},
 		completionHandler: options.CompletionHandler,
 		agentName:         agentName,
+		ServerlessMode:    options.ServerlessMode,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
@@ -428,6 +433,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 		for domain, dr := range f.domainResolvers {
 			for _, apiKey := range dr.GetAPIKeys() {
 				t := transaction.NewHTTPTransaction()
+				t.CloseAfterCreation = f.ServerlessMode
 				t.Domain, _ = dr.Resolve(endpoint)
 				t.Endpoint = endpoint
 				if apiKeyInQueryString {

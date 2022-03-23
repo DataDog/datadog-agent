@@ -164,6 +164,12 @@ const (
 	TransactionPriorityHigh Priority = iota
 )
 
+type ContextKey string
+
+const (
+	ContextKeyRetry ContextKey = "retry"
+)
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -192,6 +198,9 @@ type HTTPTransaction struct {
 	CompletionHandler HTTPCompletionHandler
 
 	Priority Priority
+
+	// In Serverless mode, requests should not be reused on failure retries
+	CloseAfterCreation bool
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -283,15 +292,32 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	return nil
 }
 
+func getRetryValueFromContext(ctx context.Context) bool {
+	if b, ok := ctx.Value(ContextKeyRetry).(bool); ok {
+		return b
+	}
+	return false
+}
+
+func (t *HTTPTransaction) createRequest(ctx context.Context) (*http.Request, error) {
+	reader := bytes.NewReader(*t.Payload)
+	url := t.Domain + t.Endpoint.Route
+	req, err := http.NewRequest("POST", url, reader)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	req.Close = t.CloseAfterCreation && getRetryValueFromContext(ctx)
+	req.Header = t.Headers
+	return req, nil
+}
+
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
-	reader := bytes.NewReader(*t.Payload)
-	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
-	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
-
-	req, err := http.NewRequest("POST", url, reader)
+	logURL := scrubber.ScrubLine(t.Domain + t.Endpoint.Route) // sanitized url that can be logged
+	req, err := t.createRequest(ctx)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
@@ -299,8 +325,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
-	req = req.WithContext(ctx)
-	req.Header = t.Headers
+
 	resp, err := client.Do(req)
 
 	if err != nil {
