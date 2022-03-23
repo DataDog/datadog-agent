@@ -38,6 +38,7 @@ const (
 
 type AutoscalerWatcher struct {
 	refreshPeriod           int64
+	autogenEnabled          bool
 	autogenExpirationPeriod time.Duration
 	autogenNamespace        string
 	autoscalerLister        autoscaler_lister.HorizontalPodAutoscalerLister
@@ -62,7 +63,7 @@ var gvr = &schema.GroupVersionResource{
 
 // NewAutoscalerWatcher returns a new AutoscalerWatcher, giving nil `autoscalerInformer` or nil `wpaInformer` disables watching HPA or WPA
 // We need at least one of them
-func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, autogenNamespace string, informer informers.SharedInformerFactory, wpaInformer dynamic_informer.DynamicSharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*AutoscalerWatcher, error) {
+func NewAutoscalerWatcher(refreshPeriod int64, autogenEnabled bool, autogenExpirationPeriodHours int64, autogenNamespace string, informer informers.SharedInformerFactory, wpaInformer dynamic_informer.DynamicSharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*AutoscalerWatcher, error) {
 	if store == nil {
 		return nil, fmt.Errorf("Store must be initialized")
 	}
@@ -90,6 +91,7 @@ func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, aut
 
 	autoscalerWatcher := &AutoscalerWatcher{
 		refreshPeriod:           refreshPeriod,
+		autogenEnabled:          autogenEnabled,
 		autogenExpirationPeriod: time.Duration(autogenExpirationPeriodHours) * time.Hour,
 		autogenNamespace:        autogenNamespace,
 		autoscalerLister:        autoscalerLister,
@@ -234,7 +236,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 					autoscalerReference := autoscalerHPAKindKey + autoscalerReferencesKindSep + hpa.Namespace + kubernetesNamespaceSep + hpa.Name
 					if datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(metric.External.MetricName); parsed {
 						addAutoscalerReference(datadogMetricID, autoscalerReference, "", nil)
-					} else if !hasPrefix {
+					} else if !hasPrefix && w.autogenEnabled {
 						// We were not able to parse name as DatadogMetric ID. It will be considered as a normal metricName + labels
 						var labels map[string]string
 						if metric.External.MetricSelector != nil {
@@ -266,7 +268,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 				if metric.External != nil {
 					if datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(metric.External.MetricName); parsed {
 						addAutoscalerReference(datadogMetricID, autoscalerReference, "", nil)
-					} else if !hasPrefix {
+					} else if !hasPrefix && w.autogenEnabled {
 						// We were not able to parse name as DatadogMetric ID. It will be considered as a normal metricName + labels
 						var labels map[string]string
 						if metric.External.MetricSelector != nil {
