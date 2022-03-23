@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -21,17 +22,20 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	checkName               = "helm"
+	serviceCheckName        = "helm.failed_releases"
 	maximumWaitForAPIServer = 10 * time.Second
 	informerSyncTimeout     = 60 * time.Second
 	labelSelector           = "owner=helm"
@@ -156,6 +160,8 @@ func (hc *HelmCheck) Run() error {
 	if hc.instance.CollectEvents {
 		hc.eventsManager.sendEvents(sender)
 	}
+
+	hc.sendServiceCheck(sender)
 
 	return nil
 }
@@ -377,4 +383,39 @@ func isLeader() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
+	// The service check fails if there's at least one release for which its
+	// latest revision is on "failed" state.
+
+	failedLatestRevs := hc.failedLatestRevisions()
+
+	if len(failedLatestRevs) == 0 {
+		sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckOK, "", nil, "")
+		return
+	}
+
+	var failed []string
+	for _, failedLatestRev := range failedLatestRevs {
+		failed = append(failed, string(failedLatestRev))
+	}
+
+	errMessage := "The latest revision of these releases is on \"failed\" state: " + strings.Join(failed, ", ")
+
+	sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckCritical, "", nil, errMessage)
+}
+
+func (hc *HelmCheck) failedLatestRevisions() []namespacedName {
+	var res []namespacedName
+
+	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
+		for _, rel := range hc.store.getLatestRevisions(storageDriver) {
+			if rel.Info != nil && rel.Info.Status == "failed" {
+				res = append(res, rel.namespacedName())
+			}
+		}
+	}
+
+	return res
 }

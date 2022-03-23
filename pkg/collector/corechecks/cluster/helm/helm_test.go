@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestRun(t *testing.T) {
@@ -292,6 +293,176 @@ func TestRun_withCollectEvents(t *testing.T) {
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
+}
+
+func TestRun_ServiceCheck(t *testing.T) {
+	tests := []struct {
+		name              string
+		releases          []*release
+		expectsCheckError bool
+		expectedMessage   string
+	}{
+		{
+			name: "OK when no failed releases",
+			releases: []*release{
+				{
+					Name: "my_datadog",
+					Info: &info{
+						Status: "deployed",
+					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "datadog",
+							Version:    "2.30.5",
+							AppVersion: "7",
+						},
+					},
+					Version:   1,
+					Namespace: "default",
+				},
+			},
+			expectsCheckError: false,
+		},
+		{
+			name: "OK when failed release is not latest",
+			releases: []*release{
+				{
+					Name: "my_datadog",
+					Info: &info{
+						Status: "failed", // Failed but it's not latest
+					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "datadog",
+							Version:    "2.30.5",
+							AppVersion: "7",
+						},
+					},
+					Version:   1,
+					Namespace: "default",
+				},
+				{
+					Name: "my_datadog",
+					Info: &info{
+						Status: "deployed",
+					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "datadog",
+							Version:    "2.30.5",
+							AppVersion: "7",
+						},
+					},
+					Version:   2,
+					Namespace: "default",
+				},
+			},
+			expectsCheckError: false,
+		},
+		{
+			name:              "OK when no releases",
+			releases:          []*release{},
+			expectsCheckError: false,
+		},
+		{
+			name: "failed when at least one release is failed",
+			releases: []*release{
+				{
+					Name: "my_datadog",
+					Info: &info{
+						Status: "failed",
+					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "datadog",
+							Version:    "2.30.5",
+							AppVersion: "7",
+						},
+					},
+					Version:   1,
+					Namespace: "default",
+				},
+				{
+					Name: "my_proxy",
+					Info: &info{
+						Status: "deployed",
+					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "nginx",
+							Version:    "1.0.0",
+							AppVersion: "1",
+						},
+					},
+					Version:   10,
+					Namespace: "default",
+				},
+			},
+			expectsCheckError: true,
+			expectedMessage:   "The latest revision of these releases is on \"failed\" state: default/my_datadog",
+		},
+		{
+			name: "failed when multiple releases are in \"failed\" state",
+			releases: []*release{
+				{
+					Name: "my_datadog",
+					Info: &info{
+						Status: "failed",
+					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "datadog",
+							Version:    "2.30.5",
+							AppVersion: "7",
+						},
+					},
+					Version:   1,
+					Namespace: "default",
+				},
+				{
+					Name: "my_proxy",
+					Info: &info{
+						Status: "failed",
+					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "nginx",
+							Version:    "1.0.0",
+							AppVersion: "1",
+						},
+					},
+					Version:   10,
+					Namespace: "default",
+				},
+			},
+			expectsCheckError: true,
+			expectedMessage:   "The latest revision of these releases is on \"failed\" state: default/my_datadog, default/my_proxy",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			check := factory().(*HelmCheck)
+			check.runLeaderElection = false
+
+			for _, rel := range test.releases {
+				// Using secrets for this test, but should work the same way for configmaps
+				check.store.add(rel, k8sSecrets)
+			}
+
+			mockedSender := mocksender.NewMockSender(checkName)
+			mockedSender.SetupAcceptAll()
+
+			err := check.Run()
+			assert.NoError(t, err)
+
+			if test.expectsCheckError {
+				mockedSender.AssertServiceCheck(t, "helm.failed_releases", coreMetrics.ServiceCheckCritical, "", nil, test.expectedMessage)
+			} else {
+				mockedSender.AssertServiceCheck(t, "helm.failed_releases", coreMetrics.ServiceCheckOK, "", nil, "")
+			}
+		})
+	}
 }
 
 // secretForRelease returns a Kubernetes secret that contains the info of the
