@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	// SectorSize is exported in github.com/shirou/gopsutil/v3/disk (but not working!)
+	// github.com/shirou/gopsutil/v3/disk package has the same but not exported constant named "sectorSize"
 	SectorSize       = 512
 	kB               = (1 << 10)
 	iostatsCheckName = "io"
