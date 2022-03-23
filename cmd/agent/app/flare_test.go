@@ -9,8 +9,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -82,10 +83,10 @@ func TestReadProfileDataErrors(t *testing.T) {
 	m.On("CreatePerformanceProfile", "process", "http://127.0.0.1:1003/debug/pprof", 30, pdata).Return(nil)
 
 	err := readProfileData(pdata, 30, m.CreatePerformanceProfile)
-	const expectError = `2 errors occurred:
-	* error collecting core agent profile: can't connect to core agent
-	* error collecting trace agent profile: can't connect to trace agent
 
-`
-	assert.EqualError(t, err, expectError)
+	merr, ok := err.(*multierror.Error)
+	assert.True(t, ok)
+	assert.Len(t, merr.Errors, 2)
+	assert.ErrorContains(t, merr.Errors[0], "can't connect to core agent")
+	assert.ErrorContains(t, merr.Errors[1], "can't connect to trace agent")
 }
