@@ -82,9 +82,10 @@ var (
 
 // Version defines a kernel version helper
 type Version struct {
-	OsRelease    map[string]string
-	Code         kernel.Version
-	UnameRelease string
+	OsRelease     map[string]string
+	OsReleasePath string
+	Code          kernel.Version
+	UnameRelease  string
 }
 
 func (k *Version) String() string {
@@ -128,9 +129,10 @@ func NewKernelVersion() (*Version, error) {
 		release, err = osrelease.ReadFile(osReleasePath)
 		if err == nil {
 			return &Version{
-				OsRelease:    release,
-				Code:         kv,
-				UnameRelease: unameRelease,
+				OsRelease:     release,
+				OsReleasePath: osReleasePath,
+				Code:          kv,
+				UnameRelease:  unameRelease,
 			}, nil
 		}
 	}
