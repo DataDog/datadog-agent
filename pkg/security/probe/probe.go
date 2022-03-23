@@ -1366,7 +1366,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
 
-	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSLES12Kernel() || kv.IsSLES15Kernel()) {
+	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSuse12Kernel() || kv.IsSuse15Kernel()) {
 		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
 	}
 	// namespace nr offsets
