@@ -88,7 +88,7 @@ send_pkg_size-a7:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
     - dogstatsd_deb-x64
-  #  - heroku_agent_deb-x64
+    - agent_heroku_deb-x64-a7
     - agent_rpm-x64-a7
     - iot_agent_rpm-x64
     - dogstatsd_rpm-x64
@@ -221,9 +221,9 @@ check_pkg_size-a7:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
     - dogstatsd_deb-x64
-#    - heroku_agent_deb-x64
+    - agent_heroku_deb-x64-a7
     - agent_rpm-x64-a7
-    - iot_agent_rpm-x64
+    - iot_agent_rpm-x64# collapsed multi-line command
     - dogstatsd_rpm-x64
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
