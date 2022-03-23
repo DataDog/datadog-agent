@@ -223,7 +223,7 @@ check_pkg_size-a7:
     - dogstatsd_deb-x64
     - agent_heroku_deb-x64-a7
     - agent_rpm-x64-a7
-    - iot_agent_rpm-x64# collapsed multi-line command
+    - iot_agent_rpm-x64
     - dogstatsd_rpm-x64
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
