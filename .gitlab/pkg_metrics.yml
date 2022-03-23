@@ -178,8 +178,8 @@ send_pkg_size-a7:
             add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_amd64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
 
             set +e
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+            inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_amd64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
+            failures=$((${failures}+$?))
             set -e
 
             if [[ "$flavor" != "datadog-heroku-agent" ]];
