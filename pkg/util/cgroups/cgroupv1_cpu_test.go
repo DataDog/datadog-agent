@@ -82,6 +82,9 @@ func TestCgroupV1CPUStats(t *testing.T) {
 	// Test reading files in CPU controllers, all files present except 1 (cpu.shares)
 	tr.reset()
 	cfs.deleteCgroupV1File(cgFoo1, "cpu", "cpu.shares")
+	// Set empty period and quota, make sure we don't panic
+	cfs.setCgroupV1File(cgFoo1, "cpu", "cpu.cfs_period_us", "")
+	cfs.setCgroupV1File(cgFoo1, "cpu", "cpu.cfs_quota_us", "")
 	stats = &CPUStats{}
 	err = cgFoo1.GetCPUStats(stats)
 	assert.NoError(t, err)
@@ -94,7 +97,7 @@ func TestCgroupV1CPUStats(t *testing.T) {
 		ElapsedPeriods:   uint64Ptr(421),
 		ThrottledPeriods: uint64Ptr(0),
 		ThrottledTime:    uint64Ptr(0),
-		SchedulerPeriod:  uint64Ptr(100000 * uint64(time.Microsecond)),
+		SchedulerPeriod:  nil,
 		SchedulerQuota:   nil,
 		CPUCount:         uint64Ptr(8),
 	}, *stats))

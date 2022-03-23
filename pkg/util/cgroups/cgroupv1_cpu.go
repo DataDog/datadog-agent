@@ -64,14 +64,16 @@ func (c *cgroupV1) parseCPUController(stats *CPUStats) {
 	}
 
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("cpu", "cpu.cfs_period_us"), &stats.SchedulerPeriod); err == nil {
-		stats.SchedulerPeriod = uint64Ptr(*stats.SchedulerPeriod * uint64(time.Microsecond))
+		if stats.SchedulerPeriod != nil {
+			stats.SchedulerPeriod = uint64Ptr(*stats.SchedulerPeriod * uint64(time.Microsecond))
+		}
 	} else {
 		reportError(err)
 	}
 
 	var tempValue *int64
 	if err := parseSingleSignedStat(c.fr, c.pathFor("cpu", "cpu.cfs_quota_us"), &tempValue); err == nil {
-		if *tempValue != -1 {
+		if tempValue != nil && *tempValue != -1 {
 			stats.SchedulerQuota = uint64Ptr(uint64(*tempValue) * uint64(time.Microsecond))
 		}
 	} else {
