@@ -473,7 +473,8 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel5_6):
 		offset = 120
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_8):
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_8) ||
+		kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		offset = 144
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_8:
 		offset = 152
