@@ -127,7 +127,7 @@ func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
 	holdValue := config.Datadog.Get("admission_controller.failure_policy")
 	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
 
-	config.Datadog.Set("admission_controller.failure_policy", "ignore")
+	config.Datadog.Set("admission_controller.failure_policy", "Ignore")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
@@ -153,7 +153,7 @@ func TestAdmissionControllerFailureModeFail(t *testing.T) {
 	f := newFixtureV1(t)
 	c := f.run(t)
 
-	config.Datadog.Set("admission_controller.failure_policy", "fail")
+	config.Datadog.Set("admission_controller.failure_policy", "Fail")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")

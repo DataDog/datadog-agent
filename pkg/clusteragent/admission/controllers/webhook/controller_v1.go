@@ -245,9 +245,9 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 
 func (c *ControllerV1) getAdmiV1FailurePolicy() admiv1.FailurePolicyType {
 	switch c.config.getFailurePolicy() {
-	case "ignore":
+	case "Ignore":
 		return admiv1.Ignore
-	case "fail":
+	case "Fail":
 		return admiv1.Fail
 	default:
 		return admiv1.Ignore

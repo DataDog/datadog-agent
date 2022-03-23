@@ -906,7 +906,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
 	config.BindEnvAndSetDefault("admission_controller.namespace_selector_fallback", false)
-	config.BindEnvAndSetDefault("admission_controller.failure_policy", "ignore")
+	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.

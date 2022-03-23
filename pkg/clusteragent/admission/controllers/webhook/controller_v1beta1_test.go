@@ -119,6 +119,47 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 	}
 }
 
+func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
+	f := newFixtureV1beta1(t)
+	c := f.run(t)
+	c.config = NewConfig(true, false)
+
+	holdValue := config.Datadog.Get("admission_controller.failure_policy")
+	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
+
+	config.Datadog.Set("admission_controller.failure_policy", "Ignore")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "BadVal")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
+}
+
+func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
+	holdValue := config.Datadog.Get("admission_controller.failure_policy")
+	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
+
+	f := newFixtureV1beta1(t)
+	c := f.run(t)
+
+	config.Datadog.Set("admission_controller.failure_policy", "Fail")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.Fail, *webhookSkeleton.FailurePolicy)
+}
+
 func TestGenerateTemplatesV1beta1(t *testing.T) {
 	mockConfig := config.Mock()
 	failurePolicy := admiv1beta1.Ignore
