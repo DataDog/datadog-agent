@@ -5,13 +5,11 @@
 
 package config
 
-import traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-
 // setupAppSec initializes the configuration values of the appsec agent.
 func setupAppSec(cfg Config) {
-	cfg.BindEnvAndSetDefault("appsec_config.enabled", traceconfig.DefaultAppSecEnabled, "DD_APPSEC_ENABLED")
-	cfg.BindEnvAndSetDefault("appsec_config.appsec_dd_url", traceconfig.DefaultAppSecDDUrl, "DD_APPSEC_DD_URL")
-	cfg.BindEnvAndSetDefault("appsec_config.max_payload_size", traceconfig.DefaultAppSecMaxPayloadSize, "DD_APPSEC_MAX_PAYLOAD_SIZE")
-	cfg.BindEnvAndSetDefault("appsec_config.obfuscation.parameter_key_regexp", traceconfig.DefaultAppSecObfuscationKeyRegexp, "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP")
-	cfg.BindEnvAndSetDefault("appsec_config.obfuscation.parameter_value_regexp", traceconfig.DefaultAppSecObfuscationValueRegexp, "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP")
+	cfg.BindEnv("appsec_config.enabled", "DD_APPSEC_ENABLED")
+	cfg.BindEnv("appsec_config.appsec_dd_url", "DD_APPSEC_DD_URL")
+	cfg.BindEnv("appsec_config.max_payload_size", "DD_APPSEC_MAX_PAYLOAD_SIZE")
+	cfg.BindEnv("appsec_config.obfuscation.parameter_key_regexp", "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP")
+	cfg.BindEnv("appsec_config.obfuscation.parameter_value_regexp", "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP")
 }

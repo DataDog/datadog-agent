@@ -252,25 +252,15 @@ type DebuggerProxyConfig struct {
 	APIKey string
 }
 
-// Default AppSec configuration values
-const (
-	DefaultAppSecEnabled        = true
-	DefaultAppSecDDUrl          = ""
-	DefaultAppSecMaxPayloadSize = 5 * 1024 * 1024
-
-	DefaultAppSecObfuscationKeyRegexp   = `(?i)(p(ass)?w(((or)?d))|(phrase))|(secret)|(authorization)|(api_?key)|((access_?)?token)`
-	DefaultAppSecObfuscationValueRegexp = ``
-)
-
 // AppSecConfig hold the AppSec reverse proxy settings.
 type AppSecConfig struct {
 	// Enabled reports whether AppSec is enabled.
 	Enabled bool
-	// MaxPayloadSize ...
+	// MaxPayloadSize is the maximum HTTP body payload size the reverse proxy is allowed to copy.
 	MaxPayloadSize int64
-	// APIKey ...
+	// APIKey is the API key required by the intake API to authenticate the HTTP requests.
 	APIKey string
-	// DDURL ...
+	// DDURL is the intake API URL.
 	DDURL string
 }
 
@@ -480,8 +470,8 @@ func New() *AgentConfig {
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation: &ObfuscationConfig{
 			AppSec: AppSecObfuscation{
-				ParameterKeyRegexp:   obfuscate.CompileRegexp(DefaultAppSecObfuscationKeyRegexp),
-				ParameterValueRegexp: obfuscate.CompileRegexp(DefaultAppSecObfuscationValueRegexp),
+				ParameterKeyRegexp:   obfuscate.CompileRegexp(`(?i)(p(ass)?w(((or)?d))|(phrase))|(secret)|(authorization)|(api_?key)|((access_?)?token)`),
+				ParameterValueRegexp: nil, // disabled by default
 			},
 		},
 
@@ -494,9 +484,9 @@ func New() *AgentConfig {
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		AppSec: AppSecConfig{
-			Enabled:        DefaultAppSecEnabled,
-			MaxPayloadSize: DefaultAppSecMaxPayloadSize,
-			DDURL:          DefaultAppSecDDUrl,
+			Enabled:        true,
+			MaxPayloadSize: 5 * 1024 * 1024,
+			DDURL:          "",
 		},
 	}
 }
