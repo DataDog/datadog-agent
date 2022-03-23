@@ -223,6 +223,37 @@ def build_c_syscall_tester_common(ctx, file_name, build_dir, flags=None, libs=No
     )
     return syscall_tester_exe_file
 
+def build_c_latency_common(ctx, file_name, build_dir, flags=None, libs=None, static=True):
+    if flags is None:
+        flags = []
+    if libs is None:
+        libs = []
+
+    latency_c_dir = os.path.join(".", "pkg", "security", "tests", "latency", "c")
+    latency_c_file = os.path.join(latency_c_dir, f"{file_name}.c")
+    latency_exe_file = os.path.join(build_dir, file_name)
+
+    if static:
+        flags.append("-static")
+
+    flags_arg = " ".join(flags)
+    libs_arg = " ".join(libs)
+    ctx.run(
+        CLANG_EXE_CMD.format(
+            flags=flags_arg, libs=libs_arg, c_file=latency_c_file, out_file=latency_exe_file
+        )
+    )
+    return latency_exe_file
+
+def build_latency_tools(ctx, build_dir, static=True):
+    return build_c_latency_common(ctx, "bench_net_DNS", build_dir, libs=["-lpthread"], static=static)
+
+@task
+def build_embed_latency_tools(ctx, arch="x64", static=True):
+    build_dir = os.path.join(".", "pkg", "security", "tests", "latency")
+    create_dir_if_needed(build_dir)
+    build_latency_tools(ctx, build_dir, static=static)
+
 
 def build_syscall_x86_tester(ctx, build_dir, static=True):
     return build_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
