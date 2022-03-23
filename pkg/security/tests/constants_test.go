@@ -91,12 +91,12 @@ func TestBTFConstants(t *testing.T) {
 
 func compareFetchers(t *testing.T, expected, actual constantfetch.ConstantFetcher, kv *kernel.Version) {
 	t.Helper()
-	expectedConstants, err := probe.GetOffsetConstantsFromFetcher(expected, kv)
+	expectedConstants, err := GetOffsetConstantsFromFetcher(expected, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
-	actualConstants, err := probe.GetOffsetConstantsFromFetcher(actual, kv)
+	actualConstants, err := GetOffsetConstantsFromFetcher(actual, kv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -104,4 +104,9 @@ func compareFetchers(t *testing.T, expected, actual constantfetch.ConstantFetche
 	if !assert.Equal(t, expectedConstants, actualConstants) {
 		t.Logf("kernel version: %v", kv)
 	}
+}
+
+func GetOffsetConstantsFromFetcher(cf constantfetch.ConstantFetcher, kv *kernel.Version) (map[string]uint64, error) {
+	probe.AppendProbeRequestsToFetcher(cf, kv)
+	return cf.FinishAndGetResults()
 }

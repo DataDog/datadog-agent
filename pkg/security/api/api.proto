@@ -95,6 +95,19 @@ message SecurityGraphGeneratedMessage {
     string Error = 2;
 }
 
+message GetConstantFetcherStatusParams {}
+
+message ConstantValueAndSource {
+    string ID = 1;
+    uint64 Value = 2;
+    string Source = 3;
+}
+
+message ConstantFetcherStatus {
+    repeated string Fetchers = 1;
+    repeated ConstantValueAndSource Values = 2;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
@@ -104,6 +117,7 @@ service SecurityModule {
     rpc GenerateProfile(GenerateProfileParams) returns (SecurityProfileGeneratedMessage) {}
     rpc GenerateGraph(GenerateGraphParams) returns (SecurityGraphGeneratedMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
+    rpc GetConstantFetcherStatus(GetConstantFetcherStatusParams) returns (ConstantFetcherStatus) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
 }

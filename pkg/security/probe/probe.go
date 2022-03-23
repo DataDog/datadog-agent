@@ -920,7 +920,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	p.constantOffsets, err = GetOffsetConstants(config, p)
+	p.constantOffsets, err = p.GetOffsetConstants()
 	if err != nil {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
@@ -1048,17 +1048,29 @@ func (p *Probe) ensureConfigDefaults() {
 }
 
 // GetOffsetConstants returns the offsets and struct sizes constants
-func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
-	kv, err := probe.GetKernelVersion()
+func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config, p.kernelVersion, p.statsdClient))
+	kv, err := p.GetKernelVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
 	}
-	return GetOffsetConstantsFromFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	return constantFetcher.FinishAndGetResults()
 }
 
-// GetOffsetConstantsFromFetcher returns the offsets and struct sizes constants, from a constant fetcher
-func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) (map[string]uint64, error) {
+// GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
+func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config, p.kernelVersion, p.statsdClient))
+	kv, err := p.GetKernelVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
+	}
+	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	return constantFetcher.FinishAndGetStatus()
+}
+
+// AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher
+func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("dentry_sb_offset", "struct dentry", "d_sb", "linux/dcache.h")
@@ -1089,6 +1101,4 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 
 	// splice event
 	constantFetcher.AppendOffsetofRequest("pipe_inode_info_bufs_offset", "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
-
-	return constantFetcher.FinishAndGetResults()
 }

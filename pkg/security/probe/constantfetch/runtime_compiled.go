@@ -47,6 +47,10 @@ func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient *sta
 	}
 }
 
+func (cf *RuntimeCompilationConstantFetcher) String() string {
+	return "runtime-compilation"
+}
+
 func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
 	if headerName != "" {
 		cf.headers = append(cf.headers, headerName)
