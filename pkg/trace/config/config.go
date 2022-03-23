@@ -470,7 +470,7 @@ func New() *AgentConfig {
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation: &ObfuscationConfig{
 			AppSec: AppSecObfuscation{
-				ParameterKeyRegexp:   regexp.MustCompile(`(?i)(p(ass)?w(((or)?d))|(phrase))|(secret)|(authorization)|(api_?key)|((access_?)?token)`),
+				ParameterKeyRegexp:   regexp.MustCompile(`(?i)(p(ass)?w(or)?d|pass(_?phrase)?|secret|(api_?|private_?|public_?)key)|token|consumer_?(id|key|secret)|sign(ed|ature)|bearer`),
 				ParameterValueRegexp: nil, // disabled by default
 			},
 		},
