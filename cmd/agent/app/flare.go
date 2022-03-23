@@ -13,7 +13,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -88,58 +87,73 @@ var flareCmd = &cobra.Command{
 	},
 }
 
-func readProfileData(pdata *flare.ProfileData) error {
+type profileCollector func(prefix, debugURL string, cpusec int, target *flare.ProfileData) error
+
+func readProfileData(pdata *flare.ProfileData, seconds int, collector profileCollector) error {
 	prevSettings, err := setRuntimeProfilingSettings()
 	if err != nil {
 		return err
 	}
 	defer resetRuntimeProfilingSettings(prevSettings)
 
+	agentCollectors := []struct {
+		name string
+		fn   func(pdata *flare.ProfileData, seconds int, c profileCollector) error
+	}{
+		{
+			name: "core",
+			fn:   readCoreAgentProfileData,
+		},
+		{
+			name: "trace",
+			fn:   readTraceAgentProfileData,
+		},
+		{
+			name: "process",
+			fn:   readProcessAgentProfileData,
+		},
+	}
+
 	var errs error
-	if err := readCoreAgentProfileData(pdata); err != nil {
-		errs = multierror.Append(errs, errors.Wrap(err, "error collecting core agent profile"))
+	for _, c := range agentCollectors {
+		if err := c.fn(pdata, seconds, collector); err != nil {
+			errs = multierror.Append(errs, fmt.Errorf("error collecting %s agent profile: %v", c.name, err))
+		}
 	}
 
-	if err := readTraceAgentProfileData(pdata); err != nil {
-		errs = multierror.Append(errs, errors.Wrap(err, "error collecting trace agent profile"))
-	}
-
-	if err := readProcessAgentProfileData(pdata); err != nil {
-		errs = multierror.Append(errs, errors.Wrap(err, "error collecting process agent profile"))
-	}
 	return errs
 }
 
-func readCoreAgentProfileData(pdata *flare.ProfileData) error {
+func readCoreAgentProfileData(pdata *flare.ProfileData, seconds int, collector profileCollector) error {
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
 	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
-	return flare.CreatePerformanceProfile("core", coreDebugURL, profiling, pdata)
+	return collector("core", coreDebugURL, seconds, pdata)
 }
 
-func readTraceAgentProfileData(pdata *flare.ProfileData) error {
+func readTraceAgentProfileData(pdata *flare.ProfileData, seconds int, collector profileCollector) error {
 	if k := "apm_config.enabled"; config.Datadog.IsSet(k) && !config.Datadog.GetBool(k) {
 		return nil
 	}
 	traceDebugURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", config.Datadog.GetInt("apm_config.receiver_port"))
 	cpusec := 4 // 5s is the default maximum connection timeout on the trace-agent HTTP server
 	if v := config.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
-		if v > profiling {
+		if v > seconds {
 			// do not exceed requested duration
-			cpusec = profiling
+			cpusec = seconds
 		} else {
 			// fit within set limit
 			cpusec = v - 1
 		}
 	}
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from trace.", cpusec))
-	return flare.CreatePerformanceProfile("trace", traceDebugURL, cpusec, pdata)
+	return collector("trace", traceDebugURL, cpusec, pdata)
 }
 
-func readProcessAgentProfileData(pdata *flare.ProfileData) error {
+func readProcessAgentProfileData(pdata *flare.ProfileData, seconds int, collector profileCollector) error {
 	// We are unconditionally collecting process agent profile in the flare as best effort
 	processDebugURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", config.Datadog.GetInt("process_config.expvar_port"))
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from process.", profiling))
-	return flare.CreatePerformanceProfile("process", processDebugURL, profiling, pdata)
+	return collector("process", processDebugURL, seconds, pdata)
 }
 
 func makeFlare(caseID string) error {
@@ -157,7 +171,7 @@ func makeFlare(caseID string) error {
 		err     error
 	)
 	if profiling >= 30 {
-		if err := readProfileData(&profile); err != nil {
+		if err := readProfileData(&profile, profiling, flare.CreatePerformanceProfile); err != nil {
 			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
 		}
 	} else if profiling != -1 {
