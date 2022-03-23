@@ -68,8 +68,8 @@ func (d *diff) add(from, to int, value string) {
 	(*d)[i] = elt
 }
 
-// merge the given diff to the current one, shifted by the given offset.
-// Cf. method obfuscateAppSecParameter()
+// merge the given diff by shifting its from/to offsets by adding the given
+// offset to them.
 func (d *diff) merge(diff diff, offset int) {
 	for _, diff := range diff {
 		d.add(diff.from+offset, diff.to+offset, diff.value)
@@ -104,7 +104,7 @@ func (o *Obfuscator) obfuscateAppSec(input string) (output string, err error) {
 	)
 	scanner.reset()
 	keyFrom := -1 // marks the starting index of a JSON key in bytes
-	keyTo := -1 // marks the end index of a JSON key in bytes
+	keyTo := -1   // marks the end index of a JSON key in bytes
 	// Scan the input to discover its objects and see if they have the
 	// `parameters` key we are looking for.
 	for i := 0; i < len(input); i++ {
