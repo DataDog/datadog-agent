@@ -23,7 +23,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	e.ID = FindContainerID(id)
+	e.ID = id
 
 	return ContainerIDLen, nil
 }
