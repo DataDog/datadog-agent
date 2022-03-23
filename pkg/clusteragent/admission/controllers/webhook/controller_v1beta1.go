@@ -198,11 +198,11 @@ func (c *ControllerV1beta1) generateTemplates() {
 }
 
 func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1beta1.MutatingWebhook {
-	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
 	timeout := c.config.getTimeout()
+	failurePolicy := c.getAdmiV1Beta1FailurePolicy()
 	webhook := admiv1beta1.MutatingWebhook{
 		Name: c.config.configName(nameSuffix),
 		ClientConfig: admiv1beta1.WebhookClientConfig{
@@ -241,4 +241,15 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 	webhook.ObjectSelector = labelSelector
 
 	return webhook
+}
+
+func (c *ControllerV1beta1) getAdmiV1Beta1FailurePolicy() admiv1beta1.FailurePolicyType {
+	switch c.config.getFailurePolicy() {
+	case "ignore":
+		return admiv1beta1.Ignore
+	case "fail":
+		return admiv1beta1.Fail
+	default:
+		return admiv1beta1.Ignore
+	}
 }
