@@ -1,7 +1,9 @@
 require 'spec_helper'
 
 print `cat /etc/os-release`
+print `cat /etc/zypp/repos/*`
 print `uname -a`
+print `uname -r`
 
 describe 'successfully run functional test' do
   it 'displays PASS and returns 0' do
