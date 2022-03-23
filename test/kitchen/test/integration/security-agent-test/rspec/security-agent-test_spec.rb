@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 print `cat /etc/os-release`
-print `cat /etc/zypp/repos/*`
+print `cat /etc/zypp/repos.d/*`
 print `uname -a`
 print `uname -r`
 
