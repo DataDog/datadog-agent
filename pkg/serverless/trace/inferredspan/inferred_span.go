@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -71,4 +72,17 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	return output
+}
+
+func CreateInferredSpan(event string, ctx serverlessLog.ExecutionContext) {
+	// Parse the event into the EventKey struct
+	eventSource := ParseEventSource(event)
+	switch eventSource {
+	case "apigateway":
+		log.Debug("THIS IS A RESTAPI")
+	case "http-api":
+		log.Debug("THIS IS A HTTP API")
+	case "websocket":
+		log.Debug(("THIS IS A WEBSOCKET"))
+	}
 }

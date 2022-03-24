@@ -58,7 +58,7 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		StartTime:             startTime,
 		InvokeEventRawPayload: string(reqBody),
 	}
-	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
+	s.daemon.InvocationProcessor.OnInvokeStart(startDetails, s.daemon.ExecutionContext)
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable

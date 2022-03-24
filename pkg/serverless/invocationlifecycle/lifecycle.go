@@ -6,11 +6,14 @@
 package invocationlifecycle
 
 import (
+	"os"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	inferredSpan "github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +26,7 @@ type LifecycleProcessor struct {
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
-func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
+func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails, ctx *serverlessLog.ExecutionContext) {
 	log.Debug("[lifecycle] onInvokeStart ------")
 	log.Debug("[lifecycle] Invocation has started at :", startDetails.StartTime)
 	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventRawPayload)
@@ -31,6 +34,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	if !lp.DetectLambdaLibrary() {
 		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
+	}
+
+	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" {
+		log.Debug("[lifecycle] Attempting to create inferred span")
+		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, ctx)
 	}
 }
 
