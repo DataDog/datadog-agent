@@ -35,22 +35,6 @@ var tcProbes = []*manager.Probe{
 		TCFilterProtocol: unix.ETH_P_ALL,
 		TCFilterPrio:     1,
 	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/dns_request",
-			EBPFFuncName: "classifier_dns_request",
-		},
-		Enabled: false,
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/dns_request_parser",
-			EBPFFuncName: "classifier_dns_request_parser",
-		},
-		Enabled: false,
-	},
 }
 
 // GetTCProbes returns the list of TCProbes
@@ -60,7 +44,11 @@ func GetTCProbes() []*manager.Probe {
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
 func GetAllTCProgramFunctions() []string {
-	var output []string
+	output := []string{
+		"classifier_dns_request_parser",
+		"classifier_dns_request",
+	}
+
 	for _, tcProbe := range GetTCProbes() {
 		output = append(output, tcProbe.EBPFFuncName)
 	}
