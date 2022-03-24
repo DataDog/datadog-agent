@@ -785,6 +785,8 @@ type ServerlessDemultiplexer struct {
 
 	flushLock *sync.Mutex
 
+	flushAndSerializeInParallel FlushAndSerializeInParallel
+
 	*senders
 }
 
@@ -797,7 +799,8 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, FlushAndSerializeInParallel{Enabled: false}, tagsStore)
+	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(serializer, config.Datadog)
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
 		forwarder:        forwarder,
@@ -806,6 +809,8 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 		serializer:       serializer,
 		metricSamplePool: metricSamplePool,
 		flushLock:        &sync.Mutex{},
+
+		flushAndSerializeInParallel: flushAndSerializeInParallel,
 	}
 
 	// set the global instance
@@ -849,6 +854,20 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
+	var seriesSink *metrics.IterableSeries
+	var done chan struct{}
+
+	if d.flushAndSerializeInParallel.Enabled {
+		// only used when we're using flush/serialize in parallel feature
+		logPayloads := config.Datadog.GetBool("log_payloads")
+
+		seriesSink, done = startSendingIterableSeries(
+			d.serializer,
+			d.flushAndSerializeInParallel,
+			logPayloads,
+			start)
+	}
+
 	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
@@ -860,10 +879,15 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 		},
 		flushedSeries:   &flushedSeries,
 		flushedSketches: &flushedSketches,
+		seriesSink:      seriesSink,
 	}
 
 	d.statsdWorker.flushChan <- trigger
 	<-trigger.blockChan
+
+	if d.flushAndSerializeInParallel.Enabled {
+		stopIterableSeries(seriesSink, done)
+	}
 
 	var series metrics.Series
 	for _, s := range flushedSeries {
