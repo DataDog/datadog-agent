@@ -512,10 +512,10 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	var seriesSink *metrics.IterableSeries
 	var done chan struct{}
 
-	if d.aggregator.flushAndSerializeInParallel.enabled {
+	if d.aggregator.flushAndSerializeInParallel.Enabled {
 		seriesSink, done = startSendingIterableSeries(
 			d.sharedSerializer,
-			&d.aggregator.flushAndSerializeInParallel,
+			d.aggregator.flushAndSerializeInParallel,
 			logPayloads,
 			start)
 	}
@@ -558,7 +558,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		<-t.trigger.blockChan
 	}
 
-	if d.aggregator.flushAndSerializeInParallel.enabled {
+	if d.aggregator.flushAndSerializeInParallel.Enabled {
 		stopIterableSeries(seriesSink, done)
 	}
 
@@ -615,7 +615,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 func startSendingIterableSeries(
 	serializer serializer.MetricSerializer,
-	flushAndSerializeInParallel *flushAndSerializeInParallel,
+	flushAndSerializeInParallel FlushAndSerializeInParallel,
 	logPayloads bool,
 	start time.Time) (*metrics.IterableSeries, chan struct{}) {
 	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {
@@ -623,7 +623,7 @@ func startSendingIterableSeries(
 			log.Debugf("Flushing serie: %s", se)
 		}
 		tagsetTlm.updateHugeSerieTelemetry(se)
-	}, flushAndSerializeInParallel.bufferSize, flushAndSerializeInParallel.channelSize)
+	}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	done := make(chan struct{})
 	go sendIterableSeries(serializer, start, seriesSink, done)
 	return seriesSink, done
@@ -797,7 +797,7 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel{enabled: false}, tagsStore)
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, FlushAndSerializeInParallel{Enabled: false}, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
 		forwarder:        forwarder,
