@@ -243,7 +243,7 @@ check_pkg_size-a7:
   before_script:
     # ["datadog-heroku-agent"]="20000000" should probably replaced by "15000000" (or
     # less if we remove system-probe as we should). "20000000" is needed on the very
-    # first commit until we have a public stable build
+    # first commit until we have a public stable build.
     - |
         declare -Ar max_sizes=(
             ["datadog-agent"]="15000000"
