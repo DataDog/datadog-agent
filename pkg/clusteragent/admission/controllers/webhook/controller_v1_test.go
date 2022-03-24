@@ -133,6 +133,12 @@ func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
 	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
 	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
 
+	config.Datadog.Set("admission_controller.failure_policy", "ignore")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+
 	config.Datadog.Set("admission_controller.failure_policy", "BadVal")
 	c.config = NewConfig(true, false)
 
@@ -157,6 +163,12 @@ func TestAdmissionControllerFailureModeFail(t *testing.T) {
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Fail, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "fail")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
 	assert.Equal(t, admiv1.Fail, *webhookSkeleton.FailurePolicy)
 }
 

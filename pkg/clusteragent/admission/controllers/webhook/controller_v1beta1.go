@@ -245,9 +245,9 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 
 func (c *ControllerV1beta1) getAdmiV1Beta1FailurePolicy() admiv1beta1.FailurePolicyType {
 	switch c.config.getFailurePolicy() {
-	case "Ignore":
+	case "Ignore", "ignore":
 		return admiv1beta1.Ignore
-	case "Fail":
+	case "Fail", "fail":
 		return admiv1beta1.Fail
 	default:
 		return admiv1beta1.Ignore
