@@ -241,10 +241,13 @@ check_pkg_size-a7:
     MAJOR_VERSION: 7
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
   before_script:
+    # ["datadog-heroku-agent"]="20000000" should probably replaced by "15000000" (or
+    # less if we remove system-probe as we should). "20000000" is needed on the very
+    # first commit until we have a public stable build
     - |
         declare -Ar max_sizes=(
             ["datadog-agent"]="15000000"
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
-            ["datadog-heroku-agent"]="15000000"
+            ["datadog-heroku-agent"]="20000000"
         )
