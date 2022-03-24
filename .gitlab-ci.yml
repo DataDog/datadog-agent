@@ -79,6 +79,8 @@ stages:
   - notify
 
 variables:
+  #Do not change this - must be the repository name for Kubernetes runners to work
+  KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
   # The SRC_PATH is in the GOPATH of the builders which
   # currently is /go
   SRC_PATH: /go/src/github.com/DataDog/datadog-agent
