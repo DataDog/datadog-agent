@@ -21,6 +21,21 @@ import (
 	"go.uber.org/multierr"
 )
 
+var _ error = (*renameError)(nil)
+
+// renameError is an error related to a renamed setting.
+type renameError struct {
+	// oldName of the configuration option.
+	oldName string
+	// newName of the configuration option.
+	newName string
+	// oldRemovedIn is the version where the old config option will be removed.
+	oldRemovedIn string
+	// updateFn updates the configuration to map the old value into the new one.
+	// It must only be called when the old value is set and is not the default.
+	updateFn func(*exporterConfig)
+}
+
 // List of settings that are deprecated.
 var renamedSettings = []renameError{
 	{
@@ -35,21 +50,6 @@ var renamedSettings = []renameError{
 			}
 		},
 	},
-}
-
-var _ error = (*renameError)(nil)
-
-// renameError is an error related to a renamed setting.
-type renameError struct {
-	// oldName of the configuration option.
-	oldName string
-	// newName of the configuration option.
-	newName string
-	// oldRemovedIn is the version where the old config option will be removed.
-	oldRemovedIn string
-	// updateFn updates the configuration to map the old value into the new one.
-	// It must only be called when the old value is set and is not the default.
-	updateFn func(*exporterConfig)
 }
 
 // Error implements the error interface.
@@ -80,10 +80,10 @@ func (e renameError) UpdateCfg(cfg *exporterConfig) {
 // Error out if any pair of old-new options are set at the same time.
 func handleRenamedSettings(configMap *config.Map, cfg *exporterConfig) (warnings []error, err error) {
 	for _, renaming := range renamedSettings {
-		ok, errCheck := renaming.Check(configMap)
+		isOldNameUsed, errCheck := renaming.Check(configMap)
 		err = multierr.Append(err, errCheck)
 
-		if errCheck == nil && ok {
+		if errCheck == nil && isOldNameUsed {
 			warnings = append(warnings, renaming)
 			// only update config if old name is in use
 			renaming.UpdateCfg(cfg)
