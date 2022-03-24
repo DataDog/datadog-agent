@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -567,7 +567,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
-	seclog.SetPatterns(cfg.LogPatterns)
+	seclog.SetPatterns(cfg.LogPatterns...)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 

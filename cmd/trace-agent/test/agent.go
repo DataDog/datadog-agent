@@ -48,7 +48,7 @@ func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
 	}
 	// TODO(gbbr): find a way to re-use the same binary within a whole run
 	// instead of creating new ones on each test creating a new runner.
-	err = exec.Command("go", "build", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
+	err = exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
 	if err != nil {
 		if verbose {
 			log.Printf("error installing trace-agent: %v", err)
@@ -195,11 +195,7 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir, err := ioutil.TempDir("", "agent-conf-")
-	if err != nil {
-		return "", err
-	}
-	f, err := os.Create(filepath.Join(dir, "datadog.yaml"))
+	f, err := os.Create(filepath.Join(s.bindir, "datadog.yaml"))
 	if err != nil {
 		return "", err
 	}

@@ -190,6 +190,30 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 
 func TestDDURLEnvVar(t *testing.T) {
 	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetURL := setEnvForTest("DD_URL", "https://app.datadoghq.eu")
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.eu")
 	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	defer resetAPIKey()
@@ -203,6 +227,35 @@ func TestDDURLEnvVar(t *testing.T) {
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+
+	// If DD_DD_URL and DD_URL are set, the value of DD_DD_URL is used
+	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+	resetURLWeaker := setEnvForTest("DD_URL", "https://app.datadoghq.dd_url.eu")
+
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetURLWeaker()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.dd_dd_url.eu": {
 			"fakeapikey",
 		},
 	}

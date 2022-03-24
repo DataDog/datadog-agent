@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -42,8 +41,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -103,7 +103,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	flagNoColor   bool
 
 	srv     *api.Server
-	stopper restart.Stopper
+	stopper startstop.Stopper
 )
 
 func init() {
@@ -263,7 +263,7 @@ func RunAgent(ctx context.Context) (err error) {
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
-	stopper = restart.NewSerialStopper()
+	stopper = startstop.NewSerialStopper()
 
 	// Retrieve statsd host and port from the datadog agent configuration file
 	statsdHost := coreconfig.GetBindHost()
@@ -279,7 +279,7 @@ func RunAgent(ctx context.Context) (err error) {
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		err := tagger.Init()
+		err := tagger.Init(ctx)
 		if err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}

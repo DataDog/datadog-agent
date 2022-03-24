@@ -75,6 +75,8 @@ const (
 	SignalEventType
 	// SpliceEventType Splice event
 	SpliceEventType
+	// CgroupTracingEventType is sent when a new cgroup is being traced
+	CgroupTracingEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -162,6 +164,8 @@ func (t EventType) String() string {
 		return "signal"
 	case SpliceEventType:
 		return "splice"
+	case CgroupTracingEventType:
+		return "cgroup_tracing"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -191,4 +195,27 @@ func ParseEvalEventType(eventType eval.EventType) EventType {
 	}
 
 	return UnknownEventType
+}
+
+var (
+	eventTypeStrings = map[string]EventType{}
+)
+
+func init() {
+	var eventType EventType
+	for i := uint64(0); i != uint64(MaxEventType); i++ {
+		eventType = EventType(i)
+		eventTypeStrings[eventType.String()] = eventType
+	}
+}
+
+// ParseEventTypeStringSlice converts a list
+func ParseEventTypeStringSlice(eventTypes []string) []EventType {
+	var output []EventType
+	for _, eventTypeStr := range eventTypes {
+		if eventType := eventTypeStrings[eventTypeStr]; eventType != UnknownEventType {
+			output = append(output, eventType)
+		}
+	}
+	return output
 }

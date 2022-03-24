@@ -34,8 +34,9 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 SEC("kprobe/attach_recursive_mnt")
 int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     syscall->mount.src_mnt = (struct mount *)PT_REGS_PARM1(ctx);
     syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM2(ctx);
@@ -64,8 +65,9 @@ int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
 SEC("kprobe/propagate_mnt")
 int kprobe_propagate_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM1(ctx);
     syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM2(ctx);
@@ -92,12 +94,14 @@ int kprobe_propagate_mnt(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_type) {
-    if (retval)
+    if (retval) {
         return 0;
+    }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct dentry *dentry = get_mountpoint_dentry(syscall->mount.dest_mountpoint);
     struct path_key_t path_key = {
@@ -137,8 +141,9 @@ int tracepoint_handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *
 
 int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct mount_event_t event = {
         .syscall.retval = retval,

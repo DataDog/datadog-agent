@@ -8,7 +8,7 @@ package listener
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Launcher summons different protocol specific listeners based on configuration
@@ -17,7 +17,7 @@ type Launcher struct {
 	frameSize        int
 	tcpSources       chan *config.LogSource
 	udpSources       chan *config.LogSource
-	listeners        []restart.Restartable
+	listeners        []startstop.StartStoppable
 	stop             chan struct{}
 }
 
@@ -58,7 +58,7 @@ func (l *Launcher) run() {
 // Stop stops all listeners
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, l := range l.listeners {
 		stopper.Add(l)
 	}

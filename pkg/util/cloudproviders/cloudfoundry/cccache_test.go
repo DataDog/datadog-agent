@@ -31,6 +31,14 @@ func (t testCCClient) ListAllProcessesByQuery(_ url.Values) ([]cfclient.Process,
 func (t testCCClient) ListOrgQuotasByQuery(_ url.Values) ([]cfclient.OrgQuota, error) {
 	return []cfclient.OrgQuota{cfOrgQuota1, cfOrgQuota2}, nil
 }
+func (t testCCClient) ListSidecarsByApp(_ url.Values, guid string) ([]CFSidecar, error) {
+	if guid == "random_app_guid" {
+		return []CFSidecar{cfSidecar1}, nil
+	} else if guid == "guid2" {
+		return []CFSidecar{cfSidecar2}, nil
+	}
+	return nil, nil
+}
 
 func TestCCCachePolling(t *testing.T) {
 	assert.NotZero(t, cc.LastUpdated())
@@ -79,4 +87,16 @@ func TestCCCache_GetCFApplications(t *testing.T) {
 	assert.EqualValues(t, 2, len(cfapps))
 	assert.EqualValues(t, &cfApp1, cfapps[0])
 	assert.EqualValues(t, &cfApp2, cfapps[1])
+}
+
+func TestCCCache_GetSidecars(t *testing.T) {
+	cc.readData()
+	sidecar1, _ := cc.GetSidecars("random_app_guid")
+	assert.EqualValues(t, 1, len(sidecar1))
+	assert.EqualValues(t, &cfSidecar1, sidecar1[0])
+	sidecar2, _ := cc.GetSidecars("guid2")
+	assert.EqualValues(t, 1, len(sidecar2))
+	assert.EqualValues(t, &cfSidecar2, sidecar2[0])
+	_, err := cc.GetSidecars("not-existing-guid")
+	assert.NotNil(t, err)
 }

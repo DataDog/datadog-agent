@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -82,7 +82,7 @@ func (m *mockLauncher) Stop() {
 func (m *mockLauncher) ToLaunchable() Launchable {
 	return Launchable{
 		IsAvailable: m.IsAvailable,
-		Launcher: func() restart.Restartable {
+		Launcher: func() startstop.StartStoppable {
 			m.wg.Done()
 			return m
 		},
@@ -92,7 +92,7 @@ func (m *mockLauncher) ToLaunchable() Launchable {
 func (m *mockLauncher) ToErrLaunchable() Launchable {
 	return Launchable{
 		IsAvailable: m.IsAvailable,
-		Launcher: func() restart.Restartable {
+		Launcher: func() startstop.StartStoppable {
 			m.wg.Done()
 			return nil
 		},

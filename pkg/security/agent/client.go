@@ -33,62 +33,46 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 }
 
 // GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityClient) GenerateActivityDump(tags []string, comm string, timeout int32, withGraph bool, differentiateArgs bool) (string, string, error) {
+func (c *RuntimeSecurityClient) GenerateActivityDump(comm string, timeout int32, withGraph bool, differentiateArgs bool, outputDirectory string, outputFormat string) (*api.SecurityActivityDumpMessage, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
-		Tags:              tags,
+	return apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
 		Comm:              comm,
 		Timeout:           timeout,
 		WithGraph:         withGraph,
 		DifferentiateArgs: differentiateArgs,
+		OutputDirectory:   outputDirectory,
+		OutputFormat:      outputFormat,
 	})
-	if err != nil {
-		return "", "", err
-	}
-
-	return response.OutputFilename, response.GraphFilename, nil
 }
 
 // ListActivityDumps lists the active activity dumps
-func (c *RuntimeSecurityClient) ListActivityDumps() ([]string, error) {
+func (c *RuntimeSecurityClient) ListActivityDumps() (*api.SecurityActivityDumpListMessage, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
-	if err != nil {
-		return nil, err
-	}
-
-	return response.DumpTags, nil
+	return apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(tags []string, comm string) (string, error) {
+func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.SecurityActivityDumpStoppedMessage, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
-		Tags: tags,
+	return apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
 		Comm: comm,
 	})
-	if err != nil {
-		return "", err
-	}
-
-	return response.Error, nil
 }
 
 // GenerateProfile generates a policy file from the provided activity dump
-func (c *RuntimeSecurityClient) GenerateProfile(file string) (string, error) {
+func (c *RuntimeSecurityClient) GenerateProfile(file string) (*api.SecurityProfileGeneratedMessage, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.GenerateProfile(context.Background(), &api.GenerateProfileParams{
+	return apiClient.GenerateProfile(context.Background(), &api.GenerateProfileParams{
 		ActivityDumpFile: file,
 	})
-	if err != nil {
-		return "", err
-	}
+}
 
-	return response.ProfilePath, nil
+// GenerateGraph generates a graph from the provided activity dump
+func (c *RuntimeSecurityClient) GenerateGraph(file string) (*api.SecurityGraphGeneratedMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.GenerateGraph(context.Background(), &api.GenerateGraphParams{
+		ActivityDumpFile: file,
+	})
 }
 
 // GetConfig retrieves the config of the runtime security module
@@ -98,6 +82,12 @@ func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) 
 		return nil, err
 	}
 	return response, nil
+}
+
+// GetConstantFetcherStatus returns the status of the constant fetcher sub-system
+func (c *RuntimeSecurityClient) GetConstantFetcherStatus() (*api.ConstantFetcherStatus, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.GetConstantFetcherStatus(context.Background(), &api.GetConstantFetcherStatusParams{})
 }
 
 // RunSelfTest instructs the system probe to run a self test

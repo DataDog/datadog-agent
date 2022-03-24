@@ -507,7 +507,15 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 				in.AddError((out.DiscardedUntil).UnmarshalJSON(data))
 			}
 		case "process":
-			(out.Process).UnmarshalEasyJSON(in)
+			if in.IsNull() {
+				in.Skip()
+				out.ProcessContext = nil
+			} else {
+				if out.ProcessContext == nil {
+					out.ProcessContext = new(ProcessContextSerializer)
+				}
+				(*out.ProcessContext).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -550,7 +558,11 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 	{
 		const prefix string = ",\"process\":"
 		out.RawString(prefix)
-		(in.Process).MarshalEasyJSON(out)
+		if in.ProcessContext == nil {
+			out.RawString("null")
+		} else {
+			(*in.ProcessContext).MarshalEasyJSON(out)
+		}
 	}
 	out.RawByte('}')
 }

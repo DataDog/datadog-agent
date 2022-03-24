@@ -467,7 +467,7 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "ProcessCacheEntry": {
+    "Process": {
       "required": [
         "uid",
         "gid"
@@ -673,12 +673,12 @@
         },
         "parent": {
           "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ProcessCacheEntry",
+          "$ref": "#/definitions/Process",
           "description": "Parent process"
         },
         "ancestors": {
           "items": {
-            "$ref": "#/definitions/ProcessCacheEntry"
+            "$ref": "#/definitions/Process"
           },
           "type": "array",
           "description": "Ancestor processes"

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -858,7 +858,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	}
 
 	d.serializer.SendSeries(series) //nolint:errcheck
-	log.DebugfServerless("Sending sketches payload : %+v", sketches)
+	log.DebugfServerless("Sending sketches payload : %s", sketches.String())
 	if len(sketches) > 0 {
 		d.serializer.SendSketch(sketches) //nolint:errcheck
 	}

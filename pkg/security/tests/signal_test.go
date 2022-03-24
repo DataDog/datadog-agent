@@ -9,11 +9,12 @@
 package tests
 
 import (
-	"golang.org/x/sys/unix"
-
+	"fmt"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -42,9 +43,17 @@ func TestSignalEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("test_signal_sigusr1", func(t *testing.T) {
+	test.Run(t, "signal-sigusr1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"signal", "sigusr"}
+		envs := []string{}
+
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "signal", "sigusr")
+			cmd := cmdFunc(syscallTester, args, envs)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+
+			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGUSR1), event.Signal.Type, "wrong signal")
@@ -56,9 +65,17 @@ func TestSignalEvent(t *testing.T) {
 		})
 	})
 
-	t.Run("test_signal_eperm", func(t *testing.T) {
+	test.Run(t, "signal-eperm", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"signal", "eperm"}
+		envs := []string{}
+
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "signal", "eperm")
+			cmd := cmdFunc(syscallTester, args, envs)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+
+			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGKILL), event.Signal.Type, "wrong signal")

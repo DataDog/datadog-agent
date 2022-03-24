@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Launcher is in charge of starting and stopping windows event logs tailers
@@ -68,7 +68,7 @@ func (l *Launcher) run() {
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
 		delete(l.tailers, tailer.Identifier())

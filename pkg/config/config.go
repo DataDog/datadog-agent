@@ -231,7 +231,7 @@ func InitConfig(config Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")
-	config.BindEnv("dd_url")
+	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle"})
 	config.SetDefault("proxy", nil)
@@ -290,9 +290,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
-	// Remote config unstable features
-	config.BindEnvAndSetDefault("remote_configuration.unstable.self_signed", false)
-	config.BindEnvAndSetDefault("remote_configuration.unstable.self_signed_root", "")
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -582,7 +579,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
 	// Containerd
-	config.BindEnvAndSetDefault("containerd_namespace", "")
+	config.BindEnvAndSetDefault("containerd_namespace", []string{})
 	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
@@ -657,6 +654,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
 	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
+	config.BindEnvAndSetDefault("cluster_agent.advanced_tagging", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -731,6 +729,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
+	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
+	// this is an internal setting and will not be documented in the config template.
+	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
+	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -882,6 +884,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
+	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
@@ -970,6 +975,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.flush_discarder_window", 3)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.runtime_monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.tags_cardinality", "high")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
@@ -989,8 +995,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
 	config.BindEnv("runtime_security_config.enable_runtime_compiled_constants")
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump_manager.cleanup_period", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", -1)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_output_directory", "")
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
@@ -1358,6 +1370,11 @@ func getMainInfraEndpointWithConfig(config Config) string {
 
 // GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
 func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
+
+	if envVarAreSetAndNotEqual(config, "DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. URL key is set to 'DD_DD_URL' value")
+	}
+
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
 		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
@@ -1367,6 +1384,15 @@ func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (r
 		resolvedDDURL = prefix + DefaultSite
 	}
 	return
+}
+
+// envVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
+func envVarAreSetAndNotEqual(config Config, lhsName string, rhsName string) bool {
+
+	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
+	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
+
+	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
 // GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key

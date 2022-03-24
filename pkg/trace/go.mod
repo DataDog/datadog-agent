@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0
-	github.com/DataDog/datadog-go v4.8.3+incompatible
+	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/Microsoft/go-winio v0.5.1
 	github.com/gogo/protobuf v1.3.2

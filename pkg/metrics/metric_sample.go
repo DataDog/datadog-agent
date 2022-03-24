@@ -24,6 +24,9 @@ const (
 	HistorateType
 	SetType
 	DistributionType
+
+	// NumMetricTypes is the number of metric types; must be the last item here
+	NumMetricTypes
 )
 
 // DistributionMetricTypes contains the MetricTypes that are used for percentiles
@@ -63,12 +66,16 @@ func (m MetricType) String() string {
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
+
 	// GetTags extracts metric tags for context tracking.
 	//
 	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
 	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
 	// should be appended to the metricBuffer.
 	GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator)
+
+	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
+	GetMetricType() MetricType
 }
 
 // MetricSample represents a raw metric sample
@@ -103,6 +110,11 @@ func (m *MetricSample) GetHost() string {
 func (m *MetricSample) GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator) {
 	metricBuffer.Append(m.Tags...)
 	tagger.EnrichTags(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
+}
+
+// GetMetricType implements MetricSampleContext#GetMetricType.
+func (m *MetricSample) GetMetricType() MetricType {
+	return m.Mtype
 }
 
 // Copy returns a deep copy of the m MetricSample

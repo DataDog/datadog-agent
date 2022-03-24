@@ -76,9 +76,9 @@ func (t *telemetry) report() {
 		t.misses,
 		float64(t.misses)/float64(t.elapsed),
 		t.dropped,
-		float64(t.rejected)/float64(t.elapsed),
-		t.rejected,
 		float64(t.dropped)/float64(t.elapsed),
+		t.rejected,
+		float64(t.rejected)/float64(t.elapsed),
 		t.aggregations,
 	)
 }

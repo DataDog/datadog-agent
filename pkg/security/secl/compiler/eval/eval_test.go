@@ -294,6 +294,17 @@ func TestStringMatcher(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
+		{Expr: `process.name =~ "/usr/bin/c$t/test/*"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t/test/**"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t/*"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t/**"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t*"`, Expected: true},
+		{Expr: `process.name =~ "/usr/bin/c*"`, Expected: true},
+		{Expr: `process.name =~ "/usr/bin/l*"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/**"`, Expected: true},
+		{Expr: `process.name =~ "/usr/**"`, Expected: true},
+		{Expr: `process.name =~ "/**"`, Expected: true},
+		{Expr: `process.name =~ "/etc/**"`, Expected: false},
 		{Expr: `process.name =~ ""`, Expected: false},
 		{Expr: `process.name =~ "*"`, Expected: false},
 		{Expr: `process.name =~ "/*"`, Expected: false},

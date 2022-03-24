@@ -226,6 +226,11 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		if err != nil {
 			log.Errorf("Could not zip workload list: %s", err)
 		}
+
+		err = zipProcessChecks(tempDir, hostname, api.GetAPIAddressPort)
+		if err != nil {
+			log.Errorf("Could not zip process agent checks: %s", err)
+		}
 	}
 
 	// auth token permissions info (only if existing)
@@ -335,6 +340,10 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	err = zipServiceStatus(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not export Windows driver status: %s", err)
+	}
+	err = zipDatadogRegistry(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not export Windows Datadog Registry: %s", err)
 	}
 
 	// force a log flush before zipping them
@@ -615,6 +624,48 @@ func zipSecrets(tempDir, hostname string) error {
 	}
 
 	return writeScrubbedFile(f, b.Bytes())
+}
+
+func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url string, err error)) error {
+	addressPort, err := getAddressPort()
+	if err != nil {
+		return fmt.Errorf("wrong configuration to connect to process-agent: %s", err.Error())
+	}
+	checkURL := fmt.Sprintf("http://%s/check/", addressPort)
+
+	zipCheck := func(checkName, setting string) error {
+		if !config.Datadog.GetBool(setting) {
+			return nil
+		}
+
+		filename := fmt.Sprintf("%s_check_output.json", checkName)
+		if err := zipHTTPCallContent(tempDir, hostname, filename, checkURL+checkName); err != nil {
+			_ = log.Error(err)
+			err = ioutil.WriteFile(
+				filepath.Join(tempDir, hostname, "process_check_output.json"),
+				[]byte(fmt.Sprintf("error: process-agent is not running or is unreachable: %s", err.Error())),
+				os.ModePerm,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := zipCheck("process", "process_config.process_collection.enabled"); err != nil {
+		return err
+	}
+
+	if err := zipCheck("container", "process_config.container_collection.enabled"); err != nil {
+		return err
+	}
+
+	if err := zipCheck("process_discovery", "process_config.process_discovery.enabled"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func zipDiagnose(tempDir, hostname string) error {

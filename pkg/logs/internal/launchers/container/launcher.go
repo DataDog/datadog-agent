@@ -9,22 +9,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Launchable is a retryable wrapper for a restartable
 type Launchable struct {
 	IsAvailable func() (bool, *retry.Retrier)
-	Launcher    func() restart.Restartable
+	Launcher    func() startstop.StartStoppable
 }
 
 // Launcher tries to select a container launcher and retry on failure
 type Launcher struct {
 	containerLaunchables []Launchable
-	activeLauncher       restart.Restartable
+	activeLauncher       startstop.StartStoppable
 	stop                 bool
 	sync.Mutex
 }

@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/pkg/errors"
 	"golang.org/x/time/rate"
@@ -116,66 +116,87 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 
 // DumpActivity handle an activity dump request
 func (a *APIServer) DumpActivity(ctx context.Context, params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
-	var filename, graph string
-	var err error
-
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		filename, graph, err = monitor.DumpActivity(params)
+		msg, err := monitor.DumpActivity(params)
 		if err != nil {
-			return nil, err
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityActivityDumpMessage{
-		OutputFilename: filename,
-		GraphFilename:  graph,
-	}, nil
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
-	var activeDumps []string
-	var err error
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		activeDumps, err = monitor.ListActivityDumps(params)
+		msg, err := monitor.ListActivityDumps(params)
 		if err != nil {
-			return nil, err
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityActivityDumpListMessage{
-		DumpTags: activeDumps,
-	}, nil
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 // StopActivityDump stops an active activity dump if it exists
 func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
-	var msg string
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		err := monitor.StopActivityDump(params)
+		msg, err := monitor.StopActivityDump(params)
 		if err != nil {
-			msg = fmt.Sprintf("couldn't stop activity dump: %s", err)
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityActivityDumpStoppedMessage{
-		Error: msg,
-	}, nil
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 // GenerateProfile generates a profile from an activity dump
 func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
-	var output string
-	var err error
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		output, err = monitor.GenerateProfile(params)
+		msg, err := monitor.GenerateProfile(params)
 		if err != nil {
-			return nil, err
+			seclog.Errorf(err.Error())
 		}
+		return msg, nil
 	}
 
-	return &api.SecurityProfileGeneratedMessage{
-		ProfilePath: output,
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// GenerateGraph generates a graph from an activity dump
+func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.GenerateGraph(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// GetConstantFetcherStatus returns the status of the constant fetcher sub-system
+func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.GetConstantFetcherStatusParams) (*api.ConstantFetcherStatus, error) {
+	status, err := a.probe.GetConstantFetcherStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
+	for _, v := range status.Values {
+		constants = append(constants, &api.ConstantValueAndSource{
+			ID:     v.ID,
+			Value:  v.Value,
+			Source: v.FetcherName,
+		})
+	}
+	return &api.ConstantFetcherStatus{
+		Fetchers: status.Fetchers,
+		Values:   constants,
 	}, nil
 }
 

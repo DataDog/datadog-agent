@@ -10,7 +10,7 @@ package modules
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,7 +30,8 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 
 // Process is a module that fetches process level data
 var Process = module.Factory{
-	Name: config.ProcessModule,
+	Name:             config.ProcessModule,
+	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
@@ -114,7 +115,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 func getPids(r *http.Request) ([]int32, error) {
 	contentType := r.Header.Get("Content-Type")
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

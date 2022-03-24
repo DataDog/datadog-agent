@@ -16,7 +16,7 @@ struct proc_cache_t {
     char comm[TASK_COMM_LEN];
 };
 
-static __attribute__((always_inline)) u32 copy_tty_name(char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
+static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
     if (src[0] == 0) {
         return 0;
     }
@@ -39,7 +39,6 @@ void __attribute__((always_inline)) copy_proc_cache_except_comm(struct proc_cach
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
     copy_proc_cache_except_comm(src, dst);
     bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
-    return;
 }
 
 struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
@@ -212,7 +211,6 @@ void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
 
     register_nr(root_nr, namespace_nr);
-    return;
 }
 
 #endif
