@@ -35,7 +35,7 @@ func newGeometricRateLimiter(config geometricRateLimiterConfig) *geometricRateLi
 
 func (r *geometricRateLimiter) keep() bool {
 	r.tick++
-	if 1/float64(r.tick) <= r.currentRateLimit {
+	if 1 <= r.currentRateLimit*float64(r.tick) {
 		r.tick = 0
 		return true
 	}
