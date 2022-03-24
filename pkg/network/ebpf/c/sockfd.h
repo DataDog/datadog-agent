@@ -35,7 +35,7 @@ struct bpf_map_def SEC("maps/pid_fd_by_sock") pid_fd_by_sock = {
     .namespace = "",
 };
 
-static __always_inline void clear_sockfd_maps(struct sock* sock) {
+__attribute__((unused)) static __always_inline void clear_sockfd_maps(struct sock* sock) {
     if (sock == NULL) {
         return;
     }
