@@ -1636,9 +1636,3 @@ func skipIfWindows(t *testing.T) {
 		t.Skip("test unavailable on windows")
 	}
 }
-
-func skipIfNotWindows(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("test only available on windows")
-	}
-}
