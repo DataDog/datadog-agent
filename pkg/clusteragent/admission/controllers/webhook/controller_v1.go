@@ -10,6 +10,7 @@ package webhook
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -244,12 +245,14 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 }
 
 func (c *ControllerV1) getAdmiV1FailurePolicy() admiv1.FailurePolicyType {
-	switch c.config.getFailurePolicy() {
-	case "Ignore", "ignore":
+	policy := strings.ToLower(c.config.getFailurePolicy())
+	switch policy {
+	case "ignore":
 		return admiv1.Ignore
-	case "Fail", "fail":
+	case "fail":
 		return admiv1.Fail
 	default:
+		_ = log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
 		return admiv1.Ignore
 	}
 }
