@@ -69,14 +69,14 @@ directory "/opt/datadog-agent/embedded/include" do
   recursive true
 end
 
-cookbook_file "/opt/datadog-agent/embedded/bin/clang" do
-  source "clang"
+cookbook_file "/opt/datadog-agent/embedded/bin/clang-bpf" do
+  source "clang-bpf"
   mode '0744'
   action :create
 end
 
-cookbook_file "/opt/datadog-agent/embedded/bin/llc" do
-  source "llc"
+cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
+  source "llc-bpf"
   mode '0744'
   action :create
 end

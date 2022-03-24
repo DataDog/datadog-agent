@@ -27,8 +27,8 @@ import (
 
 var (
 	datadogAgentEmbeddedPath = "/opt/datadog-agent/embedded"
-	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang")
-	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc")
+	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang-bpf")
+	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 
 	//go:embed stdarg.h
 	stdargHData []byte

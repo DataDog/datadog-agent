@@ -2,8 +2,8 @@
 .retrieve_sysprobe_deps:
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/bin
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.$ARCH /tmp/clang
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.$ARCH /tmp/llc
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.$ARCH /tmp/clang-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.$ARCH /tmp/llc-bpf
   # Retrieve nikos from S3
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
   - mkdir -p $NIKOS_EMBEDDED_PATH
@@ -76,8 +76,8 @@ tests_ebpf_x64:
     # Copy nikos archive to be extracted in kitchen tests
     - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
      # Copy files needed for runtime compilation
-    - cp /tmp/clang $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang
-    - cp /tmp/llc $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc
+    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
+    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -107,8 +107,8 @@ tests_ebpf_arm64:
     # Copy nikos archive to be extracted in kitchen tests
     - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
     # Copy files needed for runtime compilation
-    - cp /tmp/clang $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang
-    - cp /tmp/llc $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc
+    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
+    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
