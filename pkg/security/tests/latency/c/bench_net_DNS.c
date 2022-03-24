@@ -116,9 +116,6 @@ int nslookup(unsigned char *host, int nb_req)
 {
     unsigned char buf[65536];
     fd_set fds;
-    struct timeval tv; /* select timeout */
-    tv.tv_sec = 5;
-    tv.tv_usec = 0;
 
     /* init sockaddr to DNS server */
     struct sockaddr_in dest;
@@ -155,6 +152,9 @@ int nslookup(unsigned char *host, int nb_req)
         /* select until we can write */
         FD_ZERO(&fds);
         FD_SET(s, &fds);
+        struct timeval tv; /* select timeout */
+        tv.tv_sec = 5;
+        tv.tv_usec = 0;
         int ret = select(s + 1, NULL, &fds, NULL, &tv);
         if (ret < 0) {
             perror("select");
