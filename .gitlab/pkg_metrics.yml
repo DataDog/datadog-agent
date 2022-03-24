@@ -182,8 +182,8 @@ send_pkg_size-a7:
             failures=$((${failures}+$?))
             set -e
 
-            if [[ "$flavor" != "datadog-heroku-agent" ]];
-            then
+            if [[ "$flavor" != "datadog-heroku-agent" ]]; then
+              # We don't build RPM packages for the heroku flavor
               curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
               curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
 
@@ -241,9 +241,9 @@ check_pkg_size-a7:
     MAJOR_VERSION: 7
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
   before_script:
-    # ["datadog-heroku-agent"]="20000000" should probably replaced by "15000000" (or
-    # less if we remove system-probe as we should). "20000000" is needed on the very
-    # first commit until we have a public stable build.
+    # FIXME: ["datadog-heroku-agent"]="20000000" should probably replaced by "15000000"
+    # "20000000" is needed as of now because of a large bump in size in system-probe in 7.35
+    # If this happens often we could exclude system-probe from the heroku build, it's not used.
     - |
         declare -Ar max_sizes=(
             ["datadog-agent"]="15000000"
