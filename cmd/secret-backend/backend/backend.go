@@ -11,7 +11,7 @@ import (
 	"github.com/rapdev-io/datadog-secret-backend/backend/aws"
 	"github.com/rapdev-io/datadog-secret-backend/backend/azure"
 	"github.com/rapdev-io/datadog-secret-backend/backend/file"
-	"github.com/rapdev-io/datadog-secret-backend/backend/vault"
+	"github.com/rapdev-io/datadog-secret-backend/backend/hashicorp"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 )
 
@@ -90,7 +90,7 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 			b.Backends[backendId] = backend
 		}
 	case "hashicorp.vault":
-		backend, err := vault.NewVaultBackend(backendId, config)
+		backend, err := hashicorp.NewVaultBackend(backendId, config)
 		if err != nil {
 			b.Backends[backendId] = NewErrorBackend(backendId, err)
 		} else {

@@ -1,4 +1,4 @@
-package vault
+package hashicorp
 
 import (
 	"github.com/hashicorp/vault/api"
