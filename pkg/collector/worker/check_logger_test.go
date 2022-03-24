@@ -54,14 +54,22 @@ func TestShouldLogNewCheck(t *testing.T) {
 func TestShouldLogLastVerboseLog(t *testing.T) {
 	setUp()
 
-	for idx := 0; idx < 10; idx++ {
+	for idx := 1; idx < 10; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 
-		for logIdx := 1; logIdx < 10; logIdx++ {
+		for logIdx := 0; logIdx < 61; logIdx++ {
+			// Given a CheckLogger
+			checkLogger := CheckLogger{Check: testCheck}
+			// When I start the check
+			checkLogger.CheckStarted()
+			// And increment the CheckStats
 			addExpvarsCheckStats(testCheck)
+			// And the check finishes
+			checkLogger.CheckFinished()
 
-			_, lastVerboseLog := shouldLogCheck(testCheck.ID())
+			lastVerboseLog := checkLogger.lastVerboseLog
 
+			// Then lastVerboseLog should be true for 5th run
 			// initialCheckLoggingSeriesLimit should be 5
 			if logIdx == 5 {
 				assert.True(t, lastVerboseLog, fmt.Sprintf("Loop idx: %d", logIdx))
@@ -79,10 +87,18 @@ func TestShouldLogInitialCheckLoggingSeries(t *testing.T) {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 
 		for logIdx := 1; logIdx < 61; logIdx++ {
+			// Given a CheckLogger
+			checkLogger := CheckLogger{Check: testCheck}
+			// When I start the check
+			checkLogger.CheckStarted()
+			// And increment the CheckStats
 			addExpvarsCheckStats(testCheck)
+			// And the check finishes
+			checkLogger.CheckFinished()
 
-			shouldLog, _ := shouldLogCheck(testCheck.ID())
+			shouldLog := checkLogger.shouldLog
 
+			// Then shouldLog should be true for first five runs and every 20th run
 			// initialCheckLoggingSeriesLimit is 5 and we use 20 as our log limit config value in tests
 			if logIdx <= 5 || logIdx%20 == 0 {
 				assert.True(t, shouldLog, fmt.Sprintf("Loop idx: %d", logIdx))
