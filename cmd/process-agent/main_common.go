@@ -343,7 +343,7 @@ func runAgent(exit chan struct{}) {
 	}
 
 	if err := srv.Shutdown(context.Background()); err != nil {
-		log.Errorf("Error shutdowning expvar server on port %v: %v", expVarPort, err)
+		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
 	}
 }
 
