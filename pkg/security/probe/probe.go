@@ -26,6 +26,7 @@ import (
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"

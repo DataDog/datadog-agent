@@ -9,25 +9,31 @@
 package constantfetch
 
 import (
+	"math"
 	"os"
 
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const offsetGuesserUID = "security-og"
+
 var (
-	// OffsetGuesserMaps all the guessing maps
-	OffsetGuesserMaps = []*manager.Map{
+	offsetGuesserMaps = []*manager.Map{
 		{Name: "pid_offset"},
 	}
 
-	// OffsetGuesserProbes all the guessing probes
-	OffsetGuesserProbes = []*manager.Probe{
+	offsetGuesserProbes = []*manager.Probe{
 		{
-			Section: "kprobe/get_pid_task",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          offsetGuesserUID,
+				EBPFSection:  "kprobe/get_pid_task",
+				EBPFFuncName: "kprobe_get_pid_task",
+			},
 		},
 	}
 )
@@ -44,11 +50,15 @@ func NewOffsetGuesserFetcher(config *config.Config) *OffsetGuesser {
 	return &OffsetGuesser{
 		config: config,
 		manager: &manager.Manager{
-			Maps:   OffsetGuesserMaps,
-			Probes: OffsetGuesserProbes,
+			Maps:   offsetGuesserMaps,
+			Probes: offsetGuesserProbes,
 		},
 		res: make(map[string]uint64),
 	}
+}
+
+func (og *OffsetGuesser) String() string {
+	return "offset-guesser"
 }
 
 func (og *OffsetGuesser) guessPidNumbersOfsset() (uint64, error) {
@@ -106,6 +116,10 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 				Name:  "pid_expected",
 				Value: uint64(os.Getpid()),
 			},
+		},
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
 		},
 	}
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
