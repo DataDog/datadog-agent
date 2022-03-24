@@ -53,6 +53,11 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, proce
 	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true)
 }
 
+// NewMockProvider creates a new provider that will not provide any pipelines.
+func NewMockProvider() Provider {
+	return &provider{}
+}
+
 func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,

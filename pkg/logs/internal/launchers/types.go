@@ -38,6 +38,9 @@ type SourceProvider interface {
 	// required shutdwon of running sources in their own Stop methods.
 	SubscribeForType(sourceType string) (added chan *sources.LogSource, removed chan *sources.LogSource)
 
+	// SubscribeAll returns channels containing all added and removed sources.
+	SubscribeAll() (added chan *sources.LogSource, removed chan *sources.LogSource)
+
 	// GetAddedForType returns channels containing the new added sources matching the provided type.
 	GetAddedForType(sourceType string) chan *sources.LogSource
 }
