@@ -14,48 +14,17 @@ type VaultSessionBackendConfig struct {
 	VaultPassword     string          `mapstructure:"vault_password"`
 	VaultLDAPUserName string          `mapstructure:"vault_ldap_username"`
 	VaultLDAPPassword string          `mapstructure:"vault_ldap_password"`
-	VaultTLS          *VaultTLSConfig `mapstructure:"tls_config,omitempty"`
 }
 
-type VaultTLSConfig struct {
-	CACert     string `mapstructure:"ca_cert"`
-	CAPath     string `mapstructure:"ca_path"`
-	ClientCert string `mapstructure:"client_cert"`
-	ClientKey  string `mapstructure:"client_key"`
-	TLSServer  string `mapstructure:"tls_server"`
-	Insecure   bool   `mapstructure:"insecure"`
-}
-
-func NewVaultConfigFromBackendConfig(backendId string, sessionConfig VaultSessionBackendConfig, vaultAddress string) (api.AuthMethod, *api.Client, error) {
-	config := &api.Config{Address: vaultAddress}
+func NewVaultConfigFromBackendConfig(backendId string, sessionConfig VaultSessionBackendConfig) (api.AuthMethod, error) {
 	var auth api.AuthMethod
-	
-	if sessionConfig.VaultTLS != nil {
-		tlsConfig := &api.TLSConfig{
-			CACert:        sessionConfig.VaultTLS.CACert,
-			CAPath:        sessionConfig.VaultTLS.CAPath,
-			ClientCert:    sessionConfig.VaultTLS.ClientCert,
-			ClientKey:     sessionConfig.VaultTLS.ClientKey,
-			TLSServerName: sessionConfig.VaultTLS.TLSServer,
-			Insecure:      sessionConfig.VaultTLS.Insecure,
-		}
-		err := config.ConfigureTLS(tlsConfig)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	
-	client, err := api.NewClient(config)
-	if err != nil {
-		return nil, nil, err
-	}
-
+	var err error
 	if sessionConfig.VaultRoleId != "" {
 		if sessionConfig.VaultSecretId != "" {
 			secretId := &approle.SecretID{FromString: sessionConfig.VaultSecretId}
 			auth, err = approle.NewAppRoleAuth(sessionConfig.VaultRoleId, secretId)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		}
 	}
@@ -65,7 +34,7 @@ func NewVaultConfigFromBackendConfig(backendId string, sessionConfig VaultSessio
 			password := &userpass.Password{FromString: sessionConfig.VaultPassword}
 			auth, err = userpass.NewUserpassAuth(sessionConfig.VaultUserName, password)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		}
 	}
@@ -75,10 +44,10 @@ func NewVaultConfigFromBackendConfig(backendId string, sessionConfig VaultSessio
 			password := &ldap.Password{FromString: sessionConfig.VaultLDAPPassword}
 			auth, err = ldap.NewLDAPAuth(sessionConfig.VaultLDAPUserName, password)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		}
 	}
 
-	return auth, client, err
+	return auth, err
 }

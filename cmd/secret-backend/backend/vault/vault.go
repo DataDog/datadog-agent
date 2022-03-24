@@ -3,7 +3,7 @@ package vault
 import (
 	"context"
 	"errors"
-
+	"github.com/hashicorp/vault/api"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 	"github.com/rs/zerolog/log"
@@ -15,6 +15,16 @@ type VaultBackendConfig struct {
 	VaultAddress string                    `mapstructure:"vault_address"`
 	SecretPath   string                    `mapstructure:"secret_path"`
 	Secrets      []string                  `mapstructure:"secrets"`
+	VaultTLS     *VaultTLSConfig           `mapstructure:"vault_tls_config"`
+}
+
+type VaultTLSConfig struct {
+	CACert     string `mapstructure:"ca_cert"`
+	CAPath     string `mapstructure:"ca_path"`
+	ClientCert string `mapstructure:"client_cert"`
+	ClientKey  string `mapstructure:"client_key"`
+	TLSServer  string `mapstructure:"tls_server"`
+	Insecure   bool   `mapstructure:"insecure"`
 }
 
 type VaultBackend struct {
@@ -32,7 +42,33 @@ func NewVaultBackend(backendId string, bc map[string]interface{}) (*VaultBackend
 		return nil, err
 	}
 
-	authMethod, client, err := NewVaultConfigFromBackendConfig(backendId, backendConfig.VaultSession, backendConfig.VaultAddress)
+	clientConfig := &api.Config{Address: backendConfig.VaultAddress}
+
+	if backendConfig.VaultTLS != nil {
+		tlsConfig := &api.TLSConfig{
+			CACert:        backendConfig.VaultTLS.CACert,
+			CAPath:        backendConfig.VaultTLS.CAPath,
+			ClientCert:    backendConfig.VaultTLS.ClientCert,
+			ClientKey:     backendConfig.VaultTLS.ClientKey,
+			TLSServerName: backendConfig.VaultTLS.TLSServer,
+			Insecure:      backendConfig.VaultTLS.Insecure,
+		}
+		err := clientConfig.ConfigureTLS(tlsConfig)
+		if err != nil {
+			log.Error().Err(err).Str("backend_id", backendId).
+				Msg("failed to initialize vault tls configuration")
+			return nil, err
+		}
+	}
+
+	client, err := api.NewClient(clientConfig)
+	if err != nil {
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("failed to create vault client")
+		return nil, err
+	}
+
+	authMethod, err := NewVaultConfigFromBackendConfig(backendId, backendConfig.VaultSession)
 	if err != nil {
 		log.Error().Err(err).Str("backend_id", backendId).
 			Msg("failed to initialize vault session")

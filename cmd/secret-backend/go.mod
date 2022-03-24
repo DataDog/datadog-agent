@@ -69,6 +69,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.4.1 // indirect
 	github.com/hashicorp/vault/api/auth/approle v0.1.1 // indirect
+	github.com/hashicorp/vault/api/auth/ldap v0.1.0 // indirect
 	github.com/hashicorp/vault/api/auth/userpass v0.1.0 // indirect
 	github.com/hashicorp/vault/sdk v0.4.1 // indirect
 	github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb // indirect
