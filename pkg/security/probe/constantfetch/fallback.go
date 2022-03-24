@@ -74,6 +74,18 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getDentrySuperBlockOffset(f.kernelVersion)
 	case "pipe_inode_info_bufs_offset":
 		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
+	case "net_device_ifindex_offset":
+		value = getNetDeviceIfindexOffset(f.kernelVersion)
+	case "net_ns_offset":
+		value = getNetNSOffset(f.kernelVersion)
+	case "net_proc_inum_offset":
+		value = getNetProcINumOffset(f.kernelVersion)
+	case "sock_common_skc_net_offset":
+		value = getSockCommonSKCNetOffset(f.kernelVersion)
+	case "socket_sock_offset":
+		value = getSocketSockOffset(f.kernelVersion)
+	case "nf_conn_ct_net_offset":
+		value = getNFConnCTNetOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -121,8 +133,10 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 608
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		sizeOf = 584
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_15):
 		sizeOf = 592
+	case kv.Code >= kernel.Kernel5_15:
+		sizeOf = 632
 	}
 
 	return sizeOf
@@ -188,6 +202,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		}
 	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
 		ttyOffset = 368
+	case kv.Code >= kernel.Kernel5_16:
+		ttyOffset = 416
 	}
 
 	return ttyOffset
@@ -211,6 +227,8 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 368
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_14):
 		nameOffset = 360
+	case kv.Code >= kernel.Kernel5_14:
+		nameOffset = 352
 	}
 
 	return nameOffset
@@ -228,7 +246,14 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {
-	return uint64(48)
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		return 52
+	case kv.Code >= kernel.Kernel5_16:
+		return 60
+	default:
+		return 48
+	}
 }
 
 func getBpfMapNameOffset(kv *kernel.Version) uint64 {
@@ -258,8 +283,12 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 88
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_13):
 		nameOffset = 80
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_15):
 		nameOffset = 80
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		nameOffset = 88
+	case kv.Code >= kernel.Kernel5_16:
+		nameOffset = 96
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		return ErrorSentinel
 	}
@@ -277,7 +306,7 @@ func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		auxOffset = 24
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.Code >= kernel.Kernel5_13:
 		auxOffset = 56
 	}
 
@@ -340,7 +369,7 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsRH7Kernel():
 		nameOffset = 144
 	case kv.IsRH8Kernel():
-		nameOffset = 528
+		nameOffset = 520
 	case kv.IsSLES15Kernel():
 		nameOffset = 256
 	case kv.IsSLES12Kernel():
@@ -360,8 +389,10 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 496
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_13):
 		nameOffset = 504
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_16):
 		nameOffset = 528
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_16:
+		nameOffset = 544
 	}
 
 	return nameOffset
@@ -390,8 +421,10 @@ func getPIDNumbersOffset(kv *kernel.Version) uint64 {
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		pidNumbersOffset = 128
 
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_3):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_0):
 		pidNumbersOffset = 48
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_3):
+		pidNumbersOffset = 56
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_7):
 		pidNumbersOffset = 80
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_7:
@@ -437,13 +470,96 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 		offset = 128
 	case kv.IsRH8Kernel():
 		offset = 120
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		offset = 152
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel5_6):
 		offset = 120
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_8):
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_8) ||
+		kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		offset = 144
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_8:
 		offset = 152
 	}
+
+	return offset
+}
+
+func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
+	offset := uint64(260)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 192
+	case kv.IsRH8Kernel():
+		offset = 264
+	case kv.IsSLES12Kernel():
+		offset = 264
+	case kv.IsSLES15Kernel():
+		offset = 256
+
+	case kv.Code >= kernel.Kernel4_14 && kv.Code < kernel.Kernel5_8:
+		offset = 264
+	case kv.Code >= kernel.Kernel5_8 && kv.Code < kernel.Kernel5_12:
+		offset = 256
+	case kv.Code >= kernel.Kernel5_12:
+		offset = 208
+	}
+
+	return offset
+}
+
+func getNetNSOffset(kv *kernel.Version) uint64 {
+	switch {
+	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
+	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
+	// and is part of master since 5.1
+	case kv.IsRH8Kernel():
+		fallthrough
+	case (kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) && kv.Code.Patch() >= 168) ||
+		(kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() >= 111) ||
+		kv.Code >= kernel.Kernel5_1:
+		return 120
+	default:
+		return 112
+	}
+}
+
+func getNetProcINumOffset(kv *kernel.Version) uint64 {
+	return uint64(72)
+}
+
+func getSockCommonSKCNetOffset(kv *kernel.Version) uint64 {
+	return uint64(48)
+}
+
+func getSocketSockOffset(kv *kernel.Version) uint64 {
+	offset := uint64(32)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 32
+	case kv.IsRH8Kernel():
+		offset = 32
+	case kv.IsSLES12Kernel():
+		offset = 32
+	case kv.IsSLES15Kernel():
+		offset = 24
+
+	case kv.Code >= kernel.Kernel5_3:
+		offset = 24
+	}
+
+	return offset
+}
+
+func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
+	offset := uint64(144)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 240
+	}
+
 	return offset
 }

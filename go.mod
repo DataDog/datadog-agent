@@ -67,7 +67,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
-	github.com/DataDog/ebpf-manager v0.0.0-20220223090948-29871766cdd0
+	github.com/DataDog/ebpf-manager v0.0.0-20220324104039-19ad7d79646d
 	github.com/DataDog/gohai v0.0.0-20220121142033-4006c7a9c63d
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.5
@@ -175,7 +175,7 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
 	github.com/urfave/negroni v1.0.0
-	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
+	github.com/vishvananda/netlink v1.1.1-0.20220316193741-b112db377d18
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v1.2.0

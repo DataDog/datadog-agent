@@ -100,6 +100,11 @@ func sanityChecks(cfg *sconfig.Config) error {
 		cfg.ERPCDentryResolutionEnabled = false
 	}
 
+	if cfg.NetworkEnabled && version.IsRH7Kernel() {
+		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+		cfg.NetworkEnabled = false
+	}
+
 	return nil
 }
 
@@ -194,10 +199,18 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
+	if m.config.NetworkEnabled {
+		if eventTypes, exists := categories[model.NetworkCategory]; exists {
+			for _, eventType := range eventTypes {
+				enabled[eventType] = true
+			}
+		}
+	}
+
 	if m.config.RuntimeEnabled {
 		// everything but FIM
 		for _, category := range model.GetAllCategories() {
-			if category == model.FIMCategory {
+			if category == model.FIMCategory || category == model.NetworkCategory {
 				continue
 			}
 

@@ -15,6 +15,7 @@ func (ev *Event) ResolveFields() {
 	// resolve context fields that are not related to any event type
 	_ = ev.ResolveContainerID(&ev.ContainerContext)
 	_ = ev.ResolveContainerTags(&ev.ContainerContext)
+	_ = ev.ResolveNetworkDeviceIfName(&ev.NetworkContext.Device)
 	_ = ev.ResolveProcessArgs(&ev.ProcessContext.Process)
 	_ = ev.ResolveProcessArgsTruncated(&ev.ProcessContext.Process)
 	_ = ev.ResolveProcessArgv(&ev.ProcessContext.Process)
@@ -52,6 +53,8 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveFileFilesystem(&ev.Chown.File)
 		_ = ev.ResolveChownUID(&ev.Chown)
 		_ = ev.ResolveChownGID(&ev.Chown)
+
+	case "dns":
 
 	case "exec":
 		_ = ev.ResolveFileFieldsUser(&ev.Exec.Process.FileFields)

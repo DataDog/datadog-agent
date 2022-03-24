@@ -11,6 +11,7 @@ package model
 
 import (
 	"fmt"
+	"net"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -135,6 +136,7 @@ type Event struct {
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	SpanContext      SpanContext      `field:"-"`
 	ContainerContext ContainerContext `field:"container"`
+	NetworkContext   NetworkContext   `field:"network"`
 
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
 	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
@@ -162,6 +164,7 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
+	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.36] [Network] A DNS request was sent
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -169,6 +172,8 @@ type Event struct {
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
 	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	NetDevice        NetDeviceEvent        `field:"-"`
+	VethPair         VethPairEvent         `field:"-"`
 }
 
 // GetType returns the event type
@@ -260,8 +265,9 @@ type Process struct {
 	// proc_cache_t
 	FileFields FileFields `field:"file" msg:"file"`
 
-	Pid uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
-	Tid uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
+	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	NetNS uint32 `field:"-" msg:"-"`
 
 	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
 	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
@@ -736,4 +742,74 @@ type SpliceEvent struct {
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	TimeoutRaw       uint64
+}
+
+// NetworkDeviceContext represents the network device context of a network event
+//msgp:ignore NetworkDeviceContext
+type NetworkDeviceContext struct {
+	NetNS   uint32 `field:"-"`
+	IfIndex uint32 `field:"ifindex"`                           // interface ifindex
+	IfName  string `field:"ifname,ResolveNetworkDeviceIfName"` // interface ifname
+}
+
+// IPPortContext is used to hold an IP and Port
+//msgp:ignore IPPortContext
+type IPPortContext struct {
+	IP   net.IP `field:"-"`
+	Port uint16 `field:"port"` // Port number
+}
+
+// NetworkContext represents the network context of the event
+//msgp:ignore NetworkContext
+type NetworkContext struct {
+	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
+
+	L3Protocol  uint16        `field:"l3_protocol"` // l3 protocol of the network packet
+	L4Protocol  uint16        `field:"l4_protocol"` // l4 protocol of the network packet
+	Source      IPPortContext `field:"source"`      // source of the network packet
+	Destination IPPortContext `field:"destination"` // destination of the network packet
+	Size        uint32        `field:"size"`        // size in bytes of the network packet
+}
+
+// DNSEvent represents a DNS event
+//msgp:ignore DNSEvent
+type DNSEvent struct {
+	ID    uint16 `field:"-"`
+	Name  string `field:"question.name"`  // the queried domain name
+	Type  uint16 `field:"question.type"`  // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class"` // the class looked up by the DNS question
+	Size  uint16 `field:"question.size"`  // the total DNS request size in bytes
+	Count uint16 `field:"question.count"` // the total count of questions in the DNS request
+}
+
+// NetDevice represents a network device
+//msgp:ignore NetDevice
+type NetDevice struct {
+	Name        string
+	NetNS       uint32
+	IfIndex     uint32
+	PeerNetNS   uint32
+	PeerIfIndex uint32
+}
+
+// GetKey returns a key to uniquely identify a network device on the system
+func (d NetDevice) GetKey() string {
+	return fmt.Sprintf("%v_%v", d.IfIndex, d.NetNS)
+}
+
+// NetDeviceEvent represents a network device event
+//msgp:ignore NetDeviceEvent
+type NetDeviceEvent struct {
+	SyscallEvent
+
+	Device NetDevice
+}
+
+// VethPairEvent represents a veth pair event
+//msgp:ignore VethPairEvent
+type VethPairEvent struct {
+	SyscallEvent
+
+	HostDevice NetDevice
+	PeerDevice NetDevice
 }

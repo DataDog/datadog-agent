@@ -21,6 +21,16 @@ message SecurityDumpProcessCacheMessage {
     string Filename = 1;
 }
 
+message DumpNetworkNamespaceParams {
+    bool SnapshotInterfaces = 1;
+}
+
+message DumpNetworkNamespaceMessage {
+    string error = 1;
+    string DumpFilename = 2;
+    string GraphFilename = 3;
+}
+
 message GetConfigParams {}
 
 message SecurityConfigMessage {
@@ -120,4 +130,5 @@ service SecurityModule {
     rpc GetConstantFetcherStatus(GetConstantFetcherStatusParams) returns (ConstantFetcherStatus) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
+    rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
 }
