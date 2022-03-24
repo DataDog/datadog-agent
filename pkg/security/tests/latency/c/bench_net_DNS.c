@@ -34,41 +34,41 @@ static struct timespec _ts_avg;
 static int _nb_runs = 0;
 static int _to_skip = 0;
 
-#define TS_START                                                        \
-    {                                                                   \
-        if (clock_gettime(CLOCK_MONOTONIC_RAW, &_ts_start) != 0) {      \
-            perror("clock_gettime start");                              \
-            exit(EXIT_FAILURE);                                         \
-        }                                                               \
+static inline void ts_start(void) {
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &_ts_start) != 0) {
+        perror("clock_gettime start");
+        exit(EXIT_FAILURE);
     }
+    return ;
+}
 
-#define TS_END                                                          \
-    {                                                                   \
-    if (_to_skip) {                                                     \
-        _to_skip--;                                                     \
-    } else {                                                            \
-        if (clock_gettime(CLOCK_MONOTONIC_RAW, &_ts_end) != 0) {        \
-            perror("clock_gettime end: %s");                            \
-            exit(EXIT_FAILURE);                                         \
-        }                                                               \
-        timespecsub(&_ts_end, &_ts_start, &_ts_res);                    \
-        timespecadd(&_ts_tot, &_ts_res, &_ts_tot);                      \
-        if (timespeccmp(&_ts_res, &_ts_min, <)) {                       \
-            _ts_min.tv_sec = _ts_res.tv_sec;                            \
-            _ts_min.tv_nsec = _ts_res.tv_nsec;                          \
-        }                                                               \
-        if (timespeccmp(&_ts_res, &_ts_max, >)) {                       \
-            _ts_max.tv_sec = _ts_res.tv_sec;                            \
-            _ts_max.tv_nsec = _ts_res.tv_nsec;                          \
-        }                                                               \
-        _nb_runs++;                                                     \
-    }                                                                   \
+static inline void ts_end(void) {
+    if (_to_skip) {
+        _to_skip--;
+    } else {
+        if (clock_gettime(CLOCK_MONOTONIC_RAW, &_ts_end) != 0) {
+            perror("clock_gettime end: %s");
+            exit(EXIT_FAILURE);
+        }
+        timespecsub(&_ts_end, &_ts_start, &_ts_res);
+        timespecadd(&_ts_tot, &_ts_res, &_ts_tot);
+        if (timespeccmp(&_ts_res, &_ts_min, <)) {
+            _ts_min.tv_sec = _ts_res.tv_sec;
+            _ts_min.tv_nsec = _ts_res.tv_nsec;
+        }
+        if (timespeccmp(&_ts_res, &_ts_max, >)) {
+            _ts_max.tv_sec = _ts_res.tv_sec;
+            _ts_max.tv_nsec = _ts_res.tv_nsec;
+        }
+        _nb_runs++;
     }
+    return ;
+}
 
-#define TS_CALCUL_AVG                               \
-    {                                               \
-        timespecdiv(&_ts_tot, _nb_runs, &_ts_avg);  \
-    }
+static inline void ts_calcul_avg(void) {
+    timespecdiv(&_ts_tot, _nb_runs, &_ts_avg);
+    return ;
+}
 
 struct dns_header {
     unsigned short id;          // identification number
@@ -165,9 +165,9 @@ int nslookup(unsigned char *host, int nb_req)
         }
 
         /* send pkt */
-        TS_START;
+        ts_start();
         int nbsent = sendto(s, (char *) buf, pktlen, 0, (struct sockaddr *) &dest, sizeof(dest));
-        TS_END;
+        ts_end();
 
         /* check sendto errors */
         if (nbsent < 0) {
@@ -205,7 +205,7 @@ void print_stats(void)
         _nb_runs -= 2;
     } else printf("RESULT OF %i RUNS:\n", _nb_runs);
 
-    TS_CALCUL_AVG;
+    ts_calcul_avg();
     print_counter("MIN", &_ts_min);
     print_counter("MAX", &_ts_max);
     print_counter("AVG", &_ts_avg);
