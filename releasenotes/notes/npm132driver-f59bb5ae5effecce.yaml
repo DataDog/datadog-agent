@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    On Windows, includes NPM driver 1.3.2 which has a fix for a BSOD on system probe shutdown.
+    For Windows, includes NPM driver 1.3.2, which has a fix for a BSOD on system probe shutdown.
