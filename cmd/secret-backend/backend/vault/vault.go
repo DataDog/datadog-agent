@@ -1,11 +1,12 @@
 package vault
 
 import (
+	"context"
 	"errors"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 type VaultBackendConfig struct {
@@ -26,20 +27,34 @@ func NewVaultBackend(backendId string, bc map[string]interface{}) (*VaultBackend
 	backendConfig := VaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.WithError(err).Error("failed to map backend configuration")
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
-	cfg, err := NewVaultConfigFromBackendConfig(backendId, backendConfig.VaultSession)
+	authMethod, client, err := NewVaultConfigFromBackendConfig(backendId, backendConfig.VaultSession, backendConfig.VaultAddress)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"backend_id": backendId,
-		}).WithError(err).Error("failed to initialize vault session")
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("failed to initialize vault session")
 		return nil, err
 	}
 
-	secret, err := cfg.Read(backendConfig.SecretPath)
+	authInfo, err := client.Auth().Login(context.TODO(), authMethod)
 	if err != nil {
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("failed to created auth info")
+		return nil, err
+	}
+	if authInfo == nil {
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("No auth info returned")
+		return nil, errors.New("No auth info returned")
+	}
+
+	secret, err := client.Logical().Read(backendConfig.SecretPath)
+	if err != nil {
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("Failed to read secret")
 		return nil, err
 	}
 	secretValue := make(map[string]string, 0)
