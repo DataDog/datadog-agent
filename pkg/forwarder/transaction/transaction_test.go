@@ -200,7 +200,7 @@ func TestCreateRequestServerlessNoRetry(t *testing.T) {
 	transaction.Payload = &payload
 	transaction.Domain = "example.com"
 	transaction.Endpoint.Route = "/endpoint/test"
-	transaction.CloseAfterCreation = true
+	transaction.Close = true
 	req, err := transaction.createRequest(context.TODO())
 	assert.NotNil(t, req)
 	assert.Nil(t, err)
@@ -213,7 +213,7 @@ func TestCreateRequestServerlessRetry(t *testing.T) {
 	transaction.Payload = &payload
 	transaction.Domain = "example.com"
 	transaction.Endpoint.Route = "/endpoint/test"
-	transaction.CloseAfterCreation = true
+	transaction.Close = true
 	testContext := context.WithValue(context.TODO(), ContextKeyRetry, true)
 	req, err := transaction.createRequest(testContext)
 	assert.NotNil(t, req)

@@ -167,7 +167,7 @@ const (
 type contextKey string
 
 const (
-	// ContextKeyRetry is the key set to the context to indicates whether or not we're currently retrying a failed transcation
+	// ContextKeyRetry is the key set to the context to indicates whether or not we're currently retrying a failed transaction
 	ContextKeyRetry contextKey = "retry"
 )
 
@@ -200,8 +200,8 @@ type HTTPTransaction struct {
 
 	Priority Priority
 
-	// In Serverless mode, requests should not be reused on failure retries
-	CloseAfterCreation bool
+	// Close in Serverless mode, connections should not be reused on failure retries
+	Close bool
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -308,7 +308,7 @@ func (t *HTTPTransaction) createRequest(ctx context.Context) (*http.Request, err
 		return nil, err
 	}
 	req = req.WithContext(ctx)
-	req.Close = t.CloseAfterCreation && getRetryValueFromContext(ctx)
+	req.Close = t.Close && getRetryValueFromContext(ctx)
 	req.Header = t.Headers
 	return req, nil
 }

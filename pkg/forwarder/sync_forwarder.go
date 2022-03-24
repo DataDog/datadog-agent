@@ -25,9 +25,9 @@ type SyncForwarder struct {
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(domainResolvers map[string]resolver.DomainResolver, timeout time.Duration, isServerlessMode bool) *SyncForwarder {
+func NewSyncForwarder(domainResolvers map[string]resolver.DomainResolver, timeout time.Duration, closeConnections bool) *SyncForwarder {
 	options := NewOptionsWithResolvers(domainResolvers)
-	options.ServerlessMode = isServerlessMode
+	options.CloseConnections = closeConnections
 	return &SyncForwarder{
 		defaultForwarder: NewDefaultForwarder(options),
 		client: &http.Client{
@@ -49,11 +49,7 @@ func (f *SyncForwarder) Stop() {
 func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
-			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
-			// Retry once after error
-			// The intake may have closed the connection between Lambda invocations.
-			// If so, the first attempt will fail because the closed connection will still be cached.
-			log.Debug("Retrying transaction")
+			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s, retrying transaction", err)
 			retryContext := context.WithValue(context.Background(), transaction.ContextKeyRetry, true)
 			if err := t.Process(retryContext, f.client); err != nil {
 				log.Errorf("SyncForwarder.sendHTTPTransactions failed to send: %s", err)
