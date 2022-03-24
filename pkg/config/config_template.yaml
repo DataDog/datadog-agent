@@ -2433,6 +2433,14 @@ api_key:
     ## Admission controller's endpoint responsible for handling tags injection requests.
     #
     # endpoint: /injecttags
+
+  ## @param failure_policy - string - optional - default: Ignore
+  ## @env DD_ADMISSION_CONTROLLER_FAILURE_POLICY - string - optional - default: Ignore
+  ## Set the failure policy for dynamic admission control.
+  ## The default of Ignore means that pods will still be admitted even if the webhook is unavailable to inject them.
+  ## Setting to Fail will require the admission controller to be present and pods to be injected before they are allowed to run.
+  #
+  # failure_policy: Ignore
 {{ end -}}
 {{- if .DockerTagging }}
 
