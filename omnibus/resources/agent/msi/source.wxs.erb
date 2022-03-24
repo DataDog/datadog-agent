@@ -79,6 +79,7 @@
     <Property Id="APIKEY" Hidden="yes" />
     <Property Id="SITE" Value="datadoghq.com" />
     <Property Id="FinalizeInstall" Hidden="yes" />
+    <Property Id="NPMFEATURESTATE" />
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
@@ -101,7 +102,9 @@
     <SetProperty Id="PROJECTLOCATIONONCMDLINESLASH" Value="[PROJECTLOCATION]\" Before="AppSearch">PROJECTLOCATION </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINE" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINESLASH" Value="[APPLICATIONDATADIRECTORY]\" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
-
+    
+    <SetProperty Action="SetNPMOff" Id="NPMFEATURESTATE" Before="SetFinalizeProperty" Value="off" Sequence="execute"><![CDATA[not (&NPM = 3)]]></SetProperty>
+    <SetProperty Action="SetNPMOn"  Id="NPMFEATURESTATE" Before="SetFinalizeProperty" Value="on"  Sequence="execute"><![CDATA[(&NPM = 3)]]></SetProperty>
     <!-- This condition allows the install if
         1) the user didn't supply the binary directory on the command line
         2) this is NOT an upgrade
@@ -651,6 +654,7 @@
       This does not affect the final artefact, as it seems to affects only the base string, not the expanded one.
       At runtime this limitation doesn\'t seem to apply.
     -->
+    
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='
             UILevel=[UILevel]
@@ -659,6 +663,7 @@
             DDAGENTUSER_NAME=[DDAGENTUSER_NAME]
             DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]
             SYSPROBE_PRESENT=[SYSPROBE_PRESENT]
+            NPMFEATURE=[NPMFEATURESTATE]
             ADDLOCAL=[ADDLOCAL]
             APIKEY=[APIKEY]
             TAGS=[TAGS]

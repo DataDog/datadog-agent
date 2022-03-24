@@ -145,6 +145,7 @@ bool CustomActionData::parseSysprobeData()
     std::wstring sysprobePresent;
     std::wstring addlocal;
     std::wstring npm;
+    std::wstring npmFeature;
     this->_doInstallSysprobe = false;
     this->_ddnpmPresent = false;
     if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
@@ -172,24 +173,18 @@ bool CustomActionData::parseSysprobeData()
         this->_ddnpmPresent = true;
     }
 
-    // now check to see if we're installing the driver
-    if (!this->value(L"ADDLOCAL", addlocal))
+    
+    if(this->value(L"NPMFEATURE", npmFeature))
     {
-        // should never happen.  But if the addlocalkey isn't there,
-        // don't bother trying
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL not present");
-
-        return true;
-    }
-    WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
-    {
-        // installing all components, do it
-        this->_ddnpmPresent = true;
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    } else if (addlocal.find(L"NPM") != std::wstring::npos) {
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains NPM %S", addlocal.c_str());
-        this->_ddnpmPresent = true;
+        // this property is set to "on" or "off" depending on the desired installed state
+        // of the NPM feature.
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE key is present and (%S)", npmFeature.c_str());
+        if (_wcsicmp(npmFeature.c_str(), L"on") == 0)
+        {
+            this->_ddnpmPresent = true;
+        }
+    } else {
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE not present");
     }
 
     return true;
