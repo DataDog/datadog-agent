@@ -227,6 +227,18 @@ func TestSendMetric(t *testing.T) {
 				{"[DEBUG] sendMetric: metric `snmp.gauge.metric`: unsupported forcedType: invalidForceType", 1},
 			},
 		},
+		{
+			caseName:           "Scaled value",
+			metricName:         "scaled.metric",
+			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			tags:               []string{},
+			options:            checkconfig.MetricsConfigOption{ScaleFactor: 2},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.scaled.metric",
+			expectedValue:      float64(20),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {

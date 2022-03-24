@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -118,6 +119,10 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 	if err != nil {
 		log.Debugf("metric `%s`: failed to convert to float64: %s", metricFullName, err)
 		return
+	}
+
+	if options.ScaleFactor != 0 {
+		floatValue *= float64(options.ScaleFactor)
 	}
 
 	switch forcedType {
