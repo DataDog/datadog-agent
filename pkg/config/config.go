@@ -841,6 +841,9 @@ func InitConfig(config Config) {
 	// Time in seconds
 	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
+	// temporary feature flag until this becomes the only option
+	config.BindEnvAndSetDefault("logs_config.cca_in_ad", false)
+
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
