@@ -164,7 +164,7 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state metri
 
 	cronjobName, id := kubernetes.ParseCronJobForJob(jobName)
 	if cronjobName == "" {
-		log.Debug("%s isn't a valid CronJbo name", jobName)
+		log.Debugf("%q isn't a valid CronJob name", jobName)
 		return
 	}
 
