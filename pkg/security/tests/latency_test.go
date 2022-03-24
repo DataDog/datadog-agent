@@ -26,9 +26,9 @@ var (
 
 // bench induced latency for DNS req
 func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string) {
-	var ruleDefs []*rules.RuleDefinition
 	// do not load module if no rule is provided
 	if rule != nil {
+		var ruleDefs []*rules.RuleDefinition
 		ruleDefs = append(ruleDefs, rule)
 		test, err := newTestModule(t, nil, ruleDefs,
 			testOpts{enableNetwork: true, eventsCountThreshold: 1000000})
@@ -42,7 +42,7 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 	cmd := exec.Command("taskset", "-c", fmt.Sprint(coreID),
 		executable, host, fmt.Sprint(nbRuns), fmt.Sprint(nbSkips))
 	output, err := cmd.CombinedOutput()
-	fmt.Printf("Output:\n%s", output)
+	t.Log("Output:\n%s", output)
 	if err != nil {
 		t.Fatal(err)
 	}
