@@ -88,6 +88,7 @@ var flareCmd = &cobra.Command{
 }
 
 type profileCollector func(prefix, debugURL string, cpusec int, target *flare.ProfileData) error
+type agentProfileCollector func(pdata *flare.ProfileData, seconds int, c profileCollector) error
 
 func readProfileData(pdata *flare.ProfileData, seconds int, collector profileCollector) error {
 	prevSettings, err := setRuntimeProfilingSettings()
@@ -98,7 +99,7 @@ func readProfileData(pdata *flare.ProfileData, seconds int, collector profileCol
 
 	agentCollectors := []struct {
 		name string
-		fn   func(pdata *flare.ProfileData, seconds int, c profileCollector) error
+		fn   agentProfileCollector
 	}{
 		{
 			name: "core",
