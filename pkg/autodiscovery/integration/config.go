@@ -74,7 +74,7 @@ type Config struct {
 	// for service configs)
 	ServiceID string `json:"-"` // (include in digest: true)
 
-	// TaggerEntity is the tagger entity ID
+	// TaggerEntity is the tagger entity ID, set only for service configs
 	TaggerEntity string `json:"-"` // (include in digest: false)
 
 	// ClusterCheck is cluster-check configuration flag
@@ -183,6 +183,11 @@ func (c *Config) IsCheckConfig() bool {
 // IsLogConfig returns true if config contains a logs config.
 func (c *Config) IsLogConfig() bool {
 	return c.LogsConfig != nil
+}
+
+// IsBareConfig returns true if this is a bare config
+func (c *Config) IsBareConfig() bool {
+	return c.Provider == "bare"
 }
 
 // HasFilter returns true if metrics or logs collection must be disabled for this config.

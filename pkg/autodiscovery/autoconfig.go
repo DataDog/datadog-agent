@@ -62,6 +62,10 @@ type AutoConfig struct {
 	delService         chan listeners.Service
 	store              *store
 	m                  sync.RWMutex
+
+	// lastBareServices is the list of bare services last time this was checked
+	lastBareServices []string
+
 	// ranOnce is an atomic uint32 set to 1 once the AutoConfig has been executed
 	ranOnce uint32
 }
@@ -102,6 +106,12 @@ func (ac *AutoConfig) serviceListening() {
 	tagFreshnessTicker := time.NewTicker(15 * time.Second) // we can miss tags for one run
 	defer tagFreshnessTicker.Stop()
 
+	// this must be greater than or equal to the poll interval of every config
+	// poller, as a service is considered bare when this ticker has ticked
+	// _twice_ with no associated templates.
+	bareServiceTicker := time.NewTicker(15 * time.Second)
+	defer bareServiceTicker.Stop()
+
 	for {
 		select {
 		case <-ac.listenerStop:
@@ -117,6 +127,8 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processDelService(svc)
 		case <-tagFreshnessTicker.C:
 			ac.checkTagFreshness(ctx)
+		case <-bareServiceTicker.C:
+			ac.checkBareServices(ctx)
 		}
 	}
 }
@@ -140,6 +152,53 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 		ac.processDelService(service)
 		ac.processNewService(ctx, service)
 	}
+}
+
+// checkBareServices looks for services that have no configs, and eventually
+// schedules an "empty" config for such services.
+func (ac *AutoConfig) checkBareServices(ctx context.Context) {
+	bareServices := []string{}
+
+	// wasBare checks the lastBareService list to see if this service was
+	// bare on the last run of this cutnion.
+	wasBare := func(serviceID string) bool {
+		for _, s := range ac.lastBareServices {
+			if s == serviceID {
+				return true
+			}
+		}
+		return false
+	}
+
+	// isBare checks if the service is currently bare (has no configs)
+	isBare := func(serviceID string) bool {
+		return len(ac.store.getConfigsForService(serviceID)) == 0
+	}
+
+	// check if services tags are up to date
+	for _, svc := range ac.store.getServices() {
+		serviceID := svc.GetServiceID()
+
+		if isBare(serviceID) {
+			bareServices = append(bareServices, serviceID)
+
+			// if this service was bare in the previous iteration, too, then it
+			// is unlikely to ever be matched with a user-provided template and
+			// we will send a bare config.
+			if wasBare(serviceID) {
+				bareTpl := integration.Config{Provider: "bare"}
+				resolvedConfig, err := ac.resolveTemplateForService(bareTpl, svc)
+				if err != nil {
+					continue
+				}
+
+				// ask the Collector to schedule the checks
+				ac.schedule([]integration.Config{resolvedConfig})
+			}
+		}
+	}
+
+	ac.lastBareServices = bareServices
 }
 
 // Stop just shuts down AutoConfig in a clean way.

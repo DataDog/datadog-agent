@@ -78,7 +78,9 @@ It can notify in three circumstances:
 
 1. When a config provider detects a non-template configuration, that is published immediately by the metascheduler.
 2. Whenever template configurations or services change, these are reconciled by matching AD identifiers, any new or removed configs are published by the metascheduler.
-3. For every service, a "service config" -- one with no provider and no configuration -- is published by the metascheduler.
+3. For services that have no matching template, a "bare config" is published.
+   Such configs can be identified by `Provider: "bare"`, and can be used for "automatic" behavior such as logging all containers.
+4. For every service, a "service config" -- one with no provider and no configuration -- is published by the metascheduler.
    Only service configs have an entity defined.
 
 ## Resolving Templates

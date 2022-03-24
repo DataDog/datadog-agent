@@ -325,6 +325,77 @@ func TestResolveTemplate(t *testing.T) {
 	assert.Len(t, res, 1)
 }
 
+type callbackScheduler struct {
+	schedule   func([]integration.Config)
+	unschedule func([]integration.Config)
+}
+
+func (sch *callbackScheduler) Schedule(cfgs []integration.Config) {
+	if sch.schedule != nil {
+		sch.schedule(cfgs)
+	}
+}
+
+func (sch *callbackScheduler) Unschedule(cfgs []integration.Config) {
+	if sch.unschedule != nil {
+		sch.unschedule(cfgs)
+	}
+}
+
+func (sch *callbackScheduler) Stop() {}
+
+func TestBareConfigs(t *testing.T) {
+	ctx := context.Background()
+
+	setup := func() (*AutoConfig, chan integration.Config) {
+		sch := scheduler.NewMetaScheduler()
+		scheduled := make(chan integration.Config, 10)
+		sch.Register("test", &callbackScheduler{schedule: func(cfgs []integration.Config) {
+			for _, cfg := range cfgs {
+				scheduled <- cfg
+			}
+		}})
+		ac := NewAutoConfig(sch)
+		return ac, scheduled
+	}
+
+	t.Run("no services -> nothing scheduled", func(t *testing.T) {
+		ac, scheduled := setup()
+		ac.checkBareServices(ctx)
+		ac.checkBareServices(ctx)
+		require.Equal(t, 0, len(scheduled))
+	})
+
+	t.Run("service with configs -> nothing scheduled", func(t *testing.T) {
+		ac, scheduled := setup()
+		svc := &dummyService{ID: "test-svc"}
+		ac.store.setServiceForEntity(svc, svc.GetServiceID())
+		ac.store.addConfigForService(svc.GetServiceID(), integration.Config{})
+		ac.checkBareServices(ctx)
+		ac.checkBareServices(ctx)
+		require.Equal(t, 0, len(scheduled))
+	})
+
+	t.Run("service without config -> bare config scheduled on second call", func(t *testing.T) {
+		ac, scheduled := setup()
+		svc := &dummyService{ID: "test-svc"}
+		ac.store.setServiceForEntity(svc, svc.GetServiceID())
+		ac.checkBareServices(ctx)
+		require.Equal(t, 0, len(scheduled))
+		ac.checkBareServices(ctx)
+		require.Equal(t, 1, len(scheduled))
+		cfg := <-scheduled
+		require.Equal(t, "bare", cfg.Provider)
+		require.Equal(t, []integration.Data{}, cfg.Instances)
+		require.Nil(t, cfg.InitConfig)
+		require.Nil(t, cfg.MetricConfig)
+		require.Nil(t, cfg.LogsConfig)
+		require.Equal(t, svc.ID, cfg.ServiceID)
+		require.Equal(t, "", cfg.TaggerEntity)
+		require.Equal(t, "", cfg.Source)
+	})
+}
+
 func countLoadedConfigs(ac *AutoConfig) int {
 	count := -1 // -1 would indicate f was not called
 	ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {

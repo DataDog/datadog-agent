@@ -66,6 +66,13 @@ func TestIsLogConfig(t *testing.T) {
 	assert.True(t, config.IsLogConfig())
 }
 
+func TestIsBareConfig(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsBareConfig())
+	config.Provider = "bare"
+	assert.True(t, config.IsBareConfig())
+}
+
 func TestIsCheckConfig(t *testing.T) {
 	config := &Config{}
 	assert.False(t, config.IsCheckConfig())

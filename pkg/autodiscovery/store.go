@@ -63,6 +63,14 @@ func (s *store) addConfigForService(serviceEntity string, config integration.Con
 	}
 }
 
+// getConfigsForService returns the slice of integration.Config's for the given
+// service, or nil if there are none.  This value must not be modified.
+func (s *store) getConfigsForService(serviceEntity string) []integration.Config {
+	s.m.RLock()
+	defer s.m.RUnlock()
+	return s.serviceToConfigs[serviceEntity]
+}
+
 // removeConfigsForTemplate removes all configs for a specified template, returning
 // those configs
 func (s *store) removeConfigsForTemplate(templateDigest string) []integration.Config {
