@@ -34,12 +34,12 @@ __attribute__((always_inline)) u32 get_flow_pid(struct pid_route_t *key) {
     return *value;
 }
 
-__attribute__((always_inline)) u16 get_family_from_sock(struct sock *sk) {
-    u64 sock_sk_family_offset;
-    LOAD_CONSTANT("sock_sk_family_offset", sock_sk_family_offset);
+__attribute__((always_inline)) u16 get_family_from_sock_common(struct sock_common *sk) {
+    u64 sock_common_skc_family_offset;
+    LOAD_CONSTANT("sock_common_skc_family_offset", sock_common_skc_family_offset);
 
     u16 family;
-    bpf_probe_read(&family, sizeof(family), (void*)sk + sock_sk_family_offset);
+    bpf_probe_read(&family, sizeof(family), (void*)sk + sock_common_skc_family_offset);
     return family;
 }
 
@@ -75,13 +75,13 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
     struct pid_route_t key = {};
     union flowi_uli uli;
 
-    u16 family = get_family_from_sock(sk);
+    u16 family = get_family_from_sock_common((void *)sk);
     if (family == AF_INET6) {
         bpf_probe_read(&key.addr, sizeof(u64) * 2, (void *)fl + get_flowi6_saddr_offset());
         bpf_probe_read(&uli, sizeof(uli), (void *)fl + get_flowi6_uli_offset());
         bpf_probe_read(&key.port, sizeof(key.port), &uli.ports.sport);
     } else if (family == AF_INET) {
-        bpf_probe_read(&key.addr, sizeof(key.addr), (void *)fl + get_flowi6_saddr_offset());
+        bpf_probe_read(&key.addr, sizeof(u32), (void *)fl + get_flowi4_saddr_offset());
         bpf_probe_read(&uli, sizeof(uli), (void *)fl + get_flowi4_uli_offset());
         bpf_probe_read(&key.port, sizeof(key.port), &uli.ports.sport);
     } else {
