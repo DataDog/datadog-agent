@@ -49,6 +49,7 @@ func CreateInferredSpanFromAPIGatewayEvent(
 	}
 
 	inferredSpan.Span = &pb.Span{}
+	inferredSpan.Span.Name = "aws.apigateway"
 	inferredSpan.Span.Service = requestContext.Domain
 	inferredSpan.Span.Resource = attributes.HttpMethod + " " + attributes.Path
 	inferredSpan.Span.Start = requestContext.RequestTimeEpoch / 1000
