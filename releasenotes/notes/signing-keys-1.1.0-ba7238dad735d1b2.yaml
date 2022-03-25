@@ -9,5 +9,5 @@
 enhancements:
   - |
     The datadog-agent, datadog-iot-agent and datadog-dogstatsd deb packages
-    now have versioned weak dependency on the datadog-signing-keys package
-    version 1.1.0, instead of unversioned weak dependency.
+    now have a versioned weak dependency on the datadog-signing-keys package
+    version 1.1.0, instead of an unversioned weak dependency.
