@@ -3144,7 +3144,7 @@ api_key:
 
     ## @param report_quantiles - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
-    ## DEPRECATED: [v7.36] Use `summaries.mode` instead. Will be removed in v7.37.
+    ## DEPRECATED: [v7.36 / v6.36] Use `summaries.mode` instead. Will be removed in v7.37 / 6.36.
     ## Whether to report quantile metrics for OTLP Summary points.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
     #
@@ -3207,7 +3207,7 @@ api_key:
         ## @env DD_OTLP_CONFIG_METRICS_SUMMARIES_MODE - string - optional - default: gauges
         ## How to report summaries. Valid values are:
         ##
-        ## - `noquantiles` to no report quantile metrics.
+        ## - `noquantiles` to not report quantile metrics.
         ## - `gauges` to report one gauge metric per quantile.
         #
         # mode: gauges

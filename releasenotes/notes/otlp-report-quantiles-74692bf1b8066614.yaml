@@ -8,4 +8,4 @@
 ---
 deprecations:
   - |
-    OTLP ingest: ``metrics.report_quantiles`` has been deprecated in favor of ``metrics.summaries.mode``. ``metrics.report_quantiles`` will be removed in v7.37.
+    OTLP ingest: ``metrics.report_quantiles`` has been deprecated in favor of ``metrics.summaries.mode``. ``metrics.report_quantiles`` will be removed in v7.37 / v6.37.
