@@ -1,6 +1,7 @@
 package uptane
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -150,6 +151,7 @@ func TestPartialClientVerifyInvalidRotation(t *testing.T) {
 	testRepository2 := newTestRepository(2, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 
 	err = client.Update(testRepository2.toPartialUpdate())
+	// TODO in the whole file: use "assert.ErrorAs" with specific error type
 	assert.Error(t, err)
 	_, err = client.Targets()
 	assert.Error(t, err)
@@ -157,9 +159,9 @@ func TestPartialClientVerifyInvalidRotation(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestPartialClientVerifyUnsignedTarget tests that the partial uptane client
+// TestPartialClientRejectsUnsignedTarget tests that the partial uptane client
 // does not accept targets which are not listed in the targets metadata file
-func TestPartialClientVerifyUnsignedTarget(t *testing.T) {
+func TestPartialClientRejectsUnsignedTarget(t *testing.T) {
 	files := []*pbgo.File{
 		{Path: "datadog/2/APM_SAMPLING/id/1", Raw: []byte("mAlIcIoUs cOnTeNt!!")},
 	}
@@ -169,6 +171,30 @@ func TestPartialClientVerifyUnsignedTarget(t *testing.T) {
 	repository := newTestRepository(1, nil, directorTargetMetadata, files)
 	config.Datadog.Set("remote_configuration.director_root", repository.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", repository.configRoot)
+
+	client, err := NewPartialClient()
+	require.NoError(t, err)
+
+	err = client.Update(repository.toPartialUpdate())
+	errInvalid := &ErrInvalid{}
+	require.ErrorAs(t, err, &errInvalid)
+}
+
+// TestPartialClientRejectsInvalidSignature tests that the partial uptane client
+// rejects target metadata with an invalid signature
+func TestPartialClientRejectsInvalidSignature(t *testing.T) {
+	_, targetFileMeta := generateTarget()
+	directorTargetMetadata := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
+	}
+
+	repository := newTestRepository(1, nil, directorTargetMetadata, nil)
+	config.Datadog.Set("remote_configuration.director_root", repository.directorRoot)
+	config.Datadog.Set("remote_configuration.config_root", repository.configRoot)
+
+	// changing the signature to make it invalid
+	repository.directorTargets = regexp.MustCompile(`"sig":"[a-f0-9]{6}`).
+		ReplaceAll(repository.directorTargets, []byte(`"sig":"abcdef`))
 
 	client, err := NewPartialClient()
 	require.NoError(t, err)
