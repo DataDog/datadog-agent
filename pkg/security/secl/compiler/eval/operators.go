@@ -13,7 +13,7 @@ type OpOverrides struct {
 	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
 }
 
-// return whether a arithmetic operation is deterministic
+// return whether an arithmetic operation is deterministic
 func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
@@ -56,18 +56,18 @@ func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
-	var arrayOp func(a string, b string) bool
+	var op func(a string, b string) bool
 
 	if a.stringMatcher != nil {
-		arrayOp = func(as string, bs string) bool {
+		op = func(as string, bs string) bool {
 			return a.stringMatcher.Matches(bs)
 		}
 	} else if b.stringMatcher != nil {
-		arrayOp = func(as string, bs string) bool {
+		op = func(as string, bs string) bool {
 			return b.stringMatcher.Matches(as)
 		}
 	} else {
-		arrayOp = func(as string, bs string) bool {
+		op = func(as string, bs string) bool {
 			return as == bs
 		}
 	}
@@ -76,7 +76,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb(ctx))
+			return op(ea(ctx), eb(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -90,7 +90,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.Value, b.Value
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, eb),
+			Value:           op(ea, eb),
 			Weight:          a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -106,7 +106,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb)
+			return op(ea(ctx), eb)
 		}
 
 		return &BoolEvaluator{
@@ -125,7 +125,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
+		return op(ea, eb(ctx))
 	}
 
 	return &BoolEvaluator{
