@@ -9,19 +9,16 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,7 +28,7 @@ import (
 type RuntimeSecurityAgent struct {
 	hostname      string
 	reporter      event.Reporter
-	conn          *grpc.ClientConn
+	client        *RuntimeSecurityClient
 	running       atomic.Value
 	wg            sync.WaitGroup
 	connected     atomic.Value
@@ -43,28 +40,21 @@ type RuntimeSecurityAgent struct {
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
 func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter, endpoints *config.Endpoints) (*RuntimeSecurityAgent, error) {
-	socketPath := coreconfig.Datadog.GetString("runtime_security_config.socket")
-	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.socket must be set")
-	}
-
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
-		return net.Dial("unix", url)
-	}))
+	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	tel, err := newTelemetry()
+	telemetry, err := newTelemetry()
 	if err != nil {
 		return nil, errors.Errorf("failed to initialize the telemetry reporter")
 	}
 
 	return &RuntimeSecurityAgent{
-		conn:      conn,
+		client:    client,
 		reporter:  reporter,
 		hostname:  hostname,
-		telemetry: tel,
+		telemetry: telemetry,
 		endpoints: endpoints,
 	}, nil
 }
@@ -85,14 +75,13 @@ func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.cancel()
 	rsa.running.Store(false)
 	rsa.wg.Wait()
-	rsa.conn.Close()
+	rsa.client.Close()
 }
 
 // StartEventListener starts listening for new events from system-probe
 func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	rsa.wg.Add(1)
 	defer rsa.wg.Done()
-	apiClient := api.NewSecurityModuleClient(rsa.conn)
 
 	rsa.connected.Store(false)
 
@@ -100,7 +89,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
-		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
+		stream, err := rsa.client.GetEvents()
 		if err != nil {
 			rsa.connected.Store(false)
 
@@ -154,11 +143,20 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 
 // GetStatus returns the current status on the agent
 func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
-	return map[string]interface{}{
+	base := map[string]interface{}{
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
 		"endpoints":     rsa.endpoints.GetStatus(),
 	}
+
+	if rsa.client != nil {
+		cfStatus, err := rsa.client.GetConstantFetcherStatus()
+		if err == nil {
+			base["constantFetchers"] = cfStatus
+		}
+	}
+
+	return base
 }
 
 // newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs

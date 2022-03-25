@@ -12,6 +12,16 @@ Runtime Security
   {{- end }}
   Connected: {{.connected}}
   Events received: {{.eventReceived}}
+  {{ if .constantFetchers }}
+  Available constant fetchers:
+  {{- range $fetcher := .constantFetchers.Fetchers }}
+    - {{ $fetcher }}
+  {{- end }}
+  Constants:
+  {{- range $constant := .constantFetchers.Values }}
+    - {{ $constant.Id }} = {{ $constant.Value }} (from {{ $constant.Source }})
+  {{- end }}
+  {{- end }}
   {{- end }}
 {{- end }}
 

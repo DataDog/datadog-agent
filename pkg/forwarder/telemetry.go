@@ -39,6 +39,12 @@ var (
 		[]string{"domain", "endpoint"}, "Transaction retry count")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
+	tlmRetryQueueDurationCapacity = telemetry.NewGauge("transactions", "retry_queue_duration_capacity_secs",
+		[]string{"agent", "domain"}, "How much data expressed as a duration can be buffered in the retry queue")
+	tlmRetryQueueDurationBytesPerSec = telemetry.NewGauge("transactions", "retry_queue_duration_bytes_per_sec",
+		[]string{"agent", "domain"}, "The number of bytes per second the forwarder received for this domain")
+	tlmRetryQueueDurationCapacityBytes = telemetry.NewGauge("transactions", "retry_queue_duration_capacity_bytes",
+		[]string{"agent", "domain"}, "How much data expressed as a number of bytes can be buffered in the retry queue")
 )
 
 func init() {

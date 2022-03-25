@@ -7,6 +7,7 @@ package rules
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -18,10 +19,38 @@ import (
 // MacroID represents the ID of a macro
 type MacroID = string
 
+// CombinePolicy represents the policy to use to combine rules and macros
+type CombinePolicy = string
+
+// Combine policies
+const (
+	NoPolicy       CombinePolicy = ""
+	MergePolicy                  = "merge"
+	OverridePolicy               = "override"
+)
+
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
-	ID         MacroID `yaml:"id"`
-	Expression string  `yaml:"expression"`
+	ID         MacroID       `yaml:"id"`
+	Expression string        `yaml:"expression"`
+	Values     []string      `yaml:"values"`
+	Combine    CombinePolicy `yaml:"combine"`
+}
+
+// MergeWith merges macro m2 into m
+func (m *MacroDefinition) MergeWith(m2 *MacroDefinition) error {
+	switch m2.Combine {
+	case MergePolicy:
+		if m.Expression != "" || m2.Expression != "" {
+			return &ErrMacroLoad{Definition: m2, Err: ErrCannotMergeExpression}
+		}
+		m.Values = append(m.Values, m2.Values...)
+	case OverridePolicy:
+		m.Values = m2.Values
+	default:
+		return &ErrMacroLoad{Definition: m2, Err: ErrInternalIDConflict}
+	}
+	return nil
 }
 
 // Macro describes a macro of a ruleset
@@ -35,11 +64,14 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID          RuleID            `yaml:"id"`
-	Version     string            `yaml:"version"`
-	Expression  string            `yaml:"expression"`
-	Description string            `yaml:"description"`
-	Tags        map[string]string `yaml:"tags"`
+	ID          RuleID             `yaml:"id"`
+	Version     string             `yaml:"version"`
+	Expression  string             `yaml:"expression"`
+	Description string             `yaml:"description"`
+	Tags        map[string]string  `yaml:"tags"`
+	Disabled    bool               `yaml:"disabled"`
+	Combine     CombinePolicy      `yaml:"combine"`
+	Actions     []ActionDefinition `yaml:"actions"`
 	Policy      *Policy
 }
 
@@ -52,6 +84,54 @@ func (rd *RuleDefinition) GetTags() []string {
 			fmt.Sprintf("%s:%s", k, v))
 	}
 	return tags
+}
+
+// MergeWith merges rule rd2 into rd
+func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
+	switch rd2.Combine {
+	case OverridePolicy:
+		rd.Expression = rd2.Expression
+	default:
+		if !rd2.Disabled {
+			return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
+		}
+	}
+	rd.Disabled = rd2.Disabled
+	return nil
+}
+
+// ActionDefinition describes a rule action section
+type ActionDefinition struct {
+	Set *SetDefinition `yaml:"set"`
+}
+
+// Check returns an error if the action in invalid
+func (a *ActionDefinition) Check() error {
+	if a.Set == nil {
+		return errors.New("missing 'set' section in action")
+	}
+
+	if a.Set.Name == "" {
+		return errors.New("action name is empty")
+	}
+
+	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+		return errors.New("either 'value' or 'field' must be specified")
+	}
+
+	return nil
+}
+
+// Scope describes the scope variables
+type Scope string
+
+// SetDefinition describes the 'set' section of a rule action
+type SetDefinition struct {
+	Name   string      `yaml:"name"`
+	Value  interface{} `yaml:"value"`
+	Field  string      `yaml:"field"`
+	Append bool        `yaml:"append"`
+	Scope  Scope       `yaml:"scope"`
 }
 
 // Rule describes a rule of a ruleset
@@ -74,10 +154,12 @@ type RuleSet struct {
 	loadedPolicies   map[string]string
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
-	macros           map[eval.RuleID]*Macro
+	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
 	listeners        []RuleSetListener
+	globalVariables  eval.GlobalVariables
+	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger Logger
@@ -123,24 +205,25 @@ func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
 func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
+	var err error
+
 	if _, exists := rs.opts.Macros[macroDef.ID]; exists {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("multiple definition with the same ID")}
 	}
 
-	macro := &Macro{
-		Macro: &eval.Macro{
-			ID:         macroDef.ID,
-			Expression: macroDef.Expression,
-		},
-		Definition: macroDef,
-	}
+	macro := &Macro{Definition: macroDef}
 
-	if err := macro.Parse(); err != nil {
-		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.Wrap(err, "syntax error")}
-	}
-
-	if err := macro.GenEvaluator(rs.model, &rs.opts.Opts); err != nil {
-		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.Wrap(err, "compilation error")}
+	switch {
+	case macroDef.Expression != "" && len(macroDef.Values) > 0:
+		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
+	case macroDef.Expression != "":
+		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, &rs.opts.Opts); err != nil {
+			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
+		}
+	default:
+		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, &rs.opts.Opts); err != nil {
+			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
+		}
 	}
 
 	rs.opts.AddMacro(macro.Macro)
@@ -186,6 +269,10 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
+	if ruleDef.Disabled {
+		return nil, nil
+	}
+
 	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == ruleDef.ID {
 			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrInternalIDConflict}
@@ -246,6 +333,19 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
 	rs.rules[ruleDef.ID] = rule
+
+	// Generate evaluator for fields that are used in variables
+	for _, action := range rule.Definition.Actions {
+		if action.Set != nil && action.Set.Field != "" {
+			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
+				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+				if err != nil {
+					return nil, err
+				}
+				rs.fieldEvaluators[action.Set.Field] = evaluator
+			}
+		}
+	}
 
 	return rule.Rule, nil
 }
@@ -353,6 +453,45 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	return true, nil
 }
 
+func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
+	for _, action := range rule.Definition.Actions {
+		switch {
+		case action.Set != nil:
+			name := string(action.Set.Scope)
+			if name != "" {
+				name += "."
+			}
+			name += action.Set.Name
+
+			variable, found := rs.opts.Variables[name]
+			if !found {
+				return fmt.Errorf("unknown variable: %s", name)
+			}
+
+			if mutable, ok := variable.(eval.MutableVariable); ok {
+				value := action.Set.Value
+				if field := action.Set.Field; field != "" {
+					if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
+						value = evaluator.Eval(ctx)
+					}
+				}
+
+				if action.Set.Append {
+					if err := mutable.Append(ctx, value); err != nil {
+						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
+					}
+				} else {
+					if err := mutable.Set(ctx, value); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event.GetPointer())
@@ -373,6 +512,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
+
+			if err := rs.runRuleActions(ctx, rule); err != nil {
+				rs.logger.Errorf("Error while executing rule actions: %s", err)
+			}
 		}
 	}
 
@@ -461,9 +604,10 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		opts:             opts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*Rule),
-		macros:           make(map[eval.RuleID]*Macro),
 		loadedPolicies:   make(map[string]string),
 		logger:           logger,
 		pool:             eval.NewContextPool(),
+		fieldEvaluators:  make(map[string]eval.Evaluator),
+		scopedVariables:  make(map[Scope]VariableProvider),
 	}
 }

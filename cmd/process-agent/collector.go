@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type checkResult struct {
@@ -156,6 +157,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
+	checks.StoreCheckOutput(c.Name(), messages)
 	l.messagesToResults(start, c.Name(), messages, results)
 
 	if !c.RealTime() {
@@ -175,10 +177,14 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 		return
 	}
 	l.messagesToResults(start, c.Name(), run.Standard, results)
-	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
-
 	if options.RunStandard {
+		checks.StoreCheckOutput(c.Name(), run.Standard)
 		logCheckDuration(c.Name(), start, runCounter)
+	}
+
+	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
+	if options.RunRealTime {
+		checks.StoreCheckOutput(c.RealTimeName(), run.RealTime)
 	}
 }
 
@@ -227,16 +233,20 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			continue
 		}
 
+		agentVersion, _ := version.Agent()
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
 		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
-		extraHeaders.Set(headers.ProcessVersionHeader, Version)
+		extraHeaders.Set(headers.ProcessVersionHeader, agentVersion.GetNumber())
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
 		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}
+			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
+			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		}
 
 		payloads = append(payloads, checkPayload{
@@ -350,9 +360,10 @@ func (l *Collector) run(exit chan struct{}) error {
 		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
+		agentVersion, _ := version.Agent()
 		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
+			fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
+			fmt.Sprintf("revision:%s", agentVersion.Commit),
 		}
 		for {
 			select {
@@ -637,6 +648,11 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 		if response.StatusCode >= 300 {
 			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
+			continue
+		}
+
+		// we don't need to decode the body in case of the pod check
+		if checkName == checks.Pod.Name() {
 			continue
 		}
 

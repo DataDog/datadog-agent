@@ -35,7 +35,7 @@ type ClusterRoleBindingCollector struct {
 func NewClusterRoleBindingCollector() *ClusterRoleBindingCollector {
 	return &ClusterRoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "clusterrolebindings",
 			NodeType: orchestrator.K8sClusterRoleBinding,
 		},
@@ -53,6 +53,9 @@ func (c *ClusterRoleBindingCollector) Init(rcfg *collectors.CollectorRunConfig) 
 	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().ClusterRoleBindings()
 	c.lister = c.informer.Lister()
 }
+
+// IsAvailable returns whether the collector is available.
+func (c *ClusterRoleBindingCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ClusterRoleBindingCollector) Metadata() *collectors.CollectorMetadata {

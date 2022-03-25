@@ -19,8 +19,9 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
@@ -30,7 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -213,7 +216,9 @@ func (p *ProcessResolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
-	return p.processCacheEntryPool.Get()
+	entry := p.processCacheEntryPool.Get()
+	entry.Cookie = eval.NewCookie()
+	return entry
 }
 
 // SendStats sends process resolver metrics
@@ -372,6 +377,14 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
 		}
+	}
+
+	// add netns
+	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
+
+	if p.probe.config.NetworkEnabled {
+		// snapshot pid routes in kernel space
+		_, _ = proc.OpenFiles()
 	}
 
 	return nil
@@ -534,7 +547,7 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 	}
 	entry.ContainerID = id
 
-	read, err := entry.UnmarshalBinary(data[64:])
+	read, err := entry.Process.UnmarshalBinary(data[64:])
 	if err != nil {
 		return read + 64, err
 	}
@@ -554,6 +567,20 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 	entry.Tid = tid
 
 	return entry
+}
+
+// ResolveNewProcessCacheEntryContext resolves the context fields of a new process cache entry parsed from kernel data
+func (p *ProcessResolver) ResolveNewProcessCacheEntryContext(entry *model.ProcessCacheEntry) error {
+	p.SetProcessArgs(entry)
+	p.SetProcessEnvs(entry)
+	if _, err := p.SetProcessPath(entry); err != nil {
+		return fmt.Errorf("failed to resolve exec path: %w", err)
+	}
+	p.SetProcessFilesystem(entry)
+	p.SetProcessTTY(entry)
+	p.SetProcessUsersGroups(entry)
+	p.ApplyBootTime(entry)
+	return nil
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
@@ -579,6 +606,11 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 	entry.Pid = pid
 	entry.Tid = tid
+
+	// resolve paths and other context fields
+	if err = p.ResolveNewProcessCacheEntryContext(entry); err != nil {
+		return nil
+	}
 
 	// If we fall back to the kernel maps for a process in a container that was already running when the agent
 	// started, the kernel space container ID will be empty even though the process is inside a container. Since there
@@ -723,6 +755,17 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	keys, truncated := pr.EnvsEntry.Keys()
 
 	return keys, pr.ArgsTruncated || truncated
+}
+
+// GetProcessEnvp returns the envs of the event with their values
+func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
+	if pr.EnvsEntry == nil {
+		return nil, false
+	}
+
+	envp, truncated := pr.EnvsEntry.ToArray()
+
+	return envp, pr.ArgsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
@@ -893,6 +936,26 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
+	// insert new entry in kernel maps
+	procCacheEntryB := make([]byte, 224)
+	_, err := entry.Process.MarshalProcCache(procCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
+	} else {
+		if err = p.procCacheMap.Put(pid, procCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
+		}
+	}
+	pidCacheEntryB := make([]byte, 64)
+	_, err = entry.Process.MarshalPidCache(pidCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal prid_cache entry: %s", err)
+	} else {
+		if err = p.pidCacheMap.Put(pid, pidCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
+		}
+	}
+
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)
 
 	return entry, true
@@ -972,6 +1035,32 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 // SetState sets the process resolver state
 func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
+}
+
+// NewProcessVariables returns a provider for variables attached to a process cache entry
+func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
+	scoper := func(ctx *eval.Context) unsafe.Pointer {
+		return unsafe.Pointer((*Event)(ctx.Object).processCacheEntry)
+	}
+
+	var variables *eval.ScopedVariables
+	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
+		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
+			variables.ReleaseVariable(key)
+		})
+	})
+
+	return variables
 }
 
 // NewProcessResolver returns a new process resolver

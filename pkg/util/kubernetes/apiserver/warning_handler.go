@@ -8,16 +8,20 @@
 
 package apiserver
 
-import klog "k8s.io/klog"
+import (
+	"regexp"
 
-var supressedWarning = "v1 ComponentStatus is deprecated in v1.19+"
+	klog "k8s.io/klog"
+)
+
+var supressedWarning = regexp.MustCompile(`.*is deprecated in v.*`)
 
 type CustomWarningLogger struct{}
 
 // HandleWarningHeader suppresses some warning logs
 // TODO: Remove custom warning logger when we remove usage of ComponentStatus
 func (CustomWarningLogger) HandleWarningHeader(code int, agent string, message string) {
-	if code != 299 || len(message) == 0 || message == supressedWarning {
+	if code != 299 || len(message) == 0 || supressedWarning.MatchString(message) {
 		return
 	}
 

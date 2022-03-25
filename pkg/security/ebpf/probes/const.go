@@ -66,3 +66,10 @@ const (
 	// DentryResolverRenameCallbackTracepointKey is the key to the callback program to execute after resolving the destination dentry of a rename event
 	DentryResolverRenameCallbackTracepointKey
 )
+
+const (
+	// TCDNSRequestKey is the key to DNS request program
+	TCDNSRequestKey uint32 = iota + 1
+	// TCDNSRequestParserKey is the key to DNS request parser program
+	TCDNSRequestParserKey
+)

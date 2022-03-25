@@ -79,8 +79,9 @@ SYSCALL_KPROBE0(mprotect) {
 SEC("kprobe/security_file_mprotect")
 int kprobe_security_file_mprotect(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MPROTECT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     // Retrieve vma information
     struct vm_area_struct *vma = (struct vm_area_struct *)PT_REGS_PARM1(ctx);
@@ -93,8 +94,9 @@ int kprobe_security_file_mprotect(struct pt_regs *ctx) {
 
 int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MPROTECT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (filter_syscall(syscall, mprotect_approvers)) {
         return discard_syscall(syscall);

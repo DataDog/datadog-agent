@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imdario/mergo"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -84,10 +83,9 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer       Kind = "container"
-	KindKubernetesPod   Kind = "kubernetes_pod"
-	KindECSTask         Kind = "ecs_task"
-	KindGardenContainer Kind = "garden_container"
+	KindContainer     Kind = "container"
+	KindKubernetesPod Kind = "kubernetes_pod"
+	KindECSTask       Kind = "ecs_task"
 )
 
 // Source is the source name of an entity.
@@ -124,6 +122,33 @@ const (
 	ContainerRuntimeContainerd ContainerRuntime = "containerd"
 	ContainerRuntimePodman     ContainerRuntime = "podman"
 	ContainerRuntimeCRIO       ContainerRuntime = "cri-o"
+	ContainerRuntimeGarden     ContainerRuntime = "garden"
+	// ECS Fargate can be considered as a runtime in the sense that we don't
+	// know the actual runtime but we need to identify it's Fargate
+	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+)
+
+// ContainerStatus is the status of the container
+type ContainerStatus string
+
+// Defined ContainerStatus
+const (
+	ContainerStatusUnknown    ContainerStatus = "unknown"
+	ContainerStatusCreated    ContainerStatus = "created"
+	ContainerStatusRunning    ContainerStatus = "running"
+	ContainerStatusRestarting ContainerStatus = "restarting"
+	ContainerStatusPaused     ContainerStatus = "paused"
+	ContainerStatusStopped    ContainerStatus = "stopped"
+)
+
+// ContainerHealth is the health of the container
+type ContainerHealth string
+
+// Defined ContainerHealth
+const (
+	ContainerHealthUnknown   ContainerHealth = "unknown"
+	ContainerHealthHealthy   ContainerHealth = "healthy"
+	ContainerHealthUnhealthy ContainerHealth = "unhealthy"
 )
 
 // ECSLaunchType is the launch type of an ECS task.
@@ -283,6 +308,9 @@ func (c ContainerImage) String(verbose bool) string {
 // ContainerState is the state of a container.
 type ContainerState struct {
 	Running    bool
+	Status     ContainerStatus
+	Health     ContainerHealth
+	CreatedAt  time.Time
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *uint32
@@ -294,6 +322,9 @@ func (c ContainerState) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Running:", c.Running)
 
 	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Status:", c.Status)
+		_, _ = fmt.Fprintln(&sb, "Health:", c.Health)
+		_, _ = fmt.Fprintln(&sb, "Created At:", c.CreatedAt)
 		_, _ = fmt.Fprintln(&sb, "Started At:", c.StartedAt)
 		_, _ = fmt.Fprintln(&sb, "Finished At:", c.FinishedAt)
 		if c.ExitCode != nil {
@@ -349,6 +380,9 @@ type Container struct {
 	Ports      []ContainerPort
 	Runtime    ContainerRuntime
 	State      ContainerState
+	// CollectorTags represent tags coming from the collector itself
+	// and that it would impossible to compute later on
+	CollectorTags []string
 }
 
 // GetID implements Entity#GetID.
@@ -363,7 +397,7 @@ func (c *Container) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge Container with different kind %T", e)
 	}
 
-	return mergo.Merge(c, cc)
+	return merge(c, cc)
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -435,7 +469,7 @@ func (p *KubernetesPod) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge KubernetesPod with different kind %T", e)
 	}
 
-	return mergo.Merge(p, pp)
+	return merge(p, pp)
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -498,7 +532,6 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
-
 	}
 
 	return sb.String()
@@ -531,7 +564,7 @@ func (t *ECSTask) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ECSTask with different kind %T", e)
 	}
 
-	return mergo.Merge(t, tt)
+	return merge(t, tt)
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -570,52 +603,6 @@ func (t ECSTask) String(verbose bool) string {
 }
 
 var _ Entity = &ECSTask{}
-
-// GardenContainer is an Entity representing a CloudFoundry Garden Container
-type GardenContainer struct {
-	EntityID
-	EntityMeta
-	Tags []string
-}
-
-// GetID returns a GardenContainer's EntityID.
-func (c GardenContainer) GetID() EntityID {
-	return c.EntityID
-}
-
-// Merge merges a GardenContainer with another. Returns an error if trying to
-// merge with another kind.
-func (c *GardenContainer) Merge(e Entity) error {
-	cc, ok := e.(*GardenContainer)
-	if !ok {
-		return fmt.Errorf("cannot merge GardenContainer with different kind %T", e)
-	}
-
-	return mergo.Merge(c, cc)
-}
-
-// DeepCopy returns a deep copy of the container.
-func (c GardenContainer) DeepCopy() Entity {
-	cp := deepcopy.Copy(c).(GardenContainer)
-	return &cp
-}
-
-// String returns a string representation of a GardenContainer.
-func (c GardenContainer) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprint(&sb, c.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, c.EntityMeta.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
-	_, _ = fmt.Fprintln(&sb, "Tags:", sliceToString(c.Tags))
-
-	return sb.String()
-}
-
-var _ Entity = &GardenContainer{}
 
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.

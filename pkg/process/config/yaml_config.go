@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,8 +25,8 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// LoadProcessYamlConfig load Process-specific configuration
-func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
+// LoadAgentConfig loads process-agent specific configurations based on the global Config object
+func (a *AgentConfig) LoadAgentConfig(path string) error {
 	loadEnvVariables()
 
 	// Resolve any secrets
@@ -87,27 +86,21 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	if scrubArgsKey := key(ns, "scrub_args"); config.Datadog.IsSet(scrubArgsKey) {
 		a.Scrubber.Enabled = config.Datadog.GetBool(scrubArgsKey)
 	}
+	if a.Scrubber.Enabled { // Scrubber is enabled by default when it's created
+		log.Debug("Starting process-agent with Scrubber enabled")
+	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
 	if k := key(ns, "custom_sensitive_words"); config.Datadog.IsSet(k) {
-		a.Scrubber.AddCustomSensitiveWords(config.Datadog.GetStringSlice(k))
+		words := config.Datadog.GetStringSlice(k)
+		a.Scrubber.AddCustomSensitiveWords(words)
+		log.Debug("Adding custom sensitives words to Scrubber:", words)
 	}
 
 	// Strips all process arguments
 	if config.Datadog.GetBool(key(ns, "strip_proc_arguments")) {
+		log.Debug("Strip all process arguments enabled")
 		a.Scrubber.StripAllArguments = true
-	}
-
-	// Used to override container source auto-detection
-	// and to enable multiple collector sources if needed.
-	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
-	containerSourceKey := key(ns, "container_source")
-	if config.Datadog.Get(containerSourceKey) != nil {
-		// container_source can be nil since we're not forcing default values in the main config file
-		// make sure we don't pass nil value to GetStringSlice to avoid spammy warnings
-		if sources := config.Datadog.GetStringSlice(containerSourceKey); len(sources) > 0 {
-			util.SetContainerSources(sources)
-		}
 	}
 
 	// Build transport (w/ proxy if needed)

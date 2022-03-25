@@ -25,15 +25,26 @@ func (c *promCounter) Initialize(tagsValue ...string) {
 }
 
 // Add adds the given value to the counter with the given tags value.
+//
+// If the value is < 0, no add takes place, as the counter is monotonic.
+// The prometheus client would panic in such a case.
 func (c *promCounter) Add(value float64, tagsValue ...string) {
-	c.pc.WithLabelValues(tagsValue...).Add(value)
+	if value > 0 {
+		c.pc.WithLabelValues(tagsValue...).Add(value)
+	}
 }
 
 // AddWithTags adds the given value to the counter with the given tags.
 // Even if less convenient, this signature could be used in hot path
 // instead of Add(float64, ...string) to avoid escaping the parameters on the heap.
+//
+//
+// If the value is < 0, no add takes place, as the counter is monotonic.
+// The prometheus client would panic in such a case.
 func (c *promCounter) AddWithTags(value float64, tags map[string]string) {
-	c.pc.With(tags).Add(value)
+	if value > 0 {
+		c.pc.With(tags).Add(value)
+	}
 }
 
 // Inc increments the counter with the given tags value.

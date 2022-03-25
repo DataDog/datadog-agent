@@ -64,20 +64,22 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Memcached = o.Memcached.Enabled
 	}
 	txt, err := json.MarshalIndent(struct {
-		Version       string        `json:"version"`
-		GitCommit     string        `json:"git_commit"`
-		BuildDate     string        `json:"build_date"`
-		Endpoints     []string      `json:"endpoints"`
-		FeatureFlags  []string      `json:"feature_flags,omitempty"`
-		ClientDropP0s bool          `json:"client_drop_p0s"`
-		Config        reducedConfig `json:"config"`
+		Version         string        `json:"version"`
+		GitCommit       string        `json:"git_commit"`
+		BuildDate       string        `json:"build_date"`
+		Endpoints       []string      `json:"endpoints"`
+		FeatureFlags    []string      `json:"feature_flags,omitempty"`
+		ClientDropP0s   bool          `json:"client_drop_p0s"`
+		SpanMetaStructs bool          `json:"span_meta_structs"`
+		Config          reducedConfig `json:"config"`
 	}{
-		Version:       info.Version,
-		GitCommit:     info.GitCommit,
-		BuildDate:     info.BuildDate,
-		Endpoints:     all,
-		FeatureFlags:  features.All(),
-		ClientDropP0s: true,
+		Version:         info.Version,
+		GitCommit:       info.GitCommit,
+		BuildDate:       info.BuildDate,
+		Endpoints:       all,
+		FeatureFlags:    features.All(),
+		ClientDropP0s:   true,
+		SpanMetaStructs: true,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,

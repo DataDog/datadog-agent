@@ -18,14 +18,6 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// State represents the state of an uptane client
-type State struct {
-	ConfigRootVersion      uint64
-	ConfigSnapshotVersion  uint64
-	DirectorRootVersion    uint64
-	DirectorTargetsVersion uint64
-}
-
 // Client is an uptane client
 type Client struct {
 	sync.Mutex
@@ -85,32 +77,11 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	return c.verify()
 }
 
-// State returns the state of the uptane client
-func (c *Client) State() (State, error) {
+// TargetsCustom returns the current targets custom of this uptane client
+func (c *Client) TargetsCustom() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
-	configRootVersion, err := c.configLocalStore.GetMetaVersion(metaRoot)
-	if err != nil {
-		return State{}, err
-	}
-	directorRootVersion, err := c.directorLocalStore.GetMetaVersion(metaRoot)
-	if err != nil {
-		return State{}, err
-	}
-	configSnapshotVersion, err := c.configLocalStore.GetMetaVersion(metaSnapshot)
-	if err != nil {
-		return State{}, err
-	}
-	directorTargetsVersion, err := c.directorLocalStore.GetMetaVersion(metaTargets)
-	if err != nil {
-		return State{}, err
-	}
-	return State{
-		ConfigRootVersion:      configRootVersion,
-		ConfigSnapshotVersion:  configSnapshotVersion,
-		DirectorRootVersion:    directorRootVersion,
-		DirectorTargetsVersion: directorTargetsVersion,
-	}, nil
+	return c.directorLocalStore.GetMetaCustom(metaTargets)
 }
 
 // DirectorRoot returns a director root
@@ -131,10 +102,7 @@ func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	return root, nil
 }
 
-// Targets returns the current targets of this uptane client
-func (c *Client) Targets() (data.TargetFiles, error) {
-	c.Lock()
-	defer c.Unlock()
+func (c *Client) unsafeTargets() (data.TargetFiles, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -142,10 +110,14 @@ func (c *Client) Targets() (data.TargetFiles, error) {
 	return c.directorTUFClient.Targets()
 }
 
-// TargetFile returns the content of a target if the repository is in a verified state
-func (c *Client) TargetFile(path string) ([]byte, error) {
+// Targets returns the current targets of this uptane client
+func (c *Client) Targets() (data.TargetFiles, error) {
 	c.Lock()
 	defer c.Unlock()
+	return c.unsafeTargets()
+}
+
+func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -156,6 +128,13 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// TargetFile returns the content of a target if the repository is in a verified state
+func (c *Client) TargetFile(path string) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetFile(path)
 }
 
 // TargetsMeta returns the current raw targets.json meta of this uptane client

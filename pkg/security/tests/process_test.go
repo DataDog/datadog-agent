@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestProcess(t *testing.T) {
@@ -62,26 +60,18 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
-	proc, err := process.NewProcess(utils.Getpid())
-	if err != nil {
-		t.Fatalf("unable to find proc entry: %s", err)
-	}
-
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		t.Fatal("unable to find proc entry")
-	}
-	execSince := time.Since(time.Unix(0, filledProc.CreateTime*int64(time.Millisecond)))
-	waitUntil := execSince + getEventTimeout + time.Second
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_inode",
 			Expression: `open.file.path == "{{.Root}}/test-process-context" && open.flags & O_CREAT != 0`,
 		},
 		{
-			ID:         "test_exec_time",
-			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-exec-time" && process.created_at > %ds`, int(waitUntil.Seconds())),
+			ID:         "test_exec_time_1",
+			Expression: `open.file.path == "{{.Root}}/test-exec-time-1" && process.created_at == 0`,
+		},
+		{
+			ID:         "test_exec_time_2",
+			Expression: `open.file.path == "{{.Root}}/test-exec-time-2" && process.created_at > 1s`,
 		},
 		{
 			ID:         "test_rule_ancestors",
@@ -115,6 +105,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_ancestors_args",
 			Expression: `open.file.path == "{{.Root}}/test-ancestors-args" && process.ancestors.args_flags == "c" && process.ancestors.args_flags == "x"`,
 		},
+		{
+			ID:         "test_rule_envp",
+			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"]`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -124,7 +118,7 @@ func TestProcessContext(t *testing.T) {
 	defer test.Close()
 
 	t.Run("exec-time", func(t *testing.T) {
-		testFile, _, err := test.Path("test-exec-time")
+		testFile, _, err := test.Path("test-exec-time-1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,8 +128,10 @@ func TestProcessContext(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			f.Close()
+			os.Remove(testFile)
 
-			return f.Close()
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: got event: %s", event)
 		})
@@ -143,19 +139,22 @@ func TestProcessContext(t *testing.T) {
 			t.Fatal("shouldn't get an event")
 		}
 
-		defer os.Remove(testFile)
-
-		// ensure to exceed the delay
-		time.Sleep(2 * time.Second)
-
 		test.WaitSignal(t, func() error {
-			f, err := os.OpenFile(testFile, os.O_RDONLY, 0)
+			testFile, _, err := test.Path("test-exec-time-2")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			f, err := os.Create(testFile)
 			if err != nil {
 				return err
 			}
-			return f.Close()
+			f.Close()
+			os.Remove(testFile)
+
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_exec_time")
+			assertTriggeredRule(t, rule, "test_exec_time_2")
 
 			if !validateExecSchema(t, event) {
 				t.Error(event.String())
@@ -258,8 +257,26 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
+	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+		envs := []string{"ENVP=test"}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("ls", args, envs)
+			// we need to ignore the error because "--password" is not a valid option for ls
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_rule_envp", rule.ID, "wrong rule triggered")
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
+
 	t.Run("argv", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ll")
@@ -270,7 +287,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-flags", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ls", "--escape")
@@ -281,7 +298,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-options", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "--block-size", "123")
@@ -377,7 +394,7 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		executable := which("tail")
+		executable := which(t, "tail")
 
 		test.WaitSignal(t, func() error {
 			var wg sync.WaitGroup
@@ -540,7 +557,7 @@ func TestProcessContext(t *testing.T) {
 }
 
 func TestProcessExecCTime(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
@@ -572,7 +589,7 @@ func TestProcessExecCTime(t *testing.T) {
 }
 
 func TestProcessPIDVariable(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_var",
@@ -596,8 +613,117 @@ func TestProcessPIDVariable(t *testing.T) {
 	}
 }
 
+func TestProcessMutableVariable(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_set_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var1",
+				Value: true,
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "off",
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var3",
+				Value: []string{"aaa"},
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var3",
+				Value: []string{"aaa"},
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var4",
+				Field: "process.file.name",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var5",
+				Field: "open.file.path",
+			},
+		}},
+	}, {
+		ID:         "test_rule_modify_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open-2"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "on",
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:   "var3",
+				Value:  []string{"bbb"},
+				Scope:  "process",
+				Append: true,
+			},
+		}},
+	}, {
+		ID: "test_rule_test_mutable_vars",
+		Expression: `open.file.path == "{{.Root}}/test-open-3"` +
+			`&& ${process.var1} == true` +
+			`&& ${process.var2} == "on"` +
+			`&& "aaa" in ${process.var3}` +
+			`&& "bbb" in ${process.var3}` +
+			`&& process.file.name == "${var4}"` +
+			`&& open.file.path == "${var5}-3"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var filename1, filename2, filename3 string
+
+	test.WaitSignal(t, func() error {
+		filename1, _, err = test.Create("test-open")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_set_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename1)
+
+	test.WaitSignal(t, func() error {
+		filename2, _, err = test.Create("test-open-2")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_modify_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename2)
+
+	test.WaitSignal(t, func() error {
+		filename3, _, err = test.Create("test-open-3")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_test_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename3)
+}
+
 func TestProcessExec(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -615,7 +741,8 @@ func TestProcessExec(t *testing.T) {
 		return cmd.Run()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assertFieldEqual(t, event, "exec.file.path", executable)
-		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
+		// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+		assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
 	})
 }
 
@@ -689,7 +816,7 @@ func TestProcessMetadata(t *testing.T) {
 }
 
 func TestProcessExecExit(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

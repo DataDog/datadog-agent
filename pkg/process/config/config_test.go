@@ -563,7 +563,7 @@ func TestProcessDiscoveryInterval(t *testing.T) {
 			cfg.Set("process_config.process_discovery.interval", tc.interval)
 
 			agentCfg := NewDefaultAgentConfig()
-			assert.NoError(t, agentCfg.LoadProcessYamlConfig(""))
+			assert.NoError(t, agentCfg.LoadAgentConfig(""))
 
 			assert.Equal(t, tc.expectedInterval, agentCfg.CheckIntervals[DiscoveryCheckName])
 		})

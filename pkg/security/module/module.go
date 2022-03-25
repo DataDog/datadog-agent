@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -38,7 +39,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
+)
+
+const (
+	statsdPoolSize = 64
 )
 
 // Module represents the system-probe module for the runtime security agent
@@ -57,7 +62,7 @@ type Module struct {
 	sigupChan        chan os.Signal
 	ctx              context.Context
 	cancelFnc        context.CancelFunc
-	rulesLoaded      func(rs *rules.RuleSet)
+	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
 
 	selfTester *SelfTester
@@ -73,7 +78,7 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-func (m *Module) sanityChecks() error {
+func sanityChecks(cfg *sconfig.Config) error {
 	// make sure debugfs is mounted
 	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
 		return err
@@ -84,15 +89,20 @@ func (m *Module) sanityChecks() error {
 		return err
 	}
 
-	if version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Confidentiality {
+	if kernel.GetLockdownMode() == kernel.Confidentiality {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
 	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
 
-	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
+	if cfg.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
 		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		m.config.ERPCDentryResolutionEnabled = false
+		cfg.ERPCDentryResolutionEnabled = false
+	}
+
+	if cfg.NetworkEnabled && version.IsRH7Kernel() {
+		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+		cfg.NetworkEnabled = false
 	}
 
 	return nil
@@ -100,10 +110,6 @@ func (m *Module) sanityChecks() error {
 
 // Init initializes the module
 func (m *Module) Init() error {
-	if err := m.sanityChecks(); err != nil {
-		return err
-	}
-
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -193,10 +199,18 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
+	if m.config.NetworkEnabled {
+		if eventTypes, exists := categories[model.NetworkCategory]; exists {
+			for _, eventType := range eventTypes {
+				enabled[eventType] = true
+			}
+		}
+	}
+
 	if m.config.RuntimeEnabled {
 		// everything but FIM
 		for _, category := range model.GetAllCategories() {
-			if category == model.FIMCategory {
+			if category == model.FIMCategory || category == model.NetworkCategory {
 				continue
 			}
 
@@ -263,14 +277,26 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
+	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
+	for name, value := range model.SECLVariables {
+		probeVariables[name] = value
+	}
+
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(model.SECLVariables).
+		WithVariables(probeVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
 		WithLegacyFields(model.SECLLegacyFields).
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
@@ -279,6 +305,9 @@ func (m *Module) Reload() error {
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
 	opts.WithVariables(sprobe.SECLVariables)
+	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+	})
 
 	ruleSet := m.probe.NewRuleSet(&opts)
 	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
@@ -308,7 +337,7 @@ func (m *Module) Reload() error {
 
 	ruleSet.AddListener(m)
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet)
+		m.rulesLoaded(ruleSet, loadErr)
 	}
 
 	m.currentRuleSet.Store(ruleSet)
@@ -496,12 +525,16 @@ func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet)) {
+func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
 	m.rulesLoaded = cb
 }
 
 // NewModule instantiates a runtime security system-probe module
 func NewModule(cfg *sconfig.Config) (module.Module, error) {
+	if err := sanityChecks(cfg); err != nil {
+		return nil, err
+	}
+
 	var statsdClient *statsd.Client
 	var err error
 	if cfg != nil {
@@ -510,7 +543,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 			statsdAddr = cfg.StatsdAddr
 		}
 
-		if statsdClient, err = statsd.New(statsdAddr); err != nil {
+		if statsdClient, err = statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize)); err != nil {
 			return nil, err
 		}
 	} else {
@@ -547,7 +580,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
-	seclog.SetPatterns(cfg.LogPatterns)
+	seclog.SetPatterns(cfg.LogPatterns...)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 

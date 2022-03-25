@@ -12,11 +12,12 @@ import (
 	"context"
 	json "encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/pkg/errors"
 	"golang.org/x/time/rate"
@@ -99,7 +100,7 @@ type RuleEvent struct {
 	Event  Event  `json:"event"`
 }
 
-// DumpProcessCache handle process dump cache requests
+// DumpProcessCache handles process cache dump requests
 func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
 	resolvers := a.probe.GetResolvers()
 
@@ -111,6 +112,97 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 	return &api.SecurityDumpProcessCacheMessage{
 		Filename: filename,
 	}, nil
+}
+
+// DumpActivity handle an activity dump request
+func (a *APIServer) DumpActivity(ctx context.Context, params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.DumpActivity(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// ListActivityDumps returns the list of active dumps
+func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.ListActivityDumps(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// StopActivityDump stops an active activity dump if it exists
+func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.StopActivityDump(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// GenerateProfile generates a profile from an activity dump
+func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.GenerateProfile(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// GenerateGraph generates a graph from an activity dump
+func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.GenerateGraph(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// GetConstantFetcherStatus returns the status of the constant fetcher sub-system
+func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.GetConstantFetcherStatusParams) (*api.ConstantFetcherStatus, error) {
+	status, err := a.probe.GetConstantFetcherStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
+	for _, v := range status.Values {
+		constants = append(constants, &api.ConstantValueAndSource{
+			ID:     v.ID,
+			Value:  v.Value,
+			Source: v.FetcherName,
+		})
+	}
+	return &api.ConstantFetcherStatus{
+		Fetchers: status.Fetchers,
+		Values:   constants,
+	}, nil
+}
+
+// DumpNetworkNamespace handles network namespace cache dump requests
+func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
+	return a.probe.GetResolvers().NamespaceResolver.DumpNetworkNamespaces(params), nil
 }
 
 func (a *APIServer) enqueue(msg *pendingMsg) {
@@ -157,8 +249,17 @@ func (a *APIServer) start(ctx context.Context) {
 
 				// recopy tags
 				var tags []string
+				hasService := len(msg.service) != 0
 				for tag := range msg.tags {
 					tags = append(tags, tag)
+
+					// look for the service tag if we don't have one yet
+					if !hasService {
+						if strings.HasPrefix(tag, "service:") {
+							msg.service = strings.TrimPrefix(tag, "service:")
+							hasService = true
+						}
+					}
 				}
 
 				m := &api.SecurityEventMessage{

@@ -34,7 +34,7 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

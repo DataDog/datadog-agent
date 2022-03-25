@@ -20,11 +20,11 @@ import (
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	dockerutilpkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -80,7 +80,7 @@ func IsAvailable() (bool, *retry.Retrier) {
 // NewLauncher returns a new launcher
 func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
 	if _, err := dockerutilpkg.GetDockerUtil(); err != nil {
-		log.Errorf("DockerUtil not available, failed to create launcher", err)
+		log.Errorf("DockerUtil not available, failed to create launcher: %v", err)
 		return nil
 	}
 
@@ -128,7 +128,7 @@ func (l *Launcher) Start() {
 func (l *Launcher) Stop() {
 	log.Info("Stopping Docker launcher")
 	l.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	l.lock.Lock()
 	var containerIDs []string
 	for _, tailer := range l.tailers {

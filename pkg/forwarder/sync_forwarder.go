@@ -53,7 +53,7 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 			// If so, the first attempt will fail because the closed connection will still be cached.
 			log.Debug("Retrying transaction")
 			if err := t.Process(context.Background(), f.client); err != nil {
-				log.Errorf("SyncForwarder.sendHTTPTransactions final attempt: %s", err)
+				log.Warnf("SyncForwarder.sendHTTPTransactions failed to send: %s", err)
 			}
 		}
 	}

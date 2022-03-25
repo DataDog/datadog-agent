@@ -6,6 +6,7 @@
 package traps
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -36,6 +37,7 @@ func TestFullConfig(t *testing.T) {
 		BindHost:         "127.0.0.1",
 		CommunityStrings: []string{"public"},
 		StopTimeout:      12,
+		Namespace:        "foo",
 	})
 	config, err := ReadConfig(mockedHostname)
 	assert.NoError(t, err)
@@ -43,6 +45,7 @@ func TestFullConfig(t *testing.T) {
 	assert.Equal(t, 12, config.StopTimeout)
 	assert.Equal(t, []string{"public"}, config.CommunityStrings)
 	assert.Equal(t, "127.0.0.1", config.BindHost)
+	assert.Equal(t, "foo", config.Namespace)
 	assert.Equal(t, []UserV3{
 		{
 			Username:     "user",
@@ -79,6 +82,7 @@ func TestMinimalConfig(t *testing.T) {
 	assert.Equal(t, []string{}, config.CommunityStrings)
 	assert.Equal(t, "localhost", config.BindHost)
 	assert.Equal(t, []UserV3{}, config.Users)
+	assert.Equal(t, "default", config.Namespace)
 
 	params, err := config.BuildSNMPParams()
 	assert.NoError(t, err)
@@ -107,4 +111,42 @@ func TestBuildAuthoritativeEngineID(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, engineID, config.authoritativeEngineID)
 	}
+}
+
+func TestNamespaceIsNormalized(t *testing.T) {
+	Configure(t, Config{
+		Namespace: "><\n\r\tfoo",
+	})
+
+	config, err := ReadConfig("")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "--foo", config.Namespace)
+}
+
+func TestInvalidNamespace(t *testing.T) {
+	Configure(t, Config{
+		Namespace: strings.Repeat("x", 101),
+	})
+
+	_, err := ReadConfig("")
+	assert.Error(t, err)
+}
+
+func TestNamespaceSetGlobally(t *testing.T) {
+	ConfigureWithGlobalNamespace(t, Config{}, "foo")
+
+	config, err := ReadConfig("")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "foo", config.Namespace)
+}
+
+func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
+	ConfigureWithGlobalNamespace(t, Config{Namespace: "bar"}, "foo")
+
+	config, err := ReadConfig("")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "bar", config.Namespace)
 }

@@ -179,7 +179,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	assert.Equal(t, altDefaultHostname, checksender.defaultHostname)
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
 
-	aggregatorInstance.Stop(false)
+	aggregatorInstance.Stop()
 }
 
 func TestGetSenderServiceTagMetrics(t *testing.T) {

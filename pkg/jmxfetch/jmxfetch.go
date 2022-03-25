@@ -267,7 +267,12 @@ func (j *JMXFetch) Start(manage bool) error {
 		"--reconnection_thread_pool_size", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_reconnection_thread_pool_size")), // Size for the JMXFetch reconnection thread pool
 		"--log_level", jmxLogLevel,
 		"--reporter", reporter, // Reporter to use
+		"--statsd_queue_size", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_statsd_client_queue_size")), // Dogstatsd client queue size to use
 	)
+
+	if config.Datadog.GetBool("jmx_statsd_telemetry_enabled") {
+		subprocessArgs = append(subprocessArgs, "--statsd_telemetry")
+	}
 
 	if config.Datadog.GetBool("log_format_rfc3339") {
 		subprocessArgs = append(subprocessArgs, "--log_format_rfc3339")

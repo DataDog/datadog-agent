@@ -11,7 +11,7 @@ from invoke import task
 from .build_tags import get_default_build_tags
 from .go import golangci_lint, staticcheck, vet
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
-from .system_probe import get_ebpf_build_flags
+from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -52,11 +52,11 @@ def build(
     ctx,
     race=False,
     go_version=None,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
-    arch="x64",  # noqa: U100
+    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
 ):
@@ -241,7 +241,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch="x64", static=True):
+def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
@@ -258,7 +258,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -267,12 +267,6 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
 ):
-    if not skip_linters:
-        targets = ['./pkg/security/tests']
-        vet(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
@@ -284,19 +278,28 @@ def build_functional_tests(
     if arch == "x86":
         env["GOARCH"] = "386"
 
-    build_tags = "linux_bpf," + build_tags
+    build_tags = build_tags.split(",")
+    build_tags.append("linux_bpf")
     if bundle_ebpf:
-        build_tags = "ebpf_bindata," + build_tags
+        build_tags.append("ebpf_bindata")
 
     if static:
-        build_tags += ',osusergo,netgo'
+        build_tags.extend(["osusergo", "netgo"])
         if "CGO_CPPFLAGS" not in env:
             env["CGO_CPPFLAGS"] = ""
         env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
-    if nikos_embedded_path:
-        build_tags += ",dnf"
+    if not skip_linters:
+        targets = ['./pkg/security/tests']
+        vet(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        staticcheck(ctx, targets=targets, build_tags=build_tags, arch=arch)
 
+    # linters have a hard time with dnf, so we add the build tag after running them
+    if nikos_embedded_path:
+        build_tags.append("dnf")
+
+    build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
@@ -316,7 +319,7 @@ def build_stress_tests(
     ctx,
     output='pkg/security/tests/stresssuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
@@ -338,7 +341,7 @@ def stress_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/stresssuite',
     bundle_ebpf=True,
@@ -368,7 +371,7 @@ def functional_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
@@ -398,6 +401,7 @@ def kitchen_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
     testflags='',
@@ -407,19 +411,9 @@ def kitchen_functional_tests(
             ctx,
             verbose=verbose,
             go_version=go_version,
-            arch="x64",
+            arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
-            testflags=testflags,
-        )
-
-        functional_tests(
-            ctx,
-            verbose=verbose,
-            go_version=go_version,
-            major_version=major_version,
-            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite32",
-            arch="x86",
             testflags=testflags,
         )
 
@@ -437,7 +431,7 @@ def docker_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
     static=False,
@@ -527,4 +521,13 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
+    ctx.run("cp ./pkg/security/probe/serializers_easyjson.mock ./pkg/security/probe/serializers_easyjson.go")
     ctx.run("go generate ./pkg/security/...")
+
+
+@task
+def generate_btfhub_constants(ctx, archive_path):
+    output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+    ctx.run(
+        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+    )

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf/manager"
 )
 
 type dnsMonitor struct {
@@ -34,7 +34,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 		return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 	}
 
-	filter, _ := p.GetProbe(manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketDnsFilter), EBPFFuncName: funcName})
+	filter, _ := p.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}

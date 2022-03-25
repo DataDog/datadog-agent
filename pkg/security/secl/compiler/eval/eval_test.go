@@ -25,16 +25,12 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 		Macros:       make(map[MacroID]*Macro),
 		LegacyFields: legacyFields,
 		Variables: map[string]VariableValue{
-			"pid": {
-				IntFnc: func(ctx *Context) int {
-					return os.Getpid()
-				},
-			},
-			"str": {
-				StringFnc: func(ctx *Context) string {
-					return "aaa"
-				},
-			},
+			"pid": NewIntVariable(func(ctx *Context) int {
+				return os.Getpid()
+			}, nil),
+			"str": NewStringVariable(func(ctx *Context) string {
+				return "aaa"
+			}, nil),
 		},
 	}
 }
@@ -298,6 +294,17 @@ func TestStringMatcher(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
+		{Expr: `process.name =~ "/usr/bin/c$t/test/*"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t/test/**"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t/*"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t/**"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/c$t*"`, Expected: true},
+		{Expr: `process.name =~ "/usr/bin/c*"`, Expected: true},
+		{Expr: `process.name =~ "/usr/bin/l*"`, Expected: false},
+		{Expr: `process.name =~ "/usr/bin/**"`, Expected: true},
+		{Expr: `process.name =~ "/usr/**"`, Expected: true},
+		{Expr: `process.name =~ "/**"`, Expected: true},
+		{Expr: `process.name =~ "/etc/**"`, Expected: false},
 		{Expr: `process.name =~ ""`, Expected: false},
 		{Expr: `process.name =~ "*"`, Expected: false},
 		{Expr: `process.name =~ "/*"`, Expected: false},
@@ -458,6 +465,16 @@ func TestPartial(t *testing.T) {
 		},
 	}
 
+	variables := make(map[string]VariableValue)
+	variables["var"] = NewBoolVariable(
+		func(ctx *Context) bool {
+			return false
+		},
+		func(ctx *Context, value interface{}) error {
+			return nil
+		},
+	)
+
 	tests := []struct {
 		Expr        string
 		Field       Field
@@ -465,6 +482,7 @@ func TestPartial(t *testing.T) {
 	}{
 		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: false},
 		{Expr: `false || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: true},
+		{Expr: `1 != 1 || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: true},
 		{Expr: `true || process.name == "abc"`, Field: "process.name", IsDiscarder: false},
 		{Expr: `false || process.name == "abc"`, Field: "process.name", IsDiscarder: false},
 		{Expr: `true && process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: true},
@@ -492,7 +510,7 @@ func TestPartial(t *testing.T) {
 		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: false},
 		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: true},
 		{Expr: `open.filename == open.filename`, Field: "open.filename", IsDiscarder: false},
-		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscarder: false},
+		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscarder: true},
 		{Expr: `open.filename == "test1" && process.uid == 456`, Field: "process.uid", IsDiscarder: true},
 		{Expr: `open.filename == "test1" && process.uid == 123`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `open.filename == "test1" && !process.is_root`, Field: "process.is_root", IsDiscarder: true},
@@ -500,13 +518,24 @@ func TestPartial(t *testing.T) {
 		{Expr: `open.filename =~ "*test1*"`, Field: "open.filename", IsDiscarder: true},
 		{Expr: `process.uid & (1 | 1024) == 1`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.uid & (1 | 2) == 1`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: true},
+		{Expr: `process.uid == 123 && ${var} == true`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.uid == 123 && ${var} != true`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.uid == 678 && ${var} == true`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `process.uid == 678 && ${var} != true`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `process.name == "abc" && ^process.uid != 0`, Field: "process.name", IsDiscarder: false},
+		{Expr: `process.name == "abc" && ^process.uid == 0`, Field: "process.uid", IsDiscarder: true},
+		{Expr: `process.name == "abc" && ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.name == "abc" || ^process.uid == 0`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.name == "abc" || ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
+		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
 	}
 
 	ctx := NewContext(unsafe.Pointer(&event))
 
 	for _, test := range tests {
 		model := &testModel{}
-		opts := &Opts{Constants: testConstants}
+		opts := &Opts{Constants: testConstants, Variables: variables}
 
 		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
@@ -522,34 +551,28 @@ func TestPartial(t *testing.T) {
 		}
 
 		if !result != test.IsDiscarder {
-			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, !result, test.Expr)
 		}
 	}
 }
 
 func TestMacroList(t *testing.T) {
-	macro := &Macro{
-		ID:         "list",
-		Expression: `[ "/etc/shadow", "/etc/password" ]`,
-	}
-
-	if err := macro.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
-	}
-
 	model := &testModel{}
-
-	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
-	}
-
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"list": macro,
+
+	macro, err := NewMacro(
+		"list",
+		`[ "/etc/shadow", "/etc/password" ]`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	opts.AddMacro(macro)
 
 	expr := `"/etc/shadow" in list`
-
 	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
@@ -563,14 +586,20 @@ func TestMacroList(t *testing.T) {
 }
 
 func TestMacroExpression(t *testing.T) {
-	macro := &Macro{
-		ID:         "is_passwd",
-		Expression: `open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
+
+	macro, err := NewMacro(
+		"is_passwd",
+		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if err := macro.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
-	}
+	opts.AddMacro(macro)
 
 	event := &testEvent{
 		process: testProcess{
@@ -579,17 +608,6 @@ func TestMacroExpression(t *testing.T) {
 		open: testOpen{
 			filename: "/etc/passwd",
 		},
-	}
-
-	model := &testModel{}
-
-	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
-	}
-
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"is_passwd": macro,
 	}
 
 	expr := `process.name == "httpd" && is_passwd`
@@ -606,14 +624,20 @@ func TestMacroExpression(t *testing.T) {
 }
 
 func TestMacroPartial(t *testing.T) {
-	macro := &Macro{
-		ID:         "is_passwd",
-		Expression: `open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
+
+	macro, err := NewMacro(
+		"is_passwd",
+		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if err := macro.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
-	}
+	opts.AddMacro(macro)
 
 	event := &testEvent{
 		process: testProcess{
@@ -622,17 +646,6 @@ func TestMacroPartial(t *testing.T) {
 		open: testOpen{
 			filename: "/etc/passwd",
 		},
-	}
-
-	model := &testModel{}
-
-	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
-	}
-
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"is_passwd": macro,
 	}
 
 	expr := `process.name == "httpd" && is_passwd`
@@ -669,24 +682,6 @@ func TestMacroPartial(t *testing.T) {
 }
 
 func TestNestedMacros(t *testing.T) {
-	macro1 := &Macro{
-		ID:         "sensitive_files",
-		Expression: `[ "/etc/shadow", "/etc/passwd" ]`,
-	}
-
-	if err := macro1.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro1.Expression)
-	}
-
-	macro2 := &Macro{
-		ID:         "is_sensitive_opened",
-		Expression: `open.filename in sensitive_files`,
-	}
-
-	if err := macro2.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro2.Expression)
-	}
-
 	event := &testEvent{
 		open: testOpen{
 			filename: "/etc/passwd",
@@ -694,26 +689,35 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"sensitive_files":     macro1,
-		"is_sensitive_opened": macro2,
-	}
 
-	if err := macro1.GenEvaluator(model, opts); err != nil {
-		t.Fatalf("%s\n%s", err, macro1.Expression)
-	}
-
-	if err := macro2.GenEvaluator(model, opts); err != nil {
-		t.Fatalf("%s\n%s", err, macro2.Expression)
-	}
-
-	expr := `is_sensitive_opened`
-
-	rule, err := parseRule(expr, model, opts)
+	macro1, err := NewMacro(
+		"sensitive_files",
+		`[ "/etc/shadow", "/etc/passwd" ]`,
+		model,
+		opts,
+	)
 	if err != nil {
-		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+		t.Fatal(err)
+	}
+
+	opts.AddMacro(macro1)
+
+	macro2, err := NewMacro(
+		"is_sensitive_opened",
+		`open.filename in sensitive_files`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts.AddMacro(macro2)
+
+	rule, err := parseRule(macro2.ID, model, opts)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", macro2.ID, err)
 	}
 
 	ctx := NewContext(unsafe.Pointer(event))
@@ -853,10 +857,16 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[_].value !~ "AA*"`, Expected: false},
 		{Expr: `process.list[_].value !~ "ZZ*"`, Expected: true},
 
-		{Expr: `process.list[_].value in [~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", "AAA", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in ["~zzzz", "AA*", "nnnnn"]`, Expected: false},
+
 		{Expr: `process.list[_].value in [~"ZZ*", "nnnnn"]`, Expected: false},
 		{Expr: `process.list[_].value not in [~"AA*", "nnnnn"]`, Expected: false},
 		{Expr: `process.list[_].value not in [~"ZZ*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value not in [~"ZZ*", "AAA", "nnnnn"]`, Expected: false},
+		{Expr: `process.list[_].value not in [~"ZZ*", ~"AA*", "nnnnn"]`, Expected: false},
 
 		{Expr: `process.list[_].key == 10 && process.list[_].value == "AAA"`, Expected: true},
 		{Expr: `process.list[_].key == 9999 && process.list[_].value == "AAA"`, Expected: false},
@@ -867,12 +877,6 @@ func TestRegister(t *testing.T) {
 
 		{Expr: `process.array[_].key == 1000 && process.array[_].value == "EEEE"`, Expected: true},
 		{Expr: `process.array[_].key == 1002 && process.array[_].value == "EEEE"`, Expected: true},
-
-		//{Expr: `process.list[A].key == 200 && process.list[A].value == "CCC"`, Expected: true},
-		//{Expr: `process.list[A].key == 200 && process.list[B].value == "BBB"`, Expected: true},
-		//{Expr: `process.list[A].key == 200 || process.list[B].value == "AA"`, Expected: true},
-		//{Expr: `process.array[A].key == 1002 && process.array[B].value == "DDDD"`, Expected: true},
-		//{Expr: `process.list[_].key == 10 && process.list[_].value == "AA" && process.array[A].key == 1002 && process.array[A].value == "DDDD"`, Expected: true},
 	}
 
 	for _, test := range tests {

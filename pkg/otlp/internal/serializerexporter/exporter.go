@@ -27,7 +27,7 @@ func newDefaultConfig() config.Exporter {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueSettings: exporterhelper.DefaultQueueSettings(),
+		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
 		Metrics: metricsConfig{
 			SendMonotonic: true,
@@ -41,6 +41,9 @@ func newDefaultConfig() config.Exporter {
 			HistConfig: histogramConfig{
 				Mode:         "distributions",
 				SendCountSum: false,
+			},
+			SumConfig: sumConfig{
+				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
 			},
 		},
 	}
@@ -62,7 +65,7 @@ type exporter struct {
 	tr          *translator.Translator
 	s           serializer.MetricSerializer
 	hostname    string
-	cardinality string
+	cardinality collectors.TagCardinality
 }
 
 func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.Translator, error) {
@@ -97,10 +100,11 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	var numberMode translator.NumberMode
-	if cfg.Metrics.SendMonotonic {
-		numberMode = translator.NumberModeCumulativeToDelta
-	} else {
+	switch cfg.Metrics.SumConfig.CumulativeMonotonicMode {
+	case CumulativeMonotonicSumModeRawValue:
 		numberMode = translator.NumberModeRawValue
+	case CumulativeMonotonicSumModeToDelta:
+		numberMode = translator.NumberModeCumulativeToDelta
 	}
 	options = append(options, translator.WithNumberMode(numberMode))
 
@@ -108,6 +112,10 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 }
 
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+	for _, err := range cfg.warnings {
+		logger.Warn(fmt.Sprintf("Deprecated: %v", err))
+	}
+
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
@@ -118,22 +126,26 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, err
 	}
 
+	cardinality, err := collectors.StringToTagCardinality(cfg.Metrics.TagCardinality)
+	if err != nil {
+		return nil, err
+	}
+
 	return &exporter{
 		tr:          tr,
 		s:           s,
 		hostname:    hostname,
-		cardinality: cfg.Metrics.TagCardinality,
+		cardinality: cardinality,
 	}, nil
 }
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
-	consumer := &serializerConsumer{}
+	consumer := &serializerConsumer{cardinality: e.cardinality}
 	err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err
 	}
 
-	consumer.enrichTags(e.cardinality)
 	consumer.addTelemetryMetric(e.hostname)
 	if err := consumer.flush(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)

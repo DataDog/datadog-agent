@@ -58,6 +58,8 @@ const (
 	K8sClusterRoleBinding
 	// K8sServiceAccount represents a Kubernetes ServiceAccount
 	K8sServiceAccount
+	// K8sIngress represents a Kubernetes Ingress
+	K8sIngress
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -80,6 +82,7 @@ func NodeTypes() []NodeType {
 		K8sClusterRole,
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
+		K8sIngress,
 	}
 }
 
@@ -119,6 +122,8 @@ func (n NodeType) String() string {
 		return "ClusterRoleBinding"
 	case K8sServiceAccount:
 		return "ServiceAccount"
+	case K8sIngress:
+		return "Ingress"
 	default:
 		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -144,7 +149,8 @@ func (n NodeType) Orchestrator() string {
 		K8sRoleBinding,
 		K8sClusterRole,
 		K8sClusterRoleBinding,
-		K8sServiceAccount:
+		K8sServiceAccount,
+		K8sIngress:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)

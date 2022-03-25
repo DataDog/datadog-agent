@@ -63,11 +63,13 @@ SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
 
 int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UTIME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct utimes_event_t event = {
         .syscall.retval = retval,
