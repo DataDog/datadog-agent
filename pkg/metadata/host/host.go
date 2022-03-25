@@ -22,7 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
@@ -48,7 +49,7 @@ type installInfo struct {
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
-func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
+func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 	meta := getMeta(ctx, hostnameData)
 	meta.Hostname = hostnameData.Hostname
 
@@ -76,7 +77,7 @@ func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
 
 // GetPayloadFromCache returns the payload from the cache if it exists, otherwise it creates it.
 // The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
-func GetPayloadFromCache(ctx context.Context, hostnameData util.HostnameData) *Payload {
+func GetPayloadFromCache(ctx context.Context, hostnameData hostname.Data) *Payload {
 	key := buildKey("payload")
 	if x, found := cache.Cache.Get(key); found {
 		return x.(*Payload)
@@ -86,7 +87,7 @@ func GetPayloadFromCache(ctx context.Context, hostnameData util.HostnameData) *P
 
 // GetMeta grabs the metadata from the cache and returns it,
 // if the cache is empty, then it queries the information directly
-func GetMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
+func GetMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
 	key := buildKey("meta")
 	if x, found := cache.Cache.Get(key); found {
 		return x.(*Meta)
@@ -124,30 +125,29 @@ func getPublicIPv4(ctx context.Context) (string, error) {
 }
 
 // getMeta grabs the information and refreshes the cache
-func getMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
-	hostname, _ := os.Hostname()
+func getMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
+	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
 	instanceID, _ := ec2.GetInstanceID(ctx)
 
 	var agentHostname string
 
-	if config.Datadog.GetBool("hostname_force_config_as_canonical") &&
-		hostnameData.Provider == util.HostnameProviderConfiguration {
+	if config.Datadog.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
 	}
 
 	m := &Meta{
-		SocketHostname: hostname,
+		SocketHostname: osHostname,
 		Timezones:      []string{tzname},
-		SocketFqdn:     util.Fqdn(hostname),
+		SocketFqdn:     util.Fqdn(osHostname),
 		EC2Hostname:    ec2Hostname,
 		HostAliases:    cloudproviders.GetHostAliases(ctx),
 		InstanceID:     instanceID,
 		AgentHostname:  agentHostname,
 	}
 
-	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, hostname); finalClusterName != "" {
+	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
 		m.ClusterName = finalClusterName
 	}
 

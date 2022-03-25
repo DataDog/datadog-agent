@@ -6,7 +6,7 @@
 //go:build !docker
 // +build !docker
 
-package util
+package docker
 
 import (
 	"context"

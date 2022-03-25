@@ -14,20 +14,34 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types/container"
 )
 
-// GetAgentContainerUTSMode provides the UTS mode of the Agent container
-// To get this info in an optimal way, consider calling util.GetAgentUTSMode instead to benefit from the cache
-func GetAgentContainerUTSMode(ctx context.Context) (containers.UTSMode, error) {
-	agentCID, _ := providers.ContainerImpl().GetAgentCID()
-	return GetContainerUTSMode(ctx, agentCID)
+// GetAgentUTSMode retrieves from Docker the UTS mode of the Agent container
+func GetAgentUTSMode(ctx context.Context) (containers.UTSMode, error) {
+	cacheUTSModeKey := cache.BuildAgentKey("utsMode")
+	if cacheUTSMode, found := cache.Cache.Get(cacheUTSModeKey); found {
+		return cacheUTSMode.(containers.UTSMode), nil
+	}
+
+	log.Debugf("GetAgentUTSMode trying docker")
+	utsMode, err := getContainerUTSMode(ctx)
+	cache.Cache.Set(cacheUTSModeKey, utsMode, cache.NoExpiration)
+	if err != nil {
+		return utsMode, fmt.Errorf("could not detect agent UTS mode: %v", err)
+	}
+	log.Debugf("GetAgentUTSMode: using UTS mode from Docker: %s", utsMode)
+	return utsMode, nil
 }
 
-// GetContainerUTSMode returns the UTS mode of a container
-func GetContainerUTSMode(ctx context.Context, cid string) (containers.UTSMode, error) {
+// getContainerUTSMode returns the UTS mode of a container
+func getContainerUTSMode(ctx context.Context) (containers.UTSMode, error) {
+	cid, _ := providers.ContainerImpl().GetAgentCID()
+
 	du, err := GetDockerUtil()
 	if err != nil {
 		return containers.UnknownUTSMode, err

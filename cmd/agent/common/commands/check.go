@@ -33,8 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -137,7 +137,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return nil
 			}
 
-			hostname, err := util.GetHostname(context.TODO())
+			hostnameDetected, err := hostname.Get(context.TODO())
 			if err != nil {
 				fmt.Printf("Cannot get hostname, exiting: %v\n", err)
 				return err
@@ -149,7 +149,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts.UseNoopForwarder = true
 			opts.UseNoopEventPlatformForwarder = true
 			opts.UseNoopOrchestratorForwarder = true
-			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 

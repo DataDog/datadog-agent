@@ -17,7 +17,7 @@ import (
 
 // GetHostAliases uses the "kubelet" hostname provider to fetch the kubernetes alias
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	name, err := HostnameProvider(ctx, nil)
+	name, err := GetHostname(ctx)
 	if err == nil && validate.ValidHostname(name) == nil {
 		return []string{name}, nil
 	}
