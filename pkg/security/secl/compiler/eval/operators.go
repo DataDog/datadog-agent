@@ -5,6 +5,8 @@
 
 package eval
 
+import "github.com/pkg/errors"
+
 // OpOverrides defines operator override functions
 type OpOverrides struct {
 	StringEquals         func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
@@ -12,16 +14,6 @@ type OpOverrides struct {
 	StringArrayContains  func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
 	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
 }
-
-// StringCmpOpts defines options to apply during string comparison
-type StringCmpOpts struct {
-	ScalarInsensitive bool
-	GlobInsensitive   bool
-	RegexpInsensitive bool
-}
-
-// DefaultStrCmpOpts defines the default comparison options
-var DefaultStrCmpOpts = StringCmpOpts{}
 
 // return whether a arithmetic operation is deterministic
 func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
@@ -75,17 +67,15 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 
 	var op func(a string, b string) bool
 
-	if a.stringMatcher != nil {
+	if a.stringMatcher != nil && b.stringMatcher != nil {
+		return nil, errors.New("string matcher to string matcher is not supported")
+	} else if a.stringMatcher != nil {
 		op = func(as string, bs string) bool {
 			return a.stringMatcher.Matches(bs)
 		}
 	} else if b.stringMatcher != nil {
 		op = func(as string, bs string) bool {
 			return b.stringMatcher.Matches(as)
-		}
-	} else {
-		op = func(as string, bs string) bool {
-			return as == bs
 		}
 	}
 
@@ -249,19 +239,10 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
-		if a.stringMatcher != nil {
-			ea, eb := a.stringMatcher, b.Values
-
-			return &BoolEvaluator{
-				Value:           smArrayOp(ea, eb),
-				Weight:          a.Weight + InArrayWeight*len(eb),
-				isDeterministic: isDc,
-			}, nil
-		}
-		ea, eb := a.Value, b.Values
+		ea, eb := a.stringMatcher, b.Values
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, eb),
+			Value:           smArrayOp(ea, eb),
 			Weight:          a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -298,12 +279,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
-	}
-	if a.stringMatcher != nil {
-		evalFnc = func(ctx *Context) bool {
-			return smArrayOp(a.stringMatcher, eb(ctx))
-		}
+		return smArrayOp(a.stringMatcher, eb(ctx))
 	}
 
 	return &BoolEvaluator{

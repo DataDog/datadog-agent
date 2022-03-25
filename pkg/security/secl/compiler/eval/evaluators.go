@@ -127,13 +127,14 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 
 // Compile compile internal object
 func (s *StringEvaluator) Compile() error {
-	if IsStringMatcherType(s.ValueType) {
+	if s.IsScalar() {
 		matcher, err := NewStringMatcher(s.ValueType, s.Value)
 		if err != nil {
 			return err
 		}
 		s.stringMatcher = matcher
 	}
+
 	return nil
 }
 

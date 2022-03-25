@@ -12,6 +12,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+// StringCmpOpts defines options to apply during string comparison
+type StringCmpOpts struct {
+	ScalarInsensitive bool
+	GlobInsensitive   bool
+	RegexpInsensitive bool
+}
+
+// DefaultStrCmpOpts defines the default comparison options
+var DefaultStrCmpOpts = StringCmpOpts{}
+
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
 	scalars         []string
@@ -44,8 +54,6 @@ func (s *StringValues) AppendFieldValue(value FieldValue) {
 	s.exists[value.Value] = true
 
 	s.fieldValues = append(s.fieldValues, value)
-
-	return
 }
 
 // Compile all the values
@@ -57,6 +65,7 @@ func (s *StringValues) Compile() error {
 			}
 			s.patternMatchers = append(s.patternMatchers, value.StringMatcher)
 		} else {
+			// fast path only when not options are passed
 			str := value.Value.(string)
 			s.scalars = append(s.scalars, str)
 			s.scalarCache[str] = true
@@ -198,6 +207,21 @@ func (g *GlobStringMatcher) Contains(value string) bool {
 	return g.glob.Contains(value)
 }
 
+// ScalarStringMatcher defines a scalar matcher
+type ScalarStringMatcher struct {
+	value string
+}
+
+// Compile a simple pattern
+func (s *ScalarStringMatcher) Compile(pattern string) error {
+	return nil
+}
+
+// Matches returns whether the value matches
+func (s *ScalarStringMatcher) Matches(value string) bool {
+	return s.value == value
+}
+
 // NewStringMatcher returns a new string matcher
 func NewStringMatcher(kind FieldValueType, pattern string) (StringMatcher, error) {
 	switch kind {
@@ -213,6 +237,8 @@ func NewStringMatcher(kind FieldValueType, pattern string) (StringMatcher, error
 			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
+	case ScalarValueType:
+		return &ScalarStringMatcher{value: pattern}, nil
 	}
 
 	return nil, errors.New("unknown type")
