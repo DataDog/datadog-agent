@@ -13,6 +13,16 @@ type OpOverrides struct {
 	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
 }
 
+// StringCmpOpts defines options to apply during string comparison
+type StringCmpOpts struct {
+	ScalarInsensitive bool
+	GlobInsensitive   bool
+	RegexpInsensitive bool
+}
+
+// DefaultStrCmpOpts defines the default comparison options
+var DefaultStrCmpOpts = StringCmpOpts{}
+
 // return whether a arithmetic operation is deterministic
 func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
@@ -53,7 +63,7 @@ func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 }
 
 // StringEquals evaluates string
-func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State, cmpOpts StringCmpOpts) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	if err := a.Compile(); err != nil {
@@ -197,7 +207,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 }
 
 // StringArrayContains evaluates array of strings against a value
-func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State, cmpOpts StringCmpOpts) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	if err := a.Compile(); err != nil {
@@ -304,7 +314,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 }
 
 // StringValuesContains evaluates a string against values
-func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State, cmpOpts StringCmpOpts) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	if err := b.Compile(); err != nil {
@@ -373,7 +383,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 }
 
 // StringArrayMatches weak comparison, a least one element of a should be in b. a can't contain regexp
-func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State, cmpOpts StringCmpOpts) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	if err := b.Compile(); err != nil {

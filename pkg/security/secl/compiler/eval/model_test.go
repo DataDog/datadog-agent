@@ -350,7 +350,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 						},
 					}
 
-					return StringValuesContains(a, &evaluator, opts, state)
+					return StringValuesContains(a, &evaluator, opts, state, DefaultStrCmpOpts)
 				},
 				StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
@@ -359,7 +359,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 						},
 					}
 
-					return StringValuesContains(a, &evaluator, opts, state)
+					return StringValuesContains(a, &evaluator, opts, state, DefaultStrCmpOpts)
 				},
 			},
 		}, nil
@@ -385,7 +385,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 						},
 					}
 
-					return StringArrayMatches(b, &evaluator, opts, state)
+					return StringArrayMatches(b, &evaluator, opts, state, DefaultStrCmpOpts)
 				},
 				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
@@ -394,7 +394,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 						},
 					}
 
-					return StringArrayMatches(a, &evaluator, opts, state)
+					return StringArrayMatches(a, &evaluator, opts, state, DefaultStrCmpOpts)
 				},
 			},
 		}, nil

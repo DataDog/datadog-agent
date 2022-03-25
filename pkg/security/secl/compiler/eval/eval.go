@@ -282,7 +282,7 @@ func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, opts *Opts, sta
 	} else if b.OpOverrides != nil && b.OpOverrides.StringEquals != nil {
 		evaluator, err = b.OpOverrides.StringEquals(a, b, opts, state)
 	} else {
-		evaluator, err = StringEquals(a, b, opts, state)
+		evaluator, err = StringEquals(a, b, opts, state, DefaultStrCmpOpts)
 	}
 	if err != nil {
 		return nil, err
@@ -301,7 +301,7 @@ func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, opt
 	} else if b.OpOverrides != nil && b.OpOverrides.StringArrayContains != nil {
 		evaluator, err = b.OpOverrides.StringArrayContains(a, b, opts, state)
 	} else {
-		evaluator, err = StringArrayContains(a, b, opts, state)
+		evaluator, err = StringArrayContains(a, b, opts, state, DefaultStrCmpOpts)
 	}
 	if err != nil {
 		return nil, err
@@ -318,7 +318,7 @@ func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, o
 	if a.OpOverrides != nil && a.OpOverrides.StringValuesContains != nil {
 		evaluator, err = a.OpOverrides.StringValuesContains(a, b, opts, state)
 	} else {
-		evaluator, err = StringValuesContains(a, b, opts, state)
+		evaluator, err = StringValuesContains(a, b, opts, state, DefaultStrCmpOpts)
 	}
 	if err != nil {
 		return nil, err
@@ -335,7 +335,7 @@ func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator
 	if a.OpOverrides != nil && a.OpOverrides.StringArrayMatches != nil {
 		evaluator, err = a.OpOverrides.StringArrayMatches(a, b, opts, state)
 	} else {
-		evaluator, err = StringArrayMatches(a, b, opts, state)
+		evaluator, err = StringArrayMatches(a, b, opts, state, DefaultStrCmpOpts)
 	}
 	if err != nil {
 		return nil, err
