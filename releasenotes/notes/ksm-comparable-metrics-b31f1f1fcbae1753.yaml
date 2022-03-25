@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Time-based metrics (e.g `kubernetes_state.pod.age`, `kubernetes_state.pod.uptime`) are now comparable in the Kubernetes state core check.
+    Time-based metrics (for example, `kubernetes_state.pod.age`, `kubernetes_state.pod.uptime`) are now comparable in the Kubernetes state core check.
