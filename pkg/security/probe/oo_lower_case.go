@@ -56,30 +56,37 @@ func toLowerStringArrayEvaluator(evaluator *eval.StringArrayEvaluator) *eval.Str
 	}
 }
 
-func toLowerStringValues(values *eval.StringValues) *eval.StringValues {
+func toLowerStringValues(values *eval.StringValues) (*eval.StringValues, error) {
 	var lowerValues eval.StringValues
 
 	for _, value := range values.GetFieldValues() {
 		if str, ok := value.Value.(string); ok {
 			value.Value = strings.ToLower(str)
 		}
-		lowerValues.AppendFieldValue(value)
+		if err := lowerValues.AppendFieldValue(value); err != nil {
+			// return the original values in case of error to avoid stack trace in case of being called from EvalFnc
+			return values, err
+		}
 	}
-	return &lowerValues
+	return &lowerValues, nil
 }
 
-func toLowerStringValuesEvaluator(evaluator *eval.StringValuesEvaluator) *eval.StringValuesEvaluator {
+func toLowerStringValuesEvaluator(evaluator *eval.StringValuesEvaluator) (*eval.StringValuesEvaluator, error) {
 	if evaluator.IsScalar() {
-		values := toLowerStringValues(&evaluator.Values)
+		values, err := toLowerStringValues(&evaluator.Values)
+		if err != nil {
+			return nil, err
+		}
 		evaluator.Values = *values
 
-		return evaluator
+		return evaluator, nil
 	}
 	return &eval.StringValuesEvaluator{
 		EvalFnc: func(ctx *eval.Context) *eval.StringValues {
-			return toLowerStringValues(evaluator.EvalFnc(ctx))
+			evaluator, _ := toLowerStringValues(evaluator.EvalFnc(ctx))
+			return evaluator
 		},
-	}
+	}, nil
 }
 
 var (
@@ -105,7 +112,9 @@ var (
 				return nil, err
 			}
 
-			b = toLowerStringValuesEvaluator(b)
+			if b, err = toLowerStringValuesEvaluator(b); err != nil {
+				return nil, err
+			}
 
 			return eval.StringValuesContains(a, b, opts, state)
 		},
@@ -122,7 +131,11 @@ var (
 		},
 		StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
 			a = toLowerStringArrayEvaluator(a)
-			b = toLowerStringValuesEvaluator(b)
+
+			var err error
+			if b, err = toLowerStringValuesEvaluator(b); err != nil {
+				return nil, err
+			}
 
 			return eval.StringArrayMatches(a, b, opts, state)
 		},
