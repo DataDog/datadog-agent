@@ -6,6 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/theupdateframework/go-tuf/data"
 )
 
@@ -156,7 +157,27 @@ func TestPartialClientVerifyInvalidRotation(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestPartialClientVerifyUnsignedTarget tests that the partial uptane client
+// does not accept targets which are not listed in the targets metadata file
+func TestPartialClientVerifyUnsignedTarget(t *testing.T) {
+	files := []*pbgo.File{
+		{Path: "datadog/2/APM_SAMPLING/id/1", Raw: []byte("mAlIcIoUs cOnTeNt!!")},
+	}
+	// malicious target has simply be added without a signature
+	directorTargetMetadata := data.TargetFiles{}
+
+	repository := newTestRepository(1, nil, directorTargetMetadata, files)
+	config.Datadog.Set("remote_configuration.director_root", repository.directorRoot)
+	config.Datadog.Set("remote_configuration.config_root", repository.configRoot)
+
+	client, err := NewPartialClient()
+	require.NoError(t, err)
+
+	err = client.Update(repository.toPartialUpdate())
+	errInvalid := &ErrInvalid{}
+	require.ErrorAs(t, err, &errInvalid)
+}
+
 // TODO add tests checking that partial verifier does not accept configs with either:
-// - no signature
 // - invalid signature
 // - signature with revoked key (test both top-level target key revocation and root key revocation)

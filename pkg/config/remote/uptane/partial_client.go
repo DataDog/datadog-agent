@@ -217,6 +217,14 @@ func (c *PartialClient) TargetFile(path string) ([]byte, error) {
 	return c.targetFile(path)
 }
 
+type ErrInvalid struct {
+	msg string
+}
+
+func (err *ErrInvalid) Error() string {
+	return err.msg
+}
+
 func (c *PartialClient) targetFile(path string) ([]byte, error) {
 	var targetFile *pbgo.File
 	for _, target := range c.targetFiles {
@@ -229,7 +237,7 @@ func (c *PartialClient) targetFile(path string) ([]byte, error) {
 	}
 	targetMeta, hasMeta := c.targetMetas[path]
 	if !hasMeta {
-		return nil, fmt.Errorf("target file meta %s not found", path)
+		return nil, &ErrInvalid{fmt.Sprintf("target file meta %s not found", path)}
 	}
 	if len(targetMeta.HashAlgorithms()) == 0 {
 		return nil, fmt.Errorf("target file %s has no hash", path)
