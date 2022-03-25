@@ -50,6 +50,18 @@ var renamedSettings = []renameError{
 			}
 		},
 	},
+	{
+		oldName:      "metrics::report_quantiles",
+		newName:      "metrics::summaries::mode",
+		oldRemovedIn: "v7.37",
+		updateFn: func(c *exporterConfig) {
+			if c.Metrics.Quantiles {
+				c.Metrics.SummaryConfig.Mode = SummaryModeGauges
+			} else {
+				c.Metrics.SummaryConfig.Mode = SummaryModeNoQuantiles
+			}
+		},
+	},
 }
 
 // Error implements the error interface.

@@ -3144,6 +3144,7 @@ api_key:
 
     ## @param report_quantiles - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
+    ## DEPRECATED: [v7.36] Use `summaries.mode` instead. Will be removed in v7.37.
     ## Whether to report quantile metrics for OTLP Summary points.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
     #
@@ -3198,6 +3199,18 @@ api_key:
         ## - `raw_value` to report the raw value as a Datadog gauge.
         #
         # cumulative_monotonic_mode: to_delta
+    
+    ## @param summaries - custom object - optional
+    ## Configuration for OTLP Summaries.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
+        ## @param mode - string - optional - default: gauges
+        ## @env DD_OTLP_CONFIG_METRICS_SUMMARIES_MODE - string - optional - default: gauges
+        ## How to report summaries. Valid values are:
+        ##
+        ## - `noquantiles` to no report quantile metrics.
+        ## - `gauges` to report one gauge metric per quantile.
+        #
+        # mode: gauges
 
   ## @param traces - custom object - optional
   ## Traces-specific configuration for OTLP ingest in the Datadog Agent.
