@@ -86,6 +86,16 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSocketSockOffset(f.kernelVersion)
 	case "nf_conn_ct_net_offset":
 		value = getNFConnCTNetOffset(f.kernelVersion)
+	case "sock_sk_family_offset":
+		value = getSockSKFamilyOffset(f.kernelVersion)
+	case "flowi4_saddr_offset":
+		value = getFlowi4SAddrOffset(f.kernelVersion)
+	case "flowi6_saddr_offset":
+		value = getFlowi6SAddrOffset(f.kernelVersion)
+	case "flowi4_uli_offset":
+		value = getFlowi4ULIOffset(f.kernelVersion)
+	case "flowi6_uli_offset":
+		value = getFlowi6ULIOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -559,6 +569,74 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		offset = 240
+	}
+
+	return offset
+}
+
+func getSockSKFamilyOffset(kv *kernel.Version) uint64 {
+	return 16
+}
+
+func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
+	offset := uint64(40)
+
+	switch {
+	case kv.IsRH8Kernel():
+		offset = 56
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		offset = 32
+	case kv.Code >= kernel.Kernel5_1:
+		offset = 40
+	}
+
+	return offset
+}
+
+func getFlowi4ULIOffset(kv *kernel.Version) uint64 {
+	offset := uint64(48)
+
+	switch {
+	case kv.IsRH8Kernel():
+		offset = 64
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		offset = 40
+	case kv.Code >= kernel.Kernel5_1:
+		offset = 48
+	}
+
+	return offset
+}
+
+func getFlowi6SAddrOffset(kv *kernel.Version) uint64 {
+	offset := uint64(56)
+
+	switch {
+	case kv.IsRH8Kernel():
+		offset = 72
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		offset = 48
+	case kv.Code >= kernel.Kernel5_1:
+		offset = 56
+	}
+
+	return offset
+}
+
+func getFlowi6ULIOffset(kv *kernel.Version) uint64 {
+	offset := uint64(76)
+
+	switch {
+	case kv.IsRH8Kernel():
+		offset = 92
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		offset = 68
+	case kv.Code >= kernel.Kernel5_1:
+		offset = 76
 	}
 
 	return offset
