@@ -174,7 +174,16 @@ func (c *PartialClient) Update(response *pbgo.ClientGetConfigsResponse) error {
 				&ErrInvalid{err.Error()},
 			)
 		}
-		return err
+
+		//errRoleThreshold := &verify.ErrRoleThreshold{}
+		if errors.As(err, &verify.ErrRoleThreshold{}) {
+			return fmt.Errorf(
+				"updating targets: %w",
+				&ErrInvalid{err.Error()},
+			)
+		}
+
+		return fmt.Errorf("updating target: error with unexpected type (%T): %w", err, err)
 	}
 	c.targetFiles = response.TargetFiles
 	for _, target := range response.TargetFiles {
