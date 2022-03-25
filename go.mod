@@ -113,7 +113,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/florianl/go-conntrack v0.2.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/go-ini/ini v1.66.3
+	github.com/go-ini/ini v1.66.4
 	github.com/go-ole/go-ole v1.2.6
 	github.com/go-openapi/spec v0.20.4
 	github.com/gobwas/glob v0.2.3
@@ -153,7 +153,7 @@ require (
 	github.com/moby/sys/mountinfo v0.5.0
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-policy-agent/opa v0.37.2
+	github.com/open-policy-agent/opa v0.38.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.47.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
