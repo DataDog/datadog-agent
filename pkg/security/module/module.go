@@ -424,10 +424,9 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	if m.selfTester != nil {
-		m.selfTester.SendEventIfExpecting(rule, event)
+	if !m.selfTester.isExpectedEvent(rule, event) {
+		m.SendEvent(rule, event, extTagsCb, service)
 	}
-	m.SendEvent(rule, event, extTagsCb, service)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule

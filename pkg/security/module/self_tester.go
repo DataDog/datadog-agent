@@ -165,17 +165,17 @@ type selfTestEvent struct {
 	Filepath string
 }
 
-// SendEventIfExpecting sends an event to the tester
-func (t *SelfTester) SendEventIfExpecting(rule *rules.Rule, event eval.Event) {
+// isExpectedEvent sends an event to the tester
+func (t *SelfTester) isExpectedEvent(rule *rules.Rule, event eval.Event) bool {
 	if atomic.LoadUint32(&t.waitingForEvent) != 0 && rule.Definition.Policy.Name == selfTestPolicyName {
 		ev, ok := event.(*probe.Event)
 		if !ok {
-			return
+			return true
 		}
 
 		s := probe.NewEventSerializer(ev)
 		if s == nil || s.FileEventSerializer == nil {
-			return
+			return true
 		}
 
 		selfTestEvent := selfTestEvent{
@@ -183,7 +183,9 @@ func (t *SelfTester) SendEventIfExpecting(rule *rules.Rule, event eval.Event) {
 			Filepath: s.FileEventSerializer.Path,
 		}
 		t.eventChan <- selfTestEvent
+		return true
 	}
+	return false
 }
 
 func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
