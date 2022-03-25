@@ -56,18 +56,25 @@ func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
-	var arrayOp func(a string, b string) bool
+	if err := a.Compile(); err != nil {
+		return nil, err
+	}
+	if err := b.Compile(); err != nil {
+		return nil, err
+	}
+
+	var op func(a string, b string) bool
 
 	if a.stringMatcher != nil {
-		arrayOp = func(as string, bs string) bool {
+		op = func(as string, bs string) bool {
 			return a.stringMatcher.Matches(bs)
 		}
 	} else if b.stringMatcher != nil {
-		arrayOp = func(as string, bs string) bool {
+		op = func(as string, bs string) bool {
 			return b.stringMatcher.Matches(as)
 		}
 	} else {
-		arrayOp = func(as string, bs string) bool {
+		op = func(as string, bs string) bool {
 			return as == bs
 		}
 	}
@@ -76,7 +83,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb(ctx))
+			return op(ea(ctx), eb(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -90,7 +97,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.Value, b.Value
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, eb),
+			Value:           op(ea, eb),
 			Weight:          a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -106,7 +113,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb)
+			return op(ea(ctx), eb)
 		}
 
 		return &BoolEvaluator{
@@ -125,7 +132,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
+		return op(ea, eb(ctx))
 	}
 
 	return &BoolEvaluator{
@@ -192,6 +199,10 @@ func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 // StringArrayContains evaluates array of strings against a value
 func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
+
+	if err := a.Compile(); err != nil {
+		return nil, err
+	}
 
 	arrayOp := func(a string, b []string) bool {
 		for _, bs := range b {
@@ -296,6 +307,10 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
+	if err := b.Compile(); err != nil {
+		return nil, err
+	}
+
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
@@ -360,6 +375,10 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 // StringArrayMatches weak comparison, a least one element of a should be in b. a can't contain regexp
 func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
+
+	if err := b.Compile(); err != nil {
+		return nil, err
+	}
 
 	arrayOp := func(a []string, b *StringValues) bool {
 		for _, as := range a {

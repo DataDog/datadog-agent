@@ -6,8 +6,6 @@
 package eval
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
@@ -129,15 +127,12 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 
 // Compile compile internal object
 func (s *StringEvaluator) Compile() error {
-	switch s.ValueType {
-	case PatternValueType, RegexpValueType:
+	if IsStringMatcherType(s.ValueType) {
 		matcher, err := NewStringMatcher(s.ValueType, s.Value)
 		if err != nil {
 			return err
 		}
 		s.stringMatcher = matcher
-	default:
-		return fmt.Errorf("invalid pattern or regexp '%s'", s.Value)
 	}
 	return nil
 }
@@ -210,14 +205,15 @@ func (s *StringValuesEvaluator) IsScalar() bool {
 }
 
 // AppendFieldValues append field values
-func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) error {
+func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) {
 	for _, value := range values {
-		if err := s.Values.AppendFieldValue(value); err != nil {
-			return err
-		}
+		s.Values.AppendFieldValue(value)
 	}
+}
 
-	return nil
+// Compile the underlying StringValues
+func (s *StringValuesEvaluator) Compile() error {
+	return s.Values.Compile()
 }
 
 // SetFieldValues apply field values
@@ -226,7 +222,7 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 }
 
 // AppendMembers add members to the evaluator
-func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) error {
+func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
 	var values []FieldValue
 	var value FieldValue
 
@@ -250,7 +246,7 @@ func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) error
 		values = append(values, value)
 	}
 
-	return s.AppendFieldValues(values...)
+	s.AppendFieldValues(values...)
 }
 
 // IntArrayEvaluator returns an array of int

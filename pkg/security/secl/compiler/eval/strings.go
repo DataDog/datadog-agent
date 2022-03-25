@@ -24,32 +24,44 @@ type StringValues struct {
 	exists map[interface{}]bool
 }
 
+// IsStringMatcherType return whether this type can be handled by a StringMatcher
+func IsStringMatcherType(kind FieldValueType) bool {
+	return kind == PatternValueType || kind == RegexpValueType
+}
+
 // AppendFieldValue append a FieldValue
-func (s *StringValues) AppendFieldValue(value FieldValue) error {
+func (s *StringValues) AppendFieldValue(value FieldValue) {
 	if s.scalarCache == nil {
 		s.scalarCache = make(map[string]bool)
 	}
 
 	if s.exists[value.Value] {
-		return nil
+		return
 	}
 	if s.exists == nil {
 		s.exists = make(map[interface{}]bool)
 	}
 	s.exists[value.Value] = true
 
-	switch value.Type {
-	case PatternValueType, RegexpValueType:
-		if err := value.Compile(); err != nil {
-			return err
-		}
-		s.patternMatchers = append(s.patternMatchers, value.StringMatcher)
-	default:
-		str := value.Value.(string)
-		s.scalars = append(s.scalars, str)
-		s.scalarCache[str] = true
-	}
 	s.fieldValues = append(s.fieldValues, value)
+
+	return
+}
+
+// Compile all the values
+func (s *StringValues) Compile() error {
+	for _, value := range s.fieldValues {
+		if IsStringMatcherType(value.Type) {
+			if err := value.Compile(); err != nil {
+				return err
+			}
+			s.patternMatchers = append(s.patternMatchers, value.StringMatcher)
+		} else {
+			str := value.Value.(string)
+			s.scalars = append(s.scalars, str)
+			s.scalarCache[str] = true
+		}
+	}
 
 	return nil
 }
@@ -72,9 +84,7 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	s.exists = nil
 
 	for _, value := range values {
-		if err := s.AppendFieldValue(value); err != nil {
-			return err
-		}
+		s.AppendFieldValue(value)
 	}
 
 	return nil
@@ -105,10 +115,12 @@ func (s *StringValues) AppendStringEvaluator(evaluator *StringEvaluator) error {
 		return errors.New("only scalar evaluator are supported")
 	}
 
-	return s.AppendFieldValue(FieldValue{
+	s.AppendFieldValue(FieldValue{
 		Value: evaluator.Value,
 		Type:  evaluator.ValueType,
 	})
+
+	return nil
 }
 
 // Matches returns whether the value matches the string values
