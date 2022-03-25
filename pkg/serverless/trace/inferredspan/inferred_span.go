@@ -74,7 +74,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	return output
 }
 
-func CreateInferredSpan(event string, ctx serverlessLog.ExecutionContext) {
+func CreateInferredSpan(event string, ctx *serverlessLog.ExecutionContext) {
 	// Parse the event into the EventKey struct
 	eventSource, attributes := ParseEventSource(event)
 	switch eventSource {

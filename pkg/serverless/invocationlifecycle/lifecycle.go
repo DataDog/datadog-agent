@@ -37,9 +37,10 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
 	}
 
-	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" {
+	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
+		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
 		log.Debug("[lifecycle] Attempting to create inferred span")
-		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, *lp.ExecutionContext)
+		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, lp.ExecutionContext)
 	}
 }
 
@@ -60,4 +61,11 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
+
+	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
+		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
+		log.Debug("[lifecycle] Attempting to complete the inferred span")
+		inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError)
+	}
+
 }
