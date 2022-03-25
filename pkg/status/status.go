@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	procCheck "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -149,6 +150,10 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	}
 
 	return []byte(st), nil
+}
+
+func GetProcessCheckStatus(c procCheck.Check, cs *procCheck.Stats) ([]byte, error) {
+	panic("implement me!")
 }
 
 // GetDCAStatus grabs the status from expvar and puts it into a map

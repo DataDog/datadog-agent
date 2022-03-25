@@ -10,4 +10,6 @@ const (
 	CfgPath = "cfgpath"
 	// SysProbeConfig defines the sysprobe-config flag
 	SysProbeConfig = "sysprobe-config"
+	// JSONFlag defines the json flag for the check command
+	JSONFlag = "json"
 )

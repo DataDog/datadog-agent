@@ -9,6 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/status"
+	"io"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -28,6 +31,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+var (
+	checkJSONOutput = false
+)
+
 // CheckCmd is a command that runs the process-agent version data
 var CheckCmd = &cobra.Command{
 	Use:          "check",
@@ -38,6 +45,10 @@ var CheckCmd = &cobra.Command{
 }
 
 const loggerName ddconfig.LoggerName = "PROCESS"
+
+func init() {
+	CheckCmd.Flags().BoolVar(&checkJSONOutput, flags.JSONFlag, false, "Outputs the check results in json")
+}
 
 func runCheckCmd(cmd *cobra.Command, args []string) error {
 	// We need to load in the system probe environment variables before we load the config, otherwise an
@@ -102,42 +113,75 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 		checks.Process.Run(cfg, 0) //nolint:errcheck
 	}
 
+	var finalCheck checks.Check
+	var rt bool
 	names := make([]string, 0, len(checks.All))
 	for _, ch := range checks.All {
 		names = append(names, ch.Name())
 
 		if ch.Name() == check {
 			ch.Init(cfg, sysInfo)
-			return runCheck(cfg, ch)
+			if err != nil {
+				return err
+			}
+			finalCheck = ch
+			break
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
 		if ok && withRealTime.RealTimeName() == check {
 			withRealTime.Init(cfg, sysInfo)
-			return runCheckAsRealTime(cfg, withRealTime)
+			if err != nil {
+				return err
+			}
+			finalCheck = withRealTime
+			rt = true
+			break
 		}
 	}
-	return log.Errorf("invalid check '%s', choose from: %v", check, names)
+	if finalCheck == nil {
+		return log.Errorf("invalid check '%s', choose from: %v", check, names)
+	}
+
+	var checkOutput []process.MessageBody
+	var stats *checks.Stats
+	if rt {
+		withRealtime := finalCheck.(checks.CheckWithRealTime)
+		stats = checks.NewStatsRealtime(withRealtime)
+		checkOutput, err = runCheckAsRealTime(cfg, withRealtime, stats)
+	} else {
+		stats = checks.NewStats(finalCheck)
+		checkOutput, err = runCheckStandard(cfg, finalCheck, stats)
+	}
+	stats.CheckConfigSource = configPath
+
+	printResultsBanner(stats.CheckName)
+	if checkJSONOutput {
+		return printResultsJSON(checkOutput)
+	} else {
+		return printResults(finalCheck, stats, os.Stdout)
+	}
 }
 
-func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
+func runCheckStandard(cfg *config.AgentConfig, ch checks.Check, stats *checks.Stats) ([]process.MessageBody, error) {
 	// Run the check once to prime the cache.
 	if _, err := ch.Run(cfg, 0); err != nil {
-		return fmt.Errorf("collection error: %s", err)
+		return nil, fmt.Errorf("collection error: %s", err)
 	}
 
 	time.Sleep(1 * time.Second)
 
-	printResultsBanner(ch.Name())
-
+	start := time.Now()
 	msgs, err := ch.Run(cfg, 1)
+	stats.Runtime = time.Since(start)
+
 	if err != nil {
-		return fmt.Errorf("collection error: %s", err)
+		return nil, fmt.Errorf("collection error: %s", err)
 	}
-	return printResults(msgs)
+	return msgs, nil
 }
 
-func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
+func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime, stats *checks.Stats) ([]process.MessageBody, error) {
 	options := checks.RunOptions{
 		RunStandard: true,
 		RunRealTime: true,
@@ -153,19 +197,22 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 	// We need to run the check twice in order to initialize the stats
 	// Rate calculations rely on having two datapoints
 	if _, err := ch.RunWithOptions(cfg, nextGroupID, options); err != nil {
-		return fmt.Errorf("collection error: %s", err)
+		return nil, fmt.Errorf("collection error: %s", err)
 	}
 
 	time.Sleep(1 * time.Second)
 
 	printResultsBanner(ch.RealTimeName())
 
+	start := time.Now()
 	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
+	stats.Runtime = time.Since(start)
+
 	if err != nil {
-		return fmt.Errorf("collection error: %s", err)
+		return nil, fmt.Errorf("collection error: %s", err)
 	}
 
-	return printResults(run.RealTime)
+	return run.RealTime, nil
 }
 
 func printResultsBanner(name string) {
@@ -174,7 +221,16 @@ func printResultsBanner(name string) {
 	fmt.Printf("-----------------------------\n\n")
 }
 
-func printResults(msgs []process.MessageBody) error {
+func printResults(check checks.Check, stats *checks.Stats, w io.Writer) error {
+	b, err := status.GetProcessCheckStatus(check, stats)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(b)
+	return err
+}
+
+func printResultsJSON(msgs []process.MessageBody) error {
 	for _, m := range msgs {
 		b, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {
