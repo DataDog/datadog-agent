@@ -155,3 +155,8 @@ func TestPartialClientVerifyInvalidRotation(t *testing.T) {
 	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/1")
 	assert.Error(t, err)
 }
+
+// TODO add tests checking that partial verifier does not accept configs with either:
+// - no signature
+// - invalid signature
+// - signature with revoked key (test both top-level target key revocation and root key revocation)
