@@ -119,7 +119,7 @@ func BuildEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string,
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
 		"To benefit from increased reliability and better network performances, "+
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.",
-		logsConfig.getConfigKey("use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
+		logsConfig.getConfigKey("force_use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
 	return buildTCPEndpoints(logsConfig)
 }
 

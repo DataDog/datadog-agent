@@ -233,7 +233,7 @@ func InitConfig(config Config) {
 	config.BindEnv("site")
 	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
-	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle"})
+	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
@@ -659,7 +659,9 @@ func InitConfig(config Config) {
 
 	// Metadata endpoints
 
-	// Defines the maximum size of hostame gathered from EC2, GCE, Azure and Alibabacloud metadata endpoints.
+	// Defines the maximum size of hostame gathered from EC2, GCE, Azure, Alibaba, Oracle and Tencent cloud metadata
+	// endpoints (all cloudprovider except IBM). IBM cloud ignore this setting as their API return a huge JSON with
+	// all the metadata for the VM.
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
@@ -717,6 +719,10 @@ func InitConfig(config Config) {
 
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
+
+	// IBM cloud
+	// We use a long timeout here since the metadata and token API can be very slow sometimes.
+	config.BindEnvAndSetDefault("ibm_metadata_timeout", 5) // value in seconds
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
@@ -790,8 +796,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
+	// DEPRECATED in favor of `logs_config.force_use_http`.
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
+	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
@@ -811,6 +821,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
+	// If true, the agent looks for container logs in the location used by podman, rather
+	// than docker.  This is a temporary configuration parameter to support podman logs until
+	// a more substantial refactor of autodiscovery is made to determine this automatically.
+	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
 
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
@@ -1003,6 +1018,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_output_directory", "")
+	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)

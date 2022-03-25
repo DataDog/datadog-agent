@@ -211,7 +211,7 @@ func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
 }
 
 var (
-	discarderEvent = NewEvent(nil, nil)
+	discarderEvent = NewEvent(nil, nil, nil)
 )
 
 // use a faster version of path.Dir which adds some sanity checks not required here

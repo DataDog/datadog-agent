@@ -43,6 +43,9 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getModuleProbes()...)
 	allProbes = append(allProbes, getSignalProbes()...)
 	allProbes = append(allProbes, getSpliceProbes()...)
+	allProbes = append(allProbes, getFlowProbes()...)
+	allProbes = append(allProbes, getNetDeviceProbes()...)
+	allProbes = append(allProbes, GetTCProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
@@ -161,12 +164,15 @@ func AllPerfMaps() []*manager.PerfMap {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled bool, networkEnabled bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
+	if networkEnabled {
+		routes = append(routes, getTCTailCallRoutes()...)
+	}
 
 	return routes
 }

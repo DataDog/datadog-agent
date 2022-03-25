@@ -15,13 +15,14 @@ import (
 	"syscall"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/mailru/easyjson/jwriter"
 	"golang.org/x/sys/unix"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/mailru/easyjson/jwriter"
 )
 
 const (
@@ -63,6 +64,13 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{}
 }
 
+// NetDeviceKey is used to uniquely identify a network device
+type NetDeviceKey struct {
+	IfIndex          uint32
+	NetNS            uint32
+	NetworkDirection manager.TrafficType
+}
+
 // Event describes a probe event
 type Event struct {
 	model.Event
@@ -71,6 +79,7 @@ type Event struct {
 	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
 	scrubber            *pconfig.DataScrubber
+	probe               *Probe
 }
 
 // Retain the event
@@ -518,11 +527,38 @@ func (ev *Event) GetProcessServiceTag() string {
 	return ""
 }
 
+// ResolveNetworkDeviceIfName returns the network iterface name from the network context
+func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
+	if len(device.IfName) == 0 && ev.probe != nil {
+		key := NetDeviceKey{
+			NetNS:            device.NetNS,
+			IfIndex:          device.IfIndex,
+			NetworkDirection: manager.Egress,
+		}
+
+		ev.probe.tcProgramsLock.RLock()
+		defer ev.probe.tcProgramsLock.RUnlock()
+
+		tcProbe, ok := ev.probe.tcPrograms[key]
+		if !ok {
+			key.NetworkDirection = manager.Ingress
+			tcProbe = ev.probe.tcPrograms[key]
+		}
+
+		if tcProbe != nil {
+			device.IfName = tcProbe.IfName
+		}
+	}
+
+	return device.IfName
+}
+
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber, probe *Probe) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,
 		scrubber:  scrubber,
+		probe:     probe,
 	}
 }

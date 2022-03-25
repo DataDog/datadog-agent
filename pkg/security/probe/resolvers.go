@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -33,6 +34,7 @@ type Resolvers struct {
 	ProcessResolver   *ProcessResolver
 	UserGroupResolver *UserGroupResolver
 	TagsResolver      *TagsResolver
+	NamespaceResolver *NamespaceResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -57,6 +59,11 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	namespaceResolver, err := NewNamespaceResolver(probe)
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		DentryResolver:    dentryResolver,
@@ -65,6 +72,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      NewTagsResolver(config),
+		NamespaceResolver: namespaceResolver,
 	}
 
 	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
@@ -188,7 +196,11 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	return r.DentryResolver.Start(r.probe)
+	if err := r.DentryResolver.Start(r.probe); err != nil {
+		return err
+	}
+
+	return r.NamespaceResolver.Start(ctx)
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
@@ -198,6 +210,7 @@ func (r *Resolvers) Snapshot() error {
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
+	r.NamespaceResolver.SetState(snapshotted)
 
 	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
 	if err != nil {
@@ -249,14 +262,19 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err := r.MountResolver.SyncCache(proc); err != nil {
+		if err = r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", proc.Pid))
+				log.Debug(fmt.Errorf("snapshot failed for %d: couldn't sync mount points: %w", proc.Pid, err))
 			}
 		}
 
 		// Sync the process cache
 		if r.ProcessResolver.SyncCache(proc) {
+			cacheModified = true
+		}
+
+		// Sync the namespace cache
+		if r.NamespaceResolver.SyncCache(proc) {
 			cacheModified = true
 		}
 	}
@@ -265,7 +283,7 @@ func (r *Resolvers) snapshot() error {
 	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
 	// process cache anymore
 	if cacheModified {
-		return errors.New("cache modified")
+		return fmt.Errorf("cache modified")
 	}
 
 	return nil

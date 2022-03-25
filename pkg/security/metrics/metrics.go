@@ -148,11 +148,29 @@ var (
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
 
-	// Custom events
+	// Namespace resolver metrics
+
+	// MetricNamespaceResolverNetNSHandle is the name of the metric used to report the count of netns handles
+	// held by the NamespaceResolver.
+	// Tags: -
+	MetricNamespaceResolverNetNSHandle = newRuntimeMetric(".namespace_resolver.netns_handle")
+	// MetricNamespaceResolverQueuedNetworkDevice is the name of the metric used to report the count of
+	// queued network devices.
+	// Tags: -
+	MetricNamespaceResolverQueuedNetworkDevice = newRuntimeMetric(".namespace_resolver.queued_network_device")
+	// MetricNamespaceResolverLonelyNetworkNamespace is the name of the metric used to report the count of
+	// lonely network namespaces.
+	// Tags: -
+	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
+
+	// Others
 
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeMetric(".ruleset_loaded")
+	// MetricTCProgram is the name of the metric used to report the count of active TC programs
+	// Tags: -
+	MetricTCProgram = newRuntimeMetric(".tc_program")
 
 	// Security Agent metrics
 

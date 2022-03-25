@@ -6,6 +6,9 @@
 package serializerexporter
 
 import (
+	"encoding"
+	"fmt"
+
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
@@ -18,6 +21,8 @@ type exporterConfig struct {
 	exporterhelper.QueueSettings   `mapstructure:",squash"`
 
 	Metrics metricsConfig `mapstructure:"metrics"`
+
+	warnings []error
 }
 
 // metricsConfig defines the metrics exporter specific configuration options
@@ -44,6 +49,9 @@ type metricsConfig struct {
 
 	// HistConfig defines the export of OTLP Histograms.
 	HistConfig histogramConfig `mapstructure:"histograms"`
+
+	// SumConfig defines the export of OTLP Sums.
+	SumConfig sumConfig `mapstructure:"sums"`
 }
 
 // histogramConfig customizes export of OTLP Histograms.
@@ -62,6 +70,46 @@ type histogramConfig struct {
 	SendCountSum bool `mapstructure:"send_count_sum_metrics"`
 }
 
+// CumulativeMonotonicSumMode is the export mode for OTLP Sum metrics.
+type CumulativeMonotonicSumMode string
+
+const (
+	// CumulativeMonotonicSumModeToDelta calculates delta for
+	// cumulative monotonic sum metrics in the client side and reports
+	// them as Datadog counts.
+	CumulativeMonotonicSumModeToDelta CumulativeMonotonicSumMode = "to_delta"
+
+	// CumulativeMonotonicSumModeRawValue reports the raw value for
+	// cumulative monotonic sum metrics as a Datadog gauge.
+	CumulativeMonotonicSumModeRawValue CumulativeMonotonicSumMode = "raw_value"
+)
+
+var _ encoding.TextUnmarshaler = (*CumulativeMonotonicSumMode)(nil)
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface.
+func (sm *CumulativeMonotonicSumMode) UnmarshalText(in []byte) error {
+	switch mode := CumulativeMonotonicSumMode(in); mode {
+	case CumulativeMonotonicSumModeToDelta,
+		CumulativeMonotonicSumModeRawValue:
+		*sm = mode
+		return nil
+	default:
+		return fmt.Errorf("invalid cumulative monotonic sum mode %q", mode)
+	}
+}
+
+// sumConfig customizes export of OTLP Sums.
+type sumConfig struct {
+	// CumulativeMonotonicMode is the mode for exporting OTLP Cumulative Monotonic Sums.
+	// Valid values are 'to_delta' or 'raw_value'.
+	//  - 'to_delta' calculates delta for cumulative monotonic sums and sends it as a Datadog count.
+	//  - 'raw_value' sends the raw value of cumulative monotonic sums as Datadog gauges.
+	//
+	// The default is 'to_delta'.
+	// See https://docs.datadoghq.com/metrics/otlp/?tab=sum#mapping for details and examples.
+	CumulativeMonotonicMode CumulativeMonotonicSumMode `mapstructure:"cumulative_monotonic_mode"`
+}
+
 // metricsExporterConfig provides options for a user to customize the behavior of the
 // metrics exporter
 type metricsExporterConfig struct {
@@ -77,4 +125,19 @@ type metricsExporterConfig struct {
 // Validate configuration
 func (e *exporterConfig) Validate() error {
 	return e.QueueSettings.Validate()
+}
+
+func (e *exporterConfig) Unmarshal(cfgMap *config.Map) error {
+	err := cfgMap.UnmarshalExact(e)
+	if err != nil {
+		return err
+	}
+
+	warnings, err := handleRenamedSettings(cfgMap, e)
+	if err != nil {
+		return err
+	}
+	e.warnings = append(e.warnings, warnings...)
+
+	return nil
 }
