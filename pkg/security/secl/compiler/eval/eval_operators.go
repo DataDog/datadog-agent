@@ -14,12 +14,12 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		if state.field != "" {
-			if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = func(ctx *Context) bool {
 					return true
 				}
@@ -65,12 +65,12 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 		}
 
 		if state.field != "" {
-			if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = true
 			}
 		}
@@ -96,10 +96,10 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 	}
 
 	if state.field != "" {
-		if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+		if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 			ea = true
 		}
-		if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+		if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 			eb = func(ctx *Context) bool {
 				return true
 			}
@@ -126,12 +126,12 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		if state.field != "" {
-			if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = func(ctx *Context) bool {
 					return true
 				}
@@ -177,12 +177,12 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 		}
 
 		if state.field != "" {
-			if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = true
 			}
 		}
@@ -208,10 +208,10 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 	}
 
 	if state.field != "" {
-		if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+		if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 			ea = true
 		}
-		if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+		if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 			eb = func(ctx *Context) bool {
 				return true
 			}
