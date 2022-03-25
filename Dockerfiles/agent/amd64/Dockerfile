@@ -114,9 +114,9 @@ ENV DOCKER_DD_AGENT=true \
     # Exit container if entrypoint fails
     S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     # Allow readonlyrootfs
-    S6_READ_ONLY_ROOT=1
+    S6_READ_ONLY_ROOT=1 \
     # Allow User Group to exec the secret backend script.
-    ENV DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 # make sure we have recent dependencies
 RUN apt update \
