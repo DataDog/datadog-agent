@@ -64,9 +64,9 @@ type MetricIndexTransform struct {
 
 // MetricsConfigOption holds config for metrics options
 type MetricsConfigOption struct {
-	Placement    uint   `yaml:"placement"`
-	MetricSuffix string `yaml:"metric_suffix"`
-	ScaleFactor  uint   `yaml:"scale_factor"`
+	Placement    uint    `yaml:"placement"`
+	MetricSuffix string  `yaml:"metric_suffix"`
+	ScaleFactor  float64 `yaml:"scale_factor"`
 }
 
 // MetricsConfig holds configs for a metric

@@ -239,6 +239,18 @@ func TestSendMetric(t *testing.T) {
 			expectedTags:       []string{},
 			expectedSubMetrics: 1,
 		},
+		{
+			caseName:           "Scaled value by float",
+			metricName:         "scaled.metric",
+			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			tags:               []string{},
+			options:            checkconfig.MetricsConfigOption{ScaleFactor: 0.5},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.scaled.metric",
+			expectedValue:      float64(5),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {
