@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package file
+package hostname
 
 import (
 	"context"
@@ -12,21 +12,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetHostname(t *testing.T) {
 	hostnameFile, err := writeTempHostnameFile("expectedfilehostname")
-	if !assert.Nil(t, err) {
+	if !require.Nil(t, err) {
 		return
 	}
 	defer os.RemoveAll(hostnameFile)
 
-	options := map[string]interface{}{
-		"filename": hostnameFile,
-	}
+	defer func(val string) { config.Datadog.Set("hostname_file", val) }(config.Datadog.GetString("hostname_file"))
+	config.Datadog.Set("hostname_file", hostnameFile)
 
-	hostname, err := HostnameProvider(context.TODO(), options)
+	hostname, err := fromHostnameFile(context.TODO(), "")
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -36,16 +37,15 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetHostnameWhitespaceTrim(t *testing.T) {
 	hostnameFile, err := writeTempHostnameFile("  \n\r expectedfilehostname  \r\n\n ")
-	if !assert.Nil(t, err) {
+	if !require.Nil(t, err) {
 		return
 	}
 	defer os.RemoveAll(hostnameFile)
 
-	options := map[string]interface{}{
-		"filename": hostnameFile,
-	}
+	defer func(val string) { config.Datadog.Set("hostname_file", val) }(config.Datadog.GetString("hostname_file"))
+	config.Datadog.Set("hostname_file", hostnameFile)
 
-	hostname, err := HostnameProvider(context.TODO(), options)
+	hostname, err := fromHostnameFile(context.TODO(), "")
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -53,33 +53,22 @@ func TestGetHostnameWhitespaceTrim(t *testing.T) {
 	assert.Equal(t, "expectedfilehostname", hostname)
 }
 
-func TestGetHostnameNoOptions(t *testing.T) {
-	_, err := HostnameProvider(context.TODO(), nil)
-	assert.NotNil(t, err)
-}
-
 func TestGetHostnameNoFilenameOption(t *testing.T) {
-	options := map[string]interface{}{
-		"one": "one",
-		"two": "two",
-	}
-
-	_, err := HostnameProvider(context.TODO(), options)
+	_, err := fromHostnameFile(context.TODO(), "")
 	assert.NotNil(t, err)
 }
 
 func TestGetHostnameInvalidHostname(t *testing.T) {
 	hostnameFile, err := writeTempHostnameFile(strings.Repeat("a", 256))
-	if !assert.Nil(t, err) {
+	if !require.Nil(t, err) {
 		return
 	}
 	defer os.RemoveAll(hostnameFile)
 
-	options := map[string]interface{}{
-		"filename": hostnameFile,
-	}
+	defer func(val string) { config.Datadog.Set("hostname_file", val) }(config.Datadog.GetString("hostname_file"))
+	config.Datadog.Set("hostname_file", hostnameFile)
 
-	_, err = HostnameProvider(context.TODO(), options)
+	_, err = fromHostnameFile(context.TODO(), "")
 	assert.NotNil(t, err)
 }
 

@@ -10,8 +10,8 @@ package docker
 
 import "context"
 
-// HostnameProvider docker implementation for the hostname provider
-func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
+// GetHostname returns the hostname for docker
+func GetHostname(ctx context.Context) (string, error) {
 	return "", ErrDockerNotCompiled
 }
 

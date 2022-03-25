@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -275,7 +276,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
 	metricBlocklist := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 
-	defaultHostname, err := util.GetHostname(context.TODO())
+	defaultHostname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
 	}

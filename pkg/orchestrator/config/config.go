@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -106,8 +106,8 @@ func (oc *OrchestratorConfig) Load() error {
 	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		oc.OrchestrationCollectionEnabled = true
 		// Set clustername
-		hostname, _ := coreutil.GetHostname(context.TODO())
-		if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
+		hname, _ := hostname.Get(context.TODO())
+		if clusterName := clustername.GetClusterName(context.TODO(), hname); clusterName != "" {
 			oc.KubeClusterName = clusterName
 		}
 	}

@@ -47,7 +47,7 @@ func TestHostnameProvider(t *testing.T) {
 		return ku, nil
 	}
 
-	hostName, err := HostnameProvider(ctx, nil)
+	hostName, err := GetHostname(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "node-name", hostName)
 
@@ -59,7 +59,7 @@ func TestHostnameProvider(t *testing.T) {
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	hostName, err = HostnameProvider(ctx, nil)
+	hostName, err = GetHostname(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "node-name-laika", hostName)
 }
@@ -89,7 +89,7 @@ func TestHostnameProviderInvalid(t *testing.T) {
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 
-	hostName, err := HostnameProvider(ctx, nil)
+	hostName, err := GetHostname(ctx)
 	assert.NoError(t, err)
 	// We won't use the clustername if its invalid RFC, we log an error and continue without the clustername and only hostname
 	assert.Equal(t, "node-name", hostName)

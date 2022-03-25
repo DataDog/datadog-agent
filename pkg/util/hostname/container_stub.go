@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubelet
-// +build kubelet
+//go:build freebsd || netbsd || openbsd || solaris || dragonfly || aix
+// +build freebsd netbsd openbsd solaris dragonfly aix
 
 package hostname
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+	"context"
+	"fmt"
 )
 
-func init() {
-	RegisterHostnameProvider("kubelet", kubelet.HostnameProvider)
+func fromContainer(ctx context.Context, _ string) (string, error) {
+	return "", fmt.Errorf("container support is not compiled in")
 }

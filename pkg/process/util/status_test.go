@@ -14,7 +14,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -63,10 +63,10 @@ func TestGetStatus(t *testing.T) {
 	ddconfig.Mock()
 	ddconfig.DetectFeatures()
 
-	hostnameData, err := util.GetHostnameData(context.Background())
+	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
 	if err != nil {
-		metadata = host.GetPayloadFromCache(context.Background(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		metadata = host.GetPayloadFromCache(context.Background(), hostname.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
 		metadata = host.GetPayloadFromCache(context.Background(), hostnameData)
 	}

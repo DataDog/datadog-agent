@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -313,8 +313,8 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 			k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
 		}
 	}
-	hostname, _ := util.GetHostname(context.TODO())
-	clusterName := clustername.GetClusterName(context.TODO(), hostname)
+	hname, _ := hostname.Get(context.TODO())
+	clusterName := clustername.GetClusterName(context.TODO(), hname)
 	for _, bundle := range eventsByObject {
 		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
 		if err != nil {

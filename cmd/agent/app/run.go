@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -311,11 +312,11 @@ func StartAgent() error {
 		return log.Errorf("Unable to configure auto-exit, err: %w", err)
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
+	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-	log.Infof("Hostname is: %s", hostname)
+	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// HACK: init host metadata module (CPU) early to avoid any
 	//       COM threading model conflict with the python checks
@@ -370,7 +371,7 @@ func StartAgent() error {
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
-	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
@@ -405,7 +406,7 @@ func StartAgent() error {
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		if config.Datadog.GetBool("logs_enabled") {
-			err = traps.StartServer(hostname)
+			err = traps.StartServer(hostnameDetected)
 			if err != nil {
 				log.Errorf("Failed to start snmp-traps server: %s", err)
 			}

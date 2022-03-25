@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
@@ -84,12 +84,12 @@ func (events Events) getEventsBySourceType() map[string][]*metrics.Event {
 func (events Events) MarshalJSON() ([]byte, error) {
 	// Regroup events by their source type name
 	eventsBySourceType := events.getEventsBySourceType()
-	hostname, _ := util.GetHostname(context.TODO())
+	hname, _ := hostname.Get(context.TODO())
 	// Build intake payload containing events and serialize
 	data := map[string]interface{}{
 		apiKeyJSONField:           "", // legacy field, it isn't actually used by the backend
 		eventsJSONField:           eventsBySourceType,
-		internalHostnameJSONField: hostname,
+		internalHostnameJSONField: hname,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
@@ -163,9 +163,9 @@ func writeEventsFooter(stream *jsoniter.Stream) error {
 	stream.WriteObjectEnd()
 	stream.WriteMore()
 
-	hostname, _ := util.GetHostname(context.TODO())
+	hname, _ := hostname.Get(context.TODO())
 	stream.WriteObjectField(internalHostnameJSONField)
-	stream.WriteString(hostname)
+	stream.WriteString(hname)
 
 	stream.WriteObjectEnd()
 	return stream.Flush()

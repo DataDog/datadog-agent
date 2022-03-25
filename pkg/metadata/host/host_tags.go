@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,8 +85,8 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
 	}
 
-	hostname, _ := util.GetHostname(ctx)
-	clusterName := clustername.GetClusterName(ctx, hostname)
+	hname, _ := hostname.Get(ctx)
+	clusterName := clustername.GetClusterName(ctx, hname)
 	if len(clusterName) != 0 {
 		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
 		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {

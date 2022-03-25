@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,7 +45,7 @@ func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProvider
 
 	c.identifier = config.Datadog.GetString("clc_runner_id")
 	if c.identifier == "" {
-		c.identifier, _ = util.GetHostname(context.TODO())
+		c.identifier, _ = hostname.Get(context.TODO())
 		if config.Datadog.GetBool("cloud_foundry") {
 			boshID := config.Datadog.GetString("bosh_id")
 			if boshID == "" {

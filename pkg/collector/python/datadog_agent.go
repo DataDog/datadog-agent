@@ -49,7 +49,7 @@ func GetVersion(agentVersion **C.char) {
 // GetHostname exposes the current hostname of the agent to Python checks.
 //export GetHostname
 func GetHostname(hostname **C.char) {
-	goHostname, err := util.GetHostname(context.TODO())
+	goHostname, err := hname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err)
 		goHostname = ""
@@ -61,7 +61,7 @@ func GetHostname(hostname **C.char) {
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
-	goHostname, _ := util.GetHostname(context.TODO())
+	goHostname, _ := hname.Get(context.TODO())
 	goClusterName := clustername.GetClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)

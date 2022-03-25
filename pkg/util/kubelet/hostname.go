@@ -24,7 +24,7 @@ type kubeUtilGetter func() (k.KubeUtilInterface, error)
 var kubeUtilGet kubeUtilGetter = k.GetKubeUtil
 
 // HostnameProvider builds a hostname from the kubernetes nodename and an optional cluster-name
-func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
+func GetHostname(ctx context.Context) (string, error) {
 	if !config.IsFeaturePresent(config.Kubernetes) {
 		return "", nil
 	}

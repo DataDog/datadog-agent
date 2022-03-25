@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -56,12 +55,6 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 // GetInstanceID fetches the instance id for current host from the Tencent metadata API
 func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
-}
-
-// HostnameProvider gets the hostname
-func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
-	log.Debug("GetHostname trying Tencent metadata...")
-	return GetInstanceID(ctx)
 }
 
 // GetNTPHosts returns the NTP hosts for Tencent if it is detected as the cloud provider, otherwise an empty array.

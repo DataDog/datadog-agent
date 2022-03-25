@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/model/pdata"
@@ -78,7 +78,7 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	options := []translator.Option{
-		translator.WithFallbackHostnameProvider(hostnameProviderFunc(util.GetHostname)),
+		translator.WithFallbackHostnameProvider(hostnameProviderFunc(hostname.Get)),
 		translator.WithHistogramMode(histogramMode),
 		translator.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
@@ -121,7 +121,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 	return &exporter{
 		tr:          tr,
 		s:           s,
-		hostname:    hostname,
+		hostname:    hname,
 		cardinality: cardinality,
 	}, nil
 }
