@@ -218,6 +218,43 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
+// SelfTestReport represents TODO
+type SelfTestReport struct {
+	Success []string
+	Fails   []string
+}
+
+// PrepareSelfTestReport prepares a TODO
+func (m *Monitor) PrepareSelfTestReport() SelfTestReport {
+	return SelfTestReport{Success: nil, Fails: nil}
+}
+
+// TODO
+func (m *Monitor) SelfTestReportAddFail(report *SelfTestReport, s string) {
+	log.Error("SelfTestReportAddFail: \n", s, "\n")
+	report.Fails = append(report.Fails, s)
+	return
+}
+
+// TODO
+func (m *Monitor) SelfTestReportAddSuccess(report *SelfTestReport, s string) {
+	log.Error("SelfTestReportAddSuccess: ", s, "\n")
+	report.Success = append(report.Success, s)
+	return
+}
+
+// ReportSelfTest reports to Datadog that TODO
+func (m *Monitor) ReportSelfTest(report *SelfTestReport) {
+	log.Error("ReportSelfTest :\n")
+	for f := range report.Fails {
+		log.Error("  Failed: ", f, "\n")
+	}
+	for s := range report.Success {
+		log.Error("  Succeed: ", report.Success[s], "\n")
+	}
+	log.Error("<< ReportSelfTest\n\n\n")
+}
+
 // ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
 var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
 

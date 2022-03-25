@@ -125,18 +125,26 @@ func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.
 }
 
 // RunSelfTest runs the self test
-func (t *SelfTester) RunSelfTest() error {
+func (t *SelfTester) RunSelfTest(m *Module) error {
 	if err := t.BeginWaitingForEvent(); err != nil {
 		return errors.Wrap(err, "failed to run self test")
 	}
 	defer t.EndWaitingForEvent()
 
+	monitor := m.probe.GetMonitor()
+	report := monitor.PrepareSelfTestReport()
+	defer monitor.ReportSelfTest(&report)
+
+	var last_err error = nil
 	for _, fn := range SelfTestFunctions {
-		if err := fn(t); err != nil {
-			return err
+		if err := fn.fn(t); err != nil {
+			last_err = err
+			monitor.SelfTestReportAddFail(&report, fn.id)
+		} else {
+			monitor.SelfTestReportAddSuccess(&report, fn.id)
 		}
 	}
-	return nil
+	return last_err
 }
 
 // Cleanup removes temp directories and files used by the self tester
@@ -250,9 +258,14 @@ func selfTestChown(t *SelfTester) error {
 	})
 }
 
+type SelfTestFunction struct {
+	id string
+	fn func(*SelfTester) error
+}
+
 // SelfTestFunctions slice of self test functions representing each individual file test
-var SelfTestFunctions = []func(*SelfTester) error{
-	selfTestOpen,
-	selfTestChmod,
-	selfTestChown,
+var SelfTestFunctions = []SelfTestFunction{
+	{"selfTestOpen", selfTestOpen},
+	{"selfTestChmod", selfTestChmod},
+	{"selfTestChown", selfTestChown},
 }
