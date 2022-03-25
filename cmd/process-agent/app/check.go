@@ -202,8 +202,6 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime, st
 
 	time.Sleep(1 * time.Second)
 
-	printResultsBanner(ch.RealTimeName())
-
 	start := time.Now()
 	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
 	stats.Runtime = time.Since(start)
