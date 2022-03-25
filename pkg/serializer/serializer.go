@@ -312,8 +312,10 @@ func (s *Serializer) SendIterableSeries(series *metrics.IterableSeries) error {
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API {
+	if useV1API && s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
+	} else if useV1API && !s.enableJSONStream {
+		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
 		seriesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		extraHeaders = protobufExtraHeadersWithCompression
