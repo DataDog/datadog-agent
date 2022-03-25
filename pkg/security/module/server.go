@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/pkg/errors"
 	"golang.org/x/time/rate"
@@ -100,7 +100,7 @@ type RuleEvent struct {
 	Event  Event  `json:"event"`
 }
 
-// DumpProcessCache handle process dump cache requests
+// DumpProcessCache handles process cache dump requests
 func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
 	resolvers := a.probe.GetResolvers()
 
@@ -177,6 +177,32 @@ func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraph
 	}
 
 	return nil, fmt.Errorf("monitor not configured")
+}
+
+// GetConstantFetcherStatus returns the status of the constant fetcher sub-system
+func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.GetConstantFetcherStatusParams) (*api.ConstantFetcherStatus, error) {
+	status, err := a.probe.GetConstantFetcherStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
+	for _, v := range status.Values {
+		constants = append(constants, &api.ConstantValueAndSource{
+			ID:     v.ID,
+			Value:  v.Value,
+			Source: v.FetcherName,
+		})
+	}
+	return &api.ConstantFetcherStatus{
+		Fetchers: status.Fetchers,
+		Values:   constants,
+	}, nil
+}
+
+// DumpNetworkNamespace handles network namespace cache dump requests
+func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
+	return a.probe.GetResolvers().NamespaceResolver.DumpNetworkNamespaces(params), nil
 }
 
 func (a *APIServer) enqueue(msg *pendingMsg) {

@@ -21,7 +21,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
@@ -377,6 +377,14 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
 		}
+	}
+
+	// add netns
+	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
+
+	if p.probe.config.NetworkEnabled {
+		// snapshot pid routes in kernel space
+		_, _ = proc.OpenFiles()
 	}
 
 	return nil

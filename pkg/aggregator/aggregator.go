@@ -117,6 +117,7 @@ var (
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
+	aggregatorDogstatsdContextsByMtype         = []expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 	aggregatorContainerLifecycleEvents         = expvar.Int{}
@@ -130,6 +131,8 @@ var (
 		nil, "Count of hostname update")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "Count the number of dogstatsd contexts in the aggregator")
+	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
+		[]string{"metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -172,6 +175,15 @@ func init() {
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
 	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
+
+	contextsByMtypeMap := expvar.Map{}
+	aggregatorDogstatsdContextsByMtype = make([]expvar.Int, int(metrics.NumMetricTypes))
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		mtype := metrics.MetricType(i).String()
+		aggregatorDogstatsdContextsByMtype[i] = expvar.Int{}
+		contextsByMtypeMap.Set(mtype, &aggregatorDogstatsdContextsByMtype[i])
+	}
+	aggregatorExpvars.Set("DogstatsdContextsByMtype", &contextsByMtypeMap)
 
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
 
@@ -345,6 +357,9 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 
 func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Lock()
+	if cs, ok := agg.checkSamplers[id]; ok {
+		cs.release()
+	}
 	delete(agg.checkSamplers, id)
 	agg.mu.Unlock()
 }

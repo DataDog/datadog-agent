@@ -18,11 +18,12 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-go/statsd"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type rcSymbolPair struct {
@@ -44,6 +45,10 @@ func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient *sta
 		statsdClient: statsdClient,
 		result:       make(map[string]uint64),
 	}
+}
+
+func (cf *RuntimeCompilationConstantFetcher) String() string {
+	return "runtime-compilation"
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {

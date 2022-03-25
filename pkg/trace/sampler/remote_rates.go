@@ -59,7 +59,15 @@ func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion str
 }
 
 func (r *RemoteRates) onUpdate(update config.SamplingUpdate) {
-	log.Debugf("fetched config version %d from remote config management", update.Version)
+	// TODO: We don't have a version per product, yet. But, we will have it in the next version.
+	// In the meantime we will just use a version of one of the config files.
+	var version uint64
+	for _, v := range update.Configs {
+		version = v
+		break
+	}
+
+	log.Debugf("fetched config version %d from remote config management", version)
 	tpsTargets := make(map[Signature]pb.TargetTPS, len(r.tpsTargets))
 	for _, rates := range update.Rates {
 		for _, targetTPS := range rates.TargetTPS {
@@ -73,7 +81,7 @@ func (r *RemoteRates) onUpdate(update config.SamplingUpdate) {
 		}
 	}
 	r.updateTPS(tpsTargets)
-	atomic.StoreUint64(&r.tpsVersion, update.Version)
+	atomic.StoreUint64(&r.tpsVersion, version)
 }
 
 // addTargetTPS keeping the highest rank if 2 targetTPS of the same signature are added

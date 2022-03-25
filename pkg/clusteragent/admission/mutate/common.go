@@ -72,6 +72,24 @@ func injectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
 	return injected
 }
 
+// injectVolume injects a volume into a pod template if it doesn't exist
+func injectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.VolumeMount) bool {
+	podStr := podString(pod)
+	for _, vol := range pod.Spec.Volumes {
+		if vol.Name == volume.Name {
+			log.Debugf("Ignoring pod %q: volume %q already exists", podStr, vol.Name)
+			return false
+		}
+	}
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
+	for i := range pod.Spec.Containers {
+		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, volumeMount)
+	}
+
+	return true
+}
+
 // podString returns a string that helps identify the pod
 func podString(pod *corev1.Pod) string {
 	if pod.GetNamespace() == "" || pod.GetName() == "" {

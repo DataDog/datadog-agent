@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -43,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -64,6 +64,21 @@ var (
 
 	checkPoliciesArgs = struct {
 		dir string
+	}{}
+
+	networkNamespaceCmd = &cobra.Command{
+		Use:   "network-namespace",
+		Short: "network namespace command",
+	}
+
+	dumpNetworkNamespaceCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "dumps the network namespaces held in cache",
+		RunE:  dumpNetworkNamespace,
+	}
+
+	dumpNetworkNamespaceArgs = struct {
+		snapshotInterfaces bool
 	}{}
 
 	processCacheCmd = &cobra.Command{
@@ -277,8 +292,11 @@ func init() {
 	commonPolicyCmd.AddCommand(commonCheckPoliciesCmd)
 
 	commonPolicyCmd.AddCommand(commonReloadPoliciesCmd)
-
 	runtimeCmd.AddCommand(commonPolicyCmd)
+
+	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
+	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
+	runtimeCmd.AddCommand(networkNamespaceCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -351,6 +369,32 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 	}
 
 	printSecurityActivityDumpMessage("", output)
+	return nil
+}
+
+func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	resp, err := client.DumpNetworkNamespace(dumpNetworkNamespaceArgs.snapshotInterfaces)
+	if err != nil {
+		return errors.Wrap(err, "couldn't send network namespace cache dump request")
+	}
+
+	if len(resp.GetError()) > 0 {
+		return fmt.Errorf("couldn't dump network namespaces: %w", err)
+	}
+
+	fmt.Printf("Network namespace dump: %s\n", resp.GetDumpFilename())
+	fmt.Printf("Network namespace dump graph: %s\n", resp.GetGraphFilename())
 	return nil
 }
 

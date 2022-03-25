@@ -75,6 +75,10 @@ runtime_security_config:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
+{{if .EnableNetwork}}
+  network:
+    enabled: true
+{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -141,6 +145,7 @@ type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
+	enableNetwork               bool
 	disableDiscarders           bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
@@ -160,6 +165,7 @@ func (s *stringSlice) Set(value string) error {
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.testDir == opts.testDir &&
 		to.disableApprovers == opts.disableApprovers &&
+		to.enableNetwork == opts.enableNetwork &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -278,7 +284,7 @@ func getInode(t *testing.T, path string) uint64 {
 func which(t *testing.T, name string) string {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		t.Fatalf("")
+		t.Fatalf("couldn't resolve %s: %v", name, err)
 	}
 
 	if dest, err := filepath.EvalSymlinks(executable); err == nil {
@@ -388,6 +394,7 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":             dir,
 		"DisableApprovers":            opts.disableApprovers,
+		"EnableNetwork":               opts.enableNetwork,
 		"EventsCountThreshold":        opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
@@ -1240,7 +1247,7 @@ func randStringRunes(n int) string {
 func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
-		t.Errorf("failed to get kernel version: %w", err)
+		t.Errorf("failed to get kernel version: %s", err)
 		return
 	}
 

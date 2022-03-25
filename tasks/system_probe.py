@@ -2,6 +2,7 @@ import contextlib
 import glob
 import json
 import os
+import platform
 import re
 import shutil
 import sys
@@ -35,17 +36,28 @@ TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 
 is_windows = sys.platform == "win32"
 
+arch_mapping = {
+    "amd64": "x64",
+    "x86_64": "x64",
+    "x64": "x64",
+    "i386": "x86",
+    "i686": "x86",
+    "aarch64": "arm64",  # linux
+    "arm64": "arm64",  # darwin
+}
+CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
+
 
 @task
 def build(
     ctx,
     race=False,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
     windows=is_windows,
-    arch="x64",
+    arch=CURRENT_ARCH,
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
     nikos_embedded_path=None,
@@ -222,20 +234,29 @@ def kitchen_prepare(ctx, windows=is_windows):
 
 
 @task
-def kitchen_test(ctx, target=None, arch="x86_64"):
+def kitchen_test(ctx, target=None, provider="virtualbox"):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
 
+    vagrant_arch = ""
+    if CURRENT_ARCH == "x64":
+        vagrant_arch = "x86_64"
+    elif CURRENT_ARCH == "arm64":
+        vagrant_arch = "arm64"
+    else:
+        raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
+
     # Retrieve a list of all available vagrant images
     images = {}
-    with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
-        for platform, by_provider in json.load(f).items():
-            if "vagrant" in by_provider:
-                for image in by_provider["vagrant"][arch]:
-                    images[image] = platform
+    platform_file = os.path.join(KITCHEN_DIR, "platforms.json")
+    with open(platform_file, 'r') as f:
+        for kplatform, by_provider in json.load(f).items():
+            if "vagrant" in by_provider and vagrant_arch in by_provider["vagrant"]:
+                for image in by_provider["vagrant"][vagrant_arch]:
+                    images[image] = kplatform
 
     if not (target in images):
         print(
@@ -245,8 +266,8 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test",
-            env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"},
+            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test --platformfile {platform_file} --arch {vagrant_arch}",
+            env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
 

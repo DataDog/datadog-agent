@@ -80,9 +80,9 @@ if node['dd-agent-upgrade']['add_new_repo']
   when 'rhel'
     include_recipe 'yum'
 
-    yum_repository 'datadog-update' do
-      name 'datadog-update'
-      description 'datadog-update'
+    yum_repository 'datadog' do
+      name 'datadog'
+      description 'datadog'
       url node['dd-agent-upgrade']['yumrepo']
       action :add
       make_cache true
@@ -110,9 +110,9 @@ if node['dd-agent-upgrade']['add_new_repo']
       action :nothing
     end
 
-    zypper_repository 'datadog-update' do
-      name 'datadog-update'
-      description 'datadog-update'
+    zypper_repository 'datadog' do
+      name 'datadog'
+      description 'datadog'
       baseurl node['dd-agent-upgrade']['yumrepo_suse']
       action :add
       gpgcheck false

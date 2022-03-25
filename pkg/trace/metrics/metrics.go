@@ -15,8 +15,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // findAddr finds the correct address to connect to the Dogstatsd server.

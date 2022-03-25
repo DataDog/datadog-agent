@@ -6,13 +6,27 @@ package constantfetch
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
 func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient *statsd.Client) []ConstantFetcher {
-	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)
-	return []ConstantFetcher{
-		fallbackConstantFetcher,
+	fetchers := make([]ConstantFetcher, 0)
+
+	if coreFetcher, err := NewBTFConstantFetcherFromCurrentKernel(); err == nil {
+		fetchers = append(fetchers, coreFetcher)
 	}
+
+	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
+	if err != nil {
+		log.Debugf("failed to create btfhub constant fetcher: %v", err)
+	} else {
+		fetchers = append(fetchers, btfhubFetcher)
+	}
+
+	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)
+	fetchers = append(fetchers, fallbackConstantFetcher)
+
+	return fetchers
 }

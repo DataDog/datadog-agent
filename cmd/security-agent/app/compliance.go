@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var (

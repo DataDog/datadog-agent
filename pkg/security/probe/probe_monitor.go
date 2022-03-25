@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -133,6 +133,9 @@ func (m *Monitor) SendStats() error {
 
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
+		}
+		if err := resolvers.NamespaceResolver.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send namespace_resolver stats")
 		}
 	}
 
