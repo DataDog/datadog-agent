@@ -512,13 +512,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	var seriesSink *metrics.IterableSeries
 	var done chan struct{}
 
-	if d.aggregator.flushAndSerializeInParallel.Enabled {
-		seriesSink, done = startSendingIterableSeries(
-			d.sharedSerializer,
-			d.aggregator.flushAndSerializeInParallel,
-			logPayloads,
-			start)
-	}
+	seriesSink, done = startSendingIterableSeries(
+		d.sharedSerializer,
+		d.aggregator.flushAndSerializeInParallel,
+		logPayloads,
+		start)
 
 	// flush DogStatsD pipelines (statsd/time samplers)
 	// ------------------------------------------------
@@ -558,9 +556,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		<-t.trigger.blockChan
 	}
 
-	if d.aggregator.flushAndSerializeInParallel.Enabled {
-		stopIterableSeries(seriesSink, done)
-	}
+	stopIterableSeries(seriesSink, done)
 
 	// collect the series and sketches that the multiple samplers may have reported
 	// ------------------------------------------------------
@@ -800,7 +796,7 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(serializer, config.Datadog)
+	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
@@ -858,16 +854,14 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	var seriesSink *metrics.IterableSeries
 	var done chan struct{}
 
-	if d.flushAndSerializeInParallel.Enabled {
-		// only used when we're using flush/serialize in parallel feature
-		logPayloads := config.Datadog.GetBool("log_payloads")
+	// only used when we're using flush/serialize in parallel feature
+	logPayloads := config.Datadog.GetBool("log_payloads")
 
-		seriesSink, done = startSendingIterableSeries(
-			d.serializer,
-			d.flushAndSerializeInParallel,
-			logPayloads,
-			start)
-	}
+	seriesSink, done = startSendingIterableSeries(
+		d.serializer,
+		d.flushAndSerializeInParallel,
+		logPayloads,
+		start)
 
 	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
@@ -886,9 +880,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.statsdWorker.flushChan <- trigger
 	<-trigger.blockChan
 
-	if d.flushAndSerializeInParallel.Enabled {
-		stopIterableSeries(seriesSink, done)
-	}
+	stopIterableSeries(seriesSink, done)
 
 	var series metrics.Series
 	for _, s := range flushedSeries {
