@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build freebsd || netbsd || openbsd || solaris || dragonfly || aix
-// +build freebsd netbsd openbsd solaris dragonfly aix
+//go:build serverless
+// +build serverless
 
 package util
 
-import "context"
-
-func getContainerHostname(ctx context.Context) string {
+// Fqdn returns the FQDN for the host if any
+func Fqdn(hostname string) string {
 	return ""
 }

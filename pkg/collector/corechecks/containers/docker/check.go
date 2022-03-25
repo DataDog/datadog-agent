@@ -22,10 +22,10 @@ import (
 	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	dockerTypes "github.com/docker/docker/api/types"
@@ -82,7 +82,7 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)
 	// are attached to Docker events from this host. The hostname from the docker api may be
 	// different than the agent hostname depending on the environment (like EC2 or GCE).
-	d.dockerHostname, err = util.GetHostname(context.TODO())
+	d.dockerHostname, err = hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Can't get hostname from docker, events will not have it: %v", err)
 	}

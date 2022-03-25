@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,8 +42,8 @@ func newDispatcher() *dispatcher {
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
 	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
 
-	hostname, _ := util.GetHostname(context.TODO())
-	clusterTagValue := clustername.GetClusterName(context.TODO(), hostname)
+	hname, _ := hostname.Get(context.TODO())
+	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
 	if clusterTagValue != "" {
 		if clusterTagName != "" && !config.Datadog.GetBool("disable_cluster_name_tag_key") {

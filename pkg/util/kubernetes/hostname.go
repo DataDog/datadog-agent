@@ -6,18 +6,19 @@
 //go:build kubeapiserver && !kubelet
 // +build kubeapiserver,!kubelet
 
-package apiserver
+package kubernetes
 
 import (
 	"context"
 
-	a "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
-	nodeName, err := a.HostNodeName(ctx)
+// GetKubeAPIServerHostname returns the hostname from kubeapiserver
+func GetKubeAPIServerHostname(ctx context.Context) (string, error) {
+	nodeName, err := apiserver.HostNodeName(ctx)
 	if err != nil {
 		return "", err
 	}
