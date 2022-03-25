@@ -2,9 +2,19 @@ package inferredspan
 
 import (
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func CreateInferredSpanFromAPIGatewayEvent(eventSource string, ctx serverlessLog.ExecutionContext) {
+var inferredSpan pb.Span
+
+func CreateInferredSpanFromAPIGatewayEvent(
+	eventSource string,
+	ctx serverlessLog.ExecutionContext,
+	attributes EventKeys) {
+	log.Debug("CONTEXT IS ", ctx)
+	log.Debug("Event Keys", attributes)
 
 }
 
@@ -41,3 +51,5 @@ func CreateInferredSpanFromAPIGatewayEvent(eventSource string, ctx serverlessLog
 //         span.set_tags(tags)
 //     span.start = request_time_epoch / 1000
 //     return span
+
+func CompleteInferredSpan(processTrace func(p *api.Payload)) {}

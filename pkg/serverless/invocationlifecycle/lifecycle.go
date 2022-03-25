@@ -23,6 +23,7 @@ type LifecycleProcessor struct {
 	ProcessTrace        func(p *api.Payload)
 	Demux               aggregator.Demultiplexer
 	DetectLambdaLibrary func() bool
+	ExecutionContext    *serverlessLog.ExecutionContext
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -38,7 +39,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" {
 		log.Debug("[lifecycle] Attempting to create inferred span")
-		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, ctx)
+		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, *lp.ExecutionContext)
 	}
 }
 

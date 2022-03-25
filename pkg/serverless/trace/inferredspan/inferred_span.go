@@ -76,10 +76,10 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 
 func CreateInferredSpan(event string, ctx serverlessLog.ExecutionContext) {
 	// Parse the event into the EventKey struct
-	eventSource := ParseEventSource(event)
+	eventSource, attributes := ParseEventSource(event)
 	switch eventSource {
 	case "apigateway":
-		log.Debug("THIS IS A RESTAPI")
+		CreateInferredSpanFromAPIGatewayEvent(eventSource, ctx, attributes)
 	case "http-api":
 		log.Debug("THIS IS A HTTP API")
 	case "websocket":
