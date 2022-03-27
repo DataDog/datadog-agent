@@ -417,6 +417,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
+		fmt.Printf("path: %s\n", event.Open.File.PathnameStr)
 		return node.InsertFileEvent(&event.Open.File, event, Runtime)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(&event.DNS)
@@ -1362,7 +1363,10 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 	}
 
 	// TODO: look for patterns / merge algo
-
+	fmt.Printf("child count: %d\n", len(fan.Children))
+	if len(fan.Children) >= 10 {
+		fan.debug("child >= 10:")
+	}
 	child, ok := fan.Children[parent]
 	if ok {
 		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType)
@@ -1377,6 +1381,10 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		fan.Children[parent] = child
 	}
 	return true
+}
+
+func (fan *FileActivityNode) mergeCommonPaths() {
+
 }
 
 // nolint: unused
