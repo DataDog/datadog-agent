@@ -508,6 +508,113 @@ func (z *ActivityDump) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
+func (z *DNSNode) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "DNSEvent":
+			err = z.DNSEvent.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "DNSEvent")
+				return
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z *DNSNode) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 1
+	// write "DNSEvent"
+	err = en.Append(0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
+	if err != nil {
+		return
+	}
+	err = z.DNSEvent.EncodeMsg(en)
+	if err != nil {
+		err = msgp.WrapError(err, "DNSEvent")
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z *DNSNode) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 1
+	// string "DNSEvent"
+	o = append(o, 0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
+	o, err = z.DNSEvent.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "DNSEvent")
+		return
+	}
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *DNSNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "DNSEvent":
+			bts, err = z.DNSEvent.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "DNSEvent")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *DNSNode) Msgsize() (s int) {
+	s = 1 + 9 + z.DNSEvent.Msgsize()
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *FileActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
@@ -1451,33 +1558,98 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 				z.Files[za0001] = za0002
 			}
-		case "children":
+		case "dns":
 			var zb0004 uint32
-			zb0004, err = dc.ReadArrayHeader()
+			zb0004, err = dc.ReadMapHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "DNSNames")
+				return
+			}
+			if z.DNSNames == nil {
+				z.DNSNames = make(map[string]*DNSNode, zb0004)
+			} else if len(z.DNSNames) > 0 {
+				for key := range z.DNSNames {
+					delete(z.DNSNames, key)
+				}
+			}
+			for zb0004 > 0 {
+				zb0004--
+				var za0003 string
+				var za0004 *DNSNode
+				za0003, err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "DNSNames")
+					return
+				}
+				if dc.IsNil() {
+					err = dc.ReadNil()
+					if err != nil {
+						err = msgp.WrapError(err, "DNSNames", za0003)
+						return
+					}
+					za0004 = nil
+				} else {
+					if za0004 == nil {
+						za0004 = new(DNSNode)
+					}
+					var zb0005 uint32
+					zb0005, err = dc.ReadMapHeader()
+					if err != nil {
+						err = msgp.WrapError(err, "DNSNames", za0003)
+						return
+					}
+					for zb0005 > 0 {
+						zb0005--
+						field, err = dc.ReadMapKeyPtr()
+						if err != nil {
+							err = msgp.WrapError(err, "DNSNames", za0003)
+							return
+						}
+						switch msgp.UnsafeString(field) {
+						case "DNSEvent":
+							err = za0004.DNSEvent.DecodeMsg(dc)
+							if err != nil {
+								err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
+								return
+							}
+						default:
+							err = dc.Skip()
+							if err != nil {
+								err = msgp.WrapError(err, "DNSNames", za0003)
+								return
+							}
+						}
+					}
+				}
+				z.DNSNames[za0003] = za0004
+			}
+		case "children":
+			var zb0006 uint32
+			zb0006, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Children")
 				return
 			}
-			if cap(z.Children) >= int(zb0004) {
-				z.Children = (z.Children)[:zb0004]
+			if cap(z.Children) >= int(zb0006) {
+				z.Children = (z.Children)[:zb0006]
 			} else {
-				z.Children = make([]*ProcessActivityNode, zb0004)
+				z.Children = make([]*ProcessActivityNode, zb0006)
 			}
-			for za0003 := range z.Children {
+			for za0005 := range z.Children {
 				if dc.IsNil() {
 					err = dc.ReadNil()
 					if err != nil {
-						err = msgp.WrapError(err, "Children", za0003)
+						err = msgp.WrapError(err, "Children", za0005)
 						return
 					}
-					z.Children[za0003] = nil
+					z.Children[za0005] = nil
 				} else {
-					if z.Children[za0003] == nil {
-						z.Children[za0003] = new(ProcessActivityNode)
+					if z.Children[za0005] == nil {
+						z.Children[za0005] = new(ProcessActivityNode)
 					}
-					err = z.Children[za0003].DecodeMsg(dc)
+					err = z.Children[za0005].DecodeMsg(dc)
 					if err != nil {
-						err = msgp.WrapError(err, "Children", za0003)
+						err = msgp.WrapError(err, "Children", za0005)
 						return
 					}
 				}
@@ -1496,15 +1668,19 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(4)
-	var zb0001Mask uint8 /* 4 bits */
+	zb0001Len := uint32(5)
+	var zb0001Mask uint8 /* 5 bits */
 	if z.Files == nil {
 		zb0001Len--
 		zb0001Mask |= 0x4
 	}
-	if z.Children == nil {
+	if z.DNSNames == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
+	}
+	if z.Children == nil {
+		zb0001Len--
+		zb0001Mask |= 0x10
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -1566,6 +1742,43 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 	if (zb0001Mask & 0x8) == 0 { // if not empty
+		// write "dns"
+		err = en.Append(0xa3, 0x64, 0x6e, 0x73)
+		if err != nil {
+			return
+		}
+		err = en.WriteMapHeader(uint32(len(z.DNSNames)))
+		if err != nil {
+			err = msgp.WrapError(err, "DNSNames")
+			return
+		}
+		for za0003, za0004 := range z.DNSNames {
+			err = en.WriteString(za0003)
+			if err != nil {
+				err = msgp.WrapError(err, "DNSNames")
+				return
+			}
+			if za0004 == nil {
+				err = en.WriteNil()
+				if err != nil {
+					return
+				}
+			} else {
+				// map header, size 1
+				// write "DNSEvent"
+				err = en.Append(0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
+				if err != nil {
+					return
+				}
+				err = za0004.DNSEvent.EncodeMsg(en)
+				if err != nil {
+					err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
+					return
+				}
+			}
+		}
+	}
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// write "children"
 		err = en.Append(0xa8, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x72, 0x65, 0x6e)
 		if err != nil {
@@ -1576,16 +1789,16 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 			err = msgp.WrapError(err, "Children")
 			return
 		}
-		for za0003 := range z.Children {
-			if z.Children[za0003] == nil {
+		for za0005 := range z.Children {
+			if z.Children[za0005] == nil {
 				err = en.WriteNil()
 				if err != nil {
 					return
 				}
 			} else {
-				err = z.Children[za0003].EncodeMsg(en)
+				err = z.Children[za0005].EncodeMsg(en)
 				if err != nil {
-					err = msgp.WrapError(err, "Children", za0003)
+					err = msgp.WrapError(err, "Children", za0005)
 					return
 				}
 			}
@@ -1598,15 +1811,19 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ProcessActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(4)
-	var zb0001Mask uint8 /* 4 bits */
+	zb0001Len := uint32(5)
+	var zb0001Mask uint8 /* 5 bits */
 	if z.Files == nil {
 		zb0001Len--
 		zb0001Mask |= 0x4
 	}
-	if z.Children == nil {
+	if z.DNSNames == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
+	}
+	if z.Children == nil {
+		zb0001Len--
+		zb0001Mask |= 0x10
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -1641,16 +1858,36 @@ func (z *ProcessActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 	if (zb0001Mask & 0x8) == 0 { // if not empty
+		// string "dns"
+		o = append(o, 0xa3, 0x64, 0x6e, 0x73)
+		o = msgp.AppendMapHeader(o, uint32(len(z.DNSNames)))
+		for za0003, za0004 := range z.DNSNames {
+			o = msgp.AppendString(o, za0003)
+			if za0004 == nil {
+				o = msgp.AppendNil(o)
+			} else {
+				// map header, size 1
+				// string "DNSEvent"
+				o = append(o, 0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
+				o, err = za0004.DNSEvent.MarshalMsg(o)
+				if err != nil {
+					err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
+					return
+				}
+			}
+		}
+	}
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// string "children"
 		o = append(o, 0xa8, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x72, 0x65, 0x6e)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Children)))
-		for za0003 := range z.Children {
-			if z.Children[za0003] == nil {
+		for za0005 := range z.Children {
+			if z.Children[za0005] == nil {
 				o = msgp.AppendNil(o)
 			} else {
-				o, err = z.Children[za0003].MarshalMsg(o)
+				o, err = z.Children[za0005].MarshalMsg(o)
 				if err != nil {
-					err = msgp.WrapError(err, "Children", za0003)
+					err = msgp.WrapError(err, "Children", za0005)
 					return
 				}
 			}
@@ -1734,32 +1971,96 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				z.Files[za0001] = za0002
 			}
-		case "children":
+		case "dns":
 			var zb0004 uint32
-			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Children")
+				err = msgp.WrapError(err, "DNSNames")
 				return
 			}
-			if cap(z.Children) >= int(zb0004) {
-				z.Children = (z.Children)[:zb0004]
-			} else {
-				z.Children = make([]*ProcessActivityNode, zb0004)
+			if z.DNSNames == nil {
+				z.DNSNames = make(map[string]*DNSNode, zb0004)
+			} else if len(z.DNSNames) > 0 {
+				for key := range z.DNSNames {
+					delete(z.DNSNames, key)
+				}
 			}
-			for za0003 := range z.Children {
+			for zb0004 > 0 {
+				var za0003 string
+				var za0004 *DNSNode
+				zb0004--
+				za0003, bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "DNSNames")
+					return
+				}
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					z.Children[za0003] = nil
+					za0004 = nil
 				} else {
-					if z.Children[za0003] == nil {
-						z.Children[za0003] = new(ProcessActivityNode)
+					if za0004 == nil {
+						za0004 = new(DNSNode)
 					}
-					bts, err = z.Children[za0003].UnmarshalMsg(bts)
+					var zb0005 uint32
+					zb0005, bts, err = msgp.ReadMapHeaderBytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Children", za0003)
+						err = msgp.WrapError(err, "DNSNames", za0003)
+						return
+					}
+					for zb0005 > 0 {
+						zb0005--
+						field, bts, err = msgp.ReadMapKeyZC(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "DNSNames", za0003)
+							return
+						}
+						switch msgp.UnsafeString(field) {
+						case "DNSEvent":
+							bts, err = za0004.DNSEvent.UnmarshalMsg(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
+								return
+							}
+						default:
+							bts, err = msgp.Skip(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "DNSNames", za0003)
+								return
+							}
+						}
+					}
+				}
+				z.DNSNames[za0003] = za0004
+			}
+		case "children":
+			var zb0006 uint32
+			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Children")
+				return
+			}
+			if cap(z.Children) >= int(zb0006) {
+				z.Children = (z.Children)[:zb0006]
+			} else {
+				z.Children = make([]*ProcessActivityNode, zb0006)
+			}
+			for za0005 := range z.Children {
+				if msgp.IsNil(bts) {
+					bts, err = msgp.ReadNilBytes(bts)
+					if err != nil {
+						return
+					}
+					z.Children[za0005] = nil
+				} else {
+					if z.Children[za0005] == nil {
+						z.Children[za0005] = new(ProcessActivityNode)
+					}
+					bts, err = z.Children[za0005].UnmarshalMsg(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Children", za0005)
 						return
 					}
 				}
@@ -1790,12 +2091,24 @@ func (z *ProcessActivityNode) Msgsize() (s int) {
 			}
 		}
 	}
+	s += 4 + msgp.MapHeaderSize
+	if z.DNSNames != nil {
+		for za0003, za0004 := range z.DNSNames {
+			_ = za0004
+			s += msgp.StringPrefixSize + len(za0003)
+			if za0004 == nil {
+				s += msgp.NilSize
+			} else {
+				s += 1 + 9 + za0004.DNSEvent.Msgsize()
+			}
+		}
+	}
 	s += 9 + msgp.ArrayHeaderSize
-	for za0003 := range z.Children {
-		if z.Children[za0003] == nil {
+	for za0005 := range z.Children {
+		if z.Children[za0005] == nil {
 			s += msgp.NilSize
 		} else {
-			s += z.Children[za0003].Msgsize()
+			s += z.Children[za0005].Msgsize()
 		}
 	}
 	return

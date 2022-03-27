@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -43,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -208,13 +208,13 @@ func init() {
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.withGraph,
 		"graph",
-		false,
+		true,
 		"generate a graph from the generated dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.differentiateArgs,
 		"differentiate-args",
-		false,
+		true,
 		"add the arguments in the process node merge algorithm",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
