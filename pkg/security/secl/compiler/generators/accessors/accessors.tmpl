@@ -334,6 +334,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
             {{else}}
                 {{$FieldName}} = v
             {{end}}
+			return nil
 		{{end}}
 		{{end}}
 		}

@@ -21779,6 +21779,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.NetworkContext.Destination.IP = v
 
+		return nil
+
 	case "network.destination.port":
 
 		var ok bool
@@ -21853,6 +21855,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IP"}
 		}
 		e.NetworkContext.Source.IP = v
+
+		return nil
 
 	case "network.source.port":
 
