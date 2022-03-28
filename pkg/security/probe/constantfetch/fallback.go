@@ -536,16 +536,16 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 
 func getNetNSOffset(kv *kernel.Version) uint64 {
 
-	// see https://ubunlog.com/en/bionic-beavers-y-xenial-xeruses-volved-a-actualizar-vuestro-kernel-al-arreglarlo-canonical-introdujo-una-regresion/
+	// see https://ubuntu.com/security/CVE-2019-10638
 	patchAbiMinVersion := map[string]int{
-		"generic":      62,
-		"generic-lpae": 62,
-		"lowlatency":   62,
-		"oracle":       1023,
-		"gke":          1042,
-		"kvm":          1044,
-		"raspi2":       1045,
-		"aws":          1048,
+		"generic":      60,
+		"generic-lpae": 60,
+		"lowlatency":   60,
+		"oracle":       1022,
+		"gke":          1041,
+		"gcp":          1042,
+		"aws":          1047,
+		"azure":        1018,
 	}
 
 	ubuntu415check := func(kv *kernel.Version) bool {
