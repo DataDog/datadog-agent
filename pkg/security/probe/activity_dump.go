@@ -1366,6 +1366,8 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 	fmt.Printf("child count: %d\n", len(fan.Children))
 	if len(fan.Children) >= 10 {
 		fan.debug("child >= 10:")
+		fan.mergeCommonPaths()
+		fan.debug("child >= 10:")
 	}
 	child, ok := fan.Children[parent]
 	if ok {
@@ -1384,7 +1386,54 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 }
 
 func (fan *FileActivityNode) mergeCommonPaths() {
+	fan.Children = combineChildren(fan.Children)
+}
 
+func combineChildren(children map[string]*FileActivityNode) map[string]*FileActivityNode {
+	if len(children) == 0 {
+		return children
+	}
+
+	type inner struct {
+		pair utils.StringPair
+		fan  *FileActivityNode
+	}
+
+	inputs := make([]inner, 0, len(children))
+	for k, v := range children {
+		inputs = append(inputs, inner{
+			pair: utils.NewStringPair(k),
+			fan:  v,
+		})
+	}
+	fmt.Println(inputs)
+
+	current := []inner{inputs[0]}
+
+	for _, a := range inputs[1:] {
+		next := make([]inner, 0)
+		for _, b := range current {
+			sp, similar := utils.BuildGlob(a.pair, b.pair, 4)
+			if similar {
+				next = append(next, inner{
+					pair: sp,
+					fan:  a.fan,
+				})
+			} else {
+				next = append(next, a, b)
+			}
+		}
+		current = next
+	}
+
+	res := make(map[string]*FileActivityNode)
+	for _, n := range current {
+		glob := n.pair.ToGlob()
+		n.fan.Name = glob
+		res[glob] = n.fan
+	}
+
+	return res
 }
 
 // nolint: unused

@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -15,6 +16,14 @@ type StringPair struct {
 }
 
 func NewStringPair(s string) StringPair {
+	i := strings.Index(s, "*")
+	if i != -1 {
+		return StringPair{
+			left:  s[:i],
+			right: s[i+1:],
+		}
+	}
+
 	return StringPair{
 		left:  s,
 		right: "",
@@ -64,16 +73,14 @@ func CommonSuffix(ap, bp StringPair) string {
 	return string(a[i+1:])
 }
 
-const MinLenMatch = 4
-
-func BuildGlob(ap, bp StringPair) (StringPair, bool) {
+func BuildGlob(ap, bp StringPair, minLenMatch int) (StringPair, bool) {
 	p := CommonPrefix(ap, bp)
 	s := CommonSuffix(ap, bp)
 
-	if len(p) < MinLenMatch {
+	if len(p) < minLenMatch {
 		p = ""
 	}
-	if len(s) < MinLenMatch {
+	if len(s) < minLenMatch {
 		s = ""
 	}
 
@@ -82,26 +89,4 @@ func BuildGlob(ap, bp StringPair) (StringPair, bool) {
 	}
 
 	return StringPair{left: p, right: s}, true
-}
-
-func Combine(inputs []string) []StringPair {
-	if len(inputs) == 0 {
-		return nil
-	}
-
-	current := []StringPair{NewStringPair(inputs[0])}
-	for _, a := range inputs[1:] {
-		next := make([]StringPair, 0)
-		for _, bp := range current {
-			ap := NewStringPair(a)
-			sp, similar := BuildGlob(ap, bp)
-			if similar {
-				next = append(next, sp)
-			} else {
-				next = append(next, ap, bp)
-			}
-		}
-		current = next
-	}
-	return current
 }
