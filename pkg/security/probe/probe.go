@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,13 +23,16 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
+	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -37,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -118,12 +123,89 @@ func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
 	return p.kernelVersion, nil
 }
 
+func (p *Probe) sanityChecks() error {
+	// make sure debugfs is mounted
+	if mounted, err := utilkernel.IsDebugFSMounted(); !mounted {
+		return err
+	}
+
+	if utilkernel.GetLockdownMode() == utilkernel.Confidentiality {
+		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
+	}
+
+	isWriteUserNotSupported := p.kernelVersion.Code >= kernel.Kernel5_13 && utilkernel.GetLockdownMode() == utilkernel.Integrity
+
+	if p.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
+		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
+		p.config.ERPCDentryResolutionEnabled = false
+	}
+
+	if p.config.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
+		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+		p.config.NetworkEnabled = false
+	}
+
+	return nil
+}
+
 // VerifyOSVersion returns an error if the current kernel version is not supported
 func (p *Probe) VerifyOSVersion() error {
 	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {
 		return errors.Errorf("the following kernel is not supported: %s", p.kernelVersion)
 	}
 	return nil
+}
+
+// VerifyEnvironment returns an error if the current environment seems to be misconfigured
+func (p *Probe) VerifyEnvironment() *multierror.Error {
+	var err *multierror.Error
+	if aconfig.IsContainerized() {
+		if mounted, _ := mountinfo.Mounted("/etc/passwd"); !mounted {
+			err = multierror.Append(err, errors.New("/etc/passwd doesn't seem to be a mountpoint"))
+		}
+
+		if mounted, _ := mountinfo.Mounted("/etc/group"); !mounted {
+			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
+		}
+
+		if mounted, _ := mountinfo.Mounted(util.HostProc()); !mounted {
+			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
+		}
+
+		if mounted, _ := mountinfo.Mounted(p.kernelVersion.OsReleasePath); !mounted {
+			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+		}
+
+		securityFSPath := filepath.Join(util.GetSysRoot(), "kernel/security")
+		if mounted, _ := mountinfo.Mounted(securityFSPath); !mounted {
+			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", securityFSPath))
+		}
+
+		capsEffective, _, capErr := utils.CapEffCapEprm(utils.Getpid())
+		if capErr != nil {
+			err = multierror.Append(capErr, errors.New("failed to get process capabilities"))
+		} else {
+			requiredCaps := []string{
+				"CAP_SYS_ADMIN",
+				"CAP_SYS_RESOURCE",
+				"CAP_SYS_PTRACE",
+				"CAP_NET_ADMIN",
+				"CAP_NET_BROADCAST",
+				"CAP_NET_RAW",
+				"CAP_IPC_LOCK",
+				"CAP_CHOWN",
+			}
+
+			for _, requiredCap := range requiredCaps {
+				capConst := model.KernelCapabilityConstants[requiredCap]
+				if capsEffective&capConst == 0 {
+					err = multierror.Append(err, fmt.Errorf("%s capability is missing", requiredCap))
+				}
+			}
+		}
+	}
+
+	return err
 }
 
 // Init initializes the probe
@@ -1083,12 +1165,21 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
 	}
 
-	if err = p.detectKernelVersion(); err != nil {
+	if err := p.sanityChecks(); err != nil {
+		return nil, err
+	}
+
+	if err := p.detectKernelVersion(); err != nil {
 		// we need the kernel version to start, fail if we can't get it
 		return nil, err
 	}
-	if err = p.VerifyOSVersion(); err != nil {
+
+	if err := p.VerifyOSVersion(); err != nil {
 		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
+	}
+
+	if err := p.VerifyEnvironment(); err != nil {
+		log.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
 	p.ensureConfigDefaults()

@@ -29,14 +29,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -76,36 +74,6 @@ func (m *Module) Register(_ *module.Router) error {
 	}
 
 	return m.Start()
-}
-
-func sanityChecks(cfg *sconfig.Config) error {
-	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
-		return err
-	}
-
-	version, err := skernel.NewKernelVersion()
-	if err != nil {
-		return err
-	}
-
-	if kernel.GetLockdownMode() == kernel.Confidentiality {
-		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
-	}
-
-	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
-
-	if cfg.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
-		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		cfg.ERPCDentryResolutionEnabled = false
-	}
-
-	if cfg.NetworkEnabled && version.IsRH7Kernel() {
-		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
-		cfg.NetworkEnabled = false
-	}
-
-	return nil
 }
 
 // Init initializes the module
@@ -531,10 +499,6 @@ func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multie
 
 // NewModule instantiates a runtime security system-probe module
 func NewModule(cfg *sconfig.Config) (module.Module, error) {
-	if err := sanityChecks(cfg); err != nil {
-		return nil, err
-	}
-
 	var statsdClient *statsd.Client
 	var err error
 	if cfg != nil {
