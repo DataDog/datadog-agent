@@ -288,7 +288,7 @@ func StartAgent() error {
 			Handler: http.DefaultServeMux,
 		}
 		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Errorf("Error listening and serving expvar server on %v: %v", common.ExpvarServer.Addr, err)
+			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 		}
 	}()
 
