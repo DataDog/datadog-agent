@@ -269,7 +269,6 @@ type AppSecObfuscation struct {
 	// ParameterKeyRegexp is the appsec event parameter key regular expression used to detect sensitive keys in appsec
 	// events.
 	ParameterKeyRegexp *regexp.Regexp
-
 	// ParameterValueRegexp is the appsec event parameter value regular expression used to detect sensitive values in
 	// appsec events.
 	ParameterValueRegexp *regexp.Regexp
@@ -486,7 +485,6 @@ func New() *AgentConfig {
 		AppSec: AppSecConfig{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
-			DDURL:          "",
 		},
 	}
 }

@@ -1237,6 +1237,9 @@ func BenchmarkObfuscator(b *testing.B) {
 	}
 }
 
+// This function implements the AppSec obfuscator by walking fully unmarshalled
+// JSON value into its Go representation. It allows comparing and ensuring that
+// the candidate implementation is more efficient as expected.
 func obfuscatorWithJSONParsing(keyRE, valueRE *regexp.Regexp, val string) string {
 	if keyRE == nil && valueRE == nil {
 		return val
