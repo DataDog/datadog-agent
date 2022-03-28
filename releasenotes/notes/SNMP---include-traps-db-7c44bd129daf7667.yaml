@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    Include pre-generated trap db file in the `conf.d/snmp.d/traps_db/` folder.
+    Include pre-generated trap db file in the ``conf.d/snmp.d/traps_db/`` folder.
