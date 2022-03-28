@@ -14,9 +14,6 @@ dependency "python3" if with_python_runtime? "3"
 dependency "libarchive" if windows?
 dependency "yaml-cpp" if windows?
 
-# Include traps db file in snmp.d/traps_db/
-dependency 'snmp-traps'
-
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
