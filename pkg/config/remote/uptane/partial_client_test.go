@@ -267,6 +267,7 @@ func TestPartialClientRejectsRevokedTargetsKey(t *testing.T) {
 		nil,
 	)
 
+	// revoked top-level targets metadata
 	repository2.directorTargets = repository1.directorTargets
 
 	err = client.Update(repository2.toPartialUpdate())
@@ -305,7 +306,7 @@ func TestPartialClientRejectsRevokedRootKey(t *testing.T) {
 	err = client.Update(repository2.toPartialUpdate())
 	require.NoError(t, err)
 
-	// "root.json" will only be signed by root key version 1,
+	// "root.json" from repository1 is only signed by root key version 1,
 	// which should be now revoked
 	err = client.Update(repository1.toPartialUpdate())
 	errInvalid := &ErrInvalid{}
