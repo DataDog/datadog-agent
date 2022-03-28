@@ -1,0 +1,12 @@
+Process Discovery
+=================
+{{- range $d := .Discoveries}}
+> PID: {{ .Pid }} NSPID: {{ .NsPid }} PPID: {{ .Command.Ppid }}
+  Exe: {{ .Command.Exe }}
+  Args:{{ range .Command.Args}} '{{.}}'{{ end }}
+  Cwd: {{ .Command.Cwd }}
+{{- with .User }}
+  User: {{.Name}} Uid: {{.Uid}} Gid: {{.Gid}} Euid: {{.Euid}} Egid: {{.Egid}} Suid: {{.Suid}} Sgid: {{.Sgid}}
+{{- end }}
+  Create Time: {{ .CreateTime }}
+{{- end }}

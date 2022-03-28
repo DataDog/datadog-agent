@@ -1,0 +1,35 @@
+Processes
+=========
+{{- range $process := .Processes}}
+> PID: {{ .Pid }} NSPID: {{ .NsPid }} PPID: {{ .Command.Ppid }}
+  Container ID: {{ .ContainerId }}
+  Exe: {{ .Command.Exe }}
+  Args:{{ range .Command.Args}} '{{.}}'{{ end }}
+  Cwd: {{ .Command.Cwd }}
+{{- with .User }}
+  User: {{.Name}} Uid: {{.Uid}} Gid: {{.Gid}} Euid: {{.Euid}} Egid: {{.Egid}} Suid: {{.Suid}} Sgid: {{.Sgid}}
+{{- end }}
+  Create Time: {{ .CreateTime }}
+{{- with .Memory }}
+  Memory:
+    Rss:    {{.Rss}}
+    Vms:    {{.Vms}}
+    Swap:   {{.Swap}}
+    Shared: {{.Shared}}
+    Text:   {{.Text}}
+    Lib:    {{.Lib}}
+    Data:   {{.Data}}
+    Dirty:  {{.Dirty}}
+{{- end }}
+{{- with .Cpu }}
+  CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
+  Threads: {{ .NumThreads }}
+  Nice: {{ .Nice }}
+{{- end }}
+  Open Files: {{ .OpenFdCount }}
+{{- with .IoStat }}
+  IO:
+    Read:  {{ .ReadBytesRate }} Bytes/s {{ .ReadRate }} Ops/s
+    Write: {{ .WriteBytesRate }} Bytes/s {{ .WriteRate }} Ops/s
+{{- end }}
+{{- end }}
