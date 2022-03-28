@@ -535,8 +535,35 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 }
 
 func getNetNSOffset(kv *kernel.Version) uint64 {
+
+	// see https://ubunlog.com/en/bionic-beavers-y-xenial-xeruses-volved-a-actualizar-vuestro-kernel-al-arreglarlo-canonical-introdujo-una-regresion/
+	patchAbiMinVersion := map[string]int{
+		"generic":      62,
+		"generic-lpae": 62,
+		"lowlatency":   62,
+		"oracle":       1023,
+		"gke":          1042,
+		"kvm":          1044,
+		"raspi2":       1045,
+		"aws":          1048,
+	}
+
+	ubuntu415check := func(kv *kernel.Version) bool {
+		ukv := kv.UbuntuKernelVersion()
+		if ukv == nil {
+			return false
+		}
+
+		minAbi, present := patchAbiMinVersion[ukv.Flavor]
+		if !present {
+			return false
+		}
+
+		return ukv.Abi >= minAbi
+	}
+
 	switch {
-	case kv.IsUbuntu() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16) && ubuntu415check(kv):
 		fallthrough
 	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
 	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
