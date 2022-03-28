@@ -233,6 +233,8 @@ func (c *PartialClient) TargetFile(path string) ([]byte, error) {
 	return c.targetFile(path)
 }
 
+// ErrInvalid represents the Uptane client rejecting invalid data
+// (malformed or not signed properly)
 type ErrInvalid struct {
 	msg string
 }
