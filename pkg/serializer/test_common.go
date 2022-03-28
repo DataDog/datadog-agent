@@ -35,11 +35,6 @@ func (s *MockSerializer) SendIterableSeries(series *metrics.IterableSeries) erro
 	return s.Called(series).Error(0)
 }
 
-// IsIterableSeriesSupported returns whether `SendIterableSeries` is supported
-func (s *MockSerializer) IsIterableSeriesSupported() bool {
-	return s.Called().Get(0).(bool)
-}
-
 // SendSeries serializes a list of series and sends the payload to the forwarder
 func (s *MockSerializer) SendSeries(series metrics.Series) error {
 	return s.Called(series).Error(0)

@@ -553,7 +553,6 @@ func TestTimeSamplerFlush(t *testing.T) {
 	defer config.Datadog.Set("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
-	s.On("IsIterableSeriesSupported", mock.Anything).Return(true).Maybe()
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
 	opts := demuxTestOptions()
 	demux := InitAndStartAgentDemultiplexer(opts, "")
