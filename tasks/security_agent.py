@@ -223,6 +223,7 @@ def build_c_syscall_tester_common(ctx, file_name, build_dir, flags=None, libs=No
     )
     return syscall_tester_exe_file
 
+
 def build_c_latency_common(ctx, file_name, build_dir, flags=None, libs=None, static=True):
     if flags is None:
         flags = []
@@ -238,15 +239,13 @@ def build_c_latency_common(ctx, file_name, build_dir, flags=None, libs=None, sta
 
     flags_arg = " ".join(flags)
     libs_arg = " ".join(libs)
-    ctx.run(
-        CLANG_EXE_CMD.format(
-            flags=flags_arg, libs=libs_arg, c_file=latency_c_file, out_file=latency_exe_file
-        )
-    )
+    ctx.run(CLANG_EXE_CMD.format(flags=flags_arg, libs=libs_arg, c_file=latency_c_file, out_file=latency_exe_file))
     return latency_exe_file
+
 
 def build_latency_tools(ctx, build_dir, static=True):
     return build_c_latency_common(ctx, "bench_net_DNS", build_dir, libs=["-lpthread"], static=static)
+
 
 @task
 def build_embed_latency_tools(ctx, static=True):

@@ -42,7 +42,7 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 	cmd := exec.Command("taskset", "-c", fmt.Sprint(coreID),
 		executable, host, fmt.Sprint(nbRuns), fmt.Sprint(nbSkips))
 	output, err := cmd.CombinedOutput()
-	t.Log("Output:\n%s", output)
+	t.Logf("Output:\n%s", output)
 	if err != nil {
 		t.Fatal(err)
 	}
