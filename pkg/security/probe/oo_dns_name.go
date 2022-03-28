@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	// DnsNameCmp lower case values before comparing. Important : this operator override doesn't support approvers
-	DnsNameCmp = &eval.OpOverrides{
+	// DNSNameCmp lower case values before comparing. Important : this operator override doesn't support approvers
+	DNSNameCmp = &eval.OpOverrides{
 		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true

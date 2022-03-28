@@ -609,7 +609,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "dns.question.name":
 		return &eval.StringEvaluator{
-			OpOverrides: DnsNameCmp,
+			OpOverrides: DNSNameCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).DNS.Name

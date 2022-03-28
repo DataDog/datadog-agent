@@ -775,7 +775,7 @@ type NetworkContext struct {
 //msgp:ignore DNSEvent
 type DNSEvent struct {
 	ID    uint16 `field:"-"`
-	Name  string `field:"question.name" op_override:"DnsNameCmp"` // the queried domain name
+	Name  string `field:"question.name" op_override:"DNSNameCmp"` // the queried domain name
 	Type  uint16 `field:"question.type"`                          // a two octet code which specifies the DNS question type
 	Class uint16 `field:"question.class"`                         // the class looked up by the DNS question
 	Size  uint16 `field:"question.size"`                          // the total DNS request size in bytes

@@ -61,7 +61,7 @@ func TestScalar(t *testing.T) {
 		}
 	})
 
-	t.Run("insensitve-case", func(t *testing.T) {
+	t.Run("insensitive-case", func(t *testing.T) {
 		matcher, err := NewStringMatcher(ScalarValueType, "test123", StringCmpOpts{ScalarCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
@@ -93,7 +93,7 @@ func TestGlob(t *testing.T) {
 		}
 	})
 
-	t.Run("insensitve-case", func(t *testing.T) {
+	t.Run("insensitive-case", func(t *testing.T) {
 		matcher, err := NewStringMatcher(PatternValueType, "TEst*", StringCmpOpts{GlobCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
@@ -123,7 +123,7 @@ func TestGlob(t *testing.T) {
 		}
 	})
 
-	t.Run("insensitve-case-scalar", func(t *testing.T) {
+	t.Run("insensitive-case-scalar", func(t *testing.T) {
 		matcher, err := NewStringMatcher(PatternValueType, "test123", StringCmpOpts{GlobCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
@@ -155,7 +155,7 @@ func TestRegexp(t *testing.T) {
 		}
 	})
 
-	t.Run("insensitve-case", func(t *testing.T) {
+	t.Run("insensitive-case", func(t *testing.T) {
 		matcher, err := NewStringMatcher(RegexpValueType, "test.*", StringCmpOpts{RegexpCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
