@@ -124,7 +124,7 @@ func insertAttributes(attr pdata.AttributeMap, from map[string]interface{}) {
 		case int:
 			attr.Insert(k, pdata.NewAttributeValueInt(int64(v)))
 		case int64:
-			attr.Insert(k, pdata.NewAttributeValueInt(int64(v)))
+			attr.Insert(k, pdata.NewAttributeValueInt(v))
 		case float64:
 			attr.Insert(k, pdata.NewAttributeValueDouble(v))
 		default:
