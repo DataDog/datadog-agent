@@ -38,8 +38,9 @@ func TestIdentifier(t *testing.T) {
 func TestShouldDropEntry(t *testing.T) {
 	// System-level service units do not have SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT
 	// User-level service units may have a common value for SD_JOURNAL_FIELD_SYSTEMD_UNIT
-	var tailer *Tailer
 	var source *config.LogSource
+	var tailer *Tailer
+	var err error
 
 	// expect all but the specified System-level service units to be dropped
 	source = config.NewLogSource("", &config.LogsConfig{IncludeSystemUnits: []string{"foo", "bar"}})
