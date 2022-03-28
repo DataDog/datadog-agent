@@ -1413,9 +1413,10 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 
 	for _, a := range inputs[1:] {
 		next := make([]inner, 0)
+		shouldAppend := true
 		for _, b := range current {
 			if !areCompatibleFans(a.fan, b.fan) {
-				next = append(next, a, b)
+				next = append(next, b)
 				continue
 			}
 
@@ -1425,12 +1426,17 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 					pair: sp,
 					fan:  a.fan,
 				})
-			} else {
-				next = append(next, a, b)
+				shouldAppend = false
 			}
+		}
+
+		if shouldAppend {
+			next = append(next, a)
 		}
 		current = next
 	}
+
+	fmt.Println(current)
 
 	res := make(map[string]*FileActivityNode)
 	for _, n := range current {
@@ -1438,6 +1444,7 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 		n.fan.Name = glob
 		res[glob] = n.fan
 	}
+	fmt.Println(res)
 
 	return res
 }
