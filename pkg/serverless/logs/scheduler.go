@@ -15,7 +15,7 @@ import (
 )
 
 // logsScheduler is the current logs-agent scheduler managing the log-source for
-// serverless's messages
+// the serverless agent's `chan *ChannelMessaage`.
 var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
