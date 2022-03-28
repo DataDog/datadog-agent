@@ -1165,12 +1165,12 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
 	}
 
-	if err := p.sanityChecks(); err != nil {
+	if err := p.detectKernelVersion(); err != nil {
+		// we need the kernel version to start, fail if we can't get it
 		return nil, err
 	}
 
-	if err := p.detectKernelVersion(); err != nil {
-		// we need the kernel version to start, fail if we can't get it
+	if err := p.sanityChecks(); err != nil {
 		return nil, err
 	}
 
