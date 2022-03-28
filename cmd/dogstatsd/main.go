@@ -133,6 +133,18 @@ func runAgent(ctx context.Context) (err error) {
 		log.Infof("Config will be read from env variables")
 	}
 
+	// go_expvar server
+	port := config.Datadog.GetInt("dogstatsd_stats_port")
+	dogstatsdStats = &http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
+		Handler: http.DefaultServeMux,
+	}
+	go func() {
+		if err := dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
+		}
+	}()
+
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
@@ -221,16 +233,6 @@ func runAgent(ctx context.Context) (err error) {
 		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
-	}
-
-	// go_expvar server
-	port := config.Datadog.GetInt("dogstatsd_stats_port")
-	dogstatsdStats = &http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
-		Handler: http.DefaultServeMux,
-	}
-	if err := dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
 	}
 
 	statsd, err = dogstatsd.NewServer(demux)
