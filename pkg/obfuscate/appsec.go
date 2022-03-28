@@ -439,20 +439,8 @@ func walkObject(scanner *scanner, input string, i int, visit func(keyFrom, keyTo
 // operation `to`. It returns its index when it succeeds or an error when the
 // scanner gets an error or an error in case of a syntax error.
 func stepTo(scanner *scanner, input string, i int, to int) (int, error) {
-	for ; i < len(input); i++ {
-		switch op := scanner.step(scanner, input[i]); op {
-		case to:
-			return i + 1, nil
-		case scanSkipSpace, scanContinue:
-			continue
-		case scanError:
-			return i + 1, scanner.err
-		default:
-			return i + 1, unexpectedScannerOpError(op)
-		}
-	}
-	scanner.eof() // tell the scanner the end of the input has been reached
-	return i, scanner.err
+	i, _, err := stepToOneOf(scanner, input, i, to)
+	return i, err
 }
 
 // stepToOneOf is the variadic equivalent of stepTo() by taking the list of
