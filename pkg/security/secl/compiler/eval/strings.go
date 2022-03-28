@@ -8,35 +8,29 @@ package eval
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/pkg/errors"
 )
 
-// StringCmpOpts defines options to apply during string comparison
-type StringCmpOpts struct {
-	ScalarInsensitive bool
-	GlobInsensitive   bool
-	RegexpInsensitive bool
+// StringMatcherOpts defines options to apply during string comparison
+type StringMatcherOpts struct {
+	CaseInsensitive bool
 }
 
 // DefaultStrCmpOpts defines the default comparison options
-var DefaultStrCmpOpts = StringCmpOpts{}
+var DefaultStringMatcherOpts = StringMatcherOpts{}
 
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
-	scalars         []string
-	patternMatchers []StringMatcher
+	scalars        []string
+	stringMatchers []StringMatcher
 
 	// caches
 	scalarCache map[string]bool
 	fieldValues []FieldValue
 
 	exists map[interface{}]bool
-}
-
-// IsStringMatcherType return whether this type can be handled by a StringMatcher
-func IsStringMatcherType(kind FieldValueType) bool {
-	return kind == PatternValueType || kind == RegexpValueType
 }
 
 // AppendFieldValue append a FieldValue
@@ -53,22 +47,32 @@ func (s *StringValues) AppendFieldValue(value FieldValue) {
 	}
 	s.exists[value.Value] = true
 
+	if value.Type == ScalarValueType {
+		s.scalars = append(s.scalars, value.Value.(string))
+	}
+
 	s.fieldValues = append(s.fieldValues, value)
 }
 
 // Compile all the values
-func (s *StringValues) Compile() error {
+func (s *StringValues) Compile(opts StringMatcherOpts) error {
 	for _, value := range s.fieldValues {
-		if IsStringMatcherType(value.Type) {
-			if err := value.Compile(); err != nil {
-				return err
-			}
-			s.patternMatchers = append(s.patternMatchers, value.StringMatcher)
-		} else {
-			// fast path only when not options are passed
+		// fast path for scalar value without specific comparison behavior
+		if opts == DefaultStringMatcherOpts && value.Type == ScalarValueType {
 			str := value.Value.(string)
 			s.scalars = append(s.scalars, str)
 			s.scalarCache[str] = true
+		} else {
+			str, ok := value.Value.(string)
+			if !ok {
+				return fmt.Errorf("invalid field value `%v`", value.Value)
+			}
+
+			matcher, err := NewStringMatcher(value.Type, str, opts)
+			if err != nil {
+				return err
+			}
+			s.stringMatchers = append(s.stringMatchers, matcher)
 		}
 	}
 
@@ -82,13 +86,13 @@ func (s *StringValues) GetScalarValues() []string {
 
 // GetStringMatchers return the pattern matchers
 func (s *StringValues) GetStringMatchers() []StringMatcher {
-	return s.patternMatchers
+	return s.stringMatchers
 }
 
 // SetFieldValues apply field values
 func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
-	s.patternMatchers = s.patternMatchers[:0]
+	s.stringMatchers = s.stringMatchers[:0]
 	s.scalarCache = nil
 	s.exists = nil
 
@@ -101,35 +105,7 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 
 // AppendScalarValue append a scalar string value
 func (s *StringValues) AppendScalarValue(value string) {
-	if s.scalarCache == nil {
-		s.scalarCache = make(map[string]bool)
-	}
-
-	if s.exists[value] {
-		return
-	}
-	if s.exists == nil {
-		s.exists = make(map[interface{}]bool)
-	}
-	s.exists[value] = true
-
-	s.scalars = append(s.scalars, value)
-	s.scalarCache[value] = true
-	s.fieldValues = append(s.fieldValues, FieldValue{Value: value, Type: ScalarValueType})
-}
-
-// AppendStringEvaluator append a string evalutator
-func (s *StringValues) AppendStringEvaluator(evaluator *StringEvaluator) error {
-	if evaluator.EvalFnc == nil {
-		return errors.New("only scalar evaluator are supported")
-	}
-
-	s.AppendFieldValue(FieldValue{
-		Value: evaluator.Value,
-		Type:  evaluator.ValueType,
-	})
-
-	return nil
+	s.AppendFieldValue(FieldValue{Value: value, Type: ScalarValueType})
 }
 
 // Matches returns whether the value matches the string values
@@ -137,7 +113,7 @@ func (s *StringValues) Matches(value string) bool {
 	if s.scalarCache != nil && s.scalarCache[value] {
 		return true
 	}
-	for _, pm := range s.patternMatchers {
+	for _, pm := range s.stringMatchers {
 		if pm.Matches(value) {
 			return true
 		}
@@ -148,7 +124,7 @@ func (s *StringValues) Matches(value string) bool {
 
 // StringMatcher defines a pattern matcher
 type StringMatcher interface {
-	Compile(pattern string) error
+	Compile(pattern string, opts StringMatcherOpts) error
 	Matches(value string) bool
 }
 
@@ -158,9 +134,13 @@ type RegexpStringMatcher struct {
 }
 
 // Compile a regular expression based pattern
-func (r *RegexpStringMatcher) Compile(pattern string) error {
+func (r *RegexpStringMatcher) Compile(pattern string, opts StringMatcherOpts) error {
 	if r.re != nil {
 		return nil
+	}
+
+	if opts.CaseInsensitive {
+		pattern = "(?i)" + pattern
 	}
 
 	re, err := regexp.Compile(pattern)
@@ -183,12 +163,12 @@ type GlobStringMatcher struct {
 }
 
 // Compile a simple pattern
-func (g *GlobStringMatcher) Compile(pattern string) error {
+func (g *GlobStringMatcher) Compile(pattern string, opts StringMatcherOpts) error {
 	if g.glob != nil {
 		return nil
 	}
 
-	glob, err := NewGlob(pattern)
+	glob, err := NewGlob(pattern, opts.CaseInsensitive)
 	if err != nil {
 		return err
 	}
@@ -209,36 +189,46 @@ func (g *GlobStringMatcher) Contains(value string) bool {
 
 // ScalarStringMatcher defines a scalar matcher
 type ScalarStringMatcher struct {
-	value string
+	value           string
+	caseInsensitive bool
 }
 
 // Compile a simple pattern
-func (s *ScalarStringMatcher) Compile(pattern string) error {
+func (s *ScalarStringMatcher) Compile(pattern string, opts StringMatcherOpts) error {
+	s.value = pattern
+	s.caseInsensitive = opts.CaseInsensitive
 	return nil
 }
 
 // Matches returns whether the value matches
 func (s *ScalarStringMatcher) Matches(value string) bool {
+	if s.caseInsensitive {
+		return strings.EqualFold(s.value, value)
+	}
 	return s.value == value
 }
 
 // NewStringMatcher returns a new string matcher
-func NewStringMatcher(kind FieldValueType, pattern string) (StringMatcher, error) {
+func NewStringMatcher(kind FieldValueType, pattern string, opts StringMatcherOpts) (StringMatcher, error) {
 	switch kind {
 	case PatternValueType:
 		var matcher GlobStringMatcher
-		if err := matcher.Compile(pattern); err != nil {
+		if err := matcher.Compile(pattern, opts); err != nil {
 			return nil, fmt.Errorf("invalid pattern `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
 	case RegexpValueType:
 		var matcher RegexpStringMatcher
-		if err := matcher.Compile(pattern); err != nil {
+		if err := matcher.Compile(pattern, opts); err != nil {
 			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
 	case ScalarValueType:
-		return &ScalarStringMatcher{value: pattern}, nil
+		var matcher ScalarStringMatcher
+		if err := matcher.Compile(pattern, opts); err != nil {
+			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
+		}
+		return &matcher, nil
 	}
 
 	return nil, errors.New("unknown type")

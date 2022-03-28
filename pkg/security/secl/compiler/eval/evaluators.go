@@ -84,17 +84,16 @@ func (i *IntEvaluator) IsStatic() bool {
 
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
-	EvalFnc     func(ctx *Context) string
-	Field       Field
-	Value       string
-	Weight      int
-	OpOverrides *OpOverrides
-	ValueType   FieldValueType
+	EvalFnc         func(ctx *Context) string
+	Field           Field
+	Value           string
+	Weight          int
+	OpOverrides     *OpOverrides
+	ValueType       FieldValueType
+	CaseInsensitive bool // only Field evaluator can set this boolean
 
 	// used during compilation of partial
 	isDeterministic bool
-
-	stringMatcher StringMatcher
 }
 
 // Eval returns the result of the evaluation
@@ -125,26 +124,27 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 	return s.EvalFnc(ctx)
 }
 
-// Compile compile internal object
-func (s *StringEvaluator) Compile() error {
+// ToStringMatcher returns a StringMatcher of the evaluator
+func (s *StringEvaluator) ToStringMatcher(opts StringMatcherOpts) (StringMatcher, error) {
 	if s.IsStatic() {
-		matcher, err := NewStringMatcher(s.ValueType, s.Value)
+		matcher, err := NewStringMatcher(s.ValueType, s.Value, opts)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		s.stringMatcher = matcher
+		return matcher, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
-	EvalFnc     func(ctx *Context) []string
-	Values      []string
-	Field       Field
-	Weight      int
-	OpOverrides *OpOverrides
+	EvalFnc         func(ctx *Context) []string
+	Values          []string
+	Field           Field
+	Weight          int
+	OpOverrides     *OpOverrides
+	CaseInsensitive bool // only Field evaluator can set this boolean
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -213,8 +213,8 @@ func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) {
 }
 
 // Compile the underlying StringValues
-func (s *StringValuesEvaluator) Compile() error {
-	return s.Values.Compile()
+func (s *StringValuesEvaluator) Compile(opts StringMatcherOpts) error {
+	return s.Values.Compile(opts)
 }
 
 // SetFieldValues apply field values

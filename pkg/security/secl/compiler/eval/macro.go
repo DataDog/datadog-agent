@@ -62,7 +62,7 @@ func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error
 		evaluator.AppendFieldValues(fieldValue)
 	}
 
-	if err := evaluator.Compile(); err != nil {
+	if err := evaluator.Compile(DefaultStringMatcherOpts); err != nil {
 		return nil, err
 	}
 
