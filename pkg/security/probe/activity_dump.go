@@ -1422,9 +1422,15 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 
 			sp, similar := utils.BuildGlob(a.pair, b.pair, 4)
 			if similar {
+				merged, ok := mergeFans(sp.ToGlob(), a.fan, b.fan)
+				if !ok {
+					next = append(next, b)
+					continue
+				}
+
 				next = append(next, inner{
 					pair: sp,
-					fan:  a.fan,
+					fan:  merged,
 				})
 				shouldAppend = false
 			}
@@ -1451,6 +1457,29 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 
 func areCompatibleFans(a *FileActivityNode, b *FileActivityNode) bool {
 	return reflect.DeepEqual(a.Open, b.Open)
+}
+
+func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActivityNode, bool) {
+	newChildren := make(map[string]*FileActivityNode)
+	for k, v := range a.Children {
+		newChildren[k] = v
+	}
+	for k, v := range b.Children {
+		if _, present := newChildren[k]; present {
+			return nil, false
+		}
+		newChildren[k] = v
+	}
+
+	return &FileActivityNode{
+		id:             a.id,
+		Name:           name,
+		File:           a.File,
+		GenerationType: a.GenerationType,
+		FirstSeen:      a.FirstSeen,
+		Open:           a.Open, // if the 2 fans are compatible, a.Open should be equal to b.Open
+		Children:       newChildren,
+	}, true
 }
 
 // nolint: unused
