@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -28,8 +26,6 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
-
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
