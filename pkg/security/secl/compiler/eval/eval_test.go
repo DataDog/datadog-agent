@@ -1042,7 +1042,7 @@ func TestOpOverrides(t *testing.T) {
 		var values StringValues
 		values.AppendScalarValue("abc")
 
-		if err := values.Compile(DefaultStringMatcherOpts); err != nil {
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
 			return nil
 		}
 
@@ -1058,7 +1058,7 @@ func TestOpOverrides(t *testing.T) {
 		var values StringValues
 		values.AppendScalarValue("abc")
 
-		if err := values.Compile(DefaultStringMatcherOpts); err != nil {
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
 			return nil
 		}
 
@@ -1101,7 +1101,7 @@ func TestOpOverridePartials(t *testing.T) {
 		var values StringValues
 		values.AppendScalarValue("abc")
 
-		if err := values.Compile(DefaultStringMatcherOpts); err != nil {
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
 			return nil
 		}
 
@@ -1117,7 +1117,7 @@ func TestOpOverridePartials(t *testing.T) {
 		var values StringValues
 		values.AppendScalarValue("abc")
 
-		if err := values.Compile(DefaultStringMatcherOpts); err != nil {
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
 			return nil
 		}
 

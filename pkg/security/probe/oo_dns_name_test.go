@@ -34,11 +34,11 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringEquals(a, b, nil, state)
+		e, err := DnsNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 
-		e, err = LowerCaseCmp.StringEquals(b, a, nil, state)
+		e, err = DnsNameCmp.StringEquals(b, a, nil, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -59,16 +59,16 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringEquals(a, b, nil, state)
+		e, err := DnsNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
-		e, err = LowerCaseCmp.StringEquals(b, a, nil, state)
+		e, err = DnsNameCmp.StringEquals(b, a, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
 
-	t.Run("pattern", func(t *testing.T) {
+	t.Run("glob", func(t *testing.T) {
 		a := &eval.StringEvaluator{
 			Value:     "FO*",
 			ValueType: eval.PatternValueType,
@@ -84,11 +84,11 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringEquals(a, b, nil, state)
+		e, err := DnsNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
-		e, err = LowerCaseCmp.StringEquals(b, a, nil, state)
+		e, err = DnsNameCmp.StringEquals(b, a, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -109,13 +109,13 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringEquals(a, b, nil, state)
+		e, err := DnsNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
-		assert.True(t, e.Eval(&ctx).(bool))
+		assert.False(t, e.Eval(&ctx).(bool))
 
-		e, err = LowerCaseCmp.StringEquals(b, a, nil, state)
+		e, err = DnsNameCmp.StringEquals(b, a, nil, state)
 		assert.Empty(t, err)
-		assert.True(t, e.Eval(&ctx).(bool))
+		assert.False(t, e.Eval(&ctx).(bool))
 	})
 }
 
@@ -139,7 +139,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringValuesContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -163,12 +163,12 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringValuesContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
 
-	t.Run("pattern", func(t *testing.T) {
+	t.Run("glob", func(t *testing.T) {
 		a := &eval.StringEvaluator{
 			Field: "field",
 			EvalFnc: func(ctx *eval.Context) string {
@@ -187,7 +187,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringValuesContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -202,7 +202,7 @@ func TestLowerCaseContains(t *testing.T) {
 
 		var values eval.StringValues
 		values.AppendFieldValue(eval.FieldValue{Value: "aaa", Type: eval.ScalarValueType})
-		values.AppendFieldValue(eval.FieldValue{Value: "FOO.*", Type: eval.RegexpValueType})
+		values.AppendFieldValue(eval.FieldValue{Value: "FO.*", Type: eval.RegexpValueType})
 
 		b := &eval.StringValuesEvaluator{
 			Values: values,
@@ -211,7 +211,17 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringValuesContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringValuesContains(a, b, nil, state)
+		assert.Empty(t, err)
+		assert.False(t, e.Eval(&ctx).(bool))
+
+		values.AppendFieldValue(eval.FieldValue{Value: "[Ff][Oo].*", Type: eval.RegexpValueType})
+
+		b = &eval.StringValuesEvaluator{
+			Values: values,
+		}
+
+		e, err = DnsNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -228,7 +238,12 @@ func TestLowerCaseContains(t *testing.T) {
 		values.AppendFieldValue(eval.FieldValue{Value: "aaa", Type: eval.ScalarValueType})
 		values.AppendFieldValue(eval.FieldValue{Value: "fo*", Type: eval.PatternValueType})
 
-		if err := values.Compile(eval.StringMatcherOpts{CaseInsensitive: true}); err != nil {
+		opts := eval.StringCmpOpts{
+			ScalarCaseInsensitive: true,
+			GlobCaseInsensitive:   true,
+		}
+
+		if err := values.Compile(opts); err != nil {
 			t.Error(err)
 		}
 
@@ -241,7 +256,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringValuesContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -263,7 +278,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringArrayContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringArrayContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -283,7 +298,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringArrayContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringArrayContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -305,7 +320,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		var ctx eval.Context
 		state := eval.NewState(&model.Model{}, "", nil)
 
-		e, err := LowerCaseCmp.StringArrayContains(a, b, nil, state)
+		e, err := DnsNameCmp.StringArrayContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})

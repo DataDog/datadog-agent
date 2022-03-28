@@ -66,11 +66,11 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 	}
 
 	if a.Field != "" && b.Field != "" {
-		if a.CaseInsensitive || b.CaseInsensitive {
+		if a.StringCmpOpts.ScalarCaseInsensitive || b.StringCmpOpts.ScalarCaseInsensitive {
 			op = strings.EqualFold
 		}
 	} else if a.Field != "" {
-		matcher, err := b.ToStringMatcher(StringMatcherOpts{CaseInsensitive: a.CaseInsensitive})
+		matcher, err := b.ToStringMatcher(a.StringCmpOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 			}
 		}
 	} else if b.Field != "" {
-		matcher, err := a.ToStringMatcher(StringMatcherOpts{CaseInsensitive: b.CaseInsensitive})
+		matcher, err := a.ToStringMatcher(b.StringCmpOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -228,13 +228,13 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}
 
 	if a.Field != "" && b.Field != "" {
-		if a.CaseInsensitive || b.CaseInsensitive {
+		if a.StringCmpOpts.ScalarCaseInsensitive || b.StringCmpOpts.ScalarCaseInsensitive {
 			cmp = strings.EqualFold
 		}
-	} else if a.Field != "" && a.CaseInsensitive {
+	} else if a.Field != "" && a.StringCmpOpts.ScalarCaseInsensitive {
 		cmp = strings.EqualFold
 	} else if b.Field != "" {
-		matcher, err := a.ToStringMatcher(StringMatcherOpts{CaseInsensitive: a.CaseInsensitive})
+		matcher, err := a.ToStringMatcher(b.StringCmpOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -315,7 +315,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
-	if err := b.Compile(StringMatcherOpts{CaseInsensitive: a.CaseInsensitive}); err != nil {
+	if err := b.Compile(a.StringCmpOpts); err != nil {
 		return nil, err
 	}
 
@@ -384,7 +384,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
-	if err := b.Compile(StringMatcherOpts{CaseInsensitive: a.CaseInsensitive}); err != nil {
+	if err := b.Compile(a.StringCmpOpts); err != nil {
 		return nil, err
 	}
 

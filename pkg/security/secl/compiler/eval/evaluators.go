@@ -84,13 +84,13 @@ func (i *IntEvaluator) IsStatic() bool {
 
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
-	EvalFnc         func(ctx *Context) string
-	Field           Field
-	Value           string
-	Weight          int
-	OpOverrides     *OpOverrides
-	ValueType       FieldValueType
-	CaseInsensitive bool // only Field evaluator can set this boolean
+	EvalFnc       func(ctx *Context) string
+	Field         Field
+	Value         string
+	Weight        int
+	OpOverrides   *OpOverrides
+	ValueType     FieldValueType
+	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -125,7 +125,7 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 }
 
 // ToStringMatcher returns a StringMatcher of the evaluator
-func (s *StringEvaluator) ToStringMatcher(opts StringMatcherOpts) (StringMatcher, error) {
+func (s *StringEvaluator) ToStringMatcher(opts StringCmpOpts) (StringMatcher, error) {
 	if s.IsStatic() {
 		matcher, err := NewStringMatcher(s.ValueType, s.Value, opts)
 		if err != nil {
@@ -139,12 +139,12 @@ func (s *StringEvaluator) ToStringMatcher(opts StringMatcherOpts) (StringMatcher
 
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
-	EvalFnc         func(ctx *Context) []string
-	Values          []string
-	Field           Field
-	Weight          int
-	OpOverrides     *OpOverrides
-	CaseInsensitive bool // only Field evaluator can set this boolean
+	EvalFnc       func(ctx *Context) []string
+	Values        []string
+	Field         Field
+	Weight        int
+	OpOverrides   *OpOverrides
+	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -213,7 +213,7 @@ func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) {
 }
 
 // Compile the underlying StringValues
-func (s *StringValuesEvaluator) Compile(opts StringMatcherOpts) error {
+func (s *StringValuesEvaluator) Compile(opts StringCmpOpts) error {
 	return s.Values.Compile(opts)
 }
 
