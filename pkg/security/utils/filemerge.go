@@ -11,10 +11,13 @@ import (
 	"unicode/utf8"
 )
 
+// StringPair represents a pair of prefix and suffix strings
+// this pair represents a glob with a star between the prefix and the suffix
 type StringPair struct {
 	left, right string
 }
 
+// NewStringPair returns a new StringPair from a string
 func NewStringPair(s string) StringPair {
 	i := strings.Index(s, "*")
 	if i != -1 {
@@ -30,6 +33,7 @@ func NewStringPair(s string) StringPair {
 	}
 }
 
+// ToGlob returns a glob from the StringPair
 func (sp *StringPair) ToGlob() string {
 	if sp.right == "" {
 		return sp.left
@@ -37,7 +41,7 @@ func (sp *StringPair) ToGlob() string {
 	return fmt.Sprintf("%s*%s", sp.left, sp.right)
 }
 
-func CommonPrefix(ap, bp StringPair) string {
+func commonPrefix(ap, bp StringPair) string {
 	prefix := make([]byte, 0)
 
 	a := ap.left
@@ -50,7 +54,7 @@ func CommonPrefix(ap, bp StringPair) string {
 	return string(prefix)
 }
 
-func CommonSuffix(ap, bp StringPair) string {
+func commonSuffix(ap, bp StringPair) string {
 	a := ap.right
 	if a == "" {
 		a = ap.left
@@ -73,9 +77,10 @@ func CommonSuffix(ap, bp StringPair) string {
 	return string(a[i+1:])
 }
 
+// BuildGlob builds a common glob from two string pairs if sufficiently similar
 func BuildGlob(ap, bp StringPair, minLenMatch int) (StringPair, bool) {
-	p := CommonPrefix(ap, bp)
-	s := CommonSuffix(ap, bp)
+	p := commonPrefix(ap, bp)
+	s := commonSuffix(ap, bp)
 
 	if len(p) < minLenMatch {
 		p = ""
