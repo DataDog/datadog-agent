@@ -74,7 +74,7 @@ type treeWalkCollector struct {
 func newTreeWalkCollector() *treeWalkCollector {
 	return &treeWalkCollector{
 		counter: 0,
-		sem:     semaphore.NewWeighted(int64(runtime.NumCPU())),
+		sem:     semaphore.NewWeighted(int64(runtime.NumCPU() * 2)),
 	}
 }
 
