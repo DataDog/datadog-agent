@@ -45,6 +45,9 @@ func newDefaultConfig() config.Exporter {
 			SumConfig: sumConfig{
 				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
 			},
+			SummaryConfig: summaryConfig{
+				Mode: SummaryModeGauges,
+			},
 		},
 	}
 }
@@ -87,7 +90,8 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 		options = append(options, translator.WithCountSumMetrics())
 	}
 
-	if cfg.Metrics.Quantiles {
+	switch cfg.Metrics.SummaryConfig.Mode {
+	case SummaryModeGauges:
 		options = append(options, translator.WithQuantiles())
 	}
 
