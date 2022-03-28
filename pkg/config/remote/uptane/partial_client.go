@@ -170,15 +170,8 @@ func (c *PartialClient) Update(response *pbgo.ClientGetConfigsResponse) error {
 	}
 	err = c.validateAndUpdateTargets(response.Targets.Raw)
 	if err != nil {
-		if errors.Is(err, verify.ErrInvalid) {
-			return fmt.Errorf(
-				"updating targets: %w",
-				&ErrInvalid{err.Error()},
-			)
-		}
-
-		//errRoleThreshold := &verify.ErrRoleThreshold{}
-		if errors.As(err, &verify.ErrRoleThreshold{}) {
+		if (errors.Is(err, verify.ErrInvalid) ||
+			errors.As(err, &verify.ErrRoleThreshold{})) {
 			return fmt.Errorf(
 				"updating targets: %w",
 				&ErrInvalid{err.Error()},
