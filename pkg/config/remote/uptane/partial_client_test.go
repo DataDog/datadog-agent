@@ -160,6 +160,8 @@ func TestPartialClientVerifyInvalidRotation(t *testing.T) {
 }
 
 func TestPartialClientRootKeyRotation(t *testing.T) {
+	require := require.New(t)
+
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
@@ -170,10 +172,10 @@ func TestPartialClientRootKeyRotation(t *testing.T) {
 	config.Datadog.Set("remote_configuration.config_root", repository1.configRoot)
 
 	client, err := NewPartialClient()
-	require.NoError(t, err)
+	require.NoError(err)
 
 	err = client.Update(repository1.toPartialUpdate())
-	require.NoError(t, err)
+	require.NoError(err)
 
 	repository2 := newTestRepository(2, nil, directorTargetMetadata, nil)
 	repository2.directorRootVersion = repository1.directorRootVersion + 1
@@ -188,16 +190,18 @@ func TestPartialClientRootKeyRotation(t *testing.T) {
 	)
 
 	err = client.Update(repository2.toPartialUpdate())
-	require.NoError(t, err)
+	require.NoError(err)
 
 	root, err := client.getRoot()
-	require.NoError(t, err)
+	require.NoError(err)
 	assert.Equal(t, root.Roles["root"].KeyIDs[0], repository2.directorRootKey.PublicData().IDs()[0])
 }
 
 // TestPartialClientRejectsUnsignedTarget tests that the partial uptane client
 // does not accept targets which are not listed in the targets metadata file
 func TestPartialClientRejectsUnsignedTarget(t *testing.T) {
+	require := require.New(t)
+
 	files := []*pbgo.File{
 		{Path: "datadog/2/APM_SAMPLING/id/1", Raw: []byte("mAlIcIoUs cOnTeNt!!")},
 	}
@@ -209,16 +213,18 @@ func TestPartialClientRejectsUnsignedTarget(t *testing.T) {
 	config.Datadog.Set("remote_configuration.config_root", repository.configRoot)
 
 	client, err := NewPartialClient()
-	require.NoError(t, err)
+	require.NoError(err)
 
 	err = client.Update(repository.toPartialUpdate())
 	errInvalid := &ErrInvalid{}
-	require.ErrorAs(t, err, &errInvalid)
+	require.ErrorAs(err, &errInvalid)
 }
 
 // TestPartialClientRejectsInvalidSignature tests that the partial uptane client
 // rejects target metadata with an invalid signature
 func TestPartialClientRejectsInvalidSignature(t *testing.T) {
+	require := require.New(t)
+
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
@@ -233,14 +239,16 @@ func TestPartialClientRejectsInvalidSignature(t *testing.T) {
 		ReplaceAll(repository.directorTargets, []byte(`"sig":"abcdef`))
 
 	client, err := NewPartialClient()
-	require.NoError(t, err)
+	require.NoError(err)
 
 	err = client.Update(repository.toPartialUpdate())
 	errInvalid := &ErrInvalid{}
-	require.ErrorAs(t, err, &errInvalid)
+	require.ErrorAs(err, &errInvalid)
 }
 
 func TestPartialClientRejectsRevokedTargetsKey(t *testing.T) {
+	require := require.New(t)
+
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
@@ -251,10 +259,10 @@ func TestPartialClientRejectsRevokedTargetsKey(t *testing.T) {
 	config.Datadog.Set("remote_configuration.config_root", repository1.configRoot)
 
 	client, err := NewPartialClient()
-	require.NoError(t, err)
+	require.NoError(err)
 
 	err = client.Update(repository1.toPartialUpdate())
-	require.NoError(t, err)
+	require.NoError(err)
 
 	repository2 := newTestRepository(2, nil, directorTargetMetadata, nil)
 	repository2.directorRootVersion = repository1.directorRootVersion + 1
@@ -272,10 +280,12 @@ func TestPartialClientRejectsRevokedTargetsKey(t *testing.T) {
 
 	err = client.Update(repository2.toPartialUpdate())
 	errInvalid := &ErrInvalid{}
-	require.ErrorAs(t, err, &errInvalid)
+	require.ErrorAs(err, &errInvalid)
 }
 
 func TestPartialClientRejectsRevokedRootKey(t *testing.T) {
+	require := require.New(t)
+
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
@@ -286,10 +296,10 @@ func TestPartialClientRejectsRevokedRootKey(t *testing.T) {
 	config.Datadog.Set("remote_configuration.config_root", repository1.configRoot)
 
 	client, err := NewPartialClient()
-	require.NoError(t, err)
+	require.NoError(err)
 
 	err = client.Update(repository1.toPartialUpdate())
-	require.NoError(t, err)
+	require.NoError(err)
 
 	repository2 := newTestRepository(2, nil, directorTargetMetadata, nil)
 	repository2.directorRootVersion = repository1.directorRootVersion + 1
@@ -304,11 +314,11 @@ func TestPartialClientRejectsRevokedRootKey(t *testing.T) {
 	)
 
 	err = client.Update(repository2.toPartialUpdate())
-	require.NoError(t, err)
+	require.NoError(err)
 
 	// "root.json" from repository1 is only signed by root key version 1,
 	// which should be now revoked
 	err = client.Update(repository1.toPartialUpdate())
 	errInvalid := &ErrInvalid{}
-	require.ErrorAs(t, err, &errInvalid)
+	require.ErrorAs(err, &errInvalid)
 }
