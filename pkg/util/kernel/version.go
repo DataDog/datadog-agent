@@ -153,6 +153,7 @@ type UbuntuKernelVersion struct {
 
 var ubuntuKernelVersionRegex = regexp.MustCompile(`^(\d+)\.(\d+)\.(0)-(\d+)\.(\d+)-([[:lower:]-]+)$`)
 
+// NewUbuntuKernelVersion parses the ubuntu release string and returns a structure with each extracted fields
 func NewUbuntuKernelVersion(unameRelease string) (*UbuntuKernelVersion, error) {
 	match := ubuntuKernelVersionRegex.FindStringSubmatch(unameRelease)
 	if len(match) == 0 {
