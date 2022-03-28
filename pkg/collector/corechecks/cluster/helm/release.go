@@ -34,8 +34,15 @@ type release struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-func (rel *release) ID() string {
-	return fmt.Sprintf("%s/%s/%d", rel.Namespace, rel.Name, rel.Version)
+type namespacedName string
+type revision int
+
+func (rel *release) namespacedName() namespacedName {
+	return namespacedName(fmt.Sprintf("%s/%s", rel.Namespace, rel.Name))
+}
+
+func (rel *release) revision() revision {
+	return revision(rel.Version)
 }
 
 type info struct {

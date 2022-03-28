@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
@@ -486,6 +486,11 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 			pbm.probe.DispatchCustomEvent(
 				NewEventLostWriteEvent(perfMapName, perEvent),
 			)
+
+			// snapshot traced cgroups if a CgroupTracing event was lost
+			if pbm.probe.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
+				pbm.probe.monitor.activityDumpManager.snapshotTracedCgroups()
+			}
 		}
 	}
 	return nil

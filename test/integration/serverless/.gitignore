@@ -1,4 +1,5 @@
 .serverless
+!datadog.yaml
 recorder-extension/extensions
 recorder-extension/ext.zip
 src/csharp-tests/bin

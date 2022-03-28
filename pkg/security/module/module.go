@@ -29,17 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -78,37 +76,8 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-func (m *Module) sanityChecks() error {
-	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
-		return err
-	}
-
-	version, err := skernel.NewKernelVersion()
-	if err != nil {
-		return err
-	}
-
-	if kernel.GetLockdownMode() == kernel.Confidentiality {
-		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
-	}
-
-	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
-
-	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
-		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		m.config.ERPCDentryResolutionEnabled = false
-	}
-
-	return nil
-}
-
 // Init initializes the module
 func (m *Module) Init() error {
-	if err := m.sanityChecks(); err != nil {
-		return err
-	}
-
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -198,10 +167,18 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
+	if m.config.NetworkEnabled {
+		if eventTypes, exists := categories[model.NetworkCategory]; exists {
+			for _, eventType := range eventTypes {
+				enabled[eventType] = true
+			}
+		}
+	}
+
 	if m.config.RuntimeEnabled {
 		// everything but FIM
 		for _, category := range model.GetAllCategories() {
-			if category == model.FIMCategory {
+			if category == model.FIMCategory || category == model.NetworkCategory {
 				continue
 			}
 
@@ -567,7 +544,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
-	seclog.SetPatterns(cfg.LogPatterns)
+	seclog.SetPatterns(cfg.LogPatterns...)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 

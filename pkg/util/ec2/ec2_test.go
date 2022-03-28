@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +31,7 @@ func resetPackageVars() {
 	config.Datadog.Set("ec2_metadata_timeout", initialTimeout)
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
-	token = ec2Token{}
+	token = httputils.NewAPIToken(getToken)
 
 	instanceIDFetcher.Reset()
 	localIPv4Fetcher.Reset()
@@ -349,7 +350,7 @@ func TestGetToken(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	token, err := getToken(ctx)
+	token, err := token.Get(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, originalToken, token)
 }
@@ -432,7 +433,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
 
 	// Force refresh
-	token.expirationDate = time.Now()
+	token.ExpirationDate = time.Now()
 	ips, err = GetLocalIPv4()
 	require.NoError(t, err)
 	assert.Equal(t, []string{ipv4}, ips)

@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/richardartoul/molecule"
@@ -369,14 +369,4 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 		n += batchSize
 	}
 	return splitPayloads, nil
-}
-
-// String returns the JSON representation of a SketchSeriesList as a string
-// or an empty string in case of an error
-func (sl SketchSeriesList) String() string {
-	json, err := sl.MarshalJSON()
-	if err != nil {
-		return ""
-	}
-	return string(json)
 }

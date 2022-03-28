@@ -156,6 +156,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
+	checks.StoreCheckOutput(c.Name(), messages)
 	l.messagesToResults(start, c.Name(), messages, results)
 
 	if !c.RealTime() {
@@ -175,10 +176,14 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 		return
 	}
 	l.messagesToResults(start, c.Name(), run.Standard, results)
-	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
-
 	if options.RunStandard {
+		checks.StoreCheckOutput(c.Name(), run.Standard)
 		logCheckDuration(c.Name(), start, runCounter)
+	}
+
+	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
+	if options.RunRealTime {
+		checks.StoreCheckOutput(c.RealTimeName(), run.RealTime)
 	}
 }
 

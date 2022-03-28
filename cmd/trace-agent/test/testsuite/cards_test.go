@@ -73,7 +73,7 @@ apm_config:
 		{
 			conf:    []byte(""),
 			out:     "4166 6766 6766 6746",
-			version: "v0.6",
+			version: "v0.7",
 		},
 		{
 			conf: []byte(`
@@ -83,7 +83,7 @@ apm_config:
     credit_cards:
       enabled: true`),
 			out:     "?",
-			version: "v0.6",
+			version: "v0.7",
 		},
 	} {
 		t.Run(string(tt.version)+"/"+tt.out, func(t *testing.T) {
@@ -115,7 +115,7 @@ func generatePayload(version api.Version, cardNumber string) (msgp.Marshaler, pb
 		return traces, traces
 	case "v0.5":
 		return generateV5Payload(cardNumber)
-	case "v0.6":
+	case "v0.7":
 		return testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpans(traces[0])), traces
 	default:
 		panic("invalid version")

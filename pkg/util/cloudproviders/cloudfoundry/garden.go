@@ -44,6 +44,10 @@ const (
 	SpaceIDTagKey = "space_id"
 	// SpaceNameTagKey tag key for container tags
 	SpaceNameTagKey = "space_name"
+	// SidecarPresentTagKey tag key for container tags
+	SidecarPresentTagKey = "sidecar_present"
+	// SidecarCountTagKey tag key for container tags
+	SidecarCountTagKey = "sidecar_count"
 )
 
 var (

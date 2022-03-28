@@ -8,6 +8,7 @@ package cca
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -17,22 +18,17 @@ import (
 // Scheduler creates a single source to represent all containers collected due to
 // the `logs_config.container_collect_all` configuration.
 type Scheduler struct {
-	ac autoConfig
+	getAC func() *autodiscovery.AutoConfig
 	// added is closed when the source is added (for testing)
 	added chan struct{}
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
 
-// autoConfig is the interface we need to check if AC has started
-type autoConfig interface {
-	HasRunOnce() bool
-}
-
 // New creates a new scheduler.
-func New(ac autoConfig) schedulers.Scheduler {
+func New(getAC func() *autodiscovery.AutoConfig) schedulers.Scheduler {
 	return &Scheduler{
-		ac:    ac,
+		getAC: getAC,
 		added: make(chan struct{}),
 	}
 }
@@ -53,8 +49,8 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	// that any containers that do have specific configuration get handled first.  This is
 	// a hack!
 	go func() {
-		blockUntilAutoConfigRanOnce(s.ac,
-			time.Millisecond*time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+		s.blockUntilAutoConfigRanOnce(
+			time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
 		log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 		sourceMgr.AddSource(source)
 		close(s.added)
@@ -63,9 +59,10 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 
 // blockUntilAutoConfigRanOnce blocks until the AutoConfig has been run once.
 // It also returns after the given timeout.
-func blockUntilAutoConfigRanOnce(ac autoConfig, timeout time.Duration) {
+func (s *Scheduler) blockUntilAutoConfigRanOnce(timeout time.Duration) {
 	now := time.Now()
 	for {
+		ac := s.getAC()
 		time.Sleep(100 * time.Millisecond) // don't hog the CPU
 		if ac.HasRunOnce() {
 			return

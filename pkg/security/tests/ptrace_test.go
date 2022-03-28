@@ -9,6 +9,8 @@
 package tests
 
 import (
+	"fmt"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,9 +38,17 @@ func TestPTraceEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("test_ptrace", func(t *testing.T) {
+	test.Run(t, "ptrace", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"ptrace-traceme"}
+		envs := []string{}
+
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "ptrace-traceme")
+			cmd := cmdFunc(syscallTester, args, envs)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+
+			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "ptrace", event.GetType(), "wrong event type")
 			assert.Equal(t, uint64(42), event.PTrace.Address, "wrong address")

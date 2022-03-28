@@ -75,6 +75,10 @@ runtime_security_config:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
+{{if .EnableNetwork}}
+  network:
+    enabled: true
+{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -141,6 +145,7 @@ type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
+	enableNetwork               bool
 	disableDiscarders           bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
@@ -160,6 +165,7 @@ func (s *stringSlice) Set(value string) error {
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.testDir == opts.testDir &&
 		to.disableApprovers == opts.disableApprovers &&
+		to.enableNetwork == opts.enableNetwork &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -275,15 +281,16 @@ func getInode(t *testing.T, path string) uint64 {
 }
 
 //nolint:deadcode,unused
-func which(name string) string {
-	executable := "/usr/bin/" + name
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/" + name
-		}
+func which(t *testing.T, name string) string {
+	executable, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatalf("couldn't resolve %s: %v", name, err)
 	}
+
+	if dest, err := filepath.EvalSymlinks(executable); err == nil {
+		return dest
+	}
+
 	return executable
 }
 
@@ -387,6 +394,7 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":             dir,
 		"DisableApprovers":            opts.disableApprovers,
+		"EnableNetwork":               opts.enableNetwork,
 		"EventsCountThreshold":        opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
@@ -661,28 +669,30 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 
 // GetStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetStatusMetrics(probe *sprobe.Probe) string {
-	var status string
-
 	if probe == nil {
-		return status
+		return ""
 	}
 	monitor := probe.GetMonitor()
 	if monitor == nil {
-		return status
+		return ""
 	}
 	perfBufferMonitor := monitor.GetPerfBufferMonitor()
 	if perfBufferMonitor == nil {
-		return status
+		return ""
 	}
 
-	status = fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1))
+	var status strings.Builder
+	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
 	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
-		status = fmt.Sprintf("%s, %s user:%d kernel:%d lost:%d", status, i, stats.Count, kernelStats.Count, kernelStats.Lost)
+		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
+			continue
+		}
+		status.WriteString(fmt.Sprintf(", %s user:%d kernel:%d lost:%d", i, stats.Count, kernelStats.Count, kernelStats.Lost))
 	}
 
-	return status
+	return status.String()
 }
 
 // ErrTimeout is used to indicate that a test timed out
@@ -1237,7 +1247,7 @@ func randStringRunes(n int) string {
 func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
-		t.Errorf("failed to get kernel version: %w", err)
+		t.Errorf("failed to get kernel version: %s", err)
 		return
 	}
 

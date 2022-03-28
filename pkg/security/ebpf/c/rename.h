@@ -44,8 +44,9 @@ SYSCALL_KPROBE0(renameat2) {
 SEC("kprobe/vfs_rename")
 int kprobe_vfs_rename(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->rename.target_file.path_key.ino) {
@@ -115,8 +116,9 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
@@ -188,11 +190,13 @@ int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t 
 
 int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct rename_event_t event = {
         .syscall.retval = retval,

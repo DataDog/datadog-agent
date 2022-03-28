@@ -17,12 +17,13 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -35,22 +36,20 @@ var (
 
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
+	config                *config.Config
 	client                *statsd.Client
 	pathnames             *lib.Map
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	dentryCacheSize       int
 	cache                 map[uint32]*lru.Cache
 	cacheGeneration       uint64
 	erpc                  *ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
 	erpcRequest           ERPCRequest
-	erpcEnabled           bool
 	erpcStatsZero         []eRPCStats
 	numCPU                int
-	mapEnabled            bool
 
 	hitsCounters map[string]map[string]*int64
 	missCounters map[string]map[string]*int64
@@ -280,7 +279,7 @@ func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 	if !exists {
 		var err error
 
-		entries, err = lru.NewWithEvict(dr.dentryCacheSize, func(_, value interface{}) {
+		entries, err = lru.NewWithEvict(dr.config.DentryCacheSize, func(_, value interface{}) {
 			dr.pathEntryPool.Put(value)
 		})
 		if err != nil {
@@ -358,10 +357,10 @@ func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID ui
 // GetName resolves a couple of mountID/inode to a path
 func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
 	name, err := dr.getNameFromCache(mountID, inode)
-	if err != nil && dr.erpcEnabled {
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		name, err = dr.GetNameFromERPC(mountID, inode, pathID)
 	}
-	if err != nil && dr.mapEnabled {
+	if err != nil && dr.config.MapDentryResolutionEnabled {
 		name, err = dr.GetNameFromMap(mountID, inode, pathID)
 	}
 
@@ -667,10 +666,10 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	path, err := dr.ResolveFromCache(mountID, inode)
-	if err != nil && dr.erpcEnabled {
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		path, err = dr.ResolveFromERPC(mountID, inode, pathID, cache)
 	}
-	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
+	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
 		path, err = dr.ResolveFromMap(mountID, inode, pathID, cache)
 	}
 	return path, err
@@ -732,10 +731,10 @@ func (dr *DentryResolver) resolveParentFromMap(mountID uint32, inode uint64, pat
 // GetParent returns the parent mount_id/inode
 func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
 	parentMountID, parentInode, err := dr.resolveParentFromCache(mountID, inode)
-	if err != nil && dr.erpcEnabled {
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		parentMountID, parentInode, err = dr.resolveParentFromERPC(mountID, inode, pathID)
 	}
-	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
+	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
 		parentMountID, parentInode, err = dr.resolveParentFromMap(mountID, inode, pathID)
 	}
 
@@ -875,16 +874,14 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	}
 
 	return &DentryResolver{
+		config:          probe.config,
 		client:          probe.statsdClient,
 		cache:           make(map[uint32]*lru.Cache),
-		dentryCacheSize: probe.config.DentryCacheSize,
 		erpc:            probe.erpc,
 		erpcSegment:     segment,
 		erpcSegmentSize: len(segment),
 		erpcRequest:     ERPCRequest{},
-		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
 		erpcStatsZero:   make([]eRPCStats, numCPU),
-		mapEnabled:      probe.config.MapDentryResolutionEnabled,
 		hitsCounters:    hitsCounters,
 		missCounters:    missCounters,
 		numCPU:          numCPU,

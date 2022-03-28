@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ReordererMonitor represents a reorderer monitor

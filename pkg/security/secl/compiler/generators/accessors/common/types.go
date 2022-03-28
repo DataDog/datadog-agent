@@ -5,6 +5,19 @@
 
 package common
 
+// EventTypeMetadata is used to iterate over the model from the event types
+type EventTypeMetadata struct {
+	Doc    string
+	Fields []string
+}
+
+// NewEventTypeMetada returns a new EventTypeMetada
+func NewEventTypeMetada(fields ...string) *EventTypeMetadata {
+	return &EventTypeMetadata{
+		Fields: fields,
+	}
+}
+
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
 	Name            string
@@ -14,27 +27,27 @@ type Module struct {
 	BuildTags       []string
 	Fields          map[string]*StructField
 	Iterators       map[string]*StructField
-	EventTypes      map[string]bool
-	EventTypeDocs   map[string]string
+	EventTypes      map[string]*EventTypeMetadata
 	Mock            bool
 }
 
 // StructField represents a structure field for which an accessor will be generated
 type StructField struct {
-	Name          string
-	Prefix        string
-	Struct        string
-	BasicType     string
-	ReturnType    string
-	IsArray       bool
-	Event         string
-	Handler       string
-	OrigType      string
-	IsOrigTypePtr bool
-	Iterator      *StructField
-	Weight        int64
-	CommentText   string
-	OpOverrides   string
+	Name                string
+	Prefix              string
+	Struct              string
+	BasicType           string
+	ReturnType          string
+	IsArray             bool
+	Event               string
+	Handler             string
+	CachelessResolution bool
+	OrigType            string
+	IsOrigTypePtr       bool
+	Iterator            *StructField
+	Weight              int64
+	CommentText         string
+	OpOverrides         string
 }
 
 // GetEvaluatorType returns the evaluator type name
