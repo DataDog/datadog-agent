@@ -372,7 +372,7 @@ func StopAgent(cancel context.CancelFunc) {
 	}
 	if expvarServer != nil {
 		if err := expvarServer.Shutdown(context.Background()); err != nil {
-			log.Errorf("Error shutdowning expvar server: %v", err)
+			log.Errorf("Error shutting down expvar server: %v", err)
 		}
 	}
 
