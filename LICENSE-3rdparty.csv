@@ -463,7 +463,7 @@ core,github.com/imdario/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. Al
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2014 Alan Shreve
 core,github.com/iovisor/gobpf/pkg/cpupossible,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
 core,github.com/iovisor/gobpf/pkg/cpurange,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
-core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2021 itchyny
+core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2022 itchyny
 core,github.com/itchyny/timefmt-go,MIT,"Copyright (c) 2020,2021 itchyny"
 core,github.com/jlaffaye/ftp,ISC,"Copyright (c) 2011-2013, Julien Laffaye <jlaffaye@FreeBSD.org>"
 core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinnie
