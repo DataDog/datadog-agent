@@ -63,4 +63,21 @@ func TestDNS(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("dns-case", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			_, err = net.LookupIP("GOOGLE.COM")
+			if err != nil {
+				return err
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "dns", event.GetType(), "wrong event type")
+			assert.Equal(t, "GOOGLE.COM", event.DNS.Name, "wrong domain name")
+
+			if !validateDNSSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
 }

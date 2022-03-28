@@ -39,7 +39,8 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	return s.model.ValidateField(field, value)
 }
 
-func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
+// NewState returns a new State
+func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}

@@ -98,7 +98,7 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 	for id, macro := range opts.Macros {
 		macros[id] = macro.evaluator
 	}
-	state := newState(model, field, macros)
+	state := NewState(model, field, macros)
 
 	var eval interface{}
 	var err error
