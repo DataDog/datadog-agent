@@ -36,9 +36,57 @@ func TestIdentifier(t *testing.T) {
 }
 
 func TestShouldDropEntry(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{ExcludeUnits: []string{"foo", "bar"}})
-	tailer := NewTailer(source, nil)
-	err := tailer.setup()
+	// System-level service units do not have SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT
+	// User-level service units may have a common value for SD_JOURNAL_FIELD_SYSTEMD_UNIT
+	var tailer *Tailer
+	var source *config.LogSource
+
+	// expect all but the specified System-level service units to be dropped
+	source = config.NewLogSource("", &config.LogsConfig{IncludeSystemUnits: []string{"foo", "bar"}})
+	tailer = NewTailer(source, nil)
+	err = tailer.setup()
+	assert.Nil(t, err)
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "bar",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	// expect all but the specified User-level service units to be dropped
+	source = config.NewLogSource("", &config.LogsConfig{IncludeUserUnits: []string{"foo", "bar"}})
+	tailer = NewTailer(source, nil)
+	err = tailer.setup()
+	assert.Nil(t, err)
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "bar",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	// expect only the specified service units to be dropped
+	source = config.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}})
+	tailer = NewTailer(source, nil)
+	err = tailer.setup()
 	assert.Nil(t, err)
 
 	assert.True(t, tailer.shouldDrop(
@@ -61,6 +109,102 @@ func TestShouldDropEntry(t *testing.T) {
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "boo",
 			},
 		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "bar",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "baz",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "qux",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	// expect all System-level service units to be dropped
+	source = config.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"*"}})
+	tailer = NewTailer(source, nil)
+	err = tailer.setup()
+	assert.Nil(t, err)
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "bar",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "bar",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "baz",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	// expect all User-level service units to be dropped
+	source = config.NewLogSource("", &config.LogsConfig{ExcludeUserUnits: []string{"*"}})
+	tailer = NewTailer(source, nil)
+	err = tailer.setup()
+	assert.Nil(t, err)
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "bar",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "bar",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "baz",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
 }
 
 func TestApplicationName(t *testing.T) {
@@ -71,6 +215,16 @@ func TestApplicationName(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+			},
+		}, []string{}))
+
+	assert.Equal(t, "foo-user.service", tailer.getApplicationName(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 			},
@@ -147,6 +301,7 @@ func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 				containerIDKey:                               "bar",
@@ -164,6 +319,7 @@ func TestApplicationNameShouldBeShortImageForContainerEntries(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 				containerIDKey:                               containerID,
@@ -185,6 +341,7 @@ func TestApplicationNameShouldBeDockerWhenTagNotFound(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 				containerIDKey:                               containerID,
@@ -209,6 +366,7 @@ func TestWrongTypeFromCache(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 				containerIDKey:                               containerID,
