@@ -187,7 +187,8 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 	if !exists {
 		return false
 	}
-	if _, excluded := t.excludeUnits.system[unit]; excluded {
+	excludeAllSys := t.excludeUnits.system["*"]
+	if _, excluded := t.excludeUnits.system[unit]; excludeAllSys || excluded {
 		// drop the entry
 		return true
 	}
@@ -195,7 +196,8 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 	if !exists {
 		return false
 	}
-	if _, excluded := t.excludeUnits.user[unit]; excluded {
+	excludeAllUsr := t.excludeUnits.user["*"]
+	if _, excluded := t.excludeUnits.user[unit]; excludeAllUsr || excluded {
 		// drop the entry
 		return true
 	}
