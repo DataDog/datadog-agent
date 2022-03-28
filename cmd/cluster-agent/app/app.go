@@ -175,7 +175,7 @@ func start(cmd *cobra.Command, args []string) error {
 	go func() {
 		err := metricsServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating telemetry server on port %v: %v", metricsPort, err)
+			log.Errorf("Error creating expvar server on port %v: %v", metricsPort, err)
 		}
 	}()
 
