@@ -1,0 +1,32 @@
+Containers
+==========
+{{- range $c := .Containers}}
+> ID: {{ .Id }}
+  Name: {{ .Name }}
+  Image: {{ .Image }}
+  CPU Limit:    {{ .CpuLimit }}
+  Memory Limit: {{ .MemoryLimit }}
+  State:  {{ containerState .State }}
+  Health: {{ containerHealth .Health }}
+  Created: {{ .Created }}
+  Started: {{ .Started }}
+  CPU:
+    Total:  {{ .TotalPct }}%
+    System: {{ .SystemPct }}%
+    User:   {{ .UserPct }}%
+  Memory:
+    RSS: {{ .MemRss }}
+    Cache: {{ .MemCache }}
+  IO:
+    Read Bytes/s: {{ .Rbps }}
+    Write Bytes/s: {{ .Wbps }}
+  Net:
+    Received Ops/s:   {{ .NetSentPs }}
+    Sent Ops/s:       {{ .NetSentPs }}
+    Received Bytes/s: {{ .NetRcvdBps }}
+    Sent Bytes/s:     {{ .NetSentBps }}
+  Tags: {{range $idx, $tag := .Tags}}{{if $idx}},{{end}}{{$tag}}{{end}}
+  Addresses:{{/* TODO: */}}
+  Thread Count: {{ .ThreadCount }}
+  Thread Limit: {{ .ThreadLimit }}
+{{- end }}
