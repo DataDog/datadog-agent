@@ -234,7 +234,9 @@ var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled
 // DumpActivity handles an activity dump request
 func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return nil, ErrActivityDumpManagerDisabled
+		return &api.SecurityActivityDumpMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.DumpActivity(params)
 }
