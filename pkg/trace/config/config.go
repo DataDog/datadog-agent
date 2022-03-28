@@ -7,6 +7,7 @@ package config
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -272,6 +273,42 @@ type AppSecObfuscation struct {
 	// ParameterValueRegexp is the appsec event parameter value regular expression used to detect sensitive values in
 	// appsec events.
 	ParameterValueRegexp *regexp.Regexp
+}
+
+// MarshalJSON serializes the AppSecObfuscation configuration into its JSON representation.
+func (cfg *AppSecObfuscation) MarshalJSON() ([]byte, error) {
+	// Serialize the regular expression into strings
+	var keyRE, valueRE string
+	if cfg.ParameterKeyRegexp != nil {
+		keyRE = cfg.ParameterKeyRegexp.String()
+	}
+	if cfg.ParameterValueRegexp != nil {
+		valueRE = cfg.ParameterValueRegexp.String()
+	}
+	return json.Marshal(struct {
+		ParameterKeyRegexp, ParameterValueRegexp string
+	}{
+		ParameterKeyRegexp:   keyRE,
+		ParameterValueRegexp: valueRE,
+	})
+}
+
+// UnmarshalJSON deserializes the AppSecObfuscation configuration from its JSON representation.
+func (cfg *AppSecObfuscation) UnmarshalJSON(b []byte) error {
+	// Deserialize the regular expression from strings
+	var v struct {
+		ParameterKeyRegexp, ParameterValueRegexp string
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	if v.ParameterKeyRegexp != "" {
+		cfg.ParameterKeyRegexp, _ = regexp.Compile(v.ParameterKeyRegexp)
+	}
+	if v.ParameterValueRegexp != "" {
+		cfg.ParameterValueRegexp, _ = regexp.Compile(v.ParameterValueRegexp)
+	}
+	return nil
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
