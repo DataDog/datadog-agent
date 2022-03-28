@@ -1013,8 +1013,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/iovisor/gobpf v0.2.0 h1:34xkQxft+35GagXBk3n23eqhm0v7q0ejeVirb8sqEOQ=
 github.com/iovisor/gobpf v0.2.0/go.mod h1:WSY9Jj5RhdgC3ci1QaacvbFdQ8cbrEjrpiZbLHLt2s4=
-github.com/itchyny/gojq v0.12.6 h1:VjaFn59Em2wTxDNGcrRkDK9ZHMNa8IksOgL13sLL4d0=
-github.com/itchyny/gojq v0.12.6/go.mod h1:ZHrkfu7A+RbZLy5J1/JKpS4poEqrzItSTGDItqsfP0A=
+github.com/itchyny/gojq v0.12.7 h1:hYPTpeWfrJ1OT+2j6cvBScbhl0TkdwGM4bc66onUSOQ=
+github.com/itchyny/gojq v0.12.7/go.mod h1:ZdvNHVlzPgUf8pgjnuDTmGfHA/21KoutQUJ3An/xNuw=
 github.com/itchyny/timefmt-go v0.1.3 h1:7M3LGVDsqcd0VZH2U+x393obrzZisp7C0uEe921iRkU=
 github.com/itchyny/timefmt-go v0.1.3/go.mod h1:0osSSCQSASBJMsIZnhAaF1C2fCBTJZXrnj37mG8/c+A=
 github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56/go.mod h1:ymszkNOg6tORTn+6F6j+Jc8TOr5osrynvN6ivFWZ2GA=
