@@ -61,19 +61,6 @@ func main() {
 	flavor.SetFlavor(flavor.Dogstatsd)
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
-	// go_expvar server
-	go func() {
-		var port = coreconfig.Datadog.GetString("security_agent.expvar_port")
-		coreconfig.Datadog.Set("expvar_port", port)
-		if coreconfig.Datadog.GetBool("telemetry.enabled") {
-			http.Handle("/telemetry", telemetry.Handler())
-		}
-		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
-		}
-	}()
-
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
