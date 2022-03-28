@@ -536,6 +536,8 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 
 func getNetNSOffset(kv *kernel.Version) uint64 {
 	switch {
+	case kv.IsUbuntu() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		fallthrough
 	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
 	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
 	// and is part of master since 5.1
