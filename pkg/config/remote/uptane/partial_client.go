@@ -53,6 +53,7 @@ type PartialState struct {
 }
 
 // PartialClient is a partial uptane client
+// (see https://uptane.github.io/papers/uptane-standard.1.2.0.html#rfc.section.5.4.4.1)
 type PartialClient struct {
 	sync.Mutex
 
@@ -69,6 +70,7 @@ type PartialClient struct {
 }
 
 // NewPartialClient creates a new partial uptane client
+// (see https://uptane.github.io/papers/uptane-standard.1.2.0.html#rfc.section.5.4.4.1)
 func NewPartialClient() (*PartialClient, error) {
 	localStore := client.MemoryLocalStore()
 	err := localStore.SetMeta("root.json", json.RawMessage(meta.RootsDirector().Last()))
