@@ -61,7 +61,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError)
+	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError, "{}")
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -91,7 +91,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError)
+	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError, "{}")
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
