@@ -218,41 +218,21 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
-// SelfTestReport represents TODO
+// SelfTestReport represents the rule and the custom event related to a SelfTest event; ready to be dispatched
 type SelfTestReport struct {
-	Success []string
-	Fails   []string
+	Rule  *rules.Rule
+	Event *CustomEvent
 }
 
-// PrepareSelfTestReport prepares a TODO
-func (m *Monitor) PrepareSelfTestReport() SelfTestReport {
-	return SelfTestReport{Success: nil, Fails: nil}
+// PrepareSelfTestReport prepares a report of selt test results
+func (m *Monitor) PrepareSelfTestReport(success []string, fails []string) SelfTestReport {
+	r, ev := NewSelfTestEvent(success, fails)
+	return SelfTestReport{Rule: r, Event: ev}
 }
 
-// TODO
-func (m *Monitor) SelfTestReportAddFail(report *SelfTestReport, s string) {
-	log.Error("SelfTestReportAddFail: \n", s, "\n")
-	report.Fails = append(report.Fails, s)
-	return
-}
-
-// TODO
-func (m *Monitor) SelfTestReportAddSuccess(report *SelfTestReport, s string) {
-	log.Error("SelfTestReportAddSuccess: ", s, "\n")
-	report.Success = append(report.Success, s)
-	return
-}
-
-// ReportSelfTest reports to Datadog that TODO
+// ReportSelfTest reports to Datadog that a self test was performed
 func (m *Monitor) ReportSelfTest(report *SelfTestReport) {
-	log.Error("ReportSelfTest :\n")
-	for f := range report.Fails {
-		log.Error("  Failed: ", f, "\n")
-	}
-	for s := range report.Success {
-		log.Error("  Succeed: ", report.Success[s], "\n")
-	}
-	log.Error("<< ReportSelfTest\n\n\n")
+	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
 // ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
