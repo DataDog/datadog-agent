@@ -10,6 +10,7 @@ Processes
   User: {{.Name}} Uid: {{.Uid}} Gid: {{.Gid}} Euid: {{.Euid}} Egid: {{.Egid}} Suid: {{.Suid}} Sgid: {{.Sgid}}
 {{- end }}
   Create Time: {{ .CreateTime }}
+  State: {{ processState .State }}
 {{- with .Memory }}
   Memory:
     Rss:    {{.Rss}}

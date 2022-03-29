@@ -33,6 +33,7 @@ func TestHumanFormatProcess(t *testing.T) {
 						Name: "root", Uid: 0, Gid: 1, Euid: 2, Egid: 3, Suid: 4, Sgid: 5,
 					},
 					CreateTime: 1609733040,
+					State:      model.ProcessState_R,
 					Memory: &model.MemoryStat{
 						Rss:    100,
 						Vms:    200,
@@ -50,7 +51,9 @@ func TestHumanFormatProcess(t *testing.T) {
 						NumThreads: 100,
 						Nice:       2,
 					},
-					OpenFdCount: 200,
+					OpenFdCount:            200,
+					VoluntaryCtxSwitches:   1234,
+					InvoluntaryCtxSwitches: 55,
 					IoStat: &model.IOStat{
 						ReadRate:       10.0,
 						WriteRate:      30.0,
@@ -102,6 +105,7 @@ func TestHumanFormatProcess(t *testing.T) {
   Cwd: /home/puppy
   User: root Uid: 0 Gid: 1 Euid: 2 Egid: 3 Suid: 4 Sgid: 5
   Create Time: 1609733040
+  State: R
   Memory:
     Rss:    100
     Vms:    200
@@ -115,6 +119,7 @@ func TestHumanFormatProcess(t *testing.T) {
   Threads: 100
   Nice: 2
   Open Files: 200
+  Context Switches: Voluntary: 1234 Involuntary: 55
   IO:
     Read:  100 Bytes/s 10 Ops/s
     Write: 200 Bytes/s 30 Ops/s
@@ -340,7 +345,7 @@ func TestHumanFormatContainer(t *testing.T) {
     Read:  10 Bytes/s
     Write: 20 Bytes/s
   Net:
-    Received: 100 Bytes/s 10 Ops/s
+    Received: 100 Bytes/s 5 Ops/s
     Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
   Addresses:
@@ -361,7 +366,7 @@ func TestHumanFormatContainer(t *testing.T) {
     Read:  10 Bytes/s
     Write: 20 Bytes/s
   Net:
-    Received: 100 Bytes/s 10 Ops/s
+    Received: 100 Bytes/s 5 Ops/s
     Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
   Addresses:

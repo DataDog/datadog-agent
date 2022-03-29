@@ -44,6 +44,7 @@ var (
 		"percent":         func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 		"containerHealth": func(v model.ContainerHealth) string { return v.String() },
 		"containerState":  func(v model.ContainerState) string { return v.String() },
+		"processState":    func(v model.ProcessState) string { return v.String() },
 	}
 )
 
