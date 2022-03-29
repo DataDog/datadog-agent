@@ -1,0 +1,31 @@
+RealTime Processes
+==================
+{{- range $process := .ProcessStats}}
+> PID: {{ .Pid }}
+  Container ID: {{ .ContainerId }}
+  Create Time: {{ .CreateTime }}
+{{- with .Memory }}
+  Memory:
+    Rss:    {{.Rss}}
+    Vms:    {{.Vms}}
+    Swap:   {{.Swap}}
+    Shared: {{.Shared}}
+    Text:   {{.Text}}
+    Lib:    {{.Lib}}
+    Data:   {{.Data}}
+    Dirty:  {{.Dirty}}
+{{- end }}
+{{- with .Cpu }}
+  CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
+  Threads: {{ .NumThreads }}
+  Nice: {{ .Nice }}
+{{- end }}
+  Open Files: {{ .OpenFdCount }}
+  Voluntary Context Switches: {{ .VoluntaryCtxSwitches }}
+  Involuntary Context Switches: {{ .InvoluntaryCtxSwitches }}
+{{- with .IoStat }}
+  IO:
+    Read:  {{ .ReadBytesRate }} Bytes/s {{ .ReadRate }} Ops/s
+    Write: {{ .WriteBytesRate }} Bytes/s {{ .WriteRate }} Ops/s
+{{- end }}
+{{- end }}

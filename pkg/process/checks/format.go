@@ -26,6 +26,9 @@ var (
 	//go:embed templates/processes.tmpl
 	processesTemplate string
 
+	//go:embed templates/rtprocesses.tmpl
+	rtProcessesTemplate string
+
 	//go:embed templates/containers.tmpl
 	containersTemplate string
 
@@ -47,15 +50,14 @@ func HumanFormat(check string, msgs []model.MessageBody, w io.Writer) error {
 	switch check {
 	case config.ProcessCheckName:
 		return humanFormatProcess(msgs, w)
+	case config.RTProcessCheckName:
+		return humanFormatRealTimeProcess(msgs, w)
 	case config.ContainerCheckName:
 		return humanFormatContainer(msgs, w)
+	case config.RTContainerCheckName:
+		return humanFormatRealTimeContainer(msgs, w)
 	case config.DiscoveryCheckName:
 		return humanFormatProcessDiscovery(msgs, w)
-	case config.RTContainerCheckName:
-		return humanFormatRealtimeContainer(msgs, w)
-		/*
-			TODO: realtime checks here
-		*/
 	}
 	return ErrNoHumanFormat
 }
@@ -117,6 +119,63 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 	return nil
 }
 
+func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
+	var data struct {
+		ProcessStats   []*model.ProcessStat
+		ContainerStats []*model.ContainerStat
+	}
+
+	var (
+		processStats   = map[int32]*model.ProcessStat{}
+		containerStats = map[string]*model.ContainerStat{}
+		pids           []int
+		containerIDs   []string
+	)
+
+	for _, m := range msgs {
+		proc := m.(*model.CollectorRealTime)
+		for _, p := range proc.Stats {
+			processStats[p.Pid] = p
+			pids = append(pids, int(p.Pid))
+		}
+
+		for _, c := range proc.ContainerStats {
+			containerStats[c.Id] = c
+		}
+	}
+
+	for cid := range containerStats {
+		containerIDs = append(containerIDs, cid)
+	}
+
+	pidsSorted := sort.IntSlice(pids)
+	pidsSorted.Sort()
+	for _, pid := range pidsSorted {
+		data.ProcessStats = append(data.ProcessStats, processStats[int32(pid)])
+	}
+
+	containerIDsSorted := sort.StringSlice(containerIDs)
+	containerIDsSorted.Sort()
+	for _, cid := range containerIDsSorted {
+		data.ContainerStats = append(data.ContainerStats, containerStats[cid])
+	}
+
+	templates := []string{
+		rtProcessesTemplate,
+		rtContainersTemplate,
+	}
+
+	for idx, name := range templates {
+		t := template.Must(template.New("process-" + strconv.Itoa(idx)).Funcs(fnMap).Parse(name))
+		err := t.Execute(w, data)
+		if err != nil {
+			return err
+		}
+		w.Write(([]byte)("\n"))
+	}
+	return nil
+}
+
 func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
 		Containers []*model.Container
@@ -148,7 +207,7 @@ func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 	return t.Execute(w, data)
 }
 
-func humanFormatRealtimeContainer(msgs []model.MessageBody, w io.Writer) error {
+func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
 		ContainerStats []*model.ContainerStat
 	}
