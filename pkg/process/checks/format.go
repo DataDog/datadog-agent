@@ -29,6 +29,9 @@ var (
 	//go:embed templates/containers.tmpl
 	containersTemplate string
 
+	//go:embed templates/rtcontainers.tmpl
+	rtContainersTemplate string
+
 	//go:embed templates/discovery.tmpl
 	discoveryTemplate string
 
@@ -48,6 +51,8 @@ func HumanFormat(check string, msgs []model.MessageBody, w io.Writer) error {
 		return humanFormatContainer(msgs, w)
 	case config.DiscoveryCheckName:
 		return humanFormatProcessDiscovery(msgs, w)
+	case config.RTContainerCheckName:
+		return humanFormatRealtimeContainer(msgs, w)
 		/*
 			TODO: realtime checks here
 		*/
@@ -140,6 +145,37 @@ func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 	}
 
 	t := template.Must(template.New("container").Funcs(fnMap).Parse(containersTemplate))
+	return t.Execute(w, data)
+}
+
+func humanFormatRealtimeContainer(msgs []model.MessageBody, w io.Writer) error {
+	var data struct {
+		ContainerStats []*model.ContainerStat
+	}
+
+	var (
+		stats        = map[string]*model.ContainerStat{}
+		containerIDs []string
+	)
+
+	for _, m := range msgs {
+		cont := m.(*model.CollectorContainerRealTime)
+		for _, c := range cont.Stats {
+			stats[c.Id] = c
+		}
+	}
+
+	for cid := range stats {
+		containerIDs = append(containerIDs, cid)
+	}
+
+	containerIDsSorted := sort.StringSlice(containerIDs)
+	containerIDsSorted.Sort()
+	for _, cid := range containerIDsSorted {
+		data.ContainerStats = append(data.ContainerStats, stats[cid])
+	}
+
+	t := template.Must(template.New("rtcontainer").Funcs(fnMap).Parse(rtContainersTemplate))
 	return t.Execute(w, data)
 }
 
