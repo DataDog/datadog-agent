@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -122,6 +123,11 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 			Max: math.MaxUint64,
 		},
 	}
+
+	for _, probe := range probes.AllProbes() {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
+	}
+
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
 		return og.res, err
 	}
