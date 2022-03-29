@@ -150,10 +150,14 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 584
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16) && ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion):
-		sizeOf = 608
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		if ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion) {
+			sizeOf = 608
+		} else {
+			sizeOf = 600
+		}
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
-		sizeOf = 600
+		sizeOf = 608
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		sizeOf = 584
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_15):
