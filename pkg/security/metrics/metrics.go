@@ -169,7 +169,7 @@ var (
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeMetric(".ruleset_loaded")
 	// MetricSelfTest is the name of the metric used to report that a new ruleset was loaded
-	// Tags: -
+	// Tags: - success, fails
 	MetricSelfTest = newRuntimeMetric(".self_test")
 	// MetricTCProgram is the name of the metric used to report the count of active TC programs
 	// Tags: -
