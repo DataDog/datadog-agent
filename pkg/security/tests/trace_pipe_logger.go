@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build functionaltests || stresstests
+// +build functionaltests stresstests
 
 //lint:file-ignore U1000 Trace Pipe Logger is useful for debugging
 
