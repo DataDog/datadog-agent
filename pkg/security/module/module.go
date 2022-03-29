@@ -21,6 +21,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/skydive-project/go-debouncer"
@@ -37,12 +38,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
 	statsdPoolSize = 64
 )
+
+// Opts define module options
+type Opts struct {
+	StatsdClient statsd.ClientInterface
+}
 
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
@@ -52,7 +57,7 @@ type Module struct {
 	config           *sconfig.Config
 	currentRuleSet   atomic.Value
 	reloading        uint64
-	statsdClient     *statsd.Client
+	statsdClient     statsd.ClientInterface
 	apiServer        *APIServer
 	grpcServer       *grpc.Server
 	listener         net.Listener
@@ -107,7 +112,7 @@ func (m *Module) Init() error {
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
-	if err := m.probe.Init(m.statsdClient); err != nil {
+	if err := m.probe.Init(); err != nil {
 		return errors.Wrap(err, "failed to init probe")
 	}
 
@@ -497,21 +502,24 @@ func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multie
 	m.rulesLoaded = cb
 }
 
-// NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config) (module.Module, error) {
-	var statsdClient *statsd.Client
-	var err error
-	if cfg != nil {
-		statsdAddr := os.Getenv("STATSD_URL")
-		if statsdAddr == "" {
-			statsdAddr = cfg.StatsdAddr
-		}
+func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, error) {
+	if len(opts) != 0 && opts[0].StatsdClient != nil {
+		return opts[0].StatsdClient, nil
+	}
 
-		if statsdClient, err = statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize)); err != nil {
-			return nil, err
-		}
-	} else {
-		log.Warn("metrics won't be sent to DataDog")
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		statsdAddr = cfg.StatsdAddr
+	}
+
+	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
+}
+
+// NewModule instantiates a runtime security system-probe module
+func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
+	statsdClient, err := getStatdClient(cfg, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	probe, err := sprobe.NewProbe(cfg, statsdClient)

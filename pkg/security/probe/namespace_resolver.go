@@ -194,7 +194,7 @@ type NamespaceResolver struct {
 	sync.RWMutex
 	state  int64
 	probe  *Probe
-	client *statsd.Client
+	client statsd.ClientInterface
 
 	networkNamespaces *simplelru.LRU
 }

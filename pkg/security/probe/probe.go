@@ -58,7 +58,7 @@ type Probe struct {
 	manager        *manager.Manager
 	managerOptions manager.Options
 	config         *config.Config
-	statsdClient   *statsd.Client
+	statsdClient   statsd.ClientInterface
 	startTime      time.Time
 	kernelVersion  *kernel.Version
 	_              uint32 // padding for goarch=386
@@ -209,7 +209,7 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 }
 
 // Init initializes the probe
-func (p *Probe) Init(client *statsd.Client) error {
+func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
 	var err error
@@ -296,7 +296,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 		return err
 	}
 
-	p.monitor, err = NewMonitor(p, client)
+	p.monitor, err = NewMonitor(p)
 	if err != nil {
 		return err
 	}
@@ -1145,7 +1145,7 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
+func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
 	erpc, err := NewERPC()
 	if err != nil {
 		return nil, err
@@ -1160,9 +1160,9 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		managerOptions: ebpf.NewDefaultOptions(),
 		ctx:            ctx,
 		cancelFnc:      cancel,
-		statsdClient:   client,
 		erpc:           erpc,
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
+		statsdClient:   statsdClient,
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
