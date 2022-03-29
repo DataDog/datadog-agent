@@ -42,48 +42,6 @@ func TestShouldDropEntry(t *testing.T) {
 	var tailer *Tailer
 	var err error
 
-	// expect all but the specified System-level service units to be dropped
-	source = config.NewLogSource("", &config.LogsConfig{IncludeSystemUnits: []string{"foo", "bar"}})
-	tailer = NewTailer(source, nil)
-	err = tailer.setup()
-	assert.Nil(t, err)
-
-	assert.False(t, tailer.shouldDrop(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo",
-			},
-		}))
-
-	assert.True(t, tailer.shouldDrop(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "bar",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
-			},
-		}))
-
-	// expect all but the specified User-level service units to be dropped
-	source = config.NewLogSource("", &config.LogsConfig{IncludeUserUnits: []string{"foo", "bar"}})
-	tailer = NewTailer(source, nil)
-	err = tailer.setup()
-	assert.Nil(t, err)
-
-	assert.True(t, tailer.shouldDrop(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo",
-			},
-		}))
-
-	assert.False(t, tailer.shouldDrop(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "bar",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
-			},
-		}))
-
 	// expect only the specified service units to be dropped
 	source = config.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}})
 	tailer = NewTailer(source, nil)

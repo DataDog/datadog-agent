@@ -183,23 +183,25 @@ func (t *Tailer) tail() {
 // shouldDrop returns true if the entry should be dropped,
 // returns false otherwise.
 func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
-	unit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
+	sysUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
 	if !exists {
 		return false
 	}
-	excludeAllSys := t.excludeUnits.system["*"]
-	if _, excluded := t.excludeUnits.system[unit]; excludeAllSys || excluded {
-		// drop the entry
-		return true
-	}
-	unit, exists = entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT]
+	usrUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT]
 	if !exists {
-		return false
-	}
-	excludeAllUsr := t.excludeUnits.user["*"]
-	if _, excluded := t.excludeUnits.user[unit]; excludeAllUsr || excluded {
-		// drop the entry
-		return true
+		// JournalEntry is a System-level unit
+		excludeAllSys := t.excludeUnits.system["*"]
+		if _, excluded := t.excludeUnits.system[sysUnit]; excludeAllSys || excluded {
+			// drop the entry
+			return true
+		}
+	} else {
+		// JournalEntry is a User-level unit
+		excludeAllUsr := t.excludeUnits.user["*"]
+		if _, excluded := t.excludeUnits.user[usrUnit]; excludeAllUsr || excluded {
+			// drop the entry
+			return true
+		}
 	}
 	return false
 }
