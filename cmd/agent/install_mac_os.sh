@@ -214,7 +214,6 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"
 $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
 if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
-    # TODO: if systemwide is running, but user is trying to install locally, fail
     printf "\033[34m\n    - Stopping systemwide Datadog Agent daemon ...\n\033[0m"
     # we use "|| true" because if the service is not started/loaded, the commands fail
     $sudo_cmd launchctl stop $service_name || true
@@ -270,13 +269,16 @@ fi
 if [ "$systemdaemon_install" = false ]; then
     $cmd_real_user open -a 'Datadog Agent.app'
 else
-    # TODO: modify the message below
     printf "\033[34m\n* Installing $service_name as a systemwide LaunchDaemon ...\n\n\033[0m"
-    # disable launching the System Tray app, which is enabled in the postinstall package script
-    $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
-    # unload the agent for current user
-    $cmd_launchctl stop "$service_name"
-    $cmd_launchctl unload "$user_plist_file"
+    # Remove the Agent login item and unload the agent for current user
+    # if it is running - it's not running if the script was launched when
+    # the GUI was not running for the user (e.g. a run of this script via
+    # ssh for user not logged in via GUI).
+    if $cmd_launchctl print $service_name 1>/dev/null 2>/dev/null; then
+        $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
+        $cmd_launchctl stop "$service_name"
+        $cmd_launchctl unload "$user_plist_file"
+    fi
     # move the plist file to the system location
     $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
     # make sure the daemon launches under proper user/group and that it has access
