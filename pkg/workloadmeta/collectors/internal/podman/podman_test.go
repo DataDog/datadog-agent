@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/cni/pkg/types/100"
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
