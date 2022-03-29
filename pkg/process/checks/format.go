@@ -42,7 +42,14 @@ var (
 	fnMap = template.FuncMap{
 		"humanize": humanize.Commaf,
 		"bytes":    humanize.Bytes,
-		"time":     func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
+		"time":     func(v int64) string { return time.UnixMilli(v).UTC().Format(time.RFC3339) },
+		"cpupct":   func(v float32) string { return humanize.Ftoa(float64(v)) + "%" },
+		"io": func(v float32) string {
+			if v < 0 {
+				return "-"
+			}
+			return humanize.Ftoa(float64(v))
+		},
 	}
 )
 
@@ -121,7 +128,7 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		w.Write(([]byte)("\n"))
+		_, _ = w.Write(([]byte)("\n"))
 	}
 	return nil
 }
@@ -184,7 +191,7 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		w.Write(([]byte)("\n"))
+		_, _ = w.Write(([]byte)("\n"))
 	}
 	return nil
 }

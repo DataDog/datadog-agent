@@ -20,7 +20,7 @@ CPUs: {{ .CPUCount }}
     Dirty:  {{ bytes .Dirty }}
 {{- end }}
 {{- with .Cpu }}
-  CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
+  CPU: Total: {{ cpupct .TotalPct }} System: {{ cpupct .SystemPct }} User: {{ cpupct .UserPct }}
   Threads: {{ .NumThreads }}
   Nice: {{ .Nice }}
 {{- end }}
@@ -28,7 +28,7 @@ CPUs: {{ .CPUCount }}
   Context Switches: Voluntary: {{ .VoluntaryCtxSwitches }} Involuntary: {{ .InvoluntaryCtxSwitches }}
 {{- with .IoStat }}
   IO:
-    Read:  {{ .ReadBytesRate }} B/s {{ .ReadRate }} Ops/s
-    Write: {{ .WriteBytesRate }} B/s {{ .WriteRate }} Ops/s
+    Read:  {{ io .ReadBytesRate }} B/s {{ io .ReadRate }} Ops/s
+    Write: {{ io .WriteBytesRate }} B/s {{ io .WriteRate }} Ops/s
 {{- end }}
 {{- end }}
