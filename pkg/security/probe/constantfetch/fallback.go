@@ -118,6 +118,17 @@ func (f *FallbackConstantFetcher) FinishAndGetResults() (map[string]uint64, erro
 func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	sizeOf := uint64(600)
 
+	// see https://ubuntu.com/security/CVE-2019-10638
+	increaseSizeAbiMinVersion := map[string]int{
+		"generic":      99,
+		"generic-lpae": 99,
+		"lowlatency":   99,
+		"gke":          1058,
+		"gcp":          1093,
+		"aws":          1066,
+		"azure":        1082,
+	}
+
 	switch {
 	case kv.IsRH7Kernel():
 		sizeOf = 584
@@ -139,8 +150,10 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 584
-	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16) && ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion):
 		sizeOf = 608
+	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
+		sizeOf = 600
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		sizeOf = 584
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_15):
@@ -535,9 +548,8 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 }
 
 func getNetNSOffset(kv *kernel.Version) uint64 {
-
 	// see https://ubuntu.com/security/CVE-2019-10638
-	patchAbiMinVersion := map[string]int{
+	hashMixAbiMinVersion := map[string]int{
 		"generic":      60,
 		"generic-lpae": 60,
 		"lowlatency":   60,
@@ -548,22 +560,8 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 		"azure":        1018,
 	}
 
-	ubuntu415check := func(kv *kernel.Version) bool {
-		ukv := kv.UbuntuKernelVersion()
-		if ukv == nil {
-			return false
-		}
-
-		minAbi, present := patchAbiMinVersion[ukv.Flavor]
-		if !present {
-			return false
-		}
-
-		return ukv.Abi >= minAbi
-	}
-
 	switch {
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16) && ubuntu415check(kv):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16) && ubuntuAbiVersionCheck(kv, hashMixAbiMinVersion):
 		fallthrough
 	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
 	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
@@ -650,4 +648,18 @@ func getFlowi6SAddrOffset(kv *kernel.Version) uint64 {
 
 func getFlowi6ULIOffset(kv *kernel.Version) uint64 {
 	return getFlowi6SAddrOffset(kv) + 20
+}
+
+func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) bool {
+	ukv := kv.UbuntuKernelVersion()
+	if ukv == nil {
+		return false
+	}
+
+	minAbi, present := minAbiPerFlavor[ukv.Flavor]
+	if !present {
+		return false
+	}
+
+	return ukv.Abi >= minAbi
 }
