@@ -114,22 +114,22 @@ func TestHumanFormatProcess(t *testing.T) {
   Create Time: 2021-01-04T04:04:00Z
   State: R
   Memory:
-    Rss:    100
-    Vms:    200
-    Swap:   300
-    Shared: 400
-    Text:   500
-    Lib:    600
-    Data:   700
-    Dirty:  800
+    Rss:    100 B
+    Vms:    200 B
+    Swap:   300 B
+    Shared: 400 B
+    Text:   500 B
+    Lib:    600 B
+    Data:   700 B
+    Dirty:  800 B
   CPU: Total: 3% System: 2% User: 1%
   Threads: 100
   Nice: 2
   Open Files: 200
   Context Switches: Voluntary: 1234 Involuntary: 55
   IO:
-    Read:  100 Bytes/s 10 Ops/s
-    Write: 200 Bytes/s 30 Ops/s
+    Read:  100 B/s 10 Ops/s
+    Write: 200 B/s 30 Ops/s
 
 Containers
 ==========
@@ -137,19 +137,19 @@ Containers
   Name: foo
   Image: foo/foo:v1
   CPU Limit:    2
-  Memory Limit: 300
+  Memory Limit: 300 B
   State:  running
   Health: healthy
   Created: 2021-01-04T04:04:00Z
   Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
-  Memory: RSS: 100 Cache: 200
+  Memory: RSS: 100 B Cache: 200 B
   IO:
-    Read:  10 Bytes/s
-    Write: 20 Bytes/s
+    Read:  10 B/s
+    Write: 20 B/s
   Net:
-    Received: 100 Bytes/s 5 Ops/s
-    Sent:     200 Bytes/s 10 Ops/s
+    Received: 100 B/s 5 Ops/s
+    Sent:     200 B/s 10 Ops/s
   Tags: a:b,c:d
   Thread Count: 40
   Thread Limit: 100
@@ -234,39 +234,39 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
   Create Time: 2021-01-04T04:04:00Z
   State: R
   Memory:
-    Rss:    100
-    Vms:    200
-    Swap:   300
-    Shared: 400
-    Text:   500
-    Lib:    600
-    Data:   700
-    Dirty:  800
+    Rss:    100 B
+    Vms:    200 B
+    Swap:   300 B
+    Shared: 400 B
+    Text:   500 B
+    Lib:    600 B
+    Data:   700 B
+    Dirty:  800 B
   CPU: Total: 3% System: 2% User: 1%
   Threads: 100
   Nice: 2
   Open Files: 200
   Context Switches: Voluntary: 1234 Involuntary: 45
   IO:
-    Read:  100 Bytes/s 10 Ops/s
-    Write: 200 Bytes/s 30 Ops/s
+    Read:  100 B/s 10 Ops/s
+    Write: 200 B/s 30 Ops/s
 
 RealTime Containers
 ===================
 > ID: foo-container-id
   CPU Limit:    2
-  Memory Limit: 300
+  Memory Limit: 300 B
   State:  running
   Health: healthy
   Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
-  Memory: RSS: 100 Cache: 200
+  Memory: RSS: 100 B Cache: 200 B
   IO:
-    Read:  10 Bytes/s
-    Write: 20 Bytes/s
+    Read:  10 B/s
+    Write: 20 B/s
   Net:
-    Received: 100 Bytes/s 5 Ops/s
-    Sent:     200 Bytes/s 10 Ops/s
+    Received: 100 B/s 5 Ops/s
+    Sent:     200 B/s 10 Ops/s
   Thread Count: 40
   Thread Limit: 100
 
@@ -356,19 +356,19 @@ func TestHumanFormatContainer(t *testing.T) {
   Name: baz
   Image: baz/baz:v1
   CPU Limit:    3
-  Memory Limit: 200
+  Memory Limit: 200 B
   State:  running
   Health: unhealthy
   Created: 2021-01-04T04:04:00Z
   Started: 2021-01-04T04:07:20Z
   CPU: Total: 90% System: 80% User: 10%
-  Memory: RSS: 10 Cache: 20
+  Memory: RSS: 10 B Cache: 20 B
   IO:
-    Read:  10 Bytes/s
-    Write: 20 Bytes/s
+    Read:  10 B/s
+    Write: 20 B/s
   Net:
-    Received: 100 Bytes/s 5 Ops/s
-    Sent:     200 Bytes/s 10 Ops/s
+    Received: 100 B/s 5 Ops/s
+    Sent:     200 B/s 10 Ops/s
   Tags: a:b,c:d
   Thread Count: 40
   Thread Limit: 100
@@ -378,19 +378,19 @@ func TestHumanFormatContainer(t *testing.T) {
   Name: foo
   Image: foo/foo:v1
   CPU Limit:    2
-  Memory Limit: 300
+  Memory Limit: 300 B
   State:  running
   Health: healthy
   Created: 2021-01-04T04:04:00Z
   Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
-  Memory: RSS: 100 Cache: 200
+  Memory: RSS: 100 B Cache: 200 B
   IO:
-    Read:  10 Bytes/s
-    Write: 20 Bytes/s
+    Read:  10 B/s
+    Write: 20 B/s
   Net:
-    Received: 100 Bytes/s 5 Ops/s
-    Sent:     200 Bytes/s 10 Ops/s
+    Received: 100 B/s 5 Ops/s
+    Sent:     200 B/s 10 Ops/s
   Tags: a:b,c:d
   Thread Count: 40
   Thread Limit: 100
@@ -458,34 +458,34 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
 ===================
 > ID: baz-container-id
   CPU Limit:    3
-  Memory Limit: 200
+  Memory Limit: 200 B
   State:  running
   Health: unhealthy
   Started: 2021-01-04T04:07:20Z
   CPU: Total: 90% System: 80% User: 10%
-  Memory: RSS: 10 Cache: 20
+  Memory: RSS: 10 B Cache: 20 B
   IO:
-    Read:  10 Bytes/s
-    Write: 20 Bytes/s
+    Read:  10 B/s
+    Write: 20 B/s
   Net:
-    Received: 100 Bytes/s 5 Ops/s
-    Sent:     200 Bytes/s 10 Ops/s
+    Received: 100 B/s 5 Ops/s
+    Sent:     200 B/s 10 Ops/s
   Thread Count: 40
   Thread Limit: 100
 > ID: foo-container-id
   CPU Limit:    2
-  Memory Limit: 300
+  Memory Limit: 300 B
   State:  running
   Health: healthy
   Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
-  Memory: RSS: 100 Cache: 200
+  Memory: RSS: 100 B Cache: 200 B
   IO:
-    Read:  10 Bytes/s
-    Write: 20 Bytes/s
+    Read:  10 B/s
+    Write: 20 B/s
   Net:
-    Received: 100 Bytes/s 5 Ops/s
-    Sent:     200 Bytes/s 10 Ops/s
+    Received: 100 B/s 5 Ops/s
+    Sent:     200 B/s 10 Ops/s
   Thread Count: 40
   Thread Limit: 100
 `

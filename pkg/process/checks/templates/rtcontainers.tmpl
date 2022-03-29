@@ -3,18 +3,18 @@ RealTime Containers
 {{- range $c := .ContainerStats}}
 > ID: {{ .Id }}
   CPU Limit:    {{ .CpuLimit }}
-  Memory Limit: {{ .MemLimit }}
+  Memory Limit: {{ bytes .MemLimit }}
   State:  {{ .State }}
   Health: {{ .Health }}
   Started: {{ time .Started }}
   CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
-  Memory: RSS: {{ .MemRss }} Cache: {{ .MemCache }}
+  Memory: RSS: {{ bytes .MemRss }} Cache: {{ bytes .MemCache }}
   IO:
-    Read:  {{ .Rbps }} Bytes/s
-    Write: {{ .Wbps }} Bytes/s
+    Read:  {{ .Rbps }} B/s
+    Write: {{ .Wbps }} B/s
   Net:
-    Received: {{ .NetRcvdBps }} Bytes/s {{ .NetRcvdPs }} Ops/s
-    Sent:     {{ .NetSentBps }} Bytes/s {{ .NetSentPs }} Ops/s
+    Received: {{ .NetRcvdBps }} B/s {{ .NetRcvdPs }} Ops/s
+    Sent:     {{ .NetSentBps }} B/s {{ .NetSentPs }} Ops/s
   Thread Count: {{ .ThreadCount }}
   Thread Limit: {{ .ThreadLimit }}
 {{- end }}

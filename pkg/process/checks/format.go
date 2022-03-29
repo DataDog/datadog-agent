@@ -41,6 +41,7 @@ var (
 
 	fnMap = template.FuncMap{
 		"humanize": humanize.Commaf,
+		"bytes": humanize.Bytes,
 		"time": func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
 	}
 )

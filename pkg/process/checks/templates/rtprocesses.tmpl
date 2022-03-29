@@ -7,14 +7,14 @@ RealTime Processes
   State: {{ .ProcessState }}
 {{- with .Memory }}
   Memory:
-    Rss:    {{.Rss}}
-    Vms:    {{.Vms}}
-    Swap:   {{.Swap}}
-    Shared: {{.Shared}}
-    Text:   {{.Text}}
-    Lib:    {{.Lib}}
-    Data:   {{.Data}}
-    Dirty:  {{.Dirty}}
+    Rss:    {{ bytes .Rss }}
+    Vms:    {{ bytes .Vms }}
+    Swap:   {{ bytes .Swap }}
+    Shared: {{ bytes .Shared }}
+    Text:   {{ bytes .Text }}
+    Lib:    {{ bytes .Lib }}
+    Data:   {{ bytes .Data }}
+    Dirty:  {{ bytes .Dirty }}
 {{- end }}
 {{- with .Cpu }}
   CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
@@ -25,7 +25,7 @@ RealTime Processes
   Context Switches: Voluntary: {{ .VoluntaryCtxSwitches }} Involuntary: {{ .InvoluntaryCtxSwitches }}
 {{- with .IoStat }}
   IO:
-    Read:  {{ .ReadBytesRate }} Bytes/s {{ .ReadRate }} Ops/s
-    Write: {{ .WriteBytesRate }} Bytes/s {{ .WriteRate }} Ops/s
+    Read:  {{ .ReadBytesRate }} B/s {{ .ReadRate }} Ops/s
+    Write: {{ .WriteBytesRate }} B/s {{ .WriteRate }} Ops/s
 {{- end }}
 {{- end }}

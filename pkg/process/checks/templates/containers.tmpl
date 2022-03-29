@@ -5,19 +5,19 @@ Containers
   Name: {{ .Name }}
   Image: {{ .Image }}
   CPU Limit:    {{ .CpuLimit }}
-  Memory Limit: {{ .MemoryLimit }}
+  Memory Limit: {{ bytes .MemoryLimit }}
   State:  {{ .State }}
   Health: {{ .Health }}
   Created: {{ time .Created }}
   Started: {{ time .Started }}
   CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
-  Memory: RSS: {{ .MemRss }} Cache: {{ .MemCache }}
+  Memory: RSS: {{ bytes .MemRss }} Cache: {{ bytes .MemCache }}
   IO:
-    Read:  {{ .Rbps }} Bytes/s
-    Write: {{ .Wbps }} Bytes/s
+    Read:  {{ .Rbps }} B/s
+    Write: {{ .Wbps }} B/s
   Net:
-    Received: {{ .NetRcvdBps }} Bytes/s {{ .NetRcvdPs }} Ops/s
-    Sent:     {{ .NetSentBps }} Bytes/s {{ .NetSentPs }} Ops/s
+    Received: {{ .NetRcvdBps }} B/s {{ .NetRcvdPs }} Ops/s
+    Sent:     {{ .NetSentBps }} B/s {{ .NetSentPs }} Ops/s
   Tags: {{range $idx, $tag := .Tags}}{{if $idx}},{{end}}{{$tag}}{{end}}
   Thread Count: {{ .ThreadCount }}
   Thread Limit: {{ .ThreadLimit }}
