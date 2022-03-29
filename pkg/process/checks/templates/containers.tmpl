@@ -8,8 +8,8 @@ Containers
   Memory Limit: {{ .MemoryLimit }}
   State:  {{ containerState .State }}
   Health: {{ containerHealth .Health }}
-  Created: {{ .Created }}
-  Started: {{ .Started }}
+  Created: {{ time .Created }}
+  Started: {{ time .Started }}
   CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
   Memory: RSS: {{ .MemRss }} Cache: {{ .MemCache }}
   IO:

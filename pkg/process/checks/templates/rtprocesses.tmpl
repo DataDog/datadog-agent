@@ -3,7 +3,7 @@ RealTime Processes
 {{- range $process := .ProcessStats}}
 > PID: {{ .Pid }}
   Container ID: {{ .ContainerId }}
-  Create Time: {{ .CreateTime }}
+  Create Time: {{ time .CreateTime }}
   State: {{ processState .ProcessState }}
 {{- with .Memory }}
   Memory:

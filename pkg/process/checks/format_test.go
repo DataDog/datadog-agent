@@ -104,7 +104,7 @@ func TestHumanFormatProcess(t *testing.T) {
   Args: '1' '2' '3'
   Cwd: /home/puppy
   User: root Uid: 0 Gid: 1 Euid: 2 Egid: 3 Suid: 4 Sgid: 5
-  Create Time: 1609733040
+  Create Time: 2021-01-04T04:04:00Z
   State: R
   Memory:
     Rss:    100
@@ -133,8 +133,8 @@ Containers
   Memory Limit: 300
   State:  running
   Health: healthy
-  Created: 1609733040
-  Started: 1609733140
+  Created: 2021-01-04T04:04:00Z
+  Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
   Memory: RSS: 100 Cache: 200
   IO:
@@ -223,7 +223,7 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 ==================
 > PID: 2
   Container ID: foo-container
-  Create Time: 1609733040
+  Create Time: 2021-01-04T04:04:00Z
   State: R
   Memory:
     Rss:    100
@@ -250,7 +250,7 @@ RealTime Containers
   Memory Limit: 300
   State:  running
   Health: healthy
-  Started: 1609733140
+  Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
   Memory: RSS: 100 Cache: 200
   IO:
@@ -337,8 +337,8 @@ func TestHumanFormatContainer(t *testing.T) {
   Memory Limit: 200
   State:  running
   Health: unhealthy
-  Created: 1609733040
-  Started: 1609733240
+  Created: 2021-01-04T04:04:00Z
+  Started: 2021-01-04T04:07:20Z
   CPU: Total: 90% System: 80% User: 10%
   Memory: RSS: 10 Cache: 20
   IO:
@@ -358,8 +358,8 @@ func TestHumanFormatContainer(t *testing.T) {
   Memory Limit: 300
   State:  running
   Health: healthy
-  Created: 1609733040
-  Started: 1609733140
+  Created: 2021-01-04T04:04:00Z
+  Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
   Memory: RSS: 100 Cache: 200
   IO:
@@ -437,7 +437,7 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
   Memory Limit: 200
   State:  running
   Health: unhealthy
-  Started: 1609733240
+  Started: 2021-01-04T04:07:20Z
   CPU: Total: 90% System: 80% User: 10%
   Memory: RSS: 10 Cache: 20
   IO:
@@ -453,7 +453,7 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
   Memory Limit: 300
   State:  running
   Health: healthy
-  Started: 1609733140
+  Started: 2021-01-04T04:05:40Z
   CPU: Total: 10% System: 9% User: 1%
   Memory: RSS: 100 Cache: 200
   IO:
@@ -503,7 +503,7 @@ func TestHumanFormatProcessDiscovery(t *testing.T) {
   Args: '1' '2' '3'
   Cwd: /home/puppy
   User: root Uid: 0 Gid: 1 Euid: 2 Egid: 3 Suid: 4 Sgid: 5
-  Create Time: 1609733040
+  Create Time: 2021-01-04T04:04:00Z
 `
 	assert.Equal(t, expectHumanFormat, w.String())
 }

@@ -6,7 +6,7 @@ RealTime Containers
   Memory Limit: {{ .MemLimit }}
   State:  {{ containerState .State }}
   Health: {{ containerHealth .Health }}
-  Started: {{ .Started }}
+  Started: {{ time .Started }}
   CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
   Memory: RSS: {{ .MemRss }} Cache: {{ .MemCache }}
   IO:

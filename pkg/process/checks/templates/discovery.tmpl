@@ -8,5 +8,5 @@ Process Discovery
 {{- with .User }}
   User: {{.Name}} Uid: {{.Uid}} Gid: {{.Gid}} Euid: {{.Euid}} Egid: {{.Egid}} Suid: {{.Suid}} Sgid: {{.Sgid}}
 {{- end }}
-  Create Time: {{ .CreateTime }}
+  Create Time: {{ time .CreateTime }}
 {{- end }}
