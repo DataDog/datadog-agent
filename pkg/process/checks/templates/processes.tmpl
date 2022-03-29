@@ -1,5 +1,8 @@
 Processes
 =========
+Hostname: {{ .Hostname }}
+Memory: {{ bytes .Memory }}
+CPUs: {{ .CPUCount }}
 {{- range $process := .Processes}}
 > PID: {{ .Pid }} NSPID: {{ .NsPid }} PPID: {{ .Command.Ppid }}
   Container ID: {{ .ContainerId }}

@@ -16,6 +16,13 @@ import (
 func TestHumanFormatProcess(t *testing.T) {
 	var msgs []model.MessageBody = []model.MessageBody{
 		&model.CollectorProc{
+			HostName: "foo",
+			Info: &model.SystemInfo{
+				TotalMemory: 16000000000,
+				Cpus: []*model.CPUInfo{
+					{}, {}, {}, {},
+				},
+			},
 			Processes: []*model.Process{
 				{
 					Pid:         2,
@@ -105,6 +112,9 @@ func TestHumanFormatProcess(t *testing.T) {
 
 	const expectHumanFormat = `Processes
 =========
+Hostname: foo
+Memory: 16 GB
+CPUs: 4
 > PID: 2 NSPID: 1002 PPID: 1
   Container ID: foo-container
   Exe: foo.exe
@@ -133,6 +143,9 @@ func TestHumanFormatProcess(t *testing.T) {
 
 Containers
 ==========
+Hostname: foo
+Memory: 16 GB
+CPUs: 4
 > ID: foo-container-id
   Name: foo
   Image: foo/foo:v1
@@ -163,6 +176,9 @@ Containers
 func TestHumanFormatRealTimeProcess(t *testing.T) {
 	msgs := []model.MessageBody{
 		&model.CollectorRealTime{
+			HostName:    "foo",
+			TotalMemory: 16000000000,
+			NumCpus:     4,
 			Stats: []*model.ProcessStat{
 				{
 					Pid:          2,
@@ -229,6 +245,9 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 
 	const expectHumanFormat = `RealTime Processes
 ==================
+Hostname: foo
+Memory: 16 GB
+CPUs: 4
 > PID: 2
   Container ID: foo-container
   Create Time: 2021-01-04T04:04:00Z
@@ -253,6 +272,9 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 
 RealTime Containers
 ===================
+Hostname: foo
+Memory: 16 GB
+CPUs: 4
 > ID: foo-container-id
   CPU Limit:    2
   Memory Limit: 300 B
@@ -277,6 +299,13 @@ RealTime Containers
 func TestHumanFormatContainer(t *testing.T) {
 	var msgs []model.MessageBody = []model.MessageBody{
 		&model.CollectorContainer{
+			HostName: "foo",
+			Info: &model.SystemInfo{
+				TotalMemory: 16000000000,
+				Cpus: []*model.CPUInfo{
+					{}, {}, {}, {},
+				},
+			},
 			Containers: []*model.Container{
 				{
 					Id:          "foo-container-id",
@@ -352,6 +381,9 @@ func TestHumanFormatContainer(t *testing.T) {
 
 	const expectHumanFormat = `Containers
 ==========
+Hostname: foo
+Memory: 16 GB
+CPUs: 4
 > ID: baz-container-id
   Name: baz
   Image: baz/baz:v1
@@ -403,6 +435,9 @@ func TestHumanFormatContainer(t *testing.T) {
 func TestHumanFormatRealTimeContainer(t *testing.T) {
 	msgs := []model.MessageBody{
 		&model.CollectorContainerRealTime{
+			HostName:    "foo",
+			TotalMemory: 16000000000,
+			NumCpus:     4,
 			Stats: []*model.ContainerStat{
 				{
 					Id:          "foo-container-id",
@@ -456,6 +491,9 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
 
 	const expectHumanFormat = `RealTime Containers
 ===================
+Hostname: foo
+Memory: 16 GB
+CPUs: 4
 > ID: baz-container-id
   CPU Limit:    3
   Memory Limit: 200 B

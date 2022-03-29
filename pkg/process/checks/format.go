@@ -41,8 +41,8 @@ var (
 
 	fnMap = template.FuncMap{
 		"humanize": humanize.Commaf,
-		"bytes": humanize.Bytes,
-		"time": func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
+		"bytes":    humanize.Bytes,
+		"time":     func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
 	}
 )
 
@@ -67,6 +67,9 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
 		Processes  []*model.Process
 		Containers []*model.Container
+		Hostname   string
+		CPUCount   int
+		Memory     uint64
 	}
 
 	var (
@@ -78,6 +81,9 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 
 	for _, m := range msgs {
 		proc := m.(*model.CollectorProc)
+		data.Hostname = proc.HostName
+		data.CPUCount = len(proc.Info.Cpus)
+		data.Memory = uint64(proc.Info.TotalMemory)
 		for _, p := range proc.Processes {
 			processes[p.Pid] = p
 			pids = append(pids, int(p.Pid))
@@ -124,6 +130,9 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
 		ProcessStats   []*model.ProcessStat
 		ContainerStats []*model.ContainerStat
+		Hostname       string
+		CPUCount       int
+		Memory         uint64
 	}
 
 	var (
@@ -135,6 +144,9 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 
 	for _, m := range msgs {
 		proc := m.(*model.CollectorRealTime)
+		data.Hostname = proc.HostName
+		data.Memory = uint64(proc.TotalMemory)
+		data.CPUCount = int(proc.NumCpus)
 		for _, p := range proc.Stats {
 			processStats[p.Pid] = p
 			pids = append(pids, int(p.Pid))
@@ -180,6 +192,9 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
 		Containers []*model.Container
+		Hostname   string
+		CPUCount   int
+		Memory     uint64
 	}
 
 	var (
@@ -189,6 +204,9 @@ func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 
 	for _, m := range msgs {
 		cont := m.(*model.CollectorContainer)
+		data.Hostname = cont.HostName
+		data.CPUCount = len(cont.Info.Cpus)
+		data.Memory = uint64(cont.Info.TotalMemory)
 		for _, c := range cont.Containers {
 			containers[c.Id] = c
 		}
@@ -211,6 +229,9 @@ func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
 		ContainerStats []*model.ContainerStat
+		Hostname       string
+		CPUCount       int
+		Memory         uint64
 	}
 
 	var (
@@ -220,6 +241,9 @@ func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
 
 	for _, m := range msgs {
 		cont := m.(*model.CollectorContainerRealTime)
+		data.Hostname = cont.HostName
+		data.CPUCount = int(cont.NumCpus)
+		data.Memory = uint64(cont.TotalMemory)
 		for _, c := range cont.Stats {
 			stats[c.Id] = c
 		}

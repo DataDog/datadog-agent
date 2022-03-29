@@ -1,5 +1,8 @@
 Containers
 ==========
+Hostname: {{ .Hostname }}
+Memory: {{ bytes .Memory }}
+CPUs: {{ .CPUCount }}
 {{- range $c := .Containers}}
 > ID: {{ .Id }}
   Name: {{ .Name }}
