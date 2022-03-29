@@ -87,6 +87,13 @@ func TestHumanFormatProcess(t *testing.T) {
 					NetSentBps:  200,
 					ThreadCount: 40,
 					ThreadLimit: 100,
+					Addresses: []*model.ContainerAddr{
+						{
+							Ip:       "192.168.0.102",
+							Port:     10000,
+							Protocol: model.ConnectionType_udp,
+						},
+					},
 				},
 			},
 		},
@@ -144,9 +151,10 @@ Containers
     Received: 100 Bytes/s 5 Ops/s
     Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
-  Addresses:
   Thread Count: 40
   Thread Limit: 100
+  Addresses:
+    IP: 192.168.0.102 Port: 10000 udp
 
 `
 	assert.Equal(t, expectHumanFormat, w.String())
@@ -294,6 +302,13 @@ func TestHumanFormatContainer(t *testing.T) {
 					NetSentBps:  200,
 					ThreadCount: 40,
 					ThreadLimit: 100,
+					Addresses: []*model.ContainerAddr{
+						{
+							Ip:       "192.168.0.102",
+							Port:     10000,
+							Protocol: model.ConnectionType_udp,
+						},
+					},
 				},
 				{
 					Id:          "baz-container-id",
@@ -319,6 +334,13 @@ func TestHumanFormatContainer(t *testing.T) {
 					NetSentBps:  200,
 					ThreadCount: 40,
 					ThreadLimit: 100,
+					Addresses: []*model.ContainerAddr{
+						{
+							Ip:       "192.168.0.101",
+							Port:     6732,
+							Protocol: model.ConnectionType_tcp,
+						},
+					},
 				},
 			},
 		},
@@ -348,9 +370,10 @@ func TestHumanFormatContainer(t *testing.T) {
     Received: 100 Bytes/s 5 Ops/s
     Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
-  Addresses:
   Thread Count: 40
   Thread Limit: 100
+  Addresses:
+    IP: 192.168.0.101 Port: 6732 tcp
 > ID: foo-container-id
   Name: foo
   Image: foo/foo:v1
@@ -369,9 +392,10 @@ func TestHumanFormatContainer(t *testing.T) {
     Received: 100 Bytes/s 5 Ops/s
     Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
-  Addresses:
   Thread Count: 40
   Thread Limit: 100
+  Addresses:
+    IP: 192.168.0.102 Port: 10000 udp
 `
 	assert.Equal(t, expectHumanFormat, w.String())
 }

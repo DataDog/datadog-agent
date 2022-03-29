@@ -4,8 +4,8 @@ RealTime Containers
 > ID: {{ .Id }}
   CPU Limit:    {{ .CpuLimit }}
   Memory Limit: {{ .MemLimit }}
-  State:  {{ containerState .State }}
-  Health: {{ containerHealth .Health }}
+  State:  {{ .State }}
+  Health: {{ .Health }}
   Started: {{ time .Started }}
   CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
   Memory: RSS: {{ .MemRss }} Cache: {{ .MemCache }}

@@ -8,7 +8,6 @@ package checks
 import (
 	_ "embed"
 	"errors"
-	"fmt"
 	"io"
 	"sort"
 	"strconv"
@@ -41,12 +40,8 @@ var (
 	discoveryTemplate string
 
 	fnMap = template.FuncMap{
-		"humanize":        humanize.Commaf,
-		"percent":         func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
-		"containerHealth": func(v model.ContainerHealth) string { return v.String() },
-		"containerState":  func(v model.ContainerState) string { return v.String() },
-		"processState":    func(v model.ProcessState) string { return v.String() },
-		"time":            func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
+		"humanize": humanize.Commaf,
+		"time": func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
 	}
 )
 

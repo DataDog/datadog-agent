@@ -6,8 +6,8 @@ Containers
   Image: {{ .Image }}
   CPU Limit:    {{ .CpuLimit }}
   Memory Limit: {{ .MemoryLimit }}
-  State:  {{ containerState .State }}
-  Health: {{ containerHealth .Health }}
+  State:  {{ .State }}
+  Health: {{ .Health }}
   Created: {{ time .Created }}
   Started: {{ time .Started }}
   CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
@@ -19,7 +19,10 @@ Containers
     Received: {{ .NetRcvdBps }} Bytes/s {{ .NetRcvdPs }} Ops/s
     Sent:     {{ .NetSentBps }} Bytes/s {{ .NetSentPs }} Ops/s
   Tags: {{range $idx, $tag := .Tags}}{{if $idx}},{{end}}{{$tag}}{{end}}
-  Addresses:{{/* TODO: */}}
   Thread Count: {{ .ThreadCount }}
   Thread Limit: {{ .ThreadLimit }}
+  Addresses:
+  {{- range $addr := .Addresses}}
+    IP: {{ .Ip }} Port: {{ .Port }} {{ .Protocol }}
+  {{- end }}
 {{- end }}

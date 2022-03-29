@@ -4,7 +4,7 @@ RealTime Processes
 > PID: {{ .Pid }}
   Container ID: {{ .ContainerId }}
   Create Time: {{ time .CreateTime }}
-  State: {{ processState .ProcessState }}
+  State: {{ .ProcessState }}
 {{- with .Memory }}
   Memory:
     Rss:    {{.Rss}}
