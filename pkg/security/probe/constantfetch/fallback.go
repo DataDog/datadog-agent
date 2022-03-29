@@ -535,9 +535,9 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 		offset = 192
 	case kv.IsRH8Kernel():
 		offset = 264
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		offset = 264
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		offset = 256
 
 	case kv.Code >= kernel.Kernel4_14 && kv.Code < kernel.Kernel5_8:
@@ -597,9 +597,9 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 		offset = 32
 	case kv.IsRH8Kernel():
 		offset = 32
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		offset = 32
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		offset = 24
 
 	case kv.Code >= kernel.Kernel5_3:
