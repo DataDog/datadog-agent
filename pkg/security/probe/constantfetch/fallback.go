@@ -414,6 +414,8 @@ func getPIDNumbersOffset(kv *kernel.Version) uint64 {
 		pidNumbersOffset = 48
 	case kv.IsSLES15Kernel():
 		pidNumbersOffset = 80
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		pidNumbersOffset = 56
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
 		pidNumbersOffset = 56
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):

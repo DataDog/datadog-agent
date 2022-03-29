@@ -140,6 +140,11 @@ func NewKernelVersion() (*Version, error) {
 	return nil, errors.New("failed to detect operating system version")
 }
 
+// IsDebian returns whether the kernel is an ubuntu kernel
+func (k *Version) IsDebianKernel() bool {
+	return k.OsRelease["ID"] == "debian"
+}
+
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
 	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
