@@ -21,6 +21,7 @@ import (
 )
 
 var (
+	// ErrNoHumanFormat is thrown when a check without human-readable support is passed to the HumanFormat method
 	ErrNoHumanFormat = errors.New("no implementation of human-readable output for this check")
 
 	//go:embed templates/processes.tmpl
@@ -46,6 +47,7 @@ var (
 	}
 )
 
+// HumanFormat takes the messages produced by a check run and outputs them in a human-readable format
 func HumanFormat(check string, msgs []model.MessageBody, w io.Writer) error {
 	switch check {
 	case config.ProcessCheckName:
