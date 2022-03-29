@@ -22,10 +22,10 @@ func (r testRepositories) toPartialUpdate() *pbgo.ClientGetConfigsResponse {
 func TestPartialClientVerifyValid(t *testing.T) {
 	target1content, target1 := generateTarget()
 	targets1 := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/config": target1,
 	}
 
-	testRepository := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepository := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/config", Raw: target1content}})
 	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
 
@@ -36,7 +36,7 @@ func TestPartialClientVerifyValid(t *testing.T) {
 	targets, err := client.Targets()
 	assert.NoError(t, err)
 	assert.Equal(t, targets1, targets)
-	targetFile, err := client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	targetFile, err := client.TargetFile("datadog/2/APM_SAMPLING/id/config")
 	assert.NoError(t, err)
 	assert.Equal(t, target1content, targetFile)
 }
@@ -44,7 +44,7 @@ func TestPartialClientVerifyValid(t *testing.T) {
 func TestPartialClientVerifyValidMissingTargetFile(t *testing.T) {
 	_, target1 := generateTarget()
 	targets1 := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/config": target1,
 	}
 
 	testRepository := newTestRepository(1, nil, targets1, []*pbgo.File{})
@@ -58,17 +58,17 @@ func TestPartialClientVerifyValidMissingTargetFile(t *testing.T) {
 	targets, err := client.Targets()
 	assert.NoError(t, err)
 	assert.Equal(t, targets1, targets)
-	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/config")
 	assert.Error(t, err)
 }
 
 func TestPartialClientVerifyValidRotation(t *testing.T) {
 	target1content, target1 := generateTarget()
 	targets1 := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/config": target1,
 	}
 
-	testRepository1 := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepository1 := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/config", Raw: target1content}})
 	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 	client, err := NewPartialClient()
@@ -77,7 +77,7 @@ func TestPartialClientVerifyValidRotation(t *testing.T) {
 	err = client.Update(testRepository1.toPartialUpdate())
 	assert.NoError(t, err)
 
-	testRepository2 := newTestRepository(2, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepository2 := newTestRepository(2, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/config", Raw: target1content}})
 	testRepository2.directorRootVersion = testRepository1.directorRootVersion + 1
 	testRepository2.directorRoot = generateRoot(testRepository1.directorRootKey, testRepository2.directorRootVersion, testRepository2.directorTimestampKey, testRepository2.directorTargetsKey, testRepository2.directorSnapshotKey, nil)
 
@@ -86,7 +86,7 @@ func TestPartialClientVerifyValidRotation(t *testing.T) {
 	targets, err := client.Targets()
 	assert.NoError(t, err)
 	assert.Equal(t, targets1, targets)
-	targetFile, err := client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	targetFile, err := client.TargetFile("datadog/2/APM_SAMPLING/id/config")
 	assert.NoError(t, err)
 	assert.Equal(t, target1content, targetFile)
 }
@@ -94,10 +94,10 @@ func TestPartialClientVerifyValidRotation(t *testing.T) {
 func TestPartialClientVerifyInvalidTargetFile(t *testing.T) {
 	_, target1 := generateTarget()
 	targets1 := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/config": target1,
 	}
 
-	testRepository := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: []byte(`fakecontent`)}})
+	testRepository := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/config", Raw: []byte(`fakecontent`)}})
 	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
 
@@ -107,17 +107,17 @@ func TestPartialClientVerifyInvalidTargetFile(t *testing.T) {
 	assert.Error(t, err)
 	_, err = client.Targets()
 	assert.Error(t, err)
-	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/config")
 	assert.Error(t, err)
 }
 
 func TestPartialClientVerifyInvalidTargets(t *testing.T) {
 	target1content, target1 := generateTarget()
 	targets1 := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/config": target1,
 	}
 
-	testRepository := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepository := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/config", Raw: target1content}})
 	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
 
@@ -129,17 +129,17 @@ func TestPartialClientVerifyInvalidTargets(t *testing.T) {
 	assert.Error(t, err)
 	_, err = client.Targets()
 	assert.Error(t, err)
-	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/config")
 	assert.Error(t, err)
 }
 
 func TestPartialClientVerifyInvalidRotation(t *testing.T) {
 	target1content, target1 := generateTarget()
 	targets1 := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/config": target1,
 	}
 
-	testRepository1 := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepository1 := newTestRepository(1, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/config", Raw: target1content}})
 	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 	client, err := NewPartialClient()
@@ -148,14 +148,14 @@ func TestPartialClientVerifyInvalidRotation(t *testing.T) {
 	err = client.Update(testRepository1.toPartialUpdate())
 	assert.NoError(t, err)
 
-	testRepository2 := newTestRepository(2, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepository2 := newTestRepository(2, nil, targets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/config", Raw: target1content}})
 
 	err = client.Update(testRepository2.toPartialUpdate())
 	// TODO in the whole file: use "assert.ErrorAs" with specific error type
 	assert.Error(t, err)
 	_, err = client.Targets()
 	assert.Error(t, err)
-	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/config")
 	assert.Error(t, err)
 }
 
@@ -164,7 +164,7 @@ func TestPartialClientRootKeyRotation(t *testing.T) {
 
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
+		"datadog/2/APM_SAMPLING/id/config": targetFileMeta,
 	}
 
 	repository1 := newTestRepository(1, nil, directorTargetMetadata, nil)
@@ -203,7 +203,7 @@ func TestPartialClientRejectsUnsignedTarget(t *testing.T) {
 	require := require.New(t)
 
 	files := []*pbgo.File{
-		{Path: "datadog/2/APM_SAMPLING/id/1", Raw: []byte("mAlIcIoUs cOnTeNt!!")},
+		{Path: "datadog/2/APM_SAMPLING/id/config", Raw: []byte("mAlIcIoUs cOnTeNt!!")},
 	}
 	// malicious target has simply be added without a signature
 	directorTargetMetadata := data.TargetFiles{}
@@ -227,7 +227,7 @@ func TestPartialClientRejectsInvalidSignature(t *testing.T) {
 
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
+		"datadog/2/APM_SAMPLING/id/config": targetFileMeta,
 	}
 
 	repository := newTestRepository(1, nil, directorTargetMetadata, nil)
@@ -251,7 +251,7 @@ func TestPartialClientRejectsRevokedTargetsKey(t *testing.T) {
 
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
+		"datadog/2/APM_SAMPLING/id/config": targetFileMeta,
 	}
 
 	repository1 := newTestRepository(1, nil, directorTargetMetadata, nil)
@@ -288,7 +288,7 @@ func TestPartialClientRejectsRevokedRootKey(t *testing.T) {
 
 	_, targetFileMeta := generateTarget()
 	directorTargetMetadata := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1": targetFileMeta,
+		"datadog/2/APM_SAMPLING/id/config": targetFileMeta,
 	}
 
 	repository1 := newTestRepository(1, nil, directorTargetMetadata, nil)
