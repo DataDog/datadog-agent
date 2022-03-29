@@ -16,8 +16,8 @@ CPUs: {{ .CPUCount }}
   State: {{ .State }}
 {{- with .Memory }}
   Memory:
-    Rss:    {{ bytes .Rss}}
-    Vms:    {{ bytes .Vms}}
+    RSS:    {{ bytes .Rss}}
+    VMS:    {{ bytes .Vms}}
     Swap:   {{ bytes .Swap}}
     Shared: {{ bytes .Shared}}
     Text:   {{ bytes .Text}}

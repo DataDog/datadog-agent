@@ -124,8 +124,8 @@ CPUs: 4
   Create Time: 2021-01-04T04:04:00Z
   State: R
   Memory:
-    Rss:    100 B
-    Vms:    200 B
+    RSS:    100 B
+    VMS:    200 B
     Swap:   300 B
     Shared: 400 B
     Text:   500 B
@@ -253,8 +253,8 @@ CPUs: 4
   Create Time: 2021-01-04T04:04:00Z
   State: R
   Memory:
-    Rss:    100 B
-    Vms:    200 B
+    RSS:    100 B
+    VMS:    200 B
     Swap:   300 B
     Shared: 400 B
     Text:   500 B
