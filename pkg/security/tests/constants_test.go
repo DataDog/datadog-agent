@@ -106,7 +106,7 @@ func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.Const
 	}
 
 	if !assert.Equal(t, championConstants, challengerConstants) {
-		t.Logf("kernel version: %v", kv)
+		t.Logf("comparison between `%s`(-) and `%s`(+). kernel version: %v", champion.String(), challenger.String(), kv)
 	}
 }
 
