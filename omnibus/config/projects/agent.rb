@@ -279,6 +279,9 @@ if linux?
   dependency 'datadog-security-agent-policies'
 end
 
+# Include traps db file in snmp.d/traps_db/
+dependency 'snmp-traps'
+
 # External agents
 dependency 'jmxfetch'
 
