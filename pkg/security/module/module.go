@@ -144,6 +144,14 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	// launch the self tests and send the result report
+	if m.config.SelfTestEnabled {
+		err := m.selfTester.RunSelfTest(m)
+		if err != nil {
+			return err
+		}
+	}
+
 	m.wg.Add(1)
 	go m.metricsSender()
 
@@ -342,13 +350,6 @@ func (m *Module) Reload() error {
 
 	// report that a new policy was loaded
 	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
-
-	if m.config.SelfTestEnabled {
-		err := m.selfTester.RunSelfTest(m)
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
