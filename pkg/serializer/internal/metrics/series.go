@@ -150,6 +150,12 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	var pointsThisPayload int
 	var seriesThisPayload int
 	var serie *metrics.Serie
+
+	// the backend accepts payloads up to specific compressed / uncompressed
+	// sizes, but prefers small uncompressed payloads.  For series, there is
+	// also a maximum number of points.
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_series_payload_size")
+	maxUncompressedSize := config.Datadog.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.Datadog.GetInt("serializer_max_series_points_per_payload")
 
 	// constants for the protobuf data we will be writing, taken from MetricPayload in
@@ -166,11 +172,6 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	const resourceName = 2
 	const pointValue = 1
 	const pointTimestamp = 2
-
-	// the backend accepts payloads up to specific compressed / uncompressed
-	// sizes, but prefers small uncompressed payloads.
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
 
 	// Prepare to write the next payload
 	startPayload := func() error {
