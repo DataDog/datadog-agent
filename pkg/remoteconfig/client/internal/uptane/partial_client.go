@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package client
+package uptane
 
 import (
 	"bytes"
@@ -11,9 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/theupdateframework/go-tuf/client"
 	"github.com/theupdateframework/go-tuf/data"
 	"github.com/theupdateframework/go-tuf/util"
@@ -56,8 +54,6 @@ type PartialState struct {
 
 // PartialClient is a partial uptane client
 type PartialClient struct {
-	sync.Mutex
-
 	rootClient  *client.Client
 	localStore  client.LocalStore
 	remoteStore *partialClientRemoteStore
@@ -71,20 +67,24 @@ type PartialClient struct {
 }
 
 // NewPartialClient creates a new partial uptane client
-func NewPartialClient() (*PartialClient, error) {
-	localStore := client.MemoryLocalStore()
-	err := localStore.SetMeta("root.json", json.RawMessage(meta.RootsDirector().Last()))
+func NewPartialClient(embededRoot []byte) *PartialClient {
+	embededRootVersion, err := metaVersion(json.RawMessage(embededRoot))
 	if err != nil {
-		return nil, err
+		panic(err)
+	}
+	localStore := client.MemoryLocalStore()
+	err = localStore.SetMeta("root.json", json.RawMessage(embededRoot))
+	if err != nil {
+		panic(err) // the memory store can not error
 	}
 	remoteStore := &partialClientRemoteStore{}
 	c := &PartialClient{
 		rootClient:  client.NewClient(localStore, remoteStore),
 		localStore:  localStore,
 		remoteStore: remoteStore,
-		rootVersion: meta.RootsDirector().LastVersion(),
+		rootVersion: embededRootVersion,
 	}
-	return c, nil
+	return c
 }
 
 func (c *PartialClient) getRoot() (*data.Root, error) {
@@ -142,8 +142,6 @@ func (c *PartialClient) validateAndUpdateTargets(rawTargets []byte) error {
 
 // State returns the state of the partial client
 func (c *PartialClient) State() PartialState {
-	c.Lock()
-	defer c.Unlock()
 	return PartialState{
 		RootVersion:    c.rootVersion,
 		TargetsVersion: c.targetsVersion,
@@ -151,9 +149,9 @@ func (c *PartialClient) State() PartialState {
 }
 
 // Update updates the partial client
-func (c *PartialClient) Update(update Update) error {
+func (c *PartialClient) Update(roots [][]byte, targets []byte, targetFiles map[string][]byte) error {
 	c.valid = false
-	c.remoteStore.roots = update.Roots
+	c.remoteStore.roots = roots
 	err := c.rootClient.UpdateRoots()
 	if err != nil {
 		return err
@@ -162,17 +160,17 @@ func (c *PartialClient) Update(update Update) error {
 	if err != nil {
 		return err
 	}
-	if len(update.Targets) == 0 {
+	if len(targets) == 0 {
 		c.valid = true
 		return nil
 	}
-	err = c.validateAndUpdateTargets(update.Targets)
+	err = c.validateAndUpdateTargets(targets)
 	if err != nil {
 		return err
 	}
-	for _, target := range update.TargetFiles {
-		c.targetFiles[target.Path] = target.Raw
-		_, err := c.targetFile(target.Path)
+	for path, target := range targetFiles {
+		c.targetFiles[path] = target
+		_, err := c.targetFile(path)
 		if err != nil {
 			return err
 		}
