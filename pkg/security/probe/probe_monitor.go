@@ -226,6 +226,9 @@ type SelfTestReport struct {
 
 // ReportSelfTest reports to Datadog that a self test was performed
 func (m *Monitor) ReportSelfTest(success []string, fails []string) {
+	if err := m.probe.statsdClient.Count(metrics.MetricSelfTest, 1, []string{}, 1.0); err != nil {
+		log.Error(errors.Wrap(err, "failed to send self_test metric"))
+	}
 	r, ev := NewSelfTestEvent(success, fails)
 	report := SelfTestReport{Rule: r, Event: ev}
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
