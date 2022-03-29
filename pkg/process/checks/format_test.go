@@ -159,9 +159,10 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 		&model.CollectorRealTime{
 			Stats: []*model.ProcessStat{
 				{
-					Pid:         2,
-					ContainerId: "foo-container",
-					CreateTime:  1609733040,
+					Pid:          2,
+					ContainerId:  "foo-container",
+					CreateTime:   1609733040,
+					ProcessState: model.ProcessState_R,
 					Memory: &model.MemoryStat{
 						Rss:    100,
 						Vms:    200,
@@ -225,6 +226,7 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 > PID: 2
   Container ID: foo-container
   Create Time: 1609733040
+  State: R
   Memory:
     Rss:    100
     Vms:    200
