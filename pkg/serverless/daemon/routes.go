@@ -71,10 +71,17 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
+	responseBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Error("Could not read EndInvocation request body")
+		http.Error(w, "Could not read EndInvocation request body", 400)
+		return
+	}
 	var endDetails = invocationlifecycle.InvocationEndDetails{
-		EndTime:   endTime,
-		IsError:   r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
-		RequestID: ecs.LastRequestID,
+		EndTime:            endTime,
+		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
+		RequestID:          ecs.LastRequestID,
+		ResponseRawPayload: string(responseBody),
 	}
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }

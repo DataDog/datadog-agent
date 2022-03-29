@@ -25,10 +25,11 @@ const (
 
 // executionStartInfo is saved information from when an execution span was started
 type executionStartInfo struct {
-	startTime time.Time
-	traceID   uint64
-	spanID    uint64
-	parentID  uint64
+	startTime      time.Time
+	traceID        uint64
+	spanID         uint64
+	parentID       uint64
+	requestPayload string
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -47,6 +48,8 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 	payload := convertRawPayload(rawPayload)
 
+	currentExecutionInfo.requestPayload = rawPayload
+
 	if payload.Headers != nil {
 		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
 		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
@@ -63,7 +66,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
+func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, rawPayload string) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -77,7 +80,9 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
 		Meta: map[string]string{
-			"request_id": requestID,
+			"request_id":        requestID,
+			"function.request":  currentExecutionInfo.requestPayload,
+			"function.response": rawPayload,
 		},
 	}
 
