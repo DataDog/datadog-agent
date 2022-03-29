@@ -6,6 +6,8 @@
 //go:build functionaltests || stresstests
 // +build functionaltests stresstests
 
+//lint:file-ignore U1000 Module tester contains debug utilities and functions that are used only for tests or stresstests
+
 package tests
 
 import (
