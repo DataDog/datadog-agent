@@ -146,8 +146,7 @@ func (t *SelfTester) RunSelfTest(m *Module) error {
 
 	// send the report
 	monitor := m.probe.GetMonitor()
-	report := monitor.PrepareSelfTestReport(success, fails)
-	monitor.ReportSelfTest(&report)
+	monitor.ReportSelfTest(success, fails)
 
 	return lastErr
 }

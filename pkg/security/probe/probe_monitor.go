@@ -224,14 +224,10 @@ type SelfTestReport struct {
 	Event *CustomEvent
 }
 
-// PrepareSelfTestReport prepares a report of selt test results
-func (m *Monitor) PrepareSelfTestReport(success []string, fails []string) SelfTestReport {
-	r, ev := NewSelfTestEvent(success, fails)
-	return SelfTestReport{Rule: r, Event: ev}
-}
-
 // ReportSelfTest reports to Datadog that a self test was performed
-func (m *Monitor) ReportSelfTest(report *SelfTestReport) {
+func (m *Monitor) ReportSelfTest(success []string, fails []string) {
+	r, ev := NewSelfTestEvent(success, fails)
+	report := SelfTestReport{Rule: r, Event: ev}
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
