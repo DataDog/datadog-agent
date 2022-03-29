@@ -27,7 +27,6 @@ import (
 	"github.com/pkg/errors"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -208,43 +207,30 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 	return err
 }
 
+func isSyscallWrapperRequired() (bool, error) {
+	openSyscall, err := manager.GetSyscallFnName("open")
+	if err != nil {
+		return false, err
+	}
+
+	return !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_"), nil
+}
+
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	var err error
-	var bytecodeReader bytecode.AssetReader
-
-	useSyscallWrapper := false
-	openSyscall, err := manager.GetSyscallFnName("open")
+	useSyscallWrapper, err := isSyscallWrapperRequired()
 	if err != nil {
 		return err
 	}
-	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
-		useSyscallWrapper = true
-	}
 
-	if p.config.EnableRuntimeCompiler {
-		bytecodeReader, err = getRuntimeCompiledProbe(p.config, useSyscallWrapper)
-		if err != nil {
-			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
-		} else {
-			defer bytecodeReader.Close()
-		}
-	}
+	loader := ebpf.NewLoader(p.config, useSyscallWrapper)
+	defer loader.Close()
 
-	// fallback to pre-compiled version
-	if bytecodeReader == nil {
-		asset := "runtime-security"
-		if useSyscallWrapper {
-			asset += "-syscall-wrapper"
-		}
-
-		bytecodeReader, err = bytecode.GetReader(p.config.BPFDir, asset+".o")
-		if err != nil {
-			return err
-		}
-		defer bytecodeReader.Close()
+	bytecodeReader, err := loader.Load()
+	if err != nil {
+		return err
 	}
 
 	var ok bool
@@ -1266,6 +1252,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Value: getNetStructType(p.kernelVersion),
 		},
 	)
+
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 
@@ -1331,7 +1318,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.config.EnableRuntimeCompiledConstants = true
+		p.config.RuntimeCompiledConstantsEnabled = true
 	}
 }
 

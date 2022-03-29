@@ -19,7 +19,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 		fetchers = append(fetchers, coreFetcher)
 	}
 
-	if config.EnableRuntimeCompiledConstants {
+	if config.RuntimeCompiledConstantsEnabled {
 		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
 		fetchers = append(fetchers, rcConstantFetcher)
 	}
@@ -30,6 +30,9 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 	} else {
 		fetchers = append(fetchers, btfhubFetcher)
 	}
+
+	OffsetGuesserFetcher := NewOffsetGuesserFetcher(config)
+	fetchers = append(fetchers, OffsetGuesserFetcher)
 
 	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)
 	fetchers = append(fetchers, fallbackConstantFetcher)
