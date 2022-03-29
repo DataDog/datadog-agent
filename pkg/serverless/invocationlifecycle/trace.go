@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -80,10 +81,13 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
 		Meta: map[string]string{
-			"request_id":        requestID,
-			"function.request":  currentExecutionInfo.requestPayload,
-			"function.response": rawPayload,
+			"request_id": requestID,
 		},
+	}
+
+	if strings.ToLower(os.Getenv("DD_CAPTURE_LAMBDA_PAYLOADS")) == "true" {
+		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
+		executionSpan.Meta["function.response"] = rawPayload
 	}
 
 	if isError {
