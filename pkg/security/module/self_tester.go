@@ -124,10 +124,10 @@ func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.
 	}
 }
 
-// RunSelfTest runs the self test and send a report
-func (t *SelfTester) RunSelfTest(m *Module) error {
+// RunSelfTest runs the self test and return the result
+func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
-		return errors.Wrap(err, "failed to run self test")
+		return nil, nil, errors.Wrap(err, "failed to run self test")
 	}
 	defer t.EndWaitingForEvent()
 
@@ -144,11 +144,7 @@ func (t *SelfTester) RunSelfTest(m *Module) error {
 		}
 	}
 
-	// send the report
-	monitor := m.probe.GetMonitor()
-	monitor.ReportSelfTest(success, fails)
-
-	return lastErr
+	return success, fails, lastErr
 }
 
 // Cleanup removes temp directories and files used by the self tester
