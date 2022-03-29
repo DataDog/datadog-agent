@@ -378,6 +378,8 @@ def stress_tests(
     testflags='',
     skip_linters=False,
 ):
+    build_embed_latency_tools(ctx)
+
     build_stress_tests(
         ctx,
         go_version=go_version,
