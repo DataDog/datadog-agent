@@ -167,6 +167,11 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	const pointValue = 1
 	const pointTimestamp = 2
 
+	// the backend accepts payloads up to specific compressed / uncompressed
+	// sizes, but prefers small uncompressed payloads.
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+
 	// Prepare to write the next payload
 	startPayload := func() error {
 		var err error
@@ -176,7 +181,10 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
 
-		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, []byte{}, []byte{})
+		compressor, err = stream.NewCompressor(
+			bufferContext.CompressorInput, bufferContext.CompressorOutput,
+			maxPayloadSize, maxUncompressedSize,
+			[]byte{}, []byte{}, []byte{})
 		if err != nil {
 			return err
 		}
