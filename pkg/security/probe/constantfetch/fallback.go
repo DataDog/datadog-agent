@@ -405,7 +405,11 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsRH8Kernel():
 		nameOffset = 520
 	case kv.IsSuse15Kernel():
-		nameOffset = 256
+		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
+			nameOffset = 424
+		} else {
+			nameOffset = 256
+		}
 	case kv.IsSuse12Kernel():
 		nameOffset = 160
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
@@ -486,7 +490,11 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 	case kv.IsSuse12Kernel():
 		sizeOfUpid = 16
 	case kv.IsSuse15Kernel():
-		sizeOfUpid = 32
+		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
+			sizeOfUpid = 16
+		} else {
+			sizeOfUpid = 32
+		}
 	case kv.IsAmazonLinuxKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		sizeOfUpid = 32
 	}
