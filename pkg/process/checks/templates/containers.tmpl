@@ -10,21 +10,14 @@ Containers
   Health: {{ containerHealth .Health }}
   Created: {{ .Created }}
   Started: {{ .Started }}
-  CPU:
-    Total:  {{ .TotalPct }}%
-    System: {{ .SystemPct }}%
-    User:   {{ .UserPct }}%
-  Memory:
-    RSS: {{ .MemRss }}
-    Cache: {{ .MemCache }}
+  CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
+  Memory: RSS: {{ .MemRss }} Cache: {{ .MemCache }}
   IO:
-    Read Bytes/s: {{ .Rbps }}
-    Write Bytes/s: {{ .Wbps }}
+    Read:  {{ .Rbps }} Bytes/s
+    Write: {{ .Wbps }} Bytes/s
   Net:
-    Received Ops/s:   {{ .NetSentPs }}
-    Sent Ops/s:       {{ .NetSentPs }}
-    Received Bytes/s: {{ .NetRcvdBps }}
-    Sent Bytes/s:     {{ .NetSentBps }}
+    Received: {{ .NetRcvdBps }} Bytes/s {{ .NetRcvdPs }} Ops/s
+    Sent:     {{ .NetSentBps }} Bytes/s {{ .NetSentPs }} Ops/s
   Tags: {{range $idx, $tag := .Tags}}{{if $idx}},{{end}}{{$tag}}{{end}}
   Addresses:{{/* TODO: */}}
   Thread Count: {{ .ThreadCount }}

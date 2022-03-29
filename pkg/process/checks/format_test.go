@@ -130,21 +130,14 @@ Containers
   Health: healthy
   Created: 1609733040
   Started: 1609733140
-  CPU:
-    Total:  10%
-    System: 9%
-    User:   1%
-  Memory:
-    RSS: 100
-    Cache: 200
+  CPU: Total: 10% System: 9% User: 1%
+  Memory: RSS: 100 Cache: 200
   IO:
-    Read Bytes/s: 10
-    Write Bytes/s: 20
+    Read:  10 Bytes/s
+    Write: 20 Bytes/s
   Net:
-    Received Ops/s:   10
-    Sent Ops/s:       10
-    Received Bytes/s: 100
-    Sent Bytes/s:     200
+    Received: 100 Bytes/s 5 Ops/s
+    Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
   Addresses:
   Thread Count: 40
@@ -240,8 +233,7 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
   Threads: 100
   Nice: 2
   Open Files: 200
-  Voluntary Context Switches: 1234
-  Involuntary Context Switches: 45
+  Context Switches: Voluntary: 1234 Involuntary: 45
   IO:
     Read:  100 Bytes/s 10 Ops/s
     Write: 200 Bytes/s 30 Ops/s
@@ -254,21 +246,14 @@ RealTime Containers
   State:  running
   Health: healthy
   Started: 1609733140
-  CPU:
-    Total:  10%
-    System: 9%
-    User:   1%
-  Memory:
-    RSS: 100
-    Cache: 200
+  CPU: Total: 10% System: 9% User: 1%
+  Memory: RSS: 100 Cache: 200
   IO:
-    Read Bytes/s: 10
-    Write Bytes/s: 20
+    Read:  10 Bytes/s
+    Write: 20 Bytes/s
   Net:
-    Received Ops/s:   5
-    Sent Ops/s:       10
-    Received Bytes/s: 100
-    Sent Bytes/s:     200
+    Received: 100 Bytes/s 5 Ops/s
+    Sent:     200 Bytes/s 10 Ops/s
   Thread Count: 40
   Thread Limit: 100
 
@@ -349,21 +334,14 @@ func TestHumanFormatContainer(t *testing.T) {
   Health: unhealthy
   Created: 1609733040
   Started: 1609733240
-  CPU:
-    Total:  90%
-    System: 80%
-    User:   10%
-  Memory:
-    RSS: 10
-    Cache: 20
+  CPU: Total: 90% System: 80% User: 10%
+  Memory: RSS: 10 Cache: 20
   IO:
-    Read Bytes/s: 10
-    Write Bytes/s: 20
+    Read:  10 Bytes/s
+    Write: 20 Bytes/s
   Net:
-    Received Ops/s:   10
-    Sent Ops/s:       10
-    Received Bytes/s: 100
-    Sent Bytes/s:     200
+    Received: 100 Bytes/s 10 Ops/s
+    Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
   Addresses:
   Thread Count: 40
@@ -377,21 +355,14 @@ func TestHumanFormatContainer(t *testing.T) {
   Health: healthy
   Created: 1609733040
   Started: 1609733140
-  CPU:
-    Total:  10%
-    System: 9%
-    User:   1%
-  Memory:
-    RSS: 100
-    Cache: 200
+  CPU: Total: 10% System: 9% User: 1%
+  Memory: RSS: 100 Cache: 200
   IO:
-    Read Bytes/s: 10
-    Write Bytes/s: 20
+    Read:  10 Bytes/s
+    Write: 20 Bytes/s
   Net:
-    Received Ops/s:   10
-    Sent Ops/s:       10
-    Received Bytes/s: 100
-    Sent Bytes/s:     200
+    Received: 100 Bytes/s 10 Ops/s
+    Sent:     200 Bytes/s 10 Ops/s
   Tags: a:b,c:d
   Addresses:
   Thread Count: 40
@@ -462,21 +433,14 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
   State:  running
   Health: unhealthy
   Started: 1609733240
-  CPU:
-    Total:  90%
-    System: 80%
-    User:   10%
-  Memory:
-    RSS: 10
-    Cache: 20
+  CPU: Total: 90% System: 80% User: 10%
+  Memory: RSS: 10 Cache: 20
   IO:
-    Read Bytes/s: 10
-    Write Bytes/s: 20
+    Read:  10 Bytes/s
+    Write: 20 Bytes/s
   Net:
-    Received Ops/s:   5
-    Sent Ops/s:       10
-    Received Bytes/s: 100
-    Sent Bytes/s:     200
+    Received: 100 Bytes/s 5 Ops/s
+    Sent:     200 Bytes/s 10 Ops/s
   Thread Count: 40
   Thread Limit: 100
 > ID: foo-container-id
@@ -485,21 +449,14 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
   State:  running
   Health: healthy
   Started: 1609733140
-  CPU:
-    Total:  10%
-    System: 9%
-    User:   1%
-  Memory:
-    RSS: 100
-    Cache: 200
+  CPU: Total: 10% System: 9% User: 1%
+  Memory: RSS: 100 Cache: 200
   IO:
-    Read Bytes/s: 10
-    Write Bytes/s: 20
+    Read:  10 Bytes/s
+    Write: 20 Bytes/s
   Net:
-    Received Ops/s:   5
-    Sent Ops/s:       10
-    Received Bytes/s: 100
-    Sent Bytes/s:     200
+    Received: 100 Bytes/s 5 Ops/s
+    Sent:     200 Bytes/s 10 Ops/s
   Thread Count: 40
   Thread Limit: 100
 `

@@ -7,21 +7,14 @@ RealTime Containers
   State:  {{ containerState .State }}
   Health: {{ containerHealth .Health }}
   Started: {{ .Started }}
-  CPU:
-    Total:  {{ .TotalPct }}%
-    System: {{ .SystemPct }}%
-    User:   {{ .UserPct }}%
-  Memory:
-    RSS: {{ .MemRss }}
-    Cache: {{ .MemCache }}
+  CPU: Total: {{ .TotalPct }}% System: {{ .SystemPct }}% User: {{ .UserPct }}%
+  Memory: RSS: {{ .MemRss }} Cache: {{ .MemCache }}
   IO:
-    Read Bytes/s: {{ .Rbps }}
-    Write Bytes/s: {{ .Wbps }}
+    Read:  {{ .Rbps }} Bytes/s
+    Write: {{ .Wbps }} Bytes/s
   Net:
-    Received Ops/s:   {{ .NetRcvdPs }}
-    Sent Ops/s:       {{ .NetSentPs }}
-    Received Bytes/s: {{ .NetRcvdBps }}
-    Sent Bytes/s:     {{ .NetSentBps }}
+    Received: {{ .NetRcvdBps }} Bytes/s {{ .NetRcvdPs }} Ops/s
+    Sent:     {{ .NetSentBps }} Bytes/s {{ .NetSentPs }} Ops/s
   Thread Count: {{ .ThreadCount }}
   Thread Limit: {{ .ThreadLimit }}
 {{- end }}

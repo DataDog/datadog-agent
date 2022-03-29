@@ -27,6 +27,7 @@ Processes
   Nice: {{ .Nice }}
 {{- end }}
   Open Files: {{ .OpenFdCount }}
+  Context Switches: Voluntary: {{ .VoluntaryCtxSwitches }} Involuntary: {{ .InvoluntaryCtxSwitches }}
 {{- with .IoStat }}
   IO:
     Read:  {{ .ReadBytesRate }} Bytes/s {{ .ReadRate }} Ops/s
