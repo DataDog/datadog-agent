@@ -8,7 +8,6 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"expvar"
 	"fmt"
 
@@ -102,39 +101,9 @@ func (series Series) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 	return payloads, nil
 }
 
-// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled MetricPayload objects.
-func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return marshalSplitCompress(newSerieSliceIterator(series), bufferContext)
-}
-
 type serieIterator interface {
 	MoveNext() bool
 	Current() *metrics.Serie
-}
-
-var _ serieIterator = (*serieSliceIterator)(nil)
-
-// serieSliceIterator implements serieIterator interface for `[]*metrics.Serie`.
-type serieSliceIterator struct {
-	series []*metrics.Serie
-	index  int
-}
-
-func newSerieSliceIterator(series []*metrics.Serie) *serieSliceIterator {
-	return &serieSliceIterator{
-		series: series,
-		index:  -1,
-	}
-}
-func (s *serieSliceIterator) MoveNext() bool {
-	s.index++
-	return s.index < len(s.series)
-}
-
-func (s *serieSliceIterator) Current() *metrics.Serie {
-	return s.series[s.index]
 }
 
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
@@ -446,38 +415,4 @@ func encodePoints(points []metrics.Point, stream *jsoniter.Stream) {
 		stream.WriteArrayEnd()
 	}
 	stream.WriteArrayEnd()
-}
-
-//// The following methods implement the StreamJSONMarshaler interface
-//// for support of the enable_stream_payload_serialization option.
-
-// WriteHeader writes the payload header for this type
-func (series Series) WriteHeader(stream *jsoniter.Stream) error {
-	return writeHeader(stream)
-}
-
-// WriteFooter writes the payload footer for this type
-func (series Series) WriteFooter(stream *jsoniter.Stream) error {
-	return writeFooter(stream)
-}
-
-// WriteItem writes the json representation of an item
-func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
-	if i < 0 || i > len(series)-1 {
-		return errors.New("out of range")
-	}
-	return writeItem(stream, series[i])
-}
-
-// Len returns the number of items to marshal
-func (series Series) Len() int {
-	return len(series)
-}
-
-// DescribeItem returns a text description for logs
-func (series Series) DescribeItem(i int) string {
-	if i < 0 || i > len(series)-1 {
-		return "out of range"
-	}
-	return describeItem(series[i])
 }

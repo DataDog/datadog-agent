@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -276,7 +277,7 @@ func TestSendV1Series(t *testing.T) {
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(createIterableSeries(metrics.Series{}))
+	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -290,7 +291,7 @@ func TestSendSeries(t *testing.T) {
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(createIterableSeries(metrics.Series{&metrics.Serie{}}))
+	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -374,7 +375,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	payload := &testPayload{}
 
 	s.SendEvents(make(metrics.Events, 0))
-	s.SendIterableSeries(createIterableSeries(metrics.Series{}))
+	s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
 	s.SendSketch(make(metrics.SketchSeriesList, 0))
 	s.SendServiceChecks(make(metrics.ServiceChecks, 0))
 	s.SendProcessesMetadata("test")
@@ -388,13 +389,4 @@ func TestSendWithDisabledKind(t *testing.T) {
 	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	s.SendMetadata(payload)
 	f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
-}
-
-func createIterableSeries(series metrics.Series) *metrics.IterableSeries {
-	iterableSeries := metrics.NewIterableSeries(func(*metrics.Serie) {}, 10, 1000)
-	for _, serie := range series {
-		iterableSeries.Append(serie)
-	}
-	iterableSeries.SenderStopped()
-	return iterableSeries
 }
