@@ -1255,6 +1255,7 @@ func randStringRunes(n int) string {
 
 //nolint:deadcode,unused
 func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
+	t.Helper()
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		t.Errorf("failed to get kernel version: %s", err)
