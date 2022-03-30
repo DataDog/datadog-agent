@@ -510,3 +510,22 @@ func TestDistributions(t *testing.T) {
 		}
 	})
 }
+func TestIgnoresPartialSpans(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	span := testSpan(1, 0, 50, 5, "A1", "resource1", 0)
+	span.Metrics = make(map[string]float64)
+	traceutil.SetPartialSnapshotVersion(span, 830604)
+	spans := []*pb.Span{span}
+	traceutil.ComputeTopLevel(spans)
+
+	// we only have one top level but partial. We expect to ignore it when calculating stats
+	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
+
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+
+	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	assert.Empty(stats.GetStats())
+}

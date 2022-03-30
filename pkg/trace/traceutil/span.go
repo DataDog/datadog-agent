@@ -21,6 +21,8 @@ const (
 	measuredKey = "_dd.measured"
 	// tracerTopLevelKey is a metric flag set by tracers on top_level spans
 	tracerTopLevelKey = "_dd.top_level"
+	// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
+	partialVersionKey = "_dd.partial_version"
 )
 
 // HasTopLevel returns true if span is top-level.
@@ -38,6 +40,19 @@ func UpdateTracerTopLevel(s *pb.Span) {
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasured(s *pb.Span) bool {
 	return s.Metrics[measuredKey] == 1
+}
+
+// IsPartialSnapshot returns true if the span is a partial snapshot (has metric _dd.partial_version >= 0)
+func IsPartialSnapshot(s *pb.Span) bool {
+	value, hasKey := s.Metrics[partialVersionKey]
+	return hasKey && value >= 0
+}
+
+// SetPartialSnapshotVersion sets the metric _dd.partial_version
+func SetPartialSnapshotVersion(s *pb.Span, value uint64) {
+	if s.Metrics != nil {
+		s.Metrics[partialVersionKey] = float64(value)
+	}
 }
 
 // SetTopLevel sets the top-level attribute of the span.
