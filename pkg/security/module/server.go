@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -48,7 +49,7 @@ type APIServer struct {
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*int64
 	rate              *Limiter
-	statsdClient      *statsd.Client
+	statsdClient      statsd.ClientInterface
 	probe             *sprobe.Probe
 	queueLock         sync.Mutex
 	queue             []*pendingMsg
@@ -100,7 +101,7 @@ type RuleEvent struct {
 	Event  Event  `json:"event"`
 }
 
-// DumpProcessCache handle process dump cache requests
+// DumpProcessCache handles process cache dump requests
 func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
 	resolvers := a.probe.GetResolvers()
 
@@ -179,8 +180,8 @@ func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraph
 	return nil, fmt.Errorf("monitor not configured")
 }
 
-// GetConstantFetcherStatus returns the status of the constant fetcher sub-system
-func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.GetConstantFetcherStatusParams) (*api.ConstantFetcherStatus, error) {
+// GetStatus returns the status of the module
+func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) {
 	status, err := a.probe.GetConstantFetcherStatus()
 	if err != nil {
 		return nil, err
@@ -194,10 +195,31 @@ func (a *APIServer) GetConstantFetcherStatus(ctx context.Context, params *api.Ge
 			Source: v.FetcherName,
 		})
 	}
-	return &api.ConstantFetcherStatus{
-		Fetchers: status.Fetchers,
-		Values:   constants,
-	}, nil
+
+	apiStatus := &api.Status{
+		Environment: &api.EnvironmentStatus{
+			Constants: &api.ConstantFetcherStatus{
+				Fetchers: status.Fetchers,
+				Values:   constants,
+			},
+		},
+	}
+
+	envErrors := a.probe.VerifyEnvironment()
+	if envErrors != nil {
+		apiStatus.Environment.Warnings = make([]string, len(envErrors.Errors))
+		for i, err := range envErrors.Errors {
+			apiStatus.Environment.Warnings[i] = err.Error()
+		}
+	}
+
+	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
+	return apiStatus, nil
+}
+
+// DumpNetworkNamespace handles network namespace cache dump requests
+func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
+	return a.probe.GetResolvers().NamespaceResolver.DumpNetworkNamespaces(params), nil
 }
 
 func (a *APIServer) enqueue(msg *pendingMsg) {
@@ -446,7 +468,7 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client *statsd.Client) *APIServer {
+func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
 		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		expiredEvents: make(map[rules.RuleID]*int64),

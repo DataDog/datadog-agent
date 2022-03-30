@@ -74,7 +74,7 @@ func eventForRelease(rel *release, storage helmStorage, text string, isDelete bo
 		AggregationKey: fmt.Sprintf("helm_release:%s", rel.namespacedName()),
 
 		// The revision tag is not included in delete events, because we generate a single event for all the revisions.
-		Tags: helmTags(rel, storage, !isDelete),
+		Tags: tagsForMetricsAndEvents(rel, storage, !isDelete),
 	}
 }
 

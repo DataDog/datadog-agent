@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package probe
+package ebpf
 
 import (
 	"testing"
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProbeCompile(t *testing.T) {
+func TestLoaderCompile(t *testing.T) {
 	cfg := ebpf.NewConfig()
 	var cflags []string
 	_, err := runtime.RuntimeSecurity.Compile(cfg, cflags)

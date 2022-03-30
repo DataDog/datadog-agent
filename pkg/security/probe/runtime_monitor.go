@@ -23,7 +23,7 @@ import (
 
 // RuntimeMonitor is used to export runtime.MemStats metrics for debugging purposes
 type RuntimeMonitor struct {
-	client *statsd.Client
+	client statsd.ClientInterface
 }
 
 // SendStats sends the metric of the runtime monitor
@@ -241,7 +241,7 @@ func (m *RuntimeMonitor) sendGoRuntimeMetrics() error {
 }
 
 // NewRuntimeMonitor returns a new instance of RuntimeMonitor
-func NewRuntimeMonitor(client *statsd.Client) *RuntimeMonitor {
+func NewRuntimeMonitor(client statsd.ClientInterface) *RuntimeMonitor {
 	return &RuntimeMonitor{
 		client: client,
 	}

@@ -427,7 +427,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.JobKind:
-		cronjob := kubernetes.ParseCronJobForJob(owner.Name)
+		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
 			tags.AddOrchestrator(kubernetes.JobTagName, owner.Name)
 			tags.AddLow(kubernetes.CronJobTagName, cronjob)

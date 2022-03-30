@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -27,8 +26,7 @@ import (
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
-	probe  *Probe
-	client *statsd.Client
+	probe *Probe
 
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
@@ -40,32 +38,31 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
-func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
+func NewMonitor(p *Probe) (*Monitor, error) {
 	var err error
 	m := &Monitor{
-		probe:  p,
-		client: client,
+		probe: p,
 	}
 
 	// instantiate a new load controller
-	m.loadController, err = NewLoadController(p, client)
+	m.loadController, err = NewLoadController(p)
 	if err != nil {
 		return nil, err
 	}
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p, client)
+	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
 	}
 
-	m.reordererMonitor, err = NewReOrderMonitor(p, client)
+	m.reordererMonitor, err = NewReOrderMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
 	}
 
 	if p.config.ActivityDumpEnabled {
-		m.activityDumpManager, err = NewActivityDumpManager(p, client)
+		m.activityDumpManager, err = NewActivityDumpManager(p)
 		if err != nil {
 			return nil, errors.Wrap(err, "couldn't create the activity dump manager")
 		}
@@ -80,10 +77,10 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 	}
 
 	if p.config.RuntimeMonitor {
-		m.runtimeMonitor = NewRuntimeMonitor(client)
+		m.runtimeMonitor = NewRuntimeMonitor(p.statsdClient)
 	}
 
-	m.discarderMonitor, err = NewDiscarderMonitor(p, client)
+	m.discarderMonitor, err = NewDiscarderMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the discarder monitor")
 	}
@@ -119,7 +116,7 @@ func (m *Monitor) SendStats() error {
 	const delay = time.Second
 
 	if m.syscallMonitor != nil {
-		if err := m.syscallMonitor.SendStats(m.client); err != nil {
+		if err := m.syscallMonitor.SendStats(m.probe.statsdClient); err != nil {
 			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
@@ -133,6 +130,9 @@ func (m *Monitor) SendStats() error {
 
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
+		}
+		if err := resolvers.NamespaceResolver.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send namespace_resolver stats")
 		}
 	}
 
@@ -218,7 +218,7 @@ func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multie
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
 func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
-	if err := m.client.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
+	if err := m.probe.statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
@@ -231,7 +231,9 @@ var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled
 // DumpActivity handles an activity dump request
 func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return nil, ErrActivityDumpManagerDisabled
+		return &api.SecurityActivityDumpMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.DumpActivity(params)
 }
