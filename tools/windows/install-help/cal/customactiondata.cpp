@@ -16,7 +16,7 @@ CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine
 CustomActionData::CustomActionData()
 : CustomActionData(std::make_shared<TargetMachine>())
 {
-    
+
 }
 
 CustomActionData::~CustomActionData()
@@ -167,13 +167,13 @@ bool CustomActionData::parseSysprobeData()
     {
         WcaLog(LOGMSG_STANDARD, "NPM property not present");
     }
-    else 
+    else
     {
         WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
         this->_ddnpmPresent = true;
     }
 
-    
+
     if (this->value(L"NPMFEATURE", npmFeature))
     {
         // this property is set to "on" or "off" depending on the desired installed state
@@ -266,7 +266,7 @@ void CustomActionData::ensureDomainHasCorrectFormat()
             WcaLog(LOGMSG_STANDARD, "Supplied domain name \"%S\"", _user.Domain.c_str());
             _domainUser = true;
         }
-        else
+        else if (_wcsicmp(_user.Domain.c_str(), L"NT AUTHORITY") != 0) // NT Authority should never be considered a "domain".
         {
             WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
                    _targetMachine->DnsDomainName().c_str());
