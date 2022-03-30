@@ -451,6 +451,8 @@ def docker_functional_tests(
     dockerfile = """
 FROM debian:bullseye
 
+ENV DOCKER_DD_AGENT=yes
+
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
