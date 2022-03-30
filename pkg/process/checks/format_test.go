@@ -170,7 +170,7 @@ CPUs: 4
     IP: 192.168.0.102 Port: 10000 udp
 
 `
-	assert.Equal(t, expectHumanFormat, w.String())
+	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
 }
 
 func TestHumanFormatRealTimeProcess(t *testing.T) {
@@ -293,7 +293,7 @@ CPUs: 4
   Thread Limit: 100
 
 `
-	assert.Equal(t, expectHumanFormat, w.String())
+	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
 }
 
 func TestHumanFormatContainer(t *testing.T) {
@@ -429,7 +429,7 @@ CPUs: 4
   Addresses:
     IP: 192.168.0.102 Port: 10000 udp
 `
-	assert.Equal(t, expectHumanFormat, w.String())
+	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
 }
 
 func TestHumanFormatRealTimeContainer(t *testing.T) {
@@ -527,7 +527,7 @@ CPUs: 4
   Thread Count: 40
   Thread Limit: 100
 `
-	assert.Equal(t, expectHumanFormat, w.String())
+	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
 }
 
 func TestHumanFormatProcessDiscovery(t *testing.T) {
@@ -567,5 +567,11 @@ func TestHumanFormatProcessDiscovery(t *testing.T) {
   User: root Uid: 0 Gid: 1 Euid: 2 Egid: 3 Suid: 4 Sgid: 5
   Create Time: 2021-01-04T04:04:00Z
 `
-	assert.Equal(t, expectHumanFormat, w.String())
+	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
+}
+
+// assertEqualAnyLineBreak is an assertion helper to compare strings ignoring the \r character
+func assertEqualAnyLineBreak(t *testing.T, expected, actual string) {
+	t.Helper()
+	assert.Equal(t, expected, strings.Replace(actual, "\r\n", "\n", -1))
 }

@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/agent-payload/v5/process"
@@ -190,6 +191,7 @@ func printResults(check string, msgs []process.MessageBody) error {
 	err := checks.HumanFormat(check, msgs, os.Stdout)
 	switch err {
 	case checks.ErrNoHumanFormat:
+		fmt.Println(color.YellowString("Printing output in JSON format for %s\n", check))
 		return printResultsJSON(msgs)
 	default:
 		return err

@@ -8,6 +8,7 @@ package checks
 import (
 	_ "embed"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strconv"
@@ -23,6 +24,9 @@ import (
 var (
 	// ErrNoHumanFormat is thrown when a check without human-readable support is passed to the HumanFormat method
 	ErrNoHumanFormat = errors.New("no implementation of human-readable output for this check")
+
+	// ErrUnexpectedMessageType is thrown when message type is incompatible with check
+	ErrUnexpectedMessageType = errors.New("unexpected message type")
 
 	//go:embed templates/processes.tmpl
 	processesTemplate string
@@ -87,7 +91,10 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 	)
 
 	for _, m := range msgs {
-		proc := m.(*model.CollectorProc)
+		proc, ok := m.(*model.CollectorProc)
+		if !ok {
+			return ErrUnexpectedMessageType
+		}
 		data.Hostname = proc.HostName
 		data.CPUCount = len(proc.Info.Cpus)
 		data.Memory = uint64(proc.Info.TotalMemory)
@@ -128,7 +135,8 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		_, _ = w.Write(([]byte)("\n"))
+
+		fmt.Fprintln(w, "")
 	}
 	return nil
 }
@@ -150,7 +158,10 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 	)
 
 	for _, m := range msgs {
-		proc := m.(*model.CollectorRealTime)
+		proc, ok := m.(*model.CollectorRealTime)
+		if !ok {
+			return ErrUnexpectedMessageType
+		}
 		data.Hostname = proc.HostName
 		data.Memory = uint64(proc.TotalMemory)
 		data.CPUCount = int(proc.NumCpus)
@@ -191,7 +202,7 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		_, _ = w.Write(([]byte)("\n"))
+		fmt.Fprintln(w, "")
 	}
 	return nil
 }
@@ -210,7 +221,10 @@ func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 	)
 
 	for _, m := range msgs {
-		cont := m.(*model.CollectorContainer)
+		cont, ok := m.(*model.CollectorContainer)
+		if !ok {
+			return ErrUnexpectedMessageType
+		}
 		data.Hostname = cont.HostName
 		data.CPUCount = len(cont.Info.Cpus)
 		data.Memory = uint64(cont.Info.TotalMemory)
@@ -247,7 +261,10 @@ func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
 	)
 
 	for _, m := range msgs {
-		cont := m.(*model.CollectorContainerRealTime)
+		cont, ok := m.(*model.CollectorContainerRealTime)
+		if !ok {
+			return ErrUnexpectedMessageType
+		}
 		data.Hostname = cont.HostName
 		data.CPUCount = int(cont.NumCpus)
 		data.Memory = uint64(cont.TotalMemory)
@@ -281,7 +298,10 @@ func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 	)
 
 	for _, m := range msgs {
-		proc := m.(*model.CollectorProcDiscovery)
+		proc, ok := m.(*model.CollectorProcDiscovery)
+		if !ok {
+			return ErrUnexpectedMessageType
+		}
 		for _, d := range proc.ProcessDiscoveries {
 			discoveries[d.Pid] = d
 			pids = append(pids, int(d.Pid))
