@@ -130,8 +130,11 @@ func assertConstantContains(t *testing.T, champion, challenger constantfetch.Con
 			continue
 		}
 
-		if expected, ok := championConstants[k]; !ok || v != expected {
-			t.Errorf("expected %s:%d not found", k, v)
+		expected, ok := championConstants[k]
+		if !ok {
+			t.Errorf("champion (`%s`) does not contain the expected constant `%s`", champion.String(), k)
+		} else if v != expected {
+			t.Errorf("difference between fighters for `%s`: `%s`:%d and `%s`:%d", k, champion.String(), expected, challenger.String(), v)
 		}
 	}
 }

@@ -24,8 +24,8 @@ int kprobe_get_pid_task(struct pt_regs *ctx) {
     for (int i = MIN_PID_OFFSET; i != MAX_PID_OFFSET; i++) {
         u32 root_nr = 0;
 
-        bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + offset);
-        if (root_nr == pid_expected) {
+        int read_ok = bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + offset);
+        if (!read_ok && root_nr == pid_expected) {
             // found it twice, thus error
             if (success) {
                 return 0;
