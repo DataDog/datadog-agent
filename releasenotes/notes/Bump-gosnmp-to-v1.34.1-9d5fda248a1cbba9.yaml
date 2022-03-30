@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Bump gosnmp to fix incomplete support of SNMP v3 INFORMs
+    Bump GoSNMP to fix incomplete support of SNMP v3 INFORMs.
