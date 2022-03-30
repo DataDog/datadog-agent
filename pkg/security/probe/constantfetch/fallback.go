@@ -134,9 +134,9 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 584
 	case kv.IsRH8Kernel():
 		sizeOf = 648
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		sizeOf = 560
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		sizeOf = 592
 	case kv.IsOracleUEKKernel():
 		sizeOf = 632
@@ -187,9 +187,9 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 416
 	case kv.IsRH8Kernel():
 		ttyOffset = 392
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		ttyOffset = 376
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		ttyOffset = 408
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
 		ttyOffset = 416
@@ -293,9 +293,9 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 112
 	case kv.IsRH8Kernel():
 		nameOffset = 80
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		nameOffset = 88
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		nameOffset = 176
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
@@ -374,9 +374,9 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 		idOffset = 8
 	case kv.IsRH8Kernel():
 		idOffset = 32
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		idOffset = 28
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		idOffset = 16
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		idOffset = 16
@@ -404,9 +404,13 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 144
 	case kv.IsRH8Kernel():
 		nameOffset = 520
-	case kv.IsSLES15Kernel():
-		nameOffset = 256
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse15Kernel():
+		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
+			nameOffset = 424
+		} else {
+			nameOffset = 256
+		}
+	case kv.IsSuse12Kernel():
 		nameOffset = 160
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		nameOffset = 544
@@ -446,9 +450,9 @@ func getPIDNumbersOffset(kv *kernel.Version) uint64 {
 		pidNumbersOffset = 48
 	case kv.IsRH8Kernel():
 		pidNumbersOffset = 56
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		pidNumbersOffset = 48
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		pidNumbersOffset = 80
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
 		pidNumbersOffset = 56
@@ -483,10 +487,14 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 		sizeOfUpid = 32
 	case kv.IsRH8Kernel():
 		sizeOfUpid = 16
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		sizeOfUpid = 16
-	case kv.IsSLES15Kernel():
-		sizeOfUpid = 32
+	case kv.IsSuse15Kernel():
+		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
+			sizeOfUpid = 16
+		} else {
+			sizeOfUpid = 32
+		}
 	case kv.IsAmazonLinuxKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		sizeOfUpid = 32
 	}
@@ -535,9 +543,9 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 		offset = 192
 	case kv.IsRH8Kernel():
 		offset = 264
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		offset = 264
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		offset = 256
 
 	case kv.Code >= kernel.Kernel4_14 && kv.Code < kernel.Kernel5_8:
@@ -597,9 +605,9 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 		offset = 32
 	case kv.IsRH8Kernel():
 		offset = 32
-	case kv.IsSLES12Kernel():
+	case kv.IsSuse12Kernel():
 		offset = 32
-	case kv.IsSLES15Kernel():
+	case kv.IsSuse15Kernel():
 		offset = 24
 
 	case kv.Code >= kernel.Kernel5_3:
