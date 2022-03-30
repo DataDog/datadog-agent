@@ -85,7 +85,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 		},
 	}
 
-	if strings.ToLower(os.Getenv("DD_CAPTURE_LAMBDA_PAYLOADS")) == "true" {
+	if strings.ToLower(os.Getenv("DD_CAPTURE_LAMBDA_PAYLOAD")) == "true" {
 		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
 		executionSpan.Meta["function.response"] = rawPayload
 	}

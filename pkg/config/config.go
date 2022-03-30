@@ -1033,6 +1033,8 @@ func InitConfig(config Config) {
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("capture_lambda_payload", false)
+	config.BindEnv("dotnet_tracer_home")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
