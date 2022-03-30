@@ -42,7 +42,7 @@ func TestOctogonConstants(t *testing.T) {
 
 	t.Run("rc-vs-fallback", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLES12Kernel() || kv.IsSLES15Kernel() || kv.IsOracleUEKKernel()
+			return kv.IsSuseKernel() || kv.IsOracleUEKKernel()
 		})
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
@@ -53,7 +53,7 @@ func TestOctogonConstants(t *testing.T) {
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+			return kv.IsSuseKernel() || kv.IsOracleUEKKernel()
 		})
 
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
@@ -82,7 +82,7 @@ func TestOctogonConstants(t *testing.T) {
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+			return kv.IsSuseKernel() || kv.IsOracleUEKKernel()
 		})
 
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
