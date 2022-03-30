@@ -454,7 +454,7 @@ FROM debian:bullseye
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs libc6:i386 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates \
     && rm -rf /var/lib/apt/lists/*
     """
 
