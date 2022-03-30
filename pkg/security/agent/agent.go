@@ -163,6 +163,8 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 				}
 				base["environment"] = environment
 			}
+			base["selfTestsNumberOfSuccess"] = cfStatus.SelfTestsNumberOfSuccess
+			base["selfTestsNumberOfFails"] = cfStatus.SelfTestsNumberOfFails
 		}
 	}
 

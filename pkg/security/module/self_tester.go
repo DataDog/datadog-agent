@@ -46,6 +46,8 @@ type SelfTester struct {
 	eventChan       chan selfTestEvent
 	targetFilePath  string
 	targetTempDir   string
+	success         []string
+	fails           []string
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -53,6 +55,8 @@ func NewSelfTester() *SelfTester {
 	return &SelfTester{
 		waitingForEvent: 0,
 		eventChan:       make(chan selfTestEvent, 10),
+		success:         nil,
+		fails:           nil,
 	}
 }
 
@@ -143,6 +147,10 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 			success = append(success, fn.id)
 		}
 	}
+
+	// save the results for get status command
+	t.success = success
+	t.fails = fails
 
 	return success, fails, lastErr
 }

@@ -115,6 +115,8 @@ message ConstantValueAndSource {
 
 message Status {
     EnvironmentStatus Environment = 1;
+	int32 SelfTestsNumberOfSuccess = 2;
+	int32 SelfTestsNumberOfFails = 3;
 }
 
 message ConstantFetcherStatus {
