@@ -183,7 +183,9 @@ bool CustomActionData::parseSysprobeData()
         {
             this->_ddnpmPresent = true;
         }
-    } else {
+    }
+    else
+    {
         WcaLog(LOGMSG_STANDARD, "NPMFEATURE not present");
     }
 
