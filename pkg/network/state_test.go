@@ -363,7 +363,6 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 	conn2.MonotonicRecvBytes += dRecv
 	conn2.MonotonicRetransmits += dRetransmits
 
-	// Let's register our client first
 	state.RegisterClient(clientID)
 
 	// First get, we should not have any connections stored

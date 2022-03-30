@@ -36,7 +36,6 @@ var (
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
 
 	// ProcessAgentClientID process-agent unique ID
-	// FIXME: what should this be?
 	ProcessAgentClientID = "process-agent-unique-id"
 )
 

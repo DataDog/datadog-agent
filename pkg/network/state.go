@@ -46,6 +46,7 @@ type State interface {
 		http map[http.Key]http.RequestStats,
 	) Delta
 
+	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
 	GetTelemetryDelta(
 		id string,
 		telemetry map[ConnTelemetryType]int64,
@@ -182,6 +183,9 @@ func (ns *networkState) getClients() []string {
 	return clients
 }
 
+// GetTelemetryDelta returns the telemetry delta for a given client.
+// As for now, this only keeps track of monotonic telemetry, as the
+// other ones are already relative to the last time they were fetched.
 func (ns *networkState) GetTelemetryDelta(
 	id string,
 	telemetry map[ConnTelemetryType]int64,

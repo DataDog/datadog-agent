@@ -17,7 +17,7 @@ const (
 	connectionsURL = "http://unix/connections"
 	statsURL       = "http://unix/debug/stats"
 	procStatsURL   = "http://unix/proc/stats"
-	registerURL    = "http://unix/register"
+	registerURL    = "http://unix/network_tracer/register"
 	netType        = "unix"
 )
 
