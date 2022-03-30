@@ -400,6 +400,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "apm_config.debugger_api_key"; coreconfig.Datadog.IsSet(k) {
 		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
 	}
+	if k := "error_tracking.only"; coreconfig.Datadog.IsSet(k) {
+		c.ErrorTracking.Only = coreconfig.Datadog.GetBool(k)
+	}
 	return nil
 }
 

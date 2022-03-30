@@ -75,3 +75,5 @@ apm_config:
     credit_cards:
       enabled: true 
       luhn: true
+error_tracking:
+  only: true

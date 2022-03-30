@@ -722,6 +722,34 @@ func TestFilteredByTags(t *testing.T) {
 	}
 }
 
+func TestErrorTrackingOnly(t *testing.T) {
+	for _, tt := range []struct {
+		span     pb.Span
+		eligible bool
+	}{
+		{
+			span:     pb.Span{Error: 1, Metrics: map[string]float64{"_top_level": 1}},
+			eligible: true,
+		},
+		{
+			span:     pb.Span{Error: 0, Metrics: map[string]float64{"_top_level": 1}},
+			eligible: false,
+		},
+		{
+			span:     pb.Span{Error: 1, Metrics: map[string]float64{"_top_level": 0}},
+			eligible: false,
+		},
+		{
+			span:     pb.Span{Error: 0, Metrics: map[string]float64{"_top_level": 0}},
+			eligible: false,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t, tt.eligible, eligibleForErrorTracking(&tt.span))
+		})
+	}
+}
+
 func TestClientComputedStats(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"

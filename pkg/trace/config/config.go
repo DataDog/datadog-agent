@@ -101,6 +101,12 @@ type AppSecConfig struct {
 	DDURL string
 }
 
+// ErrorTrackingConfig ...
+type ErrorTrackingConfig struct {
+	// Only is a config that drops all spans except the ones error tracking can process
+	Only bool
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export() obfuscate.Config {
 	return obfuscate.Config{
@@ -367,6 +373,9 @@ type AgentConfig struct {
 	// AppSec contains AppSec configuration.
 	AppSec AppSecConfig
 
+	// ErrorTracking contains the config specific to Error Tracking
+	ErrorTracking ErrorTrackingConfig
+
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
@@ -459,6 +468,7 @@ func New() *AgentConfig {
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
+		ErrorTracking: ErrorTrackingConfig{},
 	}
 }
 

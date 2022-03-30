@@ -275,6 +275,22 @@ func (a *Agent) Process(p *api.Payload) {
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
+		if a.conf.ErrorTracking.Only {
+			var keep []*pb.Span
+			for _, span := range chunk.Spans {
+				if eligibleForErrorTracking(span) {
+					keep = append(keep, span)
+					break
+				}
+			}
+			if len(keep) == 0 {
+				p.RemoveChunk(i)
+				continue
+			}
+			// only keep eligible spans
+			chunk.Spans = keep
+		}
+
 		if p.TracerPayload.Hostname == "" {
 			// Older tracers set tracer hostname in the root span.
 			p.TracerPayload.Hostname = root.Meta[tagHostname]
@@ -474,6 +490,10 @@ func traceContainsError(trace pb.Trace) bool {
 		}
 	}
 	return false
+}
+
+func eligibleForErrorTracking(span *pb.Span) bool {
+	return span.Error != 0 && traceutil.HasTopLevel(span)
 }
 
 func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {

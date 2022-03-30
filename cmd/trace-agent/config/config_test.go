@@ -376,6 +376,8 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal("INFO", c.LogLevel)
 	assert.Equal(true, c.Enabled)
+
+	assert.False(c.ErrorTracking.Only)
 }
 
 func TestNoAPMConfig(t *testing.T) {
@@ -480,6 +482,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(c.Obfuscation.Memcached.Enabled)
 	assert.True(c.Obfuscation.CreditCards.Enabled)
 	assert.True(c.Obfuscation.CreditCards.Luhn)
+	assert.True(c.ErrorTracking.Only)
 }
 
 func TestUndocumentedYamlConfig(t *testing.T) {
