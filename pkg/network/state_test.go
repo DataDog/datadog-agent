@@ -188,6 +188,47 @@ func TestRetrieveClosedConnection(t *testing.T) {
 	})
 }
 
+func buildBasicTelemetry() map[ConnTelemetryType]int64 {
+	var res = make(map[ConnTelemetryType]int64)
+	for i, telType := range MonotonicConnTelemetryTypes {
+		res[telType] = int64(i)
+	}
+	for i, telType := range ConnTelemetryTypes {
+		res[telType] = int64(i)
+	}
+
+	return res
+}
+
+func TestFirstTelemetryRegistering(t *testing.T) {
+	clientID := "1"
+	state := newDefaultState()
+	state.RegisterClient(clientID)
+	telem := buildBasicTelemetry()
+	delta := state.GetTelemetryDelta(clientID, telem)
+
+	// On first call, delta and telemetry should be the same
+	require.Equal(t, telem, delta)
+}
+
+func TestTelemetryDiffing(t *testing.T) {
+	clientID := "1"
+	state := newDefaultState()
+	state.RegisterClient(clientID)
+	telem := buildBasicTelemetry()
+	_ = state.GetTelemetryDelta(clientID, telem)
+	delta := state.GetTelemetryDelta(clientID, telem)
+
+	// As we're passing in the same telemetry for the second call,
+	// monotonic values should be 0. The other ones should remain.
+	for _, telType := range MonotonicConnTelemetryTypes {
+		require.Equal(t, delta[telType], int64(0))
+	}
+	for _, telType := range ConnTelemetryTypes {
+		require.Equal(t, delta[telType], telem[telType])
+	}
+}
+
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 

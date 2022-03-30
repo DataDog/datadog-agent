@@ -15,7 +15,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
@@ -46,7 +45,6 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          map[string]int64
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID atomic.Value
@@ -109,12 +107,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	connTel := c.diffAndFormatTelemetry(conns.ConnTelemetryMap)
-
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -139,50 +135,6 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 		conn.PidCreateTime = createTimeForPID[conn.Pid]
 	}
 	return conns
-}
-
-func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[string]int64 {
-	if tel == nil {
-		return nil
-	}
-	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
-	if c.lastTelemetry == nil {
-		c.lastTelemetry = make(map[string]int64)
-		c.saveMonotonicTelemetry(tel)
-		return nil
-	}
-
-	cct := map[string]int64{}
-
-	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
-	// report the telemetry which is actually provided by the currently running version of the system-probe
-	for _, telemetryType := range network.ConnTelemetryTypes {
-		telemetryMetricName := string(telemetryType)
-		if _, ok := tel[telemetryMetricName]; ok {
-			cct[telemetryMetricName] = tel[telemetryMetricName]
-		}
-	}
-
-	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
-		telemetryMetricName := string(telemetryType)
-		if _, ok := tel[telemetryMetricName]; ok {
-			cct[telemetryMetricName] = tel[telemetryMetricName] - c.lastTelemetry[telemetryMetricName]
-		}
-	}
-
-	c.saveMonotonicTelemetry(tel)
-	return cct
-}
-
-func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
-	if tel == nil || c.lastTelemetry == nil {
-		return
-	}
-
-	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
-		telemetryMetricName := string(telemetryType)
-		c.lastTelemetry[telemetryMetricName] = tel[telemetryMetricName]
-	}
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {

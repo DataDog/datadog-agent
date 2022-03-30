@@ -46,6 +46,11 @@ type State interface {
 		http map[http.Key]http.RequestStats,
 	) Delta
 
+	GetTelemetryDelta(
+		id string,
+		telemetry map[ConnTelemetryType]int64,
+	) map[ConnTelemetryType]int64
+
 	// RegisterClient starts tracking stateful data for the given client
 	// If the client is already registered, it does nothing.
 	RegisterClient(clientID string)
@@ -105,8 +110,9 @@ type client struct {
 	closedConnections     []ConnectionStats
 	stats                 map[string]*stats
 	// maps by dns key the domain (string) to stats structure
-	dnsStats       dns.StatsByKeyByNameByType
-	httpStatsDelta map[http.Key]http.RequestStats
+	dnsStats                 dns.StatsByKeyByNameByType
+	httpStatsDelta           map[http.Key]http.RequestStats
+	lastMonotonicTelemetries map[ConnTelemetryType]int64
 }
 
 func (c *client) Reset(active map[string]*ConnectionStats) {
@@ -176,6 +182,19 @@ func (ns *networkState) getClients() []string {
 	return clients
 }
 
+func (ns *networkState) GetTelemetryDelta(
+	id string,
+	telemetry map[ConnTelemetryType]int64,
+) map[ConnTelemetryType]int64 {
+	ns.Lock()
+	defer ns.Unlock()
+
+	if len(telemetry) > 0 {
+		return ns.getTelemetryDelta(id, telemetry)
+	}
+	return nil
+}
+
 // GetDelta returns the connections for the given client
 // If the client is not registered yet, we register it and return the connections we have in the global state
 // Otherwise we return both the connections with last stats and the closed connections for this client
@@ -194,7 +213,7 @@ func (ns *networkState) GetDelta(
 	connsByKey := getConnsByKey(active, ns.buf)
 
 	clientBuffer := clientPool.Get(id)
-	client, _ := ns.getClient(id)
+	client := ns.getClient(id)
 	defer client.Reset(connsByKey)
 
 	// Update all connections with relevant up-to-date stats for client
@@ -219,12 +238,41 @@ func (ns *networkState) GetDelta(
 	}
 }
 
+func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetryType]int64) map[ConnTelemetryType]int64 {
+	var res = make(map[ConnTelemetryType]int64)
+	client := ns.getClient(id)
+
+	// As for now, we only keep track of monotonic telemetry here.
+	for _, telType := range MonotonicConnTelemetryTypes {
+		if val, ok := telemetry[telType]; ok {
+			res[telType] = val
+			if prev, ok := client.lastMonotonicTelemetries[telType]; ok {
+				res[telType] -= prev
+			}
+			client.lastMonotonicTelemetries[telType] = val
+		}
+	}
+
+	for _, telType := range ConnTelemetryTypes {
+		if val, ok := telemetry[telType]; ok {
+			res[telType] = val
+		}
+	}
+
+	return res
+}
+
 // RegisterClient registers a client before it first gets stream of data.
 // This call is not strictly mandatory, although it is useful when users
 // want to first register and then start getting data at regular intervals.
 // If the client is already registered, this call simply does nothing.
+// The purpose of this new method is to start registering closed connections
+// for the given client once this call has been made.
 func (ns *networkState) RegisterClient(id string) {
-	_, _ = ns.getClient(id)
+	ns.Lock()
+	defer ns.Unlock()
+
+	_ = ns.getClient(id)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -356,21 +404,22 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]http.RequestStats) 
 	}
 }
 
-func (ns *networkState) getClient(clientID string) (*client, bool) {
+func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
-		return c, true
+		return c
 	}
 
 	c := &client{
-		lastFetch:             time.Now(),
-		stats:                 map[string]*stats{},
-		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
-		closedConnectionsKeys: make(map[string]int),
-		dnsStats:              dns.StatsByKeyByNameByType{},
-		httpStatsDelta:        map[http.Key]http.RequestStats{},
+		lastFetch:                time.Now(),
+		stats:                    map[string]*stats{},
+		closedConnections:        make([]ConnectionStats, 0, minClosedCapacity),
+		closedConnectionsKeys:    make(map[string]int),
+		dnsStats:                 dns.StatsByKeyByNameByType{},
+		httpStatsDelta:           map[http.Key]http.RequestStats{},
+		lastMonotonicTelemetries: make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
-	return c, false
+	return c
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
