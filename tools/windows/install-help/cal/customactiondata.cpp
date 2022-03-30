@@ -174,7 +174,7 @@ bool CustomActionData::parseSysprobeData()
     }
 
     
-    if(this->value(L"NPMFEATURE", npmFeature))
+    if (this->value(L"NPMFEATURE", npmFeature))
     {
         // this property is set to "on" or "off" depending on the desired installed state
         // of the NPM feature.
