@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0
 	github.com/DataDog/datadog-go/v5 v5.1.0
-	github.com/DataDog/sketches-go v1.2.1
+	github.com/DataDog/sketches-go v1.3.0
 	github.com/Microsoft/go-winio v0.5.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
@@ -16,7 +16,6 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/model v0.44.0
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.44.0
@@ -38,6 +37,7 @@ require (
 	github.com/tklauser/numcpus v0.3.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
+	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08 // indirect
