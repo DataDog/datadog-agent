@@ -42,17 +42,13 @@ func IsMeasured(s *pb.Span) bool {
 	return s.Metrics[measuredKey] == 1
 }
 
-// IsPartialSnapshot returns true if the span is a partial snapshot (has metric _dd.partial_version >= 0)
+// IsPartialSnapshot returns true if the span is a partial snapshot.
+// This kind of spans are partial images of long-running spans.
+// When incomplete, a partial snapshot has a metric _dd.partial_version which is a positive integer.
+// The metric usually increases each time a new version of the same span is sent by the tracer
 func IsPartialSnapshot(s *pb.Span) bool {
-	value, hasKey := s.Metrics[partialVersionKey]
-	return hasKey && value >= 0
-}
-
-// SetPartialSnapshotVersion sets the metric _dd.partial_version
-func SetPartialSnapshotVersion(s *pb.Span, value uint64) {
-	if s.Metrics != nil {
-		s.Metrics[partialVersionKey] = float64(value)
-	}
+	v, ok := s.Metrics[partialVersionKey]
+	return ok && v >= 0
 }
 
 // SetTopLevel sets the top-level attribute of the span.

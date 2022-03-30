@@ -515,8 +515,7 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	now := time.Now()
 
 	span := testSpan(1, 0, 50, 5, "A1", "resource1", 0)
-	span.Metrics = make(map[string]float64)
-	traceutil.SetPartialSnapshotVersion(span, 830604)
+	span.Metrics = map[string]float64{"_dd.partial_version": 830604}
 	spans := []*pb.Span{span}
 	traceutil.ComputeTopLevel(spans)
 
