@@ -131,9 +131,8 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	selfSignedEnabled := config.Datadog.GetBool("remote_configuration.unstable.self_signed")
 	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID, selfSignedEnabled)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
 	if err != nil {
 		return nil, err
 	}
@@ -169,13 +168,13 @@ func (s *Service) Start(ctx context.Context) error {
 
 		for {
 			refreshInterval := s.calculateRefreshInterval()
-
+			err := s.refresh()
+			if err != nil {
+				log.Errorf("could not refresh remote-config: %v", err)
+			}
 			select {
 			case <-s.clock.After(refreshInterval):
-				err := s.refresh()
-				if err != nil {
-					log.Errorf("could not refresh remote-config: %v", err)
-				}
+				continue
 			case <-ctx.Done():
 				return
 			}
@@ -303,12 +302,11 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	for metaName, metaState := range state.ConfigState {
 		response.ConfigState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
-	for metaName, metaState := range state.ConfigUserState {
-		response.ConfigUserState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
-	}
+
 	for metaName, metaState := range state.DirectorState {
 		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
+
 	for targetName, targetHash := range state.TargetFilenames {
 		response.TargetFilenames[targetName] = targetHash
 	}

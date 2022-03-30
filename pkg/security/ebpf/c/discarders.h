@@ -3,6 +3,32 @@
 
 #define REVISION_ARRAY_SIZE 4096
 
+#define INODE_DISCARDER_TYPE 0
+#define PID_DISCARDER_TYPE   1
+
+struct discarder_stats_t {
+    u64 discarders_added;
+    u64 event_discarded;
+};
+
+struct bpf_map_def SEC("maps/discarder_stats_fb") discarder_stats_fb = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct discarder_stats_t),
+    .max_entries = EVENT_LAST_DISCARDER,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/discarder_stats_bb") discarder_stats_bb = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct discarder_stats_t),
+    .max_entries = EVENT_LAST_DISCARDER,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),
@@ -11,6 +37,40 @@ struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
     .pinning = 0,
     .namespace = "",
 };
+
+int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
+    struct bpf_map_def *discarder_stats = select_buffer(&discarder_stats_fb, &discarder_stats_bb, DISCARDER_MONITOR_KEY);
+    if (discarder_stats == NULL) {
+        return 0;
+    }
+
+    u32 key = event_type;
+    struct discarder_stats_t *stats = bpf_map_lookup_elem(discarder_stats, &key);
+    if (stats == NULL) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(&stats->discarders_added, 1);
+
+    return 0;
+}
+
+int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
+    struct bpf_map_def *discarder_stats = select_buffer(&discarder_stats_fb, &discarder_stats_bb, DISCARDER_MONITOR_KEY);
+    if (discarder_stats == NULL) {
+        return 0;
+    }
+
+    u32 key = event_type;
+    struct discarder_stats_t *stats = bpf_map_lookup_elem(discarder_stats, &key);
+    if (stats == NULL) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(&stats->event_discarded, 1);
+
+    return 0;
+}
 
 int __attribute__((always_inline)) get_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
@@ -77,8 +137,9 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
 
 void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
-    if (entry == NULL)
+    if (entry == NULL) {
         return NULL;
+    }
 
     struct discarder_params_t *params = (struct discarder_params_t *)entry;
 
@@ -114,12 +175,6 @@ void __attribute__((always_inline)) remove_discarder(struct bpf_map_def *discard
         params->expire_at = bpf_ktime_get_ns() + retention;
     }
 }
-
-struct inode_discarder_t {
-    struct path_key_t path_key;
-    u32 is_leaf;
-    u32 padding;
-};
 
 struct inode_discarder_params_t {
     struct discarder_params_t params;
@@ -176,68 +231,14 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
         bpf_map_update_elem(&inode_discarders, &key, &new_inode_params, BPF_NOEXIST);
     }
 
+    monitor_discarder_added(event_type);
+
     return 0;
 }
 
-struct is_discarded_by_inode_t {
-    u64 event_type;
-    struct inode_discarder_t discarder;
-
-    u64 now;
-    u32 tgid_is_traced;
-    u64 tgid_exec_ts;
-    u32 tgid;
-};
-
 int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
-    // is this process traced ?
-    if (params->tgid_is_traced) {
-
-        // was this inode seen before ?
-        struct traced_inode_t traced_key = {
-            .tgid = params->tgid,
-            .inode = params->discarder.path_key.ino,
-            .mount_id = params->discarder.path_key.mount_id,
-        };
-        struct traced_inode_params_t *traced_inode_params = bpf_map_lookup_elem(&traced_inodes, &traced_key);
-
-        if (traced_inode_params == NULL) {
-
-            // this is the first time we see this inode, save the current time and add the event type to the event mask
-            struct traced_inode_params_t new_params = {
-                .first_sent = params->now,
-                .event_mask = 0,
-            };
-            add_event_to_mask(&new_params.first_sent, params->event_type);
-            bpf_map_update_elem(&traced_inodes, &traced_key, &new_params, BPF_ANY);
-
-            // do not discard this event
-            return 0;
-
-        }
-
-        // Regardless of the event type, we want to check first that the process for which we sent the first event
-        // on this inode is still up.
-        if (params->tgid_exec_ts > traced_inode_params->first_sent || params->tgid_exec_ts == 0) {
-
-            // the tgid was reused, update the last_sent timestamp and do not discard
-            traced_inode_params->first_sent = params->now;
-            traced_inode_params->event_mask = 0;
-            add_event_to_mask(&traced_inode_params->event_mask, params->event_type);
-
-            // do not discard this event
-            return 0;
-
-        }
-
-        // have we seen this event type before ?
-        if (mask_has_event(traced_inode_params->event_mask, params->event_type)) {
-            // yes, discard this inode
-            return 1;
-        }
-
-        // no, add the event type to the mask of event type
-        add_event_to_mask(&traced_inode_params->event_mask, params->event_type);
+    // should we ignore the discarder check because of an activity dump ?
+    if (params->activity_dump_state == IGNORE_DISCARDER_CHECK) {
         // do not discard this event
         return 0;
     }
@@ -344,6 +345,8 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
         bpf_map_update_elem(&pid_discarders, &key, &new_pid_params, BPF_NOEXIST);
     }
 
+    monitor_discarder_added(EVENT_ANY);
+
     return 0;
 }
 
@@ -368,8 +371,9 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
 
     if (mode != NO_FILTER) {
         // try with pid first
-        if (is_discarded_by_pid(event_type, tgid))
+        if (is_discarded_by_pid(event_type, tgid)) {
             return 1;
+        }
 
         struct proc_cache_t *entry = get_proc_cache(tgid);
         if (entry != NULL) {

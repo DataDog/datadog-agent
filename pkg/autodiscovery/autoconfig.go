@@ -203,6 +203,12 @@ func (ac *AutoConfig) LoadAndRun() {
 	log.Debug("LoadAndRun done.")
 }
 
+// ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
+// components that depend on this value.
+func (ac *AutoConfig) ForceRanOnceFlag() {
+	atomic.StoreUint32(&ac.ranOnce, 1)
+}
+
 // HasRunOnce returns true if the AutoConfig has ran once.
 func (ac *AutoConfig) HasRunOnce() bool {
 	if ac == nil {

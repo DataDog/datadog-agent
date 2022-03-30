@@ -151,6 +151,11 @@ func (r *Reader) init() error {
 	return nil
 }
 
+// CgroupVersion returns the detected cgroup version
+func (r *Reader) CgroupVersion() int {
+	return r.cgroupVersion
+}
+
 // ListCgroups returns list of known cgroups
 func (r *Reader) ListCgroups() []Cgroup {
 	r.cgroupsLock.RLock()

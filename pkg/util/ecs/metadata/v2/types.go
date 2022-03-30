@@ -54,10 +54,11 @@ type Port struct {
 // ContainerStats represents the statistics of a container as returned by the
 // ECS metadata API v2.
 type ContainerStats struct {
-	CPU      CPUStats    `json:"cpu_stats"`
-	Memory   MemStats    `json:"memory_stats"`
-	IO       IOStats     `json:"blkio_stats"`
-	Networks NetStatsMap `json:"networks"`
+	Timestamp string      `json:"read"`
+	CPU       CPUStats    `json:"cpu_stats"`
+	Memory    MemStats    `json:"memory_stats"`
+	IO        IOStats     `json:"blkio_stats"`
+	Networks  NetStatsMap `json:"networks"`
 	// Pids    []int32  `json:"pids_stats"` // seems to be always empty
 }
 

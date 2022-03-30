@@ -9,26 +9,24 @@ import (
 )
 
 var (
-	// matches <string>/<int>/<string>/<string>/<string> for <source>/<org_id>/<product>/<config_id>/<file>
+	// matches <string>/<int>/<string>/<string>/<string> for <type>/<org_id>/<product>/<config_id>/<file>
 	filePathRegexp       = regexp.MustCompile(`^([^/]+)/(\d+)/([^/]+)/([^/]+)/([^/]+)$`)
 	filePathRegexpGroups = 5
 )
 
-// Source is the source of the config file
-type Source uint
+// Type is the global type the file belongs to
+type Type uint
 
 const (
-	// SourceUnknown is an unknown source
-	SourceUnknown Source = iota
-	// SourceDatadog is the datadog source
-	SourceDatadog
-	// SourceUser is the user source
-	SourceUser
+	// TypeUnknown is an unknown type
+	TypeUnknown Type = iota
+	// TypeDatadog is the datadog type
+	TypeDatadog
 )
 
 // PathMeta contains the metadata of a specific file contained in its path
 type PathMeta struct {
-	Source   Source
+	Type     Type
 	OrgID    int64
 	Product  Product
 	ConfigID string
@@ -41,13 +39,11 @@ func ParseFilePathMeta(path string) (PathMeta, error) {
 	if len(matchedGroups) != filePathRegexpGroups+1 {
 		return PathMeta{}, fmt.Errorf("config file path '%s' has wrong format", path)
 	}
-	rawSource := matchedGroups[1]
-	configSource := SourceUnknown
-	switch rawSource {
+	rawType := matchedGroups[1]
+	configType := TypeUnknown
+	switch rawType {
 	case "datadog":
-		configSource = SourceDatadog
-	case "user":
-		configSource = SourceUser
+		configType = TypeDatadog
 	}
 	rawOrgID := matchedGroups[2]
 	orgID, err := strconv.ParseInt(rawOrgID, 10, 64)
@@ -59,7 +55,7 @@ func ParseFilePathMeta(path string) (PathMeta, error) {
 		return PathMeta{}, fmt.Errorf("product is empty")
 	}
 	return PathMeta{
-		Source:   configSource,
+		Type:     configType,
 		OrgID:    orgID,
 		Product:  Product(rawProduct),
 		ConfigID: matchedGroups[4],

@@ -11,13 +11,14 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/statsd"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var (
@@ -79,7 +80,7 @@ func (tm *RuntimeCompilationTelemetry) GetTelemetry() map[string]int64 {
 	return stats
 }
 
-func (tm *RuntimeCompilationTelemetry) SendMetrics(client *statsd.Client) error {
+func (tm *RuntimeCompilationTelemetry) SendMetrics(client statsd.ClientInterface) error {
 	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
 	var enabled float64 = 0

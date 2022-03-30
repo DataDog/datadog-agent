@@ -103,11 +103,14 @@ func newRemoteStoreDirector(targetStore *targetStore) *remoteStoreDirector {
 	return &remoteStoreDirector{remoteStore: newRemoteStore(targetStore)}
 }
 
-func (sd *remoteStoreDirector) update(update *pbgo.DirectorMetas) {
+func (sd *remoteStoreDirector) update(update *pbgo.LatestConfigsResponse) {
 	if update == nil {
 		return
 	}
-	metas := update
+	if update.DirectorMetas == nil {
+		return
+	}
+	metas := update.DirectorMetas
 	for _, root := range metas.Roots {
 		sd.metas[roleRoot][root.Version] = root.Raw
 	}
@@ -135,11 +138,14 @@ func newRemoteStoreConfig(targetStore *targetStore) *remoteStoreConfig {
 	}
 }
 
-func (sc *remoteStoreConfig) update(update *pbgo.ConfigMetas) {
+func (sc *remoteStoreConfig) update(update *pbgo.LatestConfigsResponse) {
 	if update == nil {
 		return
 	}
-	metas := update
+	if update.ConfigMetas == nil {
+		return
+	}
+	metas := update.ConfigMetas
 	for _, root := range metas.Roots {
 		sc.metas[roleRoot][root.Version] = root.Raw
 	}

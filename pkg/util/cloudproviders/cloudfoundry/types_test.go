@@ -80,6 +80,16 @@ var cfOrgQuota2 = cfclient.OrgQuota{
 	Name: "org_quota_name_2",
 }
 
+var cfSidecar1 = CFSidecar{
+	GUID: "sidecar_guid_1",
+	Name: "sidecar_name_1",
+}
+
+var cfSidecar2 = CFSidecar{
+	GUID: "sidecar_guid_2",
+	Name: "sidecar_name_2",
+}
+
 type Links struct {
 	Self  cfclient.Link `json:"self"`
 	Scale cfclient.Link `json:"scale"`
@@ -129,6 +139,9 @@ var cfApp1 = CFApplication{
 		"tags.datadoghq.com/service": "test-service",
 		"foo":                        "bar",
 	},
+	Sidecars: []CFSidecar{
+		cfSidecar1,
+	},
 }
 
 var cfApp2 = CFApplication{
@@ -146,6 +159,9 @@ var cfApp2 = CFApplication{
 	TotalMemory:    0,
 	Labels:         map[string]string{},
 	Annotations:    map[string]string{},
+	Sidecars: []CFSidecar{
+		cfSidecar2,
+	},
 }
 
 var BBSModelA1 = models.ActualLRP{
@@ -275,7 +291,7 @@ var ExpectedD1 = DesiredLRP{
 	ProcessGUID:      "0123456789012345678901234567890123456789",
 	SpaceGUID:        "space_guid_1",
 	SpaceName:        "space_name_1",
-	CustomTags:       []string{"env:test-env", "service:test-service"},
+	CustomTags:       []string{"env:test-env", "service:test-service", "sidecar_present:true", "sidecar_count:1"},
 }
 
 var ExpectedD2 = DesiredLRP{
@@ -301,6 +317,8 @@ var ExpectedD2 = DesiredLRP{
 		"CUSTOM_TAG_2:TEST2",
 		"env:test-env",
 		"service:test-service",
+		"sidecar_present:true",
+		"sidecar_count:1",
 	},
 }
 

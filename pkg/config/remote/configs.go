@@ -72,10 +72,12 @@ func (c *configs) update(products []data.Product, files configFiles) update {
 func (c *configs) state() []*pbgo.Config {
 	var configs []*pbgo.Config
 	if c.apmSampling.config != nil {
-		configs = append(configs, &pbgo.Config{
-			Id:      c.apmSampling.config.ID,
-			Version: c.apmSampling.config.Version,
-		})
+		for _, config := range c.apmSampling.config.Configs {
+			configs = append(configs, &pbgo.Config{
+				Id:      config.ID,
+				Version: config.Version,
+			})
+		}
 	}
 	return configs
 }

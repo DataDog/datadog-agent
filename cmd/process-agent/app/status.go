@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -126,18 +127,16 @@ func getStatusURL() (string, error) {
 	return fmt.Sprintf("http://%s/agent/status", addressPort), nil
 }
 
-// StatusCmd returns a cobra command that prints the current status
-func StatusCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "status",
-		Short: "Print the current status",
-		Long:  ``,
-		RunE:  runStatus,
-	}
+// StatusCmd is a cobra command that prints the current status
+var StatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Print the current status",
+	Long:  ``,
+	RunE:  runStatus,
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
-	err := config.LoadConfigIfExists(cmd.Flag("config").Value.String())
+	err := config.LoadConfigIfExists(cmd.Flag(flags.CfgPath).Value.String())
 	if err != nil {
 		writeError(os.Stdout, err)
 		return err

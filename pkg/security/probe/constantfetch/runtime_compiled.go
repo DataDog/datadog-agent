@@ -18,11 +18,12 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-go/statsd"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type rcSymbolPair struct {
@@ -32,18 +33,22 @@ type rcSymbolPair struct {
 
 type RuntimeCompilationConstantFetcher struct {
 	config       *ebpf.Config
-	statsdClient *statsd.Client
+	statsdClient statsd.ClientInterface
 	headers      []string
 	symbolPairs  []rcSymbolPair
 	result       map[string]uint64
 }
 
-func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient *statsd.Client) *RuntimeCompilationConstantFetcher {
+func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient statsd.ClientInterface) *RuntimeCompilationConstantFetcher {
 	return &RuntimeCompilationConstantFetcher{
 		config:       config,
 		statsdClient: statsdClient,
 		result:       make(map[string]uint64),
 	}
+}
+
+func (cf *RuntimeCompilationConstantFetcher) String() string {
+	return "runtime-compilation"
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
@@ -55,7 +60,7 @@ func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, h
 		Id:        id,
 		Operation: fmt.Sprintf("sizeof(%s)", typeName),
 	})
-	cf.result[id] = errorSentinel
+	cf.result[id] = ErrorSentinel
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
@@ -67,11 +72,14 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 		Id:        id,
 		Operation: fmt.Sprintf("offsetof(%s, %s)", typeName, fieldName),
 	})
-	cf.result[id] = errorSentinel
+	cf.result[id] = ErrorSentinel
 }
 
 const runtimeCompilationTemplate = `
 #include <linux/kconfig.h>
+#ifdef CONFIG_HAVE_ARCH_COMPILER_H
+#include <asm/compiler.h>
+#endif
 {{ range .headers }}
 #include <{{ . }}>
 {{ end }}

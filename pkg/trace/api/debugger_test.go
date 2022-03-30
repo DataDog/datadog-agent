@@ -47,7 +47,7 @@ func TestDebuggerProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &traceconfig.AgentConfig{}
-	newDebuggerProxy(c.NewHTTPTransport(), u, "123", "key:val").ServeHTTP(rec, req)
+	newDebuggerProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
 	slurp, err := ioutil.ReadAll(rec.Result().Body)
 	if err != nil {
 		t.Fatal(err)
@@ -75,13 +75,13 @@ func TestDebuggerProxyHandler(t *testing.T) {
 			}
 			called = true
 		}))
-		defer mockConfig("apm_config.debugger_dd_url", srv.URL)()
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		conf := newTestReceiverConfig()
 		conf.Hostname = "myhost"
+		conf.DebuggerProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		if !called {
@@ -98,7 +98,6 @@ func TestDebuggerProxyHandler(t *testing.T) {
 			}
 			called = true
 		}))
-		defer mockConfig("apm_config.debugger_dd_url", srv.URL)()
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -106,6 +105,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Hostname = "myhost"
 		conf.FargateOrchestrator = "orchestrator"
+		conf.DebuggerProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		if !called {
@@ -114,13 +114,14 @@ func TestDebuggerProxyHandler(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		defer mockConfig("site", "asd:\r\n")()
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		rec := httptest.NewRecorder()
-		r := newTestReceiverFromConfig(newTestReceiverConfig())
+		conf := newTestReceiverConfig()
+		conf.Site = "asd:\r\n"
+		r := newTestReceiverFromConfig(conf)
 		r.debuggerProxyHandler().ServeHTTP(rec, req)
 		res := rec.Result()
 		if res.StatusCode != http.StatusInternalServerError {

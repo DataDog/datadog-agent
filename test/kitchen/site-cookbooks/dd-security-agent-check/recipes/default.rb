@@ -36,6 +36,10 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  kernel_module 'veth' do
+    action :load
+  end
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
@@ -78,7 +82,7 @@ if node['platform_family'] != 'windows'
       content <<-EOF
       FROM centos:7
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
-      RUN yum -y install xfsprogs e2fsprogs
+      RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
       EOF
       action :create

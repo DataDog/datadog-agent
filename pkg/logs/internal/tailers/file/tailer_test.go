@@ -83,7 +83,7 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	// and it tries to write in it
 	err := suite.tailer.StartFromBeginning()
 	suite.Nil(err)
-	<-suite.tailer.OutputChan
+	<-suite.tailer.outputChan
 
 	// Ask the tailer to stop after a file rotation
 	suite.tailer.StopAfterFileRotation()

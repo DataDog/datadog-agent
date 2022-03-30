@@ -9,8 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -18,13 +19,16 @@ import (
 // Launchable is a retryable wrapper for a restartable
 type Launchable struct {
 	IsAvailable func() (bool, *retry.Retrier)
-	Launcher    func() restart.Restartable
+	Launcher    func() launchers.Launcher
 }
 
 // Launcher tries to select a container launcher and retry on failure
 type Launcher struct {
 	containerLaunchables []Launchable
-	activeLauncher       restart.Restartable
+	activeLauncher       launchers.Launcher
+	sourceProvider       launchers.SourceProvider
+	pipelineProvider     pipeline.Provider
+	registry             auditor.Registry
 	stop                 bool
 	sync.Mutex
 }
@@ -42,7 +46,7 @@ func (l *Launcher) launch(launchable Launchable) {
 		launcher = NewNoopLauncher()
 	}
 	l.activeLauncher = launcher
-	l.activeLauncher.Start()
+	l.activeLauncher.Start(l.sourceProvider, l.pipelineProvider, l.registry)
 }
 
 func (l *Launcher) shouldRetry() (bool, time.Duration) {
@@ -69,12 +73,16 @@ func (l *Launcher) shouldRetry() (bool, time.Duration) {
 }
 
 // Start starts the launcher
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	l.sourceProvider = sourceProvider
+	l.pipelineProvider = pipelineProvider
+	l.registry = registry
+
 	// If we are restarting, start up the active launcher since we already picked one from a previous run
 	l.Lock()
 	if l.activeLauncher != nil {
 		l.stop = true
-		l.activeLauncher.Start()
+		l.activeLauncher.Start(l.sourceProvider, l.pipelineProvider, l.registry)
 		l.Unlock()
 		return
 	}

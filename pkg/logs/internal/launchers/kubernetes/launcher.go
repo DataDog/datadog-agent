@@ -17,8 +17,11 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -44,6 +47,7 @@ type retryOps struct {
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
 	sources            *config.LogSources
+	services           *service.Services
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
 	kubeutil           kubelet.KubeUtilInterface
@@ -81,6 +85,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	}
 	launcher := &Launcher{
 		sources:            sources,
+		services:           services,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
@@ -89,8 +94,6 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		retryOperations:    make(chan *retryOps),
 		serviceNameFunc:    util.ServiceNameFromTags,
 	}
-	launcher.addedServices = services.GetAllAddedServices()
-	launcher.removedServices = services.GetAllRemovedServices()
 	return launcher
 }
 
@@ -103,8 +106,10 @@ func isIntegrationAvailable() bool {
 }
 
 // Start starts the launcher
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	log.Info("Starting Kubernetes launcher")
+	l.addedServices = l.services.GetAllAddedServices()
+	l.removedServices = l.services.GetAllRemovedServices()
 	go l.run()
 }
 

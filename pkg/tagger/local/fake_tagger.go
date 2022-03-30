@@ -6,6 +6,7 @@
 package local
 
 import (
+	"context"
 	"strconv"
 	"sync"
 
@@ -64,7 +65,7 @@ func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinali
 // Tagger interface
 
 // Init not implemented in fake tagger
-func (f *FakeTagger) Init() error {
+func (f *FakeTagger) Init(context.Context) error {
 	return nil
 }
 

@@ -8,7 +8,7 @@ package metrics
 import (
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // StatsClient represents a client capable of sending stats to some stat endpoint.

@@ -12,11 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -71,8 +70,10 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 
 // Start starts the concentrator.
 func (c *Concentrator) Start() {
+	c.exitWG.Add(1)
 	go func() {
 		defer watchdog.LogOnPanic()
+		defer c.exitWG.Done()
 		c.Run()
 	}()
 }
@@ -80,9 +81,6 @@ func (c *Concentrator) Start() {
 // Run runs the main loop of the concentrator goroutine. Traces are received
 // through `Add`, this loop only deals with flushing.
 func (c *Concentrator) Run() {
-	c.exitWG.Add(1)
-	defer c.exitWG.Done()
-
 	// flush with the same period as stats buckets
 	flushTicker := time.NewTicker(time.Duration(c.bsize) * time.Nanosecond)
 	defer flushTicker.Stop()
@@ -127,7 +125,7 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 		return Input{}
 	}
 	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != fargate.Unknown)
+	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if enableContainers && !features.Has("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
@@ -165,7 +163,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		if !(isTop || traceutil.IsMeasured(s)) {
+		if !(isTop || traceutil.IsMeasured(s)) || traceutil.IsPartialSnapshot(s) {
 			continue
 		}
 		end := s.Start + s.Duration

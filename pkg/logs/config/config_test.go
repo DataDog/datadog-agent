@@ -40,26 +40,12 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
 	suite.Equal(nil, suite.config.Get("logs_config.processing_rules"))
 	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
+	suite.Equal(false, suite.config.GetBool("logs_config.use_tcp"))
+	suite.Equal(false, suite.config.GetBool("logs_config.force_use_tcp"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
+	suite.Equal(false, suite.config.GetBool("logs_config.force_use_http"))
 	suite.Equal(false, suite.config.GetBool("logs_config.k8s_container_use_file"))
 	suite.Equal(true, suite.config.GetBool("logs_config.use_v2_api"))
-}
-
-func (suite *ConfigTestSuite) TestDefaultSources() {
-	// container collect all source
-
-	source := ContainerCollectAllSource()
-	suite.Nil(source)
-
-	suite.config.Set("logs_config.container_collect_all", true)
-
-	source = ContainerCollectAllSource()
-	suite.NotNil(source)
-
-	suite.Equal("container_collect_all", source.Name)
-	suite.Equal(DockerType, source.Config.Type)
-	suite.Equal("docker", source.Config.Source)
-	suite.Equal("docker", source.Config.Service)
 }
 
 func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEmptyValues() {

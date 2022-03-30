@@ -10,6 +10,24 @@ u32 __attribute__((always_inline)) get_cgroup_write_type(void) {
     return type;
 }
 
+static __attribute__((always_inline)) int isxdigit(unsigned char c) {
+    return ((c >= '0' && c <= '9') ||
+            (c >= 'a' && c <= 'f') ||
+            (c >= 'A' && c <= 'F'));
+}
+
+static __attribute__((always_inline)) int is_container_id_valid(const char id[CONTAINER_ID_LEN]) {
+#pragma unroll
+    for (int i = 0; i < CONTAINER_ID_LEN; i++)
+    {
+        if (!isxdigit(id[i])) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
     u32 pid;
@@ -100,6 +118,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
     }
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
+    if (!is_container_id_valid(new_entry.container.container_id)) {
+        return 0;
+    }
+
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
     if (new_cookie) {

@@ -35,6 +35,7 @@ exporters:
   otlp:
     tls:
       insecure: true
+    compression: none
 
 service:
   telemetry:
