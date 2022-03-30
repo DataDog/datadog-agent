@@ -11,6 +11,7 @@ import (
 	"hash/fnv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gosnmp/gosnmp"
 )
@@ -38,6 +39,7 @@ type Config struct {
 	CommunityStrings      []string `mapstructure:"community_strings" yaml:"community_strings"`
 	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
 	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
 }
 
@@ -78,6 +80,14 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	// The next 16 bytes are the hash of the agent hostname
 	engineID := h.Sum([]byte{0x80, 0xff, 0xff, 0xff, 0xff})
 	c.authoritativeEngineID = string(engineID)
+
+	if c.Namespace == "" {
+		c.Namespace = config.Datadog.GetString("network_devices.namespace")
+	}
+	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf("invalid snmp_traps_config: %w", err)
+	}
 
 	return &c, nil
 }

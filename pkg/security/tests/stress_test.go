@@ -206,7 +206,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	}
 
 	opts := StressOpts{
-		Duration:    40 * time.Second,
+		Duration:    time.Duration(duration) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
 		TopFrom:     "probe",
@@ -240,7 +240,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 // this benchmark generate syscall but without having kprobe installed
 
 func TestStress_E2EOExecNoKprobe(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	stressExec(t, nil, "folder1/folder2/folder1/folder2/test", executable)
 }
@@ -248,7 +248,7 @@ func TestStress_E2EOExecNoKprobe(t *testing.T) {
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
 // this benchmark generate event that passs from the kernel to the userspace
 func TestStress_E2EExecEvent(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

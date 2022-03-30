@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.32.4"
+          image: "gcr.io/datadoghq/agent:7.34.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -69,6 +69,8 @@ spec:
               value: "false"
             - name: DD_LOGS_CONFIG_K8S_CONTAINER_USE_FILE
               value: "true"
+            - name: DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION
+              value: "false"
             - name: DD_HEALTH_PORT
               value: "5555"
             - name: DD_DOGSTATSD_SOCKET
@@ -125,7 +127,7 @@ spec:
             timeoutSeconds: 5
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.32.4"
+          image: "gcr.io/datadoghq/agent:7.34.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -135,7 +137,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.32.4"
+          image: "gcr.io/datadoghq/agent:7.34.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:

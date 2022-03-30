@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/stretchr/testify/assert"
 )
@@ -71,7 +73,7 @@ func (m *mockLauncher) SetAvailable(Available bool) {
 	m.isAvailable = Available
 }
 
-func (m *mockLauncher) Start() {
+func (m *mockLauncher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	m.startCount++
 	m.wg.Done()
 }
@@ -82,7 +84,7 @@ func (m *mockLauncher) Stop() {
 func (m *mockLauncher) ToLaunchable() Launchable {
 	return Launchable{
 		IsAvailable: m.IsAvailable,
-		Launcher: func() restart.Restartable {
+		Launcher: func() launchers.Launcher {
 			m.wg.Done()
 			return m
 		},
@@ -92,7 +94,7 @@ func (m *mockLauncher) ToLaunchable() Launchable {
 func (m *mockLauncher) ToErrLaunchable() Launchable {
 	return Launchable{
 		IsAvailable: m.IsAvailable,
-		Launcher: func() restart.Restartable {
+		Launcher: func() launchers.Launcher {
 			m.wg.Done()
 			return nil
 		},
@@ -105,7 +107,7 @@ func TestSelectFirst(t *testing.T) {
 
 	l1.wg.Add(2)
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	l1.wg.Wait()
 	assert.Equal(t, 1, l1.startCount)
@@ -118,7 +120,7 @@ func TestSelectSecond(t *testing.T) {
 
 	l2.wg.Add(2)
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	l2.wg.Wait()
 	assert.Equal(t, 0, l1.startCount)
@@ -131,7 +133,7 @@ func TestFailsThenSucceeds(t *testing.T) {
 
 	l2.wg.Add(2)
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	// let it run a few times
 	time.Sleep(10 * time.Millisecond)
@@ -152,7 +154,7 @@ func TestFailsThenSucceedsRetrier(t *testing.T) {
 
 	l1.wg.Add(3)
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	l1.wg.Wait()
 
@@ -166,7 +168,7 @@ func TestAvailableLauncherReturnsNil(t *testing.T) {
 
 	l2.wg.Add(1)
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToErrLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	l2.wg.Wait()
 	assert.Equal(t, 0, l1.startCount)
@@ -183,7 +185,7 @@ func TestRestartUsesPreviousLauncher(t *testing.T) {
 
 	l1.wg.Add(2)
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	l1.wg.Wait()
 	l.Stop()
@@ -193,7 +195,7 @@ func TestRestartUsesPreviousLauncher(t *testing.T) {
 	assert.Equal(t, 0, l2.stopCount)
 
 	l1.wg.Add(1)
-	l.Start()
+	l.Start(nil, nil, nil)
 	l1.wg.Wait()
 
 	assert.Equal(t, 2, l1.startCount)
@@ -205,7 +207,7 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	l2 := newMockLauncher(false)
 
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	// let it run a few times
 	time.Sleep(10 * time.Millisecond)
@@ -219,7 +221,7 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	l1.SetAvailable(true)
 
 	l1.wg.Add(2)
-	l.Start()
+	l.Start(nil, nil, nil)
 	l1.wg.Wait()
 
 	assert.Equal(t, 1, l1.startCount)
@@ -232,7 +234,7 @@ func TestRestartSameLauncher(t *testing.T) {
 
 	l1.wg.Add(2)
 	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
-	l.Start()
+	l.Start(nil, nil, nil)
 
 	// let it run a few times
 	time.Sleep(10 * time.Millisecond)
@@ -245,7 +247,7 @@ func TestRestartSameLauncher(t *testing.T) {
 	assert.Equal(t, 0, l2.stopCount)
 
 	l1.wg.Add(1)
-	l.Start()
+	l.Start(nil, nil, nil)
 	l1.wg.Wait()
 
 	assert.Equal(t, 2, l1.startCount)

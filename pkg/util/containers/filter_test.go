@@ -236,6 +236,30 @@ func TestFilter(t *testing.T) {
 			},
 			ns: "default",
 		},
+		{
+			c: ctnDef{ // Empty name
+				ID:    "29",
+				Name:  "",
+				Image: "redis",
+			},
+			ns: "default",
+		},
+		{
+			c: ctnDef{ // Empty image
+				ID:    "30",
+				Name:  "empty_image",
+				Image: "",
+			},
+			ns: "default",
+		},
+		{
+			c: ctnDef{ // Empty namespace
+				ID:    "31",
+				Name:  "empty_namespace",
+				Image: "redis",
+			},
+			ns: "",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -244,34 +268,44 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			excludeList: []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			excludeList: []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			includeList: []string{},
 			excludeList: []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			includeList: []string{"name:mysql"},
 			excludeList: []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			excludeList: []string{"kube_namespace:.*"},
 			includeList: []string{"kube_namespace:foo"},
-			expectedIDs: []string{"14"},
+			expectedIDs: []string{"14", "31"},
 		},
 		{
 			excludeList: []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+		},
+		{
+			excludeList: []string{"name:.*"},
+			includeList: []string{"name:mysql-dd"},
+			expectedIDs: []string{"3", "29"},
+		},
+		{
+			excludeList: []string{"image:.*"},
+			includeList: []string{"image:docker-dd-agent"},
+			expectedIDs: []string{"1", "30"},
 		},
 		// Test kubernetes defaults
 		{
@@ -292,7 +326,7 @@ func TestFilter(t *testing.T) {
 				pauseContainerUpstream,
 				pauseContainerCDK,
 			},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15", "29", "30", "31"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {

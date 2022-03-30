@@ -1,9 +1,10 @@
 import os
 import tarfile
-from tempfile import TemporaryFile
+import tempfile
 
 from kubernetes import client, config
 from kubernetes.stream import stream
+from lib.const import SEC_AGENT_PATH
 from lib.log import LogGetter
 
 
@@ -43,15 +44,43 @@ class KubernetesHelper(LogGetter):
             namespace=self.namespace,
             container=container,
             command=command,
-            stderr=True,
+            stderr=False,
             stdin=False,
             stdout=True,
             tty=False,
         )
 
-    def kill_agent(self, agent_name, signal):
-        command = ['pkill', signal, agent_name]
-        self.exec_command(agent_name, command=command)
+    def reload_policies(self):
+        command = [SEC_AGENT_PATH, 'runtime', 'policy', 'reload']
+        self.exec_command("security-agent", command=command)
+
+    def download_policies(self):
+        site = os.environ["DD_SITE"]
+        api_key = os.environ["DD_API_KEY"]
+        app_key = os.environ["DD_APP_KEY"]
+        command = [
+            "/bin/bash",
+            "-c",
+            "export DD_SITE="
+            + site
+            + " ; export DD_API_KEY="
+            + api_key
+            + " ; export DD_APP_KEY="
+            + app_key
+            + " ; "
+            + SEC_AGENT_PATH
+            + " runtime policy download",
+        ]
+        return self.exec_command("security-agent", command=command)
+
+    def push_policies(self, policies):
+        temppolicy = tempfile.NamedTemporaryFile(prefix="e2e-policy-", mode="w", delete=False)
+        temppolicy.write(policies)
+        temppolicy.close()
+        temppolicy_path = temppolicy.name
+        self.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
+        self.cp_to_agent("security-agent", temppolicy_path, "/tmp/runtime-security.d/default.policy")
+        os.remove(temppolicy_path)
 
     def cp_to_agent(self, agent_name, src_file, dst_file):
         command = ['tar', 'xvf', '-', '-C', '/tmp']
@@ -68,7 +97,7 @@ class KubernetesHelper(LogGetter):
             _preload_content=False,
         )
 
-        with TemporaryFile() as tar_buffer:
+        with tempfile.TemporaryFile() as tar_buffer:
             with tarfile.open(fileobj=tar_buffer, mode='w') as tar:
                 tar.add(src_file)
 

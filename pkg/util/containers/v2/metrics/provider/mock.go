@@ -10,10 +10,12 @@ import (
 )
 
 type dummyCollector struct {
-	id        string
-	cStats    map[string]*ContainerStats
-	cNetStats map[string]*ContainerNetworkStats
-	err       error
+	id              string
+	cStats          map[string]*ContainerStats
+	cNetStats       map[string]*ContainerNetworkStats
+	cIDForPID       map[int]string
+	selfContainerID string
+	err             error
 }
 
 func (d dummyCollector) ID() string {
@@ -26,4 +28,12 @@ func (d dummyCollector) GetContainerStats(containerID string, cacheValidity time
 
 func (d dummyCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
 	return d.cNetStats[containerID], d.err
+}
+
+func (d dummyCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	return d.cIDForPID[pid], d.err
+}
+
+func (d dummyCollector) GetSelfContainerID() (string, error) {
+	return d.selfContainerID, nil
 }

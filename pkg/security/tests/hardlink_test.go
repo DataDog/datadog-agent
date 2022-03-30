@@ -36,7 +36,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	defer test.Close()
 
 	// copy touch to make sure it is place on the same fs, hard link constraint
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	testOrigExecutable, _, err := test.Path("orig-touch")
 	if err != nil {
@@ -48,7 +48,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		t.Fatal(err)
 	}
 
-	t.Run("hardlink-creation", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
+	t.Run("hardlink-creation", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
@@ -73,9 +73,9 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
 		})
-	}))
+	})
 
-	t.Run("hardlink-created", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
+	t.Run("hardlink-created", func(t *testing.T) {
 		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
 			t.Fatal(err)
@@ -100,7 +100,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
 		})
-	}))
+	})
 }
 
 func TestHardLinkWithERPC(t *testing.T) {

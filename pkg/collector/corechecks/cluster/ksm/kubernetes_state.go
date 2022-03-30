@@ -277,7 +277,11 @@ func (c *KSMConfig) parse(data []byte) error {
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
-	sender, err := aggregator.GetSender(k.ID())
+	// this check uses a "raw" sender, for better performance.  That requires
+	// careful consideration of uses of this sender.  In particular, the `tags
+	// []string` arguments must not be used after they are passed to the sender
+	// methods, as they may be mutated in-place.
+	sender, err := k.GetRawSender()
 	if err != nil {
 		return err
 	}
@@ -318,10 +322,11 @@ func (k *KSMCheck) Run() error {
 		}
 	}
 
+	currentTime := time.Now()
 	for _, stores := range k.allStores {
 		for _, store := range stores {
 			metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-			k.processMetrics(sender, metrics, labelJoiner)
+			k.processMetrics(sender, metrics, labelJoiner, currentTime)
 			k.processTelemetry(metrics)
 		}
 	}
@@ -339,7 +344,7 @@ func (k *KSMCheck) Cancel() {
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
-func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner) {
+func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
@@ -354,7 +359,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					transform(sender, metricFamily.Name, m, hostname, tags)
+					transform(sender, metricFamily.Name, m, hostname, tags, now)
 				}
 				continue
 			}
@@ -384,11 +389,15 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 	}
 }
 
-// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration
+// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration.
+//
+// This function must always return a "fresh" slice of tags, that will not be accessed after return.
 func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
+
+	// generate a dedicated tags slice
 	tags := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName := "", ""
@@ -691,7 +700,7 @@ func ownerTags(kind, name string) []string {
 	tags := []string{fmt.Sprintf(tagFormat, tagKey, name)}
 	switch kind {
 	case kubernetes.JobKind:
-		if cronjob := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
 			return append(tags, fmt.Sprintf(tagFormat, kubernetes.CronJobTagName, cronjob))
 		}
 	case kubernetes.ReplicaSetKind:

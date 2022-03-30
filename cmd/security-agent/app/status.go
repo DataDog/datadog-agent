@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -75,7 +75,7 @@ func requestStatus() error {
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr)
+	r, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -107,7 +107,7 @@ func requestStatus() error {
 	}
 
 	if statusArgs.file != "" {
-		ioutil.WriteFile(statusArgs.file, []byte(s), 0644) //nolint:errcheck
+		os.WriteFile(statusArgs.file, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}

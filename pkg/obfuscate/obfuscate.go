@@ -16,7 +16,7 @@ import (
 	"bytes"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for

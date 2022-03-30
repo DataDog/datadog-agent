@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -220,7 +220,7 @@ func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
 // of a file instead of the current environment
 func WithRegoInput(regoInputPath string) BuilderOption {
 	return func(b *builder) error {
-		content, err := ioutil.ReadFile(regoInputPath)
+		content, err := os.ReadFile(regoInputPath)
 		if err != nil {
 			return err
 		}

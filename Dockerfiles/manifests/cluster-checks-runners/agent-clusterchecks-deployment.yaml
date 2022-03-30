@@ -31,7 +31,7 @@ spec:
       imagePullSecrets: []
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.32.4"
+          image: "gcr.io/datadoghq/agent:7.34.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -41,7 +41,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.32.4"
+          image: "gcr.io/datadoghq/agent:7.34.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -52,7 +52,7 @@ spec:
           resources: {}
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.32.4"
+          image: "gcr.io/datadoghq/agent:7.34.0"
           command: ["bash", "-c"]
           args:
             - rm -rf /etc/datadog-agent/conf.d && touch /etc/datadog-agent/datadog.yaml && exec agent run

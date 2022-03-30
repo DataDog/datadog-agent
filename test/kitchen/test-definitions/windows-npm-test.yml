@@ -23,7 +23,7 @@ suites:
       package_name: 'datadog-iot-agent'
       <% end %>
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -64,7 +64,7 @@ suites:
       package_name: 'datadog-iot-agent'
       <% end %>
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -162,7 +162,7 @@ suites:
       package_name: 'datadog-iot-agent'
       <% end %>
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"

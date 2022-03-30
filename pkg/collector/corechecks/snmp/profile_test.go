@@ -22,16 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 func TestProfileMetadata_f5(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	invalidPath, _ := filepath.Abs(filepath.Join("test", "metadata_conf.d"))
+	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()

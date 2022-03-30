@@ -47,6 +47,11 @@ func (h *HashlessTagsAccumulator) Get() []string {
 	return h.data
 }
 
+// Copy returns a new slice with the copy of the tags
+func (h *HashlessTagsAccumulator) Copy() []string {
+	return append(make([]string, 0, len(h.data)), h.data...)
+}
+
 // SortUniq sorts and remove duplicate in place
 func (h *HashlessTagsAccumulator) SortUniq() {
 	h.data = util.SortUniqInPlace(h.data)

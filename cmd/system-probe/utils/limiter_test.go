@@ -2,7 +2,6 @@ package utils
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -48,7 +47,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler(w, r)
 		resp := w.Result()
-		io.Copy(ioutil.Discard, resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 	}
 
@@ -59,7 +58,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 	// Verify that they were processed by the original handler
 	for _, recorder := range recorders {
 		resp := recorder.Result()
-		io.Copy(ioutil.Discard, resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 }

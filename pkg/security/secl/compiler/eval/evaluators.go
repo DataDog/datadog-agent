@@ -14,7 +14,7 @@ import (
 // Evaluator is the interface of an evaluator
 type Evaluator interface {
 	Eval(ctx *Context) interface{}
-	IsPartial() bool
+	IsDeterministicFor(field Field) bool
 	GetField() string
 	IsScalar() bool
 }
@@ -27,8 +27,8 @@ type BoolEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
-	// used during compilation
-	isPartial bool
+	// used during compilation of partial
+	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -36,9 +36,9 @@ func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(ctx)
 }
 
-// IsPartial returns whether the evaluator is partial
-func (b *BoolEvaluator) IsPartial() bool {
-	return b.isPartial
+// IsDeterministicFor returns whether the evaluator is partial
+func (b *BoolEvaluator) IsDeterministicFor(field Field) bool {
+	return b.isDeterministic || (b.Field != "" && b.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -59,9 +59,9 @@ type IntEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
-	// used during compilation
-	isPartial  bool
-	isDuration bool
+	// used during compilation of partial
+	isDeterministic bool
+	isDuration      bool
 }
 
 // Eval returns the result of the evaluation
@@ -69,9 +69,9 @@ func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 	return i.EvalFnc(ctx)
 }
 
-// IsPartial returns whether the evaluator is partial
-func (i *IntEvaluator) IsPartial() bool {
-	return i.isPartial
+// IsDeterministicFor returns whether the evaluator is partial
+func (i *IntEvaluator) IsDeterministicFor(field Field) bool {
+	return i.isDeterministic || (i.Field != "" && i.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -93,8 +93,8 @@ type StringEvaluator struct {
 	OpOverrides *OpOverrides
 	ValueType   FieldValueType
 
-	// used during compilation
-	isPartial bool
+	// used during compilation of partial
+	isDeterministic bool
 
 	stringMatcher StringMatcher
 }
@@ -104,9 +104,9 @@ func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
-// IsPartial returns whether the evaluator is partial
-func (s *StringEvaluator) IsPartial() bool {
-	return s.isPartial
+// IsDeterministicFor returns whether the evaluator is partial
+func (s *StringEvaluator) IsDeterministicFor(field Field) bool {
+	return s.isDeterministic || (s.Field != "" && s.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -150,8 +150,8 @@ type StringArrayEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
-	// used during compilation
-	isPartial bool
+	// used during compilation of partial
+	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -159,9 +159,9 @@ func (s *StringArrayEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
-// IsPartial returns whether the evaluator is partial
-func (s *StringArrayEvaluator) IsPartial() bool {
-	return s.isPartial
+// IsDeterministicFor returns whether the evaluator is partial
+func (s *StringArrayEvaluator) IsDeterministicFor(field Field) bool {
+	return s.isDeterministic || (s.Field != "" && s.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -185,8 +185,8 @@ type StringValuesEvaluator struct {
 	Values  StringValues
 	Weight  int
 
-	// used during compilation
-	isPartial bool
+	// used during compilation of partial
+	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -194,9 +194,9 @@ func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
-// IsPartial returns whether the evaluator is partial
-func (s *StringValuesEvaluator) IsPartial() bool {
-	return s.isPartial
+// IsDeterministicFor returns whether the evaluator is partial
+func (s *StringValuesEvaluator) IsDeterministicFor(field Field) bool {
+	return s.isDeterministic
 }
 
 // GetField returns field name used by this evaluator
@@ -261,7 +261,8 @@ type IntArrayEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
-	isPartial bool
+	// used during compilation of partial
+	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -269,9 +270,9 @@ func (i *IntArrayEvaluator) Eval(ctx *Context) interface{} {
 	return i.EvalFnc(ctx)
 }
 
-// IsPartial returns whether the evaluator is partial
-func (i *IntArrayEvaluator) IsPartial() bool {
-	return i.isPartial
+// IsDeterministicFor returns whether the evaluator is partial
+func (i *IntArrayEvaluator) IsDeterministicFor(field Field) bool {
+	return i.isDeterministic || (i.Field != "" && i.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -297,7 +298,8 @@ type BoolArrayEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
-	isPartial bool
+	// used during compilation of partial
+	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -305,9 +307,9 @@ func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(ctx)
 }
 
-// IsPartial returns whether the evaluator is partial
-func (b *BoolArrayEvaluator) IsPartial() bool {
-	return b.isPartial
+// IsDeterministicFor returns whether the evaluator is partial
+func (b *BoolArrayEvaluator) IsDeterministicFor(field Field) bool {
+	return b.isDeterministic || (b.Field != "" && b.Field == field)
 }
 
 // GetField returns field name used by this evaluator

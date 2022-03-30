@@ -266,12 +266,16 @@ func initializeConfig(cfg config.Config) {
 		return string(cleanBytes)
 	}
 
-	cleanSlice := func(ss []string) []string {
-		rv := make([]string, len(ss))
-		for i, s := range ss {
-			rv[i] = clean(s)
+	cfgSlice := func(name string) []string {
+		if cfg.IsSet(name) {
+			ss := cfg.GetStringSlice(name)
+			rv := make([]string, len(ss))
+			for i, s := range ss {
+				rv[i] = clean(s)
+			}
+			return rv
 		}
-		return rv
+		return []string{}
 	}
 
 	SetAgentMetadata(AgentConfigAPMDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
@@ -279,7 +283,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigSite, clean(cfg.GetString("dd_site")))
 	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
 	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, clean(cfg.GetString("logs_config.socks5_proxy_address")))
-	SetAgentMetadata(AgentConfigNoProxy, cleanSlice(cfg.GetStringSlice("proxy.no_proxy")))
+	SetAgentMetadata(AgentConfigNoProxy, cfgSlice("proxy.no_proxy"))
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))

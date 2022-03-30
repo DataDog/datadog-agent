@@ -76,7 +76,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 
 	transactions, err = f.retryQueue.ExtractTransactions()
 	if err != nil {
-		log.Errorf("Error when getting transactions from the retry queue", err)
+		log.Errorf("Error when getting transactions from the retry queue: %v", err)
 	}
 
 	f.transactionPrioritySorter.Sort(transactions)

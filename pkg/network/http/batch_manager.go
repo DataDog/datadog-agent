@@ -14,7 +14,7 @@ import (
 
 	"fmt"
 
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/ebpf"
 )
 
 /*

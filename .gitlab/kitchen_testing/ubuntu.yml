@@ -12,7 +12,6 @@
   variables:
     KITCHEN_PLATFORM: "ubuntu"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -157,3 +156,11 @@ kitchen_ubuntu_upgrade7_iot_agent-a7:
   extends:
     - .kitchen_scenario_ubuntu_a7_x64
     - .kitchen_test_upgrade7_iot_agent
+
+kitchen_ubuntu_process_agent-a7:
+  variables:
+    KITCHEN_OSVERS: "ubuntu-20-04"
+    DEFAULT_KITCHEN_OSVERS: "ubuntu-20-04"
+  extends:
+    - .kitchen_scenario_ubuntu_a7_x64
+    - .kitchen_test_process_agent

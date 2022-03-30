@@ -1,6 +1,9 @@
 import os
+import tarfile
+import tempfile
 
 import docker
+from lib.const import SEC_AGENT_PATH
 from lib.log import LogGetter
 from retry.api import retry_call
 
@@ -47,7 +50,7 @@ class DockerHelper(LogGetter):
 
         return self.agent_container
 
-    def start_cws_agent(self, image, policy_filename=None, datadog_agent_config=None, system_probe_config=None):
+    def start_cws_agent(self, image, datadog_agent_config=None, system_probe_config=None):
         volumes = [
             "/var/run/docker.sock:/var/run/docker.sock:ro",
             "/proc/:/host/proc/:ro",
@@ -58,9 +61,6 @@ class DockerHelper(LogGetter):
             "/sys/kernel/debug:/sys/kernel/debug",
             "/etc/os-release:/etc/os-release",
         ]
-
-        if policy_filename:
-            volumes.append(f"{policy_filename}:/etc/datadog-agent/runtime-security.d/default.policy")
 
         if datadog_agent_config:
             volumes.append(f"{datadog_agent_config}:/etc/datadog-agent/datadog.yaml")
@@ -87,6 +87,44 @@ class DockerHelper(LogGetter):
         )
 
         return self.agent_container
+
+    def download_policies(self):
+        command = SEC_AGENT_PATH + " runtime policy download"
+        site = os.environ["DD_SITE"]
+        api_key = os.environ["DD_API_KEY"]
+        app_key = os.environ["DD_APP_KEY"]
+        return self.agent_container.exec_run(
+            command,
+            stderr=False,
+            stdout=True,
+            stream=False,
+            environment=[
+                f"DD_SITE={site}",
+                f"DD_API_KEY={api_key}",
+                f"DD_APP_KEY={app_key}",
+            ],
+        )
+
+    def push_policies(self, policies):
+        temppolicy = tempfile.NamedTemporaryFile(prefix="e2e-policy-", mode="w", delete=False)
+        temppolicy.write(policies)
+        temppolicy.close()
+        temppolicy_path = temppolicy.name
+        self.cp_file(temppolicy_path, "/etc/datadog-agent/runtime-security.d/default.policy")
+        os.remove(temppolicy_path)
+
+    def cp_file(self, src, dst):
+        tar = tarfile.open(src + '.tar', mode='w')
+        try:
+            tar.add(src)
+        finally:
+            tar.close()
+        data = open(src + '.tar', 'rb').read()
+        self.agent_container.put_archive("/tmp", data)
+        self.agent_container.exec_run("mv /tmp/" + src + " " + dst)
+
+    def reload_policies(self):
+        self.agent_container.exec_run(SEC_AGENT_PATH + " runtime policy reload")
 
     def wait_agent_container(self, tries=10, delay=5):
         return retry_call(is_container_running, fargs=[self.agent_container], tries=tries, delay=delay)

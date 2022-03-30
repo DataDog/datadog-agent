@@ -30,7 +30,7 @@ spec:
       serviceAccountName: datadog-cluster-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:1.16.0"
+          image: "gcr.io/datadoghq/cluster-agent:1.18.0"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -113,13 +113,15 @@ spec:
               - key: kubernetes_state_core.yaml.default
                 path: kubernetes_state_core.yaml.default
       affinity:
-        # Force scheduling the cluster agents on different nodes
+        # Prefer scheduling the cluster agents on different nodes
         # to guarantee that the standby instance can immediately take the lead from a leader running of a faulty node.
         podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: datadog-cluster-agent
-              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: datadog-cluster-agent
+                topologyKey: kubernetes.io/hostname
       nodeSelector:
         kubernetes.io/os: linux

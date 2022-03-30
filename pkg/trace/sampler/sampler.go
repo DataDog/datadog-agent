@@ -4,18 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package sampler contains all the logic of the agent-side trace sampling
-//
-// Currently implementation is based on the scoring of the "signature" of each trace
-// Based on the score, we get a sample rate to apply to the given trace
-//
-// Current score implementation is super-simple, it is a counter with polynomial decay per signature.
-// We increment it for each incoming trace then we periodically divide the score by two every X seconds.
-// Right after the division, the score is an approximation of the number of received signatures over X seconds.
-// It is different from the scoring in the Agent.
-//
-// Since the sampling can happen at different levels (client, agent, server) or depending on different rules,
-// we have to track the sample rate applied at previous steps. This way, sampling twice at 50% can result in an
-// effective 25% sampling. The rate is stored as a metric in the trace root.
 package sampler
 
 import (
@@ -68,7 +56,22 @@ const (
 
 	// PriorityUserKeep is the value set by a user to explicitly keep a trace.
 	PriorityUserKeep SamplingPriority = 2
+
+	// 2^64 - 1
+	maxTraceID      = ^uint64(0)
+	maxTraceIDFloat = float64(maxTraceID)
+	// Good number for Knuth hashing (large, prime, fit in int64 for languages without uint64)
+	samplerHasher = uint64(1111111111111111111)
 )
+
+// SampleByRate returns whether to keep a trace, based on its ID and a sampling rate.
+// This assumes that trace IDs are nearly uniformly distributed.
+func SampleByRate(traceID uint64, rate float64) bool {
+	if rate < 1 {
+		return traceID*samplerHasher < uint64(rate*maxTraceIDFloat)
+	}
+	return true
+}
 
 // GetSamplingPriority returns the value of the sampling priority metric set on this span and a boolean indicating if
 // such a metric was actually found or not.
@@ -156,6 +159,21 @@ func SetAnalyzedSpan(s *pb.Span) {
 func IsAnalyzedSpan(s *pb.Span) bool {
 	v, _ := getMetric(s, KeyAnalyzedSpans)
 	return v == 1
+}
+
+func weightRoot(s *pb.Span) float32 {
+	if s == nil {
+		return 1
+	}
+	clientRate, ok := s.Metrics[KeySamplingRateGlobal]
+	if !ok || clientRate <= 0.0 || clientRate > 1.0 {
+		clientRate = 1
+	}
+	preSamplerRate, ok := s.Metrics[KeySamplingRatePreSampler]
+	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
+		preSamplerRate = 1
+	}
+	return float32(1.0 / (preSamplerRate * clientRate))
 }
 
 func getMetric(s *pb.Span, k string) (float64, bool) {

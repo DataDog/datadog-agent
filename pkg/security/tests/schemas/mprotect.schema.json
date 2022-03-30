@@ -25,7 +25,7 @@
                         "vm_start",
                         "vm_end",
                         "vm_protection",
-                        "new_protection"
+                        "req_protection"
                     ],
                     "properties": {
                         "vm_start": {

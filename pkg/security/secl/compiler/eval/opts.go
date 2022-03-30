@@ -22,7 +22,12 @@ func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
 
 // WithVariables set variables
 func (o *Opts) WithVariables(variables map[string]VariableValue) *Opts {
-	o.Variables = variables
+	optsVariables := make(map[string]VariableValue, len(variables))
+	for name, value := range variables {
+		optsVariables[name] = value
+	}
+
+	o.Variables = optsVariables
 	return o
 }
 
