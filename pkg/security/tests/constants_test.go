@@ -52,6 +52,10 @@ func TestOctogonConstants(t *testing.T) {
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
+		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		})
+
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
 		if err != nil {
 			t.Skipf("btfhub constant fetcher is not available: %v", err)
@@ -77,6 +81,10 @@ func TestOctogonConstants(t *testing.T) {
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
+		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		})
+
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 		ogFetcher := constantfetch.NewOffsetGuesserFetcher(config)
 
