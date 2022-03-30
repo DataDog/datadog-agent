@@ -118,6 +118,17 @@ func (f *FallbackConstantFetcher) FinishAndGetResults() (map[string]uint64, erro
 func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	sizeOf := uint64(600)
 
+	// see https://ubuntu.com/security/CVE-2019-10638
+	increaseSizeAbiMinVersion := map[string]int{
+		"generic":      99,
+		"generic-lpae": 99,
+		"lowlatency":   99,
+		"gke":          1058,
+		"gcp":          1093,
+		"aws":          1066,
+		"azure":        1082,
+	}
+
 	switch {
 	case kv.IsRH7Kernel():
 		sizeOf = 584
@@ -139,6 +150,12 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 584
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		if ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion) {
+			sizeOf = 608
+		} else {
+			sizeOf = 600
+		}
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
 		sizeOf = 608
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
@@ -184,7 +201,9 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 368
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		ttyOffset = 400
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		ttyOffset = 368
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
 		ttyOffset = 376
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
 		ttyOffset = 400
@@ -279,6 +298,8 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsSLES12Kernel():
 		nameOffset = 176
 
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
+		nameOffset = 112
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel5_1):
 		nameOffset = 176
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_3):
@@ -316,6 +337,8 @@ func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		auxOffset = 24
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		auxOffset = 24
 	case kv.Code >= kernel.Kernel5_13:
 		auxOffset = 56
 	}
@@ -328,7 +351,8 @@ func getBpfProgTagOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		progTagOffset = 16
-	default:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		progTagOffset = 16
 	}
 
 	return progTagOffset
@@ -357,7 +381,7 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		idOffset = 16
 
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel5_0):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_0):
 		idOffset = 16
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_4):
 		idOffset = 20
@@ -387,6 +411,8 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		nameOffset = 544
 
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
+		nameOffset = 128
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
 		nameOffset = 152
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
@@ -434,6 +460,10 @@ func getPIDNumbersOffset(kv *kernel.Version) uint64 {
 		pidNumbersOffset = 128
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_0):
+		pidNumbersOffset = 48
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		pidNumbersOffset = 56
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_3):
 		pidNumbersOffset = 48
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_3):
 		pidNumbersOffset = 56
@@ -522,7 +552,21 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 }
 
 func getNetNSOffset(kv *kernel.Version) uint64 {
+	// see https://ubuntu.com/security/CVE-2019-10638
+	hashMixAbiMinVersion := map[string]int{
+		"generic":      60,
+		"generic-lpae": 60,
+		"lowlatency":   60,
+		"oracle":       1022,
+		"gke":          1041,
+		"gcp":          1042,
+		"aws":          1047,
+		"azure":        1018,
+	}
+
 	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16) && ubuntuAbiVersionCheck(kv, hashMixAbiMinVersion):
+		fallthrough
 	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
 	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
 	// and is part of master since 5.1
@@ -608,4 +652,18 @@ func getFlowi6SAddrOffset(kv *kernel.Version) uint64 {
 
 func getFlowi6ULIOffset(kv *kernel.Version) uint64 {
 	return getFlowi6SAddrOffset(kv) + 20
+}
+
+func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) bool {
+	ukv := kv.UbuntuKernelVersion()
+	if ukv == nil {
+		return false
+	}
+
+	minAbi, present := minAbiPerFlavor[ukv.Flavor]
+	if !present {
+		return false
+	}
+
+	return ukv.Abi >= minAbi
 }

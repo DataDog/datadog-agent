@@ -145,6 +145,19 @@ func (k *Version) IsDebianKernel() bool {
 	return k.OsRelease["ID"] == "debian"
 }
 
+// UbuntuKernelVersion returns a parsed ubuntu kernel version or nil if not on ubuntu or if parsing failed
+func (k *Version) UbuntuKernelVersion() *kernel.UbuntuKernelVersion {
+	if k.OsRelease["ID"] != "ubuntu" {
+		return nil
+	}
+
+	ukv, err := kernel.NewUbuntuKernelVersion(k.UnameRelease)
+	if err != nil {
+		return nil
+	}
+	return ukv
+}
+
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
 	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
