@@ -22,8 +22,8 @@ import (
 
 func TestDNS(t *testing.T) {
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Suse and Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsSuseKernel() || kv.IsOracleUEKKernel()
+		// TODO: Oracle because we are missing offsets
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
