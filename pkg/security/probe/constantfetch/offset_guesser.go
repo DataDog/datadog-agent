@@ -115,7 +115,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 		ConstantEditors: []manager.ConstantEditor{
 			{
 				Name:  "pid_expected",
-				Value: uint64(os.Getpid()),
+				Value: uint64(utils.Getpid()),
 			},
 		},
 		RLimit: &unix.Rlimit{
