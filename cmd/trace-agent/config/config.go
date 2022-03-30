@@ -281,7 +281,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	{
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
-		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
+		// where it returns false even if "apm_config.obfuscation.credit_cards.enabled" is set via an environment
 		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.credit_cards.enabled") {
 			c.Obfuscation.CreditCards.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled")
