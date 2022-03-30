@@ -1,8 +1,5 @@
 RealTime Containers
 ===================
-Hostname: {{ .Hostname }}
-Memory: {{ bytes .Memory }}
-CPUs: {{ .CPUCount }}
 {{- range $c := .ContainerStats}}
 > ID: {{ .Id }}
   CPU Limit:    {{ .CpuLimit }}

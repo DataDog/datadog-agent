@@ -1,8 +1,5 @@
 RealTime Processes
 ==================
-Hostname: {{ .Hostname }}
-Memory: {{ bytes .Memory }}
-CPUs: {{ .CPUCount }}
 {{- range $process := .ProcessStats}}
 > PID: {{ .Pid }}
   Container ID: {{ .ContainerId }}

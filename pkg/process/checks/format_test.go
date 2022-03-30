@@ -110,11 +110,14 @@ func TestHumanFormatProcess(t *testing.T) {
 	err := humanFormatProcess(msgs, w)
 	assert.NoError(t, err)
 
-	const expectHumanFormat = `Processes
+	const expectHumanFormat = `Host Info
 =========
 Hostname: foo
 Memory: 16 GB
 CPUs: 4
+
+Processes
+=========
 > PID: 2 NSPID: 1002 PPID: 1
   Container ID: foo-container
   Exe: foo.exe
@@ -143,9 +146,6 @@ CPUs: 4
 
 Containers
 ==========
-Hostname: foo
-Memory: 16 GB
-CPUs: 4
 > ID: foo-container-id
   Name: foo
   Image: foo/foo:v1
@@ -243,11 +243,14 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 	err := humanFormatRealTimeProcess(msgs, w)
 	assert.NoError(t, err)
 
-	const expectHumanFormat = `RealTime Processes
-==================
+	const expectHumanFormat = `Host Info
+=========
 Hostname: foo
 Memory: 16 GB
 CPUs: 4
+
+RealTime Processes
+==================
 > PID: 2
   Container ID: foo-container
   Create Time: 2021-01-04T04:04:00Z
@@ -272,9 +275,6 @@ CPUs: 4
 
 RealTime Containers
 ===================
-Hostname: foo
-Memory: 16 GB
-CPUs: 4
 > ID: foo-container-id
   CPU Limit:    2
   Memory Limit: 300 B
@@ -379,11 +379,14 @@ func TestHumanFormatContainer(t *testing.T) {
 	err := humanFormatContainer(msgs, w)
 	assert.NoError(t, err)
 
-	const expectHumanFormat = `Containers
-==========
+	const expectHumanFormat = `Host Info
+=========
 Hostname: foo
 Memory: 16 GB
 CPUs: 4
+
+Containers
+==========
 > ID: baz-container-id
   Name: baz
   Image: baz/baz:v1
@@ -428,6 +431,7 @@ CPUs: 4
   Thread Limit: 100
   Addresses:
     IP: 192.168.0.102 Port: 10000 udp
+
 `
 	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
 }
@@ -489,11 +493,14 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
 	err := humanFormatRealTimeContainer(msgs, w)
 	assert.NoError(t, err)
 
-	const expectHumanFormat = `RealTime Containers
-===================
+	const expectHumanFormat = `Host Info
+=========
 Hostname: foo
 Memory: 16 GB
 CPUs: 4
+
+RealTime Containers
+===================
 > ID: baz-container-id
   CPU Limit:    3
   Memory Limit: 200 B
@@ -526,6 +533,7 @@ CPUs: 4
     Sent:     200 B/s 10 Ops/s
   Thread Count: 40
   Thread Limit: 100
+
 `
 	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
 }
@@ -533,6 +541,7 @@ CPUs: 4
 func TestHumanFormatProcessDiscovery(t *testing.T) {
 	var msgs []model.MessageBody = []model.MessageBody{
 		&model.CollectorProcDiscovery{
+			HostName: "foo",
 			ProcessDiscoveries: []*model.ProcessDiscovery{
 				{
 					Pid:   2,
@@ -558,7 +567,11 @@ func TestHumanFormatProcessDiscovery(t *testing.T) {
 	err := humanFormatProcessDiscovery(msgs, w)
 	assert.NoError(t, err)
 
-	const expectHumanFormat = `Process Discovery
+	const expectHumanFormat = `Host Info
+=========
+Hostname: foo
+
+Process Discovery
 =================
 > PID: 2 NSPID: 1002 PPID: 1
   Exe: foo.exe
@@ -566,6 +579,7 @@ func TestHumanFormatProcessDiscovery(t *testing.T) {
   Cwd: /home/puppy
   User: root Uid: 0 Gid: 1 Euid: 2 Egid: 3 Suid: 4 Sgid: 5
   Create Time: 2021-01-04T04:04:00Z
+
 `
 	assertEqualAnyLineBreak(t, expectHumanFormat, w.String())
 }

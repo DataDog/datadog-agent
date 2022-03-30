@@ -28,6 +28,9 @@ var (
 	// ErrUnexpectedMessageType is thrown when message type is incompatible with check
 	ErrUnexpectedMessageType = errors.New("unexpected message type")
 
+	//go:embed templates/host.tmpl
+	hostTemplate string
+
 	//go:embed templates/processes.tmpl
 	processesTemplate string
 
@@ -124,21 +127,13 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 		data.Containers = append(data.Containers, containers[cid])
 	}
 
-	templates := []string{
+	return renderTemplates(
+		w,
+		data,
+		hostTemplate,
 		processesTemplate,
 		containersTemplate,
-	}
-
-	for idx, name := range templates {
-		t := template.Must(template.New("process-" + strconv.Itoa(idx)).Funcs(fnMap).Parse(name))
-		err := t.Execute(w, data)
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintln(w, "")
-	}
-	return nil
+	)
 }
 
 func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
@@ -191,20 +186,13 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 		data.ContainerStats = append(data.ContainerStats, containerStats[cid])
 	}
 
-	templates := []string{
+	return renderTemplates(
+		w,
+		data,
+		hostTemplate,
 		rtProcessesTemplate,
 		rtContainersTemplate,
-	}
-
-	for idx, name := range templates {
-		t := template.Must(template.New("process-" + strconv.Itoa(idx)).Funcs(fnMap).Parse(name))
-		err := t.Execute(w, data)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(w, "")
-	}
-	return nil
+	)
 }
 
 func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
@@ -243,8 +231,12 @@ func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 		data.Containers = append(data.Containers, containers[cid])
 	}
 
-	t := template.Must(template.New("container").Funcs(fnMap).Parse(containersTemplate))
-	return t.Execute(w, data)
+	return renderTemplates(
+		w,
+		data,
+		hostTemplate,
+		containersTemplate,
+	)
 }
 
 func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
@@ -283,13 +275,18 @@ func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
 		data.ContainerStats = append(data.ContainerStats, stats[cid])
 	}
 
-	t := template.Must(template.New("rtcontainer").Funcs(fnMap).Parse(rtContainersTemplate))
-	return t.Execute(w, data)
+	return renderTemplates(
+		w,
+		data,
+		hostTemplate,
+		rtContainersTemplate,
+	)
 }
 
 func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
 		Discoveries []*model.ProcessDiscovery
+		Hostname    string
 	}
 
 	var (
@@ -302,6 +299,7 @@ func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 		if !ok {
 			return ErrUnexpectedMessageType
 		}
+		data.Hostname = proc.HostName
 		for _, d := range proc.ProcessDiscoveries {
 			discoveries[d.Pid] = d
 			pids = append(pids, int(d.Pid))
@@ -314,6 +312,22 @@ func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 		data.Discoveries = append(data.Discoveries, discoveries[int32(pid)])
 	}
 
-	t := template.Must(template.New("discovery").Funcs(fnMap).Parse(discoveryTemplate))
-	return t.Execute(w, data)
+	return renderTemplates(
+		w,
+		data,
+		discoveryTemplate,
+	)
+}
+
+func renderTemplates(w io.Writer, data interface{}, templates ...string) error {
+	for idx, name := range templates {
+		t := template.Must(template.New("tmpl-" + strconv.Itoa(idx)).Funcs(fnMap).Parse(name))
+		err := t.Execute(w, data)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintln(w, "")
+	}
+	return nil
 }
