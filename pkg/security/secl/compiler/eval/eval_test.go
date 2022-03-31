@@ -531,7 +531,7 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
 	}
 
-	ctx := NewContext(unsafe.Pointer(&event))
+	ctx := NewContext(event.GetPointer())
 
 	for _, test := range tests {
 		model := &testModel{}

@@ -34,6 +34,12 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	if !ok {
 		values = []FieldValue{}
 	}
+	for _, v := range values {
+		if v == value {
+			return nil
+		}
+	}
+
 	values = append(values, value)
 	s.fieldValues[field] = values
 	return s.model.ValidateField(field, value)
