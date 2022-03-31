@@ -15,7 +15,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
+	"github.com/stretchr/testify/assert"
 )
 
 func savePolicy(filename string, testPolicy *Policy) error {
@@ -396,7 +398,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 }
 
-func loadPolicyInner(t *testing.T, testPolicy *Policy, versionChecker AgentConstraintVerifier) (*RuleSet, *multierror.Error) {
+func loadPolicyInner(t *testing.T, testPolicy *Policy, agentVersion *semver.Version) (*RuleSet, *multierror.Error) {
 	t.Helper()
 	enabled := map[eval.EventType]bool{"*": true}
 	var opts Opts
@@ -417,7 +419,7 @@ func loadPolicyInner(t *testing.T, testPolicy *Policy, versionChecker AgentConst
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs, nil); err.ErrorOrNil() != nil {
+	if err := LoadPolicies(tmpDir, rs, agentVersion); err.ErrorOrNil() != nil {
 		return nil, err
 	}
 	return rs, nil
@@ -626,13 +628,13 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 }
 
-func constraintVerifier(constraint string) (bool, error) {
-	return true, nil
-}
-
 func TestVersionedRule(t *testing.T) {
 	testPolicy := &Policy{
 		Name: "test-policy",
+		Rules: []*RuleDefinition{{
+			ID:         "test_non_versioned_rule",
+			Expression: `open.filename == "/tmp/test"`,
+		}},
 		VersionedRules: []*VersionedRuleDefinition{{
 			RuleDefinition: RuleDefinition{
 				ID:         "test_versioned_rule",
@@ -642,10 +644,12 @@ func TestVersionedRule(t *testing.T) {
 		}},
 	}
 
-	rs, err := loadPolicyInner(t, testPolicy, constraintVerifier)
+	testAgentVersion, _ := semver.NewVersion("7.36")
+	rs, err := loadPolicyInner(t, testPolicy, testAgentVersion)
 	if err != nil {
 		t.Error(err)
 	}
 
-	t.Error(rs)
+	assert.NotContains(t, rs.rules, "test_non_versioned_rule")
+	assert.Contains(t, rs.rules, "test_versioned_rule")
 }
