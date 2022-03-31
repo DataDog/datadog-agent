@@ -27,10 +27,6 @@ func savePolicy(filename string, testPolicy *Policy) error {
 	return os.WriteFile(filename, yamlBytes, 0700)
 }
 
-func checkAgentConstraintNoOp(constraint string) (bool, error) {
-	return true, nil
-}
-
 func TestMacroMerge(t *testing.T) {
 	var opts Opts
 	opts.
@@ -83,7 +79,7 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err != nil {
+	if err := LoadPolicies(tmpDir, rs, nil); err != nil {
 		t.Error(err)
 	}
 
@@ -98,7 +94,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err == nil {
+	if err := LoadPolicies(tmpDir, rs, nil); err == nil {
 		t.Error("expected macro ID conflict")
 	}
 }
@@ -142,7 +138,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err != nil {
+	if err := LoadPolicies(tmpDir, rs, nil); err != nil {
 		t.Error(err)
 	}
 
@@ -157,7 +153,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err == nil {
+	if err := LoadPolicies(tmpDir, rs, nil); err == nil {
 		t.Error("expected rule ID conflict")
 	}
 }
@@ -311,7 +307,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err != nil {
+	if err := LoadPolicies(tmpDir, rs, nil); err != nil {
 		t.Error(err)
 	}
 
@@ -393,7 +389,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err == nil {
+	if err := LoadPolicies(tmpDir, rs, nil); err == nil {
 		t.Error("expected policy to fail to load")
 	} else {
 		t.Log(err)
@@ -421,7 +417,7 @@ func loadPolicyInner(t *testing.T, testPolicy *Policy, versionChecker AgentConst
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err.ErrorOrNil() != nil {
+	if err := LoadPolicies(tmpDir, rs, nil); err.ErrorOrNil() != nil {
 		return nil, err
 	}
 	return rs, nil
@@ -429,7 +425,7 @@ func loadPolicyInner(t *testing.T, testPolicy *Policy, versionChecker AgentConst
 
 func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
 	t.Helper()
-	_, err := loadPolicyInner(t, testPolicy, checkAgentConstraintNoOp)
+	_, err := loadPolicyInner(t, testPolicy, nil)
 	return err
 }
 

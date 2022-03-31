@@ -13,8 +13,10 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
@@ -42,7 +44,7 @@ func checkRuleID(ruleID string) bool {
 type AgentConstraintVerifier = func(string) (bool, error)
 
 // GetValidMacroAndRules returns valid macro, rules definitions
-func (p *Policy) GetValidMacroAndRules(agentConstraintVerifier AgentConstraintVerifier) ([]*MacroDefinition, []*RuleDefinition, *multierror.Error) {
+func (p *Policy) GetValidMacroAndRules(agentVersion *semver.Version) ([]*MacroDefinition, []*RuleDefinition, *multierror.Error) {
 	var (
 		result *multierror.Error
 		macros []*MacroDefinition
@@ -64,7 +66,7 @@ func (p *Policy) GetValidMacroAndRules(agentConstraintVerifier AgentConstraintVe
 
 	if len(p.VersionedRules) != 0 {
 		for _, verRuleDef := range p.VersionedRules {
-			versionCheck, err := agentConstraintVerifier(verRuleDef.AgentVersionConstraint)
+			versionCheck, err := checkAgentVersionConstraint(verRuleDef.AgentVersionConstraint, agentVersion)
 			if err != nil {
 				result = multierror.Append(result, err)
 				continue
@@ -99,6 +101,24 @@ func (p *Policy) GetValidMacroAndRules(agentConstraintVerifier AgentConstraintVe
 	return macros, rules, result
 }
 
+func checkAgentVersionConstraint(constraint string, agentVersion *semver.Version) (bool, error) {
+	if agentVersion == nil {
+		return true, nil
+	}
+
+	constraint = strings.TrimSpace(constraint)
+	if constraint == "" {
+		return true, nil
+	}
+
+	semverConstraint, err := semver.NewConstraint(constraint)
+	if err != nil {
+		return false, err
+	}
+
+	return semverConstraint.Check(agentVersion), nil
+}
+
 func checkRuleDefinition(ruleDef *RuleDefinition) error {
 	if ruleDef.ID == "" {
 		return &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)}
@@ -128,7 +148,7 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 }
 
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
-func LoadPolicies(policiesDir string, ruleSet *RuleSet, agentConstraintVerifier AgentConstraintVerifier) *multierror.Error {
+func LoadPolicies(policiesDir string, ruleSet *RuleSet, agentVersion *semver.Version) *multierror.Error {
 	var (
 		result     *multierror.Error
 		allRules   []*RuleDefinition
@@ -180,7 +200,7 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet, agentConstraintVerifier 
 		// Add policy version for logging purposes
 		ruleSet.AddPolicyVersion(filename, policy.Version)
 
-		macros, rules, mErr := policy.GetValidMacroAndRules(agentConstraintVerifier)
+		macros, rules, mErr := policy.GetValidMacroAndRules(agentVersion)
 		if mErr.ErrorOrNil() != nil {
 			result = multierror.Append(result, mErr)
 		}

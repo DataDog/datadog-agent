@@ -275,7 +275,11 @@ func (m *Module) Reload() error {
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
-	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet, agent.CheckAgentVersionConstraint)
+	av, err := agent.GetAgentSemverVersion()
+	if err != nil {
+		return err
+	}
+	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet, av)
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
 	opts.WithVariables(sprobe.SECLVariables)
@@ -284,7 +288,7 @@ func (m *Module) Reload() error {
 	})
 
 	ruleSet := m.probe.NewRuleSet(&opts)
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet, agent.CheckAgentVersionConstraint)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet, av)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
@@ -299,7 +303,7 @@ func (m *Module) Reload() error {
 		if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
 			log.Errorf("failed to create self-test target file: %+v", err)
 		}
-		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
+		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet, av)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())

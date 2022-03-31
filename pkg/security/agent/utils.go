@@ -6,33 +6,16 @@
 package agent
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/Masterminds/semver"
 )
 
-// CheckAgentVersionConstraint checks that the semver constraint is satisfied by the agent version
-func CheckAgentVersionConstraint(constraint string) (bool, error) {
-	constraint = strings.TrimSpace(constraint)
-	if constraint == "" {
-		return true, nil
-	}
-
+// GetAgentSemverVersion returns the agent version as a semver version
+func GetAgentSemverVersion() (*semver.Version, error) {
 	av, err := version.Agent()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	agentVersion, err := semver.NewVersion(av.GetNumberAndPre())
-	if err != nil {
-		return false, err
-	}
-
-	semverConstraint, err := semver.NewConstraint(constraint)
-	if err != nil {
-		return false, err
-	}
-
-	return semverConstraint.Check(agentVersion), nil
+	return semver.NewVersion(av.GetNumberAndPre())
 }

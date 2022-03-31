@@ -550,7 +550,12 @@ func checkPoliciesInner(dir string) error {
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 
-	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet, agent.CheckAgentVersionConstraint); err.ErrorOrNil() != nil {
+	av, err := agent.GetAgentSemverVersion()
+	if err != nil {
+		return err
+	}
+
+	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet, av); err.ErrorOrNil() != nil {
 		return err
 	}
 
