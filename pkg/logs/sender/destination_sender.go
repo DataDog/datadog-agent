@@ -92,7 +92,7 @@ func (d *DestinationSender) Send(payload *message.Payload) bool {
 }
 
 // NonBlockingSend tries to send the payload and fails silently if the input is full.
-// returns false if the buffer is full - true if successful. 
+// returns false if the buffer is full - true if successful.
 func (d *DestinationSender) NonBlockingSend(payload *message.Payload) bool {
 	select {
 	case d.input <- payload:
