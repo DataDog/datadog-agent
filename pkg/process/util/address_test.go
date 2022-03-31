@@ -18,16 +18,12 @@ func TestNetIPToAddress(t *testing.T) {
 	addr := V4Address(889192575)
 	addrFromIP := AddressFromNetIP(net.ParseIP("127.0.0.53"))
 
-	_, ok := addrFromIP.(v4Address)
-	assert.True(t, ok)
 	assert.Equal(t, addrFromIP, addr)
 
 	// V6
 	addr = V6Address(889192575, 0)
 	addrFromIP = AddressFromNetIP(net.ParseIP("::7f00:35:0:0"))
 
-	_, ok = addrFromIP.(v6Address)
-	assert.True(t, ok)
 	assert.Equal(t, addrFromIP, addr)
 
 	// Mismatch tests
@@ -159,4 +155,17 @@ func BenchmarkNetIPFromAddress(b *testing.B) {
 		ip = NetIPFromAddress(addr, buf)
 	}
 	runtime.KeepAlive(ip)
+}
+
+// The purpose of this benchmark is to ensure that generating
+// an Address from a pair o int64s doesn't allocate
+func BenchmarkV6Address(b *testing.B) {
+	var addr Address
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		addr = V6Address(889192575, 0)
+	}
+	runtime.KeepAlive(addr)
 }

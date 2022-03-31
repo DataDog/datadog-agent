@@ -164,12 +164,12 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 	buf := util.IPBufferPool.Get().(*[]byte)
 	defer util.IPBufferPool.Put(buf)
 
-	if len(scf) > 0 && conn.Source != nil {
+	if len(scf) > 0 {
 		if findMatchingFilter(scf, util.NetIPFromAddress(conn.Source, *buf), conn.SPort, conn.Type) {
 			return true
 		}
 	}
-	if len(dcf) > 0 && conn.Dest != nil {
+	if len(dcf) > 0 {
 		if findMatchingFilter(dcf, util.NetIPFromAddress(conn.Dest, *buf), conn.DPort, conn.Type) {
 			return true
 		}

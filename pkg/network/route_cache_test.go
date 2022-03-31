@@ -32,7 +32,7 @@ func TestRouteCacheGet(t *testing.T) {
 
 		times int
 	}{
-		{source: "127.0.0.1", dest: "127.0.0.1", route: Route{Gateway: nil, IfIndex: 0}, ok: true, times: 1},
+		{source: "127.0.0.1", dest: "127.0.0.1", route: Route{IfIndex: 0}, ok: true, times: 1},
 		{source: "10.0.2.2", dest: "8.8.8.8", route: Route{Gateway: util.AddressFromString("10.0.2.1"), IfIndex: 1}, ok: true, times: 1},
 		{source: "1.2.3.4", dest: "5.6.7.8", route: Route{}, ok: false, times: 2}, // 2 calls expected here since this is not going to be cached
 	}
