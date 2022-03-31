@@ -6301,6 +6301,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1116-gcp",
+			"cindex": 53
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1118-aws",
 			"cindex": 53
 		},
@@ -6310,6 +6317,20 @@
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1118-azure",
 			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1118-gcp",
+			"cindex": 53
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1119-gcp",
+			"cindex": 53
 		},
 		{
 			"distrib": "ubuntu",
@@ -6379,6 +6400,34 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1130-azure",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1131-azure",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1133-azure",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1134-azure",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1136-azure",
 			"cindex": 55
 		},
 		{
@@ -6610,6 +6659,34 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-167-generic",
+			"cindex": 53
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-169-generic",
+			"cindex": 53
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-171-generic",
+			"cindex": 53
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-173-generic",
+			"cindex": 53
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-175-generic",
 			"cindex": 53
 		},
 		{
