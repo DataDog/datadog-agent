@@ -11,12 +11,12 @@ RUN if [ "$CIBUILD" = "true" ]; then \
   sed -i -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' /etc/apt/sources.list; \
   fi
 
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update
 
 FROM baseimage AS faccessat
 COPY faccessat/faccessat.c   /tmp/faccessat.c
 COPY faccessat/faccessat.sym /tmp/faccessat.sym
-ENV DEBIAN_FRONTEND=noninteractive
 RUN apt install -y gcc
 RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c -Wl,--version-script=/tmp/faccessat.sym
 
