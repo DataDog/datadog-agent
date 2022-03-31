@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/internal/uptane"
@@ -8,34 +9,34 @@ import (
 
 // Client is a remoteconfig client
 type Client struct {
-	m sync.Mutex
+	m        sync.Mutex
+	id       string
+	products map[string]struct{}
 
-	products      map[string]struct{}
-	partialClient *uptane.PartialClient
+	partialClient  *uptane.PartialClient
+	currentTargets *uptane.PartialClientTargets
+
+	currentConfigs *configList
 }
 
-func NewClient(embededRoot []byte) *Client {
+func NewClient(id string, embededRoot []byte, products []string) *Client {
+	productsMap := make(map[string]struct{})
+	for _, product := range products {
+		productsMap[product] = struct{}{}
+	}
 	return &Client{
-		products:      make(map[string]struct{}),
-		partialClient: uptane.NewPartialClient(embededRoot),
+		id:             id,
+		products:       productsMap,
+		partialClient:  uptane.NewPartialClient(embededRoot),
+		currentTargets: &uptane.PartialClientTargets{},
+		currentConfigs: newConfigList(),
 	}
 }
 
-func (c *Client) AddProduct(product string) {
+func (c *Client) GetConfigs(time int64) Configs {
 	c.m.Lock()
 	defer c.m.Unlock()
-	c.products[product] = struct{}{}
-}
-
-func (c *Client) RemoveProduct(product string) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	delete(c.products, product)
-}
-
-func (c *Client) GetConfigs(time int64) {
-	c.m.Lock()
-	defer c.m.Unlock()
+	return c.currentConfigs.getCurrentConfigs(c.id, time)
 }
 
 type File struct {
@@ -46,15 +47,47 @@ type File struct {
 type Update struct {
 	Roots       [][]byte
 	Targets     []byte
-	TargetFiles []File
+	TargetFiles map[string][]byte
 }
 
 func (c *Client) Update(update Update) error {
 	c.m.Lock()
 	defer c.m.Unlock()
-	targetFiles := make(map[string][]byte)
-	for _, targetFile := range update.TargetFiles {
-		targetFiles[targetFile.Path] = targetFile.Raw
+	if len(update.Roots) == 0 && len(update.Targets) == 0 {
+		return nil
 	}
-	return c.partialClient.Update(update.Roots, update.Targets, targetFiles)
+	err := c.partialClient.UpdateRoots(update.Roots)
+	if err != nil {
+		return err
+	}
+	newTargets, err := c.partialClient.UpdateTargets(c.currentTargets, update.Targets, update.TargetFiles)
+	if err != nil {
+		return err
+	}
+	newConfigs := newConfigList()
+	for targetPath, targetMeta := range newTargets.Targets() {
+		configMeta, err := parseConfigMeta(targetPath, *targetMeta.Custom)
+		if err != nil {
+			return err
+		}
+		_, hasProduct := c.products[configMeta.path.Product]
+		if !hasProduct || !configMeta.scopedToClient(c.id) {
+			continue
+		}
+		configContents, found := newTargets.TargetFile(targetPath)
+		if !found {
+			return fmt.Errorf("missing config file: %s", targetPath)
+		}
+		config := config{
+			meta:     configMeta,
+			contents: configContents,
+		}
+		err = newConfigs.addConfig(config)
+		if err != nil {
+			return err
+		}
+	}
+	c.currentConfigs = newConfigs
+	c.currentTargets = newTargets
+	return nil
 }

@@ -6,19 +6,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 )
 
+const (
+	ProductAPMSampling = "APM_SAMPLING"
+)
+
 type ConfigAPMSamling struct {
-	Config
-	apmsampling.APMSampling
+	c config
+
+	ID      string
+	Version uint64
+	Config  apmsampling.APMSampling
 }
 
-func parseConfigAPMSampling(config Config, rawConfig []byte) (*ConfigAPMSamling, error) {
+func parseConfigAPMSampling(config config) (ConfigAPMSamling, error) {
 	var apmConfig apmsampling.APMSampling
-	_, err := apmConfig.UnmarshalMsg(rawConfig)
+	_, err := apmConfig.UnmarshalMsg(config.contents)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse apm sampling config: %v", err)
+		return ConfigAPMSamling{}, fmt.Errorf("could not parse apm sampling config: %v", err)
 	}
-	return &ConfigAPMSamling{
-		Config:      config,
-		APMSampling: apmConfig,
+	return ConfigAPMSamling{
+		c:       config,
+		ID:      config.meta.path.ConfigID,
+		Version: *config.meta.custom.Version,
+		Config:  apmConfig,
 	}, nil
 }

@@ -23,7 +23,7 @@ const (
 
 type metaPath struct {
 	role       role
-	version    uint64
+	version    int64
 	versionSet bool
 }
 
@@ -45,7 +45,7 @@ func parseMetaPath(rawMetaPath string) (metaPath, error) {
 			role: role(rawRole),
 		}, nil
 	}
-	rawVersion, err := strconv.ParseUint(splitRawMetaPath[0], 10, 64)
+	rawVersion, err := strconv.ParseInt(splitRawMetaPath[0], 10, 64)
 	if err != nil {
 		return metaPath{}, fmt.Errorf("invalid metadata path (version) '%s': %w", rawMetaPath, err)
 	}
@@ -56,10 +56,10 @@ func parseMetaPath(rawMetaPath string) (metaPath, error) {
 	}, nil
 }
 
-func metaVersion(rawMeta json.RawMessage) (uint64, error) {
+func metaVersion(rawMeta json.RawMessage) (int64, error) {
 	var metaVersion struct {
 		Signed *struct {
-			Version *uint64 `json:"version"`
+			Version *int64 `json:"version"`
 		} `json:"signed"`
 	}
 	err := json.Unmarshal(rawMeta, &metaVersion)

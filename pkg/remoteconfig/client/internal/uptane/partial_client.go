@@ -46,24 +46,12 @@ func (s *partialClientRemoteStore) GetTarget(path string) (stream io.ReadCloser,
 	return nil, 0, client.ErrNotFound{File: path}
 }
 
-// PartialState represents the state of a partial uptane client
-type PartialState struct {
-	RootVersion    uint64
-	TargetsVersion uint64
-}
-
 // PartialClient is a partial uptane client
 type PartialClient struct {
-	rootClient  *client.Client
-	localStore  client.LocalStore
-	remoteStore *partialClientRemoteStore
-
-	valid bool
-
-	rootVersion    uint64
-	targetsVersion uint64
-	targetMetas    data.TargetFiles
-	targetFiles    map[string][]byte
+	rootClient       *client.Client
+	rootVersion      int64
+	rootsLocalStore  client.LocalStore
+	rootsRemoteStore *partialClientRemoteStore
 }
 
 // NewPartialClient creates a new partial uptane client
@@ -79,16 +67,16 @@ func NewPartialClient(embededRoot []byte) *PartialClient {
 	}
 	remoteStore := &partialClientRemoteStore{}
 	c := &PartialClient{
-		rootClient:  client.NewClient(localStore, remoteStore),
-		localStore:  localStore,
-		remoteStore: remoteStore,
-		rootVersion: embededRootVersion,
+		rootClient:       client.NewClient(localStore, remoteStore),
+		rootsLocalStore:  localStore,
+		rootsRemoteStore: remoteStore,
+		rootVersion:      embededRootVersion,
 	}
 	return c
 }
 
 func (c *PartialClient) getRoot() (*data.Root, error) {
-	metas, err := c.localStore.GetMeta()
+	metas, err := c.rootsLocalStore.GetMeta()
 	if err != nil {
 		return nil, err
 	}
@@ -106,87 +94,91 @@ func (c *PartialClient) getRoot() (*data.Root, error) {
 	return &root, nil
 }
 
-func (c *PartialClient) validateAndUpdateTargets(rawTargets []byte) error {
-	if len(rawTargets) == 0 {
+// RootVersion returns the state of the partial client
+func (c *PartialClient) RootVersion() int64 {
+	return c.rootVersion
+}
+
+// UpdateRoots updates the partial client roots
+func (c *PartialClient) UpdateRoots(roots [][]byte) error {
+	if len(roots) == 0 {
 		return nil
 	}
-	root, err := c.getRoot()
-	if err != nil {
-		return err
-	}
-	db := verify.NewDB()
-	for _, key := range root.Keys {
-		for _, id := range key.IDs() {
-			if err := db.AddKey(id, key); err != nil {
-				return err
-			}
-		}
-	}
-	targetsRole, hasRoleTargets := root.Roles["targets"]
-	if !hasRoleTargets {
-		return fmt.Errorf("root is missing a targets role")
-	}
-	role := &data.Role{Threshold: targetsRole.Threshold, KeyIDs: targetsRole.KeyIDs}
-	if err := db.AddRole("targets", role); err != nil {
-		return fmt.Errorf("could not add targets role to db: %v", err)
-	}
-	var targets data.Targets
-	err = db.Unmarshal(rawTargets, &targets, "targets", 0)
-	if err != nil {
-		return err
-	}
-	c.targetMetas = targets.Targets
-	c.targetsVersion = uint64(targets.Version)
-	return nil
-}
-
-// State returns the state of the partial client
-func (c *PartialClient) State() PartialState {
-	return PartialState{
-		RootVersion:    c.rootVersion,
-		TargetsVersion: c.targetsVersion,
-	}
-}
-
-// Update updates the partial client
-func (c *PartialClient) Update(roots [][]byte, targets []byte, targetFiles map[string][]byte) error {
-	c.valid = false
-	c.remoteStore.roots = roots
+	c.rootsRemoteStore.roots = roots
 	err := c.rootClient.UpdateRoots()
 	if err != nil {
 		return err
 	}
-	err = c.updateRootVersion()
+	return c.updateRootVersion()
+}
+
+// PartialClientTargets is a partial client targets
+type PartialClientTargets struct {
+	version     int64
+	metas       data.TargetFiles
+	targetFiles map[string][]byte
+}
+
+// Targets returns the current targets of this uptane partial client
+func (t *PartialClientTargets) Targets() data.TargetFiles {
+	return t.metas
+}
+
+// TargetFile returns the content of a target
+func (t *PartialClientTargets) TargetFile(path string) ([]byte, bool) {
+	file, found := t.targetFiles[path]
+	return file, found
+}
+
+func mergeTargetFiles(old map[string][]byte, new map[string][]byte) map[string][]byte {
+	newTargetFiles := make(map[string][]byte)
+	for path, target := range old {
+		newTargetFiles[path] = target
+	}
+	for path, target := range new {
+		newTargetFiles[path] = target
+	}
+	return newTargetFiles
+}
+
+func purgeTargetFiles(tufTargetFiles data.TargetFiles, targetFiles map[string][]byte) {
+	for path := range targetFiles {
+		if _, found := tufTargetFiles[path]; !found {
+			delete(targetFiles, path)
+		}
+	}
+}
+
+// UpdateTargets updates the partial client
+func (c *PartialClient) UpdateTargets(previousTargets *PartialClientTargets, rawTargets []byte, targetFiles map[string][]byte) (*PartialClientTargets, error) {
+	if len(rawTargets) == 0 {
+		return previousTargets, nil
+	}
+	targets, err := c.validateTargets(rawTargets)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if len(targets) == 0 {
-		c.valid = true
-		return nil
-	}
-	err = c.validateAndUpdateTargets(targets)
-	if err != nil {
-		return err
-	}
-	for path, target := range targetFiles {
-		c.targetFiles[path] = target
-		_, err := c.targetFile(path)
+	mergedTargetFiles := mergeTargetFiles(previousTargets.targetFiles, targetFiles)
+	for path, targetMeta := range targets.Targets {
+		targetFile, found := mergedTargetFiles[path]
+		if !found {
+			continue
+		}
+		err := validateTargetFile(targetMeta, targetFile)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	for filePath := range c.targetFiles {
-		_, exist := c.targetMetas[filePath]
-		if !exist {
-			delete(c.targetFiles, filePath)
-		}
-	}
-	c.valid = true
-	return nil
+	purgeTargetFiles(targets.Targets, mergedTargetFiles)
+	return &PartialClientTargets{
+		version:     int64(targets.Version),
+		metas:       targets.Targets,
+		targetFiles: mergedTargetFiles,
+	}, nil
 }
 
 func (c *PartialClient) updateRootVersion() error {
-	meta, err := c.localStore.GetMeta()
+	meta, err := c.rootsLocalStore.GetMeta()
 	if err != nil {
 		return err
 	}
@@ -202,41 +194,46 @@ func (c *PartialClient) updateRootVersion() error {
 	return nil
 }
 
-// Targets returns the current targets of this uptane partial client
-func (c *PartialClient) Targets() (data.TargetFiles, error) {
-	if !c.valid {
-		return nil, fmt.Errorf("partial client local repository is not in a valid state")
+func (c *PartialClient) validateTargets(rawTargets []byte) (*data.Targets, error) {
+	root, err := c.getRoot()
+	if err != nil {
+		return nil, err
 	}
-	return c.targetMetas, nil
+	db := verify.NewDB()
+	for _, key := range root.Keys {
+		for _, id := range key.IDs() {
+			if err := db.AddKey(id, key); err != nil {
+				return nil, err
+			}
+		}
+	}
+	targetsRole, hasRoleTargets := root.Roles["targets"]
+	if !hasRoleTargets {
+		return nil, fmt.Errorf("root is missing a targets role")
+	}
+	role := &data.Role{Threshold: targetsRole.Threshold, KeyIDs: targetsRole.KeyIDs}
+	if err := db.AddRole("targets", role); err != nil {
+		return nil, fmt.Errorf("could not add targets role to db: %v", err)
+	}
+	var targets data.Targets
+	err = db.Unmarshal(rawTargets, &targets, "targets", 0)
+	if err != nil {
+		return nil, err
+	}
+	return &targets, nil
 }
 
-// TargetFile returns the content of a target
-func (c *PartialClient) TargetFile(path string) ([]byte, error) {
-	if !c.valid {
-		return nil, fmt.Errorf("partial client local repository is not in a valid state")
-	}
-	return c.targetFile(path)
-}
-
-func (c *PartialClient) targetFile(path string) ([]byte, error) {
-	targetFile, found := c.targetFiles[path]
-	if !found {
-		return nil, fmt.Errorf("target file %s not found", path)
-	}
-	targetMeta, hasMeta := c.targetMetas[path]
-	if !hasMeta {
-		return nil, fmt.Errorf("target file meta %s not found", path)
-	}
+func validateTargetFile(targetMeta data.TargetFileMeta, targetFile []byte) error {
 	if len(targetMeta.HashAlgorithms()) == 0 {
-		return nil, fmt.Errorf("target file %s has no hash", path)
+		return fmt.Errorf("target file has no hash")
 	}
 	generatedMeta, err := util.GenerateFileMeta(bytes.NewBuffer(targetFile), targetMeta.HashAlgorithms()...)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = util.FileMetaEqual(targetMeta.FileMeta, generatedMeta)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return targetFile, nil
+	return nil
 }
