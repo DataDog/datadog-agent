@@ -48,7 +48,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	mapProvider := NewConfigProviderFromMap(cfgMap)
 
 	// build default provider from same data
-	defaultProvider := service.NewDefaultConfigProvider(
+	defaultProvider := service.MustNewDefaultConfigProvider(
 		[]string{fmt.Sprintf("file:%s", testPath)},
 		[]string{},
 	)

@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 )
 
@@ -67,7 +66,6 @@ func newTestServer() *testServer {
 // failed, retriable and accepted requests. It also allows manipulating it's HTTTP
 // status code response by means of the request's body (see expectResponses).
 type testServer struct {
-	t       *testing.T
 	URL     string
 	server  *httptest.Server
 	latency time.Duration

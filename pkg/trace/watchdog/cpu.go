@@ -8,7 +8,7 @@
 
 package watchdog
 
-import "github.com/shirou/gopsutil/process"
+import "github.com/shirou/gopsutil/v3/process"
 
 func cpuTimeUser(pid int32) (float64, error) {
 	p, err := process.NewProcess(pid)

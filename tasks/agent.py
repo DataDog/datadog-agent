@@ -257,6 +257,7 @@ def run(
     build_exclude=None,
     flavor=AgentFlavor.base.name,
     skip_build=False,
+    config_path=None,
 ):
     """
     Execute the agent binary.
@@ -267,7 +268,9 @@ def run(
     if not skip_build:
         build(ctx, rebuild, race, build_include, build_exclude, flavor)
 
-    ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} run -c {config_path}")
 
 
 @task

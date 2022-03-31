@@ -42,6 +42,10 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getMProtectProbes()...)
 	allProbes = append(allProbes, getModuleProbes()...)
 	allProbes = append(allProbes, getSignalProbes()...)
+	allProbes = append(allProbes, getSpliceProbes()...)
+	allProbes = append(allProbes, getFlowProbes()...)
+	allProbes = append(allProbes, getNetDeviceProbes()...)
+	allProbes = append(allProbes, GetTCProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
@@ -112,8 +116,19 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+const (
+	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
+	MaxTracedCgroupsCount = 1000
+)
+
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int) map[string]manager.MapSpecEditor {
+	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
+		tracedCgroupsCount = MaxTracedCgroupsCount
+	}
+	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
+		cgroupWaitListSize = MaxTracedCgroupsCount
+	}
 	return map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: uint32(4096 * numCPU),
@@ -126,6 +141,15 @@ func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
 		"pathnames": {
 			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~27 MB
 			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 96000)),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"traced_cgroups": {
+			MaxEntries: uint32(tracedCgroupsCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"cgroup_wait_list": {
+			MaxEntries: uint32(cgroupWaitListSize),
+			EditorFlag: manager.EditMaxEntries,
 		},
 	}
 }
@@ -140,12 +164,15 @@ func AllPerfMaps() []*manager.PerfMap {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled bool, networkEnabled bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
+	if networkEnabled {
+		routes = append(routes, getTCTailCallRoutes()...)
+	}
 
 	return routes
 }

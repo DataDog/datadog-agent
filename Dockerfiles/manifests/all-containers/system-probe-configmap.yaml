@@ -32,7 +32,6 @@ data:
       enabled: false
     runtime_security_config:
       enabled: true
-      debug: false
       socket: /var/run/sysprobe/runtime-security.sock
       policies:
         dir: /etc/datadog-agent/runtime-security.d

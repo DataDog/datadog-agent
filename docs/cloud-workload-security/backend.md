@@ -44,6 +44,15 @@ CWS logs have the following JSON schema:
         "signal": {
             "$ref": "#/definitions/SignalEvent"
         },
+        "splice": {
+            "$ref": "#/definitions/SpliceEvent"
+        },
+        "dns": {
+            "$ref": "#/definitions/DNSEvent"
+        },
+        "network": {
+            "$ref": "#/definitions/NetworkContext"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -78,6 +87,9 @@ CWS logs have the following JSON schema:
 | `ptrace` | $ref | Please see [PTraceEvent](#ptraceevent) |
 | `module` | $ref | Please see [ModuleEvent](#moduleevent) |
 | `signal` | $ref | Please see [SignalEvent](#signalevent) |
+| `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
+| `dns` | $ref | Please see [DNSEvent](#dnsevent) |
+| `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -242,6 +254,88 @@ CWS logs have the following JSON schema:
 | ----- | ----------- |
 | `span_id` | Span ID used for APM correlation |
 | `trace_id` | Trace ID used for APM correlation |
+
+
+## `DNSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "id"
+    ],
+    "properties": {
+        "id": {
+            "type": "integer",
+            "description": "id is the unique identifier of the DNS request"
+        },
+        "question": {
+            "$ref": "#/definitions/DNSQuestion",
+            "description": "question is a DNS question for the DNS request"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `id` | id is the unique identifier of the DNS request |
+| `question` | question is a DNS question for the DNS request |
+
+| References |
+| ---------- |
+| [DNSQuestion](#dnsquestion) |
+
+## `DNSQuestion`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "class",
+        "type",
+        "name",
+        "size",
+        "count"
+    ],
+    "properties": {
+        "class": {
+            "type": "string",
+            "description": "class is the class looked up by the DNS question"
+        },
+        "type": {
+            "type": "string",
+            "description": "type is a two octet code which specifies the DNS question type"
+        },
+        "name": {
+            "type": "string",
+            "description": "name is the queried domain name"
+        },
+        "size": {
+            "type": "integer",
+            "description": "size is the total DNS request size in bytes"
+        },
+        "count": {
+            "type": "integer",
+            "description": "count is the total count of questions in the DNS request"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `class` | class is the class looked up by the DNS question |
+| `type` | type is a two octet code which specifies the DNS question type |
+| `name` | name is the queried domain name |
+| `size` | size is the total DNS request size in bytes |
+| `count` | count is the total count of questions in the DNS request |
 
 
 ## `EventContext`
@@ -534,6 +628,37 @@ CWS logs have the following JSON schema:
 | ---------- |
 | [File](#file) |
 
+## `IPPort`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "ip",
+        "port"
+    ],
+    "properties": {
+        "ip": {
+            "type": "string",
+            "description": "IP address"
+        },
+        "port": {
+            "type": "integer",
+            "description": "Port number"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `ip` | IP address |
+| `port` | Port number |
+
+
 ## `MMapEvent`
 
 
@@ -656,6 +781,102 @@ CWS logs have the following JSON schema:
 | `loaded_from_memory` | indicates if a module was loaded from memory, as opposed to a file |
 
 
+## `NetworkContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+    ],
+    "properties": {
+        "device": {
+            "$ref": "#/definitions/NetworkDevice",
+            "description": "device is the network device on which the event was captured"
+        },
+        "l3_protocol": {
+            "type": "string",
+            "description": "l3_protocol is the layer 3 procotocol name"
+        },
+        "l4_protocol": {
+            "type": "string",
+            "description": "l4_protocol is the layer 4 procotocol name"
+        },
+        "source": {
+            "$ref": "#/definitions/IPPort",
+            "description": "source is the emitter of the network event"
+        },
+        "destination": {
+            "$ref": "#/definitions/IPPort",
+            "description": "destination is the receiver of the network event"
+        },
+        "size": {
+            "type": "integer",
+            "description": "size is the size in bytes of the network event"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `device` | device is the network device on which the event was captured |
+| `l3_protocol` | l3_protocol is the layer 3 procotocol name |
+| `l4_protocol` | l4_protocol is the layer 4 procotocol name |
+| `source` | source is the emitter of the network event |
+| `destination` | destination is the receiver of the network event |
+| `size` | size is the size in bytes of the network event |
+
+| References |
+| ---------- |
+| [NetworkDevice](#networkdevice) |
+| [IPPort](#ipport) |
+| [IPPort](#ipport) |
+
+## `NetworkDevice`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "netns",
+        "ifindex",
+        "ifname"
+    ],
+    "properties": {
+        "netns": {
+            "type": "integer",
+            "description": "netns is the interface ifindex"
+        },
+        "ifindex": {
+            "type": "integer",
+            "description": "ifindex is the network interface ifindex"
+        },
+        "ifname": {
+            "type": "string",
+            "description": "ifname is the network interface name"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `netns` | netns is the interface ifindex |
+| `ifindex` | ifindex is the network interface ifindex |
+| `ifname` | ifname is the network interface name |
+
+
 ## `PTraceEvent`
 
 
@@ -695,7 +916,7 @@ CWS logs have the following JSON schema:
 | ---------- |
 | [ProcessContext](#processcontext) |
 
-## `ProcessCacheEntry`
+## `Process`
 
 
 {{< code-block lang="json" collapsible="true" >}}
@@ -939,12 +1160,12 @@ CWS logs have the following JSON schema:
             "description": "Indicator of environments variable truncation"
         },
         "parent": {
-            "$ref": "#/definitions/ProcessCacheEntry",
+            "$ref": "#/definitions/Process",
             "description": "Parent process"
         },
         "ancestors": {
             "items": {
-                "$ref": "#/definitions/ProcessCacheEntry"
+                "$ref": "#/definitions/Process"
             },
             "type": "array",
             "description": "Ancestor processes"
@@ -987,7 +1208,7 @@ CWS logs have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
-| [ProcessCacheEntry](#processcacheentry) |
+| [Process](#process) |
 
 ## `ProcessCredentials`
 
@@ -1243,6 +1464,37 @@ CWS logs have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessContext](#processcontext) |
+
+## `SpliceEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+    ],
+    "properties": {
+        "pipe_entry_flag": {
+            "type": "string",
+            "description": "Entry flag of the fd_out pipe passed to the splice syscall"
+        },
+        "pipe_exit_flag": {
+            "type": "string",
+            "description": "Exit flag of the fd_out pipe passed to the splice syscall"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `pipe_entry_flag` | Entry flag of the fd_out pipe passed to the splice syscall |
+| `pipe_exit_flag` | Exit flag of the fd_out pipe passed to the splice syscall |
+
 
 ## `UserContext`
 

@@ -119,6 +119,59 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 	}
 }
 
+func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
+	f := newFixtureV1(t)
+	c := f.run(t)
+	c.config = NewConfig(true, false)
+
+	holdValue := config.Datadog.Get("admission_controller.failure_policy")
+	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
+
+	config.Datadog.Set("admission_controller.failure_policy", "Ignore")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "ignore")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "BadVal")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+}
+
+func TestAdmissionControllerFailureModeFail(t *testing.T) {
+	holdValue := config.Datadog.Get("admission_controller.failure_policy")
+	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
+
+	f := newFixtureV1(t)
+	c := f.run(t)
+
+	config.Datadog.Set("admission_controller.failure_policy", "Fail")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Fail, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "fail")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Fail, *webhookSkeleton.FailurePolicy)
+}
+
 func TestGenerateTemplatesV1(t *testing.T) {
 	mockConfig := config.Mock()
 	failurePolicy := admiv1.Ignore

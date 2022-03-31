@@ -23,7 +23,6 @@
   tags: ["runner:main"]
   dependencies: []
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
   script:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/clean.sh

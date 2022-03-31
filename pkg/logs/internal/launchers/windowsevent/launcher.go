@@ -8,10 +8,12 @@ package windowsevent
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Launcher is in charge of starting and stopping windows event logs tailers
@@ -23,17 +25,17 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
+func NewLauncher() *Launcher {
 	return &Launcher{
-		sources:          sources.GetAddedForType(config.WindowsEventType),
-		pipelineProvider: pipelineProvider,
-		tailers:          make(map[string]*tailer.Tailer),
-		stop:             make(chan struct{}),
+		tailers: make(map[string]*tailer.Tailer),
+		stop:    make(chan struct{}),
 	}
 }
 
 // Start starts the launcher.
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	l.pipelineProvider = pipelineProvider
+	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType)
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
 		log.Debug("Could not list windows event log channels: ", err)
@@ -68,7 +70,7 @@ func (l *Launcher) run() {
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
 		delete(l.tailers, tailer.Identifier())

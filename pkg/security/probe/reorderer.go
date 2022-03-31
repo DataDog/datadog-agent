@@ -255,7 +255,7 @@ func NewReOrderer(ctx context.Context, handler func(cpu uint64, data []byte), ex
 		},
 		extractInfo: extractInfo,
 		opts:        opts,
-		Metrics:     make(chan ReOrdererMetric, 100000),
+		Metrics:     make(chan ReOrdererMetric, 10),
 		generation:  opts.Retention * 2, // start with retention to avoid direct dequeue at start
 	}
 }

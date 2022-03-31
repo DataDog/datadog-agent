@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/richardartoul/molecule"
@@ -131,6 +131,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	const dogsketchK = 7
 	const dogsketchN = 8
 
+	// the backend accepts payloads up to specific compressed / uncompressed
+	// sizes, but prefers small uncompressed payloads.
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+
 	// Generate a footer containing an empty Metadata field.  The gogoproto
 	// generated serialization code includes this when marshaling the struct,
 	// despite the protobuf encoding not really requiring it (all fields
@@ -152,7 +157,10 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
 
-		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
+		compressor, err = stream.NewCompressor(
+			bufferContext.CompressorInput, bufferContext.CompressorOutput,
+			maxPayloadSize, maxUncompressedSize,
+			[]byte{}, footer, []byte{})
 		if err != nil {
 			return err
 		}
@@ -369,14 +377,4 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 		n += batchSize
 	}
 	return splitPayloads, nil
-}
-
-// String returns the JSON representation of a SketchSeriesList as a string
-// or an empty string in case of an error
-func (sl SketchSeriesList) String() string {
-	json, err := sl.MarshalJSON()
-	if err != nil {
-		return ""
-	}
-	return string(json)
 }

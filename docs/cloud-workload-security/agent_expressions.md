@@ -36,6 +36,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
 | `chown` | File | A file’s owner was changed | 7.27 |
+| `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
@@ -52,6 +53,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `signal` | Process | A signal was sent | 7.35 |
+| `splice` | File | A splice command was executed | 7.36 |
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
@@ -148,6 +150,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ---- | ---------- |
 | `container.id` | string | ID of the container |
 | `container.tags` | string | Tags of the container |
+| `network.destination.port` | int | Port number |
+| `network.device.ifindex` | int | interface ifindex |
+| `network.device.ifname` | string | interface ifname |
+| `network.l3_protocol` | int | l3 protocol of the network packet |
+| `network.l4_protocol` | int | l4 protocol of the network packet |
+| `network.size` | int | size in bytes of the network packet |
+| `network.source.port` | int | Port number |
 | `process.ancestors.args` | string | Arguments of the process (as a string) |
 | `process.ancestors.args_flags` | string | Arguments of the process (as an array) |
 | `process.ancestors.args_options` | string | Arguments of the process (as an array) |
@@ -313,6 +322,18 @@ A file’s owner was changed
 | `chown.file.uid` | int | UID of the file's owner |
 | `chown.file.user` | string | User of the file's owner |
 | `chown.retval` | int | Return value of the syscall |
+
+### Event `dns`
+
+A DNS request was sent
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `dns.question.class` | int | the class looked up by the DNS question |
+| `dns.question.count` | int | the total count of questions in the DNS request |
+| `dns.question.name` | string | the queried domain name |
+| `dns.question.size` | int | the total DNS request size in bytes |
+| `dns.question.type` | int | a two octet code which specifies the DNS question type |
 
 ### Event `exec`
 
@@ -849,6 +870,30 @@ A signal was sent
 | `signal.target.uid` | int | UID of the process |
 | `signal.target.user` | string | User of the process |
 | `signal.type` | int | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
+
+### Event `splice`
+
+A splice command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `splice.file.change_time` | int | Change time of the file |
+| `splice.file.filesystem` | string | File's filesystem |
+| `splice.file.gid` | int | GID of the file's owner |
+| `splice.file.group` | string | Group of the file's owner |
+| `splice.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `splice.file.inode` | int | Inode of the file |
+| `splice.file.mode` | int | Mode/rights of the file |
+| `splice.file.modification_time` | int | Modification time of the file |
+| `splice.file.mount_id` | int | Mount ID of the file |
+| `splice.file.name` | string | File's basename |
+| `splice.file.path` | string | File's path |
+| `splice.file.rights` | int | Mode/rights of the file |
+| `splice.file.uid` | int | UID of the file's owner |
+| `splice.file.user` | string | User of the file's owner |
+| `splice.pipe_entry_flag` | int | Entry flag of the "fd_out" pipe passed to the splice syscall |
+| `splice.pipe_exit_flag` | int | Exit flag of the "fd_out" pipe passed to the splice syscall |
+| `splice.retval` | int | Return value of the syscall |
 
 ### Event `unlink`
 

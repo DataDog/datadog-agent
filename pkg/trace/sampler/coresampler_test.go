@@ -10,21 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func getTestSampler() *Sampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
-	// No extra fixed sampling, no maximum TPS
-	extraRate := 1.0
-	targetTPS := 0.0
-
-	return newSampler(extraRate, targetTPS, nil)
-}
 
 func TestSamplerAccessRace(t *testing.T) {
 	s := newSampler(1, 2, nil)
