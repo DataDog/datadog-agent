@@ -16,6 +16,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -108,6 +109,12 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 	var input, output *bytes.Buffer
+
+	// the backend accepts payloads up to specific compressed / uncompressed
+	// sizes, but prefers small uncompressed payloads.
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+
 	if b.shareAndLockBuffers {
 		defer b.mu.Unlock()
 
@@ -150,7 +157,10 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
-	compressor, err := NewCompressor(input, output, header.Bytes(), footer.Bytes(), []byte(","))
+	compressor, err := NewCompressor(
+		input, output,
+		maxPayloadSize, maxUncompressedSize,
+		header.Bytes(), footer.Bytes(), []byte(","))
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +191,10 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, err = NewCompressor(input, output, header.Bytes(), footer.Bytes(), []byte(","))
+			compressor, err = NewCompressor(
+				input, output,
+				maxPayloadSize, maxUncompressedSize,
+				header.Bytes(), footer.Bytes(), []byte(","))
 			if err != nil {
 				return nil, err
 			}

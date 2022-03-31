@@ -150,9 +150,18 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 	}
 
 	if rsa.client != nil {
-		cfStatus, err := rsa.client.GetConstantFetcherStatus()
+		cfStatus, err := rsa.client.GetStatus()
 		if err == nil {
-			base["constantFetchers"] = cfStatus
+			if cfStatus.Environment != nil {
+				environment := map[string]interface{}{
+					"warnings":       cfStatus.Environment.Warnings,
+					"kernelLockdown": cfStatus.Environment.KernelLockdown,
+				}
+				if cfStatus.Environment.Constants != nil {
+					environment["constantFetchers"] = cfStatus.Environment.Constants
+				}
+				base["environment"] = environment
+			}
 		}
 	}
 

@@ -2433,6 +2433,14 @@ api_key:
     ## Admission controller's endpoint responsible for handling tags injection requests.
     #
     # endpoint: /injecttags
+
+  ## @param failure_policy - string - optional - default: Ignore
+  ## @env DD_ADMISSION_CONTROLLER_FAILURE_POLICY - string - optional - default: Ignore
+  ## Set the failure policy for dynamic admission control.
+  ## The default of Ignore means that pods will still be admitted even if the webhook is unavailable to inject them.
+  ## Setting to Fail will require the admission controller to be present and pods to be injected before they are allowed to run.
+  #
+  # failure_policy: Ignore
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -3146,6 +3154,7 @@ api_key:
 
     ## @param report_quantiles - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
+    ## DEPRECATED: [v7.36 / v6.36] Use `summaries.mode` instead. Will be removed in v7.37 / 6.36.
     ## Whether to report quantile metrics for OTLP Summary points.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
     #
@@ -3200,6 +3209,18 @@ api_key:
         ## - `raw_value` to report the raw value as a Datadog gauge.
         #
         # cumulative_monotonic_mode: to_delta
+    
+    ## @param summaries - custom object - optional
+    ## Configuration for OTLP Summaries.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
+        ## @param mode - string - optional - default: gauges
+        ## @env DD_OTLP_CONFIG_METRICS_SUMMARIES_MODE - string - optional - default: gauges
+        ## How to report summaries. Valid values are:
+        ##
+        ## - `noquantiles` to not report quantile metrics.
+        ## - `gauges` to report one gauge metric per quantile.
+        #
+        # mode: gauges
 
   ## @param traces - custom object - optional
   ## Traces-specific configuration for OTLP ingest in the Datadog Agent.

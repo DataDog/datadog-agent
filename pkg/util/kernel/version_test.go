@@ -28,3 +28,17 @@ func TestLinuxKernelVersionCode(t *testing.T) {
 	assert.Equal(t, Version(197132).String(), "3.2.12")
 	assert.Equal(t, Version(263168).String(), "4.4.0")
 }
+
+func TestUbuntuKernelVersion(t *testing.T) {
+	ubuntuVersion := "5.13.0-35-generic-lpae"
+	ukv, err := NewUbuntuKernelVersion(ubuntuVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, ukv.Major, 5)
+	assert.Equal(t, ukv.Minor, 13)
+	assert.Equal(t, ukv.Patch, 0)
+	assert.Equal(t, ukv.Abi, 35)
+	assert.Equal(t, ukv.Flavor, "generic-lpae")
+}
