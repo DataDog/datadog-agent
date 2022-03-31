@@ -13,8 +13,11 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
@@ -61,7 +64,13 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 
 	if len(p.VersionedRules) != 0 {
 		for _, verRuleDef := range p.VersionedRules {
-			if !checkVersionedConstraint(verRuleDef.AgentVersionConstraint) {
+			versionCheck, err := checkVersionedConstraint(verRuleDef.AgentVersionConstraint)
+			if err != nil {
+				result = multierror.Append(result, err)
+				continue
+			}
+
+			if !versionCheck {
 				continue
 			}
 
@@ -69,6 +78,7 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 
 			if err := checkRuleDefinition(&verRuleDef.RuleDefinition); err != nil {
 				result = multierror.Append(result, err)
+				continue
 			}
 
 			rules = append(rules, &verRuleDef.RuleDefinition)
@@ -79,6 +89,7 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 
 			if err := checkRuleDefinition(ruleDef); err != nil {
 				result = multierror.Append(result, err)
+				continue
 			}
 
 			rules = append(rules, ruleDef)
@@ -88,8 +99,28 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 	return macros, rules, result
 }
 
-func checkVersionedConstraint(constraint string) bool {
-	return true
+func checkVersionedConstraint(constraint string) (bool, error) {
+	constraint = strings.TrimSpace(constraint)
+	if constraint == "" {
+		return true, nil
+	}
+
+	av, err := version.Agent()
+	if err != nil {
+		return false, err
+	}
+
+	agentVersion, err := semver.NewVersion(av.GetNumberAndPre())
+	if err != nil {
+		return false, err
+	}
+
+	semverConstraint, err := semver.NewConstraint(constraint)
+	if err != nil {
+		return false, err
+	}
+
+	return semverConstraint.Check(agentVersion), nil
 }
 
 func checkRuleDefinition(ruleDef *RuleDefinition) error {
