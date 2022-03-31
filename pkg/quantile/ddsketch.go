@@ -31,6 +31,8 @@ func createDDSketchWithSketchMapping(c *Config, inputSketch *ddsketch.DDSketch) 
 
 	// Take parameters that match the Sketch mapping, and create a LogarithmicMapping out of them
 	gamma := c.gamma.v
+	// Note: there's a 0.5 shift here because we take the floor value on DDSketch, vs. rounding to
+	// integer in the Agent sketch.
 	offset := float64(c.norm.bias) + 0.5
 	newMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
 	if err != nil {
