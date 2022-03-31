@@ -400,7 +400,8 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 }
 
-func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
+func loadPolicyInner(t *testing.T, testPolicy *Policy, versionChecker AgentConstraintVerifier) (*RuleSet, *multierror.Error) {
+	t.Helper()
 	enabled := map[eval.EventType]bool{"*": true}
 	var opts Opts
 	opts.
@@ -420,7 +421,16 @@ func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	return LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp)
+	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err.ErrorOrNil() != nil {
+		return nil, err
+	}
+	return rs, nil
+}
+
+func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
+	t.Helper()
+	_, err := loadPolicyInner(t, testPolicy, checkAgentConstraintNoOp)
+	return err
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {
@@ -618,4 +628,28 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			t.Log(err)
 		}
 	})
+}
+
+func constraintVerifier(constraint string) (bool, error) {
+	return true, nil
+}
+
+func TestVersionedRule(t *testing.T) {
+	testPolicy := &Policy{
+		Name: "test-policy",
+		VersionedRules: []*VersionedRuleDefinition{{
+			RuleDefinition: RuleDefinition{
+				ID:         "test_versioned_rule",
+				Expression: `open.filename == "/tmp/test"`,
+			},
+			AgentVersionConstraint: ">= 7.35",
+		}},
+	}
+
+	rs, err := loadPolicyInner(t, testPolicy, constraintVerifier)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Error(rs)
 }
