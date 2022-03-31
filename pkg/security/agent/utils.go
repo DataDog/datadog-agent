@@ -12,6 +12,7 @@ import (
 	"github.com/Masterminds/semver"
 )
 
+// CheckAgentVersionConstraint checks that the semver constraint is satisfied by the agent version
 func CheckAgentVersionConstraint(constraint string) (bool, error) {
 	constraint = strings.TrimSpace(constraint)
 	if constraint == "" {

@@ -38,6 +38,7 @@ func checkRuleID(ruleID string) bool {
 	return ruleIDPattern.MatchString(ruleID)
 }
 
+// AgentConstraintVerifier represents a function checking that an agent constraint is satisfied by the current agent version
 type AgentConstraintVerifier = func(string) (bool, error)
 
 // GetValidMacroAndRules returns valid macro, rules definitions
