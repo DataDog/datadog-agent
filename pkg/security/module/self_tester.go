@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -108,7 +109,7 @@ func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.
 	ruleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
 	approverRuleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
 
-	_, rules, merr := selfTestPolicy.GetValidMacroAndRules()
+	_, rules, merr := selfTestPolicy.GetValidMacroAndRules(agent.CheckAgentVersionConstraint)
 	if merr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading additional policies", merr)
 	}
