@@ -7,8 +7,6 @@
     - BUILD_ARG=${BUILD_ARG:-}
     - ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
-    # Pull base image(s) with content trust enabled
-    - python3 -m pip install -r requirements.txt
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
@@ -25,14 +23,14 @@
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:$DOCKER_X64_BUILDER
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   variables:
     ARCH: amd64
 
 .docker_build_job_definition_arm64:
   extends: .docker_build_job_definition
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:v2718787-3888eda-18.09.6-arm64-py3
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
