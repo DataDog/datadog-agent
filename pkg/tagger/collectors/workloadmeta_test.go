@@ -159,6 +159,9 @@ func TestHandleKubePod(t *testing.T) {
 				// PVC tags
 				PersistentVolumeClaimNames: []string{"pvc-0"},
 
+				// QOS tags
+				QOSClass: "guaranteed",
+
 				// Phase tags
 				Phase: "Running",
 			},
@@ -186,6 +189,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_ownerref_kind:deployment",
 						"kube_service:service1",
 						"kube_service:service2",
+						"kube_qos:guaranteed",
 						"ns-team:containers",
 						"ns_env:dev",
 						"pod_phase:running",
