@@ -27,6 +27,10 @@ func savePolicy(filename string, testPolicy *Policy) error {
 	return os.WriteFile(filename, yamlBytes, 0700)
 }
 
+func checkAgentConstraintNoOp(constraint string) (bool, error) {
+	return true, nil
+}
+
 func TestMacroMerge(t *testing.T) {
 	var opts Opts
 	opts.
@@ -79,7 +83,7 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err != nil {
 		t.Error(err)
 	}
 
@@ -94,7 +98,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err == nil {
 		t.Error("expected macro ID conflict")
 	}
 }
@@ -138,7 +142,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err != nil {
 		t.Error(err)
 	}
 
@@ -153,7 +157,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err == nil {
 		t.Error("expected rule ID conflict")
 	}
 }
@@ -307,7 +311,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err != nil {
 		t.Error(err)
 	}
 
@@ -389,7 +393,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	if err := LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp); err == nil {
 		t.Error("expected policy to fail to load")
 	} else {
 		t.Log(err)
@@ -416,7 +420,7 @@ func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	return LoadPolicies(tmpDir, rs)
+	return LoadPolicies(tmpDir, rs, checkAgentConstraintNoOp)
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {

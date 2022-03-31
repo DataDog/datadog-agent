@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -274,7 +275,7 @@ func (m *Module) Reload() error {
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
-	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet, agent.CheckAgentVersionConstraint)
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
 	opts.WithVariables(sprobe.SECLVariables)
@@ -283,7 +284,7 @@ func (m *Module) Reload() error {
 	})
 
 	ruleSet := m.probe.NewRuleSet(&opts)
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet, agent.CheckAgentVersionConstraint)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)

@@ -13,11 +13,8 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
@@ -41,8 +38,10 @@ func checkRuleID(ruleID string) bool {
 	return ruleIDPattern.MatchString(ruleID)
 }
 
+type AgentConstraintVerifier = func(string) (bool, error)
+
 // GetValidMacroAndRules returns valid macro, rules definitions
-func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition, *multierror.Error) {
+func (p *Policy) GetValidMacroAndRules(agentConstraintVerifier AgentConstraintVerifier) ([]*MacroDefinition, []*RuleDefinition, *multierror.Error) {
 	var (
 		result *multierror.Error
 		macros []*MacroDefinition
@@ -64,7 +63,7 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 
 	if len(p.VersionedRules) != 0 {
 		for _, verRuleDef := range p.VersionedRules {
-			versionCheck, err := checkVersionedConstraint(verRuleDef.AgentVersionConstraint)
+			versionCheck, err := agentConstraintVerifier(verRuleDef.AgentVersionConstraint)
 			if err != nil {
 				result = multierror.Append(result, err)
 				continue
@@ -99,30 +98,6 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 	return macros, rules, result
 }
 
-func checkVersionedConstraint(constraint string) (bool, error) {
-	constraint = strings.TrimSpace(constraint)
-	if constraint == "" {
-		return true, nil
-	}
-
-	av, err := version.Agent()
-	if err != nil {
-		return false, err
-	}
-
-	agentVersion, err := semver.NewVersion(av.GetNumberAndPre())
-	if err != nil {
-		return false, err
-	}
-
-	semverConstraint, err := semver.NewConstraint(constraint)
-	if err != nil {
-		return false, err
-	}
-
-	return semverConstraint.Check(agentVersion), nil
-}
-
 func checkRuleDefinition(ruleDef *RuleDefinition) error {
 	if ruleDef.ID == "" {
 		return &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)}
@@ -152,7 +127,7 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 }
 
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
-func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
+func LoadPolicies(policiesDir string, ruleSet *RuleSet, agentConstraintVerifier AgentConstraintVerifier) *multierror.Error {
 	var (
 		result     *multierror.Error
 		allRules   []*RuleDefinition
@@ -204,7 +179,7 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 		// Add policy version for logging purposes
 		ruleSet.AddPolicyVersion(filename, policy.Version)
 
-		macros, rules, mErr := policy.GetValidMacroAndRules()
+		macros, rules, mErr := policy.GetValidMacroAndRules(agentConstraintVerifier)
 		if mErr.ErrorOrNil() != nil {
 			result = multierror.Append(result, mErr)
 		}
