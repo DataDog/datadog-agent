@@ -100,6 +100,11 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	return nil
 }
 
+type VersionedRuleDefinition struct {
+	RuleDefinition         `yaml:",inline"`
+	AgentVersionConstraint string `yaml:"agent_version"`
+}
+
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
 	Set *SetDefinition `yaml:"set"`

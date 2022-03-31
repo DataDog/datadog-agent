@@ -25,10 +25,11 @@ const defaultPolicy = "default.policy"
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name    string
-	Version string             `yaml:"version"`
-	Rules   []*RuleDefinition  `yaml:"rules"`
-	Macros  []*MacroDefinition `yaml:"macros"`
+	Name           string
+	Version        string                     `yaml:"version"`
+	Rules          []*RuleDefinition          `yaml:"rules"`
+	VersionedRules []*VersionedRuleDefinition `yaml:"versioned_rules"`
+	Macros         []*MacroDefinition         `yaml:"macros"`
 }
 
 var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
@@ -58,27 +59,53 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 		macros = append(macros, macroDef)
 	}
 
-	for _, ruleDef := range p.Rules {
-		ruleDef.Policy = p
+	if len(p.VersionedRules) != 0 {
+		for _, verRuleDef := range p.VersionedRules {
+			if !checkVersionedConstraint(verRuleDef.AgentVersionConstraint) {
+				continue
+			}
 
-		if ruleDef.ID == "" {
-			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
-			continue
-		}
-		if !checkRuleID(ruleDef.ID) {
-			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
-			continue
-		}
+			verRuleDef.Policy = p
 
-		if ruleDef.Expression == "" && !ruleDef.Disabled {
-			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
-			continue
-		}
+			if err := checkRuleDefinition(&verRuleDef.RuleDefinition); err != nil {
+				result = multierror.Append(result, err)
+			}
 
-		rules = append(rules, ruleDef)
+			rules = append(rules, &verRuleDef.RuleDefinition)
+		}
+	} else {
+		for _, ruleDef := range p.Rules {
+			ruleDef.Policy = p
+
+			if err := checkRuleDefinition(ruleDef); err != nil {
+				result = multierror.Append(result, err)
+			}
+
+			rules = append(rules, ruleDef)
+		}
 	}
 
 	return macros, rules, result
+}
+
+func checkVersionedConstraint(constraint string) bool {
+	return true
+}
+
+func checkRuleDefinition(ruleDef *RuleDefinition) error {
+	if ruleDef.ID == "" {
+		return &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)}
+	}
+
+	if !checkRuleID(ruleDef.ID) {
+		return &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)}
+	}
+
+	if ruleDef.Expression == "" && !ruleDef.Disabled {
+		return &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")}
+	}
+
+	return nil
 }
 
 // LoadPolicy loads a YAML file and returns a new policy
