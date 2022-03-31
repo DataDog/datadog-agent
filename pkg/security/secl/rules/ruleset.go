@@ -25,8 +25,8 @@ type CombinePolicy = string
 // Combine policies
 const (
 	NoPolicy       CombinePolicy = ""
-	MergePolicy                  = "merge"
-	OverridePolicy               = "override"
+	MergePolicy    CombinePolicy = "merge"
+	OverridePolicy CombinePolicy = "override"
 )
 
 // MacroDefinition holds the definition of a macro

@@ -317,6 +317,10 @@ func (c *APIClient) connect() error {
 		c.UnassignedPodInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(tweakListOptions),
 		)
+		if err != nil {
+			log.Infof("Could not get informer factory: %v", err)
+			return err
+		}
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
@@ -328,6 +332,10 @@ func (c *APIClient) connect() error {
 			informers.WithTweakListOptions(optionsForService),
 			informers.WithNamespace(common.GetResourcesNamespace()),
 		)
+		if err != nil {
+			log.Infof("Could not get informer factory: %v", err)
+			return err
+		}
 
 		optionsForWebhook := func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog.GetString("admission_controller.webhook_name")).String()
@@ -335,6 +343,10 @@ func (c *APIClient) connect() error {
 		c.WebhookConfigInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForWebhook),
 		)
+		if err != nil {
+			log.Infof("Could not get informer factory: %v", err)
+			return err
+		}
 
 	}
 
@@ -507,10 +519,6 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 	}
 
 	for _, node := range nodes {
-		if node.GetObjectMeta() == nil {
-			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
-			continue
-		}
 		var bundle *metadataMapperBundle
 		bundle, err = getMetadataMapBundle(node.Name)
 		if err != nil {
