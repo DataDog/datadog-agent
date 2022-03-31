@@ -100,6 +100,7 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	return nil
 }
 
+// VersionedRuleDefinition holds the definition for a rule and the agent version constraint
 type VersionedRuleDefinition struct {
 	RuleDefinition         `yaml:",inline"`
 	AgentVersionConstraint string `yaml:"agent_version"`
