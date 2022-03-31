@@ -2,11 +2,15 @@ package inferredspan
 
 import (
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,6 +24,17 @@ const (
 	functionVersionTagKey = "function_version"
 	coldStartTagKey       = "cold_start"
 )
+
+type InferredSpan struct {
+	Span    *pb.Span
+	IsAsync bool
+}
+
+type InferredSpans = map[string]InferredSpan
+
+// create a map to hold all inferred spans with a key of request-id
+// reduces the risk of multiple invocations altering a global variable
+var inferredSpans InferredSpans
 
 var functionTagsToIgnore = []string{
 	tags.FunctionARNKey,
@@ -79,10 +94,49 @@ func CreateInferredSpan(event string, ctx *serverlessLog.ExecutionContext) {
 	eventSource, attributes := ParseEventSource(event)
 	switch eventSource {
 	case "apigateway":
-		CreateInferredSpanFromAPIGatewayEvent(eventSource, ctx, attributes)
+		CreateInferredSpanFromAPIGatewayEvent(eventSource, ctx, attributes, inferredSpans)
 	case "http-api":
 		log.Debug("THIS IS A HTTP API")
 	case "websocket":
 		log.Debug(("THIS IS A WEBSOCKET"))
 	}
+}
+
+func CompleteInferredSpan(
+	processTrace func(p *api.Payload),
+	endTime time.Time,
+	isError bool,
+	requestId string) {
+
+	inferredSpan := inferredSpans[requestId]
+
+	if inferredSpan.IsAsync {
+		inferredSpan.Span.Duration = inferredSpan.Span.Start
+	} else {
+		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
+	}
+
+	if isError {
+		inferredSpan.Span.Error = 1
+	}
+	log.Debug("THIS IS THE INFERRED SPAN BEFORE CHUNKING ", inferredSpan.Span)
+	traceChunk := &pb.TraceChunk{
+		Priority: int32(sampler.PriorityNone),
+		Spans:    []*pb.Span{inferredSpan.Span},
+	}
+
+	log.Debug("THIS IS THE TRACE CHUNK ", traceChunk)
+
+	tracerPayload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{traceChunk},
+		Tags:   map[string]string{"_dd.origin": "lambda"},
+	}
+	log.Debug("THIS IS THE TRACER PAYLOAD", tracerPayload)
+
+	processTrace(&api.Payload{
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		TracerPayload: tracerPayload,
+	})
+	// once we send the payload remove the span from inferredSpans
+	delete(inferredSpans, requestId)
 }

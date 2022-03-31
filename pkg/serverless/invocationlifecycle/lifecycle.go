@@ -65,7 +65,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
 		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
 		log.Debug("[lifecycle] Attempting to complete the inferred span")
-		inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError)
+		inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID)
 	}
 
 }
