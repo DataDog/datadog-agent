@@ -72,15 +72,13 @@ func TestHumanFormatProcess(t *testing.T) {
 			Containers: []*model.Container{
 				{
 					Id:          "foo-container-id",
-					Name:        "foo",
-					Image:       "foo/foo:v1",
 					CpuLimit:    2.0,
 					MemoryLimit: 300.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_healthy,
 					Created:     1609733040,
 					Started:     1609733140,
-					Tags:        []string{"a:b", "c:d"},
+					Tags:        []string{"image_name:foo", "image_tag:v1", "a:b", "c:d"},
 					TotalPct:    10,
 					SystemPct:   9,
 					UserPct:     1,
@@ -147,8 +145,6 @@ Processes
 Containers
 ==========
 > ID: foo-container-id
-  Name: foo
-  Image: foo/foo:v1
   CPU Limit:    2
   Memory Limit: 300 B
   State:  running
@@ -163,7 +159,7 @@ Containers
   Net:
     Received: 100 B/s 5 Ops/s
     Sent:     200 B/s 10 Ops/s
-  Tags: a:b,c:d
+  Tags: image_name:foo,image_tag:v1,a:b,c:d
   Thread Count: 40
   Thread Limit: 100
   Addresses:
@@ -309,15 +305,13 @@ func TestHumanFormatContainer(t *testing.T) {
 			Containers: []*model.Container{
 				{
 					Id:          "foo-container-id",
-					Name:        "foo",
-					Image:       "foo/foo:v1",
 					CpuLimit:    2.0,
 					MemoryLimit: 300.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_healthy,
 					Created:     1609733040,
 					Started:     1609733140,
-					Tags:        []string{"a:b", "c:d"},
+					Tags:        []string{"image_name:foo", "image_tag:v1", "a:b", "c:d"},
 					TotalPct:    10,
 					SystemPct:   9,
 					UserPct:     1,
@@ -341,15 +335,13 @@ func TestHumanFormatContainer(t *testing.T) {
 				},
 				{
 					Id:          "baz-container-id",
-					Name:        "baz",
-					Image:       "baz/baz:v1",
 					CpuLimit:    3.0,
 					MemoryLimit: 200.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_unhealthy,
 					Created:     1609733040,
 					Started:     1609733240,
-					Tags:        []string{"a:b", "c:d"},
+					Tags:        []string{"image_name:baz", "image_tag:v2", "a:b", "c:d"},
 					TotalPct:    90,
 					SystemPct:   80,
 					UserPct:     10,
@@ -388,8 +380,6 @@ CPUs: 4
 Containers
 ==========
 > ID: baz-container-id
-  Name: baz
-  Image: baz/baz:v1
   CPU Limit:    3
   Memory Limit: 200 B
   State:  running
@@ -404,14 +394,12 @@ Containers
   Net:
     Received: 100 B/s 5 Ops/s
     Sent:     200 B/s 10 Ops/s
-  Tags: a:b,c:d
+  Tags: image_name:baz,image_tag:v2,a:b,c:d
   Thread Count: 40
   Thread Limit: 100
   Addresses:
     IP: 192.168.0.101 Port: 6732 tcp
 > ID: foo-container-id
-  Name: foo
-  Image: foo/foo:v1
   CPU Limit:    2
   Memory Limit: 300 B
   State:  running
@@ -426,7 +414,7 @@ Containers
   Net:
     Received: 100 B/s 5 Ops/s
     Sent:     200 B/s 10 Ops/s
-  Tags: a:b,c:d
+  Tags: image_name:foo,image_tag:v1,a:b,c:d
   Thread Count: 40
   Thread Limit: 100
   Addresses:

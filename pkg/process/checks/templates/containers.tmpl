@@ -2,8 +2,6 @@ Containers
 ==========
 {{- range $c := .Containers}}
 > ID: {{ .Id }}
-  Name: {{ .Name }}
-  Image: {{ .Image }}
   CPU Limit:    {{ .CpuLimit }}
   Memory Limit: {{ bytes .MemoryLimit }}
   State:  {{ .State }}
