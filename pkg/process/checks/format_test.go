@@ -52,7 +52,7 @@ func TestHumanFormatProcess(t *testing.T) {
 						Dirty:  800,
 					},
 					Cpu: &model.CPUStat{
-						TotalPct:   3.,
+						TotalPct:   2.9999,
 						SystemPct:  2.,
 						UserPct:    1.,
 						NumThreads: 100,
@@ -78,8 +78,8 @@ func TestHumanFormatProcess(t *testing.T) {
 					MemoryLimit: 300.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_healthy,
-					Created:     1609733040000,
-					Started:     1609733140000,
+					Created:     1609733040,
+					Started:     1609733140,
 					Tags:        []string{"a:b", "c:d"},
 					TotalPct:    10,
 					SystemPct:   9,
@@ -196,7 +196,7 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 						Dirty:  800,
 					},
 					Cpu: &model.CPUStat{
-						TotalPct:   3.,
+						TotalPct:   2.95111,
 						SystemPct:  2.,
 						UserPct:    1.,
 						NumThreads: 100,
@@ -220,7 +220,7 @@ func TestHumanFormatRealTimeProcess(t *testing.T) {
 					MemLimit:    300.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_healthy,
-					Started:     1609733140000,
+					Started:     1609733140,
 					TotalPct:    10,
 					SystemPct:   9,
 					UserPct:     1,
@@ -264,7 +264,7 @@ RealTime Processes
     Lib:    600 B
     Data:   700 B
     Dirty:  800 B
-  CPU: Total: 3% System: 2% User: 1%
+  CPU: Total: 2.95% System: 2% User: 1%
   Threads: 100
   Nice: 2
   Open Files: 200
@@ -315,8 +315,8 @@ func TestHumanFormatContainer(t *testing.T) {
 					MemoryLimit: 300.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_healthy,
-					Created:     1609733040000,
-					Started:     1609733140000,
+					Created:     1609733040,
+					Started:     1609733140,
 					Tags:        []string{"a:b", "c:d"},
 					TotalPct:    10,
 					SystemPct:   9,
@@ -347,8 +347,8 @@ func TestHumanFormatContainer(t *testing.T) {
 					MemoryLimit: 200.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_unhealthy,
-					Created:     1609733040000,
-					Started:     1609733240000,
+					Created:     1609733040,
+					Started:     1609733240,
 					Tags:        []string{"a:b", "c:d"},
 					TotalPct:    90,
 					SystemPct:   80,
@@ -449,7 +449,7 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
 					MemLimit:    300.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_healthy,
-					Started:     1609733140000,
+					Started:     1609733140,
 					TotalPct:    10,
 					SystemPct:   9,
 					UserPct:     1,
@@ -470,7 +470,7 @@ func TestHumanFormatRealTimeContainer(t *testing.T) {
 					MemLimit:    200.0,
 					State:       model.ContainerState_running,
 					Health:      model.ContainerHealth_unhealthy,
-					Started:     1609733240000,
+					Started:     1609733240,
 					TotalPct:    90,
 					SystemPct:   80,
 					UserPct:     10,

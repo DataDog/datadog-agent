@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"strconv"
 	"text/template"
@@ -47,10 +48,11 @@ var (
 	discoveryTemplate string
 
 	fnMap = template.FuncMap{
-		"humanize": humanize.Commaf,
-		"bytes":    humanize.Bytes,
-		"time":     func(v int64) string { return time.UnixMilli(v).UTC().Format(time.RFC3339) },
-		"cpupct":   func(v float32) string { return humanize.Ftoa(float64(v)) + "%" },
+		"humanize":  humanize.Commaf,
+		"bytes":     humanize.Bytes,
+		"timeMilli": func(v int64) string { return time.UnixMilli(v).UTC().Format(time.RFC3339) },
+		"time":      func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
+		"cpupct":    func(v float32) string { return humanize.FtoaWithDigits(math.Round(float64(v)*100)/100, 2) + "%" },
 		"io": func(v float32) string {
 			if v < 0 {
 				return "-"

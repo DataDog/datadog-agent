@@ -9,7 +9,7 @@ Processes
 {{- with .User }}
   User: {{.Name}} Uid: {{.Uid}} Gid: {{.Gid}} Euid: {{.Euid}} Egid: {{.Egid}} Suid: {{.Suid}} Sgid: {{.Sgid}}
 {{- end }}
-  Create Time: {{ time .CreateTime }}
+  Create Time: {{ timeMilli .CreateTime }}
   State: {{ .State }}
 {{- with .Memory }}
   Memory:
