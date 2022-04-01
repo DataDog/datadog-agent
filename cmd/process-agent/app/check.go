@@ -9,8 +9,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/agent-payload/v5/process"
@@ -28,16 +30,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+func init() {
+	CheckCmd.Flags().BoolVar(&checkOutputJSON, "json", false, "Output check results in JSON")
+}
+
 // CheckCmd is a command that runs the process-agent version data
 var CheckCmd = &cobra.Command{
-	Use:          "check",
-	Short:        "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery",
+	Use:   "check",
+	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery",
+
 	Args:         cobra.ExactArgs(1),
 	RunE:         runCheckCmd,
 	SilenceUsage: true,
 }
 
 const loggerName ddconfig.LoggerName = "PROCESS"
+
+var checkOutputJSON = false
 
 func runCheckCmd(cmd *cobra.Command, args []string) error {
 	// We need to load in the system probe environment variables before we load the config, otherwise an
@@ -134,7 +143,7 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
-	return printResults(msgs)
+	return printResults(ch.Name(), msgs)
 }
 
 func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
@@ -165,7 +174,7 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	return printResults(run.RealTime)
+	return printResults(ch.RealTimeName(), run.RealTime)
 }
 
 func printResultsBanner(name string) {
@@ -174,7 +183,22 @@ func printResultsBanner(name string) {
 	fmt.Printf("-----------------------------\n\n")
 }
 
-func printResults(msgs []process.MessageBody) error {
+func printResults(check string, msgs []process.MessageBody) error {
+	if checkOutputJSON {
+		return printResultsJSON(msgs)
+	}
+
+	err := checks.HumanFormat(check, msgs, os.Stdout)
+	switch err {
+	case checks.ErrNoHumanFormat:
+		fmt.Println(color.YellowString("Printing output in JSON format for %s\n", check))
+		return printResultsJSON(msgs)
+	default:
+		return err
+	}
+}
+
+func printResultsJSON(msgs []process.MessageBody) error {
 	for _, m := range msgs {
 		b, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {

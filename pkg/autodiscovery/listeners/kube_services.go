@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -57,6 +58,25 @@ var _ Service = &KubeServiceService{}
 
 func init() {
 	Register(kubeServicesName, NewKubeServiceListener)
+}
+
+// isServiceAnnotated returns true if the Service has an annotation with a given key
+func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
+	if ksvc == nil {
+		return false
+	}
+
+	annotations := ksvc.GetAnnotations()
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".checks"]; found {
+		return true
+	}
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".instances"]; found {
+		return true
+	}
+
+	return false
 }
 
 func NewKubeServiceListener(conf Config) (ServiceListener, error) {

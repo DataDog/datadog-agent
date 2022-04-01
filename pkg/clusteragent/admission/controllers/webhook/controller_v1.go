@@ -10,6 +10,7 @@ package webhook
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -198,11 +199,11 @@ func (c *ControllerV1) generateTemplates() {
 }
 
 func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.MutatingWebhook {
-	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
 	timeout := c.config.getTimeout()
+	failurePolicy := c.getAdmiV1FailurePolicy()
 	webhook := admiv1.MutatingWebhook{
 		Name: c.config.configName(nameSuffix),
 		ClientConfig: admiv1.WebhookClientConfig{
@@ -241,4 +242,17 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 	webhook.ObjectSelector = labelSelector
 
 	return webhook
+}
+
+func (c *ControllerV1) getAdmiV1FailurePolicy() admiv1.FailurePolicyType {
+	policy := strings.ToLower(c.config.getFailurePolicy())
+	switch policy {
+	case "ignore":
+		return admiv1.Ignore
+	case "fail":
+		return admiv1.Fail
+	default:
+		_ = log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
+		return admiv1.Ignore
+	}
 }

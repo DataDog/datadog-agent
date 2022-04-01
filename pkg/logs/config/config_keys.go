@@ -81,7 +81,8 @@ func (l *LogsConfigKeys) socks5ProxyAddress() string {
 }
 
 func (l *LogsConfigKeys) isForceTCPUse() bool {
-	return l.getConfig().GetBool(l.getConfigKey("use_tcp"))
+	return l.getConfig().GetBool(l.getConfigKey("use_tcp")) ||
+		l.getConfig().GetBool(l.getConfigKey("force_use_tcp"))
 }
 
 func (l *LogsConfigKeys) usePort443() bool {
@@ -89,7 +90,8 @@ func (l *LogsConfigKeys) usePort443() bool {
 }
 
 func (l *LogsConfigKeys) isForceHTTPUse() bool {
-	return l.getConfig().GetBool(l.getConfigKey("use_http"))
+	return l.getConfig().GetBool(l.getConfigKey("use_http")) ||
+		l.getConfig().GetBool(l.getConfigKey("force_use_http"))
 }
 
 func (l *LogsConfigKeys) logsNoSSL() bool {

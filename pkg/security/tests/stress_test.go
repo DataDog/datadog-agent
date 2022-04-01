@@ -206,7 +206,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	}
 
 	opts := StressOpts{
-		Duration:    40 * time.Second,
+		Duration:    time.Duration(duration) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
 		TopFrom:     "probe",

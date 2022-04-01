@@ -26,6 +26,10 @@ import (
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 
+	// Kernel4_9 is the KernelVersion representation of kernel version 4.9
+	Kernel4_9 = kernel.VersionCode(4, 9, 0) //nolint:deadcode,unused
+	// Kernel4_10 is the KernelVersion representation of kernel version 4.10
+	Kernel4_10 = kernel.VersionCode(4, 10, 0) //nolint:deadcode,unused
 	// Kernel4_12 is the KernelVersion representation of kernel version 4.12
 	Kernel4_12 = kernel.VersionCode(4, 12, 0) //nolint:deadcode,unused
 	// Kernel4_13 is the KernelVersion representation of kernel version 4.13
@@ -70,15 +74,18 @@ var (
 	Kernel5_13 = kernel.VersionCode(5, 13, 0) //nolint:deadcode,unused
 	// Kernel5_14 is the KernelVersion representation of kernel version 5.14
 	Kernel5_14 = kernel.VersionCode(5, 14, 0) //nolint:deadcode,unused
+	// Kernel5_15 is the KernelVersion representation of kernel version 5.15
+	Kernel5_15 = kernel.VersionCode(5, 15, 0) //nolint:deadcode,unused
 	// Kernel5_16 is the KernelVersion representation of kernel version 5.16
 	Kernel5_16 = kernel.VersionCode(5, 16, 0) //nolint:deadcode,unused
 )
 
 // Version defines a kernel version helper
 type Version struct {
-	OsRelease    map[string]string
-	Code         kernel.Version
-	UnameRelease string
+	OsRelease     map[string]string
+	OsReleasePath string
+	Code          kernel.Version
+	UnameRelease  string
 }
 
 func (k *Version) String() string {
@@ -122,14 +129,33 @@ func NewKernelVersion() (*Version, error) {
 		release, err = osrelease.ReadFile(osReleasePath)
 		if err == nil {
 			return &Version{
-				OsRelease:    release,
-				Code:         kv,
-				UnameRelease: unameRelease,
+				OsRelease:     release,
+				OsReleasePath: osReleasePath,
+				Code:          kv,
+				UnameRelease:  unameRelease,
 			}, nil
 		}
 	}
 
 	return nil, errors.New("failed to detect operating system version")
+}
+
+// IsDebianKernel returns whether the kernel is an ubuntu kernel
+func (k *Version) IsDebianKernel() bool {
+	return k.OsRelease["ID"] == "debian"
+}
+
+// UbuntuKernelVersion returns a parsed ubuntu kernel version or nil if not on ubuntu or if parsing failed
+func (k *Version) UbuntuKernelVersion() *kernel.UbuntuKernelVersion {
+	if k.OsRelease["ID"] != "ubuntu" {
+		return nil
+	}
+
+	ukv, err := kernel.NewUbuntuKernelVersion(k.UnameRelease)
+	if err != nil {
+		return nil
+	}
+	return ukv
 }
 
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
@@ -144,17 +170,22 @@ func (k *Version) IsRH8Kernel() bool {
 
 // IsSuseKernel returns whether the kernel is a suse kernel
 func (k *Version) IsSuseKernel() bool {
-	return k.OsRelease["ID"] == "sles" || k.OsRelease["ID"] == "opensuse-leap"
+	return k.IsSLESKernel() || k.OsRelease["ID"] == "opensuse-leap"
 }
 
-// IsSLES12Kernel returns whether the kernel is a sles 12 kernel
-func (k *Version) IsSLES12Kernel() bool {
+// IsSuse12Kernel returns whether the kernel is a sles 12 kernel
+func (k *Version) IsSuse12Kernel() bool {
 	return k.IsSuseKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "12")
 }
 
-// IsSLES15Kernel returns whether the kernel is a sles 15 kernel
-func (k *Version) IsSLES15Kernel() bool {
+// IsSuse15Kernel returns whether the kernel is a sles 15 kernel
+func (k *Version) IsSuse15Kernel() bool {
 	return k.IsSuseKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "15")
+}
+
+// IsSLESKernel returns whether the kernel is a sles kernel
+func (k *Version) IsSLESKernel() bool {
+	return k.OsRelease["ID"] == "sles"
 }
 
 // IsOracleUEKKernel returns whether the kernel is an oracle uek kernel

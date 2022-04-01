@@ -882,7 +882,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		if !ok {
 			continue
 		}
-		evt := NewEvent(ad.adm.probe.resolvers, ad.adm.probe.scrubber)
+
+		evt := NewEvent(ad.adm.probe.resolvers, ad.adm.probe.scrubber, ad.adm.probe)
 		evt.Event.Type = uint64(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)

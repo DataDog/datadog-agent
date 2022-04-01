@@ -8,6 +8,7 @@
 package model
 
 import (
+	"container/list"
 	"strings"
 	"time"
 )
@@ -121,6 +122,8 @@ type ArgsEnvs struct {
 //msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	ArgsEnvs
+
+	Container *list.Element
 
 	next *ArgsEnvsCacheEntry
 	last *ArgsEnvsCacheEntry

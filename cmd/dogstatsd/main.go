@@ -11,6 +11,7 @@ import (
 	"context"
 	_ "expvar"
 	"fmt"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -71,8 +72,9 @@ extensions for special Datadog features.`,
 	confPath   string
 	socketPath string
 
-	metaScheduler *metadata.Scheduler
-	statsd        *dogstatsd.Server
+	metaScheduler  *metadata.Scheduler
+	statsd         *dogstatsd.Server
+	dogstatsdStats *http.Server
 )
 
 const (
@@ -130,6 +132,18 @@ func runAgent(ctx context.Context) (err error) {
 	if !configFound {
 		log.Infof("Config will be read from env variables")
 	}
+
+	// go_expvar server
+	port := config.Datadog.GetInt("dogstatsd_stats_port")
+	dogstatsdStats = &http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
+		Handler: http.DefaultServeMux,
+	}
+	go func() {
+		if err := dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
+		}
+	}()
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
@@ -269,11 +283,16 @@ func stopAgent(cancel context.CancelFunc) {
 		metaScheduler.Stop()
 	}
 
+	if dogstatsdStats != nil {
+		if err := dogstatsdStats.Shutdown(context.Background()); err != nil {
+			log.Errorf("Error shutting down dogstatsd stats server: %s", err)
+		}
+	}
+
 	if statsd != nil {
 		statsd.Stop()
 	}
 
 	log.Info("See ya!")
 	log.Flush()
-	return
 }
