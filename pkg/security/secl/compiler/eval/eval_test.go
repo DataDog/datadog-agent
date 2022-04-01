@@ -531,7 +531,7 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
 	}
 
-	ctx := NewContext(unsafe.Pointer(&event))
+	ctx := NewContext(event.GetPointer())
 
 	for _, test := range tests {
 		model := &testModel{}
@@ -1041,6 +1041,11 @@ func TestOpOverrides(t *testing.T) {
 	event.process.orNameValues = func() *StringValues {
 		var values StringValues
 		values.AppendScalarValue("abc")
+
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
+			return nil
+		}
+
 		return &values
 	}
 
@@ -1052,6 +1057,11 @@ func TestOpOverrides(t *testing.T) {
 	event.process.orArrayValues = func() *StringValues {
 		var values StringValues
 		values.AppendScalarValue("abc")
+
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
+			return nil
+		}
+
 		return &values
 	}
 
@@ -1090,6 +1100,11 @@ func TestOpOverridePartials(t *testing.T) {
 	event.process.orNameValues = func() *StringValues {
 		var values StringValues
 		values.AppendScalarValue("abc")
+
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
+			return nil
+		}
+
 		return &values
 	}
 
@@ -1101,6 +1116,11 @@ func TestOpOverridePartials(t *testing.T) {
 	event.process.orArrayValues = func() *StringValues {
 		var values StringValues
 		values.AppendScalarValue("abc")
+
+		if err := values.Compile(DefaultStringCmpOpts); err != nil {
+			return nil
+		}
+
 		return &values
 	}
 

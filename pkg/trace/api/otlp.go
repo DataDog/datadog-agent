@@ -338,6 +338,10 @@ func convertSpan(rattr map[string]string, lib pdata.InstrumentationLibrary, in p
 		name = "opentelemetry." + name
 	}
 	traceID := in.TraceID().Bytes()
+	meta := make(map[string]string, len(rattr))
+	for k, v := range rattr {
+		meta[k] = v
+	}
 	span := &pb.Span{
 		Name:     name,
 		TraceID:  traceIDToUint64(traceID),
@@ -347,7 +351,7 @@ func convertSpan(rattr map[string]string, lib pdata.InstrumentationLibrary, in p
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
 		Service:  rattr[string(semconv.AttributeServiceName)],
 		Resource: in.Name(),
-		Meta:     rattr,
+		Meta:     meta,
 		Metrics:  map[string]float64{},
 	}
 	span.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
@@ -438,6 +442,11 @@ func status2Error(status pdata.SpanStatus, events pdata.SpanEventSlice, span *pb
 			}
 			return true
 		})
+	}
+	if _, ok := span.Meta["error.msg"]; !ok {
+		if status.Message() != "" {
+			span.Meta["error.msg"] = status.Message()
+		}
 	}
 }
 

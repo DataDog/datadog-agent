@@ -8,6 +8,7 @@
 package model
 
 import (
+	"container/list"
 	"strings"
 	"time"
 )
@@ -25,20 +26,15 @@ func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
 	}
 
 	ancestor := pc.Ancestor
-	// make sure we don't loop forever
-	for i := 0; i < 1000; i++ {
-		if ancestor.Ancestor == nil {
-			break
-		}
-		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime == time.Time{}) && ancestor.Tid == ancestor.Ancestor.Tid {
+	for ancestor.Ancestor != nil {
+		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
 			// this is a fork entry, move on to the next ancestor
 			ancestor = ancestor.Ancestor
-			continue
+		} else {
+			break
 		}
-
-		// this is the first true exec
-		break
 	}
+
 	return ancestor
 }
 
@@ -121,6 +117,8 @@ type ArgsEnvs struct {
 //msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	ArgsEnvs
+
+	Container *list.Element
 
 	next *ArgsEnvsCacheEntry
 	last *ArgsEnvsCacheEntry
