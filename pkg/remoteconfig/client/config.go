@@ -60,9 +60,9 @@ func (c *configMeta) scopedToClient(clientID string) bool {
 	return false
 }
 
-func (c *configMeta) equal(configMeta configMeta) bool {
-	return c.hash == configMeta.hash
-}
+// func (c *configMeta) equal(configMeta configMeta) bool {
+// 	return c.hash == configMeta.hash
+// }
 
 func configMetaHash(path string, custom []byte) [32]byte {
 	b := bytes.Buffer{}
@@ -93,9 +93,9 @@ type config struct {
 	contents []byte
 }
 
-func (c *config) equal(config config) bool {
-	return c.meta.equal(config.meta) && bytes.Equal(c.contents, config.contents)
-}
+// func (c *config) equal(config config) bool {
+// 	return c.meta.equal(config.meta) && bytes.Equal(c.contents, config.contents)
+// }
 
 // configList is a config list
 type configList struct {

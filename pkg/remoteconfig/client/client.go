@@ -56,11 +56,7 @@ func (c *Client) Update(update Update) error {
 	if len(update.Roots) == 0 && len(update.Targets) == 0 {
 		return nil
 	}
-	err := c.partialClient.UpdateRoots(update.Roots)
-	if err != nil {
-		return err
-	}
-	newTargets, err := c.partialClient.UpdateTargets(c.currentTargets, update.Targets, update.TargetFiles)
+	newTargets, err := c.partialClient.Update(update.Roots, c.currentTargets, update.Targets, update.TargetFiles)
 	if err != nil {
 		return err
 	}
