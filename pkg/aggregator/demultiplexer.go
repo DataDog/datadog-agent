@@ -506,7 +506,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
-	// only used when we're using flush/serialize in parallel feature
 	var seriesSink *metrics.IterableSeries
 	var done chan struct{}
 
@@ -833,7 +832,6 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	var seriesSink *metrics.IterableSeries
 	var done chan struct{}
 
-	// only used when we're using flush/serialize in parallel feature
 	logPayloads := config.Datadog.GetBool("log_payloads")
 
 	seriesSink, done = startSendingIterableSeries(
