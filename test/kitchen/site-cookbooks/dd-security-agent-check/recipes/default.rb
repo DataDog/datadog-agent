@@ -81,6 +81,7 @@ if node['platform_family'] != 'windows'
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
       FROM centos:7
+      ENV DOCKER_DD_AGENT=yes
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
       RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
@@ -109,7 +110,6 @@ if node['platform_family'] != 'windows'
         'HOST_PROC=/host/proc',
         'HOST_ROOT=/host/root',
         'HOST_ETC=/host/etc',
-        'DOCKER_DD_AGENT=yes'
       ]
       privileged true
     end
