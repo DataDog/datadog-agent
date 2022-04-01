@@ -13,7 +13,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"reflect"
 	"sort"
 
 	"sync/atomic"
@@ -122,7 +121,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// this test is not using anything global
 	// -
 
-	s := &serializer.MockSerializer{}
+	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(metrics.ServiceCheck{
@@ -154,7 +153,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// this test is not using anything global
 	// -
 
-	s := &serializer.MockSerializer{}
+	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(metrics.Event{
@@ -222,7 +221,7 @@ func TestDefaultData(t *testing.T) {
 	// this test IS USING globals (tagsetTlm) but a local aggregator
 	// -
 
-	s := &serializer.MockSerializer{}
+	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
@@ -274,7 +273,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 		}
 
 		return func(t *testing.T) {
-			s := &serializer.MockSerializer{}
+			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
 			demux := InitAndStartAgentDemultiplexer(opts, "")
 			demux.sharedSerializer = s
@@ -337,7 +336,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		}
 
 		return func(t *testing.T) {
-			s := &serializer.MockSerializer{}
+			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
 			demux := InitAndStartAgentDemultiplexer(opts, "")
 			demux.sharedSerializer = s
@@ -391,7 +390,7 @@ func TestRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
 
-	s := &serializer.MockSerializer{}
+	s := &MockSerializerIterableSerie{}
 	opts := demuxTestOptions()
 	demux := InitAndStartAgentDemultiplexer(opts, "")
 	demux.aggregator.serializer = s
@@ -456,31 +455,21 @@ func TestRecurrentSeries(t *testing.T) {
 		return true
 	})
 
-	seriesMatcher := mock.MatchedBy(func(iterableSeries *metrics.IterableSeries) bool {
-		var series metrics.Series
-		for iterableSeries.MoveNext() {
-			series = append(series, iterableSeries.Current())
-		}
-		return reflect.DeepEqual(series, expectedSeries)
-	})
-
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
-	s.On("SendIterableSeries", seriesMatcher).Return(nil).Times(1)
 	demux.ForceFlushToSerializer(start, true)
+	require.EqualValues(t, expectedSeries, s.series)
+	s.series = nil
 
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
-	// Reset MockSerializer otherwise `seriesMatcher` is called twice
-	s = &serializer.MockSerializer{}
-	demux.aggregator.serializer = s
-	demux.sharedSerializer = s
-
 	// Assert that recurrentSeries are sent on each flushed
 	// same goes for the service check
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
-	s.On("SendIterableSeries", seriesMatcher).Return(nil).Times(1)
 	demux.ForceFlushToSerializer(start, true)
+	require.EqualValues(t, expectedSeries, s.series)
+	s.series = nil
+
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 	time.Sleep(1 * time.Second) // a lot of async thing are going on
