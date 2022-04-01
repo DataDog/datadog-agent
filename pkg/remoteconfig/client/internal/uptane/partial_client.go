@@ -108,7 +108,7 @@ func (c *PartialClient) getRoot() (*data.Root, error) {
 	return &root, nil
 }
 
-// RootVersion returns the state of the partial client
+// RootVersion returns the root version of the partial client
 func (c *PartialClient) RootVersion() int64 {
 	return c.rootVersion
 }
@@ -131,6 +131,11 @@ type PartialClientTargets struct {
 	version     int64
 	metas       data.TargetFiles
 	targetFiles map[string][]byte
+}
+
+// Version returns the version
+func (t *PartialClientTargets) Version() int64 {
+	return t.version
 }
 
 // Targets returns the current targets of this uptane partial client

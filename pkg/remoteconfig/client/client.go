@@ -1,10 +1,16 @@
 package client
 
 import (
+	"crypto/rand"
 	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/internal/uptane"
+)
+
+var (
+	idSize     = 21
+	idAlphabet = []rune("_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 )
 
 // Client is a remoteconfig client
@@ -19,17 +25,46 @@ type Client struct {
 	currentConfigs *configList
 }
 
-func NewClient(id string, embededRoot []byte, products []string) *Client {
+func NewClient(embededRoot []byte, products []string) *Client {
 	productsMap := make(map[string]struct{})
 	for _, product := range products {
 		productsMap[product] = struct{}{}
 	}
 	return &Client{
-		id:             id,
+		id:             generateID(),
 		products:       productsMap,
 		partialClient:  uptane.NewPartialClient(embededRoot),
 		currentTargets: &uptane.PartialClientTargets{},
 		currentConfigs: newConfigList(),
+	}
+}
+
+func (c *Client) ID() string {
+	return c.id
+}
+
+func generateID() string {
+	bytes := make([]byte, idSize)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	id := make([]rune, idSize)
+	for i := 0; i < idSize; i++ {
+		id[i] = idAlphabet[bytes[i]&63]
+	}
+	return string(id[:idSize])
+}
+
+type State struct {
+	RootVersion    int64
+	TargetsVersion int64
+}
+
+func (c *Client) State() State {
+	return State{
+		RootVersion:    c.partialClient.RootVersion(),
+		TargetsVersion: c.currentTargets.Version(),
 	}
 }
 
@@ -77,6 +112,7 @@ func (c *Client) Update(update Update) error {
 		config := config{
 			meta:     configMeta,
 			contents: configContents,
+			hash:     configHash(configMeta, configContents),
 		}
 		err = newConfigs.addConfig(config)
 		if err != nil {

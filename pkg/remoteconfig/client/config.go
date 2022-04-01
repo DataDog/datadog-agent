@@ -45,7 +45,7 @@ type configMeta struct {
 }
 
 func (c *configMeta) expired(time int64) bool {
-	return time > c.custom.Expire
+	return c.custom.Expire != 0 && time > c.custom.Expire
 }
 
 func (c *configMeta) scopedToClient(clientID string) bool {
@@ -59,10 +59,6 @@ func (c *configMeta) scopedToClient(clientID string) bool {
 	}
 	return false
 }
-
-// func (c *configMeta) equal(configMeta configMeta) bool {
-// 	return c.hash == configMeta.hash
-// }
 
 func configMetaHash(path string, custom []byte) [32]byte {
 	b := bytes.Buffer{}
@@ -89,28 +85,36 @@ func parseConfigMeta(path string, custom []byte) (configMeta, error) {
 }
 
 type config struct {
+	hash     [32]byte
 	meta     configMeta
 	contents []byte
 }
 
-// func (c *config) equal(config config) bool {
-// 	return c.meta.equal(config.meta) && bytes.Equal(c.contents, config.contents)
-// }
+func configHash(meta configMeta, contents []byte) [32]byte {
+	b := bytes.Buffer{}
+	b.Write(meta.hash[:])
+	configHash := sha256.Sum256(contents)
+	b.Write(configHash[:])
+	return sha256.Sum256(b.Bytes())
+}
 
 // configList is a config list
 type configList struct {
-	configs    map[string]struct{}
+	configs    map[string]map[string]struct{}
 	apmConfigs []ConfigAPMSamling
 }
 
 func newConfigList() *configList {
 	return &configList{
-		configs: make(map[string]struct{}),
+		configs: make(map[string]map[string]struct{}),
 	}
 }
 
 func (cl *configList) addConfig(c config) error {
-	if _, exist := cl.configs[c.meta.path.ConfigID]; exist {
+	if _, productExists := cl.configs[c.meta.path.Product]; !productExists {
+		cl.configs[c.meta.path.Product] = make(map[string]struct{})
+	}
+	if _, exist := cl.configs[c.meta.path.Product][c.meta.path.ConfigID]; exist {
 		return fmt.Errorf("duplicated config id: %s", c.meta.path.ConfigID)
 	}
 	switch c.meta.path.Product {
@@ -123,22 +127,36 @@ func (cl *configList) addConfig(c config) error {
 	default:
 		return &errUnknwonProduct{product: c.meta.path.Product}
 	}
-	cl.configs[c.meta.path.ConfigID] = struct{}{}
+	cl.configs[c.meta.path.Product][c.meta.path.ConfigID] = struct{}{}
 	return nil
 }
 
 func (cl *configList) getCurrentConfigs(clientID string, time int64) Configs {
+	apmSamplingHash := bytes.Buffer{}
 	configs := Configs{
-		ApmConfigs: make([]ConfigAPMSamling, len(cl.apmConfigs)),
+		APMSamplingConfigs: make([]ConfigAPMSamling, 0, len(cl.apmConfigs)),
 	}
 	for _, pc := range cl.apmConfigs {
 		if !pc.c.meta.expired(time) && pc.c.meta.scopedToClient(clientID) {
-			configs.ApmConfigs = append(configs.ApmConfigs, pc)
+			configs.APMSamplingConfigs = append(configs.APMSamplingConfigs, pc)
+			apmSamplingHash.Write(pc.c.hash[:])
 		}
 	}
+	configs.apmSamplingConfigsHash = sha256.Sum256(apmSamplingHash.Bytes())
 	return configs
 }
 
 type Configs struct {
-	ApmConfigs []ConfigAPMSamling
+	APMSamplingConfigs     []ConfigAPMSamling
+	apmSamplingConfigsHash [32]byte
+}
+
+type ConfigsUpdated struct {
+	APMSampling bool
+}
+
+func (c *Configs) Diff(oldConfigs Configs) ConfigsUpdated {
+	return ConfigsUpdated{
+		APMSampling: c.apmSamplingConfigsHash != oldConfigs.apmSamplingConfigsHash,
+	}
 }

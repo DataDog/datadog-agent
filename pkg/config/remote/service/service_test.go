@@ -277,15 +277,15 @@ func TestService(t *testing.T) {
 		NewProducts: []string{
 			string(rdata.ProductAPMSampling),
 		},
-		ActiveClients: []*pbgo.Client{client},
-		ClientState:   []byte("test_state"),
+		ActiveClients:      []*pbgo.Client{client},
+		BackendClientState: []byte("test_state"),
 	}).Return(lastConfigResponse, nil)
 
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, []*pbgo.TopMeta{{Version: 3, Raw: root3}, {Version: 4, Raw: root4}}, configResponse.Roots)
+	assert.ElementsMatch(t, [][]byte{root3, root4}, configResponse.Roots)
 	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles)
-	assert.Equal(t, &pbgo.TopMeta{Version: 5, Raw: targets}, configResponse.Targets)
+	assert.Equal(t, targets, configResponse.Targets)
 	err = service.refresh()
 	assert.NoError(t, err)
 

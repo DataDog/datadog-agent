@@ -277,11 +277,8 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		return nil, err
 	}
 	return &pbgo.ClientGetConfigsResponse{
-		Roots: roots,
-		Targets: &pbgo.TopMeta{
-			Version: state.DirectorTargetsVersion(),
-			Raw:     targetsRaw,
-		},
+		Roots:       roots,
+		Targets:     targetsRaw,
 		TargetFiles: targetFiles,
 	}, nil
 }
@@ -314,17 +311,14 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	return response, nil
 }
 
-func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([]*pbgo.TopMeta, error) {
-	var roots []*pbgo.TopMeta
+func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
+	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
 		root, err := s.uptane.DirectorRoot(i)
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, &pbgo.TopMeta{
-			Raw:     root,
-			Version: i,
-		})
+		roots = append(roots, root)
 	}
 	return roots, nil
 }
