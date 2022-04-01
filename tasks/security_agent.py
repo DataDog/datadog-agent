@@ -477,8 +477,12 @@ RUN apt-get update -y \
     cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
-    cmd += '-v /:/host/root -e HOST_ROOT=/host/root '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
+    cmd += '-v /sys:/host/sys -e HOST_SYS=/host/sys '
+    cmd += '-v /etc/os-release:/host/etc/os-release '
+    cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
+    cmd += '-v /etc/passwd:/etc/passwd '
+    cmd += '-v /etc/group:/etc/group '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
