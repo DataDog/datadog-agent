@@ -20,7 +20,7 @@ var (
 type source uint
 
 const (
-	sourceUnknwon source = iota
+	sourceUnknown source = iota
 	sourceDatadog
 	sourceEmployee
 )
@@ -41,7 +41,7 @@ func parseConfigPath(path string) (configPath, error) {
 	case sourceEmployee:
 		return parseEmployeeConfigPath(path)
 	}
-	return configPath{}, fmt.Errorf("config path '%s' has unknwon source", path)
+	return configPath{}, fmt.Errorf("config path '%s' has unknown source", path)
 }
 
 func parseDatadogConfigPath(path string) (configPath, error) {
@@ -91,5 +91,5 @@ func parseConfigPathSource(path string) source {
 	case strings.HasPrefix(path, "employee/"):
 		return sourceEmployee
 	}
-	return sourceUnknwon
+	return sourceUnknown
 }

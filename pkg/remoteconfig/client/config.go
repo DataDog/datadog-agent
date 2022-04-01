@@ -13,11 +13,11 @@ var (
 	ErrNoConfigVersion = errors.New("config has no version in its meta")
 )
 
-type errUnknwonProduct struct {
+type errUnknownProduct struct {
 	product string
 }
 
-func (e *errUnknwonProduct) Error() string {
+func (e *errUnknownProduct) Error() string {
 	return fmt.Sprintf("unknown product %s", e.product)
 }
 
@@ -126,7 +126,7 @@ func (cl *configList) addConfig(c config) error {
 		}
 		cl.apmConfigs = append(cl.apmConfigs, pc)
 	default:
-		return &errUnknwonProduct{product: c.meta.path.Product}
+		return &errUnknownProduct{product: c.meta.path.Product}
 	}
 	cl.configs[c.meta.path.Product][c.meta.path.ConfigID] = struct{}{}
 	return nil
