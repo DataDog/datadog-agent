@@ -621,6 +621,15 @@ func TestOTLPConvertSpan(t *testing.T) {
 	}
 }
 
+func TestResourceAttributesMap(t *testing.T) {
+	rattr := map[string]string{"key": "val"}
+	lib := pdata.NewInstrumentationLibrary()
+	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
+	convertSpan(rattr, lib, span)
+	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
+	assert.Equal(t, "val", rattr["key"])
+}
+
 func makeEventsSlice(name string, attrs map[string]string, timestamp int, dropped uint32) pdata.SpanEventSlice {
 	s := pdata.NewSpanEventSlice()
 	e := s.AppendEmpty()
