@@ -485,8 +485,8 @@ RUN apt-get update -y \
         "GOPATH": get_gopath(ctx),
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
-        "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
-        "image_tag": docker_image_tag_name + ":latest",
+        "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
+        "image_tag": f"{docker_image_tag_name}:latest"
     }
 
     ctx.run(cmd.format(**args))
