@@ -728,19 +728,19 @@ func TestErrorTrackingOnly(t *testing.T) {
 		eligible bool
 	}{
 		{
-			span:     pb.Span{Error: 1, Metrics: map[string]float64{"_top_level": 1}},
+			span:     pb.Span{Error: 1, Metrics: map[string]float64{"_top_level": 1}, Meta: map[string]string{"error.stack": "stack"}},
 			eligible: true,
 		},
 		{
-			span:     pb.Span{Error: 0, Metrics: map[string]float64{"_top_level": 1}},
+			span:     pb.Span{Error: 0, Metrics: map[string]float64{"_top_level": 1}, Meta: map[string]string{"error.stack": "stack"}},
 			eligible: false,
 		},
 		{
-			span:     pb.Span{Error: 1, Metrics: map[string]float64{"_top_level": 0}},
+			span:     pb.Span{Error: 1, Metrics: map[string]float64{"_top_level": 0}, Meta: map[string]string{"error.stack": "stack"}},
 			eligible: false,
 		},
 		{
-			span:     pb.Span{Error: 0, Metrics: map[string]float64{"_top_level": 0}},
+			span:     pb.Span{Error: 1, Metrics: map[string]float64{"_top_level": 1}},
 			eligible: false,
 		},
 	} {

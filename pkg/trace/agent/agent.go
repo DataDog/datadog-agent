@@ -496,8 +496,16 @@ func traceContainsError(trace pb.Trace) bool {
 	return false
 }
 
+// spans are eligible for error tracking if they:
+// * are an error span
+// * are top level (i.e. a service entry span)
+// * have a stacktrace
 func eligibleForErrorTracking(span *pb.Span) bool {
-	return span.Error != 0 && traceutil.HasTopLevel(span)
+	if span.Error != 0 && traceutil.HasTopLevel(span) {
+		_, ok := span.Meta["error.stack"]
+		return ok
+	}
+	return false
 }
 
 func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
