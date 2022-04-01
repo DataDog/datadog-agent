@@ -154,9 +154,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		return &evaluator, array.Pos, nil
 	} else if len(array.StringMembers) != 0 {
 		var evaluator StringValuesEvaluator
-		if err := evaluator.AppendMembers(array.StringMembers...); err != nil {
-			return nil, array.Pos, NewError(array.Pos, err.Error())
-		}
+		evaluator.AppendMembers(array.StringMembers...)
 		return &evaluator, array.Pos, nil
 	} else if array.Ident != nil {
 		if state.macros != nil {
@@ -617,10 +615,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
 					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
@@ -640,10 +634,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					// force pattern if needed
 					if nextString.ValueType == ScalarValueType {
 						nextString.ValueType = PatternValueType
-					}
-
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
 
 					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
@@ -682,10 +672,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
 					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
@@ -699,10 +685,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					// force pattern if needed
 					if nextString.ValueType == ScalarValueType {
 						nextString.ValueType = PatternValueType
-					}
-
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
 
 					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
@@ -956,17 +938,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				Value:     *obj.Pattern,
 				ValueType: PatternValueType,
 			}
-			if err := evaluator.Compile(); err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, err.Error())
-			}
 			return evaluator, obj.Pos, nil
 		case obj.Regexp != nil:
 			evaluator := &StringEvaluator{
 				Value:     *obj.Regexp,
 				ValueType: RegexpValueType,
-			}
-			if err := evaluator.Compile(); err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, err.Error())
 			}
 			return evaluator, obj.Pos, nil
 		case obj.SubExpression != nil:
