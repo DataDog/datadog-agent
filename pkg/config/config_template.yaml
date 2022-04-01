@@ -1170,6 +1170,18 @@ api_key:
 
   {{ end }}
 
+## @param error_tracking - custom object - optional
+## Enter specific configurations for your Error Tracking collection.
+## Uncomment the parameters `error_tracking` and `only` to use Error Tracking without APM.
+#
+# error_tracking:
+#
+  ## @param only - boolean - optional - default: false
+  ## Filter spans to only keep the ones that are relevant for Error Tracking.
+  #
+  # only: true
+
+
 ####################################
 ## AppSec Configuration           ##
 ####################################
@@ -3201,7 +3213,7 @@ api_key:
         ## - `raw_value` to report the raw value as a Datadog gauge.
         #
         # cumulative_monotonic_mode: to_delta
-    
+
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
