@@ -60,12 +60,6 @@ jobs:
         run: |
           cp ../results/go.sarif ./go.sarif
 
-      - name: Upload the sarif as an artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: go.sarif
-          path: go.sarif
-
       - name: Create Cryptographic Summary
         run: |
           python cryptographic-summary-sarif.py
