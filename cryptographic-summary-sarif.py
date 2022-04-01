@@ -18,15 +18,21 @@ owners = CodeOwners(f.read())
 f.close()
 
 # Find where the cryptographic footprint short descriptions are
-# TODO: Refactor qlpack to have a unique name than jank regex search in location
-for extension in jsonread["runs"][0]['tool']['extensions']:
-  if re.match(r".*klai/cryptographic-footprint.*", extension['locations'][0]['uri']) is not None:
-    cfextension = extension
-    break
+if 'rules' in jsonread["runs"][0]['tool']['driver'] and len(jsonread["runs"][0]['tool']['driver']['rules']) != 0:
+  cfrules = []
+  for i in jsonread["runs"][0]['tool']['driver']['rules']:
+    if 'security' in i['properties']['tags']:
+      cfrules += [i]
+else:
+  # TODO: Refactor qlpack to have a unique name than jank regex search in location
+  for extension in jsonread["runs"][0]['tool']['extensions']:
+    if re.match(r".*klai/cryptographic-footprint.*", extension['locations'][0]['uri']) is not None:
+      cfrules = extension['rules']
+      break
 
 # Create a ruleId / short description lookup
 rulelookup = {}
-for row in cfextension['rules']:
+for row in cfrules:
   rulelookup[row['id']] = row['shortDescription']['text']
 
 for row in jsonread["runs"][0]["results"]:
