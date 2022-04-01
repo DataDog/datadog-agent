@@ -42,7 +42,7 @@ func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher
 
 // NewBTFConstantFetcherFromCurrentKernel creates a BTFConstantFetcher, reading BTF from current kernel
 func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
-	spec, err := cbtf.LoadKernelSpec()
+	spec, err := cbtf.LoadKernelSpecWithoutCache()
 	if err != nil {
 		return nil, err
 	}
