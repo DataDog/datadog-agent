@@ -154,6 +154,8 @@ func (m *testModel) GetEvaluator(key string, regID eval.RegisterID) (eval.Evalua
 	return nil, &eval.ErrFieldNotFound{Field: key}
 }
 
+func (e *testEvent) Init() {}
+
 func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
 	switch key {
 
