@@ -28,6 +28,7 @@ const (
 	SourceEmployee
 )
 
+// ConfigPath is the extracted metadata of a config path
 type ConfigPath struct {
 	Source   source
 	OrgID    int64
