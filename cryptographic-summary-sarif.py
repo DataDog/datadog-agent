@@ -4,8 +4,6 @@ import pprint
 import json
 from codeowners import CodeOwners
 
-import pdb
-
 # The fact that this is getting big and untested is bad discipline
 # TODO: Create an integration test with various - possibly take a real sarif, pare it down, and use that as a test
 
