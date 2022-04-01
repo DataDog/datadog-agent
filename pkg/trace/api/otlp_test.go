@@ -194,6 +194,7 @@ func TestOTLPHelpers(t *testing.T) {
 	t.Run("status2Error", func(t *testing.T) {
 		for _, tt := range []struct {
 			status pdata.StatusCode
+			msg    string
 			events pdata.SpanEventSlice
 			out    pb.Span
 		}{
@@ -246,6 +247,12 @@ func TestOTLPHelpers(t *testing.T) {
 				out:    pb.Span{Error: 1},
 			},
 			{
+				status: pdata.StatusCodeError,
+				msg:    "Error number #24",
+				events: pdata.NewSpanEventSlice(),
+				out:    pb.Span{Error: 1, Meta: map[string]string{"error.msg": "Error number #24"}},
+			},
+			{
 				status: pdata.StatusCodeOk,
 				events: pdata.NewSpanEventSlice(),
 				out:    pb.Span{Error: 0},
@@ -264,6 +271,7 @@ func TestOTLPHelpers(t *testing.T) {
 			span := pb.Span{Meta: make(map[string]string)}
 			status := pdata.NewSpanStatus()
 			status.SetCode(tt.status)
+			status.SetMessage(tt.msg)
 			status2Error(status, tt.events, &span)
 			assert.Equal(tt.out.Error, span.Error)
 			for _, prop := range []string{"error.msg", "error.type", "error.stack"} {
