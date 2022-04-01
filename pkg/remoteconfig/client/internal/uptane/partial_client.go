@@ -8,6 +8,7 @@ package uptane
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -17,6 +18,17 @@ import (
 	"github.com/theupdateframework/go-tuf/util"
 	"github.com/theupdateframework/go-tuf/verify"
 )
+
+// ErrInvalid represents the Uptane client rejecting invalid data
+// (malformed or not signed properly)
+type ErrInvalid struct {
+	msg string
+}
+
+// Error is an error
+func (err *ErrInvalid) Error() string {
+	return err.msg
+}
 
 type partialClientRemoteStore struct {
 	roots [][]byte
@@ -47,6 +59,7 @@ func (s *partialClientRemoteStore) GetTarget(path string) (stream io.ReadCloser,
 }
 
 // PartialClient is a partial uptane client
+// (see https://uptane.github.io/papers/uptane-standard.1.2.0.html#rfc.section.5.4.4.1)
 type PartialClient struct {
 	rootClient       *client.Client
 	rootVersion      int64
@@ -55,6 +68,7 @@ type PartialClient struct {
 }
 
 // NewPartialClient creates a new partial uptane client
+// (see https://uptane.github.io/papers/uptane-standard.1.2.0.html#rfc.section.5.4.4.1)
 func NewPartialClient(embededRoot []byte) *PartialClient {
 	embededRootVersion, err := metaVersion(json.RawMessage(embededRoot))
 	if err != nil {
@@ -100,7 +114,7 @@ func (c *PartialClient) RootVersion() int64 {
 }
 
 // UpdateRoots updates the partial client roots
-func (c *PartialClient) UpdateRoots(roots [][]byte) error {
+func (c *PartialClient) updateRoots(roots [][]byte) error {
 	if len(roots) == 0 {
 		return nil
 	}
@@ -149,14 +163,24 @@ func purgeTargetFiles(tufTargetFiles data.TargetFiles, targetFiles map[string][]
 	}
 }
 
-// UpdateTargets updates the partial client
-func (c *PartialClient) UpdateTargets(previousTargets *PartialClientTargets, rawTargets []byte, targetFiles map[string][]byte) (*PartialClientTargets, error) {
+// Update updates the partial client
+func (c *PartialClient) Update(roots [][]byte, previousTargets *PartialClientTargets, rawTargets []byte, targetFiles map[string][]byte) (*PartialClientTargets, error) {
+	err := c.updateRoots(roots)
+	if err != nil {
+		return nil, err
+	}
 	if len(rawTargets) == 0 {
 		return previousTargets, nil
 	}
 	targets, err := c.validateTargets(rawTargets)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, verify.ErrInvalid) || errors.As(err, &verify.ErrRoleThreshold{}) {
+			return nil, fmt.Errorf(
+				"updating targets: %w",
+				&ErrInvalid{err.Error()},
+			)
+		}
+		return nil, fmt.Errorf("updating target: error with unexpected type (%T): %w", err, err)
 	}
 	mergedTargetFiles := mergeTargetFiles(previousTargets.targetFiles, targetFiles)
 	for path, targetMeta := range targets.Targets {
