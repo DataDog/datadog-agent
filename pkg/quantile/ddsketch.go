@@ -148,9 +148,7 @@ func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sket
 		}
 	}
 
-	// The zero count of the sketch isn't directly exposed, compute it
-	// TODO: Should DDSketch expose its zero count?
-	zeroes += inputSketch.GetCount() - inputSketch.GetPositiveValueStore().TotalCount() - inputSketch.GetNegativeValueStore().TotalCount()
+	zeroes += inputSketch.GetZeroCount()
 
 	// Finally, add the 0 key
 	floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
