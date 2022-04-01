@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/resolver"
 )
 
 const (
@@ -35,13 +36,14 @@ const (
 )
 
 var (
-	filename  string
-	pkgname   string
-	output    string
-	verbose   bool
-	mock      bool
-	docOutput string
-	buildTags string
+	filename             string
+	pkgname              string
+	output               string
+	verbose              bool
+	mock                 bool
+	docOutput            string
+	fieldsResolverOutput string
+	buildTags            string
 )
 
 var (
@@ -82,7 +84,9 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 		OpOverrides: opOverrides,
 	}
 
-	module.EventTypes[event] = true
+	if _, ok := module.EventTypes[event]; !ok {
+		module.EventTypes[event] = common.NewEventTypeMetada()
+	}
 }
 
 func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
@@ -138,9 +142,10 @@ func getFieldIdent(field *ast.Field) (ident *ast.Ident, isPointer, isArray bool)
 }
 
 type seclField struct {
-	name     string
-	iterator string
-	handler  string
+	name                string
+	iterator            string
+	handler             string
+	cachelessResolution bool
 }
 
 func parseHandler(handler string) (string, int64) {
@@ -179,7 +184,10 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 				if e, ok := tag.Lookup("event"); ok {
 					event = e
-					module.EventTypeDocs[e] = fieldCommentText
+					if _, ok = module.EventTypes[e]; !ok {
+						module.EventTypes[e] = common.NewEventTypeMetada()
+					}
+					module.EventTypes[e].Doc = fieldCommentText
 				}
 
 				if isEmbedded := len(field.Names) == 0; !isEmbedded {
@@ -202,7 +210,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						for _, tag := range tags.Tags() {
 							switch tag.Key {
 							case "field":
-								splitted := strings.SplitN(tag.Value(), ",", 3)
+								splitted := strings.SplitN(tag.Value(), ",", 4)
 								alias := splitted[0]
 								if alias == "-" {
 									continue FIELD
@@ -213,6 +221,9 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								}
 								if len(splitted) > 2 {
 									field.iterator, weight = parseHandler(splitted[2])
+								}
+								if len(splitted) > 3 {
+									field.cachelessResolution = splitted[3] == "cacheless_resolution"
 								}
 
 								fields = append(fields, field)
@@ -242,15 +253,16 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							}
 
 							module.Iterators[alias] = &common.StructField{
-								Name:          fmt.Sprintf("%s.%s", prefix, fieldName),
-								ReturnType:    qualifiedType(iterator),
-								Event:         event,
-								OrigType:      qualifiedType(fieldType.Name),
-								IsOrigTypePtr: isPointer,
-								IsArray:       isArray,
-								Weight:        weight,
-								CommentText:   fieldCommentText,
-								OpOverrides:   opOverrides,
+								Name:                fmt.Sprintf("%s.%s", prefix, fieldName),
+								ReturnType:          qualifiedType(iterator),
+								Event:               event,
+								OrigType:            qualifiedType(fieldType.Name),
+								IsOrigTypePtr:       isPointer,
+								IsArray:             isArray,
+								Weight:              weight,
+								CommentText:         fieldCommentText,
+								OpOverrides:         opOverrides,
+								CachelessResolution: seclField.cachelessResolution,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -262,22 +274,27 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							}
 
 							module.Fields[fieldAlias] = &common.StructField{
-								Prefix:      prefix,
-								Name:        fmt.Sprintf("%s.%s", prefix, fieldName),
-								BasicType:   origTypeToBasicType(fieldType.Name),
-								Struct:      typeSpec.Name.Name,
-								Handler:     handler,
-								ReturnType:  origTypeToBasicType(fieldType.Name),
-								Event:       event,
-								OrigType:    fieldType.Name,
-								Iterator:    fieldIterator,
-								IsArray:     isArray,
-								Weight:      weight,
-								CommentText: fieldCommentText,
-								OpOverrides: opOverrides,
+								Prefix:              prefix,
+								Name:                fmt.Sprintf("%s.%s", prefix, fieldName),
+								BasicType:           origTypeToBasicType(fieldType.Name),
+								Struct:              typeSpec.Name.Name,
+								Handler:             handler,
+								ReturnType:          origTypeToBasicType(fieldType.Name),
+								Event:               event,
+								OrigType:            fieldType.Name,
+								Iterator:            fieldIterator,
+								IsArray:             isArray,
+								Weight:              weight,
+								CommentText:         fieldCommentText,
+								OpOverrides:         opOverrides,
+								CachelessResolution: seclField.cachelessResolution,
 							}
 
-							module.EventTypes[event] = true
+							if _, ok = module.EventTypes[event]; !ok {
+								module.EventTypes[event] = common.NewEventTypeMetada(fieldAlias)
+							} else {
+								module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, fieldAlias)
+							}
 							delete(dejavu, fieldName)
 
 							continue
@@ -369,15 +386,14 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	}
 
 	module := &common.Module{
-		Name:          moduleName,
-		SourcePkg:     pkgName,
-		TargetPkg:     pkgName,
-		BuildTags:     buildTags,
-		Fields:        make(map[string]*common.StructField),
-		Iterators:     make(map[string]*common.StructField),
-		EventTypes:    make(map[string]bool),
-		EventTypeDocs: make(map[string]string),
-		Mock:          mock,
+		Name:       moduleName,
+		SourcePkg:  pkgName,
+		TargetPkg:  pkgName,
+		BuildTags:  buildTags,
+		Fields:     make(map[string]*common.StructField),
+		Iterators:  make(map[string]*common.StructField),
+		EventTypes: make(map[string]*common.EventTypeMetadata),
+		Mock:       mock,
 	}
 
 	// If the target package is different from the model package
@@ -431,6 +447,12 @@ func main() {
 		panic(err)
 	}
 
+	if len(fieldsResolverOutput) > 0 {
+		if err = resolver.GenerateFieldsResolver(module, fieldsResolverOutput); err != nil {
+			panic(err)
+		}
+	}
+
 	if docOutput != "" {
 		if err := doc.GenerateDocJSON(module, docOutput); err != nil {
 			panic(err)
@@ -464,6 +486,7 @@ func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flag.BoolVar(&mock, "mock", false, "Mock accessors")
 	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
+	flag.StringVar(&fieldsResolverOutput, "fields-resolver", "", "Fields resolver output file")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")

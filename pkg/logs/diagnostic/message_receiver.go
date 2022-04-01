@@ -35,9 +35,10 @@ type BufferedMessageReceiver struct {
 
 // Filters for processing log messages
 type Filters struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Source string `json:"source"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Source  string `json:"source"`
+	Service string `json:"service"`
 }
 
 // NewBufferedMessageReceiver creates a new MessageReceiver
@@ -132,6 +133,10 @@ func shouldHandleMessage(m *message.Message, filters *Filters) bool {
 
 	if filters.Source != "" {
 		shouldHandle = shouldHandle && filters.Source == m.Origin.Source()
+	}
+
+	if filters.Service != "" {
+		shouldHandle = shouldHandle && filters.Service == m.Origin.Service()
 	}
 
 	return shouldHandle

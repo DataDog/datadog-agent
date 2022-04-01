@@ -90,14 +90,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if remote_docker:
         exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = f'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}" {exec_opts}'
+    go_cmd = f'go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}" {exec_opts}'
 
-    prefixes = [
-        "./cmd/trace-agent/test/testsuite/...",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+    ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...", env={"INTEGRATION": "yes"})
 
 
 @task

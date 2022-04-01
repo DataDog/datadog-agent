@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -28,8 +26,6 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
-
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -60,19 +56,6 @@ func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.Dogstatsd)
 	config.Datadog.AddConfigPath(DefaultConfPath)
-
-	// go_expvar server
-	go func() {
-		var port = coreconfig.Datadog.GetString("security_agent.expvar_port")
-		coreconfig.Datadog.Set("expvar_port", port)
-		if coreconfig.Datadog.GetBool("telemetry.enabled") {
-			http.Handle("/telemetry", telemetry.Handler())
-		}
-		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
-		}
-	}()
 
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {

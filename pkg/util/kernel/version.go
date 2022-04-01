@@ -66,7 +66,7 @@ func HostVersion() (Version, error) {
 	if v, err := parseDebianVersion(unix.ByteSliceToString(uname.Version[:])); err == nil {
 		return v, nil
 	}
-	return parseReleaseString(unix.ByteSliceToString(uname.Release[:]))
+	return ParseReleaseString(unix.ByteSliceToString(uname.Release[:]))
 }
 
 // ParseVersion parses a string in the format of x.x.x to a Version
@@ -83,10 +83,10 @@ func VersionCode(major, minor, patch byte) Version {
 	return Version((uint32(major) << 16) + (uint32(minor) << 8) + uint32(patch))
 }
 
-// parseReleaseString converts a release string with format
+// ParseReleaseString converts a release string with format
 // 4.4.2[-1] to a kernel version number in LINUX_VERSION_CODE format.
 // That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func parseReleaseString(releaseString string) (Version, error) {
+func ParseReleaseString(releaseString string) (Version, error) {
 	versionParts := versionRegex.FindStringSubmatch(releaseString)
 	if len(versionParts) < 3 {
 		return 0, fmt.Errorf("got invalid release version %q (expected format '4.3.2-1')", releaseString)
@@ -127,7 +127,7 @@ func parseUbuntuVersion(procVersion string) (Version, error) {
 	if err != nil {
 		return 0, err
 	}
-	return parseReleaseString(releaseString)
+	return ParseReleaseString(releaseString)
 }
 
 var debianVersionRegex = regexp.MustCompile(`.* SMP Debian (\d+\.\d+.\d+-\d+)(?:\+[[:alnum:]]*)?.*`)
@@ -137,5 +137,55 @@ func parseDebianVersion(str string) (Version, error) {
 	if len(match) != 2 {
 		return 0, fmt.Errorf("failed to parse kernel version from /proc/version: %s", str)
 	}
-	return parseReleaseString(match[1])
+	return ParseReleaseString(match[1])
+}
+
+// UbuntuKernelVersion represents a version from an ubuntu kernel
+// Please see: https://ubuntu.com/kernel for the documentation of this scheme
+type UbuntuKernelVersion struct {
+	Major  int
+	Minor  int
+	Patch  int // always 0
+	Abi    int
+	Flavor string
+}
+
+var ubuntuKernelVersionRegex = regexp.MustCompile(`^(\d+)\.(\d+)\.(0)-(\d+)-([[:lower:]-]+)$`)
+
+// NewUbuntuKernelVersion parses the ubuntu release string and returns a structure with each extracted fields
+func NewUbuntuKernelVersion(unameRelease string) (*UbuntuKernelVersion, error) {
+	match := ubuntuKernelVersionRegex.FindStringSubmatch(unameRelease)
+	if len(match) == 0 {
+		return nil, fmt.Errorf("failed to parse ubuntu kernel version")
+	}
+
+	major, err := strconv.ParseInt(match[1], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	minor, err := strconv.ParseInt(match[2], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	patch, err := strconv.ParseInt(match[3], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	abi, err := strconv.ParseInt(match[4], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	flavor := match[5]
+
+	return &UbuntuKernelVersion{
+		Major:  int(major),
+		Minor:  int(minor),
+		Patch:  int(patch),
+		Abi:    int(abi),
+		Flavor: flavor,
+	}, nil
 }

@@ -7,6 +7,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -282,9 +283,12 @@ func StartAgent() error {
 		http.Handle("/telemetry", telemetryHandler)
 	}
 	go func() {
-		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%s", expvarPort), http.DefaultServeMux)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", expvarPort, err)
+		common.ExpvarServer = &http.Server{
+			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
+			Handler: http.DefaultServeMux,
+		}
+		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 		}
 	}()
 
@@ -476,6 +480,11 @@ func StopAgent() {
 		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
+	if common.ExpvarServer != nil {
+		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
+			log.Errorf("Error shutting down expvar server: %v", err)
+		}
+	}
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}

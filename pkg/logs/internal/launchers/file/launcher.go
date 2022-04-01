@@ -17,10 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // rxContainerID is used in the shouldIgnore func to do a best-effort validation
@@ -58,16 +59,11 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry,
-	tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
 	return &Launcher{
-		pipelineProvider:       pipelineProvider,
 		tailingLimit:           tailingLimit,
-		addedSources:           sources.GetAddedForType(config.FileType),
-		removedSources:         sources.GetRemovedForType(config.FileType),
 		fileProvider:           newFileProvider(tailingLimit),
 		tailers:                make(map[string]*tailer.Tailer),
-		registry:               registry,
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
@@ -75,8 +71,12 @@ func NewLauncher(sources *config.LogSources, tailingLimit int, pipelineProvider 
 	}
 }
 
-// Start starts the Scanner
-func (s *Launcher) Start() {
+// Start starts the Launcher
+func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	s.pipelineProvider = pipelineProvider
+	s.addedSources = sourceProvider.GetAddedForType(config.FileType)
+	s.removedSources = sourceProvider.GetRemovedForType(config.FileType)
+	s.registry = registry
 	go s.run()
 }
 
@@ -109,7 +109,7 @@ func (s *Launcher) run() {
 
 // cleanup all tailers
 func (s *Launcher) cleanup() {
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for scanKey, tailer := range s.tailers {
 		stopper.Add(tailer)
 		delete(s.tailers, scanKey)

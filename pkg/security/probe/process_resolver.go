@@ -21,7 +21,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
@@ -90,7 +89,6 @@ type ProcessResolver struct {
 	state            int64
 	probe            *Probe
 	resolvers        *Resolvers
-	client           *statsd.Client
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
@@ -216,7 +214,9 @@ func (p *ProcessResolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
-	return p.processCacheEntryPool.Get()
+	entry := p.processCacheEntryPool.Get()
+	entry.Cookie = eval.NewCookie()
+	return entry
 }
 
 // SendStats sends process resolver metrics
@@ -224,46 +224,46 @@ func (p *ProcessResolver) SendStats() error {
 	var err error
 	var count int64
 
-	if err = p.client.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
-	if err = p.client.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
 	}
 
 	if count = atomic.SwapInt64(p.hitsStats[metrics.CacheTag], 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver cache hits metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(p.hitsStats[metrics.KernelMapsTag], 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver kernel maps hits metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(p.hitsStats[metrics.ProcFSTag], 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(&p.missStats, 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver misses metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(&p.addedEntries, 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver added entries metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(&p.flushedEntries, 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver flushed entries metric")
 		}
 	}
@@ -375,6 +375,14 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
 		}
+	}
+
+	// add netns
+	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
+
+	if p.probe.config.NetworkEnabled {
+		// snapshot pid routes in kernel space
+		_, _ = proc.OpenFiles()
 	}
 
 	return nil
@@ -926,6 +934,26 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
+	// insert new entry in kernel maps
+	procCacheEntryB := make([]byte, 224)
+	_, err := entry.Process.MarshalProcCache(procCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
+	} else {
+		if err = p.procCacheMap.Put(pid, procCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
+		}
+	}
+	pidCacheEntryB := make([]byte, 64)
+	_, err = entry.Process.MarshalPidCache(pidCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal prid_cache entry: %s", err)
+	} else {
+		if err = p.pidCacheMap.Put(pid, pidCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
+		}
+	}
+
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)
 
 	return entry, true
@@ -1034,7 +1062,7 @@ func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
 }
 
 // NewProcessResolver returns a new process resolver
-func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
+func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU(512, nil)
 	if err != nil {
 		return nil, err
@@ -1043,7 +1071,6 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 	p := &ProcessResolver{
 		probe:         probe,
 		resolvers:     resolvers,
-		client:        client,
 		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
 		opts:          opts,
 		argsEnvsCache: argsEnvsCache,

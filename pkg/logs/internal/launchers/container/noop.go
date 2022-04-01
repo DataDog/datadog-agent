@@ -6,19 +6,22 @@
 package container
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
 // noopLauncher does nothing.
 type noopLauncher struct{}
 
 // NewNoopLauncher returns a new noopLauncher.
-func NewNoopLauncher() restart.Restartable {
+func NewNoopLauncher() launchers.Launcher {
 	return &noopLauncher{}
 }
 
 // Start does nothing.
-func (l *noopLauncher) Start() {}
+func (l *noopLauncher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+}
 
 // Stop does nothing.
 func (l *noopLauncher) Stop() {}

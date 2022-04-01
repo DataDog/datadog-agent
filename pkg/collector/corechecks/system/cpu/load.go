@@ -10,7 +10,7 @@ package cpu
 import (
 	"fmt"
 
-	"github.com/shirou/gopsutil/load"
+	"github.com/shirou/gopsutil/v3/load"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"

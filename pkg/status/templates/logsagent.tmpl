@@ -19,7 +19,7 @@ Logs Agent
 
 {{- if and (eq .use_http false) (eq .is_running true) }}
 
-    You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
+    You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
 {{ end }}
 
 {{- if .metrics }}
@@ -71,7 +71,7 @@ Logs Agent
       24h Average Latency (ms): {{ .recent_avg_latency }}
       Peak Latency (ms): {{ .all_time_peak_latency }}
       24h Peak Latency (ms): {{ .recent_peak_latency }}
-      {{- if .info }} 
+      {{- if .info }}
       {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
       {{$key}}: {{index $value 0}} {{ else }}
       {{$key}}:

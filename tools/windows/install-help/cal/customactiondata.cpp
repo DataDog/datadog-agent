@@ -16,7 +16,7 @@ CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine
 CustomActionData::CustomActionData()
 : CustomActionData(std::make_shared<TargetMachine>())
 {
-    
+
 }
 
 CustomActionData::~CustomActionData()
@@ -145,6 +145,7 @@ bool CustomActionData::parseSysprobeData()
     std::wstring sysprobePresent;
     std::wstring addlocal;
     std::wstring npm;
+    std::wstring npmFeature;
     this->_doInstallSysprobe = false;
     this->_ddnpmPresent = false;
     if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
@@ -166,30 +167,26 @@ bool CustomActionData::parseSysprobeData()
     {
         WcaLog(LOGMSG_STANDARD, "NPM property not present");
     }
-    else 
+    else
     {
         WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
         this->_ddnpmPresent = true;
     }
 
-    // now check to see if we're installing the driver
-    if (!this->value(L"ADDLOCAL", addlocal))
-    {
-        // should never happen.  But if the addlocalkey isn't there,
-        // don't bother trying
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL not present");
 
-        return true;
-    }
-    WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
+    if (this->value(L"NPMFEATURE", npmFeature))
     {
-        // installing all components, do it
-        this->_ddnpmPresent = true;
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    } else if (addlocal.find(L"NPM") != std::wstring::npos) {
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains NPM %S", addlocal.c_str());
-        this->_ddnpmPresent = true;
+        // this property is set to "on" or "off" depending on the desired installed state
+        // of the NPM feature.
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE key is present and (%S)", npmFeature.c_str());
+        if (_wcsicmp(npmFeature.c_str(), L"on") == 0)
+        {
+            this->_ddnpmPresent = true;
+        }
+    }
+    else
+    {
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE not present");
     }
 
     return true;
@@ -269,7 +266,7 @@ void CustomActionData::ensureDomainHasCorrectFormat()
             WcaLog(LOGMSG_STANDARD, "Supplied domain name \"%S\"", _user.Domain.c_str());
             _domainUser = true;
         }
-        else
+        else if (_wcsicmp(_user.Domain.c_str(), L"NT AUTHORITY") != 0) // NT Authority should never be considered a "domain".
         {
             WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
                    _targetMachine->DnsDomainName().c_str());

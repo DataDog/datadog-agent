@@ -11,8 +11,12 @@ package cloudfoundry
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -127,6 +131,10 @@ type DesiredLRP struct {
 	CustomTags         []string
 }
 
+type CFClient struct {
+	*cfclient.Client
+}
+
 type CFApplication struct {
 	GUID           string
 	Name           string
@@ -142,6 +150,17 @@ type CFApplication struct {
 	TotalMemory    int
 	Labels         map[string]string
 	Annotations    map[string]string
+	Sidecars       []CFSidecar
+}
+
+type CFSidecar struct {
+	Name string
+	GUID string
+}
+
+type listSidecarsResponse struct {
+	Pagination cfclient.Pagination `json:"pagination"`
+	Resources  []CFSidecar         `json:"resources"`
 }
 
 type CFOrgQuota struct {
@@ -275,6 +294,14 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 				orgName = org.Name
 			} else {
 				log.Debugf("Could not find org %s in cc cache", orgGUID)
+			}
+			if ccCache.advancedTagging {
+				if sidecars, err := ccCache.GetSidecars(appGUID); err == nil && len(sidecars) > 0 {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "true"))
+					customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
+				} else {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "false"))
+				}
 			}
 		}
 	} else {
@@ -502,4 +529,50 @@ func (a *CFApplication) extractDataFromV3Org(data *cfclient.V3Organization) {
 			a.Labels[key] = value
 		}
 	}
+}
+
+func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
+	cfc, err := cfclient.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
+	client = &CFClient{cfc}
+	return client, nil
+}
+
+func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSidecar, error) {
+	var sidecars []CFSidecar
+
+	requestURL := "/v3/apps/" + appGUID + "/sidecars"
+	for page := 1; ; page++ {
+		query.Set("page", strconv.Itoa(page))
+		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
+		resp, err := c.DoRequest(r)
+		if err != nil {
+			return nil, fmt.Errorf("Error requesting sidecars for app: %s", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Error listing sidecars, response code: %d", resp.StatusCode)
+		}
+
+		defer resp.Body.Close()
+		resBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		var data listSidecarsResponse
+		err = json.Unmarshal(resBody, &data)
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		sidecars = append(sidecars, data.Resources...)
+
+		if data.Pagination.TotalPages <= page {
+			break
+		}
+	}
+	return sidecars, nil
 }

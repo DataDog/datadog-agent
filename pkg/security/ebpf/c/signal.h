@@ -19,14 +19,16 @@ SYSCALL_KPROBE2(kill, int, pid, int, type) {
     }
 
     /* TODO: implement the event for pid equal to 0 or -1. */
-    if (pid < 1)
+    if (pid < 1) {
         return 0;
+    }
 
     /* make a lookup for the target PID in case we are namespaced */
     /* TODO: make a lookup with the key addition of ns or cgroup id */
     u32 root_nr = get_root_nr((u32)pid);
-    if (!root_nr)
+    if (!root_nr) {
         root_nr = pid;
+    }
 
     /* cache the signal and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
@@ -51,8 +53,9 @@ int kretprobe_check_kill_permission(struct pt_regs* ctx) {
     }
 
     /* do not send event for signals with EINVAL error code */
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     /* constuct and send the event */
     struct signal_event_t event = {
