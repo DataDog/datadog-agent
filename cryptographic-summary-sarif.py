@@ -8,12 +8,21 @@ jfile = open('go.sarif')
 jsonread = json.loads(jfile.read())
 jfile.close()
 
+# Find where the cryptographic footprint short descriptions are
+# TODO: Refactor qlpack to have a unique name than jank regex search in location
+for extension in jsonread["runs"][0]['tool']['extensions']:
+  if re.match(r".*klai/cryptographic-footprint.*", extension['locations'][0]['uri']) is not None:
+    cfextension = extension
+    break
+
 # Create a ruleId / short description lookup
 rulelookup = {}
-for row in jsonread["runs"][0]['tool']['driver']['rules']:
+for row in cfextension['rules']:
   rulelookup[row['id']] = row['shortDescription']['text']
 
 for row in jsonread["runs"][0]["results"]:
+  if not row['ruleId'] in rulelookup:
+    continue
   message = row["message"]["text"]
   location = row["locations"][0]["physicalLocation"]["artifactLocation"]['uri']
   startline = row["locations"][0]["physicalLocation"]["region"]['startLine']
