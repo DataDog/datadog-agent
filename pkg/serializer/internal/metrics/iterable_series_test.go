@@ -109,3 +109,12 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 		r.Equal(v, series[i].Name)
 	}
 }
+
+func TestIterableSeriesEmptyMarshalJSON(t *testing.T) {
+	r := require.New(t)
+	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 10, 2)}
+	iterableSeries.SenderStopped()
+	bytes, err := iterableSeries.MarshalJSON()
+	r.NoError(err)
+	r.Equal(`{"series":[]}`, strings.TrimSpace(string(bytes)))
+}
