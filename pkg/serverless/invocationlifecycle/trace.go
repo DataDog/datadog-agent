@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	rand "github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -41,15 +42,15 @@ var currentExecutionInfo executionStartInfo
 // It should be called at the start of the invocation.
 func startExecutionSpan(startTime time.Time, rawPayload string) {
 	currentExecutionInfo.startTime = startTime
-	currentExecutionInfo.traceID = random.Uint64()
-	currentExecutionInfo.spanID = random.Uint64()
+	currentExecutionInfo.traceID = rand.Random.Uint64()
+	currentExecutionInfo.spanID = rand.Random.Uint64()
 	currentExecutionInfo.parentID = 0
 
 	payload := convertRawPayload(rawPayload)
 
 	if payload.Headers != nil {
 		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
-		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
+		parentID, e2 := convertStrToUnit64(payload.Headers[ParentIDHeader])
 
 		if e1 == nil {
 			currentExecutionInfo.traceID = traceID

@@ -30,11 +30,9 @@ type InferredSpan struct {
 	IsAsync bool
 }
 
-type InferredSpans = map[string]InferredSpan
-
-// create a map to hold all inferred spans with a key of request-id
-// reduces the risk of multiple invocations altering a global variable
-var inferredSpans InferredSpans
+// Holds all inferred spans with a key of request-id and reduces
+// the risk of multiple invocations manipulating the same global variable
+var InferredSpans = make(map[string]InferredSpan)
 
 var functionTagsToIgnore = []string{
 	tags.FunctionARNKey,
@@ -94,7 +92,7 @@ func CreateInferredSpan(event string, ctx *serverlessLog.ExecutionContext) {
 	eventSource, attributes := ParseEventSource(event)
 	switch eventSource {
 	case "apigateway":
-		CreateInferredSpanFromAPIGatewayEvent(eventSource, ctx, attributes, inferredSpans)
+		CreateInferredSpanFromAPIGatewayEvent(eventSource, ctx, attributes)
 	case "http-api":
 		log.Debug("THIS IS A HTTP API")
 	case "websocket":
@@ -108,12 +106,12 @@ func CompleteInferredSpan(
 	isError bool,
 	requestId string) {
 
-	inferredSpan := inferredSpans[requestId]
+	inferredSpan := InferredSpans[requestId]
 
 	if inferredSpan.IsAsync {
 		inferredSpan.Span.Duration = inferredSpan.Span.Start
 	} else {
-		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
+		inferredSpan.Span.Duration = endTime.UnixMilli() - inferredSpan.Span.Start
 	}
 
 	if isError {
@@ -122,6 +120,7 @@ func CompleteInferredSpan(
 	log.Debug("THIS IS THE INFERRED SPAN BEFORE CHUNKING ", inferredSpan.Span)
 	traceChunk := &pb.TraceChunk{
 		Priority: int32(sampler.PriorityNone),
+		Origin:   "lambda",
 		Spans:    []*pb.Span{inferredSpan.Span},
 	}
 
@@ -129,7 +128,6 @@ func CompleteInferredSpan(
 
 	tracerPayload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{traceChunk},
-		Tags:   map[string]string{"_dd.origin": "lambda"},
 	}
 	log.Debug("THIS IS THE TRACER PAYLOAD", tracerPayload)
 
@@ -137,6 +135,6 @@ func CompleteInferredSpan(
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
-	// once we send the payload remove the span from inferredSpans
-	delete(inferredSpans, requestId)
+	// once we send the payload remove the inferredSpan from inferredSpans
+	delete(InferredSpans, requestId)
 }

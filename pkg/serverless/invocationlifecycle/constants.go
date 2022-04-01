@@ -18,5 +18,5 @@ const (
 	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
 
-	parentIDHeader = "x-datadog-parent-id"
+	ParentIDHeader = "x-datadog-parent-id"
 )

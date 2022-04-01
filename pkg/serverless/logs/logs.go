@@ -34,6 +34,7 @@ type ExecutionContext struct {
 	LastLogRequestID   string
 	Coldstart          bool
 	StartTime          time.Time
+	IsInferredSpan     bool
 }
 
 // LambdaLogsCollector is the route to which the AWS environment is sending the logs
