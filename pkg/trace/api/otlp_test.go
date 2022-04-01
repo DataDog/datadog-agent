@@ -621,6 +621,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 	}
 }
 
+// TestResourceAttributesMap is a regression test ensuring that the resource attributes map
+// passed to convertSpan is not modified by it.
 func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pdata.NewInstrumentationLibrary()
