@@ -338,7 +338,7 @@ func convertSpan(rattr map[string]string, lib pdata.InstrumentationLibrary, in p
 		name = "opentelemetry." + name
 	}
 	traceID := in.TraceID().Bytes()
-	meta := map[string]string{}
+	meta := make(map[string]string, len(rattr))
 	for k, v := range rattr {
 		meta[k] = v
 	}
