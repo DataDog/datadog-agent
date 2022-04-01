@@ -5,10 +5,6 @@
 
 package eval
 
-import (
-	"fmt"
-)
-
 // Field name
 type Field = string
 
@@ -28,26 +24,4 @@ const (
 type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
-
-	StringMatcher StringMatcher
-}
-
-// Compile the regular expression or the pattern
-func (f *FieldValue) Compile() error {
-	switch f.Type {
-	case PatternValueType, RegexpValueType:
-		value, ok := f.Value.(string)
-		if !ok {
-			return fmt.Errorf("invalid pattern `%v`", f.Value)
-		}
-
-		matcher, err := NewStringMatcher(f.Type, value)
-		if err != nil {
-			return err
-		}
-
-		f.StringMatcher = matcher
-	}
-
-	return nil
 }

@@ -8,7 +8,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.35.0-rc.4
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	go.uber.org/zap v1.20.0
 )
 

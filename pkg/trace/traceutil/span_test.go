@@ -6,6 +6,7 @@
 package traceutil
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -200,4 +201,17 @@ func TestIsMeasured(t *testing.T) {
 
 	span.Metrics = map[string]float64{"_dd.measured": 0}
 	assert.False(IsMeasured(span), "the measured key is present but the value != 1, the span should not be measured")
+}
+
+func TestIsPartialSnapshot(t *testing.T) {
+	assert := assert.New(t)
+	span := &pb.Span{}
+
+	assert.False(IsPartialSnapshot(span), "by default, a span is considered as complete")
+
+	span.Metrics = map[string]float64{"_dd.partial_version": -10}
+	assert.False(IsPartialSnapshot(span), "Negative versions do not mark the span as incomplete")
+
+	span.Metrics = map[string]float64{"_dd.partial_version": float64(rand.Uint32())}
+	assert.True(IsPartialSnapshot(span), "Any value in partialVersion key will mark the span as incomplete")
 }

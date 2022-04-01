@@ -6,7 +6,7 @@
 //go:build (linux && !linux_bpf) || ebpf_bindata
 // +build linux,!linux_bpf ebpf_bindata
 
-package probe
+package ebpf
 
 import (
 	"fmt"
@@ -15,6 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
-func getRuntimeCompiledProbe(config *config.Config, useSyscallWrapper bool) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (bytecode.AssetReader, error) {
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }

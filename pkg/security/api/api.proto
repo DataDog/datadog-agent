@@ -105,7 +105,7 @@ message SecurityGraphGeneratedMessage {
     string Error = 2;
 }
 
-message GetConstantFetcherStatusParams {}
+message GetStatusParams {}
 
 message ConstantValueAndSource {
     string ID = 1;
@@ -113,9 +113,19 @@ message ConstantValueAndSource {
     string Source = 3;
 }
 
+message Status {
+    EnvironmentStatus Environment = 1;
+}
+
 message ConstantFetcherStatus {
     repeated string Fetchers = 1;
     repeated ConstantValueAndSource Values = 2;
+}
+
+message EnvironmentStatus {
+    repeated string Warnings = 1;
+    ConstantFetcherStatus Constants = 2;
+    string KernelLockdown = 3;
 }
 
 service SecurityModule {
@@ -127,7 +137,7 @@ service SecurityModule {
     rpc GenerateProfile(GenerateProfileParams) returns (SecurityProfileGeneratedMessage) {}
     rpc GenerateGraph(GenerateGraphParams) returns (SecurityGraphGeneratedMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
-    rpc GetConstantFetcherStatus(GetConstantFetcherStatusParams) returns (ConstantFetcherStatus) {}
+    rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}

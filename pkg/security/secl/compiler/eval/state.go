@@ -34,12 +34,19 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	if !ok {
 		values = []FieldValue{}
 	}
+	for _, v := range values {
+		if v == value {
+			return nil
+		}
+	}
+
 	values = append(values, value)
 	s.fieldValues[field] = values
 	return s.model.ValidateField(field, value)
 }
 
-func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
+// NewState returns a new State
+func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}

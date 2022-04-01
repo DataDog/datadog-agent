@@ -12,6 +12,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,13 +24,15 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
+	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -37,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,7 +58,7 @@ type Probe struct {
 	manager        *manager.Manager
 	managerOptions manager.Options
 	config         *config.Config
-	statsdClient   *statsd.Client
+	statsdClient   statsd.ClientInterface
 	startTime      time.Time
 	kernelVersion  *kernel.Version
 	_              uint32 // padding for goarch=386
@@ -118,6 +123,31 @@ func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
 	return p.kernelVersion, nil
 }
 
+func (p *Probe) sanityChecks() error {
+	// make sure debugfs is mounted
+	if mounted, err := utilkernel.IsDebugFSMounted(); !mounted {
+		return err
+	}
+
+	if utilkernel.GetLockdownMode() == utilkernel.Confidentiality {
+		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
+	}
+
+	isWriteUserNotSupported := p.kernelVersion.Code >= kernel.Kernel5_13 && utilkernel.GetLockdownMode() == utilkernel.Integrity
+
+	if p.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
+		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
+		p.config.ERPCDentryResolutionEnabled = false
+	}
+
+	if p.config.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
+		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+		p.config.NetworkEnabled = false
+	}
+
+	return nil
+}
+
 // VerifyOSVersion returns an error if the current kernel version is not supported
 func (p *Probe) VerifyOSVersion() error {
 	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {
@@ -126,43 +156,82 @@ func (p *Probe) VerifyOSVersion() error {
 	return nil
 }
 
+// VerifyEnvironment returns an error if the current environment seems to be misconfigured
+func (p *Probe) VerifyEnvironment() *multierror.Error {
+	var err *multierror.Error
+	if aconfig.IsContainerized() {
+		if mounted, _ := mountinfo.Mounted("/etc/passwd"); !mounted {
+			err = multierror.Append(err, errors.New("/etc/passwd doesn't seem to be a mountpoint"))
+		}
+
+		if mounted, _ := mountinfo.Mounted("/etc/group"); !mounted {
+			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
+		}
+
+		if mounted, _ := mountinfo.Mounted(util.HostProc()); !mounted {
+			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
+		}
+
+		if mounted, _ := mountinfo.Mounted(p.kernelVersion.OsReleasePath); !mounted {
+			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+		}
+
+		securityFSPath := filepath.Join(util.GetSysRoot(), "kernel/security")
+		if mounted, _ := mountinfo.Mounted(securityFSPath); !mounted {
+			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", securityFSPath))
+		}
+
+		capsEffective, _, capErr := utils.CapEffCapEprm(utils.Getpid())
+		if capErr != nil {
+			err = multierror.Append(capErr, errors.New("failed to get process capabilities"))
+		} else {
+			requiredCaps := []string{
+				"CAP_SYS_ADMIN",
+				"CAP_SYS_RESOURCE",
+				"CAP_SYS_PTRACE",
+				"CAP_NET_ADMIN",
+				"CAP_NET_BROADCAST",
+				"CAP_NET_RAW",
+				"CAP_IPC_LOCK",
+				"CAP_CHOWN",
+			}
+
+			for _, requiredCap := range requiredCaps {
+				capConst := model.KernelCapabilityConstants[requiredCap]
+				if capsEffective&capConst == 0 {
+					err = multierror.Append(err, fmt.Errorf("%s capability is missing", requiredCap))
+				}
+			}
+		}
+	}
+
+	return err
+}
+
+func isSyscallWrapperRequired() (bool, error) {
+	openSyscall, err := manager.GetSyscallFnName("open")
+	if err != nil {
+		return false, err
+	}
+
+	return !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_"), nil
+}
+
 // Init initializes the probe
-func (p *Probe) Init(client *statsd.Client) error {
+func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	var err error
-	var bytecodeReader bytecode.AssetReader
-
-	useSyscallWrapper := false
-	openSyscall, err := manager.GetSyscallFnName("open")
+	useSyscallWrapper, err := isSyscallWrapperRequired()
 	if err != nil {
 		return err
 	}
-	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
-		useSyscallWrapper = true
-	}
 
-	if p.config.EnableRuntimeCompiler {
-		bytecodeReader, err = getRuntimeCompiledProbe(p.config, useSyscallWrapper)
-		if err != nil {
-			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
-		} else {
-			defer bytecodeReader.Close()
-		}
-	}
+	loader := ebpf.NewLoader(p.config, useSyscallWrapper)
+	defer loader.Close()
 
-	// fallback to pre-compiled version
-	if bytecodeReader == nil {
-		asset := "runtime-security"
-		if useSyscallWrapper {
-			asset += "-syscall-wrapper"
-		}
-
-		bytecodeReader, err = bytecode.GetReader(p.config.BPFDir, asset+".o")
-		if err != nil {
-			return err
-		}
-		defer bytecodeReader.Close()
+	bytecodeReader, err := loader.Load()
+	if err != nil {
+		return err
 	}
 
 	var ok bool
@@ -214,7 +283,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 		return err
 	}
 
-	p.monitor, err = NewMonitor(p, client)
+	p.monitor, err = NewMonitor(p)
 	if err != nil {
 		return err
 	}
@@ -1063,7 +1132,7 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
+func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
 	erpc, err := NewERPC()
 	if err != nil {
 		return nil, err
@@ -1078,17 +1147,26 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		managerOptions: ebpf.NewDefaultOptions(),
 		ctx:            ctx,
 		cancelFnc:      cancel,
-		statsdClient:   client,
 		erpc:           erpc,
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
+		statsdClient:   statsdClient,
 	}
 
-	if err = p.detectKernelVersion(); err != nil {
+	if err := p.detectKernelVersion(); err != nil {
 		// we need the kernel version to start, fail if we can't get it
 		return nil, err
 	}
-	if err = p.VerifyOSVersion(); err != nil {
+
+	if err := p.sanityChecks(); err != nil {
+		return nil, err
+	}
+
+	if err := p.VerifyOSVersion(); err != nil {
 		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
+	}
+
+	if err := p.VerifyEnvironment(); err != nil {
+		log.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
 	p.ensureConfigDefaults()
@@ -1113,6 +1191,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
+	// the constant fetching mechanism can be quite memory intensive, between kernel header downloading,
+	// runtime compilation, BTF parsing...
+	// let's ensure the GC has run at this point before doing further memory intensive stuff
+	runtime.GC()
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
@@ -1175,6 +1257,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Value: getNetStructType(p.kernelVersion),
 		},
 	)
+
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 
@@ -1240,7 +1323,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.config.EnableRuntimeCompiledConstants = true
+		p.config.RuntimeCompiledConstantsEnabled = true
 	}
 }
 
@@ -1288,7 +1371,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
 
-	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSLES12Kernel() || kv.IsSLES15Kernel()) {
+	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSuse12Kernel() || kv.IsSuse15Kernel()) {
 		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
 	}
 	// namespace nr offsets
@@ -1302,8 +1385,16 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// network related constants
 	constantFetcher.AppendOffsetofRequest("net_device_ifindex_offset", "struct net_device", "ifindex", "linux/netdevice.h")
 	constantFetcher.AppendOffsetofRequest("sock_common_skc_net_offset", "struct sock_common", "skc_net", "net/sock.h")
+	constantFetcher.AppendOffsetofRequest("sock_common_skc_family_offset", "struct sock_common", "skc_family", "net/sock.h")
+	constantFetcher.AppendOffsetofRequest("flowi4_saddr_offset", "struct flowi4", "saddr", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest("flowi4_uli_offset", "struct flowi4", "uli", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest("flowi6_saddr_offset", "struct flowi6", "saddr", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest("flowi6_uli_offset", "struct flowi6", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest("socket_sock_offset", "struct socket", "sk", "linux/net.h")
-	constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
+
+	if !kv.IsRH7Kernel() {
+		constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
+	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
 		constantFetcher.AppendOffsetofRequest("net_proc_inum_offset", "struct net", "proc_inum", "net/net_namespace.h")

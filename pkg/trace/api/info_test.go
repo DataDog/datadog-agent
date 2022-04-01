@@ -136,6 +136,7 @@ func TestInfoHandler(t *testing.T) {
 	],
 	"client_drop_p0s": true,
 	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
@@ -194,6 +195,7 @@ func TestInfoHandler(t *testing.T) {
 	],
 	"client_drop_p0s": true,
 	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,

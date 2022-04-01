@@ -52,6 +52,9 @@ type metricsConfig struct {
 
 	// SumConfig defines the export of OTLP Sums.
 	SumConfig sumConfig `mapstructure:"sums"`
+
+	// SummaryConfig defines the export for OTLP Summaries.
+	SummaryConfig summaryConfig `mapstructure:"summaries"`
 }
 
 // histogramConfig customizes export of OTLP Histograms.
@@ -108,6 +111,42 @@ type sumConfig struct {
 	// The default is 'to_delta'.
 	// See https://docs.datadoghq.com/metrics/otlp/?tab=sum#mapping for details and examples.
 	CumulativeMonotonicMode CumulativeMonotonicSumMode `mapstructure:"cumulative_monotonic_mode"`
+}
+
+// SummaryMode is the export mode for OTLP Summary metrics.
+type SummaryMode string
+
+const (
+	// SummaryModeNoQuantiles sends no `.quantile` metrics. `.sum` and `.count` metrics will still be sent.
+	SummaryModeNoQuantiles SummaryMode = "noquantiles"
+	// SummaryModeGauges sends `.quantile` metrics as gauges tagged by the quantile.
+	SummaryModeGauges SummaryMode = "gauges"
+)
+
+var _ encoding.TextUnmarshaler = (*SummaryMode)(nil)
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface.
+func (sm *SummaryMode) UnmarshalText(in []byte) error {
+	switch mode := SummaryMode(in); mode {
+	case SummaryModeNoQuantiles,
+		SummaryModeGauges:
+		*sm = mode
+		return nil
+	default:
+		return fmt.Errorf("invalid summary mode %q", mode)
+	}
+}
+
+// summaryConfig customizes export of OTLP Summaries.
+type summaryConfig struct {
+	// Mode is the the mode for exporting OTLP Summaries.
+	// Valid values are 'noquantiles' or 'gauges'.
+	//  - 'noquantiles' sends no `.quantile` metrics. `.sum` and `.count` metrics will still be sent.
+	//  - 'gauges' sends `.quantile` metrics as gauges tagged by the quantile.
+	//
+	// The default is 'gauges'.
+	// See https://docs.datadoghq.com/metrics/otlp/?tab=summary#mapping for details and examples.
+	Mode SummaryMode `mapstructure:"mode"`
 }
 
 // metricsExporterConfig provides options for a user to customize the behavior of the

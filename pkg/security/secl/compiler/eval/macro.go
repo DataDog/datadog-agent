@@ -59,9 +59,11 @@ func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error
 			Value: value,
 		}
 
-		if err := evaluator.AppendFieldValues(fieldValue); err != nil {
-			return nil, err
-		}
+		evaluator.AppendFieldValues(fieldValue)
+	}
+
+	if err := evaluator.Compile(DefaultStringCmpOpts); err != nil {
+		return nil, err
 	}
 
 	return &Macro{
@@ -96,7 +98,7 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 	for id, macro := range opts.Macros {
 		macros[id] = macro.evaluator
 	}
-	state := newState(model, field, macros)
+	state := NewState(model, field, macros)
 
 	var eval interface{}
 	var err error

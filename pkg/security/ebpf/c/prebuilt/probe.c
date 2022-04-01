@@ -65,6 +65,7 @@
 #include "signal.h"
 #include "net_device.h"
 #include "procfs.h"
+#include "offset.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;

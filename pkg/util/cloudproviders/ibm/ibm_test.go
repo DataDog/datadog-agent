@@ -7,6 +7,7 @@ package ibm
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +19,9 @@ import (
 )
 
 var (
-	tokenPayload            = "{\"access_token\":\"some data\",\"created_at\":\"2022-03-22T15:35:50.227Z\",\"expires_at\":\"2022-03-22T15:40:50.227Z\",\"expires_in\":3600}"
+	tokenPayload = "{\"access_token\":\"some data\",\"created_at\":\"2022-03-22T15:35:50.227Z\",\"expires_at\":\"2022-03-22T15:40:50.227Z\",\"expires_in\":3600}"
+
+	// invalid expire date format
 	tokenPayloadExpireError = "{\"access_token\":\"some data\",\"created_at\":\"2022-03-22T15:35:50.227Z\",\"expires_at\":\"2022-03-22T15:40\",\"expires_in\":3600}"
 
 	// We only care about the 'id' entry from the metadata endpoint answer.
@@ -74,11 +77,16 @@ func TestGetTokenErrorParsingDate(t *testing.T) {
 	defer func(url string) { metadataURL = url }(metadataURL)
 	metadataURL = ts.URL
 
+	renewDate := time.Now()
+	// passing some time to make sure renewDate is equal to 'expiresAt'
+	time.Sleep(100 * time.Millisecond)
+
 	value, expiresAt, err := getToken(context.Background())
 	require.Nil(t, err)
 	assert.Equal(t, "some data", value)
 
-	assert.True(t, time.Now().After(expiresAt))
+	// expiresAt is set to time.Now() when the API returned an invalid expire date.
+	assert.True(t, renewDate.Before(expiresAt), fmt.Sprintf("'%s' should be before '%s'", renewDate, expiresAt))
 }
 
 func TestGetHostAliases(t *testing.T) {

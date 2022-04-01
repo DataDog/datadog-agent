@@ -89,10 +89,10 @@ func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) 
 	return response, nil
 }
 
-// GetConstantFetcherStatus returns the status of the constant fetcher sub-system
-func (c *RuntimeSecurityClient) GetConstantFetcherStatus() (*api.ConstantFetcherStatus, error) {
+// GetStatus returns the status of the module
+func (c *RuntimeSecurityClient) GetStatus() (*api.Status, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.GetConstantFetcherStatus(context.Background(), &api.GetConstantFetcherStatusParams{})
+	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{})
 }
 
 // RunSelfTest instructs the system probe to run a self test
