@@ -4,61 +4,96 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-
-	"github.com/pkg/errors"
+	"strings"
 )
 
 var (
-	// matches <string>/<int>/<string>/<string>/<string> for <type>/<org_id>/<product>/<config_id>/<file>
-	filePathRegexp       = regexp.MustCompile(`^([^/]+)/(\d+)/([^/]+)/([^/]+)/([^/]+)$`)
-	filePathRegexpGroups = 5
+	// matches datadog/<int>/<string>/<string>/<string> for datadog/<org_id>/<product>/<config_id>/<file>
+	datadogPathRegexp       = regexp.MustCompile(`^datadog/(\d+)/([^/]+)/([^/]+)/([^/]+)$`)
+	datadogPathRegexpGroups = 4
+
+	// matches employee/<string>/<string>/<string> for employee/<org_id>/<product>/<config_id>/<file>
+	employeePathRegexp       = regexp.MustCompile(`^employee/([^/]+)/([^/]+)/([^/]+)$`)
+	employeePathRegexpGroups = 3
 )
 
-// Type is the global type the file belongs to
-type Type uint
+type source uint
 
 const (
-	// TypeUnknown is an unknown type
-	TypeUnknown Type = iota
-	// TypeDatadog is the datadog type
-	TypeDatadog
+	// SourceUnknwon is an unknown source
+	SourceUnknwon source = iota
+	// SourceDatadog is a config from datadog
+	SourceDatadog
+	// SourceEmployee is a config from a datadog employee
+	SourceEmployee
 )
 
-// PathMeta contains the metadata of a specific file contained in its path
-type PathMeta struct {
-	Type     Type
+type ConfigPath struct {
+	Source   source
 	OrgID    int64
-	Product  Product
+	Product  string
 	ConfigID string
 	Name     string
 }
 
-// ParseFilePathMeta parses a file path meta
-func ParseFilePathMeta(path string) (PathMeta, error) {
-	matchedGroups := filePathRegexp.FindStringSubmatch(path)
-	if len(matchedGroups) != filePathRegexpGroups+1 {
-		return PathMeta{}, fmt.Errorf("config file path '%s' has wrong format", path)
+// ParseConfigPath parses a config path
+func ParseConfigPath(path string) (ConfigPath, error) {
+	configType := parseConfigPathSource(path)
+	switch configType {
+	case SourceDatadog:
+		return parseDatadogConfigPath(path)
+	case SourceEmployee:
+		return parseEmployeeConfigPath(path)
 	}
-	rawType := matchedGroups[1]
-	configType := TypeUnknown
-	switch rawType {
-	case "datadog":
-		configType = TypeDatadog
+	return ConfigPath{}, fmt.Errorf("config path '%s' has unknwon source", path)
+}
+
+func parseDatadogConfigPath(path string) (ConfigPath, error) {
+	matchedGroups := datadogPathRegexp.FindStringSubmatch(path)
+	if len(matchedGroups) != datadogPathRegexpGroups+1 {
+		return ConfigPath{}, fmt.Errorf("config file path '%s' has wrong format", path)
 	}
-	rawOrgID := matchedGroups[2]
+	rawOrgID := matchedGroups[1]
 	orgID, err := strconv.ParseInt(rawOrgID, 10, 64)
 	if err != nil {
-		return PathMeta{}, errors.Wrapf(err, "could not parse orgID '%s' in config file path", rawOrgID)
+		return ConfigPath{}, fmt.Errorf("could not parse orgID '%s' in config file path: %v", rawOrgID, err)
 	}
-	rawProduct := matchedGroups[3]
+	rawProduct := matchedGroups[2]
 	if len(rawProduct) == 0 {
-		return PathMeta{}, fmt.Errorf("product is empty")
+		return ConfigPath{}, fmt.Errorf("product is empty")
 	}
-	return PathMeta{
-		Type:     configType,
+	return ConfigPath{
+		Source:   SourceDatadog,
 		OrgID:    orgID,
-		Product:  Product(rawProduct),
-		ConfigID: matchedGroups[4],
-		Name:     matchedGroups[5],
+		Product:  rawProduct,
+		ConfigID: matchedGroups[3],
+		Name:     matchedGroups[4],
 	}, nil
+}
+
+func parseEmployeeConfigPath(path string) (ConfigPath, error) {
+	matchedGroups := employeePathRegexp.FindStringSubmatch(path)
+	if len(matchedGroups) != employeePathRegexpGroups+1 {
+		return ConfigPath{}, fmt.Errorf("config file path '%s' has wrong format", path)
+	}
+	rawProduct := matchedGroups[1]
+	if len(rawProduct) == 0 {
+		return ConfigPath{}, fmt.Errorf("product is empty")
+	}
+	return ConfigPath{
+		Source:   SourceEmployee,
+		Product:  rawProduct,
+		ConfigID: matchedGroups[2],
+		Name:     matchedGroups[3],
+	}, nil
+}
+
+func parseConfigPathSource(path string) source {
+	switch {
+	case strings.HasPrefix(path, "datadog/"):
+		return SourceDatadog
+	case strings.HasPrefix(path, "employee/"):
+		return SourceEmployee
+	}
+	return SourceUnknwon
 }
