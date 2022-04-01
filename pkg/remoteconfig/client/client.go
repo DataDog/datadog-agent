@@ -25,6 +25,7 @@ type Client struct {
 	currentConfigs *configList
 }
 
+// NewClient creates a new client
 func NewClient(embededRoot []byte, products []string) *Client {
 	productsMap := make(map[string]struct{})
 	for _, product := range products {
@@ -39,6 +40,7 @@ func NewClient(embededRoot []byte, products []string) *Client {
 	}
 }
 
+// ID is the ID of the client
 func (c *Client) ID() string {
 	return c.id
 }
@@ -56,11 +58,13 @@ func generateID() string {
 	return string(id[:idSize])
 }
 
+// State is the TUF state
 type State struct {
 	RootVersion    int64
 	TargetsVersion int64
 }
 
+// State returns the TUF state of the client
 func (c *Client) State() State {
 	return State{
 		RootVersion:    c.partialClient.RootVersion(),
@@ -68,23 +72,27 @@ func (c *Client) State() State {
 	}
 }
 
+// GetConfigs returns the current assigned configurations
 func (c *Client) GetConfigs(time int64) Configs {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.currentConfigs.getCurrentConfigs(c.id, time)
 }
 
+// File is a file
 type File struct {
 	Path string
 	Raw  []byte
 }
 
+// Update is an update bundle for the client
 type Update struct {
 	Roots       [][]byte
 	Targets     []byte
 	TargetFiles map[string][]byte
 }
 
+// Update updates the client
 func (c *Client) Update(update Update) error {
 	c.m.Lock()
 	defer c.m.Unlock()

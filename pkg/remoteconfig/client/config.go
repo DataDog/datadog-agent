@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	// ErrNoConfigVersion is returned when a config is missing its version in its custom meta
 	ErrNoConfigVersion = errors.New("config has no version in its meta")
 )
 
@@ -146,15 +147,18 @@ func (cl *configList) getCurrentConfigs(clientID string, time int64) Configs {
 	return configs
 }
 
+// Configs is a list of configs
 type Configs struct {
 	APMSamplingConfigs     []ConfigAPMSamling
 	apmSamplingConfigsHash [32]byte
 }
 
+// ConfigsUpdated contains the info about which config got updated
 type ConfigsUpdated struct {
 	APMSampling bool
 }
 
+// Diff compares two config lists and returns which configs got updated
 func (c *Configs) Diff(oldConfigs Configs) ConfigsUpdated {
 	return ConfigsUpdated{
 		APMSampling: c.apmSamplingConfigsHash != oldConfigs.apmSamplingConfigsHash,

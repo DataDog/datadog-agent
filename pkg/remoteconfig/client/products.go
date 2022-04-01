@@ -7,9 +7,11 @@ import (
 )
 
 const (
+	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 )
 
+// ConfigAPMSamling is an apm sampling config
 type ConfigAPMSamling struct {
 	c config
 
