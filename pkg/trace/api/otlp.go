@@ -439,6 +439,11 @@ func status2Error(status pdata.SpanStatus, events pdata.SpanEventSlice, span *pb
 			return true
 		})
 	}
+	if _, ok := span.Meta["error.msg"]; !ok {
+		if status.Message() != "" {
+			span.Meta["error.msg"] = status.Message()
+		}
+	}
 }
 
 // spanKind2Type returns a span's type based on the given kind and other present properties.
