@@ -56,19 +56,19 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v1
 
-      - name: Copy sarif to working directory
+      - name: Copy go sarif to working directory
         run: |
-          cp ../results/ql.sarif ./ql.sarif
-
-      - name: Create Cryptographic Summary
-        run: |
-          python cryptographic-summary-sarif.py
+          cp ../results/go.sarif ./go.sarif
 
       - name: Upload the sarif as an artifact
         uses: actions/upload-artifact@v2
         with:
-          name: ql.sarif
-          path: ql.sarif
+          name: go.sarif
+          path: go.sarif
+
+      - name: Create Cryptographic Summary
+        run: |
+          python cryptographic-summary-sarif.py
 
       - name: Upload the summary as an artifact
         uses: actions/upload-artifact@v2

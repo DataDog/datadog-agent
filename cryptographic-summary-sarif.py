@@ -4,7 +4,7 @@ import pprint
 import json
 
 findings = {'Approved': {}, 'Disallowed': {}, 'Miscellaneous': {}, 'PossibleLibrary': [], 'PossibleImport': []}
-jfile = open('ql.sarif')
+jfile = open('go.sarif')
 jsonread = json.loads(jfile.read())
 jfile.close()
 
