@@ -486,7 +486,7 @@ RUN apt-get update -y \
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
-        "image_tag": f"{docker_image_tag_name}:latest"
+        "image_tag": f"{docker_image_tag_name}:latest",
     }
 
     ctx.run(cmd.format(**args))
