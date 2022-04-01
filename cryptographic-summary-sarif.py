@@ -2,11 +2,22 @@ import csv
 import re
 import pprint
 import json
+from codeowners import CodeOwners
 
-findings = {'Approved': {}, 'Disallowed': {}, 'Miscellaneous': {}, 'PossibleLibrary': [], 'PossibleImport': []}
+import pdb
+
+# The fact that this is getting big and untested is bad discipline
+# TODO: Create an integration test with various - possibly take a real sarif, pare it down, and use that as a test
+
+findings = {}
 jfile = open('go.sarif')
 jsonread = json.loads(jfile.read())
 jfile.close()
+
+# Read codeowners to figure out where to assign responsibility
+f = open('.github/CODEOWNERS', 'r')
+owners = CodeOwners(f.read())
+f.close()
 
 # Find where the cryptographic footprint short descriptions are
 # TODO: Refactor qlpack to have a unique name than jank regex search in location
@@ -21,95 +32,181 @@ for row in cfextension['rules']:
   rulelookup[row['id']] = row['shortDescription']['text']
 
 for row in jsonread["runs"][0]["results"]:
+  # Skip anything not related to cryptographic footprint
   if not row['ruleId'] in rulelookup:
     continue
+
+  # Get some baseline items - owner, message, location, line, description
   message = row["message"]["text"]
   location = row["locations"][0]["physicalLocation"]["artifactLocation"]['uri']
-  startline = row["locations"][0]["physicalLocation"]["region"]['startLine']
+  line = row["locations"][0]["physicalLocation"]["region"]['startLine']
   description = rulelookup[row['ruleId']]
+  if len(owners.of(location)) == 0:
+    owner = "No Owner"
+  else:
+    owner = " ".join(owners.of(location)[0])
+
+  # Create a dict for the owner, if one doesn't exist yet
+  if owner not in findings:
+    findings[owner] = {}
+
+  # Matching on a cryptographic rule
+  # TODO: This is a bit brittle - replace with a check on `ruleId` for `/cf-`
+  # Can't get rid of this immediately since we use this to establish where to bucket this in packages
   packagematch = re.match(r"Detected (.*) from (.*)", message)
   if packagematch is not None:
     approvetype = description.split(" ")[0]
-    findingdict = findings[approvetype]
+    if approvetype not in findings[owner]:
+      findings[owner][approvetype] = {}
+    findingdict = findings[owner][approvetype]
     packagename = packagematch.group(2)
+    # Grab package name and throw the finding into an array with that name in the findings[owner]
     if packagename not in findingdict:
       findingdict[packagename] = []
-    findingdict[packagename] += [[message, '{}:{}'.format(location, startline)]]
+    findingdict[packagename] += [[message, '{}:{}'.format(location, line)]]
+
+  # Matching on Go Mod
   GMmatch = re.match(r"Go Mod Library Check", description)
   if GMmatch is not None:
-    findings['PossibleLibrary'] += [[message, '{}:{}'.format(location, startline)]]
+    if 'PossibleLibrary' not in findings[owner]:
+      findings[owner]['PossibleLibrary'] = []
+    findings[owner]['PossibleLibrary'] += [[message, '{}:{}'.format(location, line)]]
+
+  # Matching on Go Import
   GImatch = re.match(r"Go Import Library Check", description)
   if GImatch is not None:
-    findings['PossibleImport'] += [[message, '{}:{}'.format(location, startline)]]
+    if 'PossibleImport' not in findings[owner]:
+      findings[owner]['PossibleImport'] = []
+    findings[owner]['PossibleImport'] += [[message, '{}:{}'.format(location, line)]]
 
 ApprovedCount = 0
-for i in findings['Approved']:
-  for j in findings['Approved'][i]:
-      ApprovedCount += 1
+for i in findings:
+  if 'Approved' in findings[i]:
+    for j in findings[i]['Approved']:
+      ApprovedCount += len(findings[i]['Approved'][j])
 
 DisallowedCount = 0
-for i in findings['Disallowed']:
-  for j in findings['Disallowed'][i]:
-      DisallowedCount += 1
+for i in findings:
+  if 'Disallowed' in findings[i]:
+    for j in findings[i]['Disallowed']:
+      DisallowedCount += len(findings[i]['Disallowed'][j])
 
 MiscellaneousCount = 0
-for i in findings['Miscellaneous']:
-  for j in findings['Miscellaneous'][i]:
-      MiscellaneousCount += 1
+for i in findings:
+  if 'Miscellaneous' in findings[i]:
+    for j in findings[i]['Miscellaneous']:
+      MiscellaneousCount += len(findings[i]['Miscellaneous'][j])
 
 csvtowrite = open('summary.txt', 'w')
 csvwrite = csv.writer(csvtowrite, delimiter=',', quotechar='"')
-csvwrite.writerow(["Found {} crypto libraries:".format(len(findings['PossibleLibrary']))])
-for i in findings['PossibleLibrary']:
-    csvwrite.writerow(i)
+
+LibraryCount = 0
+for i in findings:
+  if 'PossibleLibrary' in findings[i]:
+    LibraryCount += len(findings[i]['PossibleLibrary'])
+
+# libraryCount = len(findings['PossibleLibrary'])
+LibraryUsageStr = "Found {} crypto libraries:".format(LibraryCount)
+csvwrite.writerow(["#" * len(LibraryUsageStr)])
+csvwrite.writerow([LibraryUsageStr])
+csvwrite.writerow(["#" * len(LibraryUsageStr)])
+for i in findings:
+  if 'PossibleLibrary' in findings[i]:
+    csvwrite.writerow([])
+    csvwrite.writerow(["=" * (len(i) + 1)])
+    csvwrite.writerow(["{}".format(i)])
+    csvwrite.writerow(["=" * (len(i) + 1)])
+    for j in findings[i]['PossibleLibrary']:
+      csvwrite.writerow(j)
 
 csvwrite.writerow([])
 
-csvwrite.writerow(["Found {} possible imports:".format(len(findings['PossibleImport']))])
-for i in findings['PossibleImport']:
-    m = re.match("Possible crypto import: (.*)", i[0])
-    csvwrite.writerow(["{}".format(m.group(1)), i[1]])
+ImportCount = 0
+for i in findings:
+  if 'PossibleImport' in findings[i]:
+    ImportCount += len(findings[i]['PossibleImport'])
 
-csvwrite.writerow(["======================================================================================="])
-csvwrite.writerow(["Found {} strong cryptographic operation usages across {} types:".format(ApprovedCount, len(findings['Approved']))])
-csvwrite.writerow(["======================================================================================="])
-for i in findings['Approved']:
-  csvwrite.writerow([])
-  csvwrite.writerow(["--------------------------{}---------------------------".format(i)])
-  csvwrite.writerow([])
-  for j in findings['Approved'][i]:
-    m = re.match("Detected (.*) from (.*)", j[0])
-    csvwrite.writerow(["{}".format(m.group(1)), j[1]])
+ImportUsageStr = "Found {} possible imports:".format(ImportCount)
+csvwrite.writerow(["#" * len(ImportUsageStr)])
+csvwrite.writerow([ImportUsageStr])
+csvwrite.writerow(["#" * len(ImportUsageStr)])
+for i in findings:
+  if 'PossibleImport' in findings[i]:
+    csvwrite.writerow([])
+    csvwrite.writerow(["=" * (len(i) + 1)])
+    csvwrite.writerow(["{}".format(i)])
+    csvwrite.writerow(["=" * (len(i) + 1)])
+    for j in findings[i]['PossibleImport']:
+      m = re.match("Possible crypto import: (.*)", j[0])
+      csvwrite.writerow(["{}".format(m.group(1)), j[1]])
+
+
+csvwrite.writerow([])
+OpUsageStr = "Found {} strong cryptographic operation usages".format(ApprovedCount)
+csvwrite.writerow(["#" * len(OpUsageStr)])
+csvwrite.writerow([OpUsageStr])
+csvwrite.writerow(["#" * len(OpUsageStr)])
+
+for a in findings:
+  if 'Approved' in findings[a]:
+    csvwrite.writerow([])
+    csvwrite.writerow(["=" * (len(a) + 1)])
+    csvwrite.writerow(["{}".format(a)])
+    csvwrite.writerow(["=" * (len(a) + 1)])
+    for i in findings[a]['Approved']:
+      csvwrite.writerow([])
+      csvwrite.writerow(["{}".format(i)])
+      csvwrite.writerow(["-" * len(i)])
+      for j in findings[a]['Approved'][i]:
+        m = re.match("Detected (.*) from (.*)", j[0])
+        csvwrite.writerow(["{}".format(m.group(1)), j[1]])
 
 csvwrite.writerow([])
 
-csvwrite.writerow(["======================================================================================="])
-csvwrite.writerow(["Found {} weak or disallowed cryptographic operation usages across {} types:".format(DisallowedCount, len(findings['Disallowed']))])
-csvwrite.writerow(["======================================================================================="])
-for i in findings['Disallowed']:
-  csvwrite.writerow([])
-  csvwrite.writerow(["--------------------------{}---------------------------".format(i)])
-  csvwrite.writerow([])
-  for j in findings['Disallowed'][i]:
-    m = re.match("Detected (.*) from (.*)", j[0])
-    csvwrite.writerow(["{}".format(m.group(1)), j[1]])
+WeakUsageStr = "Found {} weak or disallowed cryptographic operation usages".format(DisallowedCount)
+csvwrite.writerow(["#" * len(WeakUsageStr)])
+csvwrite.writerow([WeakUsageStr])
+csvwrite.writerow(["#" * len(WeakUsageStr)])
+
+for a in findings:
+  if 'Disallowed' in findings[a]:
+    csvwrite.writerow([])
+    csvwrite.writerow(["=" * (len(a) + 1)])
+    csvwrite.writerow(["{}".format(a)])
+    csvwrite.writerow(["=" * (len(a) + 1)])
+    for i in findings[a]['Disallowed']:
+      csvwrite.writerow([])
+      csvwrite.writerow(["{}".format(i)])
+      csvwrite.writerow(["-" * len(i)])
+      for j in findings[a]['Disallowed'][i]:
+        m = re.match("Detected (.*) from (.*)", j[0])
+        csvwrite.writerow(["{}".format(m.group(1)), j[1]])
 
 csvwrite.writerow([])
 
-csvwrite.writerow(["======================================================================================="])
-csvwrite.writerow(["Found {} miscellaneous usages across {} modules:".format(MiscellaneousCount, len(findings['Miscellaneous']))])
-csvwrite.writerow(["======================================================================================="])
-for i in findings['Miscellaneous']:
-  csvwrite.writerow([])
-  csvwrite.writerow(["--------------------------{}---------------------------".format(i)])
-  if re.match('.*rand.*', i) is not None:
-    csvwrite.writerow(["Please ensure that `rand` invocations that are called from packages for their purpose"])
-    csvwrite.writerow(["For example - when cryptographically secure randomness is needed we call `crypto/rand`"])
-    csvwrite.writerow(["In the case of FIPS-140 compliance ensure that `rand` is from a FIPS compliant package"])
-  csvwrite.writerow([])
-  for j in findings['Miscellaneous'][i]:
-    m = re.match("Detected (.*) from (.*)", j[0])
-    csvwrite.writerow(["{}".format(m.group(1)), j[1]])
+MiscUsageStr = "Found {} miscellaneous usages".format(MiscellaneousCount)
+csvwrite.writerow(["#" * len(MiscUsageStr)])
+csvwrite.writerow([MiscUsageStr])
+csvwrite.writerow(["#" * len(MiscUsageStr)])
+
+for a in findings:
+  if 'Miscellaneous' in findings[a]:
+    csvwrite.writerow([])
+    csvwrite.writerow(["=" * (len(a) + 1)])
+    csvwrite.writerow(["{}".format(a)])
+    csvwrite.writerow(["=" * (len(a) + 1)])
+    for i in findings[a]['Miscellaneous']:
+      csvwrite.writerow([])
+      csvwrite.writerow(["{}".format(i)])
+      csvwrite.writerow(["-" * len(i)])
+      if re.match('.*rand.*', i) is not None:
+        csvwrite.writerow(["Please ensure that `rand` invocations that are called from packages for their purpose"])
+        csvwrite.writerow(["For example - when cryptographically secure randomness is needed we call `crypto/rand`"])
+        csvwrite.writerow(["In the case of FIPS-140 compliance ensure that `rand` is from a FIPS compliant package"])
+      csvwrite.writerow([])
+      for j in findings[a]['Miscellaneous'][i]:
+        m = re.match("Detected (.*) from (.*)", j[0])
+        csvwrite.writerow(["{}".format(m.group(1)), j[1]])
 
 csvwrite.writerow([])
 
