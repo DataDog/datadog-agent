@@ -32,6 +32,7 @@ var idToDistribMapping = map[string]string{
 	"debian": "debian",
 	"amzn":   "amzn",
 	"centos": "centos",
+	"fedora": "fedora",
 }
 
 var archMapping = map[string]string{
