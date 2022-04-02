@@ -66,7 +66,7 @@ jobs:
 
       - name: Create Cryptographic Summary
         run: |
-          python cryptographic-summary-sarif.py
+          python3 cryptographic-summary-sarif.py
 
       - name: Upload the summary as an artifact
         uses: actions/upload-artifact@v2
