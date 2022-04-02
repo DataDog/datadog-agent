@@ -439,3 +439,6 @@ replace (
 	github.com/go-logr/logr/funcr => ./internal/patch/logr/funcr
 	github.com/go-logr/stdr => github.com/go-logr/stdr v0.4.0
 )
+
+// temporary until https://github.com/vishvananda/netlink/pull/752 is merged
+replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220401235353-df7ff10b67a6
