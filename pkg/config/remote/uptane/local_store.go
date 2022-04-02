@@ -10,7 +10,6 @@ import (
 	fmt "fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
-	"go.etcd.io/bbolt"
 )
 
 var (
@@ -26,76 +25,66 @@ var (
 // See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 type localStore struct {
 	// metasBucket stores metadata saved by go-tuf
-	metasBucket []byte
+	metasBucket string
 	// rootsBucket stores all the roots metadata ever saved by go-tuf
 	// This is outside of the TUF specification but needed to update partial clients
-	rootsBucket []byte
-	db          *bbolt.DB
+	rootsBucket string
+
+	store *transactionalStore
 }
 
-func newLocalStore(db *bbolt.DB, repository string, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
+func newLocalStore(db *transactionalStore, repository string, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
 	s := &localStore{
-		db:          db,
-		metasBucket: []byte(fmt.Sprintf("%s_%s_metas", cacheKey, repository)),
-		rootsBucket: []byte(fmt.Sprintf("%s_%s_roots", cacheKey, repository)),
+		store:       db,
+		metasBucket: fmt.Sprintf("%s_%s_metas", cacheKey, repository),
+		rootsBucket: fmt.Sprintf("%s_%s_roots", cacheKey, repository),
 	}
 	err := s.init(initialRoots)
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
+	return s, err
 }
 
 func (s *localStore) init(initialRoots meta.EmbeddedRoots) error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(s.metasBucket)
-		if err != nil {
-			return fmt.Errorf("failed to create metas bucket: %v", err)
-		}
-		_, err = tx.CreateBucketIfNotExists(s.rootsBucket)
-		if err != nil {
-			return fmt.Errorf("failed to create roots bucket: %v", err)
-		}
+	err := s.store.update(func(tx *transaction) error {
 		for _, root := range initialRoots {
 			err := s.writeRoot(tx, json.RawMessage(root))
 			if err != nil {
 				return fmt.Errorf("failed to set embedded root in roots bucket: %v", err)
 			}
 		}
-		// This is the place where we pass embedded roots to go-tuf
-		// Improvable if the API of go-tuf changes
-		metasBucket := tx.Bucket(s.metasBucket)
-		if metasBucket.Get([]byte(metaRoot)) == nil {
-			err := metasBucket.Put([]byte(metaRoot), initialRoots.Last())
-			if err != nil {
-				return fmt.Errorf("failed to set embedded root in meta bucket: %v", err)
-			}
+
+		data, err := tx.get(s.metasBucket, metaRoot)
+		if err != nil {
+			return err
+		}
+		if data == nil {
+			tx.put(s.metasBucket, metaRoot, initialRoots.Last())
 		}
 		return nil
 	})
+	return err
 }
 
-func (s *localStore) writeRoot(tx *bbolt.Tx, root json.RawMessage) error {
+func (s *localStore) writeRoot(tx *transaction, root json.RawMessage) error {
 	version, err := metaVersion(root)
 	if err != nil {
 		return err
 	}
-	rootKey := []byte(fmt.Sprintf("%d.root.json", version))
-	rootsBucket := tx.Bucket(s.rootsBucket)
-	return rootsBucket.Put(rootKey, root)
+	rootKey := fmt.Sprintf("%d.root.json", version)
+	tx.put(s.rootsBucket, rootKey, root)
+	return nil
 }
 
 // GetMeta implements go-tuf's LocalStore.GetTarget
 // See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 func (s *localStore) GetMeta() (map[string]json.RawMessage, error) {
 	meta := make(map[string]json.RawMessage)
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		metaBucket := tx.Bucket(s.metasBucket)
-		cursor := metaBucket.Cursor()
-		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-			tmp := make([]byte, len(v))
-			copy(tmp, v)
-			meta[string(k)] = json.RawMessage(tmp)
+	err := s.store.view(func(tx *transaction) error {
+		allFiles, err := tx.getAll(s.metasBucket)
+		if err != nil {
+			return err
+		}
+		for _, blob := range allFiles {
+			meta[blob.path] = json.RawMessage(blob.data)
 		}
 		return nil
 	})
@@ -105,43 +94,39 @@ func (s *localStore) GetMeta() (map[string]json.RawMessage, error) {
 // DeleteMeta implements go-tuf's LocalStore.DeleteMeta
 // See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 func (s *localStore) DeleteMeta(name string) error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		metaBucket := tx.Bucket(s.metasBucket)
-		return metaBucket.Delete([]byte(name))
+	return s.store.update(func(tx *transaction) error {
+		tx.delete(s.metasBucket, name)
+		return nil
 	})
 }
 
 // SetMeta implements go-tuf's LocalStore.SetMeta
 // See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 func (s *localStore) SetMeta(name string, meta json.RawMessage) error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
+	return s.store.update(func(tx *transaction) error {
 		if name == metaRoot {
 			err := s.writeRoot(tx, meta)
 			if err != nil {
 				return err
 			}
 		}
-		metaBucket := tx.Bucket(s.metasBucket)
-		return metaBucket.Put([]byte(name), meta)
+		tx.put(s.metasBucket, name, meta)
+		return nil
 	})
 }
 
 // GetRoot returns a version of the root metadata
 func (s *localStore) GetRoot(version uint64) ([]byte, bool, error) {
 	var root []byte
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		rootsBucket := tx.Bucket(s.rootsBucket)
-		r := rootsBucket.Get([]byte(fmt.Sprintf("%d.root.json", version)))
-		root = append(root, r...)
+	err := s.store.view(func(tx *transaction) error {
+		r, err := tx.get(s.rootsBucket, fmt.Sprintf("%d.root.json", version))
+		if err != nil {
+			return err
+		}
+		root = r
 		return nil
 	})
-	if err != nil {
-		return nil, false, err
-	}
-	if len(root) == 0 {
-		return nil, false, nil
-	}
-	return root, true, nil
+	return root, len(root) != 0, err
 }
 
 // GetMetaVersion returns the latest version of a particular meta
@@ -174,15 +159,20 @@ func (s *localStore) GetMetaCustom(metaName string) ([]byte, error) {
 	return metaCustom(meta)
 }
 
-// Close is a useless function required by go-tuf interface but unused in their code
+// Close commits all pending data to the stored database
 func (s *localStore) Close() error {
-	return nil
+	return s.Flush()
 }
 
-func newLocalStoreDirector(db *bbolt.DB, cacheKey string) (*localStore, error) {
+// Flush flushes all data to disk
+func (s *localStore) Flush() error {
+	return s.store.commit()
+}
+
+func newLocalStoreDirector(db *transactionalStore, cacheKey string) (*localStore, error) {
 	return newLocalStore(db, "director", cacheKey, meta.RootsDirector())
 }
 
-func newLocalStoreConfig(db *bbolt.DB, cacheKey string) (*localStore, error) {
+func newLocalStoreConfig(db *transactionalStore, cacheKey string) (*localStore, error) {
 	return newLocalStore(db, "config", cacheKey, meta.RootsConfig())
 }
