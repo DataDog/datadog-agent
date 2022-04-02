@@ -111,9 +111,8 @@ func CompleteInferredSpan(
 	if inferredSpan.IsAsync {
 		inferredSpan.Span.Duration = inferredSpan.Span.Start
 	} else {
-		inferredSpan.Span.Duration = endTime.UnixMilli() - inferredSpan.Span.Start
+		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
 	}
-
 	if isError {
 		inferredSpan.Span.Error = 1
 	}

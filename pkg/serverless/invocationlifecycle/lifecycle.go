@@ -33,14 +33,14 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
-	}
-
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
 		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
 		log.Debug("[lifecycle] Attempting to create inferred span")
 		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, lp.ExecutionContext)
+	}
+
+	if !lp.DetectLambdaLibrary() {
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, lp.ExecutionContext.IsInferredSpan)
 	}
 }
 
@@ -53,13 +53,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError)
-	}
-
-	if endDetails.IsError {
-		serverlessMetrics.SendErrorsEnhancedMetric(
-			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
-		)
+		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, lp.ExecutionContext.IsInferredSpan)
 	}
 
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
@@ -68,4 +62,9 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID)
 	}
 
+	if endDetails.IsError {
+		serverlessMetrics.SendErrorsEnhancedMetric(
+			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
+		)
+	}
 }

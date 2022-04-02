@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
-	inferredspan "github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -81,17 +80,10 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // TraceContext is a route called by tracer so it can retrieve the tracing context
 type TraceContext struct {
-	daemon *Daemon
 }
 
 func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.TraceContext route.")
-	inferredSpanTraceID := inferredspan.InferredSpans[tc.daemon.ExecutionContext.LastRequestID].Span.TraceID
-	if tc.daemon.ExecutionContext.IsInferredSpan {
-		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", inferredSpanTraceID))
-		w.Header().Set(invocationlifecycle.ParentIDHeader, fmt.Sprintf("%v", inferredSpanTraceID))
-	} else {
-		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-	}
+	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
 	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
 }

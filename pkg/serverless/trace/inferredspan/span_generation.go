@@ -19,17 +19,16 @@ func CreateInferredSpanFromAPIGatewayEvent(
 	headers := attributes.Headers
 	resource := fmt.Sprintf("%s %s", attributes.HttpMethod, attributes.Path)
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, attributes.Path)
-
+	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 	// create and add an inferred span to the map of inferredSpans
 	var inferredSpan InferredSpan
 	inferredSpan.Span = &pb.Span{}
 	inferredSpan.Span.SpanID = rand.Random.Uint64()
 	inferredSpan.Span.TraceID = rand.Random.Uint64()
-	inferredSpan.Span.ParentID = inferredSpan.Span.TraceID
 	inferredSpan.Span.Name = "aws.apigateway"
 	inferredSpan.Span.Service = requestContext.Domain
 	inferredSpan.Span.Resource = resource
-	inferredSpan.Span.Start = requestContext.RequestTimeEpoch
+	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
 		ApiId:         requestContext.ApiId,
@@ -53,4 +52,8 @@ func CreateInferredSpanFromAPIGatewayEvent(
 	InferredSpans[ctx.LastRequestID] = inferredSpan
 	ctx.IsInferredSpan = true
 
+}
+
+func calculateStartTime(epoch int64) int64 {
+	return (epoch / 1000) * 1e9
 }
