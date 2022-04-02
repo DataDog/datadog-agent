@@ -313,7 +313,7 @@ func (s *Sampler) report() {
 	kept := atomic.SwapInt64(&s.totalKept, 0)
 	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
 	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.size", s.size(), s.tags, 1)
+	metrics.Gauge("datadog.trace_agent.sampler.size", float64(s.size()), s.tags, 1)
 }
 
 // Stop stops the main Run loop
