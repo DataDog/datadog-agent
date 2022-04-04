@@ -174,6 +174,7 @@ func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
 
 func TestGenerateTemplatesV1beta1(t *testing.T) {
 	mockConfig := config.Mock()
+	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
@@ -202,6 +203,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					},
 				},
 			},
+			ReinvocationPolicy:      &defaultReinvocationPolicy,
 			FailurePolicy:           &failurePolicy,
 			MatchPolicy:             &matchPolicy,
 			SideEffects:             &sideEffects,
@@ -385,6 +387,7 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
+	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	port := int32(443)
 	path := "/bar"
 	defaultTimeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
@@ -412,6 +415,7 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 					},
 				},
 			},
+			ReinvocationPolicy:      &defaultReinvocationPolicy,
 			FailurePolicy:           &failurePolicy,
 			MatchPolicy:             &matchPolicy,
 			SideEffects:             &sideEffects,
@@ -525,4 +529,43 @@ func validateV1beta1(w *admiv1beta1.MutatingWebhookConfiguration, s *corev1.Secr
 		}
 	}
 	return nil
+}
+
+func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
+	f := newFixtureV1beta1(t)
+	c := f.run(t)
+	c.config = NewConfig(true, false)
+
+	defaultValue := config.Datadog.Get("admission_controller.reinvocation_policy")
+	defer config.Datadog.Set("admission_controller.reinvocation_policy", defaultValue)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "IfNeeded")
+	c.config = NewConfig(true, false)
+	webhook := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "ifneeded")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "Never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "wrong")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
 }
