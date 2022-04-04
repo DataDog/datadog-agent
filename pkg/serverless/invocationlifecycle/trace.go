@@ -67,7 +67,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload string) {
+func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload []byte) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -87,7 +87,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 
 	if strings.ToLower(os.Getenv("DD_CAPTURE_LAMBDA_PAYLOAD")) == "true" {
 		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
-		executionSpan.Meta["function.response"] = responsePayload
+		executionSpan.Meta["function.response"] = string(responsePayload)
 	}
 
 	if isError {

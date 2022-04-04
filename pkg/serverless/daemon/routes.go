@@ -81,7 +81,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		EndTime:            endTime,
 		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
 		RequestID:          ecs.LastRequestID,
-		ResponseRawPayload: string(responseBody),
+		ResponseRawPayload: responseBody,
 	}
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }

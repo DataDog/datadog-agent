@@ -22,5 +22,5 @@ type InvocationEndDetails struct {
 	EndTime            time.Time
 	IsError            bool
 	RequestID          string
-	ResponseRawPayload string
+	ResponseRawPayload []byte
 }
