@@ -16,7 +16,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
 	gotest.tools/gotestsum v1.7.0
-	honnef.co/go/tools v0.2.2
+	honnef.co/go/tools v0.3.0
 )
 
 require (
@@ -182,13 +182,14 @@ require (
 	gitlab.com/bosi/decorder v0.2.1 // indirect
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
 	golang.org/x/exp v0.0.0-20200331195152-e8c3332aa8e5 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220209214540-3681064d5158 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/tools v0.1.10 // indirect
+	golang.org/x/tools v0.1.11-0.20220316014157-77aa08bb151a // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gonum.org/v1/gonum v0.7.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
