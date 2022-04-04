@@ -143,6 +143,11 @@ func (s *socketFilterSnooper) GetStats() map[string]int64 {
 	return stats
 }
 
+// Start starts the snooper (no-op currently)
+func (s *socketFilterSnooper) Start() error {
+	return nil // no-op as this is done in newSocketFilterSnooper above
+}
+
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
 func (s *socketFilterSnooper) Close() {
 	close(s.exit)
