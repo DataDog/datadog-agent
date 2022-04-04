@@ -28,7 +28,7 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20210621.680",
+                "debian-10": "urn,Debian:debian-10:10:0.20211011.792",
                 "debian-11": "urn,Debian:debian-11:11:0.20210814.734"
             }
         },
@@ -43,7 +43,7 @@
             "x86_64": {
                 "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2022.03.08",
                 "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2022.03.09",
-                "opensuse-15-3": "urn,SUSE:opensuse-leap-15-3:gen1:2021.10.12"
+                "opensuse-15-3": "urn,SUSE:opensuse-leap-15-3:gen1:2022.01.28"
             }
         },
         "ec2": {
@@ -57,6 +57,7 @@
             "x86_64": {
                 "ubuntu-14-04": "urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140",
                 "ubuntu-16-04": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.202106110",
+                "ubuntu-18-04-0": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201809110",
                 "ubuntu-18-04": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040",
                 "ubuntu-18-04-3": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201912180",
                 "ubuntu-20-04": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202004230",
@@ -76,6 +77,9 @@
         "vagrant": {
             "x86_64": {
                 "ubuntu-16-04": "bento/ubuntu-16.04"
+            },
+            "arm64": {
+                "ubuntu-20-04": "bytesguy/ubuntu-server-20.04-arm64"
             }
         }
     },

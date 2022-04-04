@@ -163,11 +163,11 @@ func (c *Client) buildConfigFiles() (configFiles, error) {
 	}
 	var configFiles configFiles
 	for targetPath, target := range targets {
-		targetPathMeta, err := data.ParseFilePathMeta(targetPath)
+		targetPathMeta, err := data.ParseConfigPath(targetPath)
 		if err != nil {
 			return nil, err
 		}
-		if _, productEnabled := c.enabledProducts[targetPathMeta.Product]; productEnabled {
+		if _, productEnabled := c.enabledProducts[data.Product(targetPathMeta.Product)]; productEnabled {
 			targetContent, err := c.partialClient.TargetFile(targetPath)
 			if err != nil {
 				return nil, err

@@ -175,6 +175,7 @@
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/otlp/                              @DataDog/agent-platform
+/pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/integrations-tools-and-libraries
 /pkg/util/clusteragent/                 @DataDog/container-integrations

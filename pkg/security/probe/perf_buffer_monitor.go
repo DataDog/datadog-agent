@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
@@ -47,8 +47,6 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
 	probe *Probe
-	// statsdClient is a pointer to the statsdClient used to report the metrics of the perf buffer monitor
-	statsdClient *statsd.Client
 	// numCPU holds the current count of CPU
 	numCPU int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
@@ -77,10 +75,9 @@ type PerfBufferMonitor struct {
 }
 
 // NewPerfBufferMonitor instantiates a new event statistics counter
-func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, error) {
+func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
-		statsdClient:        client,
 		perfBufferStatsMaps: make(map[string]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
 
@@ -349,7 +346,7 @@ func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp ui
 	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Bytes, size)
 }
 
-func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
 	var count int64
 	var err error
 	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
@@ -374,7 +371,7 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client)
 				}
 
 				if count = pbm.getAndResetSortingErrorCount(evtType, m); count > 0 {
-					if err = pbm.statsdClient.Count(metrics.MetricPerfBufferSortingError, count, tags, 1.0); err != nil {
+					if err = pbm.probe.statsdClient.Count(metrics.MetricPerfBufferSortingError, count, tags, 1.0); err != nil {
 						return err
 					}
 				}
@@ -384,7 +381,7 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client)
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterface) error {
 	tags := []string{pbm.probe.config.StatsTagsCardinality, ""}
 
 	for m := range pbm.readLostEvents {
@@ -409,7 +406,7 @@ func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client *statsd.Client) err
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInterface) error {
 	var (
 		id       uint32
 		iterator *lib.MapIterator
@@ -496,7 +493,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfMapStats, tags []string) error {
+func (pbm *PerfBufferMonitor) sendKernelStats(client statsd.ClientInterface, stats PerfMapStats, tags []string) error {
 	if stats.Count > 0 {
 		if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count), tags, 1.0); err != nil {
 			return err
@@ -520,7 +517,7 @@ func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfM
 
 // SendStats send event stats using the provided statsd client
 func (pbm *PerfBufferMonitor) SendStats() error {
-	if err := pbm.collectAndSendKernelStats(pbm.statsdClient); err != nil {
+	if err := pbm.collectAndSendKernelStats(pbm.probe.statsdClient); err != nil {
 		return err
 	}
 
@@ -528,9 +525,9 @@ func (pbm *PerfBufferMonitor) SendStats() error {
 		pbm.probe.resolvers.DentryResolver.BumpCacheGenerations()
 	}
 
-	if err := pbm.sendEventsAndBytesReadStats(pbm.statsdClient); err != nil {
+	if err := pbm.sendEventsAndBytesReadStats(pbm.probe.statsdClient); err != nil {
 		return err
 	}
 
-	return pbm.sendLostEventsReadStats(pbm.statsdClient)
+	return pbm.sendLostEventsReadStats(pbm.probe.statsdClient)
 }

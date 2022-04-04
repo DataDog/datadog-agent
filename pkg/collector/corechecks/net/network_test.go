@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/shirou/gopsutil/net"
+	"github.com/shirou/gopsutil/v3/net"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

@@ -17,6 +17,7 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -37,11 +38,7 @@ type sourceInfoPair struct {
 	info   *config.MappedInfo
 }
 
-// A Launcher starts and stops new tailers for every new containers discovered
-// by autodiscovery.
-//
-// Note that despite being named "Docker", this is a generic container-related
-// launcher.
+// A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
 	addedSources       chan *config.LogSource
@@ -52,7 +49,6 @@ type Launcher struct {
 	pendingContainers  map[string]*Container
 	tailers            map[string]*tailer.Tailer
 	registry           auditor.Registry
-	runtime            coreConfig.Feature
 	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
@@ -65,6 +61,7 @@ type Launcher struct {
 	tailFromFile           bool                      // If true docker will be tailed from the corresponding log file
 	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
 	sources                *config.LogSources        // To schedule file source when taileing container from file
+	services               *service.Services
 }
 
 // IsAvailable retrues true if the launcher is available and a retrier otherwise
@@ -83,37 +80,22 @@ func IsAvailable() (bool, *retry.Retrier) {
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, tailFromFile, forceTailingFromFile bool) *Launcher {
 	if _, err := dockerutilpkg.GetDockerUtil(); err != nil {
 		log.Errorf("DockerUtil not available, failed to create launcher: %v", err)
 		return nil
 	}
 
-	var runtime coreConfig.Feature
-	for _, rt := range []coreConfig.Feature{
-		coreConfig.Docker,
-		coreConfig.Containerd,
-		coreConfig.Cri,
-		coreConfig.Podman,
-	} {
-		if coreConfig.IsFeaturePresent(rt) {
-			runtime = rt
-			break
-		}
-	}
-
 	launcher := &Launcher{
-		pipelineProvider:       pipelineProvider,
 		tailers:                make(map[string]*tailer.Tailer),
 		pendingContainers:      make(map[string]*Container),
-		registry:               registry,
-		runtime:                runtime,
 		stop:                   make(chan struct{}),
 		erroredContainerID:     make(chan string),
 		lock:                   &sync.Mutex{},
 		readTimeout:            readTimeout,
 		serviceNameFunc:        util.ServiceNameFromTags,
 		sources:                sources,
+		services:               services,
 		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]sourceInfoPair),
@@ -121,24 +103,24 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	}
 
 	if tailFromFile {
-		if err := launcher.checkContainerLogfileAccess(); err != nil {
+		if err := checkReadAccess(); err != nil {
 			log.Errorf("Could not access container log files: %v; falling back on tailing from container runtime socket", err)
 			launcher.tailFromFile = false
 		}
 	}
 
-	// FIXME(achntrl): Find a better way of choosing the right launcher
-	// between Docker and Kubernetes
-	launcher.addedSources = sources.GetAddedForType(config.DockerType)
-	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
-	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
-	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher
 }
 
 // Start starts the Launcher
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	log.Info("Starting Docker launcher")
+	l.pipelineProvider = pipelineProvider
+	l.registry = registry
+	l.addedSources = sourceProvider.GetAddedForType(config.DockerType)
+	l.removedSources = sourceProvider.GetRemovedForType(config.DockerType)
+	l.addedServices = l.services.GetAddedServicesForType(config.DockerType)
+	l.removedServices = l.services.GetRemovedServicesForType(config.DockerType)
 	go l.run()
 }
 
@@ -282,7 +264,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	}
 
 	// Update parent source with additional information
-	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", dockerutilpkg.ShortContainerID(containerID), shortName, container.container.Created, l.getContainerLogfilePath(containerID)))
+	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", dockerutilpkg.ShortContainerID(containerID), shortName, container.container.Created, getPath(containerID)))
 
 	// When ContainerCollectAll is not enabled, we try to derive the service and source names from container labels
 	// provided by AD (in this case, the parent source config). Otherwise we use the standard service or short image
@@ -303,14 +285,13 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 
 	// New file source that inherit most of its parent properties
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
-		Type:             config.FileType,
-		Identifier:       containerID,
-		Path:             l.getContainerLogfilePath(containerID),
-		Service:          serviceName,
-		Source:           sourceName,
-		Tags:             source.Config.Tags,
-		ProcessingRules:  source.Config.ProcessingRules,
-		ContainerRuntime: l.runtime,
+		Type:            config.FileType,
+		Identifier:      containerID,
+		Path:            getPath(containerID),
+		Service:         serviceName,
+		Source:          sourceName,
+		Tags:            source.Config.Tags,
+		ProcessingRules: source.Config.ProcessingRules,
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
 	fileSource.Status = source.Status

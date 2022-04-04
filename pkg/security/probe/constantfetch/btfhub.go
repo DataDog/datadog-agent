@@ -32,6 +32,7 @@ var idToDistribMapping = map[string]string{
 	"debian": "debian",
 	"amzn":   "amzn",
 	"centos": "centos",
+	"fedora": "fedora",
 }
 
 var archMapping = map[string]string{
@@ -65,6 +66,10 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 	}
 
 	return fetcher, nil
+}
+
+func (f *BTFHubConstantFetcher) String() string {
+	return "btfhub"
 }
 
 // HasConstantsInStore returns true if there is constants in store in BTFHub

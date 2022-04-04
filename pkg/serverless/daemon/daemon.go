@@ -350,7 +350,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 		}
 		d.setTraceTags(tagMap)
 		d.ExtraTags.Tags = tagArray
-		serverlessLog.UpdateLogsTags(tagArray)
+		serverlessLog.SetLogsTags(tagArray)
 	}
 }
 

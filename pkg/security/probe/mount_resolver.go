@@ -197,6 +197,14 @@ func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 	return mount.IsOverlayFS()
 }
 
+// Get returns a mount event from the mount id
+func (mr *MountResolver) Get(mountID uint32) *model.MountEvent {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	return mr.mounts[mountID]
+}
+
 // Insert a new mount point in the cache
 func (mr *MountResolver) Insert(e model.MountEvent) error {
 	mr.lock.Lock()

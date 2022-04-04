@@ -28,6 +28,11 @@ func (c *Context) Tags() tagset.CompositeTags {
 	return tagset.NewCompositeTags(c.taggerTags.Tags(), c.metricTags.Tags())
 }
 
+func (c *Context) release() {
+	c.taggerTags.Release()
+	c.metricTags.Release()
+}
+
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
@@ -93,9 +98,14 @@ func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 
 		if context != nil {
 			cr.countsByMtype[context.mtype]--
-			context.taggerTags.Release()
-			context.metricTags.Release()
+			context.release()
 		}
+	}
+}
+
+func (cr *contextResolver) release() {
+	for _, c := range cr.contextsByKey {
+		c.release()
 	}
 }
 
@@ -206,4 +216,8 @@ func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
 	cr.resolver.removeKeys(keys)
 	cr.expireCount++
 	return keys
+}
+
+func (cr *countBasedContextResolver) release() {
+	cr.resolver.release()
 }

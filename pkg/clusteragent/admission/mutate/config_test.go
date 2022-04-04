@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -66,6 +68,45 @@ func Test_shouldInjectConf(t *testing.T) {
 			if got := shouldInjectConf(tt.pod); got != tt.want {
 				t.Errorf("shouldInjectConf() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_injectionMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		pod        *corev1.Pod
+		globalMode string
+		want       string
+	}{
+		{
+			name:       "nominal case",
+			pod:        fakePod("foo"),
+			globalMode: "hostip",
+			want:       "hostip",
+		},
+		{
+			name:       "custom mode #1",
+			pod:        fakePodWithLabel("admission.datadoghq.com/config.mode", "service"),
+			globalMode: "hostip",
+			want:       "service",
+		},
+		{
+			name:       "custom mode #2",
+			pod:        fakePodWithLabel("admission.datadoghq.com/config.mode", "socket"),
+			globalMode: "hostip",
+			want:       "socket",
+		},
+		{
+			name:       "invalid",
+			pod:        fakePodWithLabel("admission.datadoghq.com/config.mode", "wrong"),
+			globalMode: "hostip",
+			want:       "hostip",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, injectionMode(tt.pod, tt.globalMode))
 		})
 	}
 }

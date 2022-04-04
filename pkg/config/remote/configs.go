@@ -25,7 +25,7 @@ func (c configFiles) version() uint64 {
 }
 
 type configFile struct {
-	pathMeta data.PathMeta
+	pathMeta data.ConfigPath
 	version  uint64
 	raw      []byte
 }
@@ -47,10 +47,11 @@ type update struct {
 func (c *configs) update(products []data.Product, files configFiles) update {
 	productConfigIDFiles := make(map[data.Product]map[string]configFiles)
 	for _, file := range files {
-		if _, exist := productConfigIDFiles[file.pathMeta.Product]; !exist {
-			productConfigIDFiles[file.pathMeta.Product] = make(map[string]configFiles)
+		product := data.Product(file.pathMeta.Product)
+		if _, exist := productConfigIDFiles[product]; !exist {
+			productConfigIDFiles[product] = make(map[string]configFiles)
 		}
-		productConfigIDFiles[file.pathMeta.Product][file.pathMeta.ConfigID] = append(productConfigIDFiles[file.pathMeta.Product][file.pathMeta.ConfigID], file)
+		productConfigIDFiles[product][file.pathMeta.ConfigID] = append(productConfigIDFiles[product][file.pathMeta.ConfigID], file)
 	}
 	var update update
 	for _, product := range products {
@@ -72,10 +73,12 @@ func (c *configs) update(products []data.Product, files configFiles) update {
 func (c *configs) state() []*pbgo.Config {
 	var configs []*pbgo.Config
 	if c.apmSampling.config != nil {
-		configs = append(configs, &pbgo.Config{
-			Id:      c.apmSampling.config.ID,
-			Version: c.apmSampling.config.Version,
-		})
+		for _, config := range c.apmSampling.config.Configs {
+			configs = append(configs, &pbgo.Config{
+				Id:      config.ID,
+				Version: config.Version,
+			})
+		}
 	}
 	return configs
 }

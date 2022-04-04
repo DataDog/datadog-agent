@@ -60,12 +60,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+				if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+				if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 					eb = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
@@ -117,12 +117,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+				if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+				if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 					eb = true
 				}
 			}
@@ -150,10 +150,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 		if state.field != "" {
-			if !a.IsDeterministicFor(state.field) && !a.IsScalar() {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = true
 			}
-			if !b.IsDeterministicFor(state.field) && !b.IsScalar() {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = func(ctx *Context) {{ .EvalReturnType }} {
 					return true
 				}

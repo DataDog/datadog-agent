@@ -243,6 +243,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	tags.AddLow(kubernetes.NamespaceTagName, pod.Namespace)
 	tags.AddLow("pod_phase", strings.ToLower(pod.Phase))
 	tags.AddLow("kube_priority_class", pod.PriorityClass)
+	tags.AddLow("kube_qos", pod.QOSClass)
 
 	c.extractTagsFromPodLabels(pod, tags)
 
@@ -427,7 +428,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.JobKind:
-		cronjob := kubernetes.ParseCronJobForJob(owner.Name)
+		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
 			tags.AddOrchestrator(kubernetes.JobTagName, owner.Name)
 			tags.AddLow(kubernetes.CronJobTagName, cronjob)
