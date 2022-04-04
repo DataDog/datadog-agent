@@ -45,8 +45,9 @@ func TestListenersWaitToStart(t *testing.T) {
 
 	SetADMetaScheduler(adsched)
 
-	l1.waitForRegistration()
-	l2.waitForRegistration()
+	// wait for the registration to occur before sending a config
+	<-l1.registered
+	<-l2.registered
 
 	adsched.Schedule([]integration.Config{})
 

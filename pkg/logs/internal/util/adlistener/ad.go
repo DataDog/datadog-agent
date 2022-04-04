@@ -7,7 +7,6 @@ package adlistener
 
 import (
 	"context"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
@@ -57,14 +56,11 @@ type ADListener struct {
 	// SetADMetaScheduler is called.
 	adMetaScheduler *scheduler.MetaScheduler
 
+	// registered is closed when the scheduler is registered (used for tests)
+	registered chan struct{}
+
 	// cancelRegister cancels efforts to register with the AD MetaScheduler
 	cancelRegister context.CancelFunc
-
-	// registered is true if this listener has registered
-	registered bool
-
-	// registeredCond is a condition variable for 'registered'
-	registeredCond sync.Cond
 }
 
 var _ scheduler.Scheduler = &ADListener{}
@@ -73,10 +69,10 @@ var _ scheduler.Scheduler = &ADListener{}
 // the given functions.
 func NewADListener(name string, schedule, unschedule func([]integration.Config)) *ADListener {
 	return &ADListener{
-		name:           name,
-		schedule:       schedule,
-		unschedule:     unschedule,
-		registeredCond: sync.Cond{L: &sync.Mutex{}},
+		name:       name,
+		schedule:   schedule,
+		unschedule: unschedule,
+		registered: make(chan struct{}),
 	}
 }
 
@@ -90,13 +86,9 @@ func (l *ADListener) StartListener() {
 		case sch := <-adMetaSchedulerCh:
 			l.adMetaScheduler = sch
 			l.adMetaScheduler.Register(l.name, l)
+			close(l.registered)
 			// put the value back in the channel, in case it is needed again
 			SetADMetaScheduler(sch)
-
-			l.registeredCond.L.Lock()
-			l.registered = true
-			l.registeredCond.Broadcast()
-			l.registeredCond.L.Unlock()
 
 		case <-ctx.Done():
 		}
@@ -124,14 +116,4 @@ func (l *ADListener) Schedule(configs []integration.Config) {
 // Unschedule implements pkg/autodiscovery/scheduler.Scheduler#Unschedule.
 func (l *ADListener) Unschedule(configs []integration.Config) {
 	l.unschedule(configs)
-}
-
-// waitForRegistration waits until this listener is registered
-func (l *ADListener) waitForRegistration() {
-	l.registeredCond.L.Lock()
-	if l.registered {
-		return
-	}
-	l.registeredCond.Wait()
-	l.registeredCond.L.Unlock()
 }
