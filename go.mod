@@ -441,4 +441,4 @@ replace (
 )
 
 // temporary until https://github.com/vishvananda/netlink/pull/752 is merged
-replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220404132625-485cbde1e59c
+replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220404140411-2b3a9fff8d22
