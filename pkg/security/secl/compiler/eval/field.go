@@ -32,8 +32,7 @@ type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
 
-	StringMatcher StringMatcher
-	IPMatcher     IPMatcher
+	IPMatcher IPMatcher
 }
 
 // Compile the regular expression or the pattern

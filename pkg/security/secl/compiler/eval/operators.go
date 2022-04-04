@@ -611,7 +611,7 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, stat
 func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
-	arrayOp := func(as IPMatcher, bs IPMatcher) bool {
+	op := func(as IPMatcher, bs IPMatcher) bool {
 		return as.Matches(bs)
 	}
 
@@ -619,7 +619,7 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, opts *Opts, state *State) (*
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx).IPMatcher, eb(ctx).IPMatcher)
+			return op(ea(ctx).IPMatcher, eb(ctx).IPMatcher)
 		}
 
 		return &BoolEvaluator{
@@ -633,7 +633,7 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, opts *Opts, state *State) (*
 		ea, eb := a.cidrMatcher, b.cidrMatcher
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, eb),
+			Value:           op(ea, eb),
 			Weight:          a.Weight + b.Weight,
 			isDeterministic: isDc,
 		}, nil
@@ -649,7 +649,7 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, opts *Opts, state *State) (*
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx).IPMatcher, eb)
+			return op(ea(ctx).IPMatcher, eb)
 		}
 
 		return &BoolEvaluator{
@@ -668,7 +668,7 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, opts *Opts, state *State) (*
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx).IPMatcher)
+		return op(ea, eb(ctx).IPMatcher)
 	}
 
 	return &BoolEvaluator{

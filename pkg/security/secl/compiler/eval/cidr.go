@@ -188,8 +188,7 @@ func (sipm *SingleIPMatcher) Matches(value IPMatcher) bool {
 
 // CIDRMatcher defines an IPv4/IPv6 CIDR
 type CIDRMatcher struct {
-	net    *net.IPNet
-	lastIP net.IP
+	net *net.IPNet
 }
 
 func (cm *CIDRMatcher) String() string {
