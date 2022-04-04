@@ -29,7 +29,11 @@ jobs:
 
       - name: Install codeowners for cryptographic summary parsing
         run: |
-          pip3 install "codeowners==0.4.1"
+          pip install "codeowners==0.4.1"
+
+      - name: Create Cryptographic Summary
+        run: |
+          python cryptographic-summary-sarif.py
 
       - name: Setup env variables
         run: |
@@ -66,7 +70,7 @@ jobs:
 
       - name: Create Cryptographic Summary
         run: |
-          python3 cryptographic-summary-sarif.py
+          python cryptographic-summary-sarif.py
 
       - name: Upload the summary as an artifact
         uses: actions/upload-artifact@v2
