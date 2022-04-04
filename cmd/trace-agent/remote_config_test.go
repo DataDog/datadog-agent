@@ -49,7 +49,7 @@ func TestConfigEndpoint(t *testing.T) {
 			enabled:            true,
 			valid:              true,
 			expectedStatusCode: http.StatusOK,
-			response:           `{"targets":{"version":1,"raw":"dGVzdA=="}}`,
+			response:           `{"targets":"dGVzdA=="}`,
 		},
 	}
 	for _, tc := range tcs {
