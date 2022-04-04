@@ -345,11 +345,11 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 	}
 	var configFiles []*pbgo.File
 	for targetPath, targetMeta := range targets {
-		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
 		if err != nil {
 			return nil, err
 		}
-		if _, inClientProducts := productSet[configFileMeta.Product]; inClientProducts {
+		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
 			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
 				continue
 			}

@@ -144,7 +144,6 @@ func (c *Client) updateConfigs() {
 	if updatedProducts.APMSampling {
 		c.apmSamplingUpdates <- newConfigs.APMSamplingConfigs
 	}
-
 }
 
 func (c *Client) configStates() []*pbgo.ConfigState {
