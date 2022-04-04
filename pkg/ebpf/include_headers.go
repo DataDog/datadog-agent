@@ -79,8 +79,11 @@ func runProcessing(inputFile, outputFile string, dirs []string) error {
 		return fmt.Errorf("error setting mode on output file: %s", err)
 	}
 
+	bof := bufio.NewWriter(of)
+	defer bof.Flush()
+
 	includedFiles := make(map[string]struct{})
-	if err := processIncludes(inputFile, of, includeDirs, includedFiles); err != nil {
+	if err := processIncludes(inputFile, bof, includeDirs, includedFiles); err != nil {
 		return fmt.Errorf("error processing includes: %s", err)
 	}
 	return nil
