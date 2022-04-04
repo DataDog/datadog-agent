@@ -181,7 +181,7 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 	switch lastToken {
 	case Savepoint:
 		return markFilteredGroupable(token), questionMark, nil
-	case '=':
+	case '=', LE, GE, NE:
 		switch token {
 		case DoubleQuotedString:
 			// double-quoted strings after assignments are eligible for obfuscation

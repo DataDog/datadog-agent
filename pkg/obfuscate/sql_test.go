@@ -768,7 +768,12 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
-			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?"},
+			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
+		},
+		{
+			"SELECT user_id FROM users WHERE registration >= \"2020-01-01\" AND registration <= \"2021-04-04 13:11:23.432567\" AND name != \"admin\"",
+			"SELECT user_id FROM users WHERE registration >= ? AND registration <= ? AND name != ?",
+		},
 		{
 			"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
 			"SELECT DISTINCT host.id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
