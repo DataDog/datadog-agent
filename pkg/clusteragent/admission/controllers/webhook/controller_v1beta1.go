@@ -267,7 +267,7 @@ func (c *ControllerV1beta1) getReinvocationPolicy() admiv1beta1.ReinvocationPoli
 	case "never":
 		return admiv1beta1.NeverReinvocationPolicy
 	default:
-		log.Warnf("Unknown reinvocation policy %q - defaulting to %q", policy, admiv1beta1.IfNeededReinvocationPolicy)
+		log.Warnf("Unknown reinvocation policy %q - defaulting to %q", c.config.getReinvocationPolicy(), admiv1beta1.IfNeededReinvocationPolicy)
 		return admiv1beta1.IfNeededReinvocationPolicy
 	}
 }
