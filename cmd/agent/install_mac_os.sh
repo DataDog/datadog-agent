@@ -284,7 +284,7 @@ else
     # make sure the daemon launches under proper user/group and that it has access
     # to all files/dirs it needs; then start it
     plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user_group"
-    $sudo_cmd chown "$systemdaemon_user_group" "$systemwide_servicefile_name"
+    $sudo_cmd chown "0:0" "$systemwide_servicefile_name"
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl start "$service_name"
