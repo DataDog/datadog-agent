@@ -14,7 +14,7 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "1.3.2",
         "WINDOWS_DDNPM_SHASUM": "1f65d40519bc307d652c64183b2cac2a36da9839c21d64f9823aa158ff6336bb",
-        "SECURITY_AGENT_POLICIES_VERSION": "master"
+        "SECURITY_AGENT_POLICIES_VERSION": "paulcacheux/wip-host-sel"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -26,7 +26,7 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "1.3.2",
         "WINDOWS_DDNPM_SHASUM": "1f65d40519bc307d652c64183b2cac2a36da9839c21d64f9823aa158ff6336bb",
-        "SECURITY_AGENT_POLICIES_VERSION": "master"
+        "SECURITY_AGENT_POLICIES_VERSION": "paulcacheux/wip-host-sel"
     },
     "release-a6": {
         "INTEGRATIONS_CORE_VERSION": "7.35.0-rc.4",
