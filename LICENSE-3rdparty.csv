@@ -793,7 +793,6 @@ core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/version,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/model/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/model/internal/data,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/model/internal/data/protogen/collector/logs/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/model/internal/data/protogen/collector/metrics/v1,Apache-2.0,Copyright The OpenTelemetry Authors
