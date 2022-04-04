@@ -80,11 +80,14 @@ func runProcessing(inputFile, outputFile string, dirs []string) error {
 	}
 
 	bof := bufio.NewWriter(of)
-	defer bof.Flush()
 
 	includedFiles := make(map[string]struct{})
 	if err := processIncludes(inputFile, bof, includeDirs, includedFiles); err != nil {
 		return fmt.Errorf("error processing includes: %s", err)
+	}
+
+	if err := bof.Flush(); err != nil {
+		return fmt.Errorf("error flushing buffer to disk: %s", err)
 	}
 	return nil
 }
