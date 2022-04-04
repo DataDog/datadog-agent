@@ -61,7 +61,11 @@ func (s *localStore) init(initialRoots meta.EmbeddedRoots) error {
 		}
 		return nil
 	})
-	return err
+	if err != nil {
+		s.store.rollback()
+		return err
+	}
+	return s.store.commit()
 }
 
 func (s *localStore) writeRoot(tx *transaction, root json.RawMessage) error {
