@@ -53,10 +53,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 	if err != nil {
 		return nil, err
 	}
-	targetStore, err := newTargetStore(cacheDB, cacheKey)
-	if err != nil {
-		return nil, err
-	}
+	targetStore := newTargetStore(transactionalStore, cacheKey)
 	c := &Client{
 		orgID:               orgID,
 		configLocalStore:    localStoreConfig,
@@ -201,7 +198,8 @@ func (c *Client) pruneTargetFiles() error {
 	for target := range targetFiles {
 		keptTargetFiles = append(keptTargetFiles, target)
 	}
-	return c.targetStore.pruneTargetFiles(keptTargetFiles)
+	c.targetStore.pruneTargetFiles(keptTargetFiles)
+	return nil
 }
 
 func (c *Client) verify() error {

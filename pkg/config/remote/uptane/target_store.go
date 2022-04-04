@@ -9,45 +9,25 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"go.etcd.io/bbolt"
 )
 
 // targetStore persists all the target files present in the current director targets.json
 type targetStore struct {
-	db           *bbolt.DB
-	targetBucket []byte
+	db           *transactionalStore
+	targetBucket string
 }
 
-func newTargetStore(db *bbolt.DB, cacheKey string) (*targetStore, error) {
-	s := &targetStore{
+func newTargetStore(db *transactionalStore, cacheKey string) *targetStore {
+	return &targetStore{
 		db:           db,
-		targetBucket: []byte(fmt.Sprintf("%s_targets", cacheKey)),
+		targetBucket: fmt.Sprintf("%s_targets", cacheKey),
 	}
-	err := s.init()
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
-}
-
-func (s *targetStore) init() error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(s.targetBucket)
-		if err != nil {
-			return fmt.Errorf("failed to create targets bucket: %v", err)
-		}
-		return nil
-	})
 }
 
 func (s *targetStore) storeTargetFiles(targetFiles []*pbgo.File) error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		targetBucket := tx.Bucket(s.targetBucket)
+	return s.db.update(func(t *transaction) error {
 		for _, target := range targetFiles {
-			err := targetBucket.Put([]byte(trimHashTargetPath(target.Path)), target.Raw)
-			if err != nil {
-				return err
-			}
+			t.put(s.targetBucket, trimHashTargetPath(target.Path), target.Raw)
 		}
 		return nil
 	})
@@ -55,11 +35,10 @@ func (s *targetStore) storeTargetFiles(targetFiles []*pbgo.File) error {
 
 func (s *targetStore) getTargetFile(path string) ([]byte, bool, error) {
 	var target []byte
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		targetBucket := tx.Bucket(s.targetBucket)
-		t := targetBucket.Get([]byte(trimHashTargetPath(path)))
-		target = append(target, t...)
-		return nil
+	var err error
+	err = s.db.view(func(t *transaction) error {
+		target, err = t.get(s.targetBucket, trimHashTargetPath(path))
+		return err
 	})
 	if err != nil {
 		return nil, false, err
@@ -70,22 +49,9 @@ func (s *targetStore) getTargetFile(path string) ([]byte, bool, error) {
 	return target, true, nil
 }
 
-func (s *targetStore) pruneTargetFiles(keptPaths []string) error {
-	kept := make(map[string]struct{})
-	for _, k := range keptPaths {
-		kept[k] = struct{}{}
-	}
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		targetBucket := tx.Bucket(s.targetBucket)
-		cursor := targetBucket.Cursor()
-		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
-			if _, keep := kept[string(k)]; !keep {
-				err := cursor.Delete()
-				if err != nil {
-					return err
-				}
-			}
-		}
+func (s *targetStore) pruneTargetFiles(keptPaths []string) {
+	_ = s.db.update(func(t *transaction) error {
+		t.pruneTargetFiles(s.targetBucket, keptPaths)
 		return nil
 	})
 }

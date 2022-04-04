@@ -13,9 +13,10 @@ import (
 )
 
 func TestTargetStore(t *testing.T) {
-	db := getTestDB(t)
-	store, err := newTargetStore(db, "testcachekey")
-	assert.NoError(t, err)
+	db := newTransactionalStore(getTestDB())
+	defer db.commit()
+
+	store := newTargetStore(db, "testcachekey")
 
 	target1 := &pbgo.File{
 		Path: "2/APM_SAMPLING/target1",
@@ -50,8 +51,7 @@ func TestTargetStore(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, target3.Raw, returnedTarget3)
 
-	err = store.pruneTargetFiles([]string{target1.Path, target3.Path})
-	assert.NoError(t, err)
+	store.pruneTargetFiles([]string{target1.Path, target3.Path})
 	returnedTarget1, found, err = store.getTargetFile(target1.Path)
 	assert.NoError(t, err)
 	assert.True(t, found)
