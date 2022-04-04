@@ -100,7 +100,7 @@ if node['platform_family'] != 'windows'
       tag 'latest'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       volumes [
-        # securit-agent misc
+        # security-agent misc
         '/tmp/security-agent:/tmp/security-agent',
         # HOST_* paths
         '/proc:/host/proc',
