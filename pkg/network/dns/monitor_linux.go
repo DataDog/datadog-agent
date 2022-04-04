@@ -62,7 +62,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 	}, nil
 }
 
-// Start start the monitor
+// Start starts the monitor
 func (m *dnsMonitor) Start() error {
 	return m.p.Start()
 }

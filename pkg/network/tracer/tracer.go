@@ -164,7 +164,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	if err = reverseDNS.Start(); err != nil {
+	if err = tr.reverseDNS.Start(); err != nil {
 		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
 	}
 
