@@ -5,7 +5,6 @@ updates:
     labels:
       - dependencies
       - dependencies-go
-      - team/agent-platform
       - changelog/no-changelog
     milestone: 22
     ignore:
@@ -94,7 +93,7 @@ updates:
     labels:
       - dependencies
       - dependencies-go
-      - team/agent-platform
+      - team/agent-core
       - changelog/no-changelog
     milestone: 22
     ignore:
