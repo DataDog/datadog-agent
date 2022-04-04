@@ -133,6 +133,25 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "extract value extractValuePattern does not match (extractValuePattern=doesNotMatch, srcValue=value1)",
 		},
+		{
+			name: "Formatter OK",
+			values: &valuestore.ResultValueStore{
+				ScalarValues: map[string]valuestore.ResultValue{
+					"1.2.3.4": {
+						Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc8, 0x01},
+					},
+				},
+			},
+			symbol: checkconfig.SymbolConfig{
+				OID:         "1.2.3.4",
+				Name:        "mySymbol",
+				DisplayHint: "1x:",
+			},
+			expectedValue: valuestore.ResultValue{
+				Value: "82:a5:6e:a5:c8:01",
+			},
+			expectedError: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

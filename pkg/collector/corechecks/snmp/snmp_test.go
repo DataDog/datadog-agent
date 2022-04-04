@@ -148,7 +148,7 @@ tags:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:01"),
+				Value: []byte{00, 00, 00, 00, 00, 01},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.1",
@@ -173,7 +173,7 @@ tags:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.2",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:02"),
+				Value: []byte{00, 00, 00, 00, 00, 02},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.2",
@@ -463,7 +463,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:01"),
+				Value: []byte{00, 00, 00, 00, 00, 01},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.1",
@@ -498,7 +498,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.2",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:02"),
+				Value: []byte{00, 00, 00, 00, 00, 02},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.2",
@@ -1100,7 +1100,7 @@ tags:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:01"),
+				Value: []byte{00, 00, 00, 00, 00, 01},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.1",
@@ -1130,7 +1130,7 @@ tags:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.2",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:02"),
+				Value: []byte{00, 00, 00, 00, 00, 02},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.2",
@@ -1453,7 +1453,7 @@ metric_tags:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:01"),
+				Value: []byte{00, 00, 00, 00, 00, 01},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.1",
@@ -1483,7 +1483,7 @@ metric_tags:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.2",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:02"),
+				Value: []byte{00, 00, 00, 00, 00, 02},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.2",
@@ -1799,7 +1799,7 @@ use_device_id_as_hostname: true
 				{
 					Name:  "1.3.6.1.2.1.2.2.1.6.1",
 					Type:  gosnmp.OctetString,
-					Value: []byte("00:00:00:00:00:01"),
+					Value: []byte{00, 00, 00, 00, 00, 01},
 				},
 				{
 					Name:  "1.3.6.1.2.1.2.2.1.7.1",
@@ -1984,7 +1984,7 @@ metrics:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:01"),
+				Value: []byte{00, 00, 00, 00, 00, 01},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.1",
