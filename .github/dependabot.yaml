@@ -5,6 +5,7 @@ updates:
     labels:
       - dependencies
       - dependencies-go
+      - team/triage
       - changelog/no-changelog
     milestone: 22
     ignore:
