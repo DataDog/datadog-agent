@@ -52,8 +52,8 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 
 	update1 := configs.update([]data.Product{data.ProductAPMSampling}, configFiles{
 		{
-			pathMeta: data.PathMeta{
-				Product:  data.ProductAPMSampling,
+			pathMeta: data.ConfigPath{
+				Product:  string(data.ProductAPMSampling),
 				ConfigID: "config_id1",
 				Name:     "target_tps1",
 			},
@@ -61,8 +61,8 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 			raw:     samplingFile1Content1,
 		},
 		{
-			pathMeta: data.PathMeta{
-				Product:  data.ProductAPMSampling,
+			pathMeta: data.ConfigPath{
+				Product:  string(data.ProductAPMSampling),
 				ConfigID: "config_id2",
 				Name:     "target_tps2",
 			},
@@ -103,8 +103,8 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 	assert.NoError(t, err)
 	update2 := configs.update([]data.Product{data.ProductAPMSampling}, configFiles{
 		{
-			pathMeta: data.PathMeta{
-				Product:  data.ProductAPMSampling,
+			pathMeta: data.ConfigPath{
+				Product:  string(data.ProductAPMSampling),
 				ConfigID: "config_id2",
 				Name:     "target_tps2",
 			},
