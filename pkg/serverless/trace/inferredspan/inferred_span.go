@@ -94,9 +94,9 @@ func CreateInferredSpan(event string, ctx *serverlessLog.ExecutionContext) {
 	case "apigateway":
 		CreateInferredSpanFromAPIGatewayEvent(eventSource, ctx, attributes)
 	case "http-api":
-		log.Debug("THIS IS A HTTP API")
+		CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource, ctx, attributes)
 	case "websocket":
-		log.Debug(("THIS IS A WEBSOCKET"))
+		// for next PR
 	}
 }
 
@@ -134,6 +134,6 @@ func CompleteInferredSpan(
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
-	// once we send the payload remove the inferredSpan from inferredSpans
+
 	delete(InferredSpans, requestId)
 }
