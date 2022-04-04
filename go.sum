@@ -151,8 +151,8 @@ github.com/DataDog/kube-state-metrics/v2 v2.1.2-0.20211109105526-c17162ee2798/go
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/netlink v1.0.1-0.20220404130556-e214399610e8 h1:AVBqlHIdes43Oi5jsZfMbXiTNMH7vyrKCrUGWEzzTGE=
-github.com/DataDog/netlink v1.0.1-0.20220404130556-e214399610e8/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
+github.com/DataDog/netlink v1.0.1-0.20220404132625-485cbde1e59c h1:OwO0plgDY4hq1sWnDGME2/fKpUReK0piyDH893BgriU=
+github.com/DataDog/netlink v1.0.1-0.20220404132625-485cbde1e59c/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
 github.com/DataDog/nikos v1.7.6 h1:zN4aODtsj283+Y4Q5niIHrmqsMKW3Zlob5qJLOTOQro=
 github.com/DataDog/nikos v1.7.6/go.mod h1:kK2wHo4SMa+qDP7cNQWzS3Ol9uJK46zPLPtK1C37ZWA=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
