@@ -18,6 +18,11 @@
           "definition": "Tags of the container"
         },
         {
+          "name": "network.destination.ip",
+          "type": "net.IP",
+          "definition": "IP address"
+        },
+        {
           "name": "network.destination.port",
           "type": "int",
           "definition": "Port number"
@@ -46,6 +51,11 @@
           "name": "network.size",
           "type": "int",
           "definition": "size in bytes of the network packet"
+        },
+        {
+          "name": "network.source.ip",
+          "type": "net.IP",
+          "definition": "IP address"
         },
         {
           "name": "network.source.port",
