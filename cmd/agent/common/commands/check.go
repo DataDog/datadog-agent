@@ -308,14 +308,15 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
+			printer := aggregator.AgentDemultiplexerPrinter{AgentDemultiplexer: demux}
 			for _, c := range cs {
-				s := runCheck(c, demux)
+				s := runCheck(c, printer)
 
 				// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 				time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
 				if formatJSON {
-					aggregatorData := demux.GetMetricsDataForPrint()
+					aggregatorData := printer.GetMetricsDataForPrint()
 					var collectorData map[string]interface{}
 
 					collectorJSON, _ := status.GetCheckStatusJSON(c, s)
@@ -393,7 +394,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					demux.PrintMetrics(&checkFileOutput, formatTable)
+					printer.PrintMetrics(&checkFileOutput, formatTable)
 					checkStatus, _ := status.GetCheckStatus(c, s)
 					statusString := string(checkStatus)
 					fmt.Println(statusString)
