@@ -114,7 +114,8 @@ func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.Const
 	}
 
 	if !assert.Equal(t, championConstants, challengerConstants) {
-		t.Logf("comparison between `%s`(-) and `%s`(+). kernel version: %v", champion.String(), challenger.String(), kv)
+		t.Logf("comparison between `%s`(-) and `%s`(+)", champion.String(), challenger.String())
+		t.Logf("kernel version: %v", kv)
 	}
 }
 
@@ -136,6 +137,10 @@ func assertConstantContains(t *testing.T, champion, challenger constantfetch.Con
 		} else if v != expected {
 			t.Errorf("difference between fighters for `%s`: `%s`:%d and `%s`:%d", k, champion.String(), expected, challenger.String(), v)
 		}
+	}
+
+	if t.Failed() {
+		t.Logf("kernel version: %v", kv)
 	}
 }
 
