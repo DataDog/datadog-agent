@@ -32,8 +32,7 @@ func TestSendMetric(t *testing.T) {
 		metricName         string
 		value              valuestore.ResultValue
 		tags               []string
-		forcedType         string
-		options            checkconfig.MetricsConfigOption
+		metricConfig       checkconfig.MetricsConfig
 		expectedMethod     string
 		expectedMetricName string
 		expectedValue      float64
@@ -64,11 +63,13 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Forced gauge metric case",
-			metricName:         "my.metric",
-			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
-			tags:               []string{},
-			forcedType:         "gauge",
+			caseName:   "Forced gauge metric case",
+			metricName: "my.metric",
+			value:      valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "gauge",
+			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -76,12 +77,13 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Forced counter metric case",
-			metricName:         "my.metric",
-			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
-			tags:               []string{},
-			forcedType:         "counter",
-			options:            checkconfig.MetricsConfigOption{},
+			caseName:   "Forced counter metric case",
+			metricName: "my.metric",
+			value:      valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "counter",
+			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -89,12 +91,13 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Forced monotonic_count metric case",
-			metricName:         "my.metric",
-			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
-			tags:               []string{},
-			forcedType:         "monotonic_count",
-			options:            checkconfig.MetricsConfigOption{},
+			caseName:   "Forced monotonic_count metric case",
+			metricName: "my.metric",
+			value:      valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "monotonic_count",
+			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -102,12 +105,13 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Forced monotonic_count_and_rate metric case: MonotonicCount called",
-			metricName:         "my.metric",
-			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
-			tags:               []string{},
-			forcedType:         "monotonic_count_and_rate",
-			options:            checkconfig.MetricsConfigOption{},
+			caseName:   "Forced monotonic_count_and_rate metric case: MonotonicCount called",
+			metricName: "my.metric",
+			value:      valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "monotonic_count_and_rate",
+			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -115,12 +119,13 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 2,
 		},
 		{
-			caseName:           "Forced monotonic_count_and_rate metric case: Rate called",
-			metricName:         "my.metric",
-			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
-			tags:               []string{},
-			forcedType:         "monotonic_count_and_rate",
-			options:            checkconfig.MetricsConfigOption{},
+			caseName:   "Forced monotonic_count_and_rate metric case: Rate called",
+			metricName: "my.metric",
+			value:      valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "monotonic_count_and_rate",
+			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric.rate",
 			expectedValue:      float64(10),
@@ -128,12 +133,13 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 2,
 		},
 		{
-			caseName:           "Forced percent metric case: Rate called",
-			metricName:         "Rate.metric",
-			value:              valuestore.ResultValue{Value: 0.5},
-			tags:               []string{},
-			forcedType:         "percent",
-			options:            checkconfig.MetricsConfigOption{},
+			caseName:   "Forced percent metric case: Rate called",
+			metricName: "Rate.metric",
+			value:      valuestore.ResultValue{Value: 0.5},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "percent",
+			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.Rate.metric",
 			expectedValue:      50.0,
@@ -141,12 +147,14 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Forced flag_stream case 1",
-			metricName:         "metric",
-			value:              valuestore.ResultValue{Value: "1010"},
-			tags:               []string{},
-			forcedType:         "flag_stream",
-			options:            checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
+			caseName:   "Forced flag_stream case 1",
+			metricName: "metric",
+			value:      valuestore.ResultValue{Value: "1010"},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "flag_stream",
+				Options:    checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
+			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.metric.foo",
 			expectedValue:      1.0,
@@ -154,25 +162,29 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Forced flag_stream case 2",
-			metricName:         "metric",
-			value:              valuestore.ResultValue{Value: "1010"},
-			tags:               []string{},
-			forcedType:         "flag_stream",
-			options:            checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "foo"},
+			caseName:   "Forced flag_stream case 2",
+			metricName: "metric",
+			value:      valuestore.ResultValue{Value: "1010"},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "flag_stream",
+				Options:    checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "bar"},
+			},
 			expectedMethod:     "Gauge",
-			expectedMetricName: "snmp.metric.foo",
+			expectedMetricName: "snmp.metric.bar",
 			expectedValue:      0.0,
 			expectedTags:       []string{},
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Forced flag_stream invalid index",
-			metricName:         "metric",
-			value:              valuestore.ResultValue{Value: "1010"},
-			tags:               []string{},
-			forcedType:         "flag_stream",
-			options:            checkconfig.MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
+			caseName:   "Forced flag_stream invalid index",
+			metricName: "metric",
+			value:      valuestore.ResultValue{Value: "1010"},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "flag_stream",
+				Options:    checkconfig.MetricsConfigOption{Placement: 10, MetricSuffix: "none"},
+			},
 			expectedMethod:     "",
 			expectedMetricName: "",
 			expectedValue:      0.0,
@@ -183,12 +195,14 @@ func TestSendMetric(t *testing.T) {
 			},
 		},
 		{
-			caseName:           "Error converting value",
-			metricName:         "metric",
-			value:              valuestore.ResultValue{Value: valuestore.ResultValue{}},
-			tags:               []string{},
-			forcedType:         "flag_stream",
-			options:            checkconfig.MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
+			caseName:   "Error converting value",
+			metricName: "metric",
+			value:      valuestore.ResultValue{Value: valuestore.ResultValue{}},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "flag_stream",
+				Options:    checkconfig.MetricsConfigOption{Placement: 10, MetricSuffix: "ouch"},
+			},
 			expectedMethod:     "",
 			expectedMetricName: "",
 			expectedValue:      0.0,
@@ -213,11 +227,13 @@ func TestSendMetric(t *testing.T) {
 			},
 		},
 		{
-			caseName:           "Unsupported type",
-			metricName:         "gauge.metric",
-			value:              valuestore.ResultValue{Value: "1"},
-			tags:               []string{},
-			forcedType:         "invalidForceType",
+			caseName:   "Unsupported type",
+			metricName: "gauge.metric",
+			value:      valuestore.ResultValue{Value: "1"},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "invalidForceType",
+			},
 			expectedMethod:     "",
 			expectedMetricName: "",
 			expectedValue:      0,
@@ -228,11 +244,13 @@ func TestSendMetric(t *testing.T) {
 			},
 		},
 		{
-			caseName:           "Scaled value",
-			metricName:         "scaled.metric",
-			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
-			tags:               []string{},
-			options:            checkconfig.MetricsConfigOption{ScaleFactor: 2},
+			caseName:   "Scaled value",
+			metricName: "scaled.metric",
+			value:      valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ScaleFactor: 2,
+			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.scaled.metric",
 			expectedValue:      float64(20),
@@ -240,11 +258,13 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
-			caseName:           "Scaled value by float",
-			metricName:         "scaled.metric",
-			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
-			tags:               []string{},
-			options:            checkconfig.MetricsConfigOption{ScaleFactor: 0.5},
+			caseName:   "Scaled value by float",
+			metricName: "scaled.metric",
+			value:      valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			tags:       []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ScaleFactor: 0.5,
+			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.scaled.metric",
 			expectedValue:      float64(5),
@@ -267,7 +287,7 @@ func TestSendMetric(t *testing.T) {
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.forcedType, tt.options)
+			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.metricConfig)
 			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
 			if tt.expectedMethod != "" {
 				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)

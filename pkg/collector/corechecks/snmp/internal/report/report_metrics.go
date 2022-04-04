@@ -69,7 +69,7 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 
 	scalarTags := common.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
-	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options)
+	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric)
 }
 
 func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
@@ -85,14 +85,15 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.MetricTags.GetTags(fullIndex, values)...)
 			}
 			rowTags := rowTagsCache[fullIndex]
-			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options)
+			ms.sendMetric(symbol.Name, value, rowTags, metricConfig)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
 }
 
-func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption) {
+func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, metricConfig checkconfig.MetricsConfig) {
 	metricFullName := "snmp." + metricName
+	forcedType := metricConfig.ForcedType
 	if forcedType == "" {
 		if value.SubmissionType != "" {
 			forcedType = value.SubmissionType
@@ -105,6 +106,7 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			return
 		}
+		options := metricConfig.Options
 		floatValue, err := getFlagStreamValue(options.Placement, strValue)
 		if err != nil {
 			log.Debugf("metric `%s`: failed to get flag stream value: %s", metricFullName, err)
@@ -121,8 +123,9 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 		return
 	}
 
-	if options.ScaleFactor != 0 {
-		floatValue *= float64(options.ScaleFactor)
+	scaleFactor := metricConfig.ScaleFactor
+	if scaleFactor != 0 {
+		floatValue *= float64(scaleFactor)
 	}
 
 	switch forcedType {

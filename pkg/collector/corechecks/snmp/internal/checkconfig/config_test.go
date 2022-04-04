@@ -50,7 +50,7 @@ metrics:
   options:
     placement: 5
     metric_suffix: ReplaceBattery
-    scale_factor: 10
+  scale_factor: 10
 - table:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
@@ -138,7 +138,7 @@ bulk_max_repetitions: 20
 			{symbolTag: "mytag1"},
 			{symbolTag: "mytag2"},
 		}},
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery", ScaleFactor: 10}},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}, ScaleFactor: 10},
 		{
 			Symbols: []SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},

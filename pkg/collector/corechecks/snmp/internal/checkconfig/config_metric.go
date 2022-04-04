@@ -64,9 +64,8 @@ type MetricIndexTransform struct {
 
 // MetricsConfigOption holds config for metrics options
 type MetricsConfigOption struct {
-	Placement    uint    `yaml:"placement"`
-	MetricSuffix string  `yaml:"metric_suffix"`
-	ScaleFactor  float64 `yaml:"scale_factor"`
+	Placement    uint   `yaml:"placement"`
+	MetricSuffix string `yaml:"metric_suffix"`
 }
 
 // MetricsConfig holds configs for a metric
@@ -85,6 +84,8 @@ type MetricsConfig struct {
 
 	ForcedType string              `yaml:"forced_type"`
 	Options    MetricsConfigOption `yaml:"options"`
+
+	ScaleFactor float64 `yaml:"scale_factor"`
 }
 
 // GetTags retrieve tags using the metric config and values
