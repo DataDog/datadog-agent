@@ -191,7 +191,6 @@ func (r *RemoteRates) countSample(root *pb.Span, sig Signature) {
 	s.countSample()
 	root.Metrics[tagRemoteTPS] = s.targetTPS.Load()
 	root.Metrics[tagRemoteVersion] = float64(atomic.LoadUint64(&r.tpsVersion))
-	return
 }
 
 // getSignatureSampleRate returns the sampling rate to apply for a registered signature.
