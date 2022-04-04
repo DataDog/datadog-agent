@@ -66,6 +66,11 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 		return log.Critical(err)
 	}
 
+	// Override the log_to_console setting if `--json` is specified. This way the check command will output proper json.
+	if checkOutputJSON {
+		ddconfig.Datadog.Set("process_config.log_to_console", false)
+	}
+
 	cfg, err := config.NewAgentConfig(loggerName, configPath, syscfg)
 	if err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
