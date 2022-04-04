@@ -31,10 +31,6 @@ jobs:
         run: |
           pip install "codeowners==0.4.1"
 
-      - name: Create Cryptographic Summary
-        run: |
-          python cryptographic-summary-sarif.py
-
       - name: Setup env variables
         run: |
           echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
