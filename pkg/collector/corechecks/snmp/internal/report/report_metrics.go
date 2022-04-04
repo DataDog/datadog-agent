@@ -125,7 +125,7 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 
 	scaleFactor := metricConfig.ScaleFactor
 	if scaleFactor != 0 {
-		floatValue *= float64(scaleFactor)
+		floatValue *= scaleFactor
 	}
 
 	switch forcedType {
