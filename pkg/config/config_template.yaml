@@ -1029,6 +1029,7 @@ api_key:
   ## @param receiver_port - integer - optional - default: 8126
   ## @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
+  ## Set to 0 to disable the HTTP receiver.
   #
   # receiver_port: 8126
 
@@ -3254,3 +3255,22 @@ api_key:
     ## Whether to ingest traces through the OTLP endpoint. Set to false to disable OTLP traces ingest.
     #
     # enabled: true
+
+    ## @param span_name_as_resource_name - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_SPAN_NAME_AS_RESOURCE_NAME - boolean - optional - default: false
+    ## If set to true the OpenTelemetry span name will used in the Datadog resource name.
+    ## If set to false the resource name will be filled with the instrumentation library name + span kind.
+    #
+    # span_name_as_resource_name: false
+
+    ## @param span_name_remappings - map - optional
+    ## @env DD_OTLP_CONFIG_SPAN_NAME_REMAPPINGS - boolean - optional
+    ## Defines a map of span names and preferred names to map to. This can be used to automatically map Datadog Span
+    ## Operation Names to an updated value.
+    ## span_name_remappings:
+    ##   "io.opentelemetry.javaagent.spring.client": "spring.client"
+    ##   "instrumentation:express.server": "express"
+    ##   "go.opentelemetry.io_contrib_instrumentation_net_http_otelhttp.client": "http.client"
+    #
+    # span_name_remappings:
+    #   <OLD_NAME>: <NEW_NAME>
