@@ -49,6 +49,11 @@ const loggerName ddconfig.LoggerName = "PROCESS"
 var checkOutputJSON = false
 
 func runCheckCmd(cmd *cobra.Command, args []string) error {
+	// Override the log_to_console setting if `--json` is specified. This way the check command will output proper json.
+	if checkOutputJSON {
+		ddconfig.Datadog.Set("log_to_console", false)
+	}
+
 	// We need to load in the system probe environment variables before we load the config, otherwise an
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
@@ -64,11 +69,6 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	syscfg, err := sysconfig.Merge(sysprobePath)
 	if err != nil {
 		return log.Critical(err)
-	}
-
-	// Override the log_to_console setting if `--json` is specified. This way the check command will output proper json.
-	if checkOutputJSON {
-		ddconfig.Datadog.Set("process_config.log_to_console", false)
 	}
 
 	cfg, err := config.NewAgentConfig(loggerName, configPath, syscfg)
@@ -142,7 +142,9 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 
 	time.Sleep(1 * time.Second)
 
-	printResultsBanner(ch.Name())
+	if !checkOutputJSON {
+		printResultsBanner(ch.Name())
+	}
 
 	msgs, err := ch.Run(cfg, 1)
 	if err != nil {
