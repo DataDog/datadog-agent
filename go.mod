@@ -175,7 +175,7 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
 	github.com/urfave/negroni v1.0.0
-	github.com/vishvananda/netlink v1.1.1-0.20220316193741-b112db377d18
+	github.com/vishvananda/netlink v1.2.0-beta.0.20220404152918-5e915e014938
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v1.2.0
