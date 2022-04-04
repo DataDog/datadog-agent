@@ -47,6 +47,7 @@ type retryOps struct {
 type Launcher struct {
 	sources            *config.LogSources
 	services           *service.Services
+	cop                containersorpods.Chooser
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
 	kubeutil           kubelet.KubeUtilInterface
@@ -63,10 +64,11 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
+func NewLauncher(sources *config.LogSources, services *service.Services, cop containersorpods.Chooser, collectAll bool) *Launcher {
 	launcher := &Launcher{
 		sources:            sources,
 		services:           services,
+		cop:                cop,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
 		collectAll:         collectAll,
@@ -92,7 +94,7 @@ func (l *Launcher) Stop() {
 
 	// only stop this launcher once it's determined that we should be logging
 	// pods, and not containers, but do not block trying to find out.
-	if containersorpods.Get() == containersorpods.LogPods {
+	if l.cop.Get() == containersorpods.LogPods {
 		l.stopped <- struct{}{}
 	}
 }
@@ -101,7 +103,7 @@ func (l *Launcher) Stop() {
 // the kubernetes launcher consumes new and deleted services pushed by the autodiscovery
 func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	// if we're not logging pods, then there's nothing to do
-	if containersorpods.Wait(l.ctx) != containersorpods.LogPods {
+	if l.cop.Wait(l.ctx) != containersorpods.LogPods {
 		return
 	}
 
@@ -109,7 +111,7 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 	addedServices := l.services.GetAllAddedServices()
 	removedServices := l.services.GetAllRemovedServices()
 
-	// kubeutil should be available now, as containersorpods.Wait waits until that
+	// kubeutil should be available now, as cop.Wait waits until that
 	// is the case.
 	var err error
 	l.kubeutil, err = kubelet.GetKubeUtil()

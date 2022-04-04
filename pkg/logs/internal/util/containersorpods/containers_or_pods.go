@@ -31,31 +31,7 @@ const (
 	LogNothing
 )
 
-type chooser struct {
-	// choice carries the result, once it is known.
-	choice chan LogWhat
-
-	// m covers the 'started' field
-	m sync.Mutex
-
-	// if started is true, then the process of choosing has begun
-	// and it is safe to wait for a value in `choice`.
-	started bool
-
-	// kubeletReady determines if kubelet is ready, or how long to wait
-	kubeletReady func() (bool, time.Duration)
-
-	// dockerReady determines if dockerutil is ready, or how long to wait
-	dockerReady func() (bool, time.Duration)
-}
-
-var singleton = chooser{
-	choice:       make(chan LogWhat, 1),
-	kubeletReady: kubernetesReady,
-	dockerReady:  dockerReady,
-}
-
-// Wait determines how the logs-agent should handle containers:
+// Chooser determines how the logs-agent should handle containers:
 // either monitoring individual containers, or monitoring pods and logging the
 // containers within them.
 //
@@ -80,38 +56,79 @@ var singleton = chooser{
 // The dependency on the configuration value is based on the observation that
 // the kubernetes launcher always uses files to log pods, while the docker
 // launcher (in some circumstances, at least) does not.
-func Wait(ctx context.Context) LogWhat {
-	singleton.start()
+type Chooser interface {
+	// Wait blocks until a decision is made, or the given context is cancelled.
+	Wait(ctx context.Context) LogWhat
+
+	// Get is identical to Wait, except that it returns LogUnknown immediately
+	// in any situation where Wait would wait.
+	Get() LogWhat
+}
+
+type chooser struct {
+	// choice carries the result, once it is known.
+	choice chan LogWhat
+
+	// m covers the 'started' field
+	m sync.Mutex
+
+	// if started is true, then the process of choosing has begun
+	// and it is safe to wait for a value in `choice`.
+	started bool
+
+	// kubeletReady determines if kubelet is ready, or how long to wait
+	kubeletReady func() (bool, time.Duration)
+
+	// dockerReady determines if dockerutil is ready, or how long to wait
+	dockerReady func() (bool, time.Duration)
+}
+
+// NewChooser returns a new Chooser.
+func NewChooser() Chooser {
+	return &chooser{
+		choice:       make(chan LogWhat, 1),
+		kubeletReady: kubernetesReady,
+		dockerReady:  dockerReady,
+	}
+}
+
+// NewDecidedChooser returns a new Chooser where the choice is predetermined.
+// This is for use in unit tests.
+func NewDecidedChooser(decision LogWhat) Chooser {
+	ch := &chooser{
+		choice:       make(chan LogWhat, 1),
+		kubeletReady: kubernetesReady,
+		dockerReady:  dockerReady,
+	}
+	ch.started = true
+	ch.choice <- decision
+	return ch
+}
+
+// Wait implements Chooser#Wait.
+func (ch *chooser) Wait(ctx context.Context) LogWhat {
+	ch.start()
 	select {
-	case c := <-singleton.choice:
+	case c := <-ch.choice:
 		// put the value back in the channel for the next querier
-		singleton.choice <- c
+		ch.choice <- c
 		return c
 	case <-ctx.Done():
 		return LogUnknown
 	}
 }
 
-// Get is identical to Wait, except that it returns LogUnknown immediately in
-// any situation where Wait would wait.
-func Get() LogWhat {
-	singleton.start()
+// Get implements Chooser#Get.
+func (ch *chooser) Get() LogWhat {
+	ch.start()
 	select {
-	case c := <-singleton.choice:
+	case c := <-ch.choice:
 		// put the value back in the channel for the next querier
-		singleton.choice <- c
+		ch.choice <- c
 		return c
 	default:
 		return LogUnknown
 	}
-}
-
-// preferred returns the preferred LogWhat, based on configuration
-func preferred() LogWhat {
-	if config.Datadog.GetBool("logs_config.k8s_container_use_file") {
-		return LogPods
-	}
-	return LogContainers
 }
 
 func min(a, b time.Duration) time.Duration {
@@ -128,6 +145,14 @@ func (ch *chooser) start() {
 		ch.started = true
 	}
 	ch.m.Unlock()
+}
+
+// preferred returns the preferred LogWhat, based on configuration
+func (ch *chooser) preferred() LogWhat {
+	if config.Datadog.GetBool("logs_config.k8s_container_use_file") {
+		return LogPods
+	}
+	return LogContainers
 }
 
 // choose runs in a dedicated goroutine and makes a choice between LogPods and
@@ -172,7 +197,7 @@ func (ch *chooser) choose(wait bool) {
 				ch.choice <- LogPods
 				return
 			case kready && dready:
-				ch.choice <- preferred()
+				ch.choice <- ch.preferred()
 				return
 			default:
 				// otherwise, wait

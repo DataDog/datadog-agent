@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -65,6 +66,8 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
+	cop := containersorpods.NewChooser()
+
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
@@ -80,9 +83,14 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
 		sources,
 		services,
+		cop,
 		coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
 		coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file")))
-	lnchrs.AddLauncher(kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all")))
+	lnchrs.AddLauncher(kubernetes.NewLauncher(
+		sources,
+		services,
+		cop,
+		coreConfig.Datadog.GetBool("logs_config.container_collect_all")))
 
 	return &Agent{
 		sources:                   sources,

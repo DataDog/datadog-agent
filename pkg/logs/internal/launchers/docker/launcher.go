@@ -56,6 +56,7 @@ type Launcher struct {
 	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
 	sources                *config.LogSources        // To schedule file source when taileing container from file
 	services               *service.Services
+	cop                    containersorpods.Chooser
 
 	// ctx is the context for the running goroutine, set in Start
 	ctx context.Context
@@ -65,7 +66,7 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, tailFromFile, forceTailingFromFile bool) *Launcher {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, cop containersorpods.Chooser, tailFromFile, forceTailingFromFile bool) *Launcher {
 	launcher := &Launcher{
 		tailers:                make(map[string]*tailer.Tailer),
 		pendingContainers:      make(map[string]*Container),
@@ -75,6 +76,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		serviceNameFunc:        util.ServiceNameFromTags,
 		sources:                sources,
 		services:               services,
+		cop:                    cop,
 		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]sourceInfoPair),
@@ -107,7 +109,7 @@ func (l *Launcher) Stop() {
 
 	// only stop this launcher once it's determined that we should be logging
 	// containers, and not pods, but do not block trying to find out.
-	if containersorpods.Get() == containersorpods.LogContainers {
+	if l.cop.Get() == containersorpods.LogContainers {
 		stopper := startstop.NewParallelStopper()
 		l.lock.Lock()
 		var containerIDs []string
@@ -127,7 +129,7 @@ func (l *Launcher) Stop() {
 // or a new service which is mapped to a container.
 func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	// if we're not logging containers, then there's nothing to do
-	if containersorpods.Wait(l.ctx) != containersorpods.LogContainers {
+	if l.cop.Wait(l.ctx) != containersorpods.LogContainers {
 		return
 	}
 
