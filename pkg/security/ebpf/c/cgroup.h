@@ -10,7 +10,7 @@ u32 __attribute__((always_inline)) get_cgroup_write_type(void) {
     return type;
 }
 
-static __attribute__((always_inline)) int isxdigit(unsigned char c) {
+static __attribute__((always_inline)) int _isxdigit(unsigned char c) {
     return ((c >= '0' && c <= '9') ||
             (c >= 'a' && c <= 'f') ||
             (c >= 'A' && c <= 'F'));
@@ -20,7 +20,7 @@ static __attribute__((always_inline)) int is_container_id_valid(const char id[CO
 #pragma unroll
     for (int i = 0; i < CONTAINER_ID_LEN; i++)
     {
-        if (!isxdigit(id[i])) {
+        if (!_isxdigit(id[i])) {
             return 0;
         }
     }

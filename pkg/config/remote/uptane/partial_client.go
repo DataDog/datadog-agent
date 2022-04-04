@@ -8,6 +8,7 @@ package uptane
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -52,6 +53,7 @@ type PartialState struct {
 }
 
 // PartialClient is a partial uptane client
+// (see https://uptane.github.io/papers/uptane-standard.1.2.0.html#rfc.section.5.4.4.1)
 type PartialClient struct {
 	sync.Mutex
 
@@ -68,6 +70,7 @@ type PartialClient struct {
 }
 
 // NewPartialClient creates a new partial uptane client
+// (see https://uptane.github.io/papers/uptane-standard.1.2.0.html#rfc.section.5.4.4.1)
 func NewPartialClient() (*PartialClient, error) {
 	localStore := client.MemoryLocalStore()
 	err := localStore.SetMeta("root.json", json.RawMessage(meta.RootsDirector().Last()))
@@ -167,7 +170,15 @@ func (c *PartialClient) Update(response *pbgo.ClientGetConfigsResponse) error {
 	}
 	err = c.validateAndUpdateTargets(response.Targets.Raw)
 	if err != nil {
-		return err
+		if (errors.Is(err, verify.ErrInvalid) ||
+			errors.As(err, &verify.ErrRoleThreshold{})) {
+			return fmt.Errorf(
+				"updating targets: %w",
+				&ErrInvalid{err.Error()},
+			)
+		}
+
+		return fmt.Errorf("updating target: error with unexpected type (%T): %w", err, err)
 	}
 	c.targetFiles = response.TargetFiles
 	for _, target := range response.TargetFiles {
@@ -217,6 +228,16 @@ func (c *PartialClient) TargetFile(path string) ([]byte, error) {
 	return c.targetFile(path)
 }
 
+// ErrInvalid represents the Uptane client rejecting invalid data
+// (malformed or not signed properly)
+type ErrInvalid struct {
+	msg string
+}
+
+func (err *ErrInvalid) Error() string {
+	return err.msg
+}
+
 func (c *PartialClient) targetFile(path string) ([]byte, error) {
 	var targetFile *pbgo.File
 	for _, target := range c.targetFiles {
@@ -229,7 +250,7 @@ func (c *PartialClient) targetFile(path string) ([]byte, error) {
 	}
 	targetMeta, hasMeta := c.targetMetas[path]
 	if !hasMeta {
-		return nil, fmt.Errorf("target file meta %s not found", path)
+		return nil, &ErrInvalid{fmt.Sprintf("target file meta %s not found", path)}
 	}
 	if len(targetMeta.HashAlgorithms()) == 0 {
 		return nil, fmt.Errorf("target file %s has no hash", path)

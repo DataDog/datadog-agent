@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	"io"
@@ -46,7 +47,10 @@ const (
 	snapshotted
 )
 
-const procResolveMaxDepth = 16
+const (
+	procResolveMaxDepth = 16
+	maxArgsEnvResidents = 1024
+)
 
 func getAttr2(probe *Probe) uint64 {
 	if probe.kernelVersion.IsRH7Kernel() {
@@ -111,10 +115,22 @@ type ProcessResolver struct {
 // ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
 	pool *sync.Pool
+
+	// entries that wont be release to the pool
+	maxResidents   int
+	totalResidents int
+	freeResidents  *list.List
 }
 
 // Get returns a cache entry
 func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
+	// first try from resident pool
+	if el := a.freeResidents.Front(); el != nil {
+		entry := el.Value.(*model.ArgsEnvsCacheEntry)
+		a.freeResidents.Remove(el)
+		return entry
+	}
+
 	return a.pool.Get().(*model.ArgsEnvsCacheEntry)
 }
 
@@ -127,12 +143,27 @@ func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheE
 
 // Put returns a cache entry to the pool
 func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
-	a.pool.Put(entry)
+	if entry.Container != nil {
+		// from the residents list
+		a.freeResidents.MoveToBack(entry.Container)
+	} else if a.totalResidents < a.maxResidents {
+		// still some places so we can create a new node
+		entry.Container = &list.Element{Value: entry}
+		a.totalResidents++
+
+		a.freeResidents.MoveToBack(entry.Container)
+	} else {
+		a.pool.Put(entry)
+	}
 }
 
 // NewArgsEnvsPool returns a new ArgsEnvEntry pool
-func NewArgsEnvsPool() *ArgsEnvsPool {
-	ap := ArgsEnvsPool{pool: &sync.Pool{}}
+func NewArgsEnvsPool(maxResident int) *ArgsEnvsPool {
+	ap := ArgsEnvsPool{
+		pool:          &sync.Pool{},
+		maxResidents:  maxResident,
+		freeResidents: list.New(),
+	}
 
 	ap.pool.New = func() interface{} {
 		return model.NewArgsEnvsCacheEntry(ap.Put)
@@ -1075,7 +1106,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 		opts:          opts,
 		argsEnvsCache: argsEnvsCache,
 		state:         snapshotting,
-		argsEnvsPool:  NewArgsEnvsPool(),
+		argsEnvsPool:  NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:     map[string]*int64{},
 	}
 	for _, t := range metrics.AllTypesTags {
