@@ -6,6 +6,7 @@
 package probe
 
 import (
+	"net"
 	"reflect"
 	"unsafe"
 
@@ -1918,6 +1919,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "network.destination.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
+				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Destination.IP, nil)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "network.destination.port":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1973,6 +1983,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).NetworkContext.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.source.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
+				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Source.IP, nil)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9545,6 +9564,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"mprotect.vm_protection",
 
+		"network.destination.ip",
+
 		"network.destination.port",
 
 		"network.device.ifindex",
@@ -9556,6 +9577,8 @@ func (e *Event) GetFields() []eval.Field {
 		"network.l4_protocol",
 
 		"network.size",
+
+		"network.source.ip",
 
 		"network.source.port",
 
@@ -11166,6 +11189,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.MProtect.VMProtection, nil
 
+	case "network.destination.ip":
+
+		return e.NetworkContext.Destination.IP, nil
+
 	case "network.destination.port":
 
 		return int(e.NetworkContext.Destination.Port), nil
@@ -11189,6 +11216,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "network.size":
 
 		return int(e.NetworkContext.Size), nil
+
+	case "network.source.ip":
+
+		return e.NetworkContext.Source.IP, nil
 
 	case "network.source.port":
 
@@ -15918,6 +15949,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mprotect.vm_protection":
 		return "mprotect", nil
 
+	case "network.destination.ip":
+		return "*", nil
+
 	case "network.destination.port":
 		return "*", nil
 
@@ -15934,6 +15968,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "network.size":
+		return "*", nil
+
+	case "network.source.ip":
 		return "*", nil
 
 	case "network.source.port":
@@ -17980,6 +18017,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "network.destination.ip":
+
+		return reflect.Struct, nil
+
 	case "network.destination.port":
 
 		return reflect.Int, nil
@@ -18003,6 +18044,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "network.size":
 
 		return reflect.Int, nil
+
+	case "network.source.ip":
+
+		return reflect.Struct, nil
 
 	case "network.source.port":
 
@@ -21725,6 +21770,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "network.destination.ip":
+
+		var ok bool
+		v, ok := value.(net.IP)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IP"}
+		}
+		e.NetworkContext.Destination.IP = v
+
+		return nil
+
 	case "network.destination.port":
 
 		var ok bool
@@ -21788,6 +21844,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Size"}
 		}
 		e.NetworkContext.Size = uint32(v)
+
+		return nil
+
+	case "network.source.ip":
+
+		var ok bool
+		v, ok := value.(net.IP)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IP"}
+		}
+		e.NetworkContext.Source.IP = v
 
 		return nil
 
