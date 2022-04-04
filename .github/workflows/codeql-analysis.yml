@@ -27,10 +27,6 @@ jobs:
         run: |
           pip3 install -r requirements.txt
 
-      - name: Install codeowners for cryptographic summary parsing
-        run: |
-          pip install "codeowners==0.4.1"
-
       - name: Setup env variables
         run: |
           echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
@@ -63,6 +59,10 @@ jobs:
       - name: Copy go sarif to working directory
         run: |
           cp ../results/go.sarif ./go.sarif
+
+      - name: Install codeowners for cryptographic summary parsing
+        run: |
+          pip install "codeowners==0.4.1"
 
       - name: Create Cryptographic Summary
         run: |
