@@ -1,4 +1,4 @@
-black==22.1.0
+black==22.3.0
 codecov==2.1.12
 flake8-bugbear==22.3.23
 flake8-comprehensions==3.7.0
