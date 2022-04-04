@@ -23,10 +23,11 @@ var (
 const (
 	// Version 3+ adds support for nanosecond cadence.
 	// Version 2+ adds support for storing state.
-	datadogFileVersion uint8 = 3 //nolint:staticcheck
-	versionIndex             = 4
-	minStateVersion          = 2
-	minNanoVersion           = 3
+	datadogFileVersion uint8 = 3
+
+	versionIndex    = 4
+	minStateVersion = 2
+	minNanoVersion  = 3
 )
 
 func init() {
