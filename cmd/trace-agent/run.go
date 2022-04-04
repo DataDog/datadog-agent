@@ -180,7 +180,7 @@ func Run(ctx context.Context) {
 		}
 	}()
 
-	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
+	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)

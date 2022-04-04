@@ -291,6 +291,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
+	// Remote config products
+	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
