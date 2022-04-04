@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    [snmp] add scale factor option to metric configurations
+    [corechecks/snmp] add scale factor option to metric configurations
