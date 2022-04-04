@@ -225,7 +225,6 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
-				mockConfig.Set("kubernetes_distribution", "")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -247,7 +246,6 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", false)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
-				mockConfig.Set("kubernetes_distribution", "")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -265,7 +263,6 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", false)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
-				mockConfig.Set("kubernetes_distribution", "")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -287,7 +284,6 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", false)
 				mockConfig.Set("admission_controller.mutate_unlabelled", false)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
-				mockConfig.Set("kubernetes_distribution", "")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -304,7 +300,6 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			setupConfig: func() {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
-				mockConfig.Set("kubernetes_distribution", "")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -327,7 +322,6 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
-				mockConfig.Set("kubernetes_distribution", "")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -359,7 +353,6 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
 				mockConfig.Set("admission_controller.namespace_selector_fallback", true)
-				mockConfig.Set("kubernetes_distribution", "")
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
 			want: func() []admiv1.MutatingWebhook {
@@ -379,7 +372,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 		{
 			name: "AKS-specific label selector without namespace selector enabled",
 			setupConfig: func() {
-				mockConfig.Set("kubernetes_distribution", "aks") // Running on AKS
+				mockConfig.Set("admission_controller.add_aks_selectors", true)
 				mockConfig.Set("admission_controller.namespace_selector_fallback", false)
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
@@ -414,7 +407,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 		{
 			name: "AKS-specific label selector with namespace selector enabled",
 			setupConfig: func() {
-				mockConfig.Set("kubernetes_distribution", "aks") // Running on AKS
+				mockConfig.Set("admission_controller.add_aks_selectors", true)
 				mockConfig.Set("admission_controller.namespace_selector_fallback", true)
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
@@ -447,6 +440,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
+			defer mockConfig.Set("admission_controller.add_aks_selectors", false) // Reset to default
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()

@@ -594,8 +594,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
-	config.BindEnvAndSetDefault("kubernetes_distribution", "")
-
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
@@ -914,6 +912,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.namespace_selector_fallback", false)
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
+	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.

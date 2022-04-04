@@ -9,8 +9,6 @@
 package webhook
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -41,7 +39,7 @@ func buildLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSe
 		}
 	}
 
-	if runningOnAKS() {
+	if config.Datadog.GetBool("admission_controller.add_aks_selectors") {
 		return aksSelectors(useNamespaceSelector, labelSelector)
 	}
 
@@ -82,8 +80,4 @@ func azureAKSLabelSelectorRequirement() metav1.LabelSelectorRequirement {
 		Key:      "control-plane",
 		Operator: metav1.LabelSelectorOpDoesNotExist,
 	}
-}
-
-func runningOnAKS() bool {
-	return strings.ToLower(config.Datadog.GetString("kubernetes_distribution")) == "aks"
 }

@@ -2448,6 +2448,13 @@ api_key:
   ## See https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#reinvocation-policy
   #
   # reinvocation_policy: IfNeeded
+
+  ## @param add_aks_selectors - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS - boolean - optional - default: false
+  ## Adds in the admission controller webhook the selectors that are required in AKS.
+  ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
+  #
+  # add_aks_selectors: false
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -2679,15 +2686,6 @@ api_key:
 ## If you run into connectivity issues, set the https port here according to your cluster setup.
 #
 # kubernetes_https_kubelet_port: 10250
-
-## @param kubernetes_distribution - string - optional - default: ""
-## @env DD_KUBERNETES_DISTRIBUTION - string - optional - default: ""
-# The Kubernetes distribution where the agent is deployed. This automatically
-# applies options needed to make the agent run correctly on each distribution.
-# For now, this is only needed when running on AKS. When that's the case, set
-# this option to "aks".
-#
-# kubernetes_distribution: ""
 
 ## @param kubelet_tls_verify - boolean - optional - default: true
 ## @env DD_KUBELET_TLS_VERIFY - boolean - optional - default: true
@@ -3225,7 +3223,7 @@ api_key:
         ## - `raw_value` to report the raw value as a Datadog gauge.
         #
         # cumulative_monotonic_mode: to_delta
-    
+
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
