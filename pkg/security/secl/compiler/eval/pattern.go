@@ -39,8 +39,24 @@ func nextSegment(str string) (bool, string, int) {
 	return star, str[start:end], end
 }
 
+func index(s, subtr string, caseInsensitive bool) int {
+	if caseInsensitive {
+		s = strings.ToLower(s)
+		subtr = strings.ToLower(subtr)
+	}
+	return strings.Index(s, subtr)
+}
+
+func hasPrefix(s, prefix string, caseInsensitive bool) bool {
+	if caseInsensitive {
+		s = strings.ToLower(s)
+		prefix = strings.ToLower(prefix)
+	}
+	return strings.HasPrefix(s, prefix)
+}
+
 // PatternMatches matches a pattern against a string
-func PatternMatches(pattern string, str string) bool {
+func PatternMatches(pattern string, str string, caseInsensitive bool) bool {
 	if pattern == "*" {
 		return true
 	}
@@ -52,13 +68,13 @@ func PatternMatches(pattern string, str string) bool {
 	for len(pattern) > 0 {
 		star, segment, nextIndex := nextSegment(pattern)
 		if star {
-			index := strings.Index(str, segment)
+			index := index(str, segment, caseInsensitive)
 			if index == -1 {
 				return false
 			}
 			str = str[index+len(segment):]
 		} else {
-			if !strings.HasPrefix(str, segment) {
+			if !hasPrefix(str, segment, caseInsensitive) {
 				return false
 			}
 			str = str[len(segment):]

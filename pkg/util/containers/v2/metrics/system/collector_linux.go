@@ -111,12 +111,12 @@ func (c *systemCollector) GetContainerNetworkStats(containerID string, cacheVali
 }
 
 func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	containerID, _, err := cgroups.ContainerIDFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController)
+	containerID, err := cgroups.IdentiferFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }
 
 func (c *systemCollector) GetSelfContainerID() (string, error) {
-	containerID, _, err := cgroups.ContainerIDFromCgroupReferences("/proc", "self", c.baseController)
+	containerID, err := cgroups.IdentiferFromCgroupReferences("/proc", "self", c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }
 
