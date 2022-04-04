@@ -40,6 +40,9 @@ when 'debian'
 
 when 'rhel'
   protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
+  # Because of https://bugzilla.redhat.com/show_bug.cgi?id=1792506, we disable
+  # repo_gpgcheck on RHEL/CentOS < 8.2
+  repo_gpgcheck = node['platform_version'].to_f < 8.2 ? '0' : '1'
 
   file '/etc/yum.repos.d/datadog.repo' do
     content <<-EOF.gsub(/^ {6}/, '')
@@ -48,7 +51,7 @@ when 'rhel'
       baseurl = #{node['dd-agent-step-by-step']['yumrepo']}
       enabled=1
       gpgcheck=1
-      repo_gpgcheck=1
+      repo_gpgcheck=#{repo_gpgcheck}
       gpgkey=#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public

@@ -453,6 +453,7 @@ type KubernetesPod struct {
 	Phase                      string
 	IP                         string
 	PriorityClass              string
+	QOSClass                   string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 }
@@ -508,6 +509,7 @@ func (p KubernetesPod) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
+		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))

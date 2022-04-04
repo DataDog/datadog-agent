@@ -118,8 +118,8 @@ github.com/BurntSushi/toml v0.4.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbi
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/agent-payload/v5 v5.0.19 h1:Qm89IzxFz1tUlhg6XZLEePENOlUlXmd/MPs8tOsWOeQ=
 github.com/DataDog/agent-payload/v5 v5.0.19/go.mod h1:2gapp8p4Vd548JI+axD8kCExklNvVI6AMF5/+IfN/4g=
-github.com/DataDog/btf-internals v0.0.0-20220317155923-e1a7b770b6a1 h1:t2YfddP80vYP/kKwI0jaNPqyqG9qXlrO7FzrE4SbBIs=
-github.com/DataDog/btf-internals v0.0.0-20220317155923-e1a7b770b6a1/go.mod h1:cBVVIJ/f6XtwFL/U9QI5QDA/LcaiSiI8B4ipyGXzc1s=
+github.com/DataDog/btf-internals v0.0.0-20220401093927-f65bd0b466d5 h1:31zOTPN8AXxU3RKZe1MJqgj8+QlMAE3I0nlUemsaVcA=
+github.com/DataDog/btf-internals v0.0.0-20220401093927-f65bd0b466d5/go.mod h1:cBVVIJ/f6XtwFL/U9QI5QDA/LcaiSiI8B4ipyGXzc1s=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/DataDog/datadog-api-client-go v1.0.0-beta.18/go.mod h1:Gn0fZwIOBbSidO0OaPEh9nO5EmIPsxJrHfHvfVXEaoU=
@@ -148,8 +148,8 @@ github.com/DataDog/kube-state-metrics/v2 v2.1.2-0.20211109105526-c17162ee2798 h1
 github.com/DataDog/kube-state-metrics/v2 v2.1.2-0.20211109105526-c17162ee2798/go.mod h1:Hv8GpzWpCMxmmsqBt7ZZs6qrKbp/XimuDTCexS+4xhY=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/nikos v1.7.5 h1:8HaztYjy0kEM6ZTPhZw3V/uu0G7dSIVOk8zIp4pwJAs=
-github.com/DataDog/nikos v1.7.5/go.mod h1:kK2wHo4SMa+qDP7cNQWzS3Ol9uJK46zPLPtK1C37ZWA=
+github.com/DataDog/nikos v1.7.6 h1:zN4aODtsj283+Y4Q5niIHrmqsMKW3Zlob5qJLOTOQro=
+github.com/DataDog/nikos v1.7.6/go.mod h1:kK2wHo4SMa+qDP7cNQWzS3Ol9uJK46zPLPtK1C37ZWA=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/sketches-go v1.3.0 h1:VOaiZiifXh4VRoOz3ZNoFQAPRAZpppH1FPvcarsvBqg=
 github.com/DataDog/sketches-go v1.3.0/go.mod h1:1xYmPLY1So10AwxV6MJV0J53XVH+WL9Ad1KetxVivVI=
