@@ -769,8 +769,8 @@ type NetworkDeviceContext struct {
 // IPPortContext is used to hold an IP and Port
 //msgp:ignore IPPortContext
 type IPPortContext struct {
-	IP   net.IP `field:"ip"`   // IP address
-	Port uint16 `field:"port"` // Port number
+	IPNet net.IPNet `field:"ip"`   // IP address
+	Port  uint16    `field:"port"` // Port number
 }
 
 // NetworkContext represents the network context of the event

@@ -19,7 +19,7 @@
         },
         {
           "name": "network.destination.ip",
-          "type": "net.IP",
+          "type": "net.IPNet",
           "definition": "IP address"
         },
         {
@@ -54,7 +54,7 @@
         },
         {
           "name": "network.source.ip",
-          "type": "net.IP",
+          "type": "net.IPNet",
           "definition": "IP address"
         },
         {

@@ -95,7 +95,7 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 	}
 
 	switch fieldType {
-	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IP":
+	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet":
 		if prefix != "" {
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
