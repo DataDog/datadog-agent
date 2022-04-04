@@ -15,10 +15,7 @@ import (
 type role string
 
 const (
-	roleRoot      role = "root"
-	roleTargets   role = "targets"
-	roleSnapshot  role = "snapshot"
-	roleTimestamp role = "timestamp"
+	roleRoot role = "root"
 )
 
 type metaPath struct {
