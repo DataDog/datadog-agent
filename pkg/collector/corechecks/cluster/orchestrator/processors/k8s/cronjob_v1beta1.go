@@ -19,29 +19,29 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// CronJobHandlers implements the Handlers interface for Kubernetes CronJobs.
-type CronJobHandlers struct{}
+// CronJobV1Beta1Handlers implements the Handlers interface for Kubernetes CronJobs.
+type CronJobV1Beta1Handlers struct{}
 
 // AfterMarshalling is a handler called after resource marshalling.
-func (h *CronJobHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+func (h *CronJobV1Beta1Handlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.CronJob)
 	m.Yaml = yaml
 	return
 }
 
 // BeforeCacheCheck is a handler called before cache lookup.
-func (h *CronJobHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *CronJobV1Beta1Handlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
 // BeforeMarshalling is a handler called before resource marshalling.
-func (h *CronJobHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *CronJobV1Beta1Handlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *CronJobHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *CronJobV1Beta1Handlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
 	models := make([]*model.CronJob, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -59,14 +59,14 @@ func (h *CronJobHandlers) BuildMessageBody(ctx *processors.ProcessorContext, res
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (h *CronJobHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+func (h *CronJobV1Beta1Handlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*batchv1beta1.CronJob)
-	return k8sTransformers.ExtractCronJob(r)
+	return k8sTransformers.ExtractCronJobV1Beta1(r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
-func (h *CronJobHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+func (h *CronJobV1Beta1Handlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*batchv1beta1.CronJob)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -78,25 +78,25 @@ func (h *CronJobHandlers) ResourceList(ctx *processors.ProcessorContext, list in
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *CronJobHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *CronJobV1Beta1Handlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*batchv1beta1.CronJob).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *CronJobHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *CronJobV1Beta1Handlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*batchv1beta1.CronJob).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
-func (h *CronJobHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *CronJobV1Beta1Handlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*batchv1beta1.CronJob)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
-func (h *CronJobHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *CronJobV1Beta1Handlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*batchv1beta1.CronJob)
 	if ctx.Cfg.IsScrubbingEnabled {
 		redact.ScrubPodTemplateSpec(&r.Spec.JobTemplate.Spec.Template, ctx.Cfg.Scrubber)

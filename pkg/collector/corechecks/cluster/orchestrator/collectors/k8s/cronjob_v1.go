@@ -15,62 +15,54 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
-	appsv1Informers "k8s.io/client-go/informers/apps/v1"
-	appsv1Listers "k8s.io/client-go/listers/apps/v1"
+	batchv1Informers "k8s.io/client-go/informers/batch/v1"
+	batchv1Listers "k8s.io/client-go/listers/batch/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
-// NewStatefulSetCollectorVersions builds the group of collector versions.
-func NewStatefulSetCollectorVersions() collectors.CollectorVersions {
-	return collectors.NewCollectorVersions(
-		NewStatefulSetCollector(),
-	)
-}
-
-// StatefulSetCollector is a collector for Kubernetes StatefulSets.
-type StatefulSetCollector struct {
-	informer  appsv1Informers.StatefulSetInformer
-	lister    appsv1Listers.StatefulSetLister
+// CronJobV1Collector is a collector for Kubernetes CronJobs.
+type CronJobV1Collector struct {
+	informer  batchv1Informers.CronJobInformer
+	lister    batchv1Listers.CronJobLister
 	metadata  *collectors.CollectorMetadata
 	processor *processors.Processor
 }
 
-// NewStatefulSetCollector creates a new collector for the Kubernetes
-// StatefulSet resource.
-func NewStatefulSetCollector() *StatefulSetCollector {
-	return &StatefulSetCollector{
+// NewCronJobV1Collector creates a new collector for the Kubernetes Job resource.
+func NewCronJobV1Collector() *CronJobV1Collector {
+	return &CronJobV1Collector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion: true,
 			IsStable:         true,
-			Name:             "statefulsets",
-			NodeType:         orchestrator.K8sStatefulSet,
-			Version:          "apps/v1",
+			Name:             "cronjobs",
+			NodeType:         orchestrator.K8sCronJob,
+			Version:          "batch/v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.StatefulSetHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Handlers)),
 	}
 }
 
 // Informer returns the shared informer.
-func (c *StatefulSetCollector) Informer() cache.SharedInformer {
+func (c *CronJobV1Collector) Informer() cache.SharedInformer {
 	return c.informer.Informer()
 }
 
 // Init is used to initialize the collector.
-func (c *StatefulSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().StatefulSets()
+func (c *CronJobV1Collector) Init(rcfg *collectors.CollectorRunConfig) {
+	c.informer = rcfg.APIClient.InformerFactory.Batch().V1().CronJobs()
 	c.lister = c.informer.Lister()
 }
 
 // IsAvailable returns whether the collector is available.
-func (c *StatefulSetCollector) IsAvailable() bool { return true }
+func (c *CronJobV1Collector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
-func (c *StatefulSetCollector) Metadata() *collectors.CollectorMetadata {
+func (c *CronJobV1Collector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata
 }
 
 // Run triggers the collection process.
-func (c *StatefulSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
+func (c *CronJobV1Collector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
 	list, err := c.lister.List(labels.Everything())
 	if err != nil {
 		return nil, collectors.NewListingError(err)
