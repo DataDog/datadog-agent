@@ -616,6 +616,7 @@ profiles:
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "device_vendor:f5",
+        "my_static_tag:val",
         "mytag:val1",
         "prefix:f",
         "snmp_device:1.2.3.4",

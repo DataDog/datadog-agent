@@ -206,6 +206,9 @@ bulk_max_repetitions: 20
 				"suffix":   "\\2",
 			},
 		},
+		{
+			StaticTag: "my_static_tag:val",
+		},
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 

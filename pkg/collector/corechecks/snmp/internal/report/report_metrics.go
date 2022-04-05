@@ -44,6 +44,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
+		globalTags = append(globalTags, metricTag.GetStaticTags()...)
 		// TODO: Support extract value see II-635
 		value, err := values.GetScalarValue(metricTag.OID)
 		if err != nil {

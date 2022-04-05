@@ -51,6 +51,9 @@ type MetricTagConfig struct {
 
 	symbolTag string
 	pattern   *regexp.Regexp
+
+	// Static Tag
+	StaticTag string `yaml:"static_tag"`
 }
 
 // MetricTagConfigList holds configs for a list of metric tags
@@ -140,6 +143,7 @@ func (mtcl MetricTagConfigList) GetTags(fullIndex string, values *valuestore.Res
 			}
 			rowTags = append(rowTags, metricTag.GetTags(strValue)...)
 		}
+		rowTags = append(rowTags, metricTag.GetStaticTags()...)
 	}
 	return rowTags
 }
@@ -186,6 +190,14 @@ func (mtc *MetricTagConfig) GetTags(value string) []string {
 		}
 	}
 	return tags
+}
+
+// GetStaticTags returns static tags
+func (mtc *MetricTagConfig) GetStaticTags() []string {
+	if mtc.StaticTag != "" {
+		return []string{mtc.StaticTag}
+	}
+	return []string{}
 }
 
 // RegexReplaceValue replaces a value using a regex and template

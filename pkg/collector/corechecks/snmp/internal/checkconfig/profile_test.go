@@ -56,6 +56,9 @@ func mockProfilesDefinitions() profileDefinitionMap {
 					"suffix":   "\\2",
 				},
 			},
+			{
+				StaticTag: "my_static_tag:val",
+			},
 			{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 		},
 		Metadata: MetadataConfig{
