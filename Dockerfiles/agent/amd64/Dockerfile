@@ -18,7 +18,7 @@ RUN apt update
 FROM baseimage AS faccessat
 COPY faccessat/faccessat.c   /tmp/faccessat.c
 COPY faccessat/faccessat.sym /tmp/faccessat.sym
-RUN apt install -y gcc
+RUN apt install --no-install-recommends -y gcc libc6-dev
 RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c -Wl,--version-script=/tmp/faccessat.sym
 
 ############################################
@@ -40,7 +40,7 @@ COPY hack/s6-pgp-key /tmp/s6-pgp-key
 ENV S6_VERSION v1.22.1.0
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
-RUN apt install --no-install-recommends -y gpg gpg-agent curl ca-certificates \
+RUN apt install --no-install-recommends -y gpg gpg-agent \
  && cat /tmp/s6-pgp-key | gpg --import \
  && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
 
