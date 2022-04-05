@@ -16,6 +16,7 @@ func formatValue(value valuestore.ResultValue, format string) valuestore.ResultV
 	case []byte:
 		val := value.Value.([]byte)
 		if format == "mac_address" {
+			// Format mac address from OctetString to IEEE 802.1a canonical format e.g. `82:a5:6e:a5:c8:01`
 			value.Value = formatColonSepBytes(val)
 		}
 	}
