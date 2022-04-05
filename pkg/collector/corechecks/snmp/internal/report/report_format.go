@@ -15,12 +15,7 @@ func formatValue(value valuestore.ResultValue, format string) valuestore.ResultV
 	switch value.Value.(type) {
 	case []byte:
 		val := value.Value.([]byte)
-		// TODO: Implement generic DISPLAY-HINT formatting:
-		//   https://www.webnms.com/snmp/help/snmpapi/snmpv3/using_mibs_in_applns/tcs_overview.html
-		//   https://www.itu.int/wftp3/Public/t/fl/ietf/rfc/rfc2579/SNMPv2-TC.html
-		//   https://linux.die.net/man/7/snmpv2-tm
 		if format == "mac_address" {
-			// Display Hint is "mac_address" to indicate the value must consist of a one-byte hex string or two-hex digits, such as 01 or AB.
 			value.Value = formatColonSepBytes(val)
 		}
 	}
