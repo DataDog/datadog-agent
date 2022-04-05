@@ -69,7 +69,7 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 
 	scalarTags := common.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
-	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric)
+	ms.sendMetric(metric.Symbol, value, scalarTags, metric)
 }
 
 func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
@@ -85,14 +85,14 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.MetricTags.GetTags(fullIndex, values)...)
 			}
 			rowTags := rowTagsCache[fullIndex]
-			ms.sendMetric(symbol.Name, value, rowTags, metricConfig)
+			ms.sendMetric(symbol, value, rowTags, metricConfig)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
 }
 
-func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, metricConfig checkconfig.MetricsConfig) {
-	metricFullName := "snmp." + metricName
+func (ms *MetricSender) sendMetric(symbol checkconfig.SymbolConfig, value valuestore.ResultValue, tags []string, metricConfig checkconfig.MetricsConfig) {
+	metricFullName := "snmp." + symbol.Name
 	forcedType := metricConfig.ForcedType
 	if forcedType == "" {
 		if value.SubmissionType != "" {
@@ -123,7 +123,7 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 		return
 	}
 
-	scaleFactor := metricConfig.ScaleFactor
+	scaleFactor := symbol.ScaleFactor
 	if scaleFactor != 0 {
 		floatValue *= scaleFactor
 	}

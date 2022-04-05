@@ -46,11 +46,11 @@ metrics:
 - symbol:
     OID: 1.3.6.1.4.1.318.1.1.1.11.1.1.0
     name: upsBasicStateOutputState
+    scale_factor: 10
   forced_type: flag_stream
   options:
     placement: 5
     metric_suffix: ReplaceBattery
-  scale_factor: 10
 - table:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
@@ -59,6 +59,7 @@ metrics:
     name: ifInErrors
   - OID: 1.3.6.1.2.1.2.2.1.20
     name: ifOutErrors
+    scale_factor: 0.5
   metric_tags:
   - tag: if_index
     index: 1
@@ -138,11 +139,11 @@ bulk_max_repetitions: 20
 			{symbolTag: "mytag1"},
 			{symbolTag: "mytag2"},
 		}},
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}, ScaleFactor: 10},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState", ScaleFactor: 10}, ForcedType: "flag_stream", Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
 		{
 			Symbols: []SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
-				{OID: "1.3.6.1.2.1.2.2.1.20", Name: "ifOutErrors"},
+				{OID: "1.3.6.1.2.1.2.2.1.20", Name: "ifOutErrors", ScaleFactor: 0.5},
 			},
 			MetricTags: []MetricTagConfig{
 				{Tag: "if_index", Index: 1},
