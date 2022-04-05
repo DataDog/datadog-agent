@@ -34,7 +34,7 @@ const (
 	tagHostname = "_dd.hostname"
 
 	// tagErrorTrackingMode is set when the agent is configured to send only ET-eligible spans
-	tagErrorTrackingMode = "_dd.error_tracking_only"
+	tagErrorTrackingMode = "_dd.error_tracking.only"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -282,6 +282,7 @@ func (a *Agent) Process(p *api.Payload) {
 			var keep []*pb.Span
 			for _, span := range chunk.Spans {
 				if eligibleForErrorTracking(span) {
+					span.Meta[tagErrorTrackingMode] = "1"
 					keep = append(keep, span)
 					break
 				}
@@ -292,7 +293,6 @@ func (a *Agent) Process(p *api.Payload) {
 			}
 			// only keep eligible spans
 			chunk.Spans = keep
-			chunk.Tags[tagErrorTrackingMode] = "1"
 		}
 
 		if p.TracerPayload.Hostname == "" {
