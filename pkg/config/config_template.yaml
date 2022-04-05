@@ -2441,6 +2441,20 @@ api_key:
   ## Setting to Fail will require the admission controller to be present and pods to be injected before they are allowed to run.
   #
   # failure_policy: Ignore
+
+  ## @param reinvocation_policy - string - optional - default: IfNeeded
+  ## @env DD_ADMISSION_CONTROLLER_REINVOCATION_POLICY - string - optional - default: IfNeeded
+  ## Set the reinvocation policy for dynamic admission control.
+  ## See https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#reinvocation-policy
+  #
+  # reinvocation_policy: IfNeeded
+
+  ## @param add_aks_selectors - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS - boolean - optional - default: false
+  ## Adds in the admission controller webhook the selectors that are required in AKS.
+  ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
+  #
+  # add_aks_selectors: false
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -3209,7 +3223,7 @@ api_key:
         ## - `raw_value` to report the raw value as a Datadog gauge.
         #
         # cumulative_monotonic_mode: to_delta
-    
+
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.

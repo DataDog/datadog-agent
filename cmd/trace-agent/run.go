@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -181,7 +180,7 @@ func Run(ctx context.Context) {
 		}
 	}()
 
-	if features.Has("config_endpoint") {
+	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
 		client, err := grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)

@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 )
 
 // DynamicConfig contains configuration items which may change
@@ -33,7 +33,7 @@ func NewDynamicConfig() *DynamicConfig {
 // State specifies the current state of DynamicConfig
 type State struct {
 	Rates      map[string]float64
-	Mechanisms map[string]pb.SamplingMechanism
+	Mechanisms map[string]apmsampling.SamplingMechanism
 	Version    string
 }
 
@@ -101,7 +101,7 @@ func (rbs *RateByService) GetNewState(version string) State {
 	}
 	ret := State{
 		Rates:      make(map[string]float64, len(rbs.rates)),
-		Mechanisms: make(map[string]pb.SamplingMechanism, len(rbs.rates)),
+		Mechanisms: make(map[string]apmsampling.SamplingMechanism, len(rbs.rates)),
 		Version:    rbs.version,
 	}
 	for k, v := range rbs.rates {

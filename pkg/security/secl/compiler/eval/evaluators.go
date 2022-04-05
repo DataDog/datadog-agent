@@ -6,6 +6,10 @@
 package eval
 
 import (
+	"fmt"
+
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
@@ -317,4 +321,127 @@ func (b *BoolArrayEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (b *BoolArrayEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
+}
+
+// CIDREvaluator returns a net.IP
+type CIDREvaluator struct {
+	EvalFnc     func(ctx *Context) *FieldValue
+	Field       Field
+	Value       string
+	Weight      int
+	OpOverrides *OpOverrides
+	ValueType   FieldValueType
+
+	// used during compilation of partial
+	isDeterministic bool
+
+	cidrMatcher IPMatcher
+}
+
+// Eval returns the result of the evaluation
+func (s *CIDREvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
+}
+
+// IsDeterministicFor returns whether the evaluator is partial
+func (s *CIDREvaluator) IsDeterministicFor(field Field) bool {
+	return s.isDeterministic || (s.Field != "" && s.Field == field)
+}
+
+// GetField returns field name used by this evaluator
+func (s *CIDREvaluator) GetField() string {
+	return s.Field
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (s *CIDREvaluator) IsStatic() bool {
+	return s.EvalFnc == nil
+}
+
+// Compile compile internal object
+func (s *CIDREvaluator) Compile() error {
+	switch s.ValueType {
+	case IPValueType, CIDRValueType:
+		matcher, err := NewIPMatcher(s.ValueType, s.Value)
+		if err != nil {
+			return err
+		}
+		s.cidrMatcher = matcher
+	default:
+		return fmt.Errorf("invalid IP pattern '%s'", s.Value)
+	}
+	return nil
+}
+
+// CIDRValuesEvaluator returns IPValues
+type CIDRValuesEvaluator struct {
+	EvalFnc     func(ctx *Context) *CIDRValues
+	Values      CIDRValues
+	Field       Field
+	Weight      int
+	OpOverrides *OpOverrides
+
+	// used during compilation of partial
+	isDeterministic bool
+}
+
+// Eval returns the result of the evaluation
+func (cve *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
+	return cve.EvalFnc(ctx)
+}
+
+// IsDeterministicFor returns whether the evaluator is partial
+func (cve *CIDRValuesEvaluator) IsDeterministicFor(field Field) bool {
+	return cve.isDeterministic
+}
+
+// GetField returns field name used by this evaluator
+func (cve *CIDRValuesEvaluator) GetField() string {
+	return ""
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (cve *CIDRValuesEvaluator) IsStatic() bool {
+	return cve.EvalFnc == nil
+}
+
+// AppendFieldValues append field values
+func (cve *CIDRValuesEvaluator) AppendFieldValues(values ...FieldValue) error {
+	for _, value := range values {
+		if err := cve.Values.AppendFieldValue(value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SetFieldValues apply field values
+func (cve *CIDRValuesEvaluator) SetFieldValues(values ...FieldValue) error {
+	return cve.Values.SetFieldValues(values...)
+}
+
+// AppendMembers add CIDR values to the evaluator
+func (cve *CIDRValuesEvaluator) AppendMembers(members ...ast.CIDRMember) error {
+	var values []FieldValue
+	var value FieldValue
+
+	for _, member := range members {
+		if member.CIDR != nil {
+			value = FieldValue{
+				Value: *member.CIDR,
+				Type:  CIDRValueType,
+			}
+		} else if member.IP != nil {
+			value = FieldValue{
+				Value: *member.IP,
+				Type:  IPValueType,
+			}
+		} else {
+			return errors.New("unknown field type")
+		}
+		values = append(values, value)
+	}
+
+	return cve.AppendFieldValues(values...)
 }

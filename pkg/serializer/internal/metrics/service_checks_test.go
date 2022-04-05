@@ -9,7 +9,10 @@
 package metrics
 
 import (
+	"bytes"
+	"compress/zlib"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -149,6 +152,20 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(fmt.Sprint(i)))
 	}
 	return ServiceChecks(serviceCheckCollections)
+}
+
+func decompressPayload(payload []byte) ([]byte, error) {
+	r, err := zlib.NewReader(bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	dst, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	return dst, nil
 }
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {

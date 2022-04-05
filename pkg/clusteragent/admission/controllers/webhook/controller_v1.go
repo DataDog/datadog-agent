@@ -204,6 +204,7 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 	port := c.config.getServicePort()
 	timeout := c.config.getTimeout()
 	failurePolicy := c.getAdmiV1FailurePolicy()
+	reinvocationPolicy := c.getReinvocationPolicy()
 	webhook := admiv1.MutatingWebhook{
 		Name: c.config.configName(nameSuffix),
 		ClientConfig: admiv1.WebhookClientConfig{
@@ -226,6 +227,7 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 				},
 			},
 		},
+		ReinvocationPolicy:      &reinvocationPolicy,
 		FailurePolicy:           &failurePolicy,
 		MatchPolicy:             &matchPolicy,
 		SideEffects:             &sideEffects,
@@ -233,13 +235,7 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 		AdmissionReviewVersions: []string{"v1", "v1beta1"},
 	}
 
-	labelSelector := buildLabelSelector()
-	if c.config.useNamespaceSelector() {
-		webhook.NamespaceSelector = labelSelector
-		return webhook
-	}
-
-	webhook.ObjectSelector = labelSelector
+	webhook.NamespaceSelector, webhook.ObjectSelector = buildLabelSelectors(c.config.useNamespaceSelector())
 
 	return webhook
 }
@@ -254,5 +250,18 @@ func (c *ControllerV1) getAdmiV1FailurePolicy() admiv1.FailurePolicyType {
 	default:
 		_ = log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
 		return admiv1.Ignore
+	}
+}
+
+func (c *ControllerV1) getReinvocationPolicy() admiv1.ReinvocationPolicyType {
+	policy := strings.ToLower(c.config.getReinvocationPolicy())
+	switch policy {
+	case "ifneeded":
+		return admiv1.IfNeededReinvocationPolicy
+	case "never":
+		return admiv1.NeverReinvocationPolicy
+	default:
+		log.Warnf("Unknown reinvocation policy %q - defaulting to %q", c.config.getReinvocationPolicy(), admiv1.IfNeededReinvocationPolicy)
+		return admiv1.IfNeededReinvocationPolicy
 	}
 }

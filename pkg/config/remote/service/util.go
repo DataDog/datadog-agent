@@ -71,7 +71,7 @@ func buildLatestConfigsRequest(hostname string, state uptane.State, activeClient
 		CurrentConfigRootVersion:     state.ConfigRootVersion(),
 		CurrentDirectorRootVersion:   state.DirectorRootVersion(),
 		ActiveClients:                activeClients,
-		ClientState:                  clientState,
+		BackendClientState:           clientState,
 	}
 }
 

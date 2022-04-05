@@ -44,7 +44,7 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(serializer, config.Datadog)
+	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
@@ -102,18 +102,14 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	var seriesSink *metrics.IterableSeries
 	var done chan struct{}
 
-	if d.flushAndSerializeInParallel.Enabled {
-		// only used when we're using flush/serialize in parallel feature
-		logPayloads := config.Datadog.GetBool("log_payloads")
+	logPayloads := config.Datadog.GetBool("log_payloads")
 
-		seriesSink, done = startSendingIterableSeries(
-			d.serializer,
-			d.flushAndSerializeInParallel,
-			logPayloads,
-			start)
-	}
+	seriesSink, done = startSendingIterableSeries(
+		d.serializer,
+		d.flushAndSerializeInParallel,
+		logPayloads,
+		start)
 
-	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
 	trigger := flushTrigger{
@@ -122,7 +118,6 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 			blockChan:         make(chan struct{}),
 			waitForSerializer: waitForSerializer,
 		},
-		flushedSeries:   &flushedSeries,
 		flushedSketches: &flushedSketches,
 		seriesSink:      seriesSink,
 	}
@@ -130,20 +125,13 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.statsdWorker.flushChan <- trigger
 	<-trigger.blockChan
 
-	if d.flushAndSerializeInParallel.Enabled {
-		stopIterableSeries(seriesSink, done)
-	}
+	stopIterableSeries(seriesSink, done)
 
-	var series metrics.Series
-	for _, s := range flushedSeries {
-		series = append(series, s...)
-	}
 	var sketches metrics.SketchSeriesList
 	for _, s := range flushedSketches {
 		sketches = append(sketches, s...)
 	}
 
-	d.serializer.SendSeries(series) //nolint:errcheck
 	log.DebugfServerless("Sending sketches payload : %s", sketches.String())
 	if len(sketches) > 0 {
 		d.serializer.SendSketch(sketches) //nolint:errcheck
