@@ -213,20 +213,64 @@ func TestFirstTelemetryRegistering(t *testing.T) {
 
 func TestTelemetryDiffing(t *testing.T) {
 	clientID := "1"
-	state := newDefaultState()
-	state.RegisterClient(clientID)
-	telem := buildBasicTelemetry()
-	_ = state.GetTelemetryDelta(clientID, telem)
-	delta := state.GetTelemetryDelta(clientID, telem)
+	t.Run("unique client", func(t *testing.T) {
+		state := newDefaultState()
+		state.RegisterClient(clientID)
+		telem := buildBasicTelemetry()
+		_ = state.GetTelemetryDelta(clientID, telem)
+		delta := state.GetTelemetryDelta(clientID, telem)
 
-	// As we're passing in the same telemetry for the second call,
-	// monotonic values should be 0. The other ones should remain.
-	for _, telType := range MonotonicConnTelemetryTypes {
-		require.Equal(t, delta[telType], int64(0))
+		// As we're passing in the same telemetry for the second call,
+		// monotonic values should be 0. The other ones should remain.
+		for _, telType := range MonotonicConnTelemetryTypes {
+			require.Equal(t, delta[telType], int64(0))
+		}
+		for _, telType := range ConnTelemetryTypes {
+			require.Equal(t, delta[telType], telem[telType])
+		}
+	})
+	t.Run("two clients", func(t *testing.T) {
+		state := newDefaultState()
+		client2 := "2"
+
+		state.RegisterClient(clientID)
+		state.RegisterClient(client2)
+
+		telem := buildBasicTelemetry()
+
+		_ = state.GetTelemetryDelta(clientID, telem)
+
+		// when client2 calls this method, it should see previous telemetry data
+		// for ones that aren't monotonic.
+		delta := state.GetTelemetryDelta(client2, telem)
+		for _, telType := range MonotonicConnTelemetryTypes {
+			require.Equal(t, delta[telType], telem[telType])
+		}
+		for _, telType := range ConnTelemetryTypes {
+			// As we've passed the same telemetry data for the two calls, we should
+			// accumulate the data for the non monotonic part.
+			require.Equal(t, delta[telType], telem[telType]*2)
+		}
+	})
+}
+
+func TestNoPriorRegistrationActiveConnections(t *testing.T) {
+	clientID := "1"
+	state := newDefaultState()
+	conn := ConnectionStats{
+		Pid:                123,
+		Type:               TCP,
+		Family:             AFINET,
+		Source:             util.AddressFromString("127.0.0.1"),
+		Dest:               util.AddressFromString("127.0.0.1"),
+		SPort:              9000,
+		DPort:              1234,
+		MonotonicSentBytes: 1,
 	}
-	for _, telType := range ConnTelemetryTypes {
-		require.Equal(t, delta[telType], telem[telType])
-	}
+
+	delta := state.GetDelta(clientID, latestEpochTime(), []ConnectionStats{conn}, nil, nil)
+	require.NotEmpty(t, delta.Conns)
+	require.Equal(t, 1, len(delta.Conns))
 }
 
 func TestCleanupClient(t *testing.T) {

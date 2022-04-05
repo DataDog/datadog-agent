@@ -111,9 +111,9 @@ type client struct {
 	closedConnections     []ConnectionStats
 	stats                 map[string]*stats
 	// maps by dns key the domain (string) to stats structure
-	dnsStats                 dns.StatsByKeyByNameByType
-	httpStatsDelta           map[http.Key]http.RequestStats
-	lastMonotonicTelemetries map[ConnTelemetryType]int64
+	dnsStats        dns.StatsByKeyByNameByType
+	httpStatsDelta  map[http.Key]http.RequestStats
+	lastTelemetries map[ConnTelemetryType]int64
 }
 
 func (c *client) Reset(active map[string]*ConnectionStats) {
@@ -242,24 +242,35 @@ func (ns *networkState) GetDelta(
 	}
 }
 
+func (ns *networkState) saveTelemetry(telemetry map[ConnTelemetryType]int64) {
+	for _, cl := range ns.clients {
+		for _, telType := range ConnTelemetryTypes {
+			if val, ok := telemetry[telType]; ok {
+				cl.lastTelemetries[telType] += val
+			}
+		}
+	}
+}
+
 func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetryType]int64) map[ConnTelemetryType]int64 {
 	var res = make(map[ConnTelemetryType]int64)
 	client := ns.getClient(id)
+	ns.saveTelemetry(telemetry)
 
-	// As for now, we only keep track of monotonic telemetry here.
 	for _, telType := range MonotonicConnTelemetryTypes {
 		if val, ok := telemetry[telType]; ok {
 			res[telType] = val
-			if prev, ok := client.lastMonotonicTelemetries[telType]; ok {
+			if prev, ok := client.lastTelemetries[telType]; ok {
 				res[telType] -= prev
 			}
-			client.lastMonotonicTelemetries[telType] = val
+			client.lastTelemetries[telType] = val
 		}
 	}
 
 	for _, telType := range ConnTelemetryTypes {
-		if val, ok := telemetry[telType]; ok {
-			res[telType] = val
+		if _, ok := client.lastTelemetries[telType]; ok {
+			res[telType] = client.lastTelemetries[telType]
+			client.lastTelemetries[telType] = 0
 		}
 	}
 
@@ -414,13 +425,13 @@ func (ns *networkState) getClient(clientID string) *client {
 	}
 
 	c := &client{
-		lastFetch:                time.Now(),
-		stats:                    map[string]*stats{},
-		closedConnections:        make([]ConnectionStats, 0, minClosedCapacity),
-		closedConnectionsKeys:    make(map[string]int),
-		dnsStats:                 dns.StatsByKeyByNameByType{},
-		httpStatsDelta:           map[http.Key]http.RequestStats{},
-		lastMonotonicTelemetries: make(map[ConnTelemetryType]int64),
+		lastFetch:             time.Now(),
+		stats:                 map[string]*stats{},
+		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
+		closedConnectionsKeys: make(map[string]int),
+		dnsStats:              dns.StatsByKeyByNameByType{},
+		httpStatsDelta:        map[http.Key]http.RequestStats{},
+		lastTelemetries:       make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
 	return c
