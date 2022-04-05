@@ -63,7 +63,11 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol checkcon
 		}
 	}
 	if symbol.Format != "" {
-		value = formatValue(value, symbol.Format)
+		var err error
+		value, err = formatValue(value, symbol.Format)
+		if err != nil {
+			return valuestore.ResultValue{}, err
+		}
 	}
 	return value, nil
 }
