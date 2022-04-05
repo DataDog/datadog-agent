@@ -150,12 +150,14 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ---- | ---------- |
 | `container.id` | string | ID of the container |
 | `container.tags` | string | Tags of the container |
+| `network.destination.ip` | net.IP | IP address |
 | `network.destination.port` | int | Port number |
 | `network.device.ifindex` | int | interface ifindex |
 | `network.device.ifname` | string | interface ifname |
 | `network.l3_protocol` | int | l3 protocol of the network packet |
 | `network.l4_protocol` | int | l4 protocol of the network packet |
 | `network.size` | int | size in bytes of the network packet |
+| `network.source.ip` | net.IP | IP address |
 | `network.source.port` | int | Port number |
 | `process.ancestors.args` | string | Arguments of the process (as a string) |
 | `process.ancestors.args_flags` | string | Arguments of the process (as an array) |

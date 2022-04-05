@@ -291,6 +291,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
+	// Remote config products
+	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -422,7 +424,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
-	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel", true)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
 
@@ -857,7 +858,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
 	config.BindEnvAndSetDefault("external_metrics_provider.enabled", false)
-	config.BindEnvAndSetDefault("external_metrics_provider.port", 443)
+	config.BindEnvAndSetDefault("external_metrics_provider.port", 8443)
 	config.BindEnvAndSetDefault("external_metrics_provider.endpoint", "")                 // Override the Datadog API endpoint to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.api_key", "")                  // Override the Datadog API Key for external metrics endpoint
 	config.BindEnvAndSetDefault("external_metrics_provider.app_key", "")                  // Override the Datadog APP Key for external metrics endpoint
@@ -912,6 +913,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.namespace_selector_fallback", false)
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
+	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
