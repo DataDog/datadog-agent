@@ -587,7 +587,7 @@ profiles:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
+	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name", "static_tag:from_profile_root"}
 	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
 	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
 
@@ -616,13 +616,13 @@ profiles:
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "device_vendor:f5",
-        "my_static_tag:val",
         "mytag:val1",
         "prefix:f",
         "snmp_device:1.2.3.4",
         "snmp_host:foo_sys_name",
         "snmp_profile:f5-big-ip",
         "some_tag:some_tag_value",
+        "static_tag:from_profile_root",
         "suffix:oo_sys_name"
       ],
       "ip_address": "1.2.3.4",

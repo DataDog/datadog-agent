@@ -206,14 +206,12 @@ bulk_max_repetitions: 20
 				"suffix":   "\\2",
 			},
 		},
-		{
-			StaticTag: "my_static_tag:val",
-		},
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
+	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root"}, config.ProfileTags)
 	assert.Equal(t, 1, len(config.Profiles))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)

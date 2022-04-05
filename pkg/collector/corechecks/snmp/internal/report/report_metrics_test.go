@@ -349,24 +349,6 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			expectedLogs: []logCount{},
 		},
 		{
-			name: "report static and tags with regex",
-			metricsTags: []checkconfig.MetricTagConfig{
-				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
-					"word":   "\\1",
-					"number": "\\2",
-				}, StaticTag: "foo:bar"},
-			},
-			values: &valuestore.ResultValueStore{
-				ScalarValues: valuestore.ScalarResultValuesType{
-					"1.2.3": valuestore.ResultValue{
-						Value: "hello123",
-					},
-				},
-			},
-			expectedTags: []string{"foo:bar", "word:hello", "number:123"},
-			expectedLogs: []logCount{},
-		},
-		{
 			name: "error converting tag value",
 			metricsTags: []checkconfig.MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},

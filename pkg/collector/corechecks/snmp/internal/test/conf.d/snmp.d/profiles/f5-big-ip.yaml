@@ -18,7 +18,9 @@ metric_tags:
       some_tag: some_tag_value
       prefix: \1
       suffix: \2
-  - static_tag: 'my_static_tag:val'
+
+static_tags:
+  - 'static_tag:from_profile_root'
 
 metadata:
   device:

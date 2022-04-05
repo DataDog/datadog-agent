@@ -59,4 +59,4 @@ metrics:
       name: ifAlias
     table: ifXTable
     tag: interface_alias
-  - static_tag: 'table_static_tag:val'
+  static_tags: ['table_static_tag:val']

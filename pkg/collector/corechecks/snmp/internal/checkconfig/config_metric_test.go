@@ -180,40 +180,6 @@ metric_tags:
 			expectedTags: []string{"prefix:e", "suffix:th0"},
 		},
 		{
-			name: "static tags",
-			// language=yaml
-			rawMetricConfig: []byte(`
-table:
-  OID:  1.2.3.4.5
-  name: cpiPduBranchTable
-symbols:
-  - OID: 1.2.3.4.5.1.2
-    name: cpiPduBranchCurrent
-metric_tags:
-  - column:
-      OID:  1.2.3.4.8.1.2
-      name: cpiPduName
-    table: cpiPduTable
-    match: '(\w)(\w+)'
-    tags:
-      prefix: '$1'
-      suffix: '$2'
-  - static_tag: "tag1:val1"
-  - static_tag: "tag2:val2"
-`),
-			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &valuestore.ResultValueStore{
-				ColumnValues: map[string]map[string]valuestore.ResultValue{
-					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": valuestore.ResultValue{
-							Value: "eth0",
-						},
-					},
-				},
-			},
-			expectedTags: []string{"prefix:e", "suffix:th0", "tag1:val1", "tag2:val2"},
-		},
-		{
 			name: "regex match only once",
 			// language=yaml
 			rawMetricConfig: []byte(`
