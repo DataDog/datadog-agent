@@ -103,6 +103,14 @@ func (t *Tailer) setup() error {
 		}
 	}
 
+	if len(config.IncludeSystemUnits) > 0 && len(config.IncludeUserUnits) > 0 {
+		// add Logical OR if both System and User include filters are used.
+		err := t.journal.AddDisjunction()
+		if err != nil {
+			return fmt.Errorf("could not logical OR in the match list: %s", err)
+		}
+	}
+
 	for _, unit := range config.IncludeUserUnits {
 		// add filters to collect only the logs of the user-level units defined in the configuration.
 		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT + "=" + unit
