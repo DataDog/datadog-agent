@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [corechecks/snmp] Add ``static_tag`` config to ``metric_tags``
+    [corechecks/snmp] Add profile ``static_tags`` config

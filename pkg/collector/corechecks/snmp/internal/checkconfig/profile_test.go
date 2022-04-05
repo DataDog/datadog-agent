@@ -45,7 +45,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 		Device:       DeviceMeta{Vendor: "f5"},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-		StaticTags:   []string{"static_tag:from_profile_root"},
+		StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 		MetricTags: []MetricTagConfig{
 			{
 				OID:     "1.3.6.1.2.1.1.5.0",
