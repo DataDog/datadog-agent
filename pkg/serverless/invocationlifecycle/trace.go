@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	functionNameEnvVar         = "AWS_LAMBDA_FUNCTION_NAME"
+	captureLambdaPayloadEnvVar = "DD_CAPTURE_LAMBDA_PAYLOAD"
 )
 
 // executionStartInfo is saved information from when an execution span was started
@@ -85,7 +86,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 		},
 	}
 
-	if strings.ToLower(os.Getenv("DD_CAPTURE_LAMBDA_PAYLOAD")) == "true" {
+	if strings.ToLower(os.Getenv(captureLambdaPayloadEnvVar)) == "true" {
 		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
 		executionSpan.Meta["function.response"] = string(responsePayload)
 	}
