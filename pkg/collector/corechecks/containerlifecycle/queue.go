@@ -36,8 +36,7 @@ func (q *queue) flush() []model.EventsPayload {
 		return nil
 	}
 
-	data := make([]model.EventsPayload, len(q.data))
-	copy(data, q.data)
+	data := q.data
 
 	// Reset the data in the queue.
 	q.data = []model.EventsPayload{}
