@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	contStatsCachePrefix    = "cs-"
-	contNetStatsCachePrefix = "cns-"
-	contPidToCidCachePrefix = "pid-"
+	contCoreStatsCachePrefix = "cs-"
+	contOpenFilesCachePrefix = "of-"
+	contNetStatsCachePrefix  = "cns-"
+	contPidToCidCachePrefix  = "pid-"
 
 	cacheGCInterval = 30 * time.Second
 )
@@ -42,9 +43,9 @@ func (cc *collectorCache) ID() string {
 
 // GetContainerStats returns the stats if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
-func (cc *collectorCache) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (cc *collectorCache) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
 	currentTime := time.Now()
-	cacheKey := contStatsCachePrefix + containerID
+	cacheKey := contCoreStatsCachePrefix + containerNS + containerID
 
 	entry, found, err := cc.cache.Get(currentTime, cacheKey, cacheValidity)
 	if found {
@@ -56,7 +57,7 @@ func (cc *collectorCache) GetContainerStats(containerID string, cacheValidity ti
 	}
 
 	// No cache, cacheValidity is 0 or too old value
-	cstats, err := cc.collector.GetContainerStats(containerID, cacheValidity)
+	cstats, err := cc.collector.GetContainerStats(containerNS, containerID, cacheValidity)
 	if err != nil {
 		cc.cache.Store(currentTime, cacheKey, nil, err)
 		return nil, err
@@ -66,12 +67,39 @@ func (cc *collectorCache) GetContainerStats(containerID string, cacheValidity ti
 	return cstats, nil
 }
 
-// GetContainerNetworkStats returns the stats if in cache and within cacheValidity
+// GetContainerOpenFilesCount returns the count of open files if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
-func (cc *collectorCache) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
+func (cc *collectorCache) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
 	// Generics could be useful. Meanwhile copy-paste.
 	currentTime := time.Now()
-	cacheKey := contNetStatsCachePrefix + containerID
+	cacheKey := contOpenFilesCachePrefix + containerNS + containerID
+
+	entry, found, err := cc.cache.Get(currentTime, cacheKey, cacheValidity)
+	if found {
+		if err != nil {
+			return nil, err
+		}
+
+		return entry.(*uint64), nil
+	}
+
+	// No cache, cacheValidity is 0 or too old value
+	openFilesCount, err := cc.collector.GetContainerOpenFilesCount(containerNS, containerID, cacheValidity)
+	if err != nil {
+		cc.cache.Store(currentTime, cacheKey, nil, err)
+		return nil, err
+	}
+
+	cc.cache.Store(currentTime, cacheKey, openFilesCount, nil)
+	return openFilesCount, nil
+}
+
+// GetContainerNetworkStats returns the stats if in cache and within cacheValidity
+// errors are cached as well to avoid hammering underlying collector
+func (cc *collectorCache) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
+	// Generics could be useful. Meanwhile copy-paste.
+	currentTime := time.Now()
+	cacheKey := contNetStatsCachePrefix + containerNS + containerID
 
 	entry, found, err := cc.cache.Get(currentTime, cacheKey, cacheValidity)
 	if found {
@@ -83,7 +111,7 @@ func (cc *collectorCache) GetContainerNetworkStats(containerID string, cacheVali
 	}
 
 	// No cache, cacheValidity is 0 or too old value
-	val, err := cc.collector.GetContainerNetworkStats(containerID, cacheValidity)
+	val, err := cc.collector.GetContainerNetworkStats(containerNS, containerID, cacheValidity)
 	if err != nil {
 		cc.cache.Store(currentTime, cacheKey, nil, err)
 		return nil, err
