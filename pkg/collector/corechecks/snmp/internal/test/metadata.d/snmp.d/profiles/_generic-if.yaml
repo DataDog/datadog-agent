@@ -18,8 +18,8 @@ metadata:
         symbol:
           OID: 1.3.6.1.2.1.2.2.1.6
           name: ifPhysAddress
-          # Use "1x:" display hint to format mac address in IEEE 802.1a canonical format e.g. `82:a5:6e:a5:c8:01`
-          display_hint: "1x:"
+          # Use "mac_address" display hint to format mac address in IEEE 802.1a canonical format e.g. `82:a5:6e:a5:c8:01`
+          format: "mac_address"
       admin_status:
         symbol:
           OID: 1.3.6.1.2.1.2.2.1.7

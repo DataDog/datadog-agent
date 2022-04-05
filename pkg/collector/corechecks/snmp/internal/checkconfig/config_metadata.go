@@ -68,9 +68,9 @@ var LegacyMetadataConfig = MetadataConfig{
 			},
 			"mac_address": {
 				Symbol: SymbolConfig{
-					OID:         "1.3.6.1.2.1.2.2.1.6",
-					Name:        "ifPhysAddress",
-					DisplayHint: "1x:",
+					OID:    "1.3.6.1.2.1.2.2.1.6",
+					Name:   "ifPhysAddress",
+					Format: "mac_address",
 				},
 			},
 		},

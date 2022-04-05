@@ -19,8 +19,8 @@ func formatValueWithDisplayHint(value valuestore.ResultValue, displayHint string
 		//   https://www.webnms.com/snmp/help/snmpapi/snmpv3/using_mibs_in_applns/tcs_overview.html
 		//   https://www.itu.int/wftp3/Public/t/fl/ietf/rfc/rfc2579/SNMPv2-TC.html
 		//   https://linux.die.net/man/7/snmpv2-tm
-		if displayHint == "1x:" {
-			// Display Hint is "1x:" to indicate the value must consist of a one-byte hex string or two-hex digits, such as 01 or AB.
+		if displayHint == "mac_address" {
+			// Display Hint is "mac_address" to indicate the value must consist of a one-byte hex string or two-hex digits, such as 01 or AB.
 			value.Value = formatColonSepBytes(val)
 		}
 	}

@@ -26,7 +26,7 @@ type SymbolConfig struct {
 	MatchValue           string `yaml:"match_value"`
 	MatchPatternCompiled *regexp.Regexp
 
-	DisplayHint string `yaml:"display_hint"`
+	Format string `yaml:"format"`
 }
 
 // MetricTagConfig holds metric tag info

@@ -143,9 +143,9 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 				},
 			},
 			symbol: checkconfig.SymbolConfig{
-				OID:         "1.2.3.4",
-				Name:        "mySymbol",
-				DisplayHint: "1x:",
+				OID:    "1.2.3.4",
+				Name:   "mySymbol",
+				Format: "mac_address",
 			},
 			expectedValue: valuestore.ResultValue{
 				Value: "82:a5:6e:a5:c8:01",

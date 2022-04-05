@@ -62,8 +62,8 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol checkcon
 			return valuestore.ResultValue{}, fmt.Errorf("match pattern `%v` does not match string `%s`", symbol.MatchPattern, strValue)
 		}
 	}
-	if symbol.DisplayHint != "" {
-		value = formatValueWithDisplayHint(value, symbol.DisplayHint)
+	if symbol.Format != "" {
+		value = formatValueWithDisplayHint(value, symbol.Format)
 	}
 	return value, nil
 }

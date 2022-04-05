@@ -18,7 +18,7 @@ func Test_formatValueWithDisplayHint(t *testing.T) {
 			value: valuestore.ResultValue{
 				Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc8, 0x01},
 			},
-			displayHint: "1x:",
+			displayHint: "mac_address",
 			expectedValue: valuestore.ResultValue{
 				Value: "82:a5:6e:a5:c8:01",
 			},
