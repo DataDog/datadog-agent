@@ -66,6 +66,18 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
+// ShareArgsEnvs share args and envs between the current entry and the given child entry
+func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
+	childEntry.ArgsEntry = pc.ArgsEntry
+	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
+		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+	}
+	childEntry.EnvsEntry = pc.EnvsEntry
+	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
+		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+	}
+}
+
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.SetAncestor(pc)
@@ -82,14 +94,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.ArgsEntry = pc.ArgsEntry
-	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
-	}
-	childEntry.EnvsEntry = pc.EnvsEntry
-	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
-	}
+	pc.ShareArgsEnvs(childEntry)
 }
 
 /*func (pc *ProcessCacheEntry) String() string {

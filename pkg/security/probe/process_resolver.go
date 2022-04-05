@@ -395,16 +395,21 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 	p.SetProcessUsersGroups(entry)
 
-	// args
-	if len(filledProc.Cmdline) > 0 {
-		entry.ArgsEntry = &model.ArgsEntry{
-			Values: filledProc.Cmdline[1:],
+	// args and envs
+	parent := p.entryCache[entry.PPid]
+	if parent != nil && entry.Comm == parent.Comm {
+		parent.ShareArgsEnvs(entry)
+	} else {
+		if len(filledProc.Cmdline) > 0 {
+			entry.ArgsEntry = &model.ArgsEntry{
+				Values: filledProc.Cmdline[1:],
+			}
 		}
-	}
 
-	if envs, err := utils.EnvVars(proc.Pid); err == nil {
-		entry.EnvsEntry = &model.EnvsEntry{
-			Values: envs,
+		if envs, err := utils.EnvVars(proc.Pid); err == nil {
+			entry.EnvsEntry = &model.EnvsEntry{
+				Values: envs,
+			}
 		}
 	}
 
