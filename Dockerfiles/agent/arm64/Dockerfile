@@ -206,15 +206,3 @@ COPY entrypoint.sh /bin/entrypoint.sh
 COPY entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
-
-
-################################################################
-#  Sanity checks on the image contents                         #
-#  Build the release artifact with "--target release" to skip  #
-################################################################
-
-FROM release AS testing
-ARG WITH_JMX
-
-COPY test_*.py /
-RUN python /test_image_contents.py -v
