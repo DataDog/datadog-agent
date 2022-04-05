@@ -151,7 +151,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			continue
 		}
 
-		containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
+		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil || containerStats == nil {
 			log.Debugf("Container stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
 			// If main container stats are missing, we skip the container
@@ -166,7 +166,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			}
 		}
 
-		containerNetworkStats, err := collector.GetContainerNetworkStats(container.ID, cacheValidity)
+		containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
 			log.Debugf("Container network stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
 		}

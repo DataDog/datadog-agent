@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
@@ -35,12 +37,16 @@ func newTestRemoteRates() *RemoteRates {
 	}
 }
 
-func configGenerator(version uint64, rates pb.APMSampling) config.SamplingUpdate {
+func configGenerator(version uint64, rates apmsampling.APMSampling) config.SamplingUpdate {
 	return config.SamplingUpdate{
-		Configs: map[string]uint64{
-			"testid": version,
+
+		Configs: map[string]client.ConfigAPMSamling{
+			"testid": {
+				ID:      "testid",
+				Version: version,
+				Config:  rates,
+			},
 		},
-		Rates: []pb.APMSampling{rates},
 	}
 }
 
@@ -51,21 +57,21 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		service   string
 		env       string
 		targetTPS float64
-		mechanism pb.SamplingMechanism
+		mechanism apmsampling.SamplingMechanism
 		rank      uint32
 	}
 
 	var testSteps = []struct {
 		name             string
-		ratesToApply     pb.APMSampling
+		ratesToApply     apmsampling.APMSampling
 		countServices    []ServiceSignature
 		expectedSamplers []sampler
 		version          uint64
 	}{
 		{
 			name: "first rates received",
-			ratesToApply: pb.APMSampling{
-				TargetTPS: []pb.TargetTPS{
+			ratesToApply: apmsampling.APMSampling{
+				TargetTPS: []apmsampling.TargetTPS{
 					{
 						Service: "willBeRemoved",
 						Value:   3.2,
@@ -143,8 +149,8 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		},
 		{
 			name: "receive new remote rates, non matching samplers are trimmed",
-			ratesToApply: pb.APMSampling{
-				TargetTPS: []pb.TargetTPS{
+			ratesToApply: apmsampling.APMSampling{
+				TargetTPS: []apmsampling.TargetTPS{
 					{
 						Service: "keep",
 						Value:   27,
@@ -161,8 +167,8 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		},
 		{
 			name: "receive empty remote rates and above max",
-			ratesToApply: pb.APMSampling{
-				TargetTPS: []pb.TargetTPS{
+			ratesToApply: apmsampling.APMSampling{
+				TargetTPS: []apmsampling.TargetTPS{
 					{
 						Service: "keep",
 						Value:   3718271,
@@ -182,8 +188,8 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		},
 		{
 			name: "keep highest rank",
-			ratesToApply: pb.APMSampling{
-				TargetTPS: []pb.TargetTPS{
+			ratesToApply: apmsampling.APMSampling{
+				TargetTPS: []apmsampling.TargetTPS{
 					{
 						Service:   "keep",
 						Value:     10,
@@ -216,8 +222,8 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		},
 		{
 			name: "duplicate",
-			ratesToApply: pb.APMSampling{
-				TargetTPS: []pb.TargetTPS{
+			ratesToApply: apmsampling.APMSampling{
+				TargetTPS: []apmsampling.TargetTPS{
 					{
 						Service: "keep",
 						Value:   10,

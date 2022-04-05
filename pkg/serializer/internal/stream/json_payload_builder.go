@@ -108,7 +108,6 @@ func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.P
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
-	defer m.IterationStopped()
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed

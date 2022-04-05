@@ -49,7 +49,7 @@ func TestConfigEndpoint(t *testing.T) {
 			enabled:            true,
 			valid:              true,
 			expectedStatusCode: http.StatusOK,
-			response:           `{"targets":{"version":1,"raw":"dGVzdA=="}}`,
+			response:           `{"targets":"dGVzdA=="}`,
 		},
 	}
 	for _, tc := range tcs {
@@ -64,7 +64,7 @@ func TestConfigEndpoint(t *testing.T) {
 				var request pbgo.ClientGetConfigsRequest
 				err := json.Unmarshal([]byte(tc.reqBody), &request)
 				assert.NoError(err)
-				grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: &pbgo.TopMeta{Version: 1, Raw: []byte("test")}}, nil)
+				grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: []byte("test")}, nil)
 			}
 			req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(tc.reqBody))
 			req.Header.Set("Content-Type", "application/msgpack")

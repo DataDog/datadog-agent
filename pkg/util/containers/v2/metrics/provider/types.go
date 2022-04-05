@@ -73,7 +73,6 @@ type ContainerPIDStats struct {
 	PIDs        []int
 	ThreadCount *float64
 	ThreadLimit *float64
-	OpenFiles   *float64
 }
 
 // InterfaceNetStats stores network statistics about a network interface

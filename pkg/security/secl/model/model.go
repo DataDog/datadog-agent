@@ -131,7 +131,7 @@ type Event struct {
 	ID           string    `field:"-"`
 	Type         uint64    `field:"-"`
 	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"timestamp"` // Timestamp of the event
+	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	SpanContext      SpanContext      `field:"-"`
@@ -755,7 +755,7 @@ type NetworkDeviceContext struct {
 // IPPortContext is used to hold an IP and Port
 //msgp:ignore IPPortContext
 type IPPortContext struct {
-	IP   net.IP `field:"-"`
+	IP   net.IP `field:"ip"`   // IP address
 	Port uint16 `field:"port"` // Port number
 }
 
