@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-func Test_formatValueWithDisplayHint(t *testing.T) {
+func Test_formatValue(t *testing.T) {
 	tests := []struct {
 		name          string
 		value         valuestore.ResultValue
-		displayHint   string
+		format        string
 		expectedValue valuestore.ResultValue
 	}{
 		{
@@ -18,7 +18,7 @@ func Test_formatValueWithDisplayHint(t *testing.T) {
 			value: valuestore.ResultValue{
 				Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc8, 0x01},
 			},
-			displayHint: "mac_address",
+			format: "mac_address",
 			expectedValue: valuestore.ResultValue{
 				Value: "82:a5:6e:a5:c8:01",
 			},
@@ -26,7 +26,7 @@ func Test_formatValueWithDisplayHint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedValue, formatValueWithDisplayHint(tt.value, tt.displayHint))
+			assert.Equal(t, tt.expectedValue, formatValue(tt.value, tt.format))
 		})
 	}
 }
