@@ -233,6 +233,7 @@ func (p *Probe) Init() error {
 	if err != nil {
 		return err
 	}
+	defer bytecodeReader.Close()
 
 	var ok bool
 	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
@@ -1084,6 +1085,7 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 		newProbe.IfIndex = int(device.IfIndex)
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
+		newProbe.KeepProgramSpec = false
 
 		netnsEditor := []manager.ConstantEditor{
 			{
