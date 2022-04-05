@@ -1,23 +1,26 @@
 package inferredspan
 
 const (
-	OperationName = "operation_name"
-	Http          = "http"
-	HttpUrl       = "http.url"
-	HttpMethod    = "http.method"
-	HttpProtocol  = "http.protocol"
-	HttpSourceIP  = "http.source_ip"
-	HttpUserAgent = "http.user_agent"
-	Endpoint      = "endpoint"
-	ResourceName  = "resource_names"
-	ApiId         = "apiid"
-	ApiName       = "apiname"
-	Stage         = "stage"
-	RequestId     = "request_id"
-	API_GATEWAY   = "apigateway"
-	HTTP_API      = "http-api"
-	WEBSOCKET     = "websocket"
-	UNKNOWN       = "unknown"
+	OperationName    = "operation_name"
+	Http             = "http"
+	HttpUrl          = "http.url"
+	HttpMethod       = "http.method"
+	HttpProtocol     = "http.protocol"
+	HttpSourceIP     = "http.source_ip"
+	HttpUserAgent    = "http.user_agent"
+	Endpoint         = "endpoint"
+	ResourceName     = "resource_names"
+	ApiId            = "apiid"
+	ApiName          = "apiname"
+	Stage            = "stage"
+	RequestId        = "request_id"
+	ConnectionId     = "connection_id"
+	EventType        = "event_type"
+	MessageDirection = "message_direction"
+	API_GATEWAY      = "apigateway"
+	HTTP_API         = "http-api"
+	WEBSOCKET        = "websocket"
+	UNKNOWN          = "unknown"
 )
 
 // These keys are used to tell us what event type we received
@@ -41,6 +44,8 @@ type RequestContextKeys struct {
 	RequestId        string   `json:"requestID"`
 	RequestTimeEpoch int64    `json:"requestTimeEpoch"`
 	Http             HttpKeys `json:"http"`
+	ConnectionID     string   `json:"connectionId"`
+	EventType        string   `json:"eventType"`
 }
 
 type HeaderKeys struct {

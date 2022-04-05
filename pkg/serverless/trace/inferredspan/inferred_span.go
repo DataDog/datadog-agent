@@ -96,7 +96,7 @@ func CreateInferredSpan(event string, ctx *serverlessLog.ExecutionContext) {
 	case "http-api":
 		CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource, ctx, attributes)
 	case "websocket":
-		// for next PR
+		CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource, ctx, attributes)
 	}
 }
 

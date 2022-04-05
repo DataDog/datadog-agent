@@ -56,6 +56,10 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 
 	inferredSpan := generateSpan()
+	inferredSpan.Span.Name = "aws.httpapi"
+	inferredSpan.Span.Service = requestContext.Domain
+	inferredSpan.Span.Resource = resource
+	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Meta = map[string]string{
 		Endpoint:      path,
@@ -67,6 +71,41 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(
 		OperationName: "aws.httpapi",
 		RequestId:     requestContext.RequestId,
 		ResourceName:  resource,
+	}
+
+	setSynchronicity(inferredSpan, attributes)
+	// Set the key with the invocation's request ID, not the event payload id
+	InferredSpans[ctx.LastRequestID] = inferredSpan
+}
+
+func CreateInferredSpanFromAPIGatewayWebsocketEvent(
+	eventSource string,
+	ctx *serverlessLog.ExecutionContext,
+	attributes EventKeys) {
+
+	requestContext := attributes.RequestContext
+	endpoint := requestContext.RouteKey
+	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, endpoint)
+	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+
+	inferredSpan := generateSpan()
+	inferredSpan.Span.Name = "aws.apigateway.websocket"
+	inferredSpan.Span.Service = requestContext.Domain
+	inferredSpan.Span.Resource = endpoint
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Start = startTime
+	inferredSpan.Span.Meta = map[string]string{
+		ApiId:            requestContext.ApiId,
+		ApiName:          requestContext.ApiId,
+		ConnectionId:     requestContext.ConnectionID,
+		Endpoint:         endpoint,
+		EventType:        requestContext.EventType,
+		HttpUrl:          httpurl,
+		MessageDirection: requestContext.MessageDirection,
+		OperationName:    "aws.apigateway.websocket",
+		RequestId:        requestContext.RequestId,
+		ResourceName:     endpoint,
+		Stage:            requestContext.Stage,
 	}
 
 	setSynchronicity(inferredSpan, attributes)
