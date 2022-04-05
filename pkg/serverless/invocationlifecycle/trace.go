@@ -41,7 +41,7 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string, isInferredSpan bool) {
+func startExecutionSpan(startTime time.Time, rawPayload string) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = rand.Random.Uint64()
 	currentExecutionInfo.spanID = rand.Random.Uint64()
@@ -49,7 +49,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string, isInferredSpan b
 
 	payload := convertRawPayload(rawPayload)
 
-	if payload.Headers != nil && !isInferredSpan {
+	if payload.Headers != nil {
 		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
 		parentID, e2 := convertStrToUnit64(payload.Headers[ParentIDHeader])
 
@@ -65,15 +65,15 @@ func startExecutionSpan(startTime time.Time, rawPayload string, isInferredSpan b
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, isInferredSpan bool) {
+func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	traceID := currentExecutionInfo.traceID
 	parentID := currentExecutionInfo.parentID
 
-	if isInferredSpan {
-		traceID = inferredspan.InferredSpans[requestID].Span.TraceID
-		parentID = inferredspan.InferredSpans[requestID].Span.SpanID
+	if inferredspan, exists := inferredspan.InferredSpans[requestID]; exists {
+		traceID = inferredspan.Span.TraceID
+		parentID = inferredspan.Span.SpanID
 	}
 
 	executionSpan := &pb.Span{
@@ -90,7 +90,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 			"request_id": requestID,
 		},
 	}
-	log.Debug("THIS IS THE EXECUTION SPAN ", executionSpan)
+
 	if isError {
 		executionSpan.Error = 1
 	}

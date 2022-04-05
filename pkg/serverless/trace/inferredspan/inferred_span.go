@@ -116,19 +116,15 @@ func CompleteInferredSpan(
 	if isError {
 		inferredSpan.Span.Error = 1
 	}
-	log.Debug("THIS IS THE INFERRED SPAN BEFORE CHUNKING ", inferredSpan.Span)
 	traceChunk := &pb.TraceChunk{
 		Priority: int32(sampler.PriorityNone),
 		Origin:   "lambda",
 		Spans:    []*pb.Span{inferredSpan.Span},
 	}
 
-	log.Debug("THIS IS THE TRACE CHUNK ", traceChunk)
-
 	tracerPayload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
-	log.Debug("THIS IS THE TRACER PAYLOAD", tracerPayload)
 
 	processTrace(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),

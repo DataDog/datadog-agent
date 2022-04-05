@@ -40,7 +40,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, lp.ExecutionContext.IsInferredSpan)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
 	}
 }
 
@@ -53,7 +53,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, lp.ExecutionContext.IsInferredSpan)
+		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError)
 	}
 
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&

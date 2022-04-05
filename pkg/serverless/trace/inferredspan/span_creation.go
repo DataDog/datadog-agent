@@ -40,7 +40,6 @@ func CreateInferredSpanFromAPIGatewayEvent(
 	setSynchronicity(inferredSpan, attributes)
 	// Set the key with the invocation's request ID, not the event payload id
 	InferredSpans[ctx.LastRequestID] = inferredSpan
-	ctx.IsInferredSpan = true
 }
 
 func CreateInferredSpanFromAPIGatewayHTTPEvent(
@@ -73,7 +72,6 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(
 	setSynchronicity(inferredSpan, attributes)
 	// Set the key with the invocation's request ID, not the event payload id
 	InferredSpans[ctx.LastRequestID] = inferredSpan
-	ctx.IsInferredSpan = true
 }
 
 // returns an inferred span, span id and trace id
