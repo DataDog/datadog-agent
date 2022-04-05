@@ -11,7 +11,9 @@ import "time"
 // All implementations should allow for concurrent access.
 type Collector interface {
 	ID() string
-	GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error)
-	GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error)
+	GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error)
+	GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error)
+	// OpenFiles count has been splitted of as it incurs a high performance penalty on Linux
+	GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error)
 	MetaCollector
 }

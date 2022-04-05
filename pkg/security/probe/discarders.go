@@ -211,7 +211,7 @@ func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
 }
 
 var (
-	discarderEvent = NewEvent(nil, nil)
+	discarderEvent = NewEvent(nil, nil, nil)
 )
 
 // use a faster version of path.Dir which adds some sanity checks not required here
@@ -288,9 +288,9 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
 				if value.Type == eval.PatternValueType {
-					glob, ok := value.StringMatcher.(*eval.GlobStringMatcher)
-					if !ok {
-						return nil, errors.New("unexpected string matcher")
+					glob, err := eval.NewGlob(value.Value.(string), false)
+					if err != nil {
+						return nil, fmt.Errorf("unexpected pattern `%v`: %w", value.Value, err)
 					}
 
 					valueFnc = func(dirname string) (bool, bool, error) {
@@ -459,14 +459,11 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
 						// not able to discard the parent then only discard the filename
-						if err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true); err == nil {
-							probe.countNewInodeDiscarder(eventType)
-						}
+						_ = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true)
 					}
 				}
 			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
-				probe.countNewInodeDiscarder(eventType)
 			}
 
 			if err != nil {

@@ -4,7 +4,8 @@ updates:
     directory: /
     labels:
       - dependencies
-      - team/agent-platform
+      - dependencies-go
+      - team/triage
       - changelog/no-changelog
     milestone: 22
     ignore:
@@ -36,6 +37,7 @@ updates:
     directory: /pkg/otlp/model
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
@@ -48,6 +50,7 @@ updates:
     directory: /pkg/trace
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
     milestone: 22
@@ -62,6 +65,7 @@ updates:
     directory: /pkg/obfuscate
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
     milestone: 22
@@ -76,6 +80,7 @@ updates:
     directory: /pkg/quantile
     labels:
       - dependencies
+      - dependencies-go
       - team/metrics-aggregation
       - changelog/no-changelog
     milestone: 22
@@ -88,7 +93,8 @@ updates:
     directory: /pkg/util/log
     labels:
       - dependencies
-      - team/agent-platform
+      - dependencies-go
+      - team/agent-core
       - changelog/no-changelog
     milestone: 22
     ignore:
@@ -101,6 +107,7 @@ updates:
     directory: /pkg/util/scrubber
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-core
       - changelog/no-changelog
     milestone: 22
@@ -113,6 +120,7 @@ updates:
     directory: /pkg/util/winutil
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
@@ -125,6 +133,7 @@ updates:
     directory: /pkg/security/secl
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-security
       - changelog/no-changelog
     milestone: 22
@@ -137,6 +146,11 @@ updates:
     directory: /internal/tools
     labels:
       - dependencies
+      - dependencies-go
+      - dependencies-go-tools # This makes the go_mod_tidy Github Action not run go tools from this
+                              # package on Dependabot PRs. Otherwise, a malicious dependency could
+                              # publish a new version exploiting that it runs automatically after it
+                              # is updated to write to our repo.
       - dev/tooling
       - team/agent-platform
       - changelog/no-changelog

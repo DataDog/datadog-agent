@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
+	"github.com/DataDog/datadog-agent/pkg/metadata/internal/resources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )

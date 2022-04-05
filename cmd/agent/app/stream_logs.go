@@ -29,6 +29,7 @@ func init() {
 	troubleshootLogsCmd.Flags().StringVar(&filters.Name, "name", "", "Filter by name")
 	troubleshootLogsCmd.Flags().StringVar(&filters.Type, "type", "", "Filter by type")
 	troubleshootLogsCmd.Flags().StringVar(&filters.Source, "source", "", "Filter by source")
+	troubleshootLogsCmd.Flags().StringVar(&filters.Service, "service", "", "Filter by service")
 }
 
 var troubleshootLogsCmd = &cobra.Command{

@@ -8,28 +8,30 @@ package config
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func newRemoteClient() (*remoteClient, error) {
-	client, err := remote.NewClient(remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []data.Product{data.ProductAPMSampling})
+	c, err := remote.NewClient("trace-agent", []data.Product{data.ProductAPMSampling})
 	if err != nil {
 		return nil, err
 	}
 	out := make(chan config.SamplingUpdate, 10) // remote.Client uses 8
 	go func() {
-		for in := range client.APMSamplingUpdates() {
+		for in := range c.APMSamplingUpdates() {
+			configs := make(map[string]client.ConfigAPMSamling)
+			for _, c := range in {
+				configs[c.ID] = c
+			}
 			out <- config.SamplingUpdate{
-				ID:      in.Config.ID,
-				Version: in.Config.Version,
-				Rates:   in.Config.Rates,
+				Configs: configs,
 			}
 		}
 		close(out)
 	}()
 	return &remoteClient{
-		client: client,
+		client: c,
 		out:    out,
 	}, nil
 }

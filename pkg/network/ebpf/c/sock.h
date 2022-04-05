@@ -1,6 +1,7 @@
 #ifndef __SOCK_H
 #define __SOCK_H
 
+#include "kconfig.h"
 #include <net/net_namespace.h>
 
 /* The LOAD_CONSTANT macro is used to define a named constant that will be replaced

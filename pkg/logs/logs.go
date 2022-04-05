@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -130,7 +131,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, err
 	log.Info("logs-agent started")
 
 	agent.AddScheduler(adScheduler.New())
-	agent.AddScheduler(ccaScheduler.New(getAC()))
+	agent.AddScheduler(ccaScheduler.New(getAC))
 	agent.AddScheduler(trapsScheduler.New())
 
 	return agent, nil
@@ -176,7 +177,7 @@ func GetStatus() status.Status {
 // SetADMetaScheduler supplies this package with a reference to the AD MetaScheduler,
 // once it has been started.
 func SetADMetaScheduler(sched *metaScheduler.MetaScheduler) {
-	adScheduler.SetADMetaScheduler(sched)
+	adlistener.SetADMetaScheduler(sched)
 }
 
 // GetMessageReceiver returns the diagnostic message receiver

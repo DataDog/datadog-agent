@@ -18,6 +18,51 @@
           "definition": "Tags of the container"
         },
         {
+          "name": "network.destination.ip",
+          "type": "net.IP",
+          "definition": "IP address"
+        },
+        {
+          "name": "network.destination.port",
+          "type": "int",
+          "definition": "Port number"
+        },
+        {
+          "name": "network.device.ifindex",
+          "type": "int",
+          "definition": "interface ifindex"
+        },
+        {
+          "name": "network.device.ifname",
+          "type": "string",
+          "definition": "interface ifname"
+        },
+        {
+          "name": "network.l3_protocol",
+          "type": "int",
+          "definition": "l3 protocol of the network packet"
+        },
+        {
+          "name": "network.l4_protocol",
+          "type": "int",
+          "definition": "l4 protocol of the network packet"
+        },
+        {
+          "name": "network.size",
+          "type": "int",
+          "definition": "size in bytes of the network packet"
+        },
+        {
+          "name": "network.source.ip",
+          "type": "net.IP",
+          "definition": "IP address"
+        },
+        {
+          "name": "network.source.port",
+          "type": "int",
+          "definition": "Port number"
+        },
+        {
           "name": "process.ancestors.args",
           "type": "string",
           "definition": "Arguments of the process (as a string)"
@@ -737,6 +782,40 @@
           "name": "chown.retval",
           "type": "int",
           "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
+      "name": "dns",
+      "definition": "A DNS request was sent",
+      "type": "Network",
+      "from_agent_version": "7.36",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "dns.question.class",
+          "type": "int",
+          "definition": "the class looked up by the DNS question"
+        },
+        {
+          "name": "dns.question.count",
+          "type": "int",
+          "definition": "the total count of questions in the DNS request"
+        },
+        {
+          "name": "dns.question.name",
+          "type": "string",
+          "definition": "the queried domain name"
+        },
+        {
+          "name": "dns.question.size",
+          "type": "int",
+          "definition": "the total DNS request size in bytes"
+        },
+        {
+          "name": "dns.question.type",
+          "type": "int",
+          "definition": "a two octet code which specifies the DNS question type"
         }
       ]
     },

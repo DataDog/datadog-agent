@@ -23,13 +23,11 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -157,7 +155,7 @@ func Run(ctx context.Context) {
 	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
 	if remoteTagger {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		if err := tagger.Init(); err != nil {
+		if err := tagger.Init(ctx); err != nil {
 			log.Infof("starting remote tagger failed. falling back to local tagger: %s", err)
 			remoteTagger = false
 		}
@@ -166,11 +164,11 @@ func Run(ctx context.Context) {
 	// starts the local tagger if apm_config says so, or if starting the
 	// remote tagger has failed.
 	if !remoteTagger {
-		// Start workload metadata store before tagger
-		workloadmeta.GetGlobalStore().Start(context.Background())
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
 
-		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		if err := tagger.Init(); err != nil {
+		tagger.SetDefaultTagger(local.NewTagger(store))
+		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
@@ -182,7 +180,7 @@ func Run(ctx context.Context) {
 		}
 	}()
 
-	if features.Has("config_endpoint") {
+	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
 		client, err := grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)

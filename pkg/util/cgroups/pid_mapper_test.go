@@ -67,20 +67,20 @@ var cgroupV1ProcCgroup = `12:rdma:/
 1:name=systemd:/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
 0::/system.slice/containerd.service`
 
-var dindProcCgroup = `14:name=systemd:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
+var dindProcCgroup = `14:name=systemd:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
 13:rdma:/
-12:pids:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-11:hugetlb:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-10:net_prio:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-9:perf_event:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-8:net_cls:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-7:freezer:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-6:devices:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-5:memory:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-4:blkio:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-3:cpuacct:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-2:cpu:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
-1:cpuset:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
+12:pids:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+11:hugetlb:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+10:net_prio:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+9:perf_event:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+8:net_cls:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+7:freezer:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+6:devices:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+5:memory:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+4:blkio:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+3:cpuacct:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+2:cpu:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
+1:cpuset:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
 0::/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/system.slice/containerd.service`
 
 func TestProcPidMapperCgroupV1(t *testing.T) {
@@ -100,11 +100,13 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 	pidMapperV1 := &procPidMapper{
 		procPath:         filepath.Join(fakeFsPath, "/proc"),
 		cgroupController: defaultBaseController,
+		readerFilter:     ContainerFilter,
 	}
 
 	cgCgroupV1 := cgroupV1{
-		path:      "kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
-		pidMapper: pidMapperV1,
+		identifier: "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
+		path:       "kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
+		pidMapper:  pidMapperV1,
 	}
 	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV1ProcCgroup), 0o640))
 	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/421/cgroup"), []byte(cgroupV1ProcCgroup), 0o640))
@@ -114,8 +116,9 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 	assert.ElementsMatch(t, []int{420, 421}, pids)
 
 	cgDindv1 := cgroupV1{
-		path:      "docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
-		pidMapper: pidMapperV1,
+		identifier: "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e",
+		path:       "docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e",
+		pidMapper:  pidMapperV1,
 	}
 	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(dindProcCgroup), 0o640))
 
@@ -124,7 +127,10 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 	assert.ElementsMatch(t, []int{430}, pids)
 }
 
-var cgroupV2ProcCgroup = `0::/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f`
+var (
+	cgroupV2ProcCgroup       = `0::/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f`
+	cgroupV2ProcCgroupNoHost = `0::../../../kubepods-burstable.slice/kubepods-burstable-pod562c01d6_6aba_49fe_ae52_61c40c04eca4.slice/docker-a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f.scope`
+)
 
 func TestProcPidMapperCgroupV2(t *testing.T) {
 	fakeFsPath := t.TempDir()
@@ -140,15 +146,18 @@ func TestProcPidMapperCgroupV2(t *testing.T) {
 	}
 
 	cgFooV2 := cgroupV2{
+		identifier:   "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
 		relativePath: "kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
 		pidMapper: &procPidMapper{
 			procPath:         filepath.Join(fakeFsPath, "/proc"),
 			cgroupController: "",
+			readerFilter:     ContainerFilter,
 		},
 	}
-	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(cgroupV2ProcCgroup), 0o640))
+	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV2ProcCgroup), 0o640))
+	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(cgroupV2ProcCgroupNoHost), 0o640))
 
 	pids, err := cgFooV2.GetPIDs(0)
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, []int{430}, pids)
+	assert.ElementsMatch(t, []int{420, 430}, pids)
 }

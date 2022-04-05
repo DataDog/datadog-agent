@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -87,9 +87,7 @@ func initExtraHeaders() {
 type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
-	SendSeries(series metrics.Series) error
 	SendIterableSeries(series *metrics.IterableSeries) error
-	IsIterableSeriesSupported() bool
 	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
@@ -312,44 +310,8 @@ func (s *Serializer) SendIterableSeries(series *metrics.IterableSeries) error {
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API {
-		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
-	} else {
-		seriesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
-		extraHeaders = protobufExtraHeadersWithCompression
-	}
-
-	if err != nil {
-		return fmt.Errorf("dropping series payload: %s", err)
-	}
-
-	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
-	}
-	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
-}
-
-// IsIterableSeriesSupported returns whether `SendIterableSeries` is supported.
-// Should be removed when `serializePayloadJSON` (useV1API && !s.enableJSONStream) will be removed
-func (s *Serializer) IsIterableSeriesSupported() bool {
-	return config.Datadog.GetBool("use_v2_api.series") || s.enableJSONStream
-}
-
-// SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(series metrics.Series) error {
-	if !s.enableSeries {
-		log.Debug("series payloads are disabled: dropping it")
-		return nil
-	}
-	seriesSerializer := metricsserializer.Series(series)
-	useV1API := !config.Datadog.GetBool("use_v2_api.series")
-
-	var seriesPayloads forwarder.Payloads
-	var extraHeaders http.Header
-	var err error
-
 	if useV1API && s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
+		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 	} else if useV1API && !s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {

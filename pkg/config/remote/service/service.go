@@ -131,9 +131,8 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	selfSignedEnabled := config.Datadog.GetBool("remote_configuration.unstable.self_signed")
 	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID, selfSignedEnabled)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
 	if err != nil {
 		return nil, err
 	}
@@ -278,11 +277,8 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		return nil, err
 	}
 	return &pbgo.ClientGetConfigsResponse{
-		Roots: roots,
-		Targets: &pbgo.TopMeta{
-			Version: state.DirectorTargetsVersion(),
-			Raw:     targetsRaw,
-		},
+		Roots:       roots,
+		Targets:     targetsRaw,
 		TargetFiles: targetFiles,
 	}, nil
 }
@@ -303,12 +299,11 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	for metaName, metaState := range state.ConfigState {
 		response.ConfigState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
-	for metaName, metaState := range state.ConfigUserState {
-		response.ConfigUserState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
-	}
+
 	for metaName, metaState := range state.DirectorState {
 		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
+
 	for targetName, targetHash := range state.TargetFilenames {
 		response.TargetFilenames[targetName] = targetHash
 	}
@@ -316,17 +311,14 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	return response, nil
 }
 
-func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([]*pbgo.TopMeta, error) {
-	var roots []*pbgo.TopMeta
+func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
+	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
 		root, err := s.uptane.DirectorRoot(i)
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, &pbgo.TopMeta{
-			Raw:     root,
-			Version: i,
-		})
+		roots = append(roots, root)
 	}
 	return roots, nil
 }
@@ -353,11 +345,11 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 	}
 	var configFiles []*pbgo.File
 	for targetPath, targetMeta := range targets {
-		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
 		if err != nil {
 			return nil, err
 		}
-		if _, inClientProducts := productSet[configFileMeta.Product]; inClientProducts {
+		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
 			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
 				continue
 			}

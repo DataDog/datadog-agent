@@ -69,7 +69,11 @@ func readAPIKeyFromKMS() (string, error) {
 		return "", nil
 	}
 	log.Debugf("Found %s, trying to decipher it.", kmsAPIKeyEnvVar)
-	kmsClient := kms.New(session.New(nil))
+	sess, err := session.NewSession(nil)
+	if err != nil {
+		return "", err
+	}
+	kmsClient := kms.New(sess)
 	plaintext, err := decryptKMS(kmsClient, cipherText)
 	if err != nil {
 		return "", fmt.Errorf("decryptKMS error: %s", err)
@@ -85,7 +89,11 @@ func readAPIKeyFromSecretsManager() (string, error) {
 		return "", nil
 	}
 	log.Debugf("Found %s value, trying to use it.", secretsManagerAPIKeyEnvVar)
-	secretsManagerClient := secretsmanager.New(session.New(nil))
+	sess, err := session.NewSession(nil)
+	if err != nil {
+		return "", err
+	}
+	secretsManagerClient := secretsmanager.New(sess)
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
 

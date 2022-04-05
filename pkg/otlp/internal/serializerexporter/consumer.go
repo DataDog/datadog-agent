@@ -42,11 +42,11 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 		enrichedTags = append(enrichedTags, entityTags...)
 	}
 
-	orchestratorTags, err := tagger.OrchestratorScopeTag()
+	globalTags, err := tagger.GlobalTags(c.cardinality)
 	if err != nil {
 		log.Trace(err.Error())
 	} else {
-		enrichedTags = append(enrichedTags, orchestratorTags...)
+		enrichedTags = append(enrichedTags, globalTags...)
 	}
 
 	return enrichedTags
@@ -105,5 +105,18 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	return s.SendSeries(c.series)
+	iterableSeries := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000)
+	done := make(chan struct{})
+	var err error
+	go func() {
+		err = s.SendIterableSeries(iterableSeries)
+		iterableSeries.IterationStopped()
+		close(done)
+	}()
+	for _, serie := range c.series {
+		iterableSeries.Append(serie)
+	}
+	iterableSeries.SenderStopped()
+	<-done
+	return err
 }

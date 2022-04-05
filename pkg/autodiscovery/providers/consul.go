@@ -18,6 +18,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -236,7 +237,7 @@ func (p *ConsulConfigProvider) getTemplates(ctx context.Context, key string) []i
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return templates
 	}
-	return buildTemplates(key, checkNames, initConfigs, instances)
+	return utils.BuildTemplates(key, checkNames, initConfigs, instances)
 }
 
 // getValue returns value, error
@@ -265,7 +266,7 @@ func (p *ConsulConfigProvider) getCheckNames(ctx context.Context, key string) ([
 		return nil, err
 	}
 
-	checks, err := parseCheckNames(names)
+	checks, err := utils.ParseCheckNames(names)
 	return checks, err
 }
 
@@ -276,7 +277,7 @@ func (p *ConsulConfigProvider) getJSONValue(ctx context.Context, key string) ([]
 		return nil, err
 	}
 
-	r, err := parseJSONValue(string(rawValue))
+	r, err := utils.ParseJSONValue(string(rawValue))
 
 	return r, err
 }

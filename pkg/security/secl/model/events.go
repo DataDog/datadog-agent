@@ -75,6 +75,16 @@ const (
 	SignalEventType
 	// SpliceEventType Splice event
 	SpliceEventType
+	// CgroupTracingEventType is sent when a new cgroup is being traced
+	CgroupTracingEventType
+	// DNSEventType DNS event
+	DNSEventType
+	// NetDeviceEventType is sent for events on net devices
+	NetDeviceEventType
+	// VethPairEventType is sent when a new veth pair is created
+	VethPairEventType
+	// NamespaceSwitchEventType is sent when a process changes one of its namespaces
+	NamespaceSwitchEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -162,6 +172,16 @@ func (t EventType) String() string {
 		return "signal"
 	case SpliceEventType:
 		return "splice"
+	case CgroupTracingEventType:
+		return "cgroup_tracing"
+	case DNSEventType:
+		return "dns"
+	case NetDeviceEventType:
+		return "net_device"
+	case VethPairEventType:
+		return "veth_pair"
+	case NamespaceSwitchEventType:
+		return "namespace_switch"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -191,4 +211,27 @@ func ParseEvalEventType(eventType eval.EventType) EventType {
 	}
 
 	return UnknownEventType
+}
+
+var (
+	eventTypeStrings = map[string]EventType{}
+)
+
+func init() {
+	var eventType EventType
+	for i := uint64(0); i != uint64(MaxEventType); i++ {
+		eventType = EventType(i)
+		eventTypeStrings[eventType.String()] = eventType
+	}
+}
+
+// ParseEventTypeStringSlice converts a list
+func ParseEventTypeStringSlice(eventTypes []string) []EventType {
+	var output []EventType
+	for _, eventTypeStr := range eventTypes {
+		if eventType := eventTypeStrings[eventTypeStr]; eventType != UnknownEventType {
+			output = append(output, eventType)
+		}
+	}
+	return output
 }

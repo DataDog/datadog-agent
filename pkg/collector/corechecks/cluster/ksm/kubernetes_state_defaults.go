@@ -50,7 +50,7 @@ var (
 		"kube_daemonset_status_desired_number_scheduled":                                           "daemonset.desired",
 		"kube_daemonset_status_number_misscheduled":                                                "daemonset.misscheduled",
 		"kube_daemonset_status_number_ready":                                                       "daemonset.ready",
-		"kube_daemonset_updated_number_scheduled":                                                  "daemonset.updated",
+		"kube_daemonset_status_updated_number_scheduled":                                           "daemonset.updated",
 		"kube_deployment_spec_paused":                                                              "deployment.paused",
 		"kube_deployment_spec_replicas":                                                            "deployment.replicas_desired",
 		"kube_deployment_spec_strategy_rollingupdate_max_unavailable":                              "deployment.rollingupdate.max_unavailable",
