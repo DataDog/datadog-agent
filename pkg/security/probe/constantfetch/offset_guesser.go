@@ -127,6 +127,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 	for _, probe := range probes.AllProbes() {
 		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
 	}
+	options.ExcludedFunctions = append(options.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
 		return og.res, err
