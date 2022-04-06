@@ -118,6 +118,7 @@ kitchen_windows_installer_npm_install_scenarios-a7:
     - .kitchen_test_windows_installer_npm
   # FIXME: temporarily allow this job to fail, until we fix it
   allow_failure: true
+  retry: 0
 
 kitchen_windows_installer_npm_driver-a7:
   # Run NPM driver installer test on branches, on a reduced number of platforms
@@ -128,6 +129,7 @@ kitchen_windows_installer_npm_driver-a7:
     - .kitchen_test_windows_installer_driver
   # FIXME: temporarily allow this job to fail, until we fix it
   allow_failure: true
+  retry: 0
 
 kitchen_windows_installer_agent-a6:
   extends:
