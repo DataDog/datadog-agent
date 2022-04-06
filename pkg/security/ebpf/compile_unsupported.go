@@ -19,6 +19,8 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }
 
+// GetOffsetGuesserPrograms returns the asset reader for the runtime security
+// offset guesser programs
 func GetOffsetGuesserPrograms(config *config.Config) (bytecode.AssetReader, error) {
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }
