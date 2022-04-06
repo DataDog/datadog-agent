@@ -185,7 +185,7 @@ bulk_max_repetitions: 20
 		{Symbol: SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 	}
 	expectedMetrics = append(expectedMetrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
-	expectedMetrics = append(expectedMetrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
+	expectedMetrics = append(expectedMetrics, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics...)
 
 	expectedMetricTags := []MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
@@ -334,7 +334,7 @@ community_string: abc
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 1, len(config.Profiles))
-	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
+	assert.Equal(t, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
 }
 
 func TestPortConfiguration(t *testing.T) {
