@@ -14,23 +14,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
-// Loader defines an eBPF Loader
-type Loader struct {
+// ProbeLoader defines an eBPF ProbeLoader
+type ProbeLoader struct {
 	config            *config.Config
 	bytecodeReader    bytecode.AssetReader
 	useSyscallWrapper bool
 }
 
-// NewLoader returns a new Loader
-func NewLoader(config *config.Config, useSyscallWrapper bool) *Loader {
-	return &Loader{
+// NewProbeLoader returns a new Loader
+func NewProbeLoader(config *config.Config, useSyscallWrapper bool) *ProbeLoader {
+	return &ProbeLoader{
 		config:            config,
 		useSyscallWrapper: useSyscallWrapper,
 	}
 }
 
-// Close the Loader
-func (l *Loader) Close() error {
+// Close the ProbeLoader
+func (l *ProbeLoader) Close() error {
 	if l.bytecodeReader != nil {
 		return l.bytecodeReader.Close()
 	}
@@ -38,7 +38,7 @@ func (l *Loader) Close() error {
 }
 
 // Load eBPF programs
-func (l *Loader) Load() (bytecode.AssetReader, error) {
+func (l *ProbeLoader) Load() (bytecode.AssetReader, error) {
 	var err error
 	if l.config.RuntimeCompilationEnabled {
 		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper)
@@ -54,6 +54,49 @@ func (l *Loader) Load() (bytecode.AssetReader, error) {
 			asset += "-syscall-wrapper"
 		}
 
+		l.bytecodeReader, err = bytecode.GetReader(l.config.BPFDir, asset+".o")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return l.bytecodeReader, nil
+}
+
+// OffsetGuesserLoader defines an eBPF Loader
+type OffsetGuesserLoader struct {
+	config         *config.Config
+	bytecodeReader bytecode.AssetReader
+}
+
+// NewOffsetGuesserLoader returns a new OffsetGuesserLoader
+func NewOffsetGuesserLoader(config *config.Config) *OffsetGuesserLoader {
+	return &OffsetGuesserLoader{
+		config: config,
+	}
+}
+
+// Close the OffsetGuesserLoader
+func (l *OffsetGuesserLoader) Close() error {
+	if l.bytecodeReader != nil {
+		return l.bytecodeReader.Close()
+	}
+	return nil
+}
+
+// Load eBPF programs
+func (l *OffsetGuesserLoader) Load() (bytecode.AssetReader, error) {
+	var err error
+	if l.config.RuntimeCompilationEnabled {
+		l.bytecodeReader, err = getOffsetGuesserPrograms(l.config)
+		if err != nil {
+			log.Warnf("error compiling runtime-security offset guesser, falling back to pre-compiled: %s", err)
+		}
+	}
+
+	// fallback to pre-compiled version
+	if l.bytecodeReader == nil {
+		asset := "runtime-security-offset-guesser"
 		l.bytecodeReader, err = bytecode.GetReader(l.config.BPFDir, asset+".o")
 		if err != nil {
 			return nil, err

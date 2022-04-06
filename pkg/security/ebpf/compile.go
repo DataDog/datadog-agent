@@ -33,8 +33,6 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
 }
 
-// GetOffsetGuesserPrograms returns the asset reader for the runtime security
-// offset guesser programs
-func GetOffsetGuesserPrograms(config *config.Config) (bytecode.AssetReader, error) {
+func getOffsetGuesserPrograms(config *config.Config) (bytecode.AssetReader, error) {
 	return runtime.RuntimeSecurityOffsetGuesser.Compile(&config.Config, []string{})
 }
