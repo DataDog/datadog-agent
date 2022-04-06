@@ -291,7 +291,7 @@ func (a *Agent) Process(p *api.Payload) {
 			// doing this before computing the top level spans ensures that we'll catch the top-level _error_ in error tracking
 		}
 
-		if !p.ClientComputedTopLevel {
+		if !p.ClientComputedTopLevel || a.conf.ErrorTracking.Only {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
 			traceutil.ComputeTopLevel(chunk.Spans)
