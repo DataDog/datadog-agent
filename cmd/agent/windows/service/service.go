@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package service
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
@@ -21,20 +23,46 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
+var logFile *os.File
+
+func writeLogFile(s string) {
+	if logFile != nil {
+		logFile.WriteString(s + "\n")
+		logFile.Sync()
+	}
+}
+
+func init() {
+	var err error
+	logFile, err = os.OpenFile(`C:\ProgramData\Datadog\logs\service.txt`, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
+	fmt.Println(err)
+	writeLogFile("Init")
+}
+
 var elog debug.Log
 
 type agentWindowsService struct{}
 
 // Execute sets up the configuration and runs the Agent as a Windows service
 func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
+	defer func() {
+		if r := recover(); r != nil {
+			writeLogFile("Recovered")
+			writeLogFile(fmt.Sprintf("%v", r))
+		}
+		logFile.Close()
+	}()
+	writeLogFile("Execute")
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
 	changes <- svc.Status{State: svc.StartPending}
-
+	writeLogFile("svc.StartPending")
 	if err := common.CheckAndUpgradeConfig(); err != nil {
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
+	writeLogFile("CheckAndUpgradeConfig")
 	if err := app.StartAgent(); err != nil {
+		writeLogFile("StartAgent")
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc000000B, err.Error())
 		errno = 1 // indicates non-successful return from handler.
@@ -85,6 +113,7 @@ loop:
 
 // RunService runs the Agent as a Windows service
 func RunService(isDebug bool) {
+	writeLogFile("RunService")
 	var err error
 	if isDebug {
 		elog = debug.New(config.ServiceName)
