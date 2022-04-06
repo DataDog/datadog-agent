@@ -575,7 +575,7 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir):
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
     security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
-    security_agent_obj_file = os.path.join(build_dir, "runtime-security-guesser.o")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
 
     security_flags = get_ebpf_build_flags()
     security_flags.append(f"-I{security_agent_c_dir}")
