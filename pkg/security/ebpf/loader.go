@@ -86,22 +86,5 @@ func (l *OffsetGuesserLoader) Close() error {
 
 // Load eBPF programs
 func (l *OffsetGuesserLoader) Load() (bytecode.AssetReader, error) {
-	var err error
-	if l.config.RuntimeCompilationEnabled {
-		l.bytecodeReader, err = getOffsetGuesserPrograms(l.config)
-		if err != nil {
-			log.Warnf("error compiling runtime-security offset guesser, falling back to pre-compiled: %s", err)
-		}
-	}
-
-	// fallback to pre-compiled version
-	if l.bytecodeReader == nil {
-		asset := "runtime-security-offset-guesser"
-		l.bytecodeReader, err = bytecode.GetReader(l.config.BPFDir, asset+".o")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return l.bytecodeReader, nil
+	return bytecode.GetReader(l.config.BPFDir, "runtime-security-offset-guesser.o")
 }
