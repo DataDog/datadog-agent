@@ -18,8 +18,6 @@ import (
 //go:generate go run ../../ebpf/include_headers.go ./c/prebuilt/probe.c ../../ebpf/bytecode/build/runtime/runtime-security.c ./c ../../ebpf/c
 //go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/runtime-security.c ../../ebpf/bytecode/runtime/runtime-security.go runtime
 
-//go:generate go run ../../ebpf/include_headers.go ./c/prebuilt/offset-guesser.c ../../ebpf/bytecode/build/runtime/runtime-security-offset-guesser.c ./c ../../ebpf/c
-
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (bytecode.AssetReader, error) {
 	var cflags []string
 
