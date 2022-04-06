@@ -11,7 +11,7 @@ package apiserver
 import (
 	"regexp"
 
-	klog "k8s.io/klog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var supressedWarning = regexp.MustCompile(`.*is deprecated in v.*`)
@@ -25,5 +25,5 @@ func (CustomWarningLogger) HandleWarningHeader(code int, agent string, message s
 		return
 	}
 
-	klog.Warning(message)
+	log.Warn(message)
 }
