@@ -327,6 +327,10 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	} else {
 		name = "opentelemetry." + name
 	}
+	meta := make(map[string]string, len(rattr))
+	for k, v := range rattr {
+		meta[k] = v
+	}
 	span := &pb.Span{
 		Name:     name,
 		TraceID:  byteArrayToUint64(in.TraceId),
@@ -336,7 +340,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		Duration: int64(in.EndTimeUnixNano) - int64(in.StartTimeUnixNano),
 		Service:  rattr[string(semconv.AttributeServiceName)],
 		Resource: in.Name,
-		Meta:     rattr,
+		Meta:     meta,
 		Metrics:  map[string]float64{},
 	}
 	span.Meta["otel.trace_id"] = hex.EncodeToString(in.TraceId)
