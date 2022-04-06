@@ -31,7 +31,10 @@ func NewLoader(config *config.Config, useSyscallWrapper bool) *Loader {
 
 // Close the Loader
 func (l *Loader) Close() error {
-	return l.bytecodeReader.Close()
+	if l.bytecodeReader != nil {
+		return l.bytecodeReader.Close()
+	}
+	return nil
 }
 
 // Load eBPF programs
