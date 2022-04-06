@@ -18,7 +18,8 @@
 #include <uapi/linux/udp.h>
 #include <uapi/linux/tcp.h>
 
-#include "defs.h"
+#include "bpf_helpers.h"
+#include "constants.h"
 #include "offset.h"
 
 __u32 _version SEC("version") = 0xFFFFFFFE;
