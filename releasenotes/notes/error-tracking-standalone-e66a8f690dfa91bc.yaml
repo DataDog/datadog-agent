@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add a new config option to use APM Error Tracking as a standalone product - i.e. without the full APM product.
+    Added a new config option to use APM Error Tracking as a standalone product–as-in, without the full APM product.
