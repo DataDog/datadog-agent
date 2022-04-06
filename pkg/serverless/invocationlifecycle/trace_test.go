@@ -45,8 +45,10 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
 }
+
 func TestEndExecutionSpanWithNoError(t *testing.T) {
 	defer os.Unsetenv(functionNameEnvVar)
+	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	defer reset()
@@ -75,7 +77,39 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+}
 
+func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
+	defer os.Unsetenv(functionNameEnvVar)
+	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
+	os.Setenv(functionNameEnvVar, "TestFunction")
+	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "INVALID_INPUT")
+	defer reset()
+	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	startTime := time.Now()
+	startExecutionSpan(startTime, testString)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	isError := false
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
+	assert.NotContains(t, executionSpan.Meta, "function.request")
+	assert.NotContains(t, executionSpan.Meta, "function.response")
+	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
 
 func TestEndExecutionSpanWithError(t *testing.T) {

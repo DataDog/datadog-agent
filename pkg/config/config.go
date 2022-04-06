@@ -1033,10 +1033,7 @@ func InitConfig(config Config) {
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
-	config.BindEnvAndSetDefault("trace_enabled", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
-	config.BindEnv("dotnet_tracer_home")
-	config.BindEnv("service")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1185,6 +1182,10 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
+		// these variables are used by serverless, but not via the Config struct
+		"DD_SERVICE":            {},
+		"DD_DOTNET_TRACER_HOME": {},
+		"DD_TRACE_ENABLED":      {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

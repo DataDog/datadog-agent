@@ -10,9 +10,9 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -21,8 +21,7 @@ import (
 )
 
 const (
-	functionNameEnvVar         = "AWS_LAMBDA_FUNCTION_NAME"
-	captureLambdaPayloadEnvVar = "DD_CAPTURE_LAMBDA_PAYLOAD"
+	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 )
 
 // executionStartInfo is saved information from when an execution span was started
@@ -85,8 +84,8 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 			"request_id": requestID,
 		},
 	}
-
-	if strings.ToLower(os.Getenv(captureLambdaPayloadEnvVar)) == "true" {
+	captureLambdaPayloadBool := config.Datadog.GetBool("capture_lambda_payload")
+	if captureLambdaPayloadBool {
 		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
 		executionSpan.Meta["function.response"] = string(responsePayload)
 	}
