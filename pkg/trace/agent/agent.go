@@ -272,11 +272,6 @@ func (a *Agent) Process(p *api.Payload) {
 				sampler.SetPreSampleRate(root, rate)
 			}
 		}
-		if !p.ClientComputedTopLevel {
-			// Figure out the top-level spans now as it involves modifying the Metrics map
-			// which is not thread-safe while samplers and Concentrator might modify it too.
-			traceutil.ComputeTopLevel(chunk.Spans)
-		}
 
 		if a.conf.ErrorTracking.Only {
 			var keep []*pb.Span
@@ -293,6 +288,13 @@ func (a *Agent) Process(p *api.Payload) {
 			}
 			// only keep eligible spans
 			chunk.Spans = keep
+			// doing this before computing the top level spans ensures that we'll catch the top-level _error_ in error tracking
+		}
+
+		if !p.ClientComputedTopLevel {
+			// Figure out the top-level spans now as it involves modifying the Metrics map
+			// which is not thread-safe while samplers and Concentrator might modify it too.
+			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
 		if p.TracerPayload.Hostname == "" {
@@ -498,10 +500,9 @@ func traceContainsError(trace pb.Trace) bool {
 
 // spans are eligible for error tracking if they:
 // * are an error span
-// * are top level (i.e. a service entry span)
 // * have a stacktrace
 func eligibleForErrorTracking(span *pb.Span) bool {
-	if span.Error != 0 && traceutil.HasTopLevel(span) {
+	if span.Error != 0 {
 		_, ok := span.Meta["error.stack"]
 		return ok
 	}
