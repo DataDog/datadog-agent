@@ -103,10 +103,7 @@ func (og *OffsetGuesser) AppendOffsetofRequest(id, typeName, fieldName, headerNa
 
 // FinishAndGetResults returns the results
 func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
-	loader := ebpf.NewLoader(og.config, false)
-	defer loader.Close()
-
-	bytecodeReader, err := loader.Load()
+	bytecodeReader, err := ebpf.GetOffsetGuesserPrograms(og.config)
 	if err != nil {
 		return og.res, err
 	}

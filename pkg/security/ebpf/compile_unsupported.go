@@ -18,3 +18,7 @@ import (
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (bytecode.AssetReader, error) {
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }
+
+func GetOffsetGuesserPrograms(config *config.Config) (bytecode.AssetReader, error) {
+	return nil, fmt.Errorf("runtime compilation unsupported")
+}
