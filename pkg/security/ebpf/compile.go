@@ -32,7 +32,3 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (
 
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
 }
-
-func getOffsetGuesserPrograms(config *config.Config) (bytecode.AssetReader, error) {
-	return runtime.RuntimeSecurityOffsetGuesser.Compile(&config.Config, []string{})
-}
