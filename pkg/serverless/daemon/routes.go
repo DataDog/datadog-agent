@@ -73,8 +73,8 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
 	responseBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Error("Could not read EndInvocation request body")
-		http.Error(w, "Could not read EndInvocation request body", 400)
+		err := log.Error("Could not read EndInvocation request body")
+		http.Error(w, err.Error(), 400)
 		return
 	}
 	var endDetails = invocationlifecycle.InvocationEndDetails{
