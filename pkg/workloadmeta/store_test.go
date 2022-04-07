@@ -422,6 +422,23 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 		},
+		{
+			// An unset event of an entity that is not in the store should not
+			// generate any events.
+			name:      "unset event of entity that is not in the store",
+			preEvents: []CollectorEvent{}, // There's nothing stored
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer.GetID(),
+					},
+				},
+			},
+			filter:   NewFilter(nil, fooSource),
+			expected: nil,
+		},
 	}
 
 	for _, tt := range tests {

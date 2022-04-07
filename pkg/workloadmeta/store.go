@@ -360,7 +360,9 @@ func (s *store) pull(ctx context.Context) {
 func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Lock()
 
-	for _, ev := range evs {
+	eventsToSkipByIndex := make(map[int]bool)
+
+	for i, ev := range evs {
 		meta := ev.Entity.GetID()
 
 		telemetry.EventsReceived.Inc(string(meta.Kind), string(ev.Source))
@@ -387,6 +389,15 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				)
 			}
 		case EventTypeUnset:
+			if !ok {
+				// Received an unset event for an entity that was not stored.
+				// This can happen for "pause" containers. We don't store them,
+				// but we might receive delete events for them.
+				// In those cases we don't need to notify the subscribers.
+				eventsToSkipByIndex[i] = true
+				continue
+			}
+
 			if ok && cachedEntity.unset(ev.Source) {
 				telemetry.StoredEntities.Dec(
 					string(meta.Kind),
@@ -408,7 +419,11 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 		filter := sub.filter
 		filteredEvents[sub] = make([]Event, 0, len(evs))
 
-		for _, ev := range evs {
+		for i, ev := range evs {
+			if eventsToSkipByIndex[i] {
+				continue
+			}
+
 			entityID := ev.Entity.GetID()
 			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) {
 				// event should be filtered out because it
