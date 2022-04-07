@@ -40,6 +40,9 @@ func validateHistory(t *testing.T, i int, versionHistoryFilePath string) {
 	for j := max(0, i-maxVersionHistoryEntries+1); j <= i; j++ {
 		// Old entries might have been erased.
 		assert.Equal(t, getTestVersionName(j), history.Entries[k].Version)
+		assert.Equal(t, "install_script", history.Entries[k].InstallMethod.Tool)
+		assert.Equal(t, "install_script", history.Entries[k].InstallMethod.ToolVersion)
+		assert.Equal(t, "install_script-x.x.x", history.Entries[k].InstallMethod.InstallerVersion)
 		assert.NotEqual(t, time.Time{}, history.Entries[k].Timestamp)
 		k++
 	}
@@ -49,6 +52,17 @@ func TestVersionHistory(t *testing.T) {
 	versionHistoryFilePath := "version-history.json"
 	_ = os.Remove(versionHistoryFilePath)
 
+	installInfo, _ := os.CreateTemp("", "install_info")
+	defer os.Remove(installInfo.Name())
+	installInfoFilePath := installInfo.Name()
+	installInfo.WriteString(`
+---
+install_method:
+  tool: install_script
+  tool_version: install_script
+  installer_version: install_script-x.x.x
+`)
+
 	// Make sure we cover the file trimming case.
 	tests := maxVersionHistoryEntries + 10
 
@@ -56,12 +70,12 @@ func TestVersionHistory(t *testing.T) {
 		testVersion := getTestVersionName(i)
 
 		// Write a new entry, the last 10 test will erase earlier entries.
-		logVersionHistoryToFile(versionHistoryFilePath, testVersion, time.Now().UTC())
+		logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, testVersion, time.Now().UTC())
 		// Read the file, validate the result.
 		validateHistory(t, i, versionHistoryFilePath)
 
 		// Write the same entry with a dummy timestamp. This should not replace any entry in the file.
-		logVersionHistoryToFile(versionHistoryFilePath, testVersion, time.Time{})
+		logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, testVersion, time.Time{})
 		// Validate the result and make sure the dummy timestamp is not in any entry.
 		validateHistory(t, i, versionHistoryFilePath)
 	}

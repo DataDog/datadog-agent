@@ -14,11 +14,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"gopkg.in/yaml.v2"
 )
 
 type versionHistoryEntry struct {
-	Version   string    `json:"version"`
-	Timestamp time.Time `json:"timestamp"`
+	Version       string        `json:"version"`
+	Timestamp     time.Time     `json:"timestamp"`
+	InstallMethod installMethod `json:"install_method" yaml:"install_method"`
+}
+
+type installMethod struct {
+	Tool             string `json:"tool" yaml:"tool"`
+	ToolVersion      string `json:"tool_version" yaml:"tool_version"`
+	InstallerVersion string `json:"installer_version" yaml:"installer_version"`
 }
 
 type versionHistoryEntries struct {
@@ -31,10 +39,11 @@ const maxVersionHistoryEntries = 60
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
 	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	logVersionHistoryToFile(versionHistoryFilePath, version.AgentVersion, time.Now().UTC())
+	installInfoFilePath := filepath.Join(config.FileUsedDir(), "install_info")
+	logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, version.AgentVersion, time.Now().UTC())
 }
 
-func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timestamp time.Time) {
+func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentVersion string, timestamp time.Time) {
 	file, err := ioutil.ReadFile(versionHistoryFilePath)
 
 	history := versionHistoryEntries{}
@@ -52,6 +61,14 @@ func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timest
 	newEntry := versionHistoryEntry{
 		Version:   agentVersion,
 		Timestamp: timestamp,
+	}
+
+	installInfo, err := ioutil.ReadFile(installInfoFilePath)
+	if err != nil {
+		log.Infof("Cannot read %s: %s", installInfoFilePath, err)
+	}
+	if err := yaml.Unmarshal(installInfo, &newEntry); err != nil {
+		log.Infof("Cannot yaml unmarshal %s: %s", installInfoFilePath, err)
 	}
 
 	if len(history.Entries) == 0 || history.Entries[len(history.Entries)-1].Version != newEntry.Version {
