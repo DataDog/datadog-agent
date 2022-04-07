@@ -5,12 +5,12 @@
 
 package invocationlifecycle
 
-import serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
+import "github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 
 // InvocationProcessor is the interface to implement to receive invocation lifecycle hooks
 type InvocationProcessor interface {
 	// OnInvokeStart is the hook triggered when an invocation has started
-	OnInvokeStart(startDetails *InvocationStartDetails, ctx *serverlessLog.ExecutionContext)
+	OnInvokeStart(startDetails *InvocationStartDetails, ctx *executioncontext.ExecutionContext)
 	// OnInvokeEnd is the hook triggered when an invocation has ended
 	OnInvokeEnd(endDetails *InvocationEndDetails)
 }

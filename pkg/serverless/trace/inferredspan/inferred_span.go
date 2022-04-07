@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -26,13 +25,10 @@ const (
 )
 
 type InferredSpan struct {
-	Span    *pb.Span
-	IsAsync bool
+	Span      *pb.Span
+	IsAsync   bool
+	IsCreated bool
 }
-
-// Holds all inferred spans with a key of request-id and reduces
-// the risk of multiple invocations manipulating the same global variable
-var InferredSpans = make(map[string]InferredSpan)
 
 var functionTagsToIgnore = []string{
 	tags.FunctionARNKey,
@@ -87,16 +83,16 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	return output
 }
 
-func CreateInferredSpan(event string, ctx *serverlessLog.ExecutionContext) {
+func CreateInferredSpan(event string, inferredSpan InferredSpan) {
 	// Parse the event into the EventKey struct
 	eventSource, attributes := ParseEventSource(event)
 	switch eventSource {
 	case "apigateway":
-		CreateInferredSpanFromAPIGatewayEvent(eventSource, ctx, attributes)
+		CreateInferredSpanFromAPIGatewayEvent(eventSource, attributes, inferredSpan)
 	case "http-api":
-		CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource, ctx, attributes)
+		CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource, attributes, inferredSpan)
 	case "websocket":
-		CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource, ctx, attributes)
+		CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource, attributes, inferredSpan)
 	}
 }
 
@@ -104,9 +100,8 @@ func CompleteInferredSpan(
 	processTrace func(p *api.Payload),
 	endTime time.Time,
 	isError bool,
-	requestId string) {
-
-	inferredSpan := InferredSpans[requestId]
+	requestId string,
+	inferredSpan InferredSpan) {
 
 	if inferredSpan.IsAsync {
 		inferredSpan.Span.Duration = inferredSpan.Span.Start
@@ -130,6 +125,4 @@ func CompleteInferredSpan(
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
-
-	delete(InferredSpans, requestId)
 }

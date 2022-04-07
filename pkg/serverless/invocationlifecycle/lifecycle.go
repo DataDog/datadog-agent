@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	inferredSpan "github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
@@ -23,11 +24,13 @@ type LifecycleProcessor struct {
 	ProcessTrace        func(p *api.Payload)
 	Demux               aggregator.Demultiplexer
 	DetectLambdaLibrary func() bool
-	ExecutionContext    *serverlessLog.ExecutionContext
+	ExecutionContext    *executioncontext.ExecutionContext
 }
 
+var CurrentInferredSpan inferredSpan.InferredSpan
+
 // OnInvokeStart is the hook triggered when an invocation has started
-func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails, ctx *serverlessLog.ExecutionContext) {
+func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails, ctx *executioncontext.ExecutionContext) {
 	log.Debug("[lifecycle] onInvokeStart ------")
 	log.Debug("[lifecycle] Invocation has started at :", startDetails.StartTime)
 	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventRawPayload)
@@ -36,11 +39,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
 		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
 		log.Debug("[lifecycle] Attempting to create inferred span")
-		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, lp.ExecutionContext)
+		inferredSpan.CreateInferredSpan(startDetails.InvokeEventRawPayload, CurrentInferredSpan)
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, CurrentInferredSpan)
 	}
 }
 
@@ -59,7 +62,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
 		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
 		log.Debug("[lifecycle] Attempting to complete the inferred span")
-		inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID)
+		inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID, CurrentInferredSpan)
 	}
 
 	if endDetails.IsError {

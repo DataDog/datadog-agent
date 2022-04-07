@@ -41,7 +41,7 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string) {
+func startExecutionSpan(startTime time.Time, rawPayload string, inferredSpan inferredspan.InferredSpan) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = rand.Random.Uint64()
 	currentExecutionInfo.spanID = rand.Random.Uint64()
@@ -55,10 +55,19 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 		if e1 == nil {
 			currentExecutionInfo.traceID = traceID
+
+			if inferredSpan.IsCreated {
+				inferredSpan.Span.TraceID = traceID
+			}
 		}
 
 		if e2 == nil {
 			currentExecutionInfo.parentID = parentID
+
+			if inferredSpan.IsCreated {
+				currentExecutionInfo.parentID = inferredSpan.Span.SpanID
+				inferredSpan.Span.ParentID = parentID
+			}
 		}
 	}
 }
@@ -70,11 +79,6 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 
 	traceID := currentExecutionInfo.traceID
 	parentID := currentExecutionInfo.parentID
-
-	if inferredspan, exists := inferredspan.InferredSpans[requestID]; exists {
-		traceID = inferredspan.Span.TraceID
-		parentID = inferredspan.Span.SpanID
-	}
 
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
