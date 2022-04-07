@@ -157,6 +157,9 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
+	// Setup Internal Profiling
+	common.SetupInternalProfiling()
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
