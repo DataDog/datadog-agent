@@ -279,10 +279,6 @@ Enhancement Notes
 
 - Retry HTTP transaction when the HTTP status code is 404 (Not found).
 
-- The datadog-agent, datadog-iot-agent and datadog-dogstatsd deb packages
-  now have a versioned weak dependency on the datadog-signing-keys package
-  version 1.1.0, instead of an unversioned weak dependency.
-
 - Validate SNMP namespace to ensure it respects length and illegal character rules.
 
 - Include `/etc/chrony.conf` for `use_local_defined_servers`.
