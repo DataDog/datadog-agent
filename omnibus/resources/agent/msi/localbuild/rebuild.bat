@@ -5,8 +5,23 @@ cd %~dp0
 
 copy ..\source.wxs.erb source.wxs
 xcopy /y/e/s/i ..\assets\*.* resources\assets
+
+REM first create zip file if it's not already there (of the embedded directory)
+REM this assumes always A7 for now
+
 REM run HEAT on c:\opt\datadog-agent
 REM
+if not exist c:\opt\datadog-agent\embedded3.7z (
+    @echo Zip file not present, creating
+    if not exist c:\opt\datadog-agent\embedded3 (
+        @echo no embedded3 directory, can't make zip
+        exit /b 5
+    )
+    7z a -mx=5 -ms=on c:\opt\datadog-agent\embedded3.7z c:\opt\datadog-agent\embedded3
+    rd /s/q c:\opt\datadog-agent\embedded3
+) else (
+    @echo zip file present, using existing zip
+)
 heat.exe dir "c:\opt\datadog-agent" -nologo -srd -sreg -gg -cg ProjectDir -dr PROJECTLOCATION -var "var.ProjectSourceDir" -out "project-files.wxs"
 
 REM 
