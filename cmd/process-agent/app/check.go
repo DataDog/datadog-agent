@@ -59,7 +59,10 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
 	configPath := cmd.Flag(flags.CfgPath).Value.String()
-	sysprobePath := cmd.Flag(flags.SysProbeConfig).Value.String()
+	var sysprobePath string
+	if cmd.Flag(flags.SysProbeConfig) != nil {
+		sysprobePath = cmd.Flag(flags.SysProbeConfig).Value.String()
+	}
 
 	if err := config.LoadConfigIfExists(configPath); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
@@ -174,7 +177,9 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 
 	time.Sleep(1 * time.Second)
 
-	printResultsBanner(ch.RealTimeName())
+	if !checkOutputJSON {
+		printResultsBanner(ch.RealTimeName())
+	}
 
 	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
 	if err != nil {
