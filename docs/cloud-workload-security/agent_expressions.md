@@ -79,6 +79,12 @@ SECL operators are used to combine event attributes together into a full express
 | `\|`                  | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
 | `\|\|`                | File             | Logical or                               | 7.27          |
+| `in CIDR`             | Network          | Element is in the IP range               | 7.36          |
+| `not in CIDR`         | Network          | Element is not in the IP range           | 7.36          |
+| `allin CIDR`          | Network          | All the elements are in the IP range     | 7.36          |
+| `in [CIDR1, ...]`     | Network          | Element is in the IP ranges              | 7.36          |
+| `not in [CIDR1, ...]` | Network          | Element is not in the IP ranges          | 7.36          |
+| `allin [CIDR1, ...]`  | Network          | All the elements are in the IP ranges    | 7.36          |
 
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
@@ -119,6 +125,17 @@ List of the available variables:
 |-----------------------|---------------------------------------|---------------|
 | `process.pid`         | Process PID                           | 7.33          |
 
+## CIDR and IP range
+CIDR and IP matching is possible in SECL. One can use operator such as `in`, `not in`, `allin` combined with CIDR or IP notations.
+
+Such rules can be written as follows:
+
+
+{{< code-block lang="javascript" >}}
+dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25", "10.0.0.0/24"]
+
+{{< /code-block >}}
+
 ## Helpers
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.
 
@@ -150,14 +167,14 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ---- | ---------- |
 | `container.id` | string | ID of the container |
 | `container.tags` | string | Tags of the container |
-| `network.destination.ip` | net.IPNet | IP address |
+| `network.destination.ip` | IP/CIDR | IP address |
 | `network.destination.port` | int | Port number |
 | `network.device.ifindex` | int | interface ifindex |
 | `network.device.ifname` | string | interface ifname |
 | `network.l3_protocol` | int | l3 protocol of the network packet |
 | `network.l4_protocol` | int | l4 protocol of the network packet |
 | `network.size` | int | size in bytes of the network packet |
-| `network.source.ip` | net.IPNet | IP address |
+| `network.source.ip` | IP/CIDR | IP address |
 | `network.source.port` | int | Port number |
 | `process.ancestors.args` | string | Arguments of the process (as a string) |
 | `process.ancestors.args_flags` | string | Arguments of the process (as an array) |
