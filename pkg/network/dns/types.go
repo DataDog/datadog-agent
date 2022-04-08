@@ -47,6 +47,7 @@ type ReverseDNS interface {
 	Resolve([]util.Address) map[util.Address][]string
 	GetDNSStats() StatsByKeyByNameByType
 	GetStats() map[string]int64
+	Start() error
 	Close()
 }
 

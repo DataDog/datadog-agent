@@ -19,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 )
 
+var BTFHubPossiblyMissingConstants = []string{
+	"nf_conn_ct_net_offset",
+}
+
 func TestOctogonConstants(t *testing.T) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
@@ -48,7 +52,7 @@ func TestOctogonConstants(t *testing.T) {
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv)
+		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, nil)
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
@@ -66,7 +70,7 @@ func TestOctogonConstants(t *testing.T) {
 
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv)
+		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubPossiblyMissingConstants)
 	})
 
 	t.Run("btf-vs-fallback", func(t *testing.T) {
@@ -77,7 +81,7 @@ func TestOctogonConstants(t *testing.T) {
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 
-		assertConstantsEqual(t, btfFetcher, fallbackFetcher, kv)
+		assertConstantsEqual(t, btfFetcher, fallbackFetcher, kv, nil)
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
@@ -106,15 +110,32 @@ func getFighterConstants(champion, challenger constantfetch.ConstantFetcher, kv 
 	return championConstants, challengerConstants, nil
 }
 
-func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version) {
+func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version, ignoreMissing []string) {
 	t.Helper()
 	championConstants, challengerConstants, err := getFighterConstants(champion, challenger, kv)
 	if err != nil {
 		t.Error(err)
 	}
 
+	for _, possiblyMissingConstant := range ignoreMissing {
+		championValue, championPresent := championConstants[possiblyMissingConstant]
+		challengerValue, challengerPresent := challengerConstants[possiblyMissingConstant]
+
+		// if the constant is not present in the champion or the challenger
+		// we let the `assert.Equal` do its job and trigger an error or not
+		if !championPresent || !challengerPresent {
+			continue
+		}
+
+		if championValue != constantfetch.ErrorSentinel && challengerValue == constantfetch.ErrorSentinel {
+			delete(championConstants, possiblyMissingConstant)
+			delete(challengerConstants, possiblyMissingConstant)
+		}
+	}
+
 	if !assert.Equal(t, championConstants, challengerConstants) {
-		t.Logf("comparison between `%s`(-) and `%s`(+). kernel version: %v", champion.String(), challenger.String(), kv)
+		t.Logf("comparison between `%s`(-) and `%s`(+)", champion.String(), challenger.String())
+		t.Logf("kernel version: %v", kv)
 	}
 }
 
@@ -136,6 +157,10 @@ func assertConstantContains(t *testing.T, champion, challenger constantfetch.Con
 		} else if v != expected {
 			t.Errorf("difference between fighters for `%s`: `%s`:%d and `%s`:%d", k, champion.String(), expected, challenger.String(), v)
 		}
+	}
+
+	if t.Failed() {
+		t.Logf("kernel version: %v", kv)
 	}
 }
 

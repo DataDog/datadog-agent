@@ -495,6 +495,8 @@ func (s *store) unsubscribeAll() {
 		close(sub.ch)
 	}
 
+	s.subscribers = nil
+
 	telemetry.Subscribers.Set(0)
 }
 
