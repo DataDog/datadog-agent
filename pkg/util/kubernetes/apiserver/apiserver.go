@@ -328,7 +328,7 @@ func (c *APIClient) connect() error {
 		optionsForService := func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog.GetString("admission_controller.certificate.secret_name")).String()
 		}
-		c.CertificateSecretInformerFactory, _ = getInformerFactoryWithOption(
+		c.CertificateSecretInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForService),
 			informers.WithNamespace(common.GetResourcesNamespace()),
 		)
