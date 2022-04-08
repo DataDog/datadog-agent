@@ -592,7 +592,8 @@ func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 	return configs
 }
 
-// GetUnresolvedTemplates returns templates in cache yet to be resolved
+// GetUnresolvedTemplates returns all templates in the cache, in their unresolved
+// state.
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.getUnresolvedTemplates()
 }
