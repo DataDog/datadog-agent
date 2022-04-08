@@ -49,24 +49,27 @@ func startExecutionSpan(startTime time.Time, rawPayload string, inferredSpan inf
 
 	payload := convertRawPayload(rawPayload)
 
+	if inferredspan.IsExpected() {
+		currentExecutionInfo.traceID = inferredSpan.Span.TraceID
+		currentExecutionInfo.parentID = inferredSpan.Span.SpanID
+	}
+
 	if payload.Headers != nil {
 		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
 		parentID, e2 := convertStrToUnit64(payload.Headers[ParentIDHeader])
 
 		if e1 == nil {
 			currentExecutionInfo.traceID = traceID
-
-			if inferredSpan.IsCreated {
+			if inferredspan.IsExpected() {
 				inferredSpan.Span.TraceID = traceID
 			}
 		}
 
 		if e2 == nil {
 			currentExecutionInfo.parentID = parentID
-
-			if inferredSpan.IsCreated {
-				currentExecutionInfo.parentID = inferredSpan.Span.SpanID
+			if inferredspan.IsExpected() {
 				inferredSpan.Span.ParentID = parentID
+				currentExecutionInfo.parentID = inferredSpan.Span.SpanID
 			}
 		}
 	}
@@ -79,7 +82,6 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 
 	traceID := currentExecutionInfo.traceID
 	parentID := currentExecutionInfo.parentID
-
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
 		Name:     "aws.lambda",

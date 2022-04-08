@@ -14,15 +14,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
-	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type proxyTransport struct {
 	processor invocationlifecycle.InvocationProcessor
 }
-
-var eventContext serverlessLog.ExecutionContext
 
 func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	log.Debug("[proxy] new request to %s", request.URL)
@@ -53,7 +50,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 			StartTime:             time.Now(),
 			InvokeEventRawPayload: string(dumpedResponse[indexPayload:]),
 		}
-		p.processor.OnInvokeStart(details, &eventContext)
+		p.processor.OnInvokeStart(details)
 	}
 
 	return response, nil

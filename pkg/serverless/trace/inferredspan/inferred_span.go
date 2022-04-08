@@ -1,10 +1,12 @@
 package inferredspan
 
 import (
+	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	rand "github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -25,9 +27,8 @@ const (
 )
 
 type InferredSpan struct {
-	Span      *pb.Span
-	IsAsync   bool
-	IsCreated bool
+	Span    *pb.Span
+	IsAsync bool
 }
 
 var functionTagsToIgnore = []string{
@@ -125,4 +126,23 @@ func CompleteInferredSpan(
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
+}
+
+// GenerateSpan declares and initializes a new inferred span
+// with the SpanID and TraceID
+func GenerateSpan() InferredSpan {
+	var inferredSpan InferredSpan
+	inferredSpan.Span = &pb.Span{}
+	inferredSpan.Span.SpanID = rand.Random.Uint64()
+	inferredSpan.Span.TraceID = rand.Random.Uint64()
+	return inferredSpan
+}
+
+// IsExpected checks if the envVars required for inferred spans are enabled
+func IsExpected() bool {
+	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
+		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
+		return true
+	}
+	return false
 }

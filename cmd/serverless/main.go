@@ -247,7 +247,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		Demux:               serverlessDaemon.MetricAgent.Demux,
 		ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
 		DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
-		ExecutionContext:    serverlessDaemon.ExecutionContext,
 	}
 
 	// start the experimental proxy if enabled

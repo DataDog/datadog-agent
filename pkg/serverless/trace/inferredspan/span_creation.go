@@ -3,8 +3,6 @@ package inferredspan
 import (
 	"fmt"
 
-	rand "github.com/DataDog/datadog-agent/pkg/serverless/random"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -16,7 +14,6 @@ func CreateInferredSpanFromAPIGatewayEvent(eventSource string, attributes EventK
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, attributes.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 
-	generateSpan(inferredSpan)
 	inferredSpan.Span.Name = "aws.apigateway"
 	inferredSpan.Span.Service = requestContext.Domain
 	inferredSpan.Span.Resource = resource
@@ -34,7 +31,6 @@ func CreateInferredSpanFromAPIGatewayEvent(eventSource string, attributes EventK
 	}
 
 	setSynchronicity(inferredSpan, attributes)
-	setIsCreated(inferredSpan)
 }
 
 func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes EventKeys, inferredSpan InferredSpan) {
@@ -46,7 +42,6 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes Ev
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 
-	generateSpan(inferredSpan)
 	inferredSpan.Span.Name = "aws.httpapi"
 	inferredSpan.Span.Service = requestContext.Domain
 	inferredSpan.Span.Resource = resource
@@ -65,7 +60,6 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes Ev
 	}
 
 	setSynchronicity(inferredSpan, attributes)
-	setIsCreated(inferredSpan)
 }
 
 func CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource string, attributes EventKeys, inferredSpan InferredSpan) {
@@ -75,7 +69,6 @@ func CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource string, attribut
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, endpoint)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 
-	generateSpan(inferredSpan)
 	inferredSpan.Span.Name = "aws.apigateway.websocket"
 	inferredSpan.Span.Service = requestContext.Domain
 	inferredSpan.Span.Resource = endpoint
@@ -96,14 +89,6 @@ func CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource string, attribut
 	}
 
 	setSynchronicity(inferredSpan, attributes)
-	setIsCreated(inferredSpan)
-}
-
-// returns an inferred span, span id and trace id
-func generateSpan(inferredSpan InferredSpan) {
-	inferredSpan.Span = &pb.Span{}
-	inferredSpan.Span.SpanID = rand.Random.Uint64()
-	inferredSpan.Span.TraceID = rand.Random.Uint64()
 }
 
 func setSynchronicity(span InferredSpan, attributes EventKeys) {
@@ -115,8 +100,4 @@ func setSynchronicity(span InferredSpan, attributes EventKeys) {
 
 func calculateStartTime(epoch int64) int64 {
 	return (epoch / 1000) * 1e9
-}
-
-func setIsCreated(span InferredSpan) {
-	span.IsCreated = true
 }
