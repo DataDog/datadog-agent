@@ -46,6 +46,7 @@ type RequestContextKeys struct {
 	Http             HttpKeys `json:"http"`
 	ConnectionID     string   `json:"connectionId"`
 	EventType        string   `json:"eventType"`
+	TimeEpoch        int64    `json:"timeEpoch"`
 }
 
 type HeaderKeys struct {

@@ -40,7 +40,7 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes Ev
 	path := requestContext.RawPath
 	resource := fmt.Sprintf("%s %s", http.Method, path)
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, path)
-	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+	startTime := calculateStartTime(requestContext.TimeEpoch)
 
 	inferredSpan.Span.Name = "aws.httpapi"
 	inferredSpan.Span.Service = requestContext.Domain
