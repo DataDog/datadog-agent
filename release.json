@@ -13,7 +13,7 @@
         "MACOS_BUILD_VERSION": "master",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "1.3.2",
-        "WINDOWS_DDNPM_SHASUM": "1f65d40519bc307d652c64183b2cac2a36da9839c21d64f9823aa158ff6336bb"
+        "WINDOWS_DDNPM_SHASUM": "1f65d40519bc307d652c64183b2cac2a36da9839c21d64f9823aa158ff6336bb",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
