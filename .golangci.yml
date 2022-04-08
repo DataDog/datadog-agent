@@ -7,11 +7,6 @@ run:
     # ignore test helper
     - pkg/util/testutil
 
-    # TODO APM
-    - pkg/trace
-    # TODO metrics-aggregation
-    - pkg/quantile
-
 issues:
   # Do not limit the number of issues per linter.
   max-issues-per-linter: 0
