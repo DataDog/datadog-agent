@@ -102,15 +102,22 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 			continue
 		}
 
-		containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
+		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %w", container, collector.ID(), err)
+			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
 			continue
 		}
 
 		if err := p.processContainer(sender, tags, container, containerStats); err != nil {
-			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 			continue
+		}
+
+		openFiles, err := collector.GetContainerOpenFilesCount(container.Namespace, container.ID, cacheValidity)
+		if err == nil {
+			p.sendMetric(sender.Gauge, "container.pid.open_files", pointer.UIntPtrToFloatPtr(openFiles), tags)
+		} else {
+			log.Debugf("OpenFiles count for: %v not available through collector %q, err: %v", container, collector.ID(), err)
 		}
 
 		// TODO: Implement container stats. We currently don't have enough information from Metadata service to do it.
@@ -181,7 +188,6 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 	if containerStats.PID != nil {
 		p.sendMetric(sender.Gauge, "container.pid.thread_count", containerStats.PID.ThreadCount, tags)
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
-		p.sendMetric(sender.Gauge, "container.pid.open_files", containerStats.PID.OpenFiles, tags)
 	}
 
 	return nil

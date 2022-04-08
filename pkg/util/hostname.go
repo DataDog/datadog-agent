@@ -340,18 +340,16 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	// If at this point we don't have a name, bail out
 	if hostName == "" {
 		err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
-		return HostnameData{}, err
-	}
-	// we got a hostname, residual errors are irrelevant now
-	err = nil
-
-	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
-	if err != nil {
 		expErr := new(expvar.String)
 		expErr.Set(fmt.Sprintf(err.Error()))
 		hostnameErrors.Set("all", expErr)
+		return HostnameData{}, err
 	}
-	return hostnameData, err
+
+	// we have a hostname, cache it and return it
+
+	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
+	return hostnameData, nil
 }
 
 // isHostnameCanonicalForIntake returns true if the intake will use the hostname as canonical hostname.

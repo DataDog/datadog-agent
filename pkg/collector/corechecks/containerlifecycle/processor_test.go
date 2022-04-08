@@ -6,6 +6,7 @@
 package containerlifecycle
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -65,8 +66,10 @@ func TestProcessQueues(t *testing.T) {
 			sender.On("ContainerLifecycleEvent", mock.Anything, mock.Anything).Return()
 			p.sender = sender
 
-			stop := make(chan struct{})
-			go p.processQueues(stop, 500*time.Millisecond)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			go p.processQueues(ctx, 500*time.Millisecond)
 			time.Sleep(1 * time.Second)
 
 			tt.wantFunc(t, sender)

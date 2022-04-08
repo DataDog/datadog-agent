@@ -6,6 +6,7 @@
 package tagger
 
 import (
+	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -52,7 +53,7 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 	nil, "Dogstatsd UDP origin detection error count")
 
 // Init must be called once config is available, call it in your cmd
-func Init() error {
+func Init(ctx context.Context) error {
 	initOnce.Do(func() {
 		var err error
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")
@@ -75,7 +76,7 @@ func Init() error {
 			return
 		}
 
-		initErr = defaultTagger.Init()
+		initErr = defaultTagger.Init(ctx)
 	})
 
 	return initErr
@@ -181,11 +182,12 @@ func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 	return Tag(entityID, cardinality)
 }
 
-// OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
-func OrchestratorScopeTag() ([]string, error) {
+// GlobalTags queries global tags that should apply to all data coming from the
+// agent.
+func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 	mux.RLock()
 	if captureTagger != nil {
-		tags, err := captureTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+		tags, err := captureTagger.Tag(collectors.GlobalEntityID, cardinality)
 		if err == nil && len(tags) > 0 {
 			mux.RUnlock()
 			return tags, nil
@@ -193,15 +195,15 @@ func OrchestratorScopeTag() ([]string, error) {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+	return defaultTagger.Tag(collectors.GlobalEntityID, cardinality)
 }
 
-// OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
-// task_arn in ECS Fargate) and appends them to the TagAccumulator
-func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
+// globalTagBuilder queries global tags that should apply to all data coming
+// from the agent and appends them to the TagAccumulator
+func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+		err := captureTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 
 		if err == nil {
 			mux.RUnlock()
@@ -210,7 +212,7 @@ func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+	return defaultTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -250,7 +252,10 @@ func ResetCaptureTagger() {
 }
 
 func init() {
-	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+	// all binaries are expected to provide their own tagger at startup. we
+	// provide a fake tagger on init for testing purposes, as calling
+	// the global tagger without proper initialization is very common there.
+	SetDefaultTagger(local.NewFakeTagger())
 }
 
 // EnrichTags extends a tag list with origin detection tags
@@ -266,11 +271,8 @@ func EnrichTags(tb tagset.TagAccumulator, udsOrigin string, clientOrigin string,
 		}
 	}
 
-	// Include orchestrator scope tags if the cardinality is set to orchestrator
-	if cardinality == collectors.OrchestratorCardinality {
-		if err := OrchestratorScopeTagBuilder(tb); err != nil {
-			log.Error(err.Error())
-		}
+	if err := globalTagBuilder(cardinality, tb); err != nil {
+		log.Error(err.Error())
 	}
 
 	if clientOrigin != "" {
@@ -290,7 +292,7 @@ func taggerCardinality(cardinality string) collectors.TagCardinality {
 
 	taggerCardinality, err := collectors.StringToTagCardinality(cardinality)
 	if err != nil {
-		log.Tracef("Couldn't convert cardinality tag: %w", err)
+		log.Tracef("Couldn't convert cardinality tag: %v", err)
 		return DogstatsdCardinality
 	}
 

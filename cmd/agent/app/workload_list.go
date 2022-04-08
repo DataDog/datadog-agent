@@ -58,7 +58,7 @@ var workloadListCommand = &cobra.Command{
 			return err
 		}
 
-		r, err := util.DoGet(c, workloadURL(verboseList, ipcAddress, config.Datadog.GetInt("cmd_port")))
+		r, err := util.DoGet(c, workloadURL(verboseList, ipcAddress, config.Datadog.GetInt("cmd_port")), util.LeaveConnectionOpen)
 		if err != nil {
 			if r != nil && string(r) != "" {
 				fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))

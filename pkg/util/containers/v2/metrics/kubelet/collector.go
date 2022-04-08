@@ -91,7 +91,7 @@ func (kc *kubeletCollector) GetSelfContainerID() (string, error) {
 }
 
 // GetContainerStats returns stats by container ID.
-func (kc *kubeletCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	currentTime := time.Now()
 
 	containerStats, found, err := kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
@@ -118,8 +118,20 @@ func (kc *kubeletCollector) GetContainerStats(containerID string, cacheValidity 
 	return nil, nil
 }
 
+// GetContainerPIDStats returns pid stats by container ID.
+func (kc *kubeletCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerPIDStats, error) {
+	// Not available
+	return nil, nil
+}
+
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (kc *kubeletCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
+}
+
 // GetContainerNetworkStats returns network stats by container ID.
-func (kc *kubeletCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (kc *kubeletCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	currentTime := time.Now()
 
 	containerNetworkStats, found, err := kc.statsCache.Get(currentTime, contNetStatsCachePrefix+containerID, cacheValidity)
@@ -229,9 +241,12 @@ func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSumm
 }
 
 func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outContainerStats *provider.ContainerStats) {
-	outContainerStats.Timestamp = kubeContainerStats.CPU.Time.Time
+	if kubeContainerStats == nil {
+		return
+	}
 
 	if kubeContainerStats.CPU != nil {
+		outContainerStats.Timestamp = kubeContainerStats.CPU.Time.Time
 		outContainerStats.CPU = &provider.ContainerCPUStats{
 			Total: pointer.UIntPtrToFloatPtr(kubeContainerStats.CPU.UsageCoreNanoSeconds),
 		}
@@ -252,7 +267,12 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 }
 
 func convertNetworkStats(podNetworkStats *v1alpha1.NetworkStats, outNetworkStats *provider.ContainerNetworkStats) {
+	if podNetworkStats == nil {
+		return
+	}
+
 	var sumBytesSent, sumBytesRcvd float64
+	outNetworkStats.Timestamp = podNetworkStats.Time.Time
 	outNetworkStats.Interfaces = make(map[string]provider.InterfaceNetStats, len(podNetworkStats.Interfaces))
 
 	for _, interfaceStats := range podNetworkStats.Interfaces {

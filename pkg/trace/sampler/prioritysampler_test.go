@@ -10,16 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-)
-
-const (
-	testServiceA = "service-a"
-	testServiceB = "service-b"
+	"github.com/stretchr/testify/require"
 )
 
 func randomTraceID() uint64 {
@@ -27,9 +23,6 @@ func randomTraceID() uint64 {
 }
 
 func getTestPrioritySampler() *PrioritySampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
@@ -45,20 +38,23 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 		{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: service, Type: "web", Meta: map[string]string{"env": defaultEnv}, Metrics: map[string]float64{}},
 		{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: service, Type: "sql"},
 	}
-	r := rand.Float64()
 	priority := PriorityAutoDrop
-	rates := s.ratesByService()
+	r := rand.Float64()
+	rates := s.rateByService.rates
 	key := ServiceSignature{spans[0].Service, defaultEnv}
-	var rate float64
-	if serviceRate, ok := rates[key]; ok {
+
+	serviceRate, ok := rates[key.String()]
+	if !ok {
+		serviceRate, _ = rates[ServiceSignature{}.String()]
+	}
+	rate := float64(1)
+	if serviceRate != nil {
 		rate = serviceRate.r
-		spans[0].Metrics[agentRateKey] = serviceRate.r
-	} else {
-		rate = 1
 	}
 	if r <= rate {
 		priority = PriorityAutoKeep
 	}
+	spans[0].Metrics[agentRateKey] = rate
 	return &pb.TraceChunk{
 		Priority: int32(priority),
 		Spans:    spans,
@@ -129,7 +125,7 @@ func TestPrioritySample(t *testing.T) {
 func TestPrioritySamplerWithNilRemote(t *testing.T) {
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
-		TargetTPS:       0.0,
+		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
 	s.Start()
@@ -143,10 +139,10 @@ func TestPrioritySamplerWithNilRemote(t *testing.T) {
 func TestPrioritySamplerWithRemote(t *testing.T) {
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
-		TargetTPS:       0.0,
+		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
-	s.remoteRates = newRemoteRates(10)
+	s.remoteRates = newRemoteRates(nil, 10, "6.0.0")
 	s.Start()
 	s.updateRates()
 	s.reportStats()
@@ -194,13 +190,13 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	}
 
 	// setting up remote store
-	testCasesRates := pb.APMSampling{TargetTPS: make([]pb.TargetTPS, 0, len(testCases))}
+	testCasesRates := apmsampling.APMSampling{TargetTPS: make([]apmsampling.TargetTPS, 0, len(testCases))}
 	for _, tc := range testCases {
 
 		if tc.localRate {
 			continue
 		}
-		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
+		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, apmsampling.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
 	}
 	for _, tc := range testCases {
 		rand.Seed(3)
@@ -210,9 +206,7 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		s.remoteRates.onUpdate(configGenerator(generatedConfigVersion, testCasesRates))
 
 		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)
-		if tc.localRate {
-			s.localRates.targetTPS = atomic.NewFloat(tc.targetTPS)
-		}
+		s.localRates.targetTPS = atomic.NewFloat(tc.targetTPS)
 
 		var sampledCount, handledCount int
 		const warmUpDuration, testDuration = 2, 10
@@ -238,6 +232,18 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 
 				tpsTag, okTPS := root.Metrics[tagRemoteTPS]
 				versionTag, okVersion := root.Metrics[tagRemoteVersion]
+				if !tc.localRate && timeElapsed > 1 {
+					localRates, _ := s.localRates.getAllSignatureSampleRates()
+					remoteRates := s.remoteRates.getAllSignatureSampleRates()
+					require.Equal(t, len(localRates), len(remoteRates))
+
+					for sig, rate := range localRates {
+						remoteRate, ok := remoteRates[sig]
+						assert.True(ok)
+						require.Equal(t, rate, remoteRate.r)
+					}
+				}
+
 				if !tc.localRate && sampled {
 					assert.True(okTPS)
 					assert.Equal(tc.targetTPS, tpsTag)

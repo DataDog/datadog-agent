@@ -605,6 +605,51 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "containers with no processes",
+			containers: []*model.Container{
+				ctr("foo"),
+				ctr("bar"),
+				ctr("baz"),
+				ctr("qux"),
+			},
+			procsByCtr: map[string][]*model.Process{
+				"": {
+					proc(100, "top"),
+				},
+				"foo": {
+					proc(2, "foo", strings.Repeat("-", 970)),
+				},
+				"bar": {
+					proc(3, "bar"),
+					proc(4, "bar2"),
+				},
+			},
+			maxChunkSize:   3,
+			maxChunkWeight: 1000,
+			expectedChunks: []*model.CollectorProc{
+				{
+					Containers: []*model.Container{
+						ctr("foo"),
+					},
+					Processes: []*model.Process{
+						proc(100, "top"),
+						proc(2, "foo", strings.Repeat("-", 970)),
+					},
+				},
+				{
+					Containers: []*model.Container{
+						ctr("bar"),
+						ctr("baz"),
+						ctr("qux"),
+					},
+					Processes: []*model.Process{
+						proc(3, "bar"),
+						proc(4, "bar2"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {

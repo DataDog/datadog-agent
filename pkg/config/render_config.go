@@ -19,39 +19,40 @@ import (
 
 // context contains the context used to render the config file template
 type context struct {
-	OS                string
-	Common            bool
-	Agent             bool
-	Python            bool // Sub-option of Agent
-	BothPythonPresent bool // Sub-option of Agent - Python
-	Metadata          bool
-	InternalProfiling bool
-	Dogstatsd         bool
-	LogsAgent         bool
-	JMX               bool
-	Autoconfig        bool
-	Logging           bool
-	Autodiscovery     bool
-	DockerTagging     bool
-	Kubelet           bool
-	KubernetesTagging bool
-	ECS               bool
-	Containerd        bool
-	CRI               bool
-	ProcessAgent      bool
-	SystemProbe       bool
-	KubeApiServer     bool
-	TraceAgent        bool
-	ClusterAgent      bool
-	ClusterChecks     bool
-	CloudFoundryBBS   bool
-	CloudFoundryCC    bool
-	Compliance        bool
-	SNMP              bool
-	SecurityModule    bool
-	SecurityAgent     bool
-	NetworkModule     bool // Sub-module of System Probe
-	PrometheusScrape  bool
+	OS                  string
+	Common              bool
+	Agent               bool
+	Python              bool // Sub-option of Agent
+	BothPythonPresent   bool // Sub-option of Agent - Python
+	Metadata            bool
+	InternalProfiling   bool
+	Dogstatsd           bool
+	LogsAgent           bool
+	JMX                 bool
+	Autoconfig          bool
+	Logging             bool
+	Autodiscovery       bool
+	DockerTagging       bool
+	Kubelet             bool
+	KubernetesTagging   bool
+	ECS                 bool
+	Containerd          bool
+	CRI                 bool
+	ProcessAgent        bool
+	SystemProbe         bool
+	KubeApiServer       bool
+	TraceAgent          bool
+	ClusterAgent        bool
+	ClusterChecks       bool
+	AdmissionController bool
+	CloudFoundryBBS     bool
+	CloudFoundryCC      bool
+	Compliance          bool
+	SNMP                bool
+	SecurityModule      bool
+	SecurityAgent       bool
+	NetworkModule       bool // Sub-module of System Probe
+	PrometheusScrape    bool
 }
 
 func mkContext(buildType string) context {
@@ -118,11 +119,12 @@ func mkContext(buildType string) context {
 		}
 	case "dca":
 		return context{
-			ClusterAgent:  true,
-			Common:        true,
-			Logging:       true,
-			KubeApiServer: true,
-			ClusterChecks: true,
+			ClusterAgent:        true,
+			Common:              true,
+			Logging:             true,
+			KubeApiServer:       true,
+			ClusterChecks:       true,
+			AdmissionController: true,
 		}
 	case "dcacf":
 		return context{

@@ -133,6 +133,10 @@ func (d *dnsDriver) Close() error {
 	return nil
 }
 
+func (d *dnsDriver) GetStatsForHandle() (map[string]int64, error) {
+	return d.h.GetStatsForHandle()
+}
+
 func createDNSFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
 	ifaces, err := net.Interfaces()

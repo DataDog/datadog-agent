@@ -67,13 +67,9 @@ func (l *EnvironmentListener) createServices() {
 	}
 
 	// Handle generic container check auto-activation.
-	containerFeatures := []config.Feature{config.Docker, config.Containerd, config.Cri, config.ECSFargate, config.Podman, config.Kubernetes}
-	for _, f := range containerFeatures {
-		if config.IsFeaturePresent(f) {
-			log.Infof("Listener created container service from environment")
-			l.newService <- &EnvironmentService{adIdentifier: "_container"}
-			break
-		}
+	if config.IsAnyContainerFeaturePresent() {
+		log.Infof("Listener created container service from environment")
+		l.newService <- &EnvironmentService{adIdentifier: "_container"}
 	}
 }
 

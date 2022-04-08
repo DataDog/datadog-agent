@@ -27,9 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/cihub/seelog"
-	"github.com/cilium/ebpf"
 	ct "github.com/florianl/go-conntrack"
 	"golang.org/x/sys/unix"
 )
@@ -361,7 +361,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackHashInsert), EBPFFuncName: "kprobe___nf_conntrack_hash_insert"}},
+			{Section: string(probes.ConntrackHashInsert)},
 		},
 	}
 

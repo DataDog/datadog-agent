@@ -31,11 +31,10 @@ type Policy struct {
 	Macros  []*MacroDefinition `yaml:"macros"`
 }
 
-var ruleIDPattern = `^([a-zA-Z0-9]*_*)*$`
+var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
 
 func checkRuleID(ruleID string) bool {
-	pattern := regexp.MustCompile(ruleIDPattern)
-	return pattern.MatchString(ruleID)
+	return ruleIDPattern.MatchString(ruleID)
 }
 
 // GetValidMacroAndRules returns valid macro, rules definitions

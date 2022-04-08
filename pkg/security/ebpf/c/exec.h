@@ -60,8 +60,7 @@ struct exit_event_t {
     struct container_context_t container;
 };
 
-struct _tracepoint_sched_process_fork
-{
+struct _tracepoint_sched_process_fork {
     unsigned short common_type;
     unsigned char common_flags;
     unsigned char common_preempt_count;
@@ -138,9 +137,12 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
         .id = array_ref->id,
     };
 
-    int i = 0, n = 0, buff_offset = 0, perf_offset = 0;
+    int i = 0;
+    int n = 0;
+    int buff_offset = 0;
+    int perf_offset = 0;
 
-    #pragma unroll
+#pragma unroll
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
         void *ptr = &(buff->value[(buff_offset + sizeof(n)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
 
@@ -383,6 +385,11 @@ int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
     u32 root_nr = bpf_get_current_pid_tgid();
     u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
 
+    // no namespace
+    if (!namespace_nr || root_nr == namespace_nr) {
+      return 0;
+    }
+
     register_nr(root_nr, namespace_nr);
     return 0;
 }
@@ -397,8 +404,9 @@ int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
     bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
 
     struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
-    if (exec_count == NULL)
+    if (exec_count == NULL) {
         return 0;
+    }
 
     u64 zero = 0;
     u64 *count = bpf_map_lookup_or_try_init(exec_count, &key, &zero);
@@ -413,6 +421,17 @@ int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
+    // inherit netns
+    u32 pid = 0;
+    bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
+    u32 parent_pid = args->parent_pid;
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->child_pid);
+    u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
+    if (netns != NULL) {
+        u32 child_netns_entry = *netns;
+        bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
+    }
+
     // check if this is a thread first
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall) {
@@ -426,9 +445,6 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     if (syscall->fork.is_thread) {
         return 0;
     }
-
-    u32 pid = 0;
-    bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
 
     u64 ts = bpf_ktime_get_ns();
     struct exec_event_t event = {
@@ -469,6 +485,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
 
+    // [activity_dump] inherit tracing state
+    inherit_traced_state(args, ppid, pid, event.proc_entry.container.container_id, event.proc_entry.comm);
+
     // send the entry to maintain userspace cache
     send_event(args, EVENT_FORK, event);
 
@@ -480,6 +499,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
+
+    // delete netns entry
+    bpf_map_delete_elem(&netns_cache, &pid);
 
     if (tgid == pid) {
         if (!is_flushing_discarders()) {
@@ -505,6 +527,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
+
+        // [activity_dump] cleanup tracing state for this pid
+        cleanup_traced_state(tgid);
     }
 
     // remove nr translations
@@ -582,6 +607,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
     // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
 
     struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
@@ -603,6 +629,9 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             copy_span_context(&syscall->exec.span_context, &event.span);
             fill_args_envs(&event, syscall);
 
+            // [activity_dump] check if this process should be traced
+            should_trace_new_process(ctx, now, tgid, event.proc_entry.container.container_id, event.proc_entry.comm);
+
             // send the entry to maintain userspace cache
             send_event(ctx, EVENT_EXEC, event);
         }
@@ -610,4 +639,5 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
     return 0;
 }
+
 #endif

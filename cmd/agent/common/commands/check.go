@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -42,31 +41,32 @@ import (
 )
 
 var (
-	checkRate              bool
-	checkTimes             int
-	checkPause             int
-	checkName              string
-	checkDelay             int
-	logLevel               string
-	formatJSON             bool
-	formatTable            bool
-	breakPoint             string
-	fullSketches           bool
-	saveFlare              bool
-	profileMemory          bool
-	profileMemoryDir       string
-	profileMemoryFrames    string
-	profileMemoryGC        string
-	profileMemoryCombine   string
-	profileMemorySort      string
-	profileMemoryLimit     string
-	profileMemoryDiff      string
-	profileMemoryFilters   string
-	profileMemoryUnit      string
-	profileMemoryVerbose   string
-	discoveryTimeout       uint
-	discoveryRetryInterval uint
-	discoveryMinInstances  uint
+	checkRate                 bool
+	checkTimes                int
+	checkPause                int
+	checkName                 string
+	checkDelay                int
+	logLevel                  string
+	formatJSON                bool
+	formatTable               bool
+	breakPoint                string
+	fullSketches              bool
+	saveFlare                 bool
+	profileMemory             bool
+	profileMemoryDir          string
+	profileMemoryFrames       string
+	profileMemoryGC           string
+	profileMemoryCombine      string
+	profileMemorySort         string
+	profileMemoryLimit        string
+	profileMemoryDiff         string
+	profileMemoryFilters      string
+	profileMemoryUnit         string
+	profileMemoryVerbose      string
+	discoveryTimeout          uint
+	discoveryRetryInterval    uint
+	discoveryMinInstances     uint
+	generateIntegrationTraces bool
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -97,6 +97,7 @@ func setupCmd(cmd *cobra.Command) {
 	createHiddenStringFlag(cmd, &profileMemoryFilters, "m-filters", "", "comma-separated list of file path glob patterns to filter by")
 	createHiddenStringFlag(cmd, &profileMemoryUnit, "m-unit", "", "the binary unit to represent memory usage (kib, mb, etc.). the default is dynamic")
 	createHiddenStringFlag(cmd, &profileMemoryVerbose, "m-verbose", "", "whether or not to include potentially noisy sources")
+	createHiddenBooleanFlag(cmd, &generateIntegrationTraces, "m-trace", false, "send the integration traces")
 
 	cmd.SetArgs([]string{"checkName"})
 }
@@ -123,6 +124,14 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				color.NoColor = true
 			}
 
+			previousIntegrationTracing := false
+			if generateIntegrationTraces {
+				if config.Datadog.IsSet("integration_tracing") {
+					previousIntegrationTracing = config.Datadog.GetBool("integration_tracing")
+				}
+				config.Datadog.Set("integration_tracing", true)
+			}
+
 			if len(args) != 0 {
 				checkName = args[0]
 			} else {
@@ -137,10 +146,9 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-			forwarderOpts := forwarder.NewOptions(nil)
-			forwarderOpts.DisableAPIKeyChecking = true
-			opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+			opts := aggregator.DefaultDemultiplexerOptions(nil)
 			opts.FlushInterval = 0
+			opts.UseNoopForwarder = true
 			opts.UseNoopEventPlatformForwarder = true
 			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
@@ -434,6 +442,10 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				writeCheckToFile(checkName, &checkFileOutput)
 			}
 
+			if generateIntegrationTraces {
+				config.Datadog.Set("integration_tracing", previousIntegrationTracing)
+			}
+
 			return nil
 		},
 	}
@@ -654,6 +666,11 @@ func singleCheckRun() bool {
 
 func createHiddenStringFlag(cmd *cobra.Command, p *string, name string, value string, usage string) {
 	cmd.Flags().StringVar(p, name, value, usage)
+	cmd.Flags().MarkHidden(name) //nolint:errcheck
+}
+
+func createHiddenBooleanFlag(cmd *cobra.Command, p *bool, name string, value bool, usage string) {
+	cmd.Flags().BoolVar(p, name, value, usage)
 	cmd.Flags().MarkHidden(name) //nolint:errcheck
 }
 

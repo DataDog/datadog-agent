@@ -43,6 +43,7 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				UsageTotal:   pointer.Float64Ptr(42000),
 				KernelMemory: pointer.Float64Ptr(40),
 				Limit:        pointer.Float64Ptr(42000),
+				SwapLimit:    pointer.Float64Ptr(500),
 				Softlimit:    pointer.Float64Ptr(40000),
 				RSS:          pointer.Float64Ptr(300),
 				Cache:        pointer.Float64Ptr(200),
@@ -73,8 +74,8 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				PIDs:        []int{4, 2},
 				ThreadCount: pointer.Float64Ptr(10),
 				ThreadLimit: pointer.Float64Ptr(20),
-				OpenFiles:   pointer.Float64Ptr(200),
 			},
 		},
+		OpenFiles: pointer.UInt64Ptr(200),
 	}
 }

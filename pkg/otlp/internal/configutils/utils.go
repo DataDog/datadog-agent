@@ -49,12 +49,10 @@ type mapProvider struct {
 func (m *mapProvider) Retrieve(_ context.Context, location string, _ configmapprovider.WatcherFunc) (configmapprovider.Retrieved, error) {
 	// We only support the constant location 'map:hardcoded'
 	if location != mapLocation {
-		return nil, fmt.Errorf("%v location is not supported by %v provider", location, mapSchemeName)
+		return configmapprovider.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", location, mapSchemeName)
 	}
 
-	return configmapprovider.NewRetrieved(func(context.Context) (*config.Map, error) {
-		return m.cfg, nil
-	})
+	return configmapprovider.Retrieved{Map: m.cfg}, nil
 }
 
 func (m *mapProvider) Shutdown(context.Context) error {

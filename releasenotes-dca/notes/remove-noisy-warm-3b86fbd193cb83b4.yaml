@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remove noisy Kubernetes API deprecation warnings in the Cluster Agent logs.

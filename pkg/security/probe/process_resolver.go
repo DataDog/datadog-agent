@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	"io"
@@ -21,7 +22,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
@@ -47,7 +47,10 @@ const (
 	snapshotted
 )
 
-const procResolveMaxDepth = 16
+const (
+	procResolveMaxDepth = 16
+	maxArgsEnvResidents = 1024
+)
 
 func getAttr2(probe *Probe) uint64 {
 	if probe.kernelVersion.IsRH7Kernel() {
@@ -90,7 +93,6 @@ type ProcessResolver struct {
 	state            int64
 	probe            *Probe
 	resolvers        *Resolvers
-	client           *statsd.Client
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
@@ -113,10 +115,22 @@ type ProcessResolver struct {
 // ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
 	pool *sync.Pool
+
+	// entries that wont be release to the pool
+	maxResidents   int
+	totalResidents int
+	freeResidents  *list.List
 }
 
 // Get returns a cache entry
 func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
+	// first try from resident pool
+	if el := a.freeResidents.Front(); el != nil {
+		entry := el.Value.(*model.ArgsEnvsCacheEntry)
+		a.freeResidents.Remove(el)
+		return entry
+	}
+
 	return a.pool.Get().(*model.ArgsEnvsCacheEntry)
 }
 
@@ -129,12 +143,27 @@ func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheE
 
 // Put returns a cache entry to the pool
 func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
-	a.pool.Put(entry)
+	if entry.Container != nil {
+		// from the residents list
+		a.freeResidents.MoveToBack(entry.Container)
+	} else if a.totalResidents < a.maxResidents {
+		// still some places so we can create a new node
+		entry.Container = &list.Element{Value: entry}
+		a.totalResidents++
+
+		a.freeResidents.MoveToBack(entry.Container)
+	} else {
+		a.pool.Put(entry)
+	}
 }
 
 // NewArgsEnvsPool returns a new ArgsEnvEntry pool
-func NewArgsEnvsPool() *ArgsEnvsPool {
-	ap := ArgsEnvsPool{pool: &sync.Pool{}}
+func NewArgsEnvsPool(maxResident int) *ArgsEnvsPool {
+	ap := ArgsEnvsPool{
+		pool:          &sync.Pool{},
+		maxResidents:  maxResident,
+		freeResidents: list.New(),
+	}
 
 	ap.pool.New = func() interface{} {
 		return model.NewArgsEnvsCacheEntry(ap.Put)
@@ -216,7 +245,9 @@ func (p *ProcessResolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
-	return p.processCacheEntryPool.Get()
+	entry := p.processCacheEntryPool.Get()
+	entry.Cookie = eval.NewCookie()
+	return entry
 }
 
 // SendStats sends process resolver metrics
@@ -224,46 +255,46 @@ func (p *ProcessResolver) SendStats() error {
 	var err error
 	var count int64
 
-	if err = p.client.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
-	if err = p.client.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
 	}
 
 	if count = atomic.SwapInt64(p.hitsStats[metrics.CacheTag], 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver cache hits metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(p.hitsStats[metrics.KernelMapsTag], 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver kernel maps hits metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(p.hitsStats[metrics.ProcFSTag], 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(&p.missStats, 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver misses metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(&p.addedEntries, 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver added entries metric")
 		}
 	}
 
 	if count = atomic.SwapInt64(&p.flushedEntries, 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver flushed entries metric")
 		}
 	}
@@ -375,6 +406,14 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
 		}
+	}
+
+	// add netns
+	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
+
+	if p.probe.config.NetworkEnabled {
+		// snapshot pid routes in kernel space
+		_, _ = proc.OpenFiles()
 	}
 
 	return nil
@@ -537,7 +576,7 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 	}
 	entry.ContainerID = id
 
-	read, err := entry.UnmarshalBinary(data[64:])
+	read, err := entry.Process.UnmarshalBinary(data[64:])
 	if err != nil {
 		return read + 64, err
 	}
@@ -557,6 +596,20 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 	entry.Tid = tid
 
 	return entry
+}
+
+// ResolveNewProcessCacheEntryContext resolves the context fields of a new process cache entry parsed from kernel data
+func (p *ProcessResolver) ResolveNewProcessCacheEntryContext(entry *model.ProcessCacheEntry) error {
+	p.SetProcessArgs(entry)
+	p.SetProcessEnvs(entry)
+	if _, err := p.SetProcessPath(entry); err != nil {
+		return fmt.Errorf("failed to resolve exec path: %w", err)
+	}
+	p.SetProcessFilesystem(entry)
+	p.SetProcessTTY(entry)
+	p.SetProcessUsersGroups(entry)
+	p.ApplyBootTime(entry)
+	return nil
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
@@ -582,6 +635,11 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 	entry.Pid = pid
 	entry.Tid = tid
+
+	// resolve paths and other context fields
+	if err = p.ResolveNewProcessCacheEntryContext(entry); err != nil {
+		return nil
+	}
 
 	// If we fall back to the kernel maps for a process in a container that was already running when the agent
 	// started, the kernel space container ID will be empty even though the process is inside a container. Since there
@@ -907,6 +965,26 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
+	// insert new entry in kernel maps
+	procCacheEntryB := make([]byte, 224)
+	_, err := entry.Process.MarshalProcCache(procCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
+	} else {
+		if err = p.procCacheMap.Put(pid, procCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
+		}
+	}
+	pidCacheEntryB := make([]byte, 64)
+	_, err = entry.Process.MarshalPidCache(pidCacheEntryB)
+	if err != nil {
+		seclog.Errorf("couldn't marshal prid_cache entry: %s", err)
+	} else {
+		if err = p.pidCacheMap.Put(pid, pidCacheEntryB); err != nil {
+			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
+		}
+	}
+
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)
 
 	return entry, true
@@ -988,6 +1066,16 @@ func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
+}
+
 // NewProcessVariables returns a provider for variables attached to a process cache entry
 func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
 	scoper := func(ctx *eval.Context) unsafe.Pointer {
@@ -1005,7 +1093,7 @@ func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
 }
 
 // NewProcessResolver returns a new process resolver
-func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
+func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU(512, nil)
 	if err != nil {
 		return nil, err
@@ -1014,12 +1102,11 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 	p := &ProcessResolver{
 		probe:         probe,
 		resolvers:     resolvers,
-		client:        client,
 		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
 		opts:          opts,
 		argsEnvsCache: argsEnvsCache,
 		state:         snapshotting,
-		argsEnvsPool:  NewArgsEnvsPool(),
+		argsEnvsPool:  NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:     map[string]*int64{},
 	}
 	for _, t := range metrics.AllTypesTags {

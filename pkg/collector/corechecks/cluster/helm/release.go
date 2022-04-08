@@ -13,6 +13,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 )
 
@@ -31,6 +32,17 @@ type release struct {
 	Chart     *chart `json:"chart,omitempty"`
 	Version   int    `json:"version,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
+}
+
+type namespacedName string
+type revision int
+
+func (rel *release) namespacedName() namespacedName {
+	return namespacedName(fmt.Sprintf("%s/%s", rel.Namespace, rel.Name))
+}
+
+func (rel *release) revision() revision {
+	return revision(rel.Version)
 }
 
 type info struct {

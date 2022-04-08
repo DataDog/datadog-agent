@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,7 +34,9 @@ func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 
 func TestStartInvocation(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	m := &mockLifecycleProcessor{}
@@ -41,7 +44,7 @@ func TestStartInvocation(t *testing.T) {
 
 	client := &http.Client{Timeout: 1 * time.Second}
 	body := bytes.NewBuffer([]byte(`{"toto": "titi", "tata":true}`))
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
@@ -53,15 +56,17 @@ func TestStartInvocation(t *testing.T) {
 
 func TestEndInvocation(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	m := &mockLifecycleProcessor{}
 	d.InvocationProcessor = m
 
-	client := &http.Client{Timeout: 1 * time.Second}
+	client := &http.Client{}
 	body := bytes.NewBuffer([]byte(`{}`))
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/end-invocation", body)
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
@@ -74,15 +79,17 @@ func TestEndInvocation(t *testing.T) {
 
 func TestEndInvocationWithError(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	m := &mockLifecycleProcessor{}
 	d.InvocationProcessor = m
 
-	client := &http.Client{Timeout: 1 * time.Second}
+	client := &http.Client{}
 	body := bytes.NewBuffer([]byte(`{}`))
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/end-invocation", body)
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
 	request.Header.Set("x-datadog-invocation-error", "true")
 	assert.Nil(err)
 	res, err := client.Do(request)
@@ -97,7 +104,9 @@ func TestEndInvocationWithError(t *testing.T) {
 func TestTraceContext(t *testing.T) {
 	assert := assert.New(t)
 
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:           d.ExtraTags,
@@ -105,13 +114,13 @@ func TestTraceContext(t *testing.T) {
 		ProcessTrace:        nil,
 		DetectLambdaLibrary: func() bool { return false },
 	}
-	client := &http.Client{Timeout: 1 * time.Second}
+	client := &http.Client{}
 	body := bytes.NewBuffer([]byte(`{"toto": "tutu","Headers": {"x-datadog-trace-id": "2222"}}`))
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
 	assert.Nil(err)
 	_, err = client.Do(request)
 	assert.Nil(err)
-	request, err = http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/trace-context", nil)
+	request, err = http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/trace-context", port), nil)
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)

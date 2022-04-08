@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -129,6 +130,43 @@ func Test_injectEnv(t *testing.T) {
 			if tt.args.pod != nil && !reflect.DeepEqual(tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers) {
 				t.Errorf("injectEnv() = %v, want %v", tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers)
 			}
+		})
+	}
+}
+
+func Test_injectVolume(t *testing.T) {
+	type args struct {
+		pod         *corev1.Pod
+		volume      corev1.Volume
+		volumeMount corev1.VolumeMount
+	}
+	tests := []struct {
+		name     string
+		args     args
+		injected bool
+	}{
+		{
+			name: "nominal case",
+			args: args{
+				pod:         fakePod("foo"),
+				volume:      corev1.Volume{Name: "volumefoo"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: true,
+		},
+		{
+			name: "volume exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo"),
+				volume:      corev1.Volume{Name: "volumefoo"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.injected, injectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
 		})
 	}
 }

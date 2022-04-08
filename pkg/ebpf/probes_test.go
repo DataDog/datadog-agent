@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

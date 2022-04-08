@@ -85,7 +85,7 @@ func V2() (*v2.Client, error) {
 		})
 	})
 	if err := globalUtil.initRetryV2.TriggerRetry(); err != nil {
-		log.Debugf("ECS metadata v2 client init error: %w", err)
+		log.Debugf("ECS metadata v2 client init error: %v", err)
 		return nil, err
 	}
 

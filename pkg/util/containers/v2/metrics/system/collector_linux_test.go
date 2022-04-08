@@ -56,6 +56,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					RSS:          pointer.UInt64Ptr(300),
 					Cache:        pointer.UInt64Ptr(200),
 					Swap:         pointer.UInt64Ptr(0),
+					SwapLimit:    pointer.UInt64Ptr(500),
 					OOMEvents:    pointer.UInt64Ptr(10),
 				},
 				IOStats: &cgroups.IOStats{
@@ -98,6 +99,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					RSS:          pointer.Float64Ptr(300),
 					Cache:        pointer.Float64Ptr(200),
 					Swap:         pointer.Float64Ptr(0),
+					SwapLimit:    pointer.Float64Ptr(500),
 					OOMEvents:    pointer.Float64Ptr(10),
 				},
 				IO: &provider.ContainerIOStats{

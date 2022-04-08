@@ -36,6 +36,10 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  kernel_module 'veth' do
+    action :load
+  end
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
@@ -74,28 +78,45 @@ if node['platform_family'] != 'windows'
       end
     end
 
-    docker_image 'centos' do
-      tag '7'
-      action :pull
+    file "#{wrk_dir}/Dockerfile" do
+      content <<-EOF
+      FROM centos:7
+      ENV DOCKER_DD_AGENT=yes
+      ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
+      RUN yum -y install xfsprogs e2fsprogs iproute
+      CMD sleep 7200
+      EOF
+      action :create
+    end
+
+    docker_image 'testsuite-img' do
+      tag 'latest'
+      source wrk_dir
+      action :build
     end
 
     docker_container 'docker-testsuite' do
-      repo 'centos'
-      tag '7'
+      repo 'testsuite-img'
+      tag 'latest'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
-      command "sleep 7200"
       volumes [
+        # security-agent misc
         '/tmp/security-agent:/tmp/security-agent',
+        # HOST_* paths
         '/proc:/host/proc',
+        '/etc:/host/etc',
+        '/sys:/host/sys',
+        # os-release
         '/etc/os-release:/host/etc/os-release',
-        '/:/host/root',
-        '/etc:/host/etc'
+        '/usr/lib/os-release:/host/usr/lib/os-release',
+        # passwd and groups
+        '/etc/passwd:/etc/passwd',
+        '/etc/group:/etc/group',
       ]
       env [
         'HOST_PROC=/host/proc',
-        'HOST_ROOT=/host/root',
         'HOST_ETC=/host/etc',
-        'DOCKER_DD_AGENT=yes'
+        'HOST_SYS=/host/sys',
       ]
       privileged true
     end
@@ -103,11 +124,6 @@ if node['platform_family'] != 'windows'
     docker_exec 'debug_fs' do
       container 'docker-testsuite'
       command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
-    end
-
-    docker_exec 'install_xfs' do
-      container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
     end
 
     for i in 0..7 do

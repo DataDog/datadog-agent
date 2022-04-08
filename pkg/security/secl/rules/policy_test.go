@@ -7,7 +7,6 @@ package rules
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -25,7 +24,7 @@ func savePolicy(filename string, testPolicy *Policy) error {
 		return err
 	}
 
-	return ioutil.WriteFile(filename, yamlBytes, 0700)
+	return os.WriteFile(filename, yamlBytes, 0700)
 }
 
 func TestMacroMerge(t *testing.T) {
@@ -57,7 +56,7 @@ func TestMacroMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := ioutil.TempDir("", "test-policy")
+	tmpDir, err := os.MkdirTemp("", "test-policy")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +124,7 @@ func TestRuleMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := ioutil.TempDir("", "test-policy")
+	tmpDir, err := os.MkdirTemp("", "test-policy")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +298,7 @@ func TestActionSetVariable(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := ioutil.TempDir("", "test-policy")
+	tmpDir, err := os.MkdirTemp("", "test-policy")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +380,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := ioutil.TempDir("", "test-policy")
+	tmpDir, err := os.MkdirTemp("", "test-policy")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +407,7 @@ func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
 		WithMacros(make(map[eval.MacroID]*eval.Macro))
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	tmpDir, err := ioutil.TempDir("", "test-policy")
+	tmpDir, err := os.MkdirTemp("", "test-policy")
 	if err != nil {
 		t.Fatal(err)
 	}

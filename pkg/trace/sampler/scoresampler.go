@@ -66,7 +66,7 @@ func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env 
 	signature := computeSignatureWithRootAndEnv(trace, root, env)
 	signature = s.shrink(signature)
 	// Update sampler state by counting this trace
-	s.countWeightedSig(now, signature, 1)
+	s.countWeightedSig(now, signature, weightRoot(root))
 
 	rate := s.getSignatureSampleRate(signature)
 

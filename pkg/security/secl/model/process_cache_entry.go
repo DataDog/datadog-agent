@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run github.com/tinylib/msgp -tests=false
+
 package model
 
 import (
+	"container/list"
 	"strings"
 	"time"
 )
@@ -14,6 +17,25 @@ import (
 func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	pc.Ancestor = parent
 	parent.Retain()
+}
+
+// GetNextAncestorNoFork returns the first ancestor that is not a fork entry
+func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
+	if pc.Ancestor == nil {
+		return nil
+	}
+
+	ancestor := pc.Ancestor
+	for ancestor.Ancestor != nil {
+		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
+			// this is a fork entry, move on to the next ancestor
+			ancestor = ancestor.Ancestor
+		} else {
+			break
+		}
+	}
+
+	return ancestor
 }
 
 // Exit a process
@@ -84,6 +106,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 }*/
 
 // ArgsEnvs raw value for args and envs
+//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
@@ -91,8 +114,11 @@ type ArgsEnvs struct {
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
+//msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	ArgsEnvs
+
+	Container *list.Element
 
 	next *ArgsEnvsCacheEntry
 	last *ArgsEnvsCacheEntry
@@ -181,10 +207,10 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry
+	*ArgsEnvsCacheEntry `msg:"-"`
 
-	Values    []string
-	Truncated bool
+	Values    []string `msg:"values"`
+	Truncated bool     `msg:"-"`
 
 	parsed bool
 }
@@ -208,10 +234,10 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry
+	*ArgsEnvsCacheEntry `msg:"-"`
 
-	Values    []string
-	Truncated bool
+	Values    []string `msg:"values"`
+	Truncated bool     `msg:"-"`
 
 	parsed bool
 	keys   []string

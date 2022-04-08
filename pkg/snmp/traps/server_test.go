@@ -6,6 +6,8 @@
 package traps
 
 import (
+	"net"
+	"strconv"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -13,8 +15,45 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var serverPort = getFreePort()
+
+func getFreePort() uint16 {
+	var port uint16
+	for i := 0; i < 5; i++ {
+		conn, err := net.ListenPacket("udp", ":0")
+		if err != nil {
+			continue
+		}
+		conn.Close()
+		port, err = parsePort(conn.LocalAddr().String())
+		if err != nil {
+			continue
+		}
+		listener, err := startSNMPTrapListener(&Config{Port: port}, nil)
+		if err != nil {
+			continue
+		}
+		listener.Close()
+		return port
+	}
+	panic("unable to find free port for starting the trap listener")
+}
+
+func parsePort(addr string) (uint16, error) {
+	_, portString, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0, err
+	}
+
+	port, err := strconv.ParseUint(portString, 10, 16)
+	if err != nil {
+		return 0, err
+	}
+	return uint16(port), nil
+}
+
 func TestServerV1GenericTrap(t *testing.T) {
-	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
+	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
 	err := StartServer("dummy_hostname")
@@ -30,7 +69,7 @@ func TestServerV1GenericTrap(t *testing.T) {
 }
 
 func TestServerV1SpecificTrap(t *testing.T) {
-	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
+	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
 	err := StartServer("dummy_hostname")
@@ -45,7 +84,7 @@ func TestServerV1SpecificTrap(t *testing.T) {
 }
 
 func TestServerV2(t *testing.T) {
-	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
+	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
 	err := StartServer("dummy_hostname")
@@ -60,7 +99,7 @@ func TestServerV2(t *testing.T) {
 }
 
 func TestServerV2BadCredentials(t *testing.T) {
-	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
+	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
 	err := StartServer("dummy_hostname")
@@ -73,7 +112,7 @@ func TestServerV2BadCredentials(t *testing.T) {
 
 func TestServerV3(t *testing.T) {
 	userV3 := UserV3{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"}
-	config := Config{Port: GetPort(t), Users: []UserV3{userV3}}
+	config := Config{Port: serverPort, Users: []UserV3{userV3}}
 	Configure(t, config)
 
 	err := StartServer("dummy_hostname")
@@ -82,7 +121,7 @@ func TestServerV3(t *testing.T) {
 
 	sendTestV3Trap(t, config, &gosnmp.UsmSecurityParameters{
 		UserName:                 "user",
-		AuthoritativeEngineID:    "foo",
+		AuthoritativeEngineID:    "foobarbaz",
 		AuthenticationPassphrase: "password",
 		AuthenticationProtocol:   gosnmp.SHA,
 		PrivacyPassphrase:        "password",
@@ -95,7 +134,7 @@ func TestServerV3(t *testing.T) {
 
 func TestServerV3BadCredentials(t *testing.T) {
 	userV3 := UserV3{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"}
-	config := Config{Port: GetPort(t), Users: []UserV3{userV3}}
+	config := Config{Port: serverPort, Users: []UserV3{userV3}}
 	Configure(t, config)
 
 	err := StartServer("dummy_hostname")
@@ -117,7 +156,7 @@ func TestStartFailure(t *testing.T) {
 	/*
 		Start two servers with the same config to trigger an "address already in use" error.
 	*/
-	port := GetPort(t)
+	port := serverPort
 
 	config := Config{Port: port, CommunityStrings: []string{"public"}}
 	Configure(t, config)

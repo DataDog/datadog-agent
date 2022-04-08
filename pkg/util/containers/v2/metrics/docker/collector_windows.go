@@ -9,8 +9,6 @@
 package docker
 
 import (
-	"time"
-
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
@@ -20,7 +18,7 @@ import (
 
 func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 	return &provider.ContainerStats{
-		Timestamp: time.Now(),
+		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),
 		Memory:    convertMemoryStats(&stats.MemoryStats),
 		IO:        convertIOStats(&stats.StorageStats),
@@ -40,8 +38,7 @@ func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 
 func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
 	return &provider.ContainerMemStats{
-		UsageTotal:        pointer.UIntToFloatPtr(memStats.Usage),
-		Limit:             pointer.UIntToFloatPtr(memStats.Limit),
+		UsageTotal:        pointer.UIntToFloatPtr(memStats.Commit),
 		PrivateWorkingSet: pointer.UIntToFloatPtr(memStats.PrivateWorkingSet),
 		CommitBytes:       pointer.UIntToFloatPtr(memStats.Commit),
 		CommitPeakBytes:   pointer.UIntToFloatPtr(memStats.CommitPeak),

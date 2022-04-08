@@ -60,7 +60,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "containerd.cpu.limit", 5e8, "", expectedTags)
 
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.current.usage", 42000, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "containerd.mem.kernel", 40, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "containerd.mem.kernel.usage", 40, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.current.limit", 42000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.rss", 300, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.cache", 200, "", expectedTags)

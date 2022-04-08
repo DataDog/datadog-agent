@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 // +build !windows
 
@@ -21,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -193,14 +194,4 @@ func TestGetProxyMeta(t *testing.T) {
 	httputils.NoProxyIgnoredWarningMap["http://someUrl.com"] = true
 	meta = getProxyMeta()
 	assert.Equal(t, meta.ProxyBehaviorChanged, true)
-}
-
-func TestGetOtlpMeta(t *testing.T) {
-	config.Datadog.Set(config.OTLPReceiverSection+".protocols.grpc.endpoint", "localhost:9999")
-	meta := getOtlpMeta()
-	assert.Equal(t, meta.Enabled, true)
-
-	config.Datadog.Set(config.OTLPSection, nil)
-	meta = getOtlpMeta()
-	assert.Equal(t, meta.Enabled, false)
 }

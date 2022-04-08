@@ -18,10 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
 )
 
@@ -65,7 +64,7 @@ type subprogram interface {
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
 	var bytecode bytecode.AssetReader
 	var err error
-	if enableRuntimeCompilation(c) {
+	if c.EnableRuntimeCompiler {
 		bytecode, err = getRuntimeCompiledHTTP(c)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
@@ -105,19 +104,19 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 		},
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg"}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter"}},
+			{Section: httpSocketFilter},
+			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
 		},
 	}
 
-	sslProgram, _ := newSSLProgram(c, sockFD)
+	openSSLProgram, _ := newOpenSSLProgram(c, sockFD)
 	program := &ebpfProgram{
 		Manager:                mgr,
 		bytecode:               bytecode,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		subprograms:            []subprogram{openSSLProgram},
 	}
 
 	return program, nil
@@ -129,7 +128,7 @@ func (e *ebpfProgram) Init() error {
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
-	e.Manager.DumpHandler = dumpMapsHandler
+	setupDumpHandler(e.Manager)
 
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
@@ -146,14 +145,12 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilter,
-					EBPFFuncName: "socket__http_filter",
+					Section: httpSocketFilter,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsgReturn),
-					EBPFFuncName: "kretprobe__tcp_sendmsg",
+					Section: string(probes.TCPSendMsgReturn),
 				},
 			},
 		},
@@ -192,20 +189,4 @@ func (e *ebpfProgram) Close() error {
 		s.Stop()
 	}
 	return err
-}
-
-func enableRuntimeCompilation(c *config.Config) bool {
-	if !c.EnableRuntimeCompiler {
-		return false
-	}
-
-	// The runtime-compiled version of HTTP monitoring requires Kernel 4.6
-	// because we use the `bpf_skb_load_bytes` helper.
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. falling back to pre-compiled program.")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(4, 6, 0)
 }

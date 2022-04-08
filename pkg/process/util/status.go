@@ -3,7 +3,9 @@ package util
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -13,6 +15,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// httpClients should be reused instead of created as needed. They keep cached TCP connections
+// that may leak otherwise
+var (
+	httpClient     *http.Client
+	clientInitOnce sync.Once
+)
+
+func getHTTPClient() *http.Client {
+	clientInitOnce.Do(func() {
+		httpClient = apiutil.GetClient(false)
+	})
+
+	return httpClient
+}
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
@@ -115,8 +132,8 @@ func getCoreStatus() (s CoreStatus) {
 }
 
 func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
-	httpClient := apiutil.GetClient(false)
-	b, err := apiutil.DoGet(httpClient, expVarURL)
+	client := getHTTPClient()
+	b, err := apiutil.DoGet(client, expVarURL, apiutil.CloseConnection)
 	if err != nil {
 		return s, ConnectionError{err}
 	}

@@ -39,6 +39,12 @@ driver_config:
   <% else %>
   azure_resource_group_suffix: plnone
   <% end %>
+  custom_data: |
+    #cloud-config
+    runcmd:
+      - mkdir /mnt/kitchen
+      - chmod a+rwx /mnt/kitchen
+      - ln -s /mnt/kitchen /tmp/kitchen
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,

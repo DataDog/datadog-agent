@@ -14,7 +14,7 @@ Process Agent
   Build arch: {{ .core.build_arch }}
   Log Level: {{ .core.config.log_level }}
   Enabled Checks: {{ .expvars.enabled_checks }}
-  Allocated Memory: {{ .expvars.memstats.alloc }} bytes
+  Allocated Memory: {{ humanize .expvars.memstats.alloc }} bytes
   Hostname: {{ .core.metadata.meta.hostname }}
 
   =================

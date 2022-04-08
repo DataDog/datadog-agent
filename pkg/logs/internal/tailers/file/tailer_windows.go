@@ -12,14 +12,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.File.Path)
+	fullpath, err := filepath.Abs(t.file.Path)
 	if err != nil {
 		return err
 	}
@@ -36,13 +37,19 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	filePos, _ := f.Seek(offset, whence)
 	f.Close()
 
-	t.readOffset = filePos
-	t.decodedOffset = filePos
+	t.setLastReadOffset(filePos)
+	t.setDecodedOffset(filePos)
 
 	return nil
 }
 
 func (t *Tailer) readAvailable() (int, error) {
+	// If the file has already rotated, there is nothing to be done. Unlike on *nix,
+	// there is no open file handle from which remaining data might be read.
+	if t.hasFileRotated() {
+		return 0, io.EOF
+	}
+
 	f, err := openFile(t.fullpath)
 	if err != nil {
 		return 0, err
@@ -56,17 +63,13 @@ func (t *Tailer) readAvailable() (int, error) {
 	}
 
 	sz := st.Size()
-	offset := t.GetReadOffset()
-	if sz == 0 {
-		log.Debug("File size now zero, resetting offset")
-		t.SetReadOffset(0)
-		t.SetDecodedOffset(0)
-	} else if sz < offset {
-		log.Debug("Offset off end of file, resetting")
-		t.SetReadOffset(0)
-		t.SetDecodedOffset(0)
+	offset := t.getLastReadOffset()
+	if sz < offset {
+		log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
+		return 0, io.EOF
 	}
-	f.Seek(t.GetReadOffset(), io.SeekStart)
+
+	f.Seek(offset, io.SeekStart)
 	bytes := 0
 
 	for {
@@ -77,7 +80,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			return bytes, err
 		}
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementReadOffset(n)
+		t.incrementLastReadOffset(n)
 	}
 }
 
@@ -89,8 +92,21 @@ func (t *Tailer) read() (int, error) {
 	if err == io.EOF || os.IsNotExist(err) {
 		return n, nil
 	} else if err != nil {
-		t.File.Source.Status.Error(err)
+		t.file.Source.Status.Error(err)
 		return n, log.Error("Err: ", err)
 	}
 	return n, nil
+}
+
+// setLastReadOffset sets the value of lastReadOffset, atomically.
+func (t *Tailer) setLastReadOffset(off int64) {
+	atomic.StoreInt64(&t.lastReadOffset, off)
+}
+
+// setDecodedOffset sets decodedOffset, atomically.
+//
+// NOTE: other access to this field is not made atomically, so calling this
+// method may lead to undefined behavior.
+func (t *Tailer) setDecodedOffset(off int64) {
+	atomic.StoreInt64(&t.decodedOffset, off)
 }

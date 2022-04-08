@@ -7,25 +7,24 @@ import (
 )
 
 func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		if state.field != "" {
-			if a.isPartial {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.isPartial {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = func(ctx *Context) bool {
 					return true
 				}
 			}
 		}
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		if a.Weight > b.Weight {
 			tmp := ea
@@ -38,30 +37,21 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
 
-		if state.field != "" {
-			if a.isPartial {
-				ea = true
-			}
-			if b.isPartial {
-				eb = true
-			}
-		}
-
 		ctx := NewContext(nil)
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea || eb,
-			isPartial: isPartialLeaf,
+			Value:           ea || eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -75,12 +65,12 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 		}
 
 		if state.field != "" {
-			if a.isPartial {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.isPartial {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = true
 			}
 		}
@@ -90,10 +80,10 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -106,10 +96,10 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 	}
 
 	if state.field != "" {
-		if a.isPartial {
+		if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 			ea = true
 		}
-		if b.isPartial {
+		if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 			eb = func(ctx *Context) bool {
 				return true
 			}
@@ -121,33 +111,32 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEval
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		if state.field != "" {
-			if a.isPartial {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.isPartial {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = func(ctx *Context) bool {
 					return true
 				}
 			}
 		}
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		if a.Weight > b.Weight {
 			tmp := ea
@@ -160,30 +149,21 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
 
-		if state.field != "" {
-			if a.isPartial {
-				ea = true
-			}
-			if b.isPartial {
-				eb = true
-			}
-		}
-
 		ctx := NewContext(nil)
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea && eb,
-			isPartial: isPartialLeaf,
+			Value:           ea && eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -197,12 +177,12 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 		}
 
 		if state.field != "" {
-			if a.isPartial {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.isPartial {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = true
 			}
 		}
@@ -212,10 +192,10 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -228,10 +208,10 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 	}
 
 	if state.field != "" {
-		if a.isPartial {
+		if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 			ea = true
 		}
-		if b.isPartial {
+		if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 			eb = func(ctx *Context) bool {
 				return true
 			}
@@ -243,29 +223,28 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEva
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -276,8 +255,8 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*Boo
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea == eb,
-			isPartial: isPartialLeaf,
+			Value:           ea == eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -295,10 +274,10 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*Boo
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -315,15 +294,16 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*Boo
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		return nil, errors.New("full dynamic bitmask operation not supported")
@@ -336,8 +316,8 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEva
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:     ea & eb,
-			isPartial: isPartialLeaf,
+			Value:           ea & eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -355,10 +335,10 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEva
 		}
 
 		return &IntEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -375,15 +355,16 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEva
 	}
 
 	return &IntEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		return nil, errors.New("full dynamic bitmask operation not supported")
@@ -396,8 +377,8 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEval
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:     ea | eb,
-			isPartial: isPartialLeaf,
+			Value:           ea | eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -415,10 +396,10 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEval
 		}
 
 		return &IntEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -435,15 +416,16 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEval
 	}
 
 	return &IntEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		return nil, errors.New("full dynamic bitmask operation not supported")
@@ -456,8 +438,8 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEva
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:     ea ^ eb,
-			isPartial: isPartialLeaf,
+			Value:           ea ^ eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -475,10 +457,10 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEva
 		}
 
 		return &IntEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -495,29 +477,28 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEva
 	}
 
 	return &IntEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -528,8 +509,8 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea == eb,
-			isPartial: isPartialLeaf,
+			Value:           ea == eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -547,10 +528,10 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -567,29 +548,28 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) > eb(ctx)
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -600,8 +580,8 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*B
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea > eb,
-			isPartial: isPartialLeaf,
+			Value:           ea > eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -619,10 +599,10 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*B
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -639,29 +619,28 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*B
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) >= eb(ctx)
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -672,8 +651,8 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea >= eb,
-			isPartial: isPartialLeaf,
+			Value:           ea >= eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -691,10 +670,10 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -711,29 +690,28 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) < eb(ctx)
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -744,8 +722,8 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*Bo
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea < eb,
-			isPartial: isPartialLeaf,
+			Value:           ea < eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -763,10 +741,10 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*Bo
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -783,29 +761,28 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*Bo
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) <= eb(ctx)
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -816,8 +793,8 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ea <= eb,
-			isPartial: isPartialLeaf,
+			Value:           ea <= eb,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -835,10 +812,10 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -855,29 +832,28 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ctx.Now().UnixNano()-int64(ea(ctx)) < int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -888,8 +864,8 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ctx.Now().UnixNano()-int64(ea) < int64(eb),
-			isPartial: isPartialLeaf,
+			Value:           ctx.Now().UnixNano()-int64(ea) < int64(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -907,10 +883,10 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -927,29 +903,28 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ctx.Now().UnixNano()-int64(ea(ctx)) <= int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -960,8 +935,8 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ctx.Now().UnixNano()-int64(ea) <= int64(eb),
-			isPartial: isPartialLeaf,
+			Value:           ctx.Now().UnixNano()-int64(ea) <= int64(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -979,10 +954,10 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -999,29 +974,28 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ctx.Now().UnixNano()-int64(ea(ctx)) > int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1032,8 +1006,8 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *St
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ctx.Now().UnixNano()-int64(ea) > int64(eb),
-			isPartial: isPartialLeaf,
+			Value:           ctx.Now().UnixNano()-int64(ea) > int64(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1051,10 +1025,10 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *St
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1071,29 +1045,28 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *St
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
 			return ctx.Now().UnixNano()-int64(ea(ctx)) >= int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1104,8 +1077,8 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     ctx.Now().UnixNano()-int64(ea) >= int64(eb),
-			isPartial: isPartialLeaf,
+			Value:           ctx.Now().UnixNano()-int64(ea) >= int64(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1123,10 +1096,10 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Field:     a.Field,
-			Weight:    a.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1143,15 +1116,16 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Field:     b.Field,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
 		for _, v := range b {
@@ -1170,9 +1144,9 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *St
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1180,9 +1154,9 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *St
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			Value:           arrayOp(ea, eb),
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1202,9 +1176,9 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *St
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1221,14 +1195,15 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *St
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a bool, b []bool) bool {
 		for _, v := range b {
@@ -1247,9 +1222,9 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state 
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1257,9 +1232,9 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state 
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			Value:           arrayOp(ea, eb),
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1279,9 +1254,9 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state 
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1298,14 +1273,15 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state 
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
 		for _, v := range b {
@@ -1324,9 +1300,9 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, stat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1334,9 +1310,9 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, stat
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			Value:           arrayOp(ea, eb),
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1356,9 +1332,9 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, stat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1375,14 +1351,15 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, stat
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
 		for _, v := range b {
@@ -1401,9 +1378,9 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opt
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1411,9 +1388,9 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opt
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			Value:           arrayOp(ea, eb),
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1433,9 +1410,9 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opt
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1452,14 +1429,15 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opt
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
 		for _, v := range b {
@@ -1478,9 +1456,9 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1488,9 +1466,9 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			Value:           arrayOp(ea, eb),
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1510,9 +1488,9 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1529,14 +1507,15 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }
 
 func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+
+	isDc := isArithmDeterministic(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
 		for _, v := range b {
@@ -1555,9 +1534,9 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1565,9 +1544,9 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			Value:           arrayOp(ea, eb),
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1587,9 +1566,9 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -1606,8 +1585,8 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
 	}, nil
 }

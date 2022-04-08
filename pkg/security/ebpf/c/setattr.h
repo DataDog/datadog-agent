@@ -14,8 +14,9 @@ int __attribute__((always_inline)) security_inode_predicate(u64 type) {
 SEC("kprobe/security_inode_setattr")
 int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
     fill_file_metadata(dentry, &syscall->setattr.file.metadata);
@@ -82,10 +83,12 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
 SEC("kprobe/dr_setattr_callback")
 int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(syscall->type);
         return discard_syscall(syscall);
     }
 

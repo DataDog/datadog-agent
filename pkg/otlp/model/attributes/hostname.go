@@ -16,7 +16,7 @@ package attributes
 
 import (
 	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/azure"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/ec2"

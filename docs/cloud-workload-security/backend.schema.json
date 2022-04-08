@@ -37,6 +37,18 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/SignalEvent"
     },
+    "splice": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SpliceEvent"
+    },
+    "dns": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/DNSEvent"
+    },
+    "network": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/NetworkContext"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -144,6 +156,57 @@
         "trace_id": {
           "type": "integer",
           "description": "Trace ID used for APM correlation"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DNSEvent": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "id is the unique identifier of the DNS request"
+        },
+        "question": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/DNSQuestion",
+          "description": "question is a DNS question for the DNS request"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DNSQuestion": {
+      "required": [
+        "class",
+        "type",
+        "name",
+        "size",
+        "count"
+      ],
+      "properties": {
+        "class": {
+          "type": "string",
+          "description": "class is the class looked up by the DNS question"
+        },
+        "type": {
+          "type": "string",
+          "description": "type is a two octet code which specifies the DNS question type"
+        },
+        "name": {
+          "type": "string",
+          "description": "name is the queried domain name"
+        },
+        "size": {
+          "type": "integer",
+          "description": "size is the total DNS request size in bytes"
+        },
+        "count": {
+          "type": "integer",
+          "description": "count is the total count of questions in the DNS request"
         }
       },
       "additionalProperties": false,
@@ -362,6 +425,24 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "IPPort": {
+      "required": [
+        "ip",
+        "port"
+      ],
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IP address"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "MMapEvent": {
       "required": [
         "address",
@@ -440,6 +521,68 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "NetworkContext": {
+      "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+      ],
+      "properties": {
+        "device": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/NetworkDevice",
+          "description": "device is the network device on which the event was captured"
+        },
+        "l3_protocol": {
+          "type": "string",
+          "description": "l3_protocol is the layer 3 procotocol name"
+        },
+        "l4_protocol": {
+          "type": "string",
+          "description": "l4_protocol is the layer 4 procotocol name"
+        },
+        "source": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/IPPort",
+          "description": "source is the emitter of the network event"
+        },
+        "destination": {
+          "$ref": "#/definitions/IPPort",
+          "description": "destination is the receiver of the network event"
+        },
+        "size": {
+          "type": "integer",
+          "description": "size is the size in bytes of the network event"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "NetworkDevice": {
+      "required": [
+        "netns",
+        "ifindex",
+        "ifname"
+      ],
+      "properties": {
+        "netns": {
+          "type": "integer",
+          "description": "netns is the interface ifindex"
+        },
+        "ifindex": {
+          "type": "integer",
+          "description": "ifindex is the network interface ifindex"
+        },
+        "ifname": {
+          "type": "string",
+          "description": "ifname is the network interface name"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "PTraceEvent": {
       "required": [
         "request",
@@ -463,7 +606,7 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "ProcessCacheEntry": {
+    "Process": {
       "required": [
         "uid",
         "gid"
@@ -669,12 +812,12 @@
         },
         "parent": {
           "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ProcessCacheEntry",
+          "$ref": "#/definitions/Process",
           "description": "Parent process"
         },
         "ancestors": {
           "items": {
-            "$ref": "#/definitions/ProcessCacheEntry"
+            "$ref": "#/definitions/Process"
           },
           "type": "array",
           "description": "Ancestor processes"
@@ -837,6 +980,24 @@
         "target": {
           "$ref": "#/definitions/ProcessContext",
           "description": "process context of the signal target"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SpliceEvent": {
+      "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+      ],
+      "properties": {
+        "pipe_entry_flag": {
+          "type": "string",
+          "description": "Entry flag of the fd_out pipe passed to the splice syscall"
+        },
+        "pipe_exit_flag": {
+          "type": "string",
+          "description": "Exit flag of the fd_out pipe passed to the splice syscall"
         }
       },
       "additionalProperties": false,

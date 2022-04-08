@@ -44,8 +44,9 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
 SEC("kprobe/vfs_unlink")
 int kprobe_vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->unlink.file.path_key.ino) {
         return 0;
@@ -87,8 +88,9 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
 SEC("kprobe/dr_unlink_callback")
 int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->resolver.ret < 0) {
         return mark_as_discarded(syscall);
@@ -99,8 +101,9 @@ int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx
 
 int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;

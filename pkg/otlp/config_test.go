@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build test
-// +build test
+//go:build otlp && test
+// +build otlp,test
 
 package otlp
 
@@ -30,11 +30,13 @@ func TestIsEnabled(t *testing.T) {
 		{path: "experimental/receiver/noprotocols.yaml", enabled: true},
 		{path: "experimental/receiver/portandreceiver.yaml", enabled: true},
 		{path: "experimental/receiver/simple.yaml", enabled: true},
+		{path: "experimental/receiver/null.yaml", enabled: true},
 		{path: "experimental/receiver/advanced.yaml", enabled: true},
 
 		{path: "stable/invalid_port_based.yaml", enabled: false},
 		{path: "stable/receiver/noprotocols.yaml", enabled: true},
 		{path: "stable/receiver/simple.yaml", enabled: true},
+		{path: "stable/receiver/null.yaml", enabled: true},
 		{path: "stable/receiver/advanced.yaml", enabled: true},
 	}
 
@@ -139,6 +141,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
+			path: "experimental/receiver/null.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": nil,
+						"http": nil,
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
 			path: "experimental/receiver/advanced.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
@@ -186,6 +206,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		},
 		{
 			path: "stable/receiver/simple.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": nil,
+						"http": nil,
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			path: "stable/receiver/null.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{

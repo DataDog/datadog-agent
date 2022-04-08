@@ -21,7 +21,7 @@ var metricsNameMapping = map[string]string{
 	"container.cpu.throttled.periods":          "containerd.cpu.throttled.periods",
 	"container.cpu.limit":                      "containerd.cpu.limit",
 	"container.memory.usage":                   "containerd.mem.current.usage",
-	"container.memory.kernel":                  "containerd.mem.kernel",
+	"container.memory.kernel":                  "containerd.mem.kernel.usage",
 	"container.memory.limit":                   "containerd.mem.current.limit",
 	"container.memory.soft_limit":              "", // Not present in legacy check
 	"container.memory.rss":                     "containerd.mem.rss",

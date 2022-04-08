@@ -46,7 +46,10 @@ func (d *DestinationSender) startRetryReader() {
 		for v := range d.retryReader {
 			d.retryLock.Lock()
 			if d.cancelSendChan != nil && !d.lastRetryState {
-				d.cancelSendChan <- struct{}{}
+				select {
+				case d.cancelSendChan <- struct{}{}:
+				default:
+				}
 			}
 			d.lastRetryState = v
 			d.retryLock.Unlock()
@@ -66,7 +69,7 @@ func (d *DestinationSender) Stop() {
 func (d *DestinationSender) Send(payload *message.Payload) bool {
 	d.lastSendSucceeded = false
 	d.retryLock.Lock()
-	d.cancelSendChan = make(chan struct{})
+	d.cancelSendChan = make(chan struct{}, 1)
 	isRetrying := d.lastRetryState
 	d.retryLock.Unlock()
 
@@ -88,10 +91,13 @@ func (d *DestinationSender) Send(payload *message.Payload) bool {
 	return false
 }
 
-// NonBlockingSend tries to send the payload and fails silently if the input is full
-func (d *DestinationSender) NonBlockingSend(payload *message.Payload) {
+// NonBlockingSend tries to send the payload and fails silently if the input is full.
+// returns false if the buffer is full - true if successful.
+func (d *DestinationSender) NonBlockingSend(payload *message.Payload) bool {
 	select {
 	case d.input <- payload:
+		return true
 	default:
 	}
+	return false
 }

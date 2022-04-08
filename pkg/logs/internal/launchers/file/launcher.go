@@ -16,11 +16,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // rxContainerID is used in the shouldIgnore func to do a best-effort validation
@@ -58,16 +59,11 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry,
-	tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
 	return &Launcher{
-		pipelineProvider:       pipelineProvider,
 		tailingLimit:           tailingLimit,
-		addedSources:           sources.GetAddedForType(config.FileType),
-		removedSources:         sources.GetRemovedForType(config.FileType),
 		fileProvider:           newFileProvider(tailingLimit),
 		tailers:                make(map[string]*tailer.Tailer),
-		registry:               registry,
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
@@ -75,8 +71,12 @@ func NewLauncher(sources *config.LogSources, tailingLimit int, pipelineProvider 
 	}
 }
 
-// Start starts the Scanner
-func (s *Launcher) Start() {
+// Start starts the Launcher
+func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	s.pipelineProvider = pipelineProvider
+	s.addedSources = sourceProvider.GetAddedForType(config.FileType)
+	s.removedSources = sourceProvider.GetRemovedForType(config.FileType)
+	s.registry = registry
 	go s.run()
 }
 
@@ -109,10 +109,10 @@ func (s *Launcher) run() {
 
 // cleanup all tailers
 func (s *Launcher) cleanup() {
-	stopper := restart.NewParallelStopper()
-	for _, tailer := range s.tailers {
+	stopper := startstop.NewParallelStopper()
+	for scanKey, tailer := range s.tailers {
 		stopper.Add(tailer)
-		delete(s.tailers, tailer.File.GetScanKey())
+		delete(s.tailers, scanKey)
 	}
 	stopper.Stop()
 }
@@ -175,11 +175,11 @@ func (s *Launcher) scan() {
 		filesTailed[tailerKey] = true
 	}
 
-	for _, tailer := range s.tailers {
+	for scanKey, tailer := range s.tailers {
 		// stop all tailers which have not been selected
-		_, shouldTail := filesTailed[tailer.File.GetScanKey()]
+		_, shouldTail := filesTailed[scanKey]
 		if !shouldTail {
-			s.stopTailer(tailer)
+			s.stopTailer(scanKey, tailer)
 		}
 	}
 }
@@ -273,7 +273,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	s.tailers[tailer.File.GetScanKey()] = tailer
+	s.tailers[file.GetScanKey()] = tailer
 	return true
 }
 
@@ -363,9 +363,9 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 }
 
 // stopTailer stops the tailer
-func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
+func (s *Launcher) stopTailer(scanKey string, tailer *tailer.Tailer) {
 	go tailer.Stop()
-	delete(s.tailers, tailer.File.GetScanKey())
+	delete(s.tailers, scanKey)
 }
 
 // restartTailer safely stops tailer and starts a new one
@@ -373,7 +373,7 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 func (s *Launcher) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	tailer.StopAfterFileRotation()
-	tailer = s.createRotatedTailer(file, tailer.OutputChan, tailer.GetDetectedPattern())
+	tailer = s.createRotatedTailer(tailer, file, tailer.GetDetectedPattern())
 	// force reading file from beginning since it has been log-rotated
 	err := tailer.StartFromBeginning()
 	if err != nil {
@@ -389,6 +389,6 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 	return tailer.NewTailer(outputChan, file, s.tailerSleepDuration, decoder.NewDecoderFromSource(file.Source))
 }
 
-func (s *Launcher) createRotatedTailer(file *tailer.File, outputChan chan *message.Message, pattern *regexp.Regexp) *tailer.Tailer {
-	return tailer.NewTailer(outputChan, file, s.tailerSleepDuration, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern))
+func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
+	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern))
 }

@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build test
-// +build test
+//go:build otlp && test
+// +build otlp,test
 
 package otlp
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -72,6 +73,11 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	// TODO (AP-1550): Fix this once we can disable changing the gRPC logger
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows, see AP-1550 for details")
+	}
+
 	tests := []struct {
 		path string
 		err  string

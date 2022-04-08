@@ -50,7 +50,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	demux := aggregator.InitTestAgentDemultiplexer()
 	defer demux.Stop(false)
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -96,7 +96,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := aggregator.InitTestAgentDemultiplexer()
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -153,7 +153,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := aggregator.InitTestAgentDemultiplexer()
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux)
 	defer s.Stop()
 
 	done := make(chan struct{})
