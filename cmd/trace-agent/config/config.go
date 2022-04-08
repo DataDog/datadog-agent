@@ -8,8 +8,12 @@ package config
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"html"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -596,4 +600,55 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	}
 	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
+}
+
+func UpdateConfigHandler(r *api.HTTPReceiver) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		_ = req.ParseForm()
+
+		setting := html.UnescapeString(req.Form.Get("setting"))
+		value := html.UnescapeString(req.Form.Get("value"))
+
+		log.Warnf("Got a request to change a setting: %s", setting)
+
+		switch setting {
+		case "log_level":
+			currentLvl, err := log.GetLogLevel()
+			if err != nil {
+				log.Errorf("Couldn't get log level: %s", err.Error())
+				httpSettingError(w, http.StatusBadRequest, err)
+				return
+			}
+
+			seelogLogLevel := strings.ToLower(value)
+			if seelogLogLevel == "warning" {
+				seelogLogLevel = "warn"
+			}
+
+			if seelogLogLevel == currentLvl.String() {
+				httpSettingError(w, http.StatusBadRequest,
+					errors.New("current log level equals requested value"))
+				return
+			}
+
+			if err = coreconfig.ChangeLogLevel(seelogLogLevel); err != nil {
+				httpSettingError(w, http.StatusBadRequest, err)
+				return
+			}
+			r.UpdateLogLevel(seelogLogLevel)
+
+			log.Infof("Switched log level from %s to %s", currentLvl, seelogLogLevel)
+		default:
+			httpSettingError(w, http.StatusBadRequest, errors.New("unrecognized setting"))
+			return
+		}
+
+		w.Write([]byte("Success"))
+
+		return
+	})
+}
+func httpSettingError(w http.ResponseWriter, status int, err error) {
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), status)
 }

@@ -196,6 +196,13 @@ func Run(ctx context.Context) {
 		})
 	}
 
+	api.AttachEndpoint(api.Endpoint{
+		Pattern: "/config/set",
+		Handler: func(r *api.HTTPReceiver) http.Handler {
+			return cmdconfig.UpdateConfigHandler(r)
+		},
+	})
+
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	if pcfg := profilingConfig(cfg); pcfg != nil {

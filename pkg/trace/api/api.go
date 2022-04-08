@@ -134,8 +134,6 @@ func replyWithVersion(hash string, h http.Handler) http.Handler {
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
-	mux := r.buildMux()
-
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
@@ -145,7 +143,7 @@ func (r *HTTPReceiver) Start() {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      mux,
+		Handler:      r.buildMux(),
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
