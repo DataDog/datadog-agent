@@ -21,6 +21,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/skydive-project/go-debouncer"
@@ -29,22 +30,24 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
 	statsdPoolSize = 64
 )
+
+// Opts define module options
+type Opts struct {
+	StatsdClient statsd.ClientInterface
+}
 
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
@@ -54,7 +57,7 @@ type Module struct {
 	config           *sconfig.Config
 	currentRuleSet   atomic.Value
 	reloading        uint64
-	statsdClient     *statsd.Client
+	statsdClient     statsd.ClientInterface
 	apiServer        *APIServer
 	grpcServer       *grpc.Server
 	listener         net.Listener
@@ -76,36 +79,6 @@ func (m *Module) Register(_ *module.Router) error {
 	}
 
 	return m.Start()
-}
-
-func sanityChecks(cfg *sconfig.Config) error {
-	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
-		return err
-	}
-
-	version, err := skernel.NewKernelVersion()
-	if err != nil {
-		return err
-	}
-
-	if kernel.GetLockdownMode() == kernel.Confidentiality {
-		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
-	}
-
-	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
-
-	if cfg.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
-		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		cfg.ERPCDentryResolutionEnabled = false
-	}
-
-	if cfg.NetworkEnabled && version.IsRH7Kernel() {
-		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
-		cfg.NetworkEnabled = false
-	}
-
-	return nil
 }
 
 // Init initializes the module
@@ -139,7 +112,7 @@ func (m *Module) Init() error {
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
-	if err := m.probe.Init(m.statsdClient); err != nil {
+	if err := m.probe.Init(); err != nil {
 		return errors.Wrap(err, "failed to init probe")
 	}
 
@@ -529,25 +502,24 @@ func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multie
 	m.rulesLoaded = cb
 }
 
-// NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config) (module.Module, error) {
-	if err := sanityChecks(cfg); err != nil {
-		return nil, err
+func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, error) {
+	if len(opts) != 0 && opts[0].StatsdClient != nil {
+		return opts[0].StatsdClient, nil
 	}
 
-	var statsdClient *statsd.Client
-	var err error
-	if cfg != nil {
-		statsdAddr := os.Getenv("STATSD_URL")
-		if statsdAddr == "" {
-			statsdAddr = cfg.StatsdAddr
-		}
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		statsdAddr = cfg.StatsdAddr
+	}
 
-		if statsdClient, err = statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize)); err != nil {
-			return nil, err
-		}
-	} else {
-		log.Warn("metrics won't be sent to DataDog")
+	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
+}
+
+// NewModule instantiates a runtime security system-probe module
+func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
+	statsdClient, err := getStatdClient(cfg, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	probe, err := sprobe.NewProbe(cfg, statsdClient)

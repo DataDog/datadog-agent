@@ -194,7 +194,7 @@ type NamespaceResolver struct {
 	sync.RWMutex
 	state  int64
 	probe  *Probe
-	client *statsd.Client
+	client statsd.ClientInterface
 
 	networkNamespaces *simplelru.LRU
 }
@@ -560,7 +560,7 @@ func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []Netw
 	var err error
 
 	// iterate over the list of network namespaces
-	for nsID := range nr.networkNamespaces.Keys() {
+	for _, nsID := range nr.networkNamespaces.Keys() {
 		value, _ := nr.networkNamespaces.Peek(nsID)
 		netns := value.(*NetworkNamespace)
 

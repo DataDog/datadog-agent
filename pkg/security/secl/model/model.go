@@ -131,7 +131,7 @@ type Event struct {
 	ID           string    `field:"-"`
 	Type         uint64    `field:"-"`
 	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"timestamp"` // Timestamp of the event
+	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	SpanContext      SpanContext      `field:"-"`
@@ -755,7 +755,7 @@ type NetworkDeviceContext struct {
 // IPPortContext is used to hold an IP and Port
 //msgp:ignore IPPortContext
 type IPPortContext struct {
-	IP   net.IP `field:"-"`
+	IP   net.IP `field:"ip"`   // IP address
 	Port uint16 `field:"port"` // Port number
 }
 
@@ -775,11 +775,11 @@ type NetworkContext struct {
 //msgp:ignore DNSEvent
 type DNSEvent struct {
 	ID    uint16 `field:"-"`
-	Name  string `field:"question.name"`  // the queried domain name
-	Type  uint16 `field:"question.type"`  // a two octet code which specifies the DNS question type
-	Class uint16 `field:"question.class"` // the class looked up by the DNS question
-	Size  uint16 `field:"question.size"`  // the total DNS request size in bytes
-	Count uint16 `field:"question.count"` // the total count of questions in the DNS request
+	Name  string `field:"question.name" op_override:"DNSNameCmp"` // the queried domain name
+	Type  uint16 `field:"question.type"`                          // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class"`                         // the class looked up by the DNS question
+	Size  uint16 `field:"question.size"`                          // the total DNS request size in bytes
+	Count uint16 `field:"question.count"`                         // the total count of questions in the DNS request
 }
 
 // NetDevice represents a network device

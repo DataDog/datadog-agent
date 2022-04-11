@@ -13,7 +13,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/mem"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -91,7 +91,7 @@ func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error 
 	sender.Gauge("system.mem.buffered", float64(v.Buffers)/mbSize, "", nil)
 	sender.Gauge("system.mem.shared", float64(v.Shared)/mbSize, "", nil)
 	sender.Gauge("system.mem.slab", float64(v.Slab)/mbSize, "", nil)
-	sender.Gauge("system.mem.slab_reclaimable", float64(v.SReclaimable)/mbSize, "", nil)
+	sender.Gauge("system.mem.slab_reclaimable", float64(v.Sreclaimable)/mbSize, "", nil)
 	sender.Gauge("system.mem.page_tables", float64(v.PageTables)/mbSize, "", nil)
 	sender.Gauge("system.mem.commit_limit", float64(v.CommitLimit)/mbSize, "", nil)
 	sender.Gauge("system.mem.committed_as", float64(v.CommittedAS)/mbSize, "", nil)

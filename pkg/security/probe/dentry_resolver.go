@@ -37,7 +37,7 @@ var (
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
 	config                *config.Config
-	client                *statsd.Client
+	statsdClient          statsd.ClientInterface
 	pathnames             *lib.Map
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
@@ -175,7 +175,7 @@ func (dr *DentryResolver) SendStats() error {
 		for resolutionType, value := range hitsCounters {
 			val := atomic.SwapInt64(value, 0)
 			if val > 0 {
-				_ = dr.client.Count(metrics.MetricDentryResolverHits, val, []string{resolutionType, resolution}, 1.0)
+				_ = dr.statsdClient.Count(metrics.MetricDentryResolverHits, val, []string{resolutionType, resolution}, 1.0)
 			}
 		}
 	}
@@ -184,7 +184,7 @@ func (dr *DentryResolver) SendStats() error {
 		for resolutionType, value := range hitsCounters {
 			val := atomic.SwapInt64(value, 0)
 			if val > 0 {
-				_ = dr.client.Count(metrics.MetricDentryResolverMiss, val, []string{resolutionType, resolution}, 1.0)
+				_ = dr.statsdClient.Count(metrics.MetricDentryResolverMiss, val, []string{resolutionType, resolution}, 1.0)
 			}
 		}
 	}
@@ -212,7 +212,7 @@ func (dr *DentryResolver) sendERPCStats() error {
 	}
 	for r, count := range counters {
 		if count > 0 {
-			_ = dr.client.Count(metrics.MetricDentryERPC, count, []string{fmt.Sprintf("ret:%s", r)}, 1.0)
+			_ = dr.statsdClient.Count(metrics.MetricDentryERPC, count, []string{fmt.Sprintf("ret:%s", r)}, 1.0)
 		}
 	}
 	for _, r := range allERPCRet() {
@@ -875,7 +875,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 
 	return &DentryResolver{
 		config:          probe.config,
-		client:          probe.statsdClient,
+		statsdClient:    probe.statsdClient,
 		cache:           make(map[uint32]*lru.Cache),
 		erpc:            probe.erpc,
 		erpcSegment:     segment,

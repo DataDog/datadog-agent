@@ -51,7 +51,12 @@ func payloadToString(payload []byte) string {
 }
 
 func TestCompressorSimple(t *testing.T) {
-	c, err := NewCompressor(&bytes.Buffer{}, &bytes.Buffer{}, []byte("{["), []byte("]}"), []byte(","))
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	c, err := NewCompressor(
+		&bytes.Buffer{}, &bytes.Buffer{},
+		maxPayloadSize, maxUncompressedSize,
+		[]byte("{["), []byte("]}"), []byte(","))
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {

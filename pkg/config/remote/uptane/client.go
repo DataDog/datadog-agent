@@ -200,11 +200,12 @@ func (c *Client) verifyOrgID() error {
 		return err
 	}
 	for targetPath := range directorTargets {
-		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
 		if err != nil {
 			return err
 		}
-		if configFileMeta.OrgID != c.orgID {
+		checkOrgID := configPathMeta.Source != rdata.SourceEmployee
+		if checkOrgID && configPathMeta.OrgID != c.orgID {
 			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
 		}
 	}

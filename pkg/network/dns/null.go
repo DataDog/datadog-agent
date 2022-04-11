@@ -42,6 +42,10 @@ func (nullReverseDNS) GetStats() map[string]int64 {
 	}
 }
 
+func (nullReverseDNS) Start() error {
+	return nil
+}
+
 func (nullReverseDNS) Close() {}
 
 var _ ReverseDNS = nullReverseDNS{}

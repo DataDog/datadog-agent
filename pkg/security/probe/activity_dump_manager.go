@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
@@ -44,7 +43,6 @@ type ActivityDumpManager struct {
 	tracedCgroupsMap     *ebpf.Map
 	cgroupWaitListMap    *ebpf.Map
 	tracedEventTypes     []model.EventType
-	statsdClient         *statsd.Client
 	outputDirectory      string
 
 	activeDumps   []*ActivityDump
@@ -102,7 +100,7 @@ func (adm *ActivityDumpManager) cleanup() {
 }
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
-func NewActivityDumpManager(p *Probe, client *statsd.Client) (*ActivityDumpManager, error) {
+func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 	tracedPIDs, found, err := p.manager.GetMap("traced_pids")
 	if err != nil {
 		return nil, err
@@ -154,7 +152,6 @@ func NewActivityDumpManager(p *Probe, client *statsd.Client) (*ActivityDumpManag
 
 	return &ActivityDumpManager{
 		probe:                p,
-		statsdClient:         client,
 		tracedPIDsMap:        tracedPIDs,
 		tracedCommsMap:       tracedComms,
 		tracedEventTypesMap:  tracedEventTypesMap,
