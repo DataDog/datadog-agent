@@ -61,92 +61,80 @@ New Features
 
 - The security Agent now offers a command to directly download the policy file from the API.
 
-- Policy can now define macros with items specified as a YAML list
-  instead of a SECL expression, as
+- CWS: Policy can now define macros with items specified as a YAML list
+  instead of a SECL expression, as:::
   
-    ```
     - my_macro:
       values:
         - value1
         - value2
-    ```
   
   In addition, macros and rules can now be updated in later loaded policies
   (`default.policy` is loaded first, the other policies in the folder are loaded
   in alphabetical order).
   
-  The previous macro can be modified with:
+  The previous macro can be modified with:::
   
-    ```
     - my_macro:
       combine: merge
       values:
         - value3
-    ```
   
-  It can also be overriden with:
+  It can also be overriden with:::
   
-    ```
     - my_macro:
       combine: override
       values:
         - my-single-value
-    ```
   
-  Rules can now also be disabled with:
-    ```
+  Rules can now also be disabled with:::
+  
     - my_rule:
       disabled: true
-    ````
 
 - Cloud Workload Security now works on Google's Container Optimized OS LTS versions, starting
   from v81.
 
-- Allow setting variables to store states through rule actions.
-  Action rules can now be defined as follows:
+- CWS: Allow setting variables to store states through rule actions.
+  Action rules can now be defined as follows:::
   
-  ```
-  - id: my_rule
-    expression: ...
-    actions:
-      - set:
-          name: my_boolean_variable
-          value: true
-      - set:
-          name: my_string_variable
-          value: a string
-      - set:
-          name: my_other_variable
-          field: process.file.name
-  ```
+    - id: my_rule
+      expression: ...
+      actions:
+        - set:
+            name: my_boolean_variable
+            value: true
+        - set:
+            name: my_string_variable
+            value: a string
+        - set:
+            name: my_other_variable
+            field: process.file.name
   
   These actions will be executed when the rule is triggered by an event.
   Right now, only `set` actions can be defined.
   `name` is the name of the variable that will be set by the actions.
   The value for the variable can be specified by using:
+
   - `value` for a predefined value
     (strings, integers, booleans, array of strings and array of integers are currently supported).
   - `field` for the value of an event field.
   
   Variable arrays can be modified by specifying `append: true`.
   
-  Variables can be reused in rule expressions like a regular variable:
-  
-  ```
-  - id: my_other_rule
-    expression: |-
-      open.file.path == ${my_other_variable}
-  ```
-  
+  Variables can be reused in rule expressions like a regular variable:::
+
+    - id: my_other_rule
+      expression: |-
+        open.file.path == ${my_other_variable}
+
   By default, variables are global. They can be bounded to a specific process by using the `process`
-  scope as follows:
-  
-  ```
-  - set:
-      name: my_scoped_variable
-      scope: process
-      value: true
-  ```
+  scope as follows:::
+
+    - set:
+        name: my_scoped_variable
+        scope: process
+        value: true
   
   The variable can be referenced in other expressions as `${process.my_scoped_variable}`. When the process dies, the
   variable with be automatically freed.
