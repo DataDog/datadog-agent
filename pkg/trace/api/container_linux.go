@@ -142,7 +142,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return ctx
 }
 
-// getContainerID attepmts first to read the container ID set by the client in the request
+// getContainerID attempts first to read the container ID set by the client in the request
 // header. If no such header is present or the value is empty, it will attempt to use the UDS
 // credentials to determine the connection's container ID.
 func getContainerID(req *http.Request) string {
