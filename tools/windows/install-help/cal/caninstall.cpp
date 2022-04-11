@@ -121,7 +121,11 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                 {
                     // case (6)
                     WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.FullyQualifiedUsername().c_str());
-                    bResetPassword = true;
+                    if (_wcsicmp(_user.Domain.c_str(), L"NT AUTHORITY") != 0)
+                    {
+                        // Don't reset password for NT AUTHORITY\* users
+                        bResetPassword = true;
+                    }
                 }
             }
         }
