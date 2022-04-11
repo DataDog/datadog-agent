@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -27,43 +26,43 @@ import (
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
-	probe  *Probe
-	client *statsd.Client
+	probe *Probe
 
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
 	syscallMonitor      *SyscallMonitor
 	reordererMonitor    *ReordererMonitor
 	activityDumpManager *ActivityDumpManager
+	runtimeMonitor      *RuntimeMonitor
+	discarderMonitor    *DiscarderMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
-func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
+func NewMonitor(p *Probe) (*Monitor, error) {
 	var err error
 	m := &Monitor{
-		probe:  p,
-		client: client,
+		probe: p,
 	}
 
 	// instantiate a new load controller
-	m.loadController, err = NewLoadController(p, client)
+	m.loadController, err = NewLoadController(p)
 	if err != nil {
 		return nil, err
 	}
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p, client)
+	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
 	}
 
-	m.reordererMonitor, err = NewReOrderMonitor(p, client)
+	m.reordererMonitor, err = NewReOrderMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
 	}
 
 	if p.config.ActivityDumpEnabled {
-		m.activityDumpManager, err = NewActivityDumpManager(p, client)
+		m.activityDumpManager, err = NewActivityDumpManager(p)
 		if err != nil {
 			return nil, errors.Wrap(err, "couldn't create the activity dump manager")
 		}
@@ -76,6 +75,16 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 			return nil, err
 		}
 	}
+
+	if p.config.RuntimeMonitor {
+		m.runtimeMonitor = NewRuntimeMonitor(p.statsdClient)
+	}
+
+	m.discarderMonitor, err = NewDiscarderMonitor(p)
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't create the discarder monitor")
+	}
+
 	return m, nil
 }
 
@@ -107,7 +116,7 @@ func (m *Monitor) SendStats() error {
 	const delay = time.Second
 
 	if m.syscallMonitor != nil {
-		if err := m.syscallMonitor.SendStats(m.client); err != nil {
+		if err := m.syscallMonitor.SendStats(m.probe.statsdClient); err != nil {
 			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
@@ -121,6 +130,9 @@ func (m *Monitor) SendStats() error {
 
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
+		}
+		if err := resolvers.NamespaceResolver.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send namespace_resolver stats")
 		}
 	}
 
@@ -137,6 +149,16 @@ func (m *Monitor) SendStats() error {
 		if err := m.activityDumpManager.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send activity dump maanger stats")
 		}
+	}
+
+	if m.probe.config.RuntimeMonitor {
+		if err := m.runtimeMonitor.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send runtime monitor stats")
+		}
+	}
+
+	if err := m.discarderMonitor.SendStats(); err != nil {
+		return errors.Wrap(err, "failed to send discarder stats")
 	}
 
 	return nil
@@ -196,7 +218,7 @@ func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multie
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
 func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
-	if err := m.client.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
+	if err := m.probe.statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
@@ -207,33 +229,51 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
 
 // DumpActivity handles an activity dump request
-func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (string, string, error) {
+func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return "", "", ErrActivityDumpManagerDisabled
+		return &api.SecurityActivityDumpMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.DumpActivity(params)
 }
 
 // ListActivityDumps returns the list of active dumps
-func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) ([]string, error) {
+func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return nil, ErrActivityDumpManagerDisabled
+		return &api.SecurityActivityDumpListMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
-	return m.activityDumpManager.ListActivityDumps(params), nil
+	return m.activityDumpManager.ListActivityDumps(params)
 }
 
 // StopActivityDump stops an active activity dump
-func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) error {
+func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return ErrActivityDumpManagerDisabled
+		return &api.SecurityActivityDumpStoppedMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.StopActivityDump(params)
 }
 
 // GenerateProfile returns a profile from the provided activity dump
-func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (string, error) {
+func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return "", ErrActivityDumpManagerDisabled
+		return &api.SecurityProfileGeneratedMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.GenerateProfile(params)
+}
+
+// GenerateGraph returns a graph from the provided activity dump
+func (m *Monitor) GenerateGraph(params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
+	if !m.probe.config.ActivityDumpEnabled {
+		return &api.SecurityGraphGeneratedMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
+	}
+	return m.activityDumpManager.GenerateGraph(params)
 }

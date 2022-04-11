@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -21,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/avast/retry-go"
+	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
@@ -30,7 +31,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestProcess(t *testing.T) {
@@ -62,26 +62,18 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
-	proc, err := process.NewProcess(utils.Getpid())
-	if err != nil {
-		t.Fatalf("unable to find proc entry: %s", err)
-	}
-
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		t.Fatal("unable to find proc entry")
-	}
-	execSince := time.Since(time.Unix(0, filledProc.CreateTime*int64(time.Millisecond)))
-	waitUntil := execSince + getEventTimeout + time.Second
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_inode",
 			Expression: `open.file.path == "{{.Root}}/test-process-context" && open.flags & O_CREAT != 0`,
 		},
 		{
-			ID:         "test_exec_time",
-			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-exec-time" && process.created_at > %ds`, int(waitUntil.Seconds())),
+			ID:         "test_exec_time_1",
+			Expression: `open.file.path == "{{.Root}}/test-exec-time-1" && process.created_at == 0`,
+		},
+		{
+			ID:         "test_exec_time_2",
+			Expression: `open.file.path == "{{.Root}}/test-exec-time-2" && process.created_at > 1s`,
 		},
 		{
 			ID:         "test_rule_ancestors",
@@ -119,6 +111,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_envp",
 			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"]`,
 		},
+		{
+			ID:         "test_rule_args_envs_dedup",
+			Expression: `exec.file.name == "ls" && exec.argv == "test123456"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -128,7 +124,7 @@ func TestProcessContext(t *testing.T) {
 	defer test.Close()
 
 	t.Run("exec-time", func(t *testing.T) {
-		testFile, _, err := test.Path("test-exec-time")
+		testFile, _, err := test.Path("test-exec-time-1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -138,8 +134,10 @@ func TestProcessContext(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			f.Close()
+			os.Remove(testFile)
 
-			return f.Close()
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: got event: %s", event)
 		})
@@ -147,19 +145,22 @@ func TestProcessContext(t *testing.T) {
 			t.Fatal("shouldn't get an event")
 		}
 
-		defer os.Remove(testFile)
-
-		// ensure to exceed the delay
-		time.Sleep(2 * time.Second)
-
 		test.WaitSignal(t, func() error {
-			f, err := os.OpenFile(testFile, os.O_RDONLY, 0)
+			testFile, _, err := test.Path("test-exec-time-2")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			f, err := os.Create(testFile)
 			if err != nil {
 				return err
 			}
-			return f.Close()
+			f.Close()
+			os.Remove(testFile)
+
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_exec_time")
+			assertTriggeredRule(t, rule, "test_exec_time_2")
 
 			if !validateExecSchema(t, event) {
 				t.Error(event.String())
@@ -268,7 +269,6 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
-			// we need to ignore the error because "--password" is not a valid option for ls
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -281,7 +281,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("argv", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ll")
@@ -292,7 +292,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-flags", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ls", "--escape")
@@ -303,7 +303,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-options", func(t *testing.T) {
-		lsExecutable := which("ls")
+		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "--block-size", "123")
@@ -399,7 +399,7 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		executable := which("tail")
+		executable := which(t, "tail")
 
 		test.WaitSignal(t, func() error {
 			var wg sync.WaitGroup
@@ -559,10 +559,49 @@ func TestProcessContext(t *testing.T) {
 			}
 		})
 	})
+
+	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456"}, []string{"DEDUP=dedup123"}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(shell, args, envs)
+			// we need to ignore the error because the string of "a" generates a "File name too long" error
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_rule_args_envs_dedup", rule.ID, "wrong rule triggered")
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
+
+			var data interface{}
+			serialized := event.String()
+			if err := json.Unmarshal([]byte(serialized), &data); err != nil {
+				t.Error(err)
+			}
+
+			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
+				t.Error("shouldn't have args")
+			}
+
+			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
+				t.Error("shouldn't have envs")
+			}
+
+			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
+				t.Error("should have args")
+			}
+
+			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
+				t.Error("should have envs")
+			}
+		})
+	})
 }
 
 func TestProcessExecCTime(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
@@ -594,7 +633,7 @@ func TestProcessExecCTime(t *testing.T) {
 }
 
 func TestProcessPIDVariable(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_var",
@@ -728,7 +767,7 @@ func TestProcessMutableVariable(t *testing.T) {
 }
 
 func TestProcessExec(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -746,7 +785,8 @@ func TestProcessExec(t *testing.T) {
 		return cmd.Run()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assertFieldEqual(t, event, "exec.file.path", executable)
-		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
+		// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+		assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
 	})
 }
 
@@ -820,7 +860,7 @@ func TestProcessMetadata(t *testing.T) {
 }
 
 func TestProcessExecExit(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

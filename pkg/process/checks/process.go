@@ -37,14 +37,14 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 type ProcessCheck struct {
 	probe procutil.Probe
 
-	sysInfo            *model.SystemInfo
-	lastCPUTime        cpu.TimesStat
-	lastProcs          map[int32]*procutil.Process
-	lastRun            time.Time
-	containerProvider  util.ContainerProvider
-	lastContainerRates map[string]*util.ContainerRateMetrics
-	lastContainerRun   time.Time
-	networkID          string
+	sysInfo                    *model.SystemInfo
+	lastCPUTime                cpu.TimesStat
+	lastProcs                  map[int32]*procutil.Process
+	lastRun                    time.Time
+	containerProvider          util.ContainerProvider
+	lastContainerRates         map[string]*util.ContainerRateMetrics
+	realtimeLastContainerRates map[string]*util.ContainerRateMetrics
+	networkID                  string
 
 	realtimeLastCPUTime cpu.TimesStat
 	realtimeLastProcs   map[int32]*procutil.Stats
@@ -156,10 +156,9 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	if collectRealTime {
 		cacheValidity = cacheValidityRT
 	}
-	containerTime := time.Now()
-	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates, p.lastContainerRun, containerTime)
+
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates)
 	if err == nil {
-		p.lastContainerRun = containerTime
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)

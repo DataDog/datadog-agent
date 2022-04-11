@@ -9,7 +9,8 @@ async function myHandler(event, context) {
   await sleep();
   console.error("XXX LOG 2 XXX");
   await sleep();
-  
+  console.error("XXX LOG __ERR_MASKING_CONFIG_FAILED__ XXX");
+
   return {
     statusCode: 200,
     body: 'ok'

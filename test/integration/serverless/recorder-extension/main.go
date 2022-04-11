@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 

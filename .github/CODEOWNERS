@@ -18,7 +18,7 @@
 /*.md                                   @DataDog/agent-platform @DataDog/documentation
 /NOTICE                                 @DataDog/agent-platform @DataDog/documentation
 
-/LICENSE*                               @DataDog/do-not-notify
+/LICENSE*                               # do not notify anyone
 
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
@@ -30,7 +30,7 @@
 
 /.circleci/                             @DataDog/agent-platform
 
-/.github/CODEOWNERS                                 @DataDog/do-not-notify
+/.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
@@ -93,7 +93,7 @@
 /cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/cluster-agent/                     @DataDog/container-integrations
-/cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integration-tools-and-libraries
+/cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
@@ -119,8 +119,8 @@
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
 # that should be fine since rarely we make PRs that only change those files alone.
-/go.mod                                 @DataDog/do-not-notify
-/go.sum                                 @DataDog/do-not-notify
+/go.mod                                 # do not notify anyone
+/go.sum                                 # do not notify anyone
 
 /Makefile.trace                         @DataDog/agent-apm
 
@@ -155,6 +155,7 @@
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
@@ -174,6 +175,7 @@
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/otlp/                              @DataDog/agent-platform
+/pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/integrations-tools-and-libraries
 /pkg/util/clusteragent/                 @DataDog/container-integrations
@@ -198,7 +200,7 @@
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
-/pkg/proto/pbgo/                        @DataDog/do-not-notify
+/pkg/proto/pbgo/                        # do not notify anyone
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/agent-network
 /pkg/ebpf/                              @DataDog/agent-network
@@ -208,7 +210,7 @@
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/snmp/                              @DataDog/infrastructure-integrations
-/pkg/appsec/                            @DataDog/agent-appsec
+/pkg/trace/appsec/                      @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
 /pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/integrations-tools-and-libraries
@@ -226,7 +228,7 @@
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/agent-network
-/tasks/trace.py                         @DataDog/agent-apm
+/tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 
 /test/                                  @DataDog/agent-platform

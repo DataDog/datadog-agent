@@ -189,7 +189,7 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 					Labels: container.Labels,
 				},
 				Image:      image,
-				Runtime:    workloadmeta.ContainerRuntimeDocker,
+				Runtime:    workloadmeta.ContainerRuntimeECSFargate,
 				NetworkIPs: ips,
 				State: workloadmeta.ContainerState{
 					StartedAt: startedAt,

@@ -16,7 +16,6 @@
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -25,7 +24,6 @@
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -37,7 +35,6 @@
     KITCHEN_OSVERS: "rhel-81"
     DEFAULT_KITCHEN_OSVERS: "rhel-81"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM_SUFFIX="${KITCHEN_PLATFORM_SUFFIX}fips"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh

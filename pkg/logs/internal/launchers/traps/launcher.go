@@ -6,9 +6,12 @@
 package traps
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 )
 
@@ -21,22 +24,31 @@ type Launcher struct {
 }
 
 // NewLauncher returns an initialized Launcher
-func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
+func NewLauncher() *Launcher {
 	return &Launcher{
-		pipelineProvider: pipelineProvider,
-		sources:          sources.GetAddedForType(config.SnmpTrapsType),
-		stop:             make(chan interface{}, 1),
+		stop: make(chan interface{}, 1),
 	}
 }
 
 // Start starts the launcher.
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	l.pipelineProvider = pipelineProvider
+	l.sources = sourceProvider.GetAddedForType(config.SnmpTrapsType)
 	go l.run()
 }
 
 func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *traps.SnmpPacket) {
 	outputChan := l.pipelineProvider.NextPipelineChan()
-	l.tailer = tailer.NewTailer(source, inputChan, outputChan)
+	oidResolver, err := traps.NewMultiFilesOIDResolver()
+	if err != nil {
+		log.Errorf("unable to load traps database: %w. Will not listen for SNMP traps", err)
+		return
+	}
+	l.tailer, err = tailer.NewTailer(oidResolver, source, inputChan, outputChan)
+	if err != nil {
+		log.Errorf("unable to load traps database: %w. Will not listen for SNMP traps", err)
+		return
+	}
 	l.tailer.Start()
 }
 

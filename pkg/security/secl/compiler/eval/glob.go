@@ -13,9 +13,10 @@ import (
 
 // Glob describes file glob object
 type Glob struct {
-	pattern  string
-	elements []string
-	isScalar bool
+	pattern         string
+	elements        []string
+	isScalar        bool
+	caseInsensitive bool
 }
 
 func (g *Glob) contains(filename string) bool {
@@ -32,7 +33,7 @@ func (g *Glob) contains(filename string) bool {
 	for start, end, i := 0, 0, 0; end != len(filename); end++ {
 		if filename[end] == '/' {
 			elf, elp = filename[start:end], g.elements[i]
-			if !PatternMatches(elp, elf) && elp != "**" {
+			if !PatternMatches(elp, elf, g.caseInsensitive) && elp != "**" {
 				return false
 			}
 			start = end + 1
@@ -48,7 +49,7 @@ func (g *Glob) contains(filename string) bool {
 			if len(elf) == 0 {
 				return true
 			}
-			if !PatternMatches(elp, elf) && elp != "**" {
+			if !PatternMatches(elp, elf, g.caseInsensitive) && elp != "**" {
 				return false
 			}
 		}
@@ -73,7 +74,7 @@ func (g *Glob) matches(filename string) bool {
 	for start, end, i = 0, 0, 0; end != len(filename); end++ {
 		if filename[end] == '/' {
 			elf, elp = filename[start:end], g.elements[i]
-			if !PatternMatches(elp, elf) && elp != "**" {
+			if !PatternMatches(elp, elf, g.caseInsensitive) && elp != "**" {
 				return false
 			}
 			start = end + 1
@@ -89,7 +90,7 @@ func (g *Glob) matches(filename string) bool {
 			if len(elf) == 0 {
 				return false
 			}
-			if PatternMatches(elp, elf) && i+1 == len(g.elements) {
+			if PatternMatches(elp, elf, g.caseInsensitive) && i+1 == len(g.elements) {
 				return true
 			} else if elp != "**" {
 				return false
@@ -101,7 +102,7 @@ func (g *Glob) matches(filename string) bool {
 	if len(elf) == 0 {
 		return false
 	}
-	return PatternMatches(elp, elf)
+	return PatternMatches(elp, elf, g.caseInsensitive)
 }
 
 // Contains returns whether the glob pattern matches the beginning of the filename
@@ -112,13 +113,16 @@ func (g *Glob) Contains(filename string) bool {
 // Matches the given filename
 func (g *Glob) Matches(filename string) bool {
 	if g.isScalar {
+		if g.caseInsensitive {
+			return strings.EqualFold(g.pattern, filename)
+		}
 		return g.pattern == filename
 	}
 	return g.matches(filename)
 }
 
 // NewGlob returns a new glob object from the given pattern
-func NewGlob(pattern string) (*Glob, error) {
+func NewGlob(pattern string, caseInsensitive bool) (*Glob, error) {
 	els := strings.Split(pattern, "/")
 	for i, el := range els {
 		if el == "**" && i+1 != len(els) || strings.Contains(el, "**") && len(el) != len("**") {
@@ -127,8 +131,9 @@ func NewGlob(pattern string) (*Glob, error) {
 	}
 
 	return &Glob{
-		pattern:  pattern,
-		elements: els,
-		isScalar: !strings.Contains(pattern, "*"),
+		pattern:         pattern,
+		elements:        els,
+		isScalar:        !strings.Contains(pattern, "*"),
+		caseInsensitive: caseInsensitive,
 	}, nil
 }

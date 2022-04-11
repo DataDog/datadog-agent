@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run github.com/tinylib/msgp -tests=false
+
 package model
 
 import (
+	"container/list"
 	"strings"
 	"time"
 )
@@ -23,20 +26,15 @@ func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
 	}
 
 	ancestor := pc.Ancestor
-	// make sure we don't loop forever
-	for i := 0; i < 1000; i++ {
-		if ancestor.Ancestor == nil {
-			break
-		}
-		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime == time.Time{}) && ancestor.Tid == ancestor.Ancestor.Tid {
+	for ancestor.Ancestor != nil {
+		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
 			// this is a fork entry, move on to the next ancestor
 			ancestor = ancestor.Ancestor
-			continue
+		} else {
+			break
 		}
-
-		// this is the first true exec
-		break
 	}
+
 	return ancestor
 }
 
@@ -68,6 +66,18 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
+// ShareArgsEnvs share args and envs between the current entry and the given child entry
+func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
+	childEntry.ArgsEntry = pc.ArgsEntry
+	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
+		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+	}
+	childEntry.EnvsEntry = pc.EnvsEntry
+	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
+		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+	}
+}
+
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.SetAncestor(pc)
@@ -84,14 +94,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.ArgsEntry = pc.ArgsEntry
-	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
-	}
-	childEntry.EnvsEntry = pc.EnvsEntry
-	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
-	}
+	pc.ShareArgsEnvs(childEntry)
 }
 
 /*func (pc *ProcessCacheEntry) String() string {
@@ -108,6 +111,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 }*/
 
 // ArgsEnvs raw value for args and envs
+//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
@@ -115,8 +119,11 @@ type ArgsEnvs struct {
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
+//msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	ArgsEnvs
+
+	Container *list.Element
 
 	next *ArgsEnvsCacheEntry
 	last *ArgsEnvsCacheEntry
@@ -203,12 +210,24 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	return values, truncated
 }
 
+func stringArraysEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry
+	*ArgsEnvsCacheEntry `msg:"-"`
 
-	Values    []string
-	Truncated bool
+	Values    []string `msg:"values"`
+	Truncated bool     `msg:"-"`
 
 	parsed bool
 }
@@ -230,12 +249,26 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 	return p.Values, p.Truncated
 }
 
+// Equals compares two ArgsEntry
+func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
+	if p == o {
+		return true
+	} else if o == nil {
+		return false
+	}
+
+	pa, _ := p.ToArray()
+	oa, _ := o.ToArray()
+
+	return stringArraysEqual(pa, oa)
+}
+
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry
+	*ArgsEnvsCacheEntry `msg:"-"`
 
-	Values    []string
-	Truncated bool
+	Values    []string `msg:"values"`
+	Truncated bool     `msg:"-"`
 
 	parsed bool
 	keys   []string
@@ -307,4 +340,18 @@ func (p *EnvsEntry) toMap() {
 func (p *EnvsEntry) Get(key string) string {
 	p.toMap()
 	return p.kv[key]
+}
+
+// Equals compares two EnvsEntry
+func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
+	if p == o {
+		return true
+	} else if o == nil {
+		return false
+	}
+
+	pa, _ := p.ToArray()
+	oa, _ := o.ToArray()
+
+	return stringArraysEqual(pa, oa)
 }

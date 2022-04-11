@@ -302,7 +302,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// these parameters. We display the port as a hint on where to
 		// debug further, this is where the expvar JSON should come from.
 		program, banner := getProgramBanner(Version)
-		notRunningTmpl.Execute(w, struct {
+		_ = notRunningTmpl.Execute(w, struct {
 			Banner       string
 			Program      string
 			ReceiverPort int

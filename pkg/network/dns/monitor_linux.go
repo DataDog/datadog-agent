@@ -62,6 +62,11 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 	}, nil
 }
 
+// Start starts the monitor
+func (m *dnsMonitor) Start() error {
+	return m.p.Start()
+}
+
 // Close releases associated resources
 func (m *dnsMonitor) Close() {
 	m.socketFilterSnooper.Close()

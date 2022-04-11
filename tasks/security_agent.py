@@ -11,7 +11,7 @@ from invoke import task
 from .build_tags import get_default_build_tags
 from .go import golangci_lint, staticcheck, vet
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
-from .system_probe import get_ebpf_build_flags
+from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -52,11 +52,11 @@ def build(
     ctx,
     race=False,
     go_version=None,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
-    arch="x64",  # noqa: U100
+    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
 ):
@@ -241,7 +241,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch="x64", static=True):
+def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
@@ -258,7 +258,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -319,7 +319,7 @@ def build_stress_tests(
     ctx,
     output='pkg/security/tests/stresssuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
@@ -341,7 +341,7 @@ def stress_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/stresssuite',
     bundle_ebpf=True,
@@ -371,7 +371,7 @@ def functional_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
@@ -401,6 +401,7 @@ def kitchen_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
     testflags='',
@@ -410,19 +411,9 @@ def kitchen_functional_tests(
             ctx,
             verbose=verbose,
             go_version=go_version,
-            arch="x64",
+            arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
-            testflags=testflags,
-        )
-
-        functional_tests(
-            ctx,
-            verbose=verbose,
-            go_version=go_version,
-            major_version=major_version,
-            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite32",
-            arch="x86",
             testflags=testflags,
         )
 
@@ -440,7 +431,7 @@ def docker_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
     static=False,
@@ -460,10 +451,12 @@ def docker_functional_tests(
     dockerfile = """
 FROM debian:bullseye
 
+ENV DOCKER_DD_AGENT=yes
+
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs libc6:i386 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates \
     && rm -rf /var/lib/apt/lists/*
     """
 
@@ -484,16 +477,20 @@ RUN apt-get update -y \
     cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
-    cmd += '-v /:/host/root -e HOST_ROOT=/host/root '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
+    cmd += '-v /sys:/host/sys -e HOST_SYS=/host/sys '
+    cmd += '-v /etc/os-release:/host/etc/os-release '
+    cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
+    cmd += '-v /etc/passwd:/etc/passwd '
+    cmd += '-v /etc/group:/etc/group '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
-        "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
-        "image_tag": docker_image_tag_name + ":latest",
+        "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
+        "image_tag": f"{docker_image_tag_name}:latest",
     }
 
     ctx.run(cmd.format(**args))
@@ -530,4 +527,13 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
+    ctx.run("cp ./pkg/security/probe/serializers_easyjson.mock ./pkg/security/probe/serializers_easyjson.go")
     ctx.run("go generate ./pkg/security/...")
+
+
+@task
+def generate_btfhub_constants(ctx, archive_path):
+    output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+    ctx.run(
+        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+    )

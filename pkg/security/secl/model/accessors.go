@@ -3,6 +3,7 @@
 package model
 
 import (
+	"net"
 	"reflect"
 	"unsafe"
 
@@ -42,6 +43,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("chown"),
 
+		eval.EventType("dns"),
+
 		eval.EventType("exec"),
 
 		eval.EventType("link"),
@@ -73,6 +76,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("setxattr"),
 
 		eval.EventType("signal"),
+
+		eval.EventType("splice"),
 
 		eval.EventType("unlink"),
 
@@ -127,7 +132,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "bpf.prog.helpers":
 		return &eval.IntArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []int {
 
 				result := make([]int, len((*Event)(ctx.Object).BPF.Program.Helpers))
@@ -572,13 +576,62 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ContainerContext.Tags
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
+		}, nil
+
+	case "dns.question.class":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Class)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.count":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Count)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).DNS.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.args":
@@ -593,7 +646,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Argv
@@ -604,7 +656,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Argv
@@ -625,7 +676,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Argv
@@ -726,7 +776,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Envp
@@ -737,7 +786,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Envs
@@ -1866,6 +1914,94 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "network.destination.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
+				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Destination.IP, nil)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.destination.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Destination.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.device.ifindex":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Device.IfIndex)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.device.ifname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).NetworkContext.Device.IfName
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "network.l3_protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.L3Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.l4_protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.L4Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.source.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
+				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Source.IP, nil)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.source.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Source.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "open.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2063,7 +2199,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -2089,7 +2224,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -2140,7 +2274,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -2391,7 +2524,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -2417,7 +2549,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -3178,7 +3309,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Argv
@@ -3189,7 +3319,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Argv
@@ -3210,7 +3339,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Argv
@@ -3311,7 +3439,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Envp
@@ -3322,7 +3449,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Envs
@@ -3668,7 +3794,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -3694,7 +3819,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -3745,7 +3869,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -3996,7 +4119,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -4022,7 +4144,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -4783,7 +4904,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv
@@ -4794,7 +4914,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv
@@ -4815,7 +4934,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv
@@ -4916,7 +5034,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Envp
@@ -4927,7 +5044,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Envs
@@ -6213,7 +6329,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6239,7 +6354,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6290,7 +6404,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6541,7 +6654,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -6567,7 +6679,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -7328,7 +7439,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Argv
@@ -7339,7 +7449,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Argv
@@ -7360,7 +7469,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Argv
@@ -7461,7 +7569,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.envp":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Envp
@@ -7472,7 +7579,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.Envs
@@ -7776,6 +7882,176 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Signal.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.Filesytem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.pipe_entry_flag":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.PipeEntryFlag)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.pipe_exit_flag":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.PipeExitFlag)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.SyscallEvent.Retval)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -8207,6 +8483,16 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.tags",
 
+		"dns.question.class",
+
+		"dns.question.count",
+
+		"dns.question.name",
+
+		"dns.question.size",
+
+		"dns.question.type",
+
 		"exec.args",
 
 		"exec.args_flags",
@@ -8462,6 +8748,24 @@ func (e *Event) GetFields() []eval.Field {
 		"mprotect.retval",
 
 		"mprotect.vm_protection",
+
+		"network.destination.ip",
+
+		"network.destination.port",
+
+		"network.device.ifindex",
+
+		"network.device.ifname",
+
+		"network.l3_protocol",
+
+		"network.l4_protocol",
+
+		"network.size",
+
+		"network.source.ip",
+
+		"network.source.port",
 
 		"open.file.change_time",
 
@@ -9235,6 +9539,40 @@ func (e *Event) GetFields() []eval.Field {
 
 		"signal.type",
 
+		"splice.file.change_time",
+
+		"splice.file.filesystem",
+
+		"splice.file.gid",
+
+		"splice.file.group",
+
+		"splice.file.in_upper_layer",
+
+		"splice.file.inode",
+
+		"splice.file.mode",
+
+		"splice.file.modification_time",
+
+		"splice.file.mount_id",
+
+		"splice.file.name",
+
+		"splice.file.path",
+
+		"splice.file.rights",
+
+		"splice.file.uid",
+
+		"splice.file.user",
+
+		"splice.pipe_entry_flag",
+
+		"splice.pipe_exit_flag",
+
+		"splice.retval",
+
 		"unlink.file.change_time",
 
 		"unlink.file.filesystem",
@@ -9503,6 +9841,26 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "container.tags":
 
 		return e.ContainerContext.Tags, nil
+
+	case "dns.question.class":
+
+		return int(e.DNS.Class), nil
+
+	case "dns.question.count":
+
+		return int(e.DNS.Count), nil
+
+	case "dns.question.name":
+
+		return e.DNS.Name, nil
+
+	case "dns.question.size":
+
+		return int(e.DNS.Size), nil
+
+	case "dns.question.type":
+
+		return int(e.DNS.Type), nil
 
 	case "exec.args":
 
@@ -10015,6 +10373,42 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mprotect.vm_protection":
 
 		return e.MProtect.VMProtection, nil
+
+	case "network.destination.ip":
+
+		return e.NetworkContext.Destination.IP, nil
+
+	case "network.destination.port":
+
+		return int(e.NetworkContext.Destination.Port), nil
+
+	case "network.device.ifindex":
+
+		return int(e.NetworkContext.Device.IfIndex), nil
+
+	case "network.device.ifname":
+
+		return e.NetworkContext.Device.IfName, nil
+
+	case "network.l3_protocol":
+
+		return int(e.NetworkContext.L3Protocol), nil
+
+	case "network.l4_protocol":
+
+		return int(e.NetworkContext.L4Protocol), nil
+
+	case "network.size":
+
+		return int(e.NetworkContext.Size), nil
+
+	case "network.source.ip":
+
+		return e.NetworkContext.Source.IP, nil
+
+	case "network.source.port":
+
+		return int(e.NetworkContext.Source.Port), nil
 
 	case "open.file.change_time":
 
@@ -13990,6 +14384,74 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Signal.Type), nil
 
+	case "splice.file.change_time":
+
+		return int(e.Splice.File.FileFields.CTime), nil
+
+	case "splice.file.filesystem":
+
+		return e.Splice.File.Filesytem, nil
+
+	case "splice.file.gid":
+
+		return int(e.Splice.File.FileFields.GID), nil
+
+	case "splice.file.group":
+
+		return e.Splice.File.FileFields.Group, nil
+
+	case "splice.file.in_upper_layer":
+
+		return e.Splice.File.FileFields.InUpperLayer, nil
+
+	case "splice.file.inode":
+
+		return int(e.Splice.File.FileFields.Inode), nil
+
+	case "splice.file.mode":
+
+		return int(e.Splice.File.FileFields.Mode), nil
+
+	case "splice.file.modification_time":
+
+		return int(e.Splice.File.FileFields.MTime), nil
+
+	case "splice.file.mount_id":
+
+		return int(e.Splice.File.FileFields.MountID), nil
+
+	case "splice.file.name":
+
+		return e.Splice.File.BasenameStr, nil
+
+	case "splice.file.path":
+
+		return e.Splice.File.PathnameStr, nil
+
+	case "splice.file.rights":
+
+		return int(e.Splice.File.FileFields.Mode), nil
+
+	case "splice.file.uid":
+
+		return int(e.Splice.File.FileFields.UID), nil
+
+	case "splice.file.user":
+
+		return e.Splice.File.FileFields.User, nil
+
+	case "splice.pipe_entry_flag":
+
+		return int(e.Splice.PipeEntryFlag), nil
+
+	case "splice.pipe_exit_flag":
+
+		return int(e.Splice.PipeExitFlag), nil
+
+	case "splice.retval":
+
+		return int(e.Splice.SyscallEvent.Retval), nil
+
 	case "unlink.file.change_time":
 
 		return int(e.Unlink.File.FileFields.CTime), nil
@@ -14272,6 +14734,21 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "container.tags":
 		return "*", nil
+
+	case "dns.question.class":
+		return "dns", nil
+
+	case "dns.question.count":
+		return "dns", nil
+
+	case "dns.question.name":
+		return "dns", nil
+
+	case "dns.question.size":
+		return "dns", nil
+
+	case "dns.question.type":
+		return "dns", nil
 
 	case "exec.args":
 		return "exec", nil
@@ -14656,6 +15133,33 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "mprotect.vm_protection":
 		return "mprotect", nil
+
+	case "network.destination.ip":
+		return "*", nil
+
+	case "network.destination.port":
+		return "*", nil
+
+	case "network.device.ifindex":
+		return "*", nil
+
+	case "network.device.ifname":
+		return "*", nil
+
+	case "network.l3_protocol":
+		return "*", nil
+
+	case "network.l4_protocol":
+		return "*", nil
+
+	case "network.size":
+		return "*", nil
+
+	case "network.source.ip":
+		return "*", nil
+
+	case "network.source.port":
+		return "*", nil
 
 	case "open.file.change_time":
 		return "open", nil
@@ -15814,6 +16318,57 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "signal.type":
 		return "signal", nil
+
+	case "splice.file.change_time":
+		return "splice", nil
+
+	case "splice.file.filesystem":
+		return "splice", nil
+
+	case "splice.file.gid":
+		return "splice", nil
+
+	case "splice.file.group":
+		return "splice", nil
+
+	case "splice.file.in_upper_layer":
+		return "splice", nil
+
+	case "splice.file.inode":
+		return "splice", nil
+
+	case "splice.file.mode":
+		return "splice", nil
+
+	case "splice.file.modification_time":
+		return "splice", nil
+
+	case "splice.file.mount_id":
+		return "splice", nil
+
+	case "splice.file.name":
+		return "splice", nil
+
+	case "splice.file.path":
+		return "splice", nil
+
+	case "splice.file.rights":
+		return "splice", nil
+
+	case "splice.file.uid":
+		return "splice", nil
+
+	case "splice.file.user":
+		return "splice", nil
+
+	case "splice.pipe_entry_flag":
+		return "splice", nil
+
+	case "splice.pipe_exit_flag":
+		return "splice", nil
+
+	case "splice.retval":
+		return "splice", nil
 
 	case "unlink.file.change_time":
 		return "unlink", nil
@@ -16115,6 +16670,26 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "dns.question.class":
+
+		return reflect.Int, nil
+
+	case "dns.question.count":
+
+		return reflect.Int, nil
+
+	case "dns.question.name":
+
+		return reflect.String, nil
+
+	case "dns.question.size":
+
+		return reflect.Int, nil
+
+	case "dns.question.type":
+
+		return reflect.Int, nil
+
 	case "exec.args":
 
 		return reflect.String, nil
@@ -16624,6 +17199,42 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "mprotect.vm_protection":
+
+		return reflect.Int, nil
+
+	case "network.destination.ip":
+
+		return reflect.Struct, nil
+
+	case "network.destination.port":
+
+		return reflect.Int, nil
+
+	case "network.device.ifindex":
+
+		return reflect.Int, nil
+
+	case "network.device.ifname":
+
+		return reflect.String, nil
+
+	case "network.l3_protocol":
+
+		return reflect.Int, nil
+
+	case "network.l4_protocol":
+
+		return reflect.Int, nil
+
+	case "network.size":
+
+		return reflect.Int, nil
+
+	case "network.source.ip":
+
+		return reflect.Struct, nil
+
+	case "network.source.port":
 
 		return reflect.Int, nil
 
@@ -18168,6 +18779,74 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "signal.type":
+
+		return reflect.Int, nil
+
+	case "splice.file.change_time":
+
+		return reflect.Int, nil
+
+	case "splice.file.filesystem":
+
+		return reflect.String, nil
+
+	case "splice.file.gid":
+
+		return reflect.Int, nil
+
+	case "splice.file.group":
+
+		return reflect.String, nil
+
+	case "splice.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "splice.file.inode":
+
+		return reflect.Int, nil
+
+	case "splice.file.mode":
+
+		return reflect.Int, nil
+
+	case "splice.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "splice.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "splice.file.name":
+
+		return reflect.String, nil
+
+	case "splice.file.path":
+
+		return reflect.String, nil
+
+	case "splice.file.rights":
+
+		return reflect.Int, nil
+
+	case "splice.file.uid":
+
+		return reflect.Int, nil
+
+	case "splice.file.user":
+
+		return reflect.String, nil
+
+	case "splice.pipe_entry_flag":
+
+		return reflect.Int, nil
+
+	case "splice.pipe_exit_flag":
+
+		return reflect.Int, nil
+
+	case "splice.retval":
 
 		return reflect.Int, nil
 
@@ -18837,6 +19516,61 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
 		}
 		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
+
+		return nil
+
+	case "dns.question.class":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Class"}
+		}
+		e.DNS.Class = uint16(v)
+
+		return nil
+
+	case "dns.question.count":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Count"}
+		}
+		e.DNS.Count = uint16(v)
+
+		return nil
+
+	case "dns.question.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Name"}
+		}
+		e.DNS.Name = str
+
+		return nil
+
+	case "dns.question.size":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
+		}
+		e.DNS.Size = uint16(v)
+
+		return nil
+
+	case "dns.question.type":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Type"}
+		}
+		e.DNS.Type = uint16(v)
 
 		return nil
 
@@ -20218,6 +20952,105 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "MProtect.VMProtection"}
 		}
 		e.MProtect.VMProtection = int(v)
+
+		return nil
+
+	case "network.destination.ip":
+
+		var ok bool
+		v, ok := value.(net.IP)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IP"}
+		}
+		e.NetworkContext.Destination.IP = v
+
+		return nil
+
+	case "network.destination.port":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.Port"}
+		}
+		e.NetworkContext.Destination.Port = uint16(v)
+
+		return nil
+
+	case "network.device.ifindex":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfIndex"}
+		}
+		e.NetworkContext.Device.IfIndex = uint32(v)
+
+		return nil
+
+	case "network.device.ifname":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfName"}
+		}
+		e.NetworkContext.Device.IfName = str
+
+		return nil
+
+	case "network.l3_protocol":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L3Protocol"}
+		}
+		e.NetworkContext.L3Protocol = uint16(v)
+
+		return nil
+
+	case "network.l4_protocol":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L4Protocol"}
+		}
+		e.NetworkContext.L4Protocol = uint16(v)
+
+		return nil
+
+	case "network.size":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Size"}
+		}
+		e.NetworkContext.Size = uint32(v)
+
+		return nil
+
+	case "network.source.ip":
+
+		var ok bool
+		v, ok := value.(net.IP)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IP"}
+		}
+		e.NetworkContext.Source.IP = v
+
+		return nil
+
+	case "network.source.port":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
+		}
+		e.NetworkContext.Source.Port = uint16(v)
 
 		return nil
 
@@ -24929,6 +25762,190 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Type"}
 		}
 		e.Signal.Type = uint32(v)
+
+		return nil
+
+	case "splice.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.CTime"}
+		}
+		e.Splice.File.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "splice.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.Filesytem"}
+		}
+		e.Splice.File.Filesytem = str
+
+		return nil
+
+	case "splice.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.GID"}
+		}
+		e.Splice.File.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "splice.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Group"}
+		}
+		e.Splice.File.FileFields.Group = str
+
+		return nil
+
+	case "splice.file.in_upper_layer":
+
+		var ok bool
+		if e.Splice.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "splice.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Inode"}
+		}
+		e.Splice.File.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "splice.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
+		}
+		e.Splice.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "splice.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MTime"}
+		}
+		e.Splice.File.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "splice.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MountID"}
+		}
+		e.Splice.File.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "splice.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.BasenameStr"}
+		}
+		e.Splice.File.BasenameStr = str
+
+		return nil
+
+	case "splice.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PathnameStr"}
+		}
+		e.Splice.File.PathnameStr = str
+
+		return nil
+
+	case "splice.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
+		}
+		e.Splice.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "splice.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.UID"}
+		}
+		e.Splice.File.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "splice.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.User"}
+		}
+		e.Splice.File.FileFields.User = str
+
+		return nil
+
+	case "splice.pipe_entry_flag":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeEntryFlag"}
+		}
+		e.Splice.PipeEntryFlag = uint32(v)
+
+		return nil
+
+	case "splice.pipe_exit_flag":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeExitFlag"}
+		}
+		e.Splice.PipeExitFlag = uint32(v)
+
+		return nil
+
+	case "splice.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.SyscallEvent.Retval"}
+		}
+		e.Splice.SyscallEvent.Retval = int64(v)
 
 		return nil
 

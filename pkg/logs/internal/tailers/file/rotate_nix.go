@@ -36,7 +36,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 	}
 
 	recreated := !os.SameFile(fi1, fi2)
-	truncated := fi1.Size() < t.GetReadOffset()
+	truncated := fi1.Size() < t.getLastReadOffset()
 
 	return recreated || truncated, nil
 }

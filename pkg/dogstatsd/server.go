@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/internal/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -452,7 +452,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 
-	// make all workers flush their aggregated data (in the batchers) to the aggregator.
+	// make all workers flush their aggregated data (in the batchers) into the time samplers
 	s.serverlessFlushChan <- true
 
 	start := time.Now()

@@ -12,6 +12,8 @@ import (
 type dummyCollector struct {
 	id              string
 	cStats          map[string]*ContainerStats
+	cPIDStats       map[string]*ContainerPIDStats
+	cOpenFilesCount map[string]*uint64
 	cNetStats       map[string]*ContainerNetworkStats
 	cIDForPID       map[int]string
 	selfContainerID string
@@ -22,12 +24,20 @@ func (d dummyCollector) ID() string {
 	return d.id
 }
 
-func (d dummyCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
-	return d.cStats[containerID], d.err
+func (d dummyCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+	return d.cStats[containerNS+containerID], d.err
 }
 
-func (d dummyCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
-	return d.cNetStats[containerID], d.err
+func (d dummyCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerPIDStats, error) {
+	return d.cPIDStats[containerNS+containerID], d.err
+}
+
+func (d dummyCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	return d.cOpenFilesCount[containerNS+containerID], d.err
+}
+
+func (d dummyCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
+	return d.cNetStats[containerNS+containerID], d.err
 }
 
 func (d dummyCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {

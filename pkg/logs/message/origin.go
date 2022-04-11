@@ -29,6 +29,8 @@ func NewOrigin(source *config.LogSource) *Origin {
 }
 
 // Tags returns the tags of the origin.
+//
+// The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }

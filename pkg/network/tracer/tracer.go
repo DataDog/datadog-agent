@@ -176,6 +176,10 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
+	if err = tr.reverseDNS.Start(); err != nil {
+		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
+	}
+
 	return tr, nil
 }
 
@@ -380,6 +384,15 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 
 	if ds, ok := dnsStats["dropped_stats"]; ok {
 		tm[network.DNSStatsDropped] = ds
+	}
+
+	httpStats := t.httpMonitor.GetStats()
+	if ds, ok := httpStats["http_requests_dropped"]; ok {
+		tm[network.HTTPRequestsDropped] = ds
+	}
+
+	if ms, ok := httpStats["http_requests_missed"]; ok {
+		tm[network.HTTPRequestsMissed] = ms
 	}
 
 	ebpfStats := stats["ebpf"].(map[string]int64)

@@ -32,7 +32,6 @@ type ContainerCheck struct {
 	sysInfo           *model.SystemInfo
 	containerProvider util.ContainerProvider
 	lastRates         map[string]*util.ContainerRateMetrics
-	lastRun           time.Time
 	networkID         string
 
 	containerFailedLogLimit *util.LogLimit
@@ -72,9 +71,8 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	var containers []*model.Container
 	var pidToCid map[int]string
 	var lastRates map[string]*util.ContainerRateMetrics
-	containers, lastRates, pidToCid, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates, c.lastRun, startTime)
+	containers, lastRates, pidToCid, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
 	if err == nil {
-		c.lastRun = startTime
 		c.lastRates = lastRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)

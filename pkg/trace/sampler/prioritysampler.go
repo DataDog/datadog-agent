@@ -29,7 +29,6 @@ const (
 	deprecatedRateKey = "_sampling_priority_rate_v1"
 	agentRateKey      = "_dd.agent_psr"
 	ruleRateKey       = "_dd.rule_psr"
-	syncPeriod        = 3 * time.Second
 )
 
 // PrioritySampler computes priority rates per tracerEnv, service to apply in a feedback loop with trace-agent clients.
@@ -43,7 +42,7 @@ type PrioritySampler struct {
 	localRates *Sampler
 	// remoteRates targetTPS is set remotely and distributed by remote configurations.
 	// One target is defined per combination of tracerEnv, service and it applies only to root spans.
-	// remoteRates can be nil if the remote feature is not enabled in the trace-agent with feature flag "remote_rates"
+	// remoteRates can be nil if remote config is not enabled
 	// or in the core-agent remote client.
 	remoteRates *RemoteRates
 
@@ -59,9 +58,9 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 	s := &PrioritySampler{
 		agentEnv:      conf.DefaultEnv,
 		localRates:    newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
-		remoteRates:   newRemoteRates(conf.MaxRemoteTPS),
+		remoteRates:   newRemoteRates(conf.RemoteSamplingClient, conf.MaxRemoteTPS, conf.AgentVersion),
 		rateByService: &dynConf.RateByService,
-		catalog:       newServiceLookup(),
+		catalog:       newServiceLookup(conf.MaxCatalogEntries),
 		exit:          make(chan struct{}),
 	}
 	return s

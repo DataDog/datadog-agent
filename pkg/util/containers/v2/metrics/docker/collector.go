@@ -74,7 +74,7 @@ func (d *dockerCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
@@ -91,14 +91,20 @@ func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity ti
 	return outStats, nil
 }
 
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (d *dockerCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
+}
+
 // GetContainerNetworkStats returns network stats by container ID.
-func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (d *dockerCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks), nil
+	return convertNetworkStats(stats), nil
 }
 
 // GetContainerIDForPID returns the container ID for given PID
@@ -200,8 +206,9 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 	computeCPULimit(containerStats, spec)
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.ContainerNetworkStats {
+func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
+		Timestamp:   stats.Read,
 		BytesSent:   pointer.Float64Ptr(0),
 		BytesRcvd:   pointer.Float64Ptr(0),
 		PacketsSent: pointer.Float64Ptr(0),
@@ -209,7 +216,7 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.C
 		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
-	for ifname, netStats := range networkStats {
+	for ifname, netStats := range stats.Networks {
 		*containerNetworkStats.BytesSent += float64(netStats.TxBytes)
 		*containerNetworkStats.BytesRcvd += float64(netStats.RxBytes)
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)

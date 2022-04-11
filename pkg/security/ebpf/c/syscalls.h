@@ -178,13 +178,22 @@ struct syscall_cache_t {
         } init_module;
 
         struct {
-            char *name;
+            const char *name;
         } delete_module;
 
         struct {
             u32 pid;
             u32 type;
         } signal;
+
+        struct {
+            struct file_t file;
+            struct dentry *dentry;
+            struct pipe_buffer *bufs;
+            u32 file_found;
+            u32 pipe_entry_flag;
+            u32 pipe_exit_flag;
+        } splice;
     };
 };
 
@@ -202,7 +211,7 @@ struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
     if (policy) {
         return *policy;
     }
-    struct policy_t empty_policy = { };
+    struct policy_t empty_policy = {};
     return empty_policy;
 }
 
@@ -212,9 +221,9 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u64 type) {
+struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
     if (!syscall) {
         return NULL;
     }
@@ -224,9 +233,9 @@ struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u64 type) {
     return NULL;
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
+struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
     if (!syscall) {
         return NULL;
     }
@@ -236,9 +245,9 @@ struct syscall_cache_t * __attribute__((always_inline)) peek_syscall_with(int (*
     return NULL;
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type)) {
+struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type)) {
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
     if (!syscall) {
         return NULL;
     }
@@ -249,9 +258,9 @@ struct syscall_cache_t * __attribute__((always_inline)) pop_syscall_with(int (*p
     return NULL;
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u64 type) {
+struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
     if (!syscall) {
         return NULL;
     }
@@ -274,12 +283,14 @@ int __attribute__((always_inline)) mark_as_discarded(struct syscall_cache_t *sys
 }
 
 int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscall, int (*check_approvers)(struct syscall_cache_t *syscall)) {
-    if (syscall->policy.mode == NO_FILTER)
+    if (syscall->policy.mode == NO_FILTER) {
         return 0;
+    }
 
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &tgid);
-    if (tgid_exec_ts != NULL) {
+    u64 now = bpf_ktime_get_ns();
+    u64 timeout = lookup_or_delete_traced_pid_timeout(tgid, now);
+    if (timeout > 0) {
         // return immediately
         return 0;
     }

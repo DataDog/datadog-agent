@@ -10,38 +10,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func getTestSampler() *Sampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
-	// No extra fixed sampling, no maximum TPS
-	extraRate := 1.0
-	targetTPS := 0.0
-
-	return newSampler(extraRate, targetTPS, nil)
-}
-
 func TestSamplerAccessRace(t *testing.T) {
 	s := newSampler(1, 2, nil)
-	testTime := time.Now()
 	var wg sync.WaitGroup
 	wg.Add(5)
 	for j := 0; j < 5; j++ {
-		go func() {
+		go func(j int) {
 			defer wg.Done()
 			for i := 0; i < 10000; i++ {
-				s.countWeightedSig(testTime, Signature(i%3), 5)
+				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), Signature(i%3), 5)
 				s.report()
 				s.countSample()
 				s.getSignatureSampleRate(Signature(i % 3))
 				s.getAllSignatureSampleRates()
 			}
-		}()
+		}(j)
 	}
 	wg.Wait()
 }

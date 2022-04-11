@@ -1,3 +1,4 @@
+#include "kconfig.h"
 #include "tracer.h"
 
 #include "tracer-events.h"
@@ -15,7 +16,6 @@
 #include "ipv6.h"
 #endif
 
-#include <linux/kconfig.h>
 #include <linux/version.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>

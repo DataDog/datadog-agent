@@ -208,7 +208,7 @@ func (s *defaultSystemdStats) UnixNow() int64 {
 
 // Run executes the check
 func (c *SystemdCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

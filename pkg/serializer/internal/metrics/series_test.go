@@ -3,17 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package metrics
 
 import (
-	"bytes"
-	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -22,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -234,74 +231,8 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestStreamJSONMarshaler(t *testing.T) {
-	series := Series{
-		{
-			Points: []metrics.Point{
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-			},
-			MType:    metrics.APIGaugeType,
-			Name:     "test.metrics",
-			Interval: 15,
-			Host:     "localHost",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
-		},
-		{
-			Points: []metrics.Point{
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-			},
-			MType:    metrics.APIRateType,
-			Name:     "test.metrics",
-			Interval: 15,
-			Host:     "localHost",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
-		},
-		{
-			Points:   []metrics.Point{},
-			MType:    metrics.APICountType,
-			Name:     "test.metrics",
-			Interval: 15,
-			Host:     "localHost",
-			Tags:     tagset.CompositeTagsFromSlice([]string{}),
-		},
-	}
-
-	stream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
-
-	assert.Equal(t, 3, series.Len())
-
-	series.WriteHeader(stream)
-	assert.Equal(t, []byte(`{"series":[`), stream.Buffer())
-	stream.Reset(nil)
-
-	series.WriteFooter(stream)
-	assert.Equal(t, []byte(`]}`), stream.Buffer())
-	stream.Reset(nil)
-
-	// Access an out-of-bounds item
-	err := series.WriteItem(stream, 10)
-	assert.EqualError(t, err, "out of range")
-	err = series.WriteItem(stream, -10)
-	assert.EqualError(t, err, "out of range")
-
-	// Test each item type
-	for i := range series {
-		stream.Reset(nil)
-		err = series.WriteItem(stream, i)
-		assert.NoError(t, err)
-
-		// Make sure the output is valid and matches the original item
-		item := &metrics.Serie{}
-		err = json.Unmarshal(stream.Buffer(), item)
-		assert.NoError(t, err)
-		assert.EqualValues(t, series[i], item)
-	}
-}
-
 func TestStreamJSONMarshalerWithDevice(t *testing.T) {
-	series := Series{
+	series := metrics.Series{
 		{
 			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
@@ -316,8 +247,9 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 	}
 
 	stream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
-
-	err := series.WriteItem(stream, 0)
+	serializer := IterableSeries{IterableSeries: CreateIterableSeries(series)}
+	serializer.MoveNext()
+	err := serializer.WriteCurrentItem(stream)
 	assert.NoError(t, err)
 
 	// Make sure the output is valid and fields are as expected
@@ -329,7 +261,7 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 }
 
 func TestDescribeItem(t *testing.T) {
-	series := Series{
+	series := metrics.Series{
 		{
 			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
@@ -343,15 +275,13 @@ func TestDescribeItem(t *testing.T) {
 		},
 	}
 
-	desc1 := series.DescribeItem(0)
+	serializer := IterableSeries{IterableSeries: CreateIterableSeries(series)}
+	serializer.MoveNext()
+	desc1 := serializer.DescribeCurrentItem()
 	assert.Equal(t, "name \"test.metrics\", 2 points", desc1)
-
-	// Out of range
-	desc2 := series.DescribeItem(2)
-	assert.Equal(t, "out of range", desc2)
 }
 
-func makeSeries(numItems, numPoints int) Series {
+func makeSeries(numItems, numPoints int) *IterableSeries {
 	series := make([]*metrics.Serie, 0, numItems)
 	for i := 0; i < numItems; i++ {
 		series = append(series, &metrics.Serie{
@@ -369,7 +299,7 @@ func makeSeries(numItems, numPoints int) Series {
 			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		})
 	}
-	return series
+	return &IterableSeries{IterableSeries: CreateIterableSeries(series)}
 }
 
 func TestMarshalSplitCompress(t *testing.T) {
@@ -415,7 +345,7 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 
 // test taken from the spliter
 func TestPayloadsSeries(t *testing.T) {
-	testSeries := Series{}
+	testSeries := metrics.Series{}
 	for i := 0; i < 30000; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -442,7 +372,8 @@ func TestPayloadsSeries(t *testing.T) {
 
 	originalLength := len(testSeries)
 	builder := stream.NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(testSeries)
+	iterableSeries := &IterableSeries{IterableSeries: CreateIterableSeries(testSeries)}
+	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	require.Nil(t, err)
 	var splitSeries = []Series{}
 	for _, compressedPayload := range payloads {
@@ -469,7 +400,7 @@ func TestPayloadsSeries(t *testing.T) {
 var result forwarder.Payloads
 
 func BenchmarkPayloadsSeries(b *testing.B) {
-	testSeries := Series{}
+	testSeries := metrics.Series{}
 	for i := 0; i < 400000; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -489,7 +420,8 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = builder.Build(testSeries)
+		iterableSeries := &IterableSeries{IterableSeries: CreateIterableSeries(testSeries)}
+		r, _ = builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 	// ensure we actually had to split
 	if len(r) != 13 {
@@ -509,18 +441,4 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	// always store the result to a package level variable
 	// so the compiler cannot eliminate the Benchmark itself.
 	result = r
-}
-
-func decompressPayload(payload []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	dst, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
 }

@@ -53,8 +53,9 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	assert.Equal(t, "resource:my-function", d.ExtraTags.Tags[12])
 	assert.True(t, d.ExtraTags.Tags[13] == "runtime:unknown" || d.ExtraTags.Tags[13] == "runtime:provided.al2")
 
-	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", d.ExecutionContext.ARN)
-	assert.Equal(t, "myRequestID", d.ExecutionContext.LastRequestID)
+	ecs := d.ExecutionContext.GetCurrentState()
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", ecs.ARN)
+	assert.Equal(t, "myRequestID", ecs.LastRequestID)
 }
 
 func TestComputeTimeout(t *testing.T) {

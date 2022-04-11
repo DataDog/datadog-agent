@@ -10,17 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	testServiceA = "service-a"
-	testServiceB = "service-b"
 )
 
 func randomTraceID() uint64 {
@@ -28,9 +23,6 @@ func randomTraceID() uint64 {
 }
 
 func getTestPrioritySampler() *PrioritySampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
@@ -150,7 +142,7 @@ func TestPrioritySamplerWithRemote(t *testing.T) {
 		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
-	s.remoteRates = newRemoteRates(10)
+	s.remoteRates = newRemoteRates(nil, 10, "6.0.0")
 	s.Start()
 	s.updateRates()
 	s.reportStats()
@@ -198,13 +190,13 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	}
 
 	// setting up remote store
-	testCasesRates := pb.APMSampling{TargetTPS: make([]pb.TargetTPS, 0, len(testCases))}
+	testCasesRates := apmsampling.APMSampling{TargetTPS: make([]apmsampling.TargetTPS, 0, len(testCases))}
 	for _, tc := range testCases {
 
 		if tc.localRate {
 			continue
 		}
-		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
+		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, apmsampling.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
 	}
 	for _, tc := range testCases {
 		rand.Seed(3)

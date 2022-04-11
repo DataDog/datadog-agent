@@ -11,7 +11,7 @@ import (
 
 	dd_conf "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/breaker"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,7 +58,7 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // Decoder is structured as an actor with InputChan of type *decoder.Input and
 // OutputChan of type *decoder.Message.
 //
-// The Decoder's run() takes data from InputChan, uses a LineBreaker to break it into lines.
+// The Decoder's run() takes data from InputChan, uses a Framer to break it into frames.
 // The LineBreaker passes that data to a LineParser, which uses a Parser to convert it to
 // parsers.Message, converts that to decoder.Message, and passes that to the LineHandler.
 //
@@ -69,7 +69,7 @@ type Decoder struct {
 	InputChan  chan *Input
 	OutputChan chan *Message
 
-	lineBreaker *breaker.LineBreaker
+	framer      *framer.Framer
 	lineParser  LineParser
 	lineHandler LineHandler
 
@@ -81,11 +81,11 @@ type Decoder struct {
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parsers.Parser) *Decoder {
-	return NewDecoderWithEndLineMatcher(source, parser, &breaker.NewLineMatcher{}, nil)
+	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil)
 }
 
-// NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
-func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parser, matcher breaker.EndLineMatcher, multiLinePattern *regexp.Regexp) *Decoder {
+// NewDecoderWithFraming initialize a decoder with given endline strategy.
+func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
@@ -139,10 +139,10 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parse
 		lineParser = NewSingleLineParser(lineHandler.process, parser)
 	}
 
-	// construct the lineBreaker, wrapping the matcher
-	lineBreaker := breaker.NewLineBreaker(lineParser.process, matcher, lineLimit)
+	// construct the framer
+	framer := framer.NewFramer(lineParser.process, framing, lineLimit)
 
-	return New(inputChan, outputChan, lineBreaker, lineParser, lineHandler, detectedPattern)
+	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
 func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *config.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
@@ -180,11 +180,11 @@ func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int,
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Message, lineBreaker *breaker.LineBreaker, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
 	return &Decoder{
 		InputChan:       InputChan,
 		OutputChan:      OutputChan,
-		lineBreaker:     lineBreaker,
+		framer:          framer,
 		lineParser:      lineParser,
 		lineHandler:     lineHandler,
 		detectedPattern: detectedPattern,
@@ -219,7 +219,7 @@ func (d *Decoder) run() {
 				return
 			}
 
-			d.lineBreaker.Process(data.content)
+			d.framer.Process(data.content)
 
 		case <-d.lineParser.flushChan():
 			d.lineParser.flush()
@@ -232,7 +232,9 @@ func (d *Decoder) run() {
 
 // GetLineCount returns the number of decoded lines
 func (d *Decoder) GetLineCount() int64 {
-	return d.lineBreaker.GetLineCount()
+	// for the moment, this counts _frames_, which aren't quite the same but
+	// close enough for logging purposes
+	return d.framer.GetFrameCount()
 }
 
 // GetDetectedPattern returns a detected pattern (if any)

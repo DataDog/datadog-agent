@@ -10,16 +10,12 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
@@ -27,21 +23,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type Agent struct {
+	sources                   *config.LogSources
+	services                  *service.Services
+	schedulers                *schedulers.Schedulers
 	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
-	inputs                    []restart.Restartable
+	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+
+	// started is true if the agent has ever been started
+	started bool
 }
 
 // NewAgent returns a new Logs Agent
@@ -59,55 +66,40 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
-	containerLaunchables := []container.Launchable{
-		{
-			IsAvailable: docker.IsAvailable,
-			Launcher: func() restart.Restartable {
-				return docker.NewLauncher(
-					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
-					sources,
-					services,
-					pipelineProvider,
-					auditor,
-					coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
-					coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file"))
-			},
-		},
-		{
-			IsAvailable: kubernetes.IsAvailable,
-			Launcher: func() restart.Restartable {
-				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
-			},
-		},
-	}
+	cop := containersorpods.NewChooser()
 
-	// when k8s_container_use_file is true, always attempt to use the kubernetes launcher first
-	if coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file") {
-		containerLaunchables[0], containerLaunchables[1] = containerLaunchables[1], containerLaunchables[0]
-	}
-
-	validatePodContainerID := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
-
-	// setup the inputs
-	inputs := []restart.Restartable{
-		filelauncher.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
-			filelauncher.DefaultSleepDuration, validatePodContainerID, time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))),
-		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
-		journald.NewLauncher(sources, pipelineProvider, auditor),
-		windowsevent.NewLauncher(sources, pipelineProvider),
-		traps.NewLauncher(sources, pipelineProvider),
-	}
-
-	// Only try to start the container launchers if Docker or Kubernetes is available
-	if coreConfig.IsFeaturePresent(coreConfig.Docker) || coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
-		inputs = append(inputs, container.NewLauncher(containerLaunchables))
-	}
+	// setup the launchers
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
+	lnchrs.AddLauncher(filelauncher.NewLauncher(
+		coreConfig.Datadog.GetInt("logs_config.open_files_limit"),
+		filelauncher.DefaultSleepDuration,
+		coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id"),
+		time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))))
+	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
+	lnchrs.AddLauncher(journald.NewLauncher())
+	lnchrs.AddLauncher(windowsevent.NewLauncher())
+	lnchrs.AddLauncher(traps.NewLauncher())
+	lnchrs.AddLauncher(docker.NewLauncher(
+		time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
+		sources,
+		services,
+		cop,
+		coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
+		coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file")))
+	lnchrs.AddLauncher(kubernetes.NewLauncher(
+		sources,
+		services,
+		cop,
+		coreConfig.Datadog.GetBool("logs_config.container_collect_all")))
 
 	return &Agent{
+		sources:                   sources,
+		services:                  services,
+		schedulers:                schedulers.NewSchedulers(sources, services),
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
-		inputs:                    inputs,
+		launchers:                 lnchrs,
 		health:                    health,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
@@ -128,16 +120,18 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
-	// setup the inputs
-	inputs := []restart.Restartable{
-		channel.NewLauncher(sources, pipelineProvider),
-	}
+	// setup the sole launcher for this agent
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
+	lnchrs.AddLauncher(channel.NewLauncher())
 
 	return &Agent{
+		sources:                   sources,
+		services:                  services,
+		schedulers:                schedulers.NewSchedulers(sources, services),
 		auditor:                   auditor,
 		destinationsCtx:           destinationsCtx,
 		pipelineProvider:          pipelineProvider,
-		inputs:                    inputs,
+		launchers:                 lnchrs,
 		health:                    health,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
@@ -146,10 +140,19 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	starter := restart.NewStarter(a.destinationsCtx, a.auditor, a.pipelineProvider, a.diagnosticMessageReceiver)
-	for _, input := range a.inputs {
-		starter.Add(input)
+	if a.started {
+		panic("logs agent cannot be started more than once")
 	}
+	a.started = true
+
+	starter := startstop.NewStarter(
+		a.destinationsCtx,
+		a.auditor,
+		a.pipelineProvider,
+		a.diagnosticMessageReceiver,
+		a.launchers,
+		a.schedulers,
+	)
 	starter.Start()
 }
 
@@ -161,12 +164,9 @@ func (a *Agent) Flush(ctx context.Context) {
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {
-	inputs := restart.NewParallelStopper()
-	for _, input := range a.inputs {
-		inputs.Add(input)
-	}
-	stopper := restart.NewSerialStopper(
-		inputs,
+	stopper := startstop.NewSerialStopper(
+		a.schedulers,
+		a.launchers,
 		a.pipelineProvider,
 		a.auditor,
 		a.destinationsCtx,
@@ -207,4 +207,9 @@ func (a *Agent) Stop() {
 			}
 		}
 	}
+}
+
+// AddScheduler adds the given scheduler to the agent.
+func (a *Agent) AddScheduler(scheduler schedulers.Scheduler) {
+	a.schedulers.AddScheduler(scheduler)
 }

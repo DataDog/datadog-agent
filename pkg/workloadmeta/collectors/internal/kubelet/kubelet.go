@@ -131,6 +131,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
+			QOSClass:                   pod.Status.QOSClass,
 		}
 
 		events = append(events, containerEvents...)

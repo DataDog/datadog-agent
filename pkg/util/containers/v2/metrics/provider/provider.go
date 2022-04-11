@@ -23,6 +23,7 @@ const (
 	RuntimeNameCRIO       string = "cri-o"
 	RuntimeNameGarden     string = "garden"
 	RuntimeNamePodman     string = "podman"
+	RuntimeNameECSFargate string = "ecsfargate"
 )
 
 const (

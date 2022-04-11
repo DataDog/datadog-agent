@@ -10,13 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -35,27 +33,22 @@ type RemoteRates struct {
 	samplers map[Signature]*remoteSampler
 	// tpsTargets contains the latest tps targets available per (env, service)
 	// this map may include signatures (env, service) not seen by this agent.
-	tpsTargets         map[Signature]pb.TargetTPS
+	tpsTargets         map[Signature]apmsampling.TargetTPS
 	mu                 sync.RWMutex // protects concurrent access to samplers and tpsTargets
 	tpsVersion         uint64       // version of the loaded tpsTargets
 	duplicateTargetTPS uint64       // count of duplicate received targetTPS
 
-	client  *remote.Client
+	client  config.RemoteClient
 	stopped chan struct{}
 }
 
 type remoteSampler struct {
 	*Sampler
-	target pb.TargetTPS
+	target apmsampling.TargetTPS
 }
 
-func newRemoteRates(maxTPS float64) *RemoteRates {
-	if !features.Has("remote_rates") {
-		return nil
-	}
-	client, err := remote.NewClient(remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []data.Product{data.ProductAPMSampling})
-	if err != nil {
-		log.Errorf("Error when subscribing to remote config management %v", err)
+func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion string) *RemoteRates {
+	if client == nil {
 		return nil
 	}
 	return &RemoteRates{
@@ -66,11 +59,21 @@ func newRemoteRates(maxTPS float64) *RemoteRates {
 	}
 }
 
-func (r *RemoteRates) onUpdate(update remote.APMSamplingUpdate) error {
-	log.Debugf("fetched config version %d from remote config management", update.Config.Version)
-	tpsTargets := make(map[Signature]pb.TargetTPS, len(r.tpsTargets))
-	for _, rates := range update.Config.Rates {
-		for _, targetTPS := range rates.TargetTPS {
+func (r *RemoteRates) onUpdate(update config.SamplingUpdate) {
+	// TODO: We don't have a version per product, yet. But, we will have it in the next version.
+	// In the meantime we will just use a version of one of the config files.
+	var version uint64
+	for _, c := range update.Configs {
+		if c.Version > version {
+			version = c.Version
+		}
+		break
+	}
+
+	log.Debugf("fetched config version %d from remote config management", version)
+	tpsTargets := make(map[Signature]apmsampling.TargetTPS, len(r.tpsTargets))
+	for _, rates := range update.Configs {
+		for _, targetTPS := range rates.Config.TargetTPS {
 			if targetTPS.Value > r.maxSigTPS {
 				targetTPS.Value = r.maxSigTPS
 			}
@@ -81,12 +84,11 @@ func (r *RemoteRates) onUpdate(update remote.APMSamplingUpdate) error {
 		}
 	}
 	r.updateTPS(tpsTargets)
-	atomic.StoreUint64(&r.tpsVersion, update.Config.Version)
-	return nil
+	atomic.StoreUint64(&r.tpsVersion, version)
 }
 
 // addTargetTPS keeping the highest rank if 2 targetTPS of the same signature are added
-func (r *RemoteRates) addTargetTPS(tpsTargets map[Signature]pb.TargetTPS, new pb.TargetTPS) {
+func (r *RemoteRates) addTargetTPS(tpsTargets map[Signature]apmsampling.TargetTPS, new apmsampling.TargetTPS) {
 	sig := ServiceSignature{Name: new.Service, Env: new.Env}.Hash()
 	stored, ok := tpsTargets[sig]
 	if !ok {
@@ -102,7 +104,7 @@ func (r *RemoteRates) addTargetTPS(tpsTargets map[Signature]pb.TargetTPS, new pb
 	}
 }
 
-func (r *RemoteRates) updateTPS(tpsTargets map[Signature]pb.TargetTPS) {
+func (r *RemoteRates) updateTPS(tpsTargets map[Signature]apmsampling.TargetTPS) {
 	r.mu.Lock()
 	r.tpsTargets = tpsTargets
 	r.mu.Unlock()
@@ -131,7 +133,7 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]pb.TargetTPS) {
 // Start runs and adjust rates per signature following remote TPS targets
 func (r *RemoteRates) Start() {
 	go func() {
-		for update := range r.client.APMSamplingUpdates() {
+		for update := range r.client.SamplingUpdates() {
 			r.onUpdate(update)
 		}
 		close(r.stopped)
@@ -189,7 +191,6 @@ func (r *RemoteRates) countSample(root *pb.Span, sig Signature) {
 	s.countSample()
 	root.Metrics[tagRemoteTPS] = s.targetTPS.Load()
 	root.Metrics[tagRemoteVersion] = float64(atomic.LoadUint64(&r.tpsVersion))
-	return
 }
 
 // getSignatureSampleRate returns the sampling rate to apply for a registered signature.

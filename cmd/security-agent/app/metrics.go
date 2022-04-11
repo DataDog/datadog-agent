@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // sendRunningMetrics exports a metric to distinguish between security-agent modules that are activated

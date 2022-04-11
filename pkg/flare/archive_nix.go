@@ -36,6 +36,9 @@ func zipWindowsEventLogs(tempDir, hostname string) error {
 func zipServiceStatus(tempDir, hostname string) error {
 	return nil
 }
+func zipDatadogRegistry(tempDir, hostname string) error {
+	return nil
+}
 
 // Add puts the given filepath in the map
 // of files to process later during the commit phase.
