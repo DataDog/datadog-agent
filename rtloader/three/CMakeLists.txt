@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
+
+set(Python3_FIND_VIRTUALENV STANDARD) # Only link against conda's Python if nothing else is available
 find_package (Python3 COMPONENTS Interpreter Development)
 
 if(Python3_VERSION_MINOR LESS "7")
