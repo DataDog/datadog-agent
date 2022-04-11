@@ -141,6 +141,7 @@ New Features
 
 - Configuration ``process_config.enabled`` is now split into two settings: ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled``. This will allow better control over the process Agent.
   ``process_config.enabled`` now translates to these new settings:
+
   * ``process_config.enabled=true``: ``process_config.process_collection.enabled=true``
   * ``process_config.enabled=false``: ``process_config.container_collection.enabled=true`` and ``process_config.process_collection.enabled=false``
   * ``process_config.enabled=disabled``: ``process_config.container_collection.enabled=false`` and ``process_config.process_collection.enabled=false``
