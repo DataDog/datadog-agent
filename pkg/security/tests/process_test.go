@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -23,7 +22,6 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
@@ -110,10 +108,6 @@ func TestProcessContext(t *testing.T) {
 		{
 			ID:         "test_rule_envp",
 			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"]`,
-		},
-		{
-			ID:         "test_rule_args_envs_dedup",
-			Expression: `exec.file.name == "ls" && exec.argv == "test123456"`,
 		},
 	}
 
@@ -269,6 +263,7 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
+			// we need to ignore the error because "--password" is not a valid option for ls
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -556,45 +551,6 @@ func TestProcessContext(t *testing.T) {
 
 			if !validateExecSchema(t, event) {
 				t.Error(event.String())
-			}
-		})
-	})
-
-	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456"}, []string{"DEDUP=dedup123"}
-
-		test.WaitSignal(t, func() error {
-			cmd := cmdFunc(shell, args, envs)
-			// we need to ignore the error because the string of "a" generates a "File name too long" error
-			_ = cmd.Run()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_rule_args_envs_dedup", rule.ID, "wrong rule triggered")
-
-			if !validateExecSchema(t, event) {
-				t.Error(event.String())
-			}
-
-			var data interface{}
-			serialized := event.String()
-			if err := json.Unmarshal([]byte(serialized), &data); err != nil {
-				t.Error(err)
-			}
-
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
-				t.Error("shouldn't have args")
-			}
-
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
-				t.Error("shouldn't have envs")
-			}
-
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
-				t.Error("should have args")
-			}
-
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
-				t.Error("should have envs")
 			}
 		})
 	})

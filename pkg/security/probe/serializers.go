@@ -510,15 +510,13 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
-	var ancestor *model.ProcessCacheEntry
 	var prev *ProcessSerializer
-
 	first := true
 
 	for ptr != nil {
-		pce := (*model.ProcessCacheEntry)(ptr)
+		ancestor := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessSerializer(&pce.Process, e)
+		s := newProcessSerializer(&ancestor.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -527,12 +525,15 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 		first = false
 
 		// dedup args/envs
-		if ancestor != nil && ancestor.ArgsEntry == pce.ArgsEntry {
-			prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
-			prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
-			prev.Argv0 = ""
+		if prev != nil {
+			// parent/child with the same comm then a fork thus we
+			// can remove the child args/envs
+			if prev.PPid == s.Pid && prev.Comm == s.Comm {
+				prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
+				prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
+				prev.Argv0 = ""
+			}
 		}
-		ancestor = pce
 		prev = s
 
 		ptr = it.Next()

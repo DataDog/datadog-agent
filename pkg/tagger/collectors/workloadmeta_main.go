@@ -45,7 +45,6 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags             map[string]string
 	labelsAsTags           map[string]string
 	annotationsAsTags      map[string]string
 	nsLabelsAsTags         map[string]string
@@ -77,23 +76,13 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 }
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
-	c.staticTags = util.GetStaticTags(ctx)
-	if len(c.staticTags) > 0 {
-		tags := utils.NewTagList()
-
-		for tag, value := range c.staticTags {
-			tags.AddLow(tag, value)
-		}
-
-		low, orch, high, standard := tags.Compute()
+	staticTags := util.GetStaticTagsSlice(ctx)
+	if len(staticTags) > 0 {
 		c.tagProcessor.ProcessTagInfo([]*TagInfo{
 			{
-				Source:               staticSource,
-				Entity:               GlobalEntityID,
-				HighCardTags:         high,
-				OrchestratorCardTags: orch,
-				LowCardTags:          low,
-				StandardTags:         standard,
+				Source:      staticSource,
+				Entity:      GlobalEntityID,
+				LowCardTags: staticTags,
 			},
 		})
 	}

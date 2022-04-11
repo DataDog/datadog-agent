@@ -83,7 +83,6 @@ func TestHandleKubePod(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		staticTags        map[string]string
 		labelsAsTags      map[string]string
 		annotationsAsTags map[string]string
 		nsLabelsAsTags    map[string]string
@@ -335,42 +334,13 @@ func TestHandleKubePod(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "static tags",
-			staticTags: map[string]string{
-				"eks_fargate_node": "foobar",
-			},
-			pod: workloadmeta.KubernetesPod{
-				EntityID: podEntityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:      podName,
-					Namespace: podNamespace,
-				},
-			},
-			expected: []*TagInfo{
-				{
-					Source:       podSource,
-					Entity:       podTaggerEntityID,
-					HighCardTags: []string{},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						"eks_fargate_node:foobar",
-					}),
-					StandardTags: []string{},
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collector := &WorkloadMetaCollector{
-				store:      store,
-				children:   make(map[string]map[string]struct{}),
-				staticTags: tt.staticTags,
+				store:    store,
+				children: make(map[string]map[string]struct{}),
 			}
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
@@ -560,7 +530,6 @@ func TestHandleContainer(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		staticTags   map[string]string
 		labelsAsTags map[string]string
 		envAsTags    map[string]string
 		container    workloadmeta.Container
@@ -925,40 +894,11 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "static tags",
-			staticTags: map[string]string{
-				"eks_fargate_node": "foobar",
-			},
-			container: workloadmeta.Container{
-				EntityID: entityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: containerName,
-				},
-			},
-			expected: []*TagInfo{
-				{
-					Source: containerSource,
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: []string{
-						"eks_fargate_node:foobar",
-					},
-					StandardTags: []string{},
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				staticTags: tt.staticTags,
-			}
+			collector := &WorkloadMetaCollector{}
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
