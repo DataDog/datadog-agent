@@ -14,6 +14,12 @@ import (
 type InvocationStartDetails struct {
 	StartTime             time.Time
 	InvokeEventRawPayload string
+	InvokeEventHeaders    LambdaInvokeEventHeaders
+}
+
+type LambdaInvokeEventHeaders struct {
+	TraceID  string
+	ParentID string
 }
 
 // InvocationEndDetails stores information about the end of an invocation.

@@ -30,7 +30,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders)
 	}
 }
 
