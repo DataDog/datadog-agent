@@ -126,7 +126,7 @@ List of the available variables:
 | `process.pid`         | Process PID                           | 7.33          |
 
 ## CIDR and IP range
-CIDR and IP matching is possible in SECL. One can use operator such as `in`, `not in`, `allin` combined with CIDR or IP notations.
+CIDR and IP matching is possible in SECL. One can use operators such as `in`, `not in`, or `allin` combined with CIDR or IP notations.
 
 Such rules can be written as follows:
 
