@@ -678,7 +678,7 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, opts *Opts, state *State) (*
 	}, nil
 }
 
-// CIDRValuesContainsWithOpFunction evaluates a CIDR against a list of CIDRs
+// CIDRValuesContains evaluates a CIDR against a list of CIDRs
 func CIDRValuesContains(a *CIDREvaluator, b *CIDRValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -821,7 +821,7 @@ func CIDRArrayMatchesAll(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, opts *Op
 	return cidrArrayMatches(a, b, opts, state, op)
 }
 
-// CIDRValuesContainsWithOpFunction evaluates a CIDR against a list of CIDRs
+// CIDRArrayContains evaluates a CIDR against a list of CIDRs
 func CIDRArrayContains(a *CIDREvaluator, b *CIDRArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
