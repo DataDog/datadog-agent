@@ -151,8 +151,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0
 github.com/DataDog/nikos v1.7.6 h1:zN4aODtsj283+Y4Q5niIHrmqsMKW3Zlob5qJLOTOQro=
 github.com/DataDog/nikos v1.7.6/go.mod h1:kK2wHo4SMa+qDP7cNQWzS3Ol9uJK46zPLPtK1C37ZWA=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
-github.com/DataDog/sketches-go v1.3.0 h1:VOaiZiifXh4VRoOz3ZNoFQAPRAZpppH1FPvcarsvBqg=
-github.com/DataDog/sketches-go v1.3.0/go.mod h1:1xYmPLY1So10AwxV6MJV0J53XVH+WL9Ad1KetxVivVI=
+github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
+github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
 github.com/DataDog/viper v1.9.0 h1:9Ha1yJebecIKtboH/GXUM3brfoMofvdd8BlMck8Cs8Q=
 github.com/DataDog/viper v1.9.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
 github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9 h1:eTBekOGVnZyX9hBoYjiOpDijtOZZ8VHVC3NyrcYuC7w=
@@ -2496,8 +2496,9 @@ google.golang.org/protobuf v1.24.0/go.mod h1:r/3tXBNzIEhYS9I1OUVjXDlt8tc493IdKGj
 google.golang.org/protobuf v1.25.0/go.mod h1:9JNX74DMeImyA3h4bdi1ymwjUzf21/xIlbajtzgsN7c=
 google.golang.org/protobuf v1.26.0-rc.1/go.mod h1:jlhhOSvTdKEhbULTjvd4ARK9grFBp09yW+WbY/TyQbw=
 google.golang.org/protobuf v1.26.0/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
-google.golang.org/protobuf v1.27.1 h1:SnqbnDw1V7RiZcXPx5MEeqPv2s79L9i7BJUlG/+RurQ=
 google.golang.org/protobuf v1.27.1/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
+google.golang.org/protobuf v1.28.0 h1:w43yiav+6bVFTBQFZX0r7ipe9JQ1QsbMgHwbBziscLw=
+google.golang.org/protobuf v1.28.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 gopkg.in/DataDog/dd-trace-go.v1 v1.29.0-rc.1.0.20210226170446-a8dc39ec3484/go.mod h1:H9vSLD4Qlnl3rH2fUT6jyP9qwq1lDo0ikaDqSJo8t/U=
 gopkg.in/DataDog/dd-trace-go.v1 v1.37.0 h1:V485ujNZdVc9pBQgpalgSpTRlr3PdxcX5v60YuiDFWc=
 gopkg.in/DataDog/dd-trace-go.v1 v1.37.0/go.mod h1:HMpV5TQ38YAfRJ8OlM7UfLyGg6D01MPNHRFwsnrGMB0=
