@@ -35,6 +35,11 @@ type StringValues struct {
 	exists map[interface{}]bool
 }
 
+// GetFieldValues return the list of FieldValue stored in the StringValues
+func (s *StringValues) GetFieldValues() []FieldValue {
+	return s.fieldValues
+}
+
 // AppendFieldValue append a FieldValue
 func (s *StringValues) AppendFieldValue(value FieldValue) {
 	if s.scalarCache == nil {
@@ -185,6 +190,29 @@ func (g *GlobStringMatcher) Contains(value string) bool {
 	return g.glob.Contains(value)
 }
 
+// PatternStringMatcher defines a pattern matcher
+type PatternStringMatcher struct {
+	pattern         string
+	caseInsensitive bool
+}
+
+// Compile a simple pattern
+func (p *PatternStringMatcher) Compile(pattern string, caseInsensitive bool) error {
+	// ** are not allowed in normal patterns
+	if strings.Contains(pattern, "**") {
+		return fmt.Errorf("`**` is not allowed in patterns")
+	}
+
+	p.pattern = pattern
+	p.caseInsensitive = caseInsensitive
+	return nil
+}
+
+// Matches returns whether the value matches
+func (p *PatternStringMatcher) Matches(value string) bool {
+	return PatternMatches(p.pattern, value, p.caseInsensitive)
+}
+
 // ScalarStringMatcher defines a scalar matcher
 type ScalarStringMatcher struct {
 	value           string
@@ -210,9 +238,15 @@ func (s *ScalarStringMatcher) Matches(value string) bool {
 func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (StringMatcher, error) {
 	switch kind {
 	case PatternValueType:
-		var matcher GlobStringMatcher
+		var matcher PatternStringMatcher
 		if err := matcher.Compile(pattern, opts.GlobCaseInsensitive); err != nil {
 			return nil, fmt.Errorf("invalid pattern `%s`: %s", pattern, err)
+		}
+		return &matcher, nil
+	case GlobValueType:
+		var matcher GlobStringMatcher
+		if err := matcher.Compile(pattern, opts.GlobCaseInsensitive); err != nil {
+			return nil, fmt.Errorf("invalid glob `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
 	case RegexpValueType:

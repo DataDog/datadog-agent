@@ -213,8 +213,9 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.name":
 
 		return &StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
-			Field:   field,
+			EvalFnc:     func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
+			Field:       field,
+			OpOverrides: GlobCmp,
 		}, nil
 
 	case "process.uid":

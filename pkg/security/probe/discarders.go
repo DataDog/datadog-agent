@@ -287,10 +287,10 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		// check filename
 		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
-				if value.Type == eval.PatternValueType {
+				if value.Type == eval.GlobValueType {
 					glob, err := eval.NewGlob(value.Value.(string), false)
 					if err != nil {
-						return nil, fmt.Errorf("unexpected pattern `%v`: %w", value.Value, err)
+						return nil, fmt.Errorf("unexpected glob `%v`: %w", value.Value, err)
 					}
 
 					valueFnc = func(dirname string) (bool, bool, error) {

@@ -110,6 +110,10 @@ func TestGlobMatches(t *testing.T) {
 		t.Error("should contain the filename")
 	}
 
+	if glob, _ := NewGlob("*/abc/*", false); !glob.Matches("/1/abc/2") {
+		t.Error("should contain the filename")
+	}
+
 	if glob, _ := NewGlob("/tmp/test/test789*", false); !glob.Matches("/tmp/test/test7890") {
 		t.Error("should contain the filename")
 	}
