@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.0
-	github.com/DataDog/sketches-go v1.2.1
+	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
@@ -44,7 +44,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
 
