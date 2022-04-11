@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"html"
 	"net/http"
 	"net/url"
@@ -124,9 +123,6 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if coreconfig.Datadog.IsSet("hostname") {
 		c.Hostname = coreconfig.Datadog.GetString("hostname")
-	}
-	if coreconfig.Datadog.IsSet("log_level") {
-		c.LogLevel = coreconfig.Datadog.GetString("log_level")
 	}
 	if coreconfig.Datadog.IsSet("dogstatsd_port") {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
@@ -371,7 +367,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		return err
 	}
 
-	if strings.ToLower(c.LogLevel) == "debug" && !coreconfig.Datadog.IsSet("apm_config.log_throttling") {
+	if coreconfig.Datadog.GetString("log_level") == "debug" && !coreconfig.Datadog.IsSet("apm_config.log_throttling") {
 		// if we are in "debug mode" and log throttling behavior was not
 		// set by the user, disable it
 		c.LogThrottling = false
@@ -414,9 +410,6 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
 		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("apm_config.api_key"))
-	}
-	if cfg.IsSet("apm_config.log_level") {
-		c.LogLevel = coreconfig.Datadog.GetString("apm_config.log_level")
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
@@ -602,7 +595,8 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	return nil
 }
 
-func UpdateConfigHandler(r *api.HTTPReceiver) http.Handler {
+//UpdateConfigHandler returns handler for configuration changes during runtime
+func UpdateConfigHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_ = req.ParseForm()
 
@@ -635,7 +629,7 @@ func UpdateConfigHandler(r *api.HTTPReceiver) http.Handler {
 				httpSettingError(w, http.StatusBadRequest, err)
 				return
 			}
-			r.UpdateLogLevel(seelogLogLevel)
+			coreconfig.Datadog.Set("log_level", seelogLogLevel)
 
 			log.Infof("Switched log level from %s to %s", currentLvl, seelogLogLevel)
 		default:

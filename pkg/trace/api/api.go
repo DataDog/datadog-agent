@@ -72,7 +72,6 @@ type HTTPReceiver struct {
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
 
-	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
@@ -99,7 +98,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
 
-		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
