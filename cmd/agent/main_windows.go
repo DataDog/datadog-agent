@@ -33,7 +33,9 @@ func writeLogFile(s string) {
 func init() {
 	var err error
 	logFile, err = os.OpenFile(`C:\ProgramData\Datadog\logs\main.txt`, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
-	fmt.Println(err)
+	if err != nil {
+		fmt.Println(err)
+	}
 	writeLogFile("Init")
 }
 
