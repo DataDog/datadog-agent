@@ -92,7 +92,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
     go_cmd = f'go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}" {exec_opts}'
 
-    ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...", env={"INTEGRATION": "yes"})
+    ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...")
 
 
 @task
