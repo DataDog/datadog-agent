@@ -30,7 +30,7 @@ func CreateInferredSpanFromAPIGatewayEvent(eventSource string, attributes EventK
 		Stage:         requestContext.Stage,
 	}
 
-	setSynchronicity(inferredSpan, attributes)
+	setSynchronicity(&inferredSpan, attributes)
 }
 
 func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes EventKeys, inferredSpan InferredSpan) {
@@ -59,7 +59,7 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes Ev
 		ResourceName:  resource,
 	}
 
-	setSynchronicity(inferredSpan, attributes)
+	setSynchronicity(&inferredSpan, attributes)
 }
 
 func CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource string, attributes EventKeys, inferredSpan InferredSpan) {
@@ -88,10 +88,10 @@ func CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource string, attribut
 		Stage:            requestContext.Stage,
 	}
 
-	setSynchronicity(inferredSpan, attributes)
+	setSynchronicity(&inferredSpan, attributes)
 }
 
-func setSynchronicity(span InferredSpan, attributes EventKeys) {
+func setSynchronicity(span *InferredSpan, attributes EventKeys) {
 	span.IsAsync = false
 	if attributes.Headers.InvocationType == "Event" {
 		span.IsAsync = true

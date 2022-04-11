@@ -7,8 +7,10 @@ package inferredspan
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 )
@@ -85,4 +87,40 @@ func TestFilterFunctionTags(t *testing.T) {
 	assert.Equal(t, filteredTags["region"], "test")
 	assert.Equal(t, filteredTags["account_id"], "test")
 	assert.Equal(t, filteredTags["aws_account"], "test")
+}
+
+func TestCompleteInferredSpanWithNoError(t *testing.T) {
+
+	startTime := time.Now()
+
+	inferredSpan := GenerateSpan()
+	inferredSpan.Span.TraceID = 2350923428932752492
+	inferredSpan.Span.SpanID = 1304592378509342580
+	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Name = "aws.mock"
+	inferredSpan.Span.Service = "aws.mock"
+	inferredSpan.Span.Resource = "test-function"
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Meta = map[string]string{
+		Stage: "dev",
+	}
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	isError := false
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	CompleteInferredSpan(mockProcessTrace, endTime, isError, "test-function", inferredSpan)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.mock", span.Name)
+	assert.Equal(t, "aws.mock", span.Service)
+	assert.Equal(t, "test-function", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "dev", span.Meta["stage"])
+	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
+	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
+	assert.Equal(t, duration.Nanoseconds(), span.Duration)
 }

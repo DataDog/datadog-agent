@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,6 +48,46 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 9, currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
+	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+}
+
+func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
+	defer os.Unsetenv("DD_TRACE_ENABLED")
+	os.Setenv("DD_TRACE_ENABLED", "true")
+	defer reset()
+	defer os.Unsetenv("DD_TRACE_ENABLED")
+	os.Setenv("DD_TRACE_MANAGED_SERVICES", "true")
+	defer reset()
+	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
+	startTime := time.Now()
+	var span inferredspan.InferredSpan
+	span.Span = &pb.Span{}
+	span.Span.TraceID = 2350923428932752492
+	span.Span.SpanID = 1304592378509342580
+	startExecutionSpan(startTime, testString, span)
+	assert.Equal(t, startTime, currentExecutionInfo.startTime)
+	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
+	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+}
+
+func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
+	defer os.Unsetenv("DD_TRACE_ENABLED")
+	os.Setenv("DD_TRACE_ENABLED", "true")
+	defer reset()
+	defer os.Unsetenv("DD_TRACE_ENABLED")
+	os.Setenv("DD_TRACE_MANAGED_SERVICES", "true")
+	defer reset()
+	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	startTime := time.Now()
+	var span inferredspan.InferredSpan = inferredspan.GenerateSpan()
+	span.Span.SpanID = 1304592378509342580
+	startExecutionSpan(startTime, testString, span)
+	assert.Equal(t, startTime, currentExecutionInfo.startTime)
+	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
+	assert.Equal(t, uint64(5736943178450432258), span.Span.TraceID)
+	assert.Equal(t, uint64(1480558859903409531), span.Span.ParentID)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
 }
 func TestEndExecutionSpanWithNoError(t *testing.T) {

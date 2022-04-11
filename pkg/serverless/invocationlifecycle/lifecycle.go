@@ -56,7 +56,9 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if inferredspan.IsExpected() {
 		log.Debug("[lifecycle] Attempting to complete the inferred span")
-		inferredspan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID, inferredSpan)
+		inferredspan.CompleteInferredSpan(
+			lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID, inferredSpan,
+		)
 	}
 
 	if endDetails.IsError {
