@@ -228,6 +228,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/dd_lambda_layer:datadog-go[0-9.]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
                 perl -p -e "s/(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
                 perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
+                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
@@ -249,6 +250,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
+                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 # ignore a Lambda error that occurs sporadically for log-csharp
                 # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
@@ -271,13 +273,14 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
+                perl -p -e "s/(\"architecture\":)\"(x86_64|arm64)\"/\1\"XXX\"/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
         )
     fi
 
-    function_snapshot_path="./snapshots/${ARCHITECTURE}/${function_name}"
+    function_snapshot_path="./snapshots/${function_name}"
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
