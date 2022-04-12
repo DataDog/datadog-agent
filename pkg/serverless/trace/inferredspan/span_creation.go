@@ -6,6 +6,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from a REST event.
 func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpan InferredSpan) {
 
 	log.Debug("Creating an inferred span for a REST API Gateway")
@@ -33,6 +36,9 @@ func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpa
 	setSynchronicity(&inferredSpan, attributes)
 }
 
+// EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from a HTTP event.
 func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpan InferredSpan) {
 	log.Debug("Creating an inferred span for a HTTP API Gateway")
 	requestContext := attributes.RequestContext
@@ -62,6 +68,9 @@ func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpa
 	setSynchronicity(&inferredSpan, attributes)
 }
 
+// EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from a Websocket event.
 func EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys, inferredSpan InferredSpan) {
 
 	requestContext := attributes.RequestContext

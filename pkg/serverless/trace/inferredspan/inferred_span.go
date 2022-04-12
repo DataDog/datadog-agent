@@ -27,6 +27,8 @@ const (
 	coldStartTagKey       = "cold_start"
 )
 
+// InferredSpan contains the pb.Span and Async information
+// of the inferredSpan for the current invocation
 type InferredSpan struct {
 	Span    *pb.Span
 	IsAsync bool
@@ -46,9 +48,12 @@ var functionTagsToIgnore = []string{
 	coldStartTagKey,
 }
 
-var TraceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
-var ManagedServiceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
-var InferredSpansEnabled = TraceEnabled && ManagedServiceEnabled
+var traceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
+var managedServiceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
+
+// InferredSpansEnabled tells us if the Env Vars are enabled
+// for inferred spans to be created
+var InferredSpansEnabled = traceEnabled && managedServiceEnabled
 
 // CheckIsInferredSpan determines if a span belongs to a managed service or not
 // _inferred_span.tag_source = "self" => managed service span
@@ -104,6 +109,8 @@ func RouteInferredSpan(event string, inferredSpan InferredSpan) {
 	}
 }
 
+// CompleteInferredSpan finishes the inferred span and passes it
+// as an API payload to be processed by the trace agent
 func CompleteInferredSpan(
 	processTrace func(p *api.Payload),
 	endTime time.Time,
@@ -143,13 +150,4 @@ func GenerateInferredSpan() InferredSpan {
 	inferredSpan.Span.SpanID = rand.Random.Uint64()
 	inferredSpan.Span.TraceID = rand.Random.Uint64()
 	return inferredSpan
-}
-
-// IsExpected checks if the envVars required for inferred spans are enabled
-func IsEnabled() bool {
-	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
-		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
-		return true
-	}
-	return false
 }

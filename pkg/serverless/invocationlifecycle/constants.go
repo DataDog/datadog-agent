@@ -20,6 +20,8 @@ const (
 	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
 
+	// ParentHeader is the header containing the parentID
+	// used in  /trace.go
 	ParentIDHeader = "x-datadog-parent-id"
 )
 

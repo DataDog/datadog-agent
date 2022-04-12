@@ -1,5 +1,6 @@
 package inferredspan
 
+// Used for inferred span tagging and payload extraction
 const (
 	OperationName    = "operation_name"
 	Http             = "http"
@@ -48,11 +49,13 @@ type RequestContextKeys struct {
 	TimeEpoch        int64    `json:"timeEpoch"`
 }
 
+// HeaderKeys extract headers from the trace context
 type HeaderKeys struct {
 	InvocationType string `json:"X-Amz-Invocation-Type"`
 	ParentId       uint64 `json:"x-datadog-parent-id"`
 }
 
+// HttpKeys are nested in the event payload
 type HttpKeys struct {
 	Method    string `json:"method"`
 	Protocol  string `json:"protocol"`

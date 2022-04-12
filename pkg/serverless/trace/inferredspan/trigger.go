@@ -6,6 +6,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ParseEventSource parses the event payload, and based on
+// specific keys in the payload, determines and sets the event source.
 func ParseEventSource(event string) (string, EventKeys) {
 	var eventKeys EventKeys
 	log.Debug("Attempting to parse the event for inferred spans")

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// random holds a thread-safe source of random numbers.
+// Random holds a thread-safe source of random numbers.
 var Random *rand.Rand
 
 func init() {
