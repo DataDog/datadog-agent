@@ -100,9 +100,9 @@ func (t *telemetry) report() map[string]interface{} {
 		misses,
 		float64(misses)/float64(t.elapsed),
 		dropped,
-		float64(rejected)/float64(t.elapsed),
-		rejected,
 		float64(dropped)/float64(t.elapsed),
+		rejected,
+		float64(rejected)/float64(t.elapsed),
 		aggregations,
 	)
 
