@@ -311,8 +311,8 @@ func TestResolveTemplate(t *testing.T) {
 	}
 
 	// no services
-	res := ac.resolveTemplate(tpl)
-	assert.Len(t, res, 0)
+	changes := ac.processNewConfig(tpl)
+	assert.Len(t, changes.schedule, 0)
 
 	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
@@ -321,8 +321,8 @@ func TestResolveTemplate(t *testing.T) {
 	ac.processNewService(ctx, &service)
 
 	// there are no template vars but it's ok
-	res = ac.resolveTemplate(tpl)
-	assert.Len(t, res, 1)
+	changes = ac.processNewConfig(tpl)
+	assert.Len(t, changes.schedule, 1)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -357,12 +357,12 @@ func TestRemoveTemplate(t *testing.T) {
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
-	configs := ac.processNewConfig(tpl)
-	assert.Len(t, configs, 1)
+	changes := ac.processNewConfig(tpl)
+	assert.Len(t, changes.schedule, 1)
 	assert.Equal(t, countLoadedConfigs(ac), 2)
 
 	// Remove the template, config should be removed too
-	ac.removeConfigTemplates([]integration.Config{tpl})
+	ac.processRemovedConfigs([]integration.Config{tpl})
 	assert.Equal(t, countLoadedConfigs(ac), 1)
 }
 
@@ -374,7 +374,6 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 func TestCheckOverride(t *testing.T) {
 	ctx := context.Background()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	tpl := integration.Config{
 		Name:          "redis",
 		ADIdentifiers: []string{"redis"},
@@ -382,28 +381,31 @@ func TestCheckOverride(t *testing.T) {
 	}
 
 	// check must be overridden (same check)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"redis"},
 	})
-	assert.Len(t, ac.resolveTemplate(tpl), 0)
+	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
 
 	// check must be overridden (empty config)
+	ac = NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{""},
 	})
-	assert.Len(t, ac.resolveTemplate(tpl), 0)
+	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
 
 	// check must be scheduled (different checks)
+	ac = NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"tcp_check"},
 	})
-	assert.Len(t, ac.resolveTemplate(tpl), 1)
+	assert.Len(t, ac.processNewConfig(tpl).schedule, 1)
 }
 
 type MockSecretDecrypt struct {
@@ -506,15 +508,16 @@ func TestSecretDecrypt(t *testing.T) {
 	defer func() { secretsDecrypt = originalSecretsDecrypt }()
 
 	// no services
-	res := ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 0)
+	changes := ac.processNewConfig(sharedTpl)
+	assert.Len(t, changes.schedule, 0)
 
+	ac = NewAutoConfig(scheduler.NewMetaScheduler())
 	service := sharedService
 	ac.processNewService(ctx, &service)
 
 	// there are no template vars but it's ok
-	res = ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 1)
+	changes = ac.processNewConfig(sharedTpl)
+	assert.Len(t, changes.schedule, 1)
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
 }
@@ -535,11 +538,11 @@ func TestSkipSecretDecrypt(t *testing.T) {
 	service := sharedService
 	ac.processNewService(ctx, &service)
 
-	res := ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 1)
+	changes := ac.processNewConfig(sharedTpl)
+	assert.Len(t, changes.schedule, 1)
 
-	assert.Equal(t, sharedTpl.Instances, res[0].Instances)
-	assert.Equal(t, sharedTpl.InitConfig, res[0].InitConfig)
+	assert.Equal(t, sharedTpl.Instances, changes.schedule[0].Instances)
+	assert.Equal(t, sharedTpl.InitConfig, changes.schedule[0].InitConfig)
 
 	assert.True(t, mockDecrypt.haveAllScenariosNotCalled())
 }
