@@ -116,7 +116,7 @@ func TestContainerID(t *testing.T) {
 		// Push the cached ID out of the cache and make sure we read the new ID.
 		cv := cache.cache[0]
 		cv.accessed.Store(time.Now().Add(-10 * time.Minute))
-		cid := getContainerID(r)
+		cid = getContainerID(r)
 		assert.Equal(t, "861fffad796a2f1d8e7bc3243b4a5fe36dc8a7a277fa5c5d6b252eb60f8cc258", cid)
 	})
 }
@@ -160,12 +160,12 @@ func BenchmarkCacheReadFull(b *testing.B) {
 	for i := 0; i < 100000; i++ {
 		cv := &cacheVal{containerID: "test-cid"}
 		cv.accessed.Store(time.Now())
-		containerCache[int32(i)] = cv
+		cach.cache[int32(i)] = cv
 	}
 	r := generateHTTPRequest(0)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ctx := context.WithValue(ctx.Background(), ucredKey{}, &syscall.Ucred{Pid: rand.Int31n(100000)})
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: rand.Int31n(100000)})
 		r.WithContext(ctx)
 		getContainerID(r)
 	}
@@ -181,7 +181,7 @@ func BenchmarkCacheReadContention(b *testing.B) {
 		r := generateHTTPRequest(0)
 		fmt.Printf("Populating Container IDs\n")
 		for i := 100000; i < 200000; i++ {
-			ctx := context.WithValue(ctx.Background(), ucredKey{}, &syscall.Ucred{Pid: int32(i)})
+			ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: int32(i)})
 			r.WithContext(ctx)
 			getContainerID(r)
 		}
@@ -191,7 +191,7 @@ func BenchmarkCacheReadContention(b *testing.B) {
 	r := generateHTTPRequest(0)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ctx := context.WithValue(ctx.Background(), ucredKey{}, &syscall.Ucred{Pid: rand.Int31n(100000)})
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: rand.Int31n(100000)})
 		r.WithContext(ctx)
 		getContainerID(r)
 	}
