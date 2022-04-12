@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package inferredspan
 
 // Used for inferred span tagging and enrichment
@@ -55,7 +56,7 @@ type RequestContextKeys struct {
 // HeaderKeys holds the extracted headers from the trace context
 type HeaderKeys struct {
 	InvocationType string `json:"X-Amz-Invocation-Type"`
-	ParentId       uint64 `json:"x-datadog-parent-id"`
+	ParentID       uint64 `json:"x-datadog-parent-id"`
 }
 
 // HTTPKeys holds the nested HTTP data from the event payload
