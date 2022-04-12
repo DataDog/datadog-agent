@@ -2,6 +2,7 @@ package inferredspan
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,10 @@ var functionTagsToIgnore = []string{
 	coldStartTagKey,
 }
 
+var TraceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
+var ManagedServiceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
+var InferredSpansEnabled = TraceEnabled && ManagedServiceEnabled
+
 // CheckIsInferredSpan determines if a span belongs to a managed service or not
 // _inferred_span.tag_source = "self" => managed service span
 // _inferred_span.tag_source = "lambda" or missing => lambda related span
@@ -84,16 +89,18 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	return output
 }
 
-func CreateInferredSpan(event string, inferredSpan InferredSpan) {
+// RouteInferredSpan decodes the event and routes it to the correct
+// enrichment function for that event source
+func RouteInferredSpan(event string, inferredSpan InferredSpan) {
 	// Parse the event into the EventKey struct
 	eventSource, attributes := ParseEventSource(event)
 	switch eventSource {
-	case "apigateway":
-		CreateInferredSpanFromAPIGatewayEvent(eventSource, attributes, inferredSpan)
-	case "http-api":
-		CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource, attributes, inferredSpan)
-	case "websocket":
-		CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource, attributes, inferredSpan)
+	case API_GATEWAY:
+		EnrichInferredSpanWithAPIGatewayRESTEvent(attributes, inferredSpan)
+	case HTTP_API:
+		EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes, inferredSpan)
+	case WEBSOCKET:
+		EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes, inferredSpan)
 	}
 }
 
@@ -130,7 +137,7 @@ func CompleteInferredSpan(
 
 // GenerateSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
-func GenerateSpan() InferredSpan {
+func GenerateInferredSpan() InferredSpan {
 	var inferredSpan InferredSpan
 	inferredSpan.Span = &pb.Span{}
 	inferredSpan.Span.SpanID = rand.Random.Uint64()
@@ -139,7 +146,7 @@ func GenerateSpan() InferredSpan {
 }
 
 // IsExpected checks if the envVars required for inferred spans are enabled
-func IsExpected() bool {
+func IsEnabled() bool {
 	if strings.ToLower(os.Getenv("DD_TRACE_ENABLED")) == "true" &&
 		strings.ToLower(os.Getenv("DD_TRACE_MANAGED_SERVICES")) == "true" {
 		return true

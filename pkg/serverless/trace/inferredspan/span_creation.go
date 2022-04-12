@@ -6,7 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func CreateInferredSpanFromAPIGatewayEvent(eventSource string, attributes EventKeys, inferredSpan InferredSpan) {
+func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpan InferredSpan) {
 
 	log.Debug("Creating an inferred span for a REST API Gateway")
 	requestContext := attributes.RequestContext
@@ -26,14 +26,14 @@ func CreateInferredSpanFromAPIGatewayEvent(eventSource string, attributes EventK
 		HttpUrl:       httpurl,
 		OperationName: "aws.apigateway.rest",
 		RequestId:     requestContext.RequestId,
-		ResourceName:  resource,
+		ResourceNames: resource,
 		Stage:         requestContext.Stage,
 	}
 
 	setSynchronicity(&inferredSpan, attributes)
 }
 
-func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes EventKeys, inferredSpan InferredSpan) {
+func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpan InferredSpan) {
 	log.Debug("Creating an inferred span for a HTTP API Gateway")
 	requestContext := attributes.RequestContext
 	http := requestContext.Http
@@ -56,13 +56,13 @@ func CreateInferredSpanFromAPIGatewayHTTPEvent(eventSource string, attributes Ev
 		HttpUserAgent: http.UserAgent,
 		OperationName: "aws.httpapi",
 		RequestId:     requestContext.RequestId,
-		ResourceName:  resource,
+		ResourceNames: resource,
 	}
 
 	setSynchronicity(&inferredSpan, attributes)
 }
 
-func CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource string, attributes EventKeys, inferredSpan InferredSpan) {
+func EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys, inferredSpan InferredSpan) {
 
 	requestContext := attributes.RequestContext
 	endpoint := requestContext.RouteKey
@@ -84,7 +84,7 @@ func CreateInferredSpanFromAPIGatewayWebsocketEvent(eventSource string, attribut
 		MessageDirection: requestContext.MessageDirection,
 		OperationName:    "aws.apigateway.websocket",
 		RequestId:        requestContext.RequestId,
-		ResourceName:     endpoint,
+		ResourceNames:    endpoint,
 		Stage:            requestContext.Stage,
 	}
 
@@ -98,6 +98,7 @@ func setSynchronicity(span *InferredSpan, attributes EventKeys) {
 	}
 }
 
+// CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
 	return (epoch / 1000) * 1e9
 }

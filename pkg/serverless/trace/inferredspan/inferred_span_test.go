@@ -93,7 +93,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 
 	startTime := time.Now()
 
-	inferredSpan := GenerateSpan()
+	inferredSpan := GenerateInferredSpan()
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()

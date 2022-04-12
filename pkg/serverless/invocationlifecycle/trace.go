@@ -49,25 +49,25 @@ func startExecutionSpan(startTime time.Time, rawPayload string, inferredSpan inf
 
 	payload := convertRawPayload(rawPayload)
 
-	if inferredspan.IsExpected() {
+	if InferredSpansEnabled && payload.Headers == nil {
 		currentExecutionInfo.traceID = inferredSpan.Span.TraceID
 		currentExecutionInfo.parentID = inferredSpan.Span.SpanID
 	}
 
 	if payload.Headers != nil {
-		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
-		parentID, e2 := convertStrToUnit64(payload.Headers[ParentIDHeader])
+		traceID, e1 := convertStrToUint64(payload.Headers[TraceIDHeader])
+		parentID, e2 := convertStrToUint64(payload.Headers[ParentIDHeader])
 
 		if e1 == nil {
 			currentExecutionInfo.traceID = traceID
-			if inferredspan.IsExpected() {
+			if InferredSpansEnabled {
 				inferredSpan.Span.TraceID = traceID
 			}
 		}
 
 		if e2 == nil {
 			currentExecutionInfo.parentID = parentID
-			if inferredspan.IsExpected() {
+			if InferredSpansEnabled {
 				inferredSpan.Span.ParentID = parentID
 				currentExecutionInfo.parentID = inferredSpan.Span.SpanID
 			}
@@ -131,7 +131,7 @@ func convertRawPayload(rawPayload string) invocationPayload {
 	return payload
 }
 
-func convertStrToUnit64(s string) (uint64, error) {
+func convertStrToUint64(s string) (uint64, error) {
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
 		log.Debug("Error with string conversion of trace or parent ID")

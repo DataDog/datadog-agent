@@ -9,7 +9,7 @@ const (
 	HttpSourceIP     = "http.source_ip"
 	HttpUserAgent    = "http.user_agent"
 	Endpoint         = "endpoint"
-	ResourceName     = "resource_names"
+	ResourceNames    = "resource_names"
 	ApiId            = "apiid"
 	ApiName          = "apiname"
 	Stage            = "stage"
@@ -24,7 +24,6 @@ const (
 )
 
 // These keys are used to tell us what event type we received
-
 type EventKeys struct {
 	RequestContext RequestContextKeys `json:"requestContext"`
 	Headers        HeaderKeys         `json:"headers"`

@@ -31,14 +31,14 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	if inferredspan.IsExpected() {
-		log.Debug("[lifecycle] Attempting to create inferred span")
-		inferredSpan = inferredspan.GenerateSpan()
-		inferredspan.CreateInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
-	}
-
 	if !lp.DetectLambdaLibrary() {
 		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, inferredSpan)
+
+		if InferredSpansEnabled {
+			log.Debug("[lifecycle] Attempting to create inferred span")
+			inferredSpan = inferredspan.GenerateInferredSpan()
+			inferredspan.RouteInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
+		}
 	}
 }
 
@@ -52,13 +52,13 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
 		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError)
-	}
 
-	if inferredspan.IsExpected() {
-		log.Debug("[lifecycle] Attempting to complete the inferred span")
-		inferredspan.CompleteInferredSpan(
-			lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID, inferredSpan,
-		)
+		if InferredSpansEnabled {
+			log.Debug("[lifecycle] Attempting to complete the inferred span")
+			inferredspan.CompleteInferredSpan(
+				lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID, inferredSpan,
+			)
+		}
 	}
 
 	if endDetails.IsError {

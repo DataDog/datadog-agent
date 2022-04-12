@@ -5,6 +5,8 @@
 
 package invocationlifecycle
 
+import "github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+
 const (
 	// TraceIDHeader is the header containing the traceID
 	// used in /trace-context
@@ -20,3 +22,5 @@ const (
 
 	ParentIDHeader = "x-datadog-parent-id"
 )
+
+var InferredSpansEnabled = inferredspan.InferredSpansEnabled
