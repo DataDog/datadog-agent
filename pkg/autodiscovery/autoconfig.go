@@ -7,7 +7,6 @@ package autodiscovery
 
 import (
 	"context"
-	"expvar"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -29,21 +28,8 @@ import (
 
 var (
 	listenerCandidateIntl = 30 * time.Second
-	acErrors              *expvar.Map
-	errorStats            = newAcErrorStats()
+	secretsDecrypt        = secrets.Decrypt
 )
-
-var secretsDecrypt = secrets.Decrypt
-
-func init() {
-	acErrors = expvar.NewMap("autoconfig")
-	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
-		return errorStats.getConfigErrors()
-	}))
-	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
-		return errorStats.getResolveWarnings()
-	}))
-}
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
 // responsible to collect integrations configurations from different sources
@@ -473,16 +459,6 @@ func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 // state.
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.getUnresolvedTemplates()
-}
-
-// GetConfigErrors gets the config errors
-func GetConfigErrors() map[string]string {
-	return errorStats.getConfigErrors()
-}
-
-// GetResolveWarnings get the resolve warnings/errors
-func GetResolveWarnings() map[string][]string {
-	return errorStats.getResolveWarnings()
 }
 
 // processNewService takes a service, tries to match it against templates and
