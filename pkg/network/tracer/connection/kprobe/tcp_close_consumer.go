@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -46,7 +46,7 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 		return nil, err
 	}
 
-	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
+	numCPUs := int(connCloseEventMap.MaxEntries())
 	batchManager, err := newPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, err
