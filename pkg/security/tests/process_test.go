@@ -119,6 +119,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_ancestors_glob",
 			Expression: `exec.file.name == "ls" && exec.argv == "glob" && process.ancestors.file.path =~ "/usr/**"`,
 		},
+		{
+			ID:         "test_self_exec",
+			Expression: `exec.file.name == "syscall_tester" && exec.argv0 == "selfexec123" && process.comm == "exe"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -126,6 +130,11 @@ func TestProcessContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("exec-time", func(t *testing.T) {
 		testFile, _, err := test.Path("test-exec-time-1")
@@ -575,6 +584,20 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors_glob")
+		}))
+	})
+
+	test.Run(t, "self-exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"self-exec", "selfexec123", "abc"}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+
+			return nil
+		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_self_exec")
 		}))
 	})
 }
