@@ -606,7 +606,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case kprobesStats:
 			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:
-			ret["state"] = t.state.GetStats()
+			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
 			tracerStats := t.statsReporter.Report()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
