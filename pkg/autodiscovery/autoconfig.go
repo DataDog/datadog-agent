@@ -465,6 +465,8 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	return conf, nil
 }
 
+// processRemovedConfigs unschedules configs that have previously been loaded,
+// including removing them from the loadeConfigs map.
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
