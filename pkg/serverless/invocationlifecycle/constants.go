@@ -20,9 +20,11 @@ const (
 	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
 
-	// ParentHeader is the header containing the parentID
+	// ParentIDHeader is the header containing the parentID
 	// used in  /trace.go
 	ParentIDHeader = "x-datadog-parent-id"
 )
 
+// InferredSpansEnabled is used to determine if we need to make
+// and inferred span or not
 var InferredSpansEnabled = inferredspan.InferredSpansEnabled

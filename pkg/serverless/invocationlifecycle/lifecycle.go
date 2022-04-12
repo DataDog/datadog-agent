@@ -56,7 +56,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		if InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
 			inferredspan.CompleteInferredSpan(
-				lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, endDetails.RequestID, inferredSpan,
+				lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, inferredSpan,
 			)
 		}
 	}

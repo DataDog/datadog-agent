@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package inferredspan
 
 import (
@@ -17,11 +22,11 @@ func ParseEventSource(event string) (string, EventKeys) {
 	}
 	eventSource := UNKNOWN
 	if eventKeys.RequestContext.Stage != "" {
-		if eventKeys.HttpMethod != "" {
-			eventSource = API_GATEWAY
+		if eventKeys.HTTPMethod != "" {
+			eventSource = APIGATEWAY
 		}
 		if eventKeys.RequestContext.RouteKey != "" {
-			eventSource = HTTP_API
+			eventSource = HTTPAPI
 		}
 		if eventKeys.RequestContext.MessageDirection != "" {
 			eventSource = WEBSOCKET

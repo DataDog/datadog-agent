@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package inferredspan
 
 import (
@@ -13,7 +18,7 @@ func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpa
 
 	log.Debug("Creating an inferred span for a REST API Gateway")
 	requestContext := attributes.RequestContext
-	resource := fmt.Sprintf("%s %s", attributes.HttpMethod, attributes.Path)
+	resource := fmt.Sprintf("%s %s", attributes.HTTPMethod, attributes.Path)
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, attributes.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 
@@ -23,12 +28,12 @@ func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpa
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		ApiId:         requestContext.ApiId,
-		ApiName:       requestContext.ApiId,
+		APIID:         requestContext.APIID,
+		APIName:       requestContext.APIID,
 		Endpoint:      attributes.Path,
-		HttpUrl:       httpurl,
+		HTTPURL:       httpurl,
 		OperationName: "aws.apigateway.rest",
-		RequestId:     requestContext.RequestId,
+		RequestID:     requestContext.RequestID,
 		ResourceNames: resource,
 		Stage:         requestContext.Stage,
 	}
@@ -42,7 +47,7 @@ func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpa
 func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpan InferredSpan) {
 	log.Debug("Creating an inferred span for a HTTP API Gateway")
 	requestContext := attributes.RequestContext
-	http := requestContext.Http
+	http := requestContext.HTTP
 	path := requestContext.RawPath
 	resource := fmt.Sprintf("%s %s", http.Method, path)
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, path)
@@ -55,13 +60,13 @@ func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpa
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Meta = map[string]string{
 		Endpoint:      path,
-		HttpUrl:       httpurl,
-		HttpMethod:    http.Method,
-		HttpProtocol:  http.Protocol,
-		HttpSourceIP:  http.SourceIP,
-		HttpUserAgent: http.UserAgent,
+		HTTPURL:       httpurl,
+		HTTPMethod:    http.Method,
+		HTTPProtocol:  http.Protocol,
+		HTTPSourceIP:  http.SourceIP,
+		HTTPUserAgent: http.UserAgent,
 		OperationName: "aws.httpapi",
-		RequestId:     requestContext.RequestId,
+		RequestID:     requestContext.RequestID,
 		ResourceNames: resource,
 	}
 
@@ -84,15 +89,15 @@ func EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys, inferr
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Meta = map[string]string{
-		ApiId:            requestContext.ApiId,
-		ApiName:          requestContext.ApiId,
-		ConnectionId:     requestContext.ConnectionID,
+		APIID:            requestContext.APIID,
+		APIName:          requestContext.APIID,
+		ConnectionID:     requestContext.ConnectionID,
 		Endpoint:         endpoint,
 		EventType:        requestContext.EventType,
-		HttpUrl:          httpurl,
+		HTTPURL:          httpurl,
 		MessageDirection: requestContext.MessageDirection,
 		OperationName:    "aws.apigateway.websocket",
-		RequestId:        requestContext.RequestId,
+		RequestID:        requestContext.RequestID,
 		ResourceNames:    endpoint,
 		Stage:            requestContext.Stage,
 	}

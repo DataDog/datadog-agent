@@ -1,62 +1,65 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 package inferredspan
 
-// Used for inferred span tagging and payload extraction
+// Used for inferred span tagging and enrichment
 const (
 	OperationName    = "operation_name"
-	Http             = "http"
-	HttpUrl          = "http.url"
-	HttpMethod       = "http.method"
-	HttpProtocol     = "http.protocol"
-	HttpSourceIP     = "http.source_ip"
-	HttpUserAgent    = "http.user_agent"
+	HTTP             = "http"
+	HTTPURL          = "http.url"
+	HTTPMethod       = "http.method"
+	HTTPProtocol     = "http.protocol"
+	HTTPSourceIP     = "http.source_ip"
+	HTTPUserAgent    = "http.user_agent"
 	Endpoint         = "endpoint"
 	ResourceNames    = "resource_names"
-	ApiId            = "apiid"
-	ApiName          = "apiname"
+	APIID            = "apiid"
+	APIName          = "apiname"
 	Stage            = "stage"
-	RequestId        = "request_id"
-	ConnectionId     = "connection_id"
+	RequestID        = "request_id"
+	ConnectionID     = "connection_id"
 	EventType        = "event_type"
 	MessageDirection = "message_direction"
-	API_GATEWAY      = "apigateway"
-	HTTP_API         = "http-api"
+	APIGATEWAY       = "apigateway"
+	HTTPAPI          = "http-api"
 	WEBSOCKET        = "websocket"
 	UNKNOWN          = "unknown"
 )
 
-// These keys are used to tell us what event type we received
+// EventKeys are used to tell us what event type we received
 type EventKeys struct {
 	RequestContext RequestContextKeys `json:"requestContext"`
 	Headers        HeaderKeys         `json:"headers"`
-	HttpMethod     string             `json:"httpMethod"`
+	HTTPMethod     string             `json:"httpMethod"`
 	Path           string             `json:"path"`
 }
 
-// Request_context is nested in the payload.
-// We want to pull out what we need for all event types
+// RequestContextKeys holds the nested requestContext from the payload.
 type RequestContextKeys struct {
 	Stage            string   `json:"stage"`
 	RouteKey         string   `json:"routeKey"`
 	MessageDirection string   `json:"messageDirection"`
 	Domain           string   `json:"domainName"`
-	ApiId            string   `json:"apiId"`
+	APIID            string   `json:"apiId"`
 	RawPath          string   `json:"rawPath"`
-	RequestId        string   `json:"requestID"`
+	RequestID        string   `json:"requestID"`
 	RequestTimeEpoch int64    `json:"requestTimeEpoch"`
-	Http             HttpKeys `json:"http"`
+	HTTP             HTTPKeys `json:"http"`
 	ConnectionID     string   `json:"connectionId"`
 	EventType        string   `json:"eventType"`
 	TimeEpoch        int64    `json:"timeEpoch"`
 }
 
-// HeaderKeys extract headers from the trace context
+// HeaderKeys holds the extracted headers from the trace context
 type HeaderKeys struct {
 	InvocationType string `json:"X-Amz-Invocation-Type"`
 	ParentId       uint64 `json:"x-datadog-parent-id"`
 }
 
-// HttpKeys are nested in the event payload
-type HttpKeys struct {
+// HTTPKeys holds the nested HTTP data from the event payload
+type HTTPKeys struct {
 	Method    string `json:"method"`
 	Protocol  string `json:"protocol"`
 	SourceIP  string `json:"sourceIp"`

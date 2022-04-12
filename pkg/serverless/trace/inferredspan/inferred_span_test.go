@@ -113,7 +113,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	CompleteInferredSpan(mockProcessTrace, endTime, isError, "test-function", inferredSpan)
+	CompleteInferredSpan(mockProcessTrace, endTime, isError, inferredSpan)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)

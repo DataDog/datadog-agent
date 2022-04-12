@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package inferredspan
 
 import (
@@ -100,9 +105,9 @@ func RouteInferredSpan(event string, inferredSpan InferredSpan) {
 	// Parse the event into the EventKey struct
 	eventSource, attributes := ParseEventSource(event)
 	switch eventSource {
-	case API_GATEWAY:
+	case APIGATEWAY:
 		EnrichInferredSpanWithAPIGatewayRESTEvent(attributes, inferredSpan)
-	case HTTP_API:
+	case HTTPAPI:
 		EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes, inferredSpan)
 	case WEBSOCKET:
 		EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes, inferredSpan)
@@ -115,7 +120,6 @@ func CompleteInferredSpan(
 	processTrace func(p *api.Payload),
 	endTime time.Time,
 	isError bool,
-	requestId string,
 	inferredSpan InferredSpan) {
 
 	if inferredSpan.IsAsync {
@@ -142,7 +146,7 @@ func CompleteInferredSpan(
 	})
 }
 
-// GenerateSpan declares and initializes a new inferred span
+// GenerateInferredSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
 func GenerateInferredSpan() InferredSpan {
 	var inferredSpan InferredSpan
