@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 func getFileSystemInfo() (interface{}, error) {
@@ -30,13 +32,18 @@ func getFileSystemInfo() (interface{}, error) {
 }
 
 func parseDfOutput(out string) (interface{}, error) {
+	var aggregateError error
 	lines := strings.Split(out, "\n")
 	var fileSystemInfo = make([]interface{}, len(lines)-2)
 	for i, line := range lines[1:] {
-		values := regexp.MustCompile("\\s+").Split(line, expectedLength)
-		if len(values) == expectedLength {
-			fileSystemInfo[i] = updatefileSystemInfo(values)
+		values := regexp.MustCompile(`\s+`).Split(line, -1)
+		if len(values) >= expectedLength {
+			var err error
+			fileSystemInfo[i], err = updatefileSystemInfo(values)
+			if err != nil {
+				aggregateError = multierror.Append(aggregateError, err)
+			}
 		}
 	}
-	return fileSystemInfo, nil
+	return fileSystemInfo, aggregateError
 }
