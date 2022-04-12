@@ -361,7 +361,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
 	}
 
-	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats)
+	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats)
 	if err != nil {
 		return nil
 	}
@@ -386,13 +386,13 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		tm[network.DNSStatsDropped] = ds
 	}
 
-	httpStats := t.httpMonitor.GetStats()
-	if ds, ok := httpStats["http_requests_dropped"]; ok {
-		tm[network.HTTPRequestsDropped] = ds
+	httpStats := stats["http"].(map[string]interface{})
+	if ds, ok := httpStats["dropped"]; ok {
+		tm[network.HTTPRequestsDropped] = ds.(int64)
 	}
 
-	if ms, ok := httpStats["http_requests_missed"]; ok {
-		tm[network.HTTPRequestsMissed] = ms
+	if ms, ok := httpStats["misses"]; ok {
+		tm[network.HTTPRequestsMissed] = ms.(int64)
 	}
 
 	ebpfStats := stats["ebpf"].(map[string]int64)
@@ -602,9 +602,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 				ret["gateway_lookup"] = t.gwLookup.GetStats()
 			}
 		case httpStats:
-			if t.httpMonitor != nil {
-				ret["http"] = t.httpMonitor.GetTelemetry()
-			}
+			ret["http"] = t.httpMonitor.GetStats()
 		case kprobesStats:
 			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:

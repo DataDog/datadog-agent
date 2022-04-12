@@ -18,7 +18,8 @@ import (
 )
 
 type telemetry struct {
-	then int64
+	then    int64
+	elapsed int64
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX int64 `stats:"atomic"`
 	misses                                      int64 `stats:"atomic"` // this happens when we can't cope with the rate of events
@@ -64,30 +65,44 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 	}
 }
 
-func (t *telemetry) reset() {
-	atomic.SwapInt64(&t.aggregations, 0)
+func (t *telemetry) reset() telemetry {
+	now := time.Now().Unix()
+	then := atomic.SwapInt64(&t.then, now)
+
+	delta, _ := newTelemetry()
+	delta.hits1XX = atomic.SwapInt64(&t.hits1XX, 0)
+	delta.hits2XX = atomic.SwapInt64(&t.hits2XX, 0)
+	delta.hits3XX = atomic.SwapInt64(&t.hits3XX, 0)
+	delta.hits4XX = atomic.SwapInt64(&t.hits4XX, 0)
+	delta.hits5XX = atomic.SwapInt64(&t.hits5XX, 0)
+	delta.misses = atomic.SwapInt64(&t.misses, 0)
+	delta.dropped = atomic.SwapInt64(&t.dropped, 0)
+	delta.rejected = atomic.SwapInt64(&t.rejected, 0)
+	delta.aggregations = atomic.SwapInt64(&t.aggregations, 0)
+	delta.elapsed = now - then
+
+	return *delta
 }
 
 func (t *telemetry) report() map[string]interface{} {
-	totalRequests := t.hits1XX + t.hits2XX + t.hits3XX + t.hits4XX + t.hits5XX
-	elapsed := time.Now().Unix() - t.then
-
 	stats := t.reporter.Report()
+
 	misses := stats["misses"].(int64)
 	dropped := stats["dropped"].(int64)
 	rejected := stats["rejected"].(int64)
 	aggregations := stats["aggregations"].(int64)
+	totalRequests := stats["hits1_xx"].(int64) + stats["hits2_xx"].(int64) + stats["hits3_xx"].(int64) + stats["hits4_xx"].(int64) + stats["hits5_xx"].(int64)
 
 	log.Debugf(
 		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) aggregations=%d",
 		totalRequests,
-		float64(totalRequests)/float64(elapsed),
+		float64(totalRequests)/float64(t.elapsed),
 		misses,
-		float64(misses)/float64(elapsed),
+		float64(misses)/float64(t.elapsed),
 		dropped,
-		float64(rejected)/float64(elapsed),
+		float64(rejected)/float64(t.elapsed),
 		rejected,
-		float64(dropped)/float64(elapsed),
+		float64(dropped)/float64(t.elapsed),
 		aggregations,
 	)
 

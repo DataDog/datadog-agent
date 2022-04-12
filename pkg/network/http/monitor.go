@@ -151,8 +151,11 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				m.telemetry.report()
-				m.telemetry.reset()
+				delta := m.telemetry.reset()
+
+				// For now, we still want to report the telemetry as it contains more information than what
+				// we're extracting via network tracer.
+				delta.report()
 
 				reply <- HTTPMonitorStats{
 					requestStats: m.statkeeper.GetAndResetAllStats(),
@@ -189,7 +192,7 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 	return stats.requestStats
 }
 
-func (m *Monitor) GetStats() map[string]int64 {
+func (m *Monitor) GetStats() map[string]interface{} {
 	if m == nil {
 		return nil
 	}
@@ -204,10 +207,7 @@ func (m *Monitor) GetStats() map[string]int64 {
 		return nil
 	}
 
-	return map[string]int64{
-		"http_requests_dropped": m.telemetrySnapshot.dropped,
-		"http_requests_missed":  m.telemetrySnapshot.misses,
-	}
+	return m.telemetrySnapshot.report()
 }
 
 // Stop HTTP monitoring
@@ -239,8 +239,4 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.Manager.DumpMaps(maps...)
-}
-
-func (m *Monitor) GetTelemetry() map[string]interface{} {
-	return m.telemetry.report()
 }
