@@ -44,6 +44,9 @@ func LogVersionHistory() {
 }
 
 func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentVersion string, timestamp time.Time) {
+	if agentVersion == "" || timestamp.IsZero() {
+		return
+	}
 
 	file, err := os.ReadFile(versionHistoryFilePath)
 
