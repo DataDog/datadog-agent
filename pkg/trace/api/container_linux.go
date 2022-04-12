@@ -20,8 +20,10 @@ import (
 	"time"
 )
 
-// cgroupPath is the path to the cgroup file where we can find the container id if one exists.
-var cgroupPath = "/proc/%d/cgroup"
+const (
+	// cgroupPath is the path to the cgroup file where we can find the container id if one exists.
+	cgroupPath = "/proc/%d/cgroup"
+)
 
 const (
 	uuidSource      = "[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}"
@@ -29,6 +31,9 @@ const (
 	taskSource      = "[0-9a-f]{32}-\\d+"
 )
 
+// ucredKey is used as a context.Context key to store and load the runtime.Ucred we get from the
+// unix socket. The private type is used to ensure we can never conflict with any other value in
+// the context.
 type ucredKey struct{}
 
 var (
@@ -70,15 +75,20 @@ type cacheVal struct {
 	accessed    atomic.Value
 }
 
-var containerCache map[int32]*cacheVal = make(map[int32]*cacheVal)
-var cachelock sync.RWMutex
+type containerCache struct {
+	cache map[int32]*cacheVal
+	sync.RWMutex
+}
+
+
+var cache = containerCache{ cache:  make(map[int32]*cacheVal) }
 
 const cacheExpire = 5 * time.Minute
 
-func cachedContainerID(pid int32) (string, bool) {
-	cachelock.RLock()
-	defer cachelock.RUnlock()
-	if v, ok := containerCache[pid]; ok {
+func (c *containerCache) ContainerID(pid int32) (string, bool) {
+	c.RLock()
+	defer c.RUnlock()
+	if v, ok := c.cache[pid]; ok {
 		t := v.accessed.Load().(time.Time)
 		if t.Before(time.Now().Add(-cacheExpire)) {
 			// If we haven't seen this pid in 5 minutes,
@@ -91,42 +101,32 @@ func cachedContainerID(pid int32) (string, bool) {
 	return "", false
 }
 
-func insertContainerID(pid int32, cid string) {
-	cachelock.Lock()
-	defer cachelock.Unlock()
+// insertID inserts a container ID for a pid into the cache and cleans up stale entries.
+func (c *containerCache) insertID(pid int32, cid string) {
+	c.Lock()
+	defer c.Unlock()
 	// We'll clean the cache whenever we insert a new container ID.
-	for k, v := range containerCache {
+	for k, v := range c.cache {
 		t := v.accessed.Load().(time.Time)
 		if t.Before(time.Now().Add(-cacheExpire)) {
-			delete(containerCache, k)
+			delete(c.cache, k)
 		}
 	}
 	cv := &cacheVal{containerID: cid}
 	cv.accessed.Store(time.Now())
-	containerCache[pid] = cv
+	c.cache[pid] = cv
 }
 
-var createPath func(pid int32) string = func(pid int32) string {
+// createPath is the function used to generate a cgroup path from a pid in order to read a
+// process's cgroups. This is created as a variable for testing purposes. In the tests this
+// function is replaced by one that returns test paths.
+var createPath = func(pid int32) string {
 	return fmt.Sprintf(cgroupPath, pid)
-}
-
-// retrieveContainerID looks in the local cache for a container ID associated with the given pid.
-// If there is a valid (not stale) container ID for the given pid, that is returned. Otherwise the
-// container ID is parsed using readContainerID.
-func retrieveContainerID(pid int32) string {
-	if id, ok := cachedContainerID(pid); ok {
-		return id
-	}
-	if cid := readContainerID(createPath(pid)); cid != "" {
-		insertContainerID(pid, cid)
-		return cid
-	}
-	return ""
 }
 
 // connContext is a function that injects a Unix Domain Socket's User Credentials into the
 // context.Context object provided. This is useful as the ConnContext member of an http.Server, to
-// provide User Credentials to http handlers.
+// provide User Credentials to HTTP handlers.
 func connContext(ctx context.Context, c net.Conn) context.Context {
 	s, ok := c.(*net.UnixConn)
 	if !ok {
@@ -142,9 +142,11 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return ctx
 }
 
-// getContainerID attempts first to read the container ID set by the client in the request
-// header. If no such header is present or the value is empty, it will attempt to use the UDS
-// credentials to determine the connection's container ID.
+// getContainerID attempts first to read the container ID set by the client in the request header.
+// If no such header is present or the value is empty, it will look in the container ID cache. If
+// there is a valid (not stale) container ID for the given pid, that is returned. Otherwise the
+// container ID is parsed using readContainerID. If none of these methods succeed, getContainerID
+// returns an empty string.
 func getContainerID(req *http.Request) string {
 	if id := req.Header.Get(headerContainerID); id != "" {
 		return id
@@ -153,5 +155,12 @@ func getContainerID(req *http.Request) string {
 	if !ok || ucred == nil {
 		return ""
 	}
-	return retrieveContainerID(ucred.Pid)
+	if id, ok := cache.ContainerID(ucred.Pid); ok {
+		return id
+	}
+	if cid := readContainerID(createPath(ucred.Pid)); cid != "" {
+		cache.insertID(ucred.Pid, cid)
+		return cid
+	}
+	return ""
 }
