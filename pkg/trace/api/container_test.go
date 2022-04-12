@@ -68,8 +68,8 @@ func createCgroupFile(val string) string {
 }
 
 func generateHTTPRequest(pid int32) *http.Request {
-	ctx := context.WithValue(ctx.Background(), ucredKey{}, &syscall.Ucred{Pid: pid})
-	r, err := NewRequestWithContext(ctx, "GET", "/", nil)
+	ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: pid})
+	r, err := http.NewRequestWithContext(ctx, "GET", "/", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -81,16 +81,16 @@ func TestContainerID(t *testing.T) {
 		// Insert a cached ID
 		cv := &cacheVal{containerID: "test-cid"}
 		cv.accessed.Store(time.Now())
-		containerCache[0] = cv
+		cache.cache[0] = cv
 
 		// Make sure the cached ID is retrieved
-		cid, ok := cachedContainerID(0)
+		cid, ok := cache.ContainerID(0)
 		assert.True(t, ok)
 		assert.Equal(t, "test-cid", cid)
 
 		// Push the cached ID out of the cache and make sure it is not retrieved
 		cv.accessed.Store(time.Now().Add(-10 * time.Minute))
-		cid, ok = cachedContainerID(0)
+		cid, ok = cache.ContainerID(0)
 		assert.False(t, ok)
 		assert.Equal(t, "", cid)
 	})
@@ -114,9 +114,9 @@ func TestContainerID(t *testing.T) {
 		assert.Equal(t, "b1a26054402a9c3786c2ae8a48cc54b0b1dfd7d999f36159b47865bbf976c361", cid)
 
 		// Push the cached ID out of the cache and make sure we read the new ID.
-		cv := containerCache[0]
+		cv := cache.cache[0]
 		cv.accessed.Store(time.Now().Add(-10 * time.Minute))
-		cid = retrieveContainerID(0)
+		cid := getContainerID(r)
 		assert.Equal(t, "861fffad796a2f1d8e7bc3243b4a5fe36dc8a7a277fa5c5d6b252eb60f8cc258", cid)
 	})
 }
