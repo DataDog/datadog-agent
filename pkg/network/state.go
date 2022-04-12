@@ -347,6 +347,17 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 
 // storeHTTPStats stores latest HTTP stats for all clients
 func (ns *networkState) storeHTTPStats(allStats map[http.Key]http.RequestStats) {
+	if len(ns.clients) == 1 {
+		for _, client := range ns.clients {
+			if len(client.httpStatsDelta) == 0 {
+				// optimization for the common case:
+				// if there is only one client and no previous state, no memory allocation is needed
+				client.httpStatsDelta = allStats
+				return
+			}
+		}
+	}
+
 	for key, stats := range allStats {
 		for _, client := range ns.clients {
 			prevStats, ok := client.httpStatsDelta[key]
