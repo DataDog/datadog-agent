@@ -36,7 +36,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 		if InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to create inferred span")
-			inferredSpan = inferredspan.GenerateInferredSpan()
+			inferredSpan = inferredspan.GenerateInferredSpan(startDetails.StartTime)
 			inferredspan.RouteInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
 		}
 	}

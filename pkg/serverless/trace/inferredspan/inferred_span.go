@@ -37,6 +37,10 @@ const (
 type InferredSpan struct {
 	Span    *pb.Span
 	IsAsync bool
+	// CurrentInvocationStartTime is the start time of the
+	// current invocation not he inferred span. It is used
+	// for async function calls to calculate the duration.
+	CurrentInvocationStartTime time.Time
 }
 
 var functionTagsToIgnore = []string{
@@ -123,7 +127,7 @@ func CompleteInferredSpan(
 	inferredSpan InferredSpan) {
 
 	if inferredSpan.IsAsync {
-		inferredSpan.Span.Duration = inferredSpan.Span.Start
+		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
 	} else {
 		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
 	}
@@ -148,10 +152,11 @@ func CompleteInferredSpan(
 
 // GenerateInferredSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
-func GenerateInferredSpan() InferredSpan {
+func GenerateInferredSpan(startTime time.Time) InferredSpan {
 	var inferredSpan InferredSpan
 	inferredSpan.Span = &pb.Span{}
 	inferredSpan.Span.SpanID = rand.Random.Uint64()
 	inferredSpan.Span.TraceID = rand.Random.Uint64()
+	inferredSpan.CurrentInvocationStartTime = startTime
 	return inferredSpan
 }

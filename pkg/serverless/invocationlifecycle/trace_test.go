@@ -20,7 +20,7 @@ import (
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	defer reset()
 	startTime := time.Now()
-	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan()
+	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan(time.Now())
 	startExecutionSpan(startTime, "", span)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 0, currentExecutionInfo.traceID)
@@ -31,7 +31,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan()
+	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan(time.Now())
 	startExecutionSpan(startTime, testString, span)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
@@ -43,7 +43,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	defer reset()
 	invalidTestString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"1","x-datadog-trace-id":"INVALID"}}0`
 	startTime := time.Now()
-	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan()
+	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan(time.Now())
 	startExecutionSpan(startTime, invalidTestString, span)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 9, currentExecutionInfo.traceID)
@@ -80,7 +80,7 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan()
+	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan(time.Now())
 	span.Span.SpanID = 1304592378509342580
 	startExecutionSpan(startTime, testString, span)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -96,7 +96,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan()
+	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan(time.Now())
 	startExecutionSpan(startTime, testString, span)
 
 	duration := 1 * time.Second
@@ -127,7 +127,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan()
+	var span inferredspan.InferredSpan = inferredspan.GenerateInferredSpan(time.Now())
 	startExecutionSpan(startTime, testString, span)
 
 	duration := 1 * time.Second

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ const (
 func TestSetSynchronicityFalse(t *testing.T) {
 	var attributes EventKeys
 	attributes.Headers.InvocationType = ""
-	span := GenerateInferredSpan()
+	span := GenerateInferredSpan(time.Now())
 	setSynchronicity(&span, attributes)
 
 	assert.False(t, span.IsAsync)
@@ -30,7 +31,7 @@ func TestSetSynchronicityFalse(t *testing.T) {
 func TestSetSynchronicityTrue(t *testing.T) {
 	var attributes EventKeys
 	attributes.Headers.InvocationType = "Event"
-	span := GenerateInferredSpan()
+	span := GenerateInferredSpan(time.Now())
 	setSynchronicity(&span, attributes)
 
 	assert.True(t, span.IsAsync)
