@@ -116,8 +116,8 @@ var (
 	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
-	aggregatorOrchestratorManifest             = expvar.Int{}
-	aggregatorOrchestratorManifestErrors       = expvar.Int{}
+	aggregatorOrchestratorManifests            = expvar.Int{}
+	aggregatorOrchestratorManifestsErrors      = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
 	aggregatorDogstatsdContextsByMtype         = []expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
@@ -174,8 +174,8 @@ func init() {
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
-	aggregatorExpvars.Set("OrchestratorManifest", &aggregatorOrchestratorManifest)
-	aggregatorExpvars.Set("OrchestratorManifestErrors", &aggregatorOrchestratorManifestErrors)
+	aggregatorExpvars.Set("OrchestratorManifests", &aggregatorOrchestratorManifests)
+	aggregatorExpvars.Set("OrchestratorManifestsErrors", &aggregatorOrchestratorManifestsErrors)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
@@ -348,7 +348,7 @@ func (agg *BufferedAggregator) sendOrchestratorManifests(start time.Time, sender
 			log.Warnf("Error flushing events: %v", err)
 			aggregatorOrchestratorMetadataErrors.Add(1)
 		}
-		aggregatorOrchestratorManifest.Add(1)
+		aggregatorOrchestratorManifests.Add(1)
 		addFlushTime("ManifestsTime", int64(time.Since(start)))
 
 	}
@@ -720,7 +720,7 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	}
 	agg.flushServiceChecks(trigger.time, trigger.waitForSerializer)
 	agg.flushEvents(trigger.time, trigger.waitForSerializer)
-	agg.flushOrchestratorManifests(start, waitForSerializer)
+	agg.flushOrchestratorManifests(trigger.time, trigger.waitForSerializer)
 	agg.updateChecksTelemetry()
 }
 

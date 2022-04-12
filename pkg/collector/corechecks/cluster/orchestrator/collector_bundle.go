@@ -11,8 +11,6 @@ package orchestrator
 import (
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/manifest"
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -151,18 +149,10 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 
 		runDuration := time.Since(runStartTime)
 
-		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().Name, result.ResourcesListed, result.ResourcesProcessed, len(result.Messages), runDuration)
+		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().Name, result.ResourcesListed, result.ResourcesProcessed, len(result.Metadata), runDuration)
 
-		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Messages), collector.Metadata().NodeType)
-		sender.OrchestratorMetadata(result.Messages, cb.check.clusterID, int(collector.Metadata().NodeType))
-		sender.OrchestratorManifest(toManifest(result.Manifests), cb.check.orchestratorConfig.KubeClusterName, cb.check.clusterID)
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Metadata), collector.Metadata().NodeType)
+		sender.OrchestratorMetadata(result.Metadata, cb.check.clusterID, int(collector.Metadata().NodeType))
+		sender.OrchestratorManifest(result.Manifests, cb.check.clusterID)
 	}
-}
-
-func toManifest(msgs []model.MessageBody) []*manifest.ManifestPayload {
-	mm := make([]*manifest.ManifestPayload, 0, len(msgs))
-	for _, m := range msgs {
-		mm = append(mm, m.(*manifest.ManifestPayload))
-	}
-	return mm
 }

@@ -614,7 +614,7 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 
 // SubmitOrchestratorManifests sends orchestrator manifests
 func (f *DefaultForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true, false)
+	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events

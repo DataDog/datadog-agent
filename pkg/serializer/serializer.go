@@ -94,7 +94,7 @@ type MetricSerializer interface {
 	SendProcessesMetadata(data interface{}) error
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
-	SendOrchestratorManifests(msgs []*ManifestMessage, hostName, clusterID string) error
+	SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error
 	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
 }
 
@@ -474,7 +474,7 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 }
 
 // SendOrchestratorManifests serializes & send orchestrator manifest payloads
-func (s *Serializer) SendOrchestratorManifests(msgs []*ManifestMessage, hostName, clusterID string) error {
+func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}
@@ -483,9 +483,11 @@ func (s *Serializer) SendOrchestratorManifests(msgs []*ManifestMessage, hostName
 		extraHeaders.Set(headers.HostHeader, hostName)
 		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
-		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
+		extraHeaders.Set(headers.EVPOriginHeader, "agent")
+		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
-		body, err := manifestPayloadEncoder(m)
+		body, err := processPayloadEncoder(m)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue

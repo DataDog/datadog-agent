@@ -81,3 +81,8 @@ func (f NoopForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Hea
 func (f NoopForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
 	return nil
 }
+
+// SubmitOrchestratorManifests does nothing.
+func (f NoopForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, nil
+}

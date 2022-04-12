@@ -95,7 +95,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           metadataMessages,
+		Metadata:           metadataMessages,
 		ResourcesListed:    1,
 		ResourcesProcessed: processed,
 	}

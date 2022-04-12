@@ -59,7 +59,7 @@ type CollectorRunConfig struct {
 
 // CollectorRunResult contains information about what the collector has done.
 type CollectorRunResult struct {
-	Messages           []model.MessageBody
+	Metadata           []model.MessageBody
 	Manifests          []model.MessageBody
 	ResourcesListed    int
 	ResourcesProcessed int

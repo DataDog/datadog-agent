@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/manifest"
 	"github.com/DataDog/agent-payload/v5/process"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -267,7 +266,7 @@ func TestSendPodMessage(t *testing.T) {
 		HostName: testHostName,
 		GroupId:  1,
 	}
-	mm := &manifest.ManifestPayload{
+	mm := &process.CollectorManifest{
 		ClusterId: clusterID,
 	}
 	pd = append(pd, m, mm)

@@ -71,11 +71,11 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		NodeType:   orchestrator.K8sPod,
 	}
 
-	metadataMessages, manifestMessages, processed := c.processor.Process(ctx, podList)
+	processResult, processed := c.processor.Process(ctx, podList)
 
 	// Append manifestMessages behind metadataMessages to avoiding modifying the func signature.
 	// Split the messages during forwarding.
-	metadataMessages = append(metadataMessages, manifestMessages...)
+	metadataMessages := append(processResult.MetadataMessages, processResult.ManifestMessages...)
 	if processed == -1 {
 		return nil, fmt.Errorf("unable to process pods: a panic occurred")
 	}

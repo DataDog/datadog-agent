@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/manifest"
 	model "github.com/DataDog/agent-payload/v5/process"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -158,7 +157,13 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		return
 	}
 	checks.StoreCheckOutput(c.Name(), messages)
-	l.messagesToResults(start, c.Name(), messages, results)
+
+	if c.Name() == config.PodCheckName {
+		l.messagesToResults(start, config.PodCheckMetadataName, messages[:len(messages)/2], results)
+		l.messagesToResults(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
+	} else {
+		l.messagesToResults(start, c.Name(), messages, results)
+	}
 
 	if !c.RealTime() {
 		logCheckDuration(c.Name(), start, runCounter)
@@ -218,11 +223,6 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		return
 	}
 
-	// split manifests from slice of podcheck messages
-	if name == config.PodCheckName {
-		manifestMessagesToResults(l, start, name, messages[len(messages)/2:], results)
-		messages = messages[:len(messages)/2]
-	}
 	payloads := make([]checkPayload, 0, len(messages))
 	sizeInBytes := 0
 
@@ -263,49 +263,8 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		sizeInBytes: int64(sizeInBytes),
 	}
 	results.Add(result)
-
 	// update proc and container count for info
 	updateProcContainerCount(messages)
-}
-
-// manifestMessagesToResults processes manifest from messages
-func manifestMessagesToResults(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
-
-	manifestPayloads := make([]checkPayload, 0, len(messages))
-	manifestSizeInBytes := 0
-
-	for _, m := range messages {
-		extraHeaders := make(http.Header)
-
-		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
-		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
-		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
-
-		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
-			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-				extraHeaders.Set(headers.ClusterIDHeader, cid)
-			}
-		}
-
-		body, err := manifest.EncodeMessage(m.(*manifest.ManifestPayload))
-		if err != nil {
-			log.Errorf("Unable to encode message: %s", err)
-			continue
-		}
-
-		manifestPayloads = append(manifestPayloads, checkPayload{
-			body:    body,
-			headers: extraHeaders,
-		})
-		manifestSizeInBytes += len(body)
-	}
-
-	result := &checkResult{
-		name:        name,
-		payloads:    manifestPayloads,
-		sizeInBytes: int64(manifestSizeInBytes),
-	}
-	results.Add(result)
 }
 
 func (l *Collector) run(exit chan struct{}) error {
@@ -546,16 +505,13 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-			case checks.Pod.Name():
+			case config.PodCheckMetadataName:
+				// Pod check contains two parts: metadata and manifest.
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
-
-				// Manifests don't need this header
-				if payload.headers.Get(headers.ContainerCountHeader) == "" {
-					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
-				} else {
-					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
-				}
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+			case config.PodCheckManifestName:
+				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false

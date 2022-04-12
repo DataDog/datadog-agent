@@ -101,3 +101,9 @@ func (h *StatefulSetHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorCo
 		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
 	}
 }
+
+// BuildManifestMessageBody is used to build a message containing a chunk of
+// manifest models of a certain size.
+func (h *StatefulSetHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
+	return buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, resourceManifests, groupSize)
+}

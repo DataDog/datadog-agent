@@ -77,15 +77,15 @@ func (c *RoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 		NodeType:   c.metadata.NodeType,
 	}
 
-	metadataMessages, manifestMessages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           metadataMessages,
-		Manifests:          manifestMessages,
+		Metadata:           processResult.MetadataMessages,
+		Manifests:          processResult.ManifestMessages,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}
