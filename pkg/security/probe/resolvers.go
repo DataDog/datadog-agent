@@ -10,12 +10,10 @@ package probe
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"sort"
 	"strings"
 
-	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -205,7 +203,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot() error {
-	if err := retry.Do(r.snapshot, retry.Delay(0), retry.Attempts(5)); err != nil {
+	if err := r.snapshot(); err != nil {
 		return errors.Wrap(err, "unable to snapshot processes")
 	}
 
@@ -283,7 +281,7 @@ func (r *Resolvers) snapshot() error {
 	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
 	// process cache anymore
 	if cacheModified {
-		return fmt.Errorf("cache modified")
+		log.Debugf("cache modified")
 	}
 
 	return nil
