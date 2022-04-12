@@ -242,6 +242,8 @@ func (ns *networkState) GetDelta(
 	}
 }
 
+// saveTelemetry saves the non-monotonic telemetry data for each registered clients.
+// It does so by accumulating values per telemetry point.
 func (ns *networkState) saveTelemetry(telemetry map[ConnTelemetryType]int64) {
 	for _, cl := range ns.clients {
 		for _, telType := range ConnTelemetryTypes {
