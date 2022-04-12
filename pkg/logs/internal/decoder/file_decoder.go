@@ -43,7 +43,7 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 		switch source.Config.Encoding {
 		case config.UTF16BE:
 			lineParser = encodedtext.New(encodedtext.UTF16BE)
-			framing = framer.UTF16LENewline
+			framing = framer.UTF16BENewline
 		case config.UTF16LE:
 			lineParser = encodedtext.New(encodedtext.UTF16LE)
 			framing = framer.UTF16LENewline
