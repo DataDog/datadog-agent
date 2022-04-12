@@ -44,7 +44,9 @@ var (
 	expContainerID = regexp.MustCompile(fmt.Sprintf(`(%s|%s|%s)(?:.scope)?$`, uuidSource, containerSource, taskSource))
 )
 
-// parseContainerID finds the first container ID reading from r and returns it.
+// parseContainerID finds the first container ID reading from r and returns it. R is expected to
+// read a file with the structure described by 'man 7 cgroup' in the section labelled
+// "/proc/[pid]/cgroup", available here: https://www.man7.org/linux/man-pages/man7/cgroups.7.html
 func parseContainerID(r io.Reader) string {
 	scn := bufio.NewScanner(r)
 	for scn.Scan() {

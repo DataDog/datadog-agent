@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM - Add support for cgroup2 via UDS.
+    APM: Add support for cgroup2 via UDS.

@@ -5,7 +5,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -94,6 +93,7 @@ func TestContainerID(t *testing.T) {
 		assert.False(t, ok)
 		assert.Equal(t, "", cid)
 	})
+
 	t.Run("read", func(t *testing.T) {
 		// Read cgroup Id from test file
 		p := createCgroupFile(cgroup)
@@ -176,18 +176,14 @@ func BenchmarkCacheReadContention(b *testing.B) {
 	createPath = func(pid int32) string {
 		return p
 	}
-
 	go func() {
 		r := generateHTTPRequest(0)
-		fmt.Printf("Populating Container IDs\n")
 		for i := 100000; i < 200000; i++ {
 			ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: int32(i)})
 			r.WithContext(ctx)
 			getContainerID(r)
 		}
 	}()
-
-	//fmt.Printf("Retrieving Container IDs\n")
 	r := generateHTTPRequest(0)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
