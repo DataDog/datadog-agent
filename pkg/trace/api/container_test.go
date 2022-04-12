@@ -160,7 +160,7 @@ func BenchmarkCacheReadFull(b *testing.B) {
 	for i := 0; i < 100000; i++ {
 		cv := &cacheVal{containerID: "test-cid"}
 		cv.accessed.Store(time.Now())
-		cach.cache[int32(i)] = cv
+		cache.cache[int32(i)] = cv
 	}
 	r := generateHTTPRequest(0)
 	b.ResetTimer()
