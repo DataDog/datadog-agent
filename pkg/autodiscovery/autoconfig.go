@@ -7,7 +7,6 @@ package autodiscovery
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -26,10 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-var (
-	listenerCandidateIntl = 30 * time.Second
-	secretsDecrypt        = secrets.Decrypt
-)
+var listenerCandidateIntl = 30 * time.Second
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
 // responsible to collect integrations configurations from different sources
@@ -380,43 +375,6 @@ func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayCon
 // RemoveScheduler allows to remove a scheduler from the AD system.
 func (ac *AutoConfig) RemoveScheduler(name string) {
 	ac.scheduler.Deregister(name)
-}
-
-func decryptConfig(conf integration.Config) (integration.Config, error) {
-	if config.Datadog.GetBool("secret_backend_skip_checks") {
-		log.Tracef("'secret_backend_skip_checks' is enabled, not decrypting configuration %q", conf.Name)
-		return conf, nil
-	}
-
-	var err error
-
-	// init_config
-	conf.InitConfig, err = secretsDecrypt(conf.InitConfig, conf.Name)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
-	}
-
-	// instances
-	for idx := range conf.Instances {
-		conf.Instances[idx], err = secretsDecrypt(conf.Instances[idx], conf.Name)
-		if err != nil {
-			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
-		}
-	}
-
-	// metrics
-	conf.MetricConfig, err = secretsDecrypt(conf.MetricConfig, conf.Name)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
-	}
-
-	// logs
-	conf.LogsConfig, err = secretsDecrypt(conf.LogsConfig, conf.Name)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
-	}
-
-	return conf, nil
 }
 
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
