@@ -478,6 +478,10 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	}
 
 	parent := p.entryCache[entry.PPid]
+	if parent == nil && entry.PPid >= 1 {
+		parent = p.resolve(entry.PPid, entry.PPid)
+	}
+
 	if parent != nil {
 		parent.Fork(entry)
 	}
@@ -519,6 +523,10 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
+	return p.resolve(pid, tid)
+}
+
+func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
 		return entry

@@ -264,7 +264,7 @@ func (r *Resolvers) snapshot() error {
 		// Start with the mount resolver because the process resolver might need it to resolve paths
 		if err = r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(fmt.Errorf("snapshot failed for %d: couldn't sync mount points: %w", proc.Pid, err))
+				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
 		}
 
