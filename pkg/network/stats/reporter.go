@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package stats
 
 import (
@@ -85,7 +90,7 @@ func (r Reporter) Report() map[string]interface{} {
 		case reflect.Int32:
 			v = int32(f.Int())
 		case reflect.Int64:
-			v = int64(f.Int())
+			v = int64(f.Int()) //nolint:unconvert
 		case reflect.Uint:
 			v = uint(f.Uint())
 		case reflect.Uint8:
@@ -95,7 +100,7 @@ func (r Reporter) Report() map[string]interface{} {
 		case reflect.Uint32:
 			v = uint32(f.Uint())
 		case reflect.Uint64:
-			v = uint64(f.Uint())
+			v = uint64(f.Uint()) //nolint:unconvert
 		}
 		stats[name] = v
 	}

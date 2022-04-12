@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package stats
 
 import (
@@ -7,6 +12,7 @@ import (
 )
 
 func TestStatsAllowedTypes(t *testing.T) {
+	//nolint:structcheck,unused
 	type test struct {
 		i64 int64 `stats:""`
 		i32 int32 `stats:""`
@@ -40,6 +46,7 @@ func TestStatsAllowedTypes(t *testing.T) {
 }
 
 func TestStatsSnakeCase(t *testing.T) {
+	//nolint:structcheck,unused
 	type test struct {
 		foo       int `stats:""`
 		barBaz    int `stats:""`
@@ -58,6 +65,7 @@ func TestStatsSnakeCase(t *testing.T) {
 }
 
 func TestStatsSkipNoTag(t *testing.T) {
+	//nolint:structcheck,unused
 	type test struct {
 		foo int `stats:""`
 		bar int
@@ -75,6 +83,7 @@ func TestStatsSkipNoTag(t *testing.T) {
 }
 
 func TestStatsAllowedTypesAtomic(t *testing.T) {
+	//nolint:structcheck,unused
 	type test struct {
 		i64 int64 `stats:"atomic"`
 		i32 int32 `stats:"atomic"`
