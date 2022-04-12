@@ -7,7 +7,7 @@ package util
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -44,7 +44,8 @@ func LogVersionHistory() {
 }
 
 func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentVersion string, timestamp time.Time) {
-	file, err := ioutil.ReadFile(versionHistoryFilePath)
+
+	file, err := os.ReadFile(versionHistoryFilePath)
 
 	history := versionHistoryEntries{}
 
@@ -92,7 +93,7 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 		return
 	}
 
-	err = ioutil.WriteFile(versionHistoryFilePath, file, 0644)
+	err = os.WriteFile(versionHistoryFilePath, file, 0644)
 	if err != nil {
 		log.Errorf("Cannot write json file: %s %v", versionHistoryFilePath, err)
 		return
