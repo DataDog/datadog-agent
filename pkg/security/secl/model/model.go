@@ -14,7 +14,6 @@ import (
 	"net"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -61,7 +60,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 				return errAbs
 			}
 
-			if matched, err := regexp.Match(`^~`, []byte(value)); err != nil || matched {
+			if strings.HasPrefix(value, "~") {
 				return errAbs
 			}
 
