@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,13 +18,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -36,6 +37,8 @@ const (
 	authorizationHeaderKey = "Authorization"
 	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
 	RealIPHeader = "X-Real-Ip"
+
+	clusterAgentName = "datadog cluster agent"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -464,4 +467,26 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 	}
 	err = json.Unmarshal(b, &clusterID)
 	return clusterID, err
+}
+
+// doLeaderRequest performs a http request to the leader.
+func (c *DCAClient) doLeaderRequest(req *http.Request) ([]byte, error) {
+	resp, err := c.leaderClient.Do(req)
+	if err != nil {
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			return nil, errors.NewTimeoutError(clusterAgentName, err)
+		}
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode >= 500 {
+			return nil, errors.NewRemoteServiceError(clusterAgentName, resp.Status)
+		}
+
+		return nil, fmt.Errorf("unexpected response: %d - %s", resp.StatusCode, resp.Status)
+	}
+
+	return ioutil.ReadAll(resp.Body)
 }
