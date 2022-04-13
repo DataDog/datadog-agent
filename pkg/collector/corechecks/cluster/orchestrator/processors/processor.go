@@ -161,10 +161,10 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		})
 	}
 	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceManifestModels), ctx.Cfg.MaxPerMessage)
+	chunkCount := orchestrator.GroupSize(len(resourceMetadataModels), ctx.Cfg.MaxPerMessage)
 
 	// chunk orchestrator metadata and manifest
-	metadataChunks := chunkResources(resourceManifestModels, chunkCount, ctx.Cfg.MaxPerMessage)
+	metadataChunks := chunkResources(resourceMetadataModels, chunkCount, ctx.Cfg.MaxPerMessage)
 	manifestChunks := chunkResources(resourceManifestModels, chunkCount, ctx.Cfg.MaxPerMessage)
 
 	metadataMessages := make([]model.MessageBody, 0, chunkCount)
