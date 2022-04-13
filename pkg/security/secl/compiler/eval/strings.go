@@ -15,9 +15,10 @@ import (
 
 // StringCmpOpts defines options to apply during string comparison
 type StringCmpOpts struct {
-	ScalarCaseInsensitive bool
-	GlobCaseInsensitive   bool
-	RegexpCaseInsensitive bool
+	ScalarCaseInsensitive  bool
+	PatternCaseInsensitive bool
+	GlobCaseInsensitive    bool
+	RegexpCaseInsensitive  bool
 }
 
 // DefaultStringCmpOpts defines the default comparison options
@@ -239,7 +240,7 @@ func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (
 	switch kind {
 	case PatternValueType:
 		var matcher PatternStringMatcher
-		if err := matcher.Compile(pattern, opts.GlobCaseInsensitive); err != nil {
+		if err := matcher.Compile(pattern, opts.PatternCaseInsensitive); err != nil {
 			return nil, fmt.Errorf("invalid pattern `%s`: %s", pattern, err)
 		}
 		return &matcher, nil

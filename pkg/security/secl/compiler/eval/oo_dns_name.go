@@ -14,10 +14,10 @@ var (
 		StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PatternCaseInsensitive = true
 			} else if b.Field != "" {
 				b.StringCmpOpts.ScalarCaseInsensitive = true
-				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
 			return StringEquals(a, b, opts, state)
@@ -25,7 +25,7 @@ var (
 		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
 			return StringValuesContains(a, b, opts, state)
@@ -33,10 +33,10 @@ var (
 		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PatternCaseInsensitive = true
 			} else if b.Field != "" {
 				b.StringCmpOpts.ScalarCaseInsensitive = true
-				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
 			return StringArrayContains(a, b, opts, state)
@@ -44,7 +44,7 @@ var (
 		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
 			return StringArrayMatches(a, b, opts, state)
