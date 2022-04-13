@@ -19,10 +19,9 @@ def find_clang_format(search_dirs):
 
 clang_format_path = os.environ.get('CLANG_FORMAT_PATH')
 if clang_format_path is None:
-    search_dirs = ['C:\\Program Files\\Microsoft Visual Studio', 'C:\\Program Files (x86)\\Microsoft Visual Studio']
+    search_dirs = ['C:/Program Files/Microsoft Visual Studio', 'C:/Program Files (x86)/Microsoft Visual Studio']
     clang_format_path = find_clang_format(search_dirs)
 
-clang_format_path = clang_format_path.replace('\\', '/')
 print(clang_format_path)
 
 try:
