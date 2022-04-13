@@ -1,3 +1,4 @@
+import datetime
 import os
 import tempfile
 
@@ -29,7 +30,6 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringSignalListRequestPage,
     SecurityMonitoringSignalsSort,
 )
-from dateutil.parser import parse as dateutil_parser
 from retry.api import retry_call
 
 
@@ -56,12 +56,15 @@ def get_app_log(api_client, query):
 
 
 def get_app_signal(api_client, query):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    query_from = now - datetime.timedelta(minutes=15)
+
     api_instance = security_monitoring_api.SecurityMonitoringApi(api_client)
     body = SecurityMonitoringSignalListRequest(
         filter=SecurityMonitoringSignalListRequestFilter(
-            _from=dateutil_parser("2021-01-01T00:00:00.00Z"),
+            _from=query_from.isoformat(),
             query=query,
-            to=dateutil_parser("2050-01-01T00:00:00.00Z"),
+            to=now.isoformat(),
         ),
         page=SecurityMonitoringSignalListRequestPage(
             limit=25,
