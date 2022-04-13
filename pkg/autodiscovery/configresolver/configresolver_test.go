@@ -59,8 +59,8 @@ func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, err
 }
 
 // GetTags returns static tags
-func (s *dummyService) GetTags() ([]string, string, error) {
-	return []string{"foo:bar"}, "hash", nil
+func (s *dummyService) GetTags() ([]string, error) {
+	return []string{"foo:bar"}, nil
 }
 
 // GetPid return a dummy pid

@@ -79,8 +79,8 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 }
 
 // GetTags returns the tags associated with the service.
-func (s *service) GetTags() ([]string, string, error) {
-	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
+func (s *service) GetTags() ([]string, error) {
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetPid returns the process ID of the service.
