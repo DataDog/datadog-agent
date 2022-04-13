@@ -37,14 +37,25 @@
   variables:
     KITCHEN_EC2_SPOT_PRICE: on-demand
 
+.kitchen_ec2_demand_instances:
+  extends: .kitchen_ec2
+  #variables:
+    # don't set KITCHEN_EC2_SPOT_PRICE to get on demand instances
+    #KITCHEN_EC2_SPOT_PRICE: on-demand
+
 .kitchen_ec2_arm64:
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
     # we need chef >= 15 for arm64 and for the arm? helper
     CHEF_VERSION: 15.16.4
-  extends:
-    - .kitchen_ec2_spot_instances
+  extends: .kitchen_ec2_spot_instances
+
+.kitchen_ec2_x86_64:
+  variables:
+    KITCHEN_ARCH: x86_64
+    KITCHEN_EC2_INSTANCE_TYPE: "t3.xlarge"
+  extends: .kitchen_ec2_demand_instances
 
 # Kitchen: agents
 # ---------------

@@ -15,20 +15,20 @@ provisioner:
 driver:
   name: ec2
   aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_ID'] %>
-  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] || ["sg-7fedd80a","sg-46506837"] %>
+  security_group_ids: <%= ENV['KITCHEN_EC2_SG_IDS'] || ["sg-7fedd80a","sg-46506837"] %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
   subnet_id: <%= ENV['KITCHEN_EC2_SUBNET'] ||= 'subnet-b89e00e2' %>
-  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= null %>
+  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= '' %>
   spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
   block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
   tags:
     Name: ci-datadog-agent-kitchen
-    Team: agent-platform
+    team: agent-platform
     PipelineId: <%= ENV['DD_PIPELINE_ID'] %>
     CreatedBy: datadog-agent-kitchen-tests
-    Creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "datadog-agent-kitchen-user" %>
+    creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "datadog-agent-kitchen-user" %>
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,

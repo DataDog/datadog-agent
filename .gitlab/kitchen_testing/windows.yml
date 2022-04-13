@@ -8,12 +8,9 @@
 # Kitchen: OSes
 # -------------
 
-.kitchen_os_windows:
-  extends:
-    - .kitchen_azure_x64
+.kitchen_os_windows_base:
   variables:
     KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019,win2019cn,win2022"
     DEFAULT_KITCHEN_OSVERS: "win2022"
   before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
@@ -23,6 +20,20 @@
   # Give them one more chance before failing.
   # TODO: understand why they fail more often than Linux jobs on network errors.
   retry: 2
+
+.kitchen_os_windows:
+  variables:
+    KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019,win2019cn,win2022"
+  extends:
+    - .kitchen_azure_x64
+    - .kitchen_os_windows_base
+
+.kitchen_os_windows_ec2:
+  variables:
+    KITCHEN_OSVERS: "win2019"
+  extends:
+    - .kitchen_ec2_x86_64
+    - .kitchen_os_windows_base
 
 # Kitchen: tests
 # --------------
@@ -73,6 +84,40 @@
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - bash -l tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 
+
+.kitchen_ec2_test_windows_npm_driver:
+  extends:
+    - .kitchen_ec2_x86_64
+  variables:
+    CHEF_VERSION: 13.9.4
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS:  "win2012r2,win2016,win2019,win20h2"
+    DEFAULT_KITCHEN_OSVERS: "win2022"
+  before_script:  # test all of the kernels to make sure the driver loads and runs properly
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  script:
+    - bash -l tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
+
+.kitchen_ec2_test_windows_npm_installer:
+  extends:
+    - .kitchen_ec2_x86_64
+  variables:
+    CHEF_VERSION: 13.9.4
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2016"
+  before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
+    - bash -l tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------
 
@@ -94,6 +139,18 @@
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
 
+.kitchen_ec2_test_windows_installer_driver:
+  extends:
+    - .kitchen_ec2_test_windows_npm_driver
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_ec2_test_windows_installer_npm:
+  extends:
+    - .kitchen_ec2_test_windows_npm_installer
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_ec2_location_us_east_1
+
 # Kitchen: scenarios (os * agent)
 # -------------------------------
 
@@ -109,26 +166,49 @@
     - .kitchen_os_windows
   needs: ["deploy_windows_testing-a7"]
 
+.kitchen_scenario_windows_a7_ec2:
+  extends:
+    - .kitchen_agent_a7
+    - .kitchen_os_windows_ec2
+  needs: ["deploy_windows_testing-a7"]
+
 # Kitchen: final test matrix (test types * scenarios)
 # ----------------------------------------------
 
-kitchen_windows_installer_npm_install_scenarios-a7:
+##
+## temporarily remove; being run on EC2 instead until Azure issue ironed out
+##
+#kitchen_windows_installer_npm_install_scenarios-a7:
+#  extends:
+#    - .kitchen_scenario_windows_a7
+#    - .kitchen_test_windows_installer_npm
+#  retry: 0
+
+##
+## temporarily remove; being run on EC2 instead until Azure issue ironed out
+##
+#kitchen_windows_installer_npm_driver-a7:
+#  # Run NPM driver installer test on branches, on a reduced number of platforms
+#  rules:
+#    !reference [.on_default_kitchen_tests_a7]
+#  extends:
+#    - .kitchen_scenario_windows_a7
+#    - .kitchen_test_windows_installer_driver
+#  retry: 0
+
+kitchen_windows_ec2_installer_npm_install_scenarios-a7:
   extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_windows_installer_npm
-  # FIXME: temporarily allow this job to fail, until we fix it
-  allow_failure: true
+    - .kitchen_scenario_windows_a7_ec2
+    - .kitchen_ec2_test_windows_installer_npm
   retry: 0
 
-kitchen_windows_installer_npm_driver-a7:
+kitchen_windows_ec2_installer_npm_driver-a7:
   # Run NPM driver installer test on branches, on a reduced number of platforms
   rules:
     !reference [.on_default_kitchen_tests_a7]
   extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_windows_installer_driver
-  # FIXME: temporarily allow this job to fail, until we fix it
-  allow_failure: true
+    - .kitchen_scenario_windows_a7_ec2
+    - .kitchen_ec2_test_windows_installer_driver
   retry: 0
 
 kitchen_windows_installer_agent-a6:
