@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -137,6 +138,9 @@ func (m *Module) Start() error {
 	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
+
+	// Snapshot and rules compilation is memory expensive, for the GC to reset the limit to a lower value
+	runtime.GC()
 
 	m.wg.Add(1)
 	go m.metricsSender()
