@@ -79,7 +79,7 @@ class TestE2EKubernetes(unittest.TestCase):
             event = self.App.wait_app_log("rule_id:ruleset_loaded")
             attributes = event["data"][-1]["attributes"]["attributes"]
             start_date = attributes["date"]
-            check_for_ignored_policies(attributes)
+            check_for_ignored_policies(self, attributes)
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
@@ -112,7 +112,7 @@ class TestE2EKubernetes(unittest.TestCase):
                 time.sleep(1)
             else:
                 self.fail("check ruleset_loaded timeouted")
-            check_for_ignored_policies(attributes)
+            check_for_ignored_policies(self, attributes)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             os.system(f"touch {filename}")
