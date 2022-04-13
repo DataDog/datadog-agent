@@ -541,7 +541,7 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 // resolveTemplateForService calls the config resolver for the template against the service,
 // decrypts secrets and stores the resolved config and service mapping if successful
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	config, _, err := configresolver.Resolve(tpl, svc)
+	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())

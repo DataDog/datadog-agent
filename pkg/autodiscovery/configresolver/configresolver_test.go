@@ -707,14 +707,13 @@ func TestResolve(t *testing.T) {
 			// Make sure we don't modify the template object
 			checksum := tc.tpl.Digest()
 
-			cfg, hash, err := Resolve(tc.tpl, tc.svc)
+			cfg, err := Resolve(tc.tpl, tc.svc)
 			if tc.errorString != "" {
 				assert.EqualError(t, err, tc.errorString)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.out, cfg)
 				assert.Equal(t, checksum, tc.tpl.Digest())
-				assert.Equal(t, "hash", hash) // Resolve must return a non-empty hash if err == nil
 			}
 		})
 	}
