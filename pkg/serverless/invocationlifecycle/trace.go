@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -25,10 +26,11 @@ const (
 
 // executionStartInfo is saved information from when an execution span was started
 type executionStartInfo struct {
-	startTime time.Time
-	traceID   uint64
-	spanID    uint64
-	parentID  uint64
+	startTime      time.Time
+	traceID        uint64
+	spanID         uint64
+	parentID       uint64
+	requestPayload string
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -47,6 +49,8 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 	payload := convertRawPayload(rawPayload)
 
+	currentExecutionInfo.requestPayload = rawPayload
+
 	if payload.Headers != nil {
 		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
 		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
@@ -63,7 +67,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
+func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload []byte) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -79,6 +83,11 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 		Meta: map[string]string{
 			"request_id": requestID,
 		},
+	}
+	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
+	if captureLambdaPayloadEnabled {
+		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
+		executionSpan.Meta["function.response"] = string(responsePayload)
 	}
 
 	if isError {

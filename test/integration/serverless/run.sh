@@ -22,7 +22,7 @@
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
-DEFAULT_DOTNET_TRACE_LAYER_VERSION=1
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=2
 DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
@@ -179,7 +179,7 @@ sleep $SECONDS_BETWEEN_INVOCATIONS
 # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
 echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
 done
 wait
 
@@ -275,6 +275,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
                 perl -p -e "s/(\"architecture\":)\"(x86_64|arm64)\"/\1\"XXX\"/g" |
+                perl -p -e "s/(\"process_id\":)[0-9]+/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
