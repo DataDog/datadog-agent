@@ -56,8 +56,6 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
         stream.write(
             """FROM docker/compose:debian-1.28.3
 ENV DOCKER_DD_AGENT=yes
-# Enable trace-agent integration tests:
-ENV INTEGRATION=yes
 WORKDIR /
 CMD /test.bin
 COPY test.bin /test.bin
