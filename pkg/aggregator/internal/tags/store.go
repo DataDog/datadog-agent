@@ -17,8 +17,8 @@ import (
 
 // Entry is used to keep track of tag slices shared by the contexts.
 type Entry struct {
-	tags []string
 	refs uint64
+	tags []string
 }
 
 // Tags returns the strings stored in the Entry. The slice may be

@@ -16,12 +16,12 @@ import (
 // IterableSeries represents an iterable collection of Serie.
 // Serie can be appended to IterableSeries while IterableSeries is serialized
 type IterableSeries struct {
+	count              uint64
 	ch                 *util.BufferedChan
 	bufferedChanClosed bool
 	cancel             context.CancelFunc
 	callback           func(*Serie)
 	current            *Serie
-	count              uint64
 }
 
 // NewIterableSeries creates a new instance of *IterableSeries
