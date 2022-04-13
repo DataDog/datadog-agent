@@ -106,7 +106,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		return resolvedConfig, fmt.Errorf("%w, skipping service %s", err, svc.GetServiceID())
 	}
 
-	tags, _, err := svc.GetTags()
+	tags, err := svc.GetTags()
 	if err != nil {
 		return resolvedConfig, fmt.Errorf("couldn't get tags for service '%s', err: %w", svc.GetServiceID(), err)
 	}

@@ -47,9 +47,9 @@ func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, err
 	return s.Ports, nil
 }
 
-// GetTags returns mil
-func (s *dummyService) GetTags() ([]string, string, error) {
-	return nil, "", nil
+// GetTags returns the tags for this service
+func (s *dummyService) GetTags() ([]string, error) {
+	return nil, nil
 }
 
 // GetPid return a dummy pid
