@@ -326,6 +326,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chmod.File.PathnameStr
@@ -516,6 +517,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "chown.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.File.PathnameStr
@@ -606,6 +608,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "dns.question.name":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.DNSNameCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).DNS.Name
@@ -1196,6 +1199,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Target.PathnameStr
@@ -1326,6 +1330,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "link.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Source.PathnameStr
@@ -1476,6 +1481,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).LoadModule.File.PathnameStr
@@ -1666,6 +1672,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Mkdir.File.PathnameStr
@@ -1816,6 +1823,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).MMap.File.PathnameStr
@@ -2114,6 +2122,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "open.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Open.File.PathnameStr
@@ -5464,6 +5473,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.PathnameStr
@@ -5624,6 +5634,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.New.PathnameStr
@@ -5754,6 +5765,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "rename.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.Old.PathnameStr
@@ -5904,6 +5916,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rmdir.File.PathnameStr
@@ -6234,6 +6247,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.File.PathnameStr
@@ -7989,6 +8003,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "splice.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Splice.File.PathnameStr
@@ -8159,6 +8174,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Unlink.File.PathnameStr
@@ -8329,6 +8345,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Utimes.File.PathnameStr

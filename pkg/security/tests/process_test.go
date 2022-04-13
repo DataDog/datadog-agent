@@ -109,7 +109,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_envp",
-			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"]`,
+			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"] && exec.args =~ "*example.com"`,
 		},
 		{
 			ID:         "test_rule_args_envs_dedup",
@@ -264,7 +264,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"-al"}
+		args := []string{"-al", "http://example.com"}
 		envs := []string{"ENVP=test"}
 
 		test.WaitSignal(t, func() error {

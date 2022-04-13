@@ -6,16 +6,12 @@
 //go:build linux
 // +build linux
 
-package probe
-
-import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-)
+package eval
 
 var (
 	// DNSNameCmp lower case values before comparing. Important : this operator override doesn't support approvers
-	DNSNameCmp = &eval.OpOverrides{
-		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+	DNSNameCmp = &OpOverrides{
+		StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
@@ -24,17 +20,17 @@ var (
 				b.StringCmpOpts.GlobCaseInsensitive = true
 			}
 
-			return eval.StringEquals(a, b, opts, state)
+			return StringEquals(a, b, opts, state)
 		},
-		StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
 			}
 
-			return eval.StringValuesContains(a, b, opts, state)
+			return StringValuesContains(a, b, opts, state)
 		},
-		StringArrayContains: func(a *eval.StringEvaluator, b *eval.StringArrayEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
@@ -43,15 +39,15 @@ var (
 				b.StringCmpOpts.GlobCaseInsensitive = true
 			}
 
-			return eval.StringArrayContains(a, b, opts, state)
+			return StringArrayContains(a, b, opts, state)
 		},
-		StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
 			}
 
-			return eval.StringArrayMatches(a, b, opts, state)
+			return StringArrayMatches(a, b, opts, state)
 		},
 	}
 )
