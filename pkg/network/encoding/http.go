@@ -9,18 +9,21 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/gogo/protobuf/proto"
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 var sentinelValue = new(model.HTTPAggregations)
+
+const sketchBufferSize = 1024 * 1024
 
 type httpEncoder struct {
 	aggregations map[http.Key]*model.HTTPAggregations
 
 	// pre-allocated objects
-	dataPool []model.HTTPStats_Data
-	ptrPool  []*model.HTTPStats_Data
-	poolIdx  int
+	dataPool     []model.HTTPStats_Data
+	ptrPool      []*model.HTTPStats_Data
+	poolIdx      int
+	sketchBuffer *[]byte
 
 	orphanEntries int
 }
@@ -30,6 +33,8 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 		return nil
 	}
 
+	// pre-allocate buffer used for sketch encoding
+	b := make([]byte, 0, sketchBufferSize)
 	encoder := &httpEncoder{
 		aggregations: make(map[http.Key]*model.HTTPAggregations, len(payload.Conns)),
 
@@ -37,6 +42,9 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 		dataPool: make([]model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
 		ptrPool:  make([]*model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
 		poolIdx:  0,
+
+		// we use a pointer to slice to comply to the sketch encoding API
+		sketchBuffer: &b,
 	}
 
 	// pre-populate aggregation map with keys for all existent connections
@@ -94,11 +102,11 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			data.Count = uint32(stats[i].Count)
 
 			if latencies := stats[i].Latencies; latencies != nil {
-				blob, _ := proto.Marshal(latencies.ToProto())
-				data.Latencies = blob
-			} else {
-				data.FirstLatencySample = stats[i].FirstLatencySample
+				data.Latencies = e.encodeSketch(*latencies)
+				continue
 			}
+
+			data.FirstLatencySample = stats[i].FirstLatencySample
 		}
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
@@ -112,6 +120,13 @@ func (e *httpEncoder) getDataSlice() []*model.HTTPStats_Data {
 	}
 	e.poolIdx += http.NumStatusClasses
 	return ptrs
+}
+
+func (e *httpEncoder) encodeSketch(sketch ddsketch.DDSketch) []byte {
+	sketch.Encode(e.sketchBuffer, false)
+	b := *e.sketchBuffer
+	*e.sketchBuffer = (*e.sketchBuffer)[len(*e.sketchBuffer):]
+	return b
 }
 
 // build the key for the http map based on whether the local or remote side is http.

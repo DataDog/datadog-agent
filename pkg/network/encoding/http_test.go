@@ -13,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -165,14 +163,11 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 }
 
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
-	var sketchPb sketchpb.DDSketch
-	err := proto.Unmarshal(bytes, &sketchPb)
+	sketch, err := ddsketch.NewDefaultDDSketch(http.RelativeAccuracy)
 	assert.Nil(t, err)
-
-	ret, err := ddsketch.FromProto(&sketchPb)
+	err = sketch.DecodeAndMergeWith(bytes)
 	assert.Nil(t, err)
-
-	return ret
+	return sketch
 }
 
 func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expectedValue float64) {
