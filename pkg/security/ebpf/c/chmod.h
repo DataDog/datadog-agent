@@ -6,6 +6,7 @@
 struct chmod_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -50,11 +51,13 @@ SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
 
 int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct chmod_event_t event = {
         .syscall.retval = retval,
@@ -65,6 +68,7 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     // dentry resolution in setattr.h
 

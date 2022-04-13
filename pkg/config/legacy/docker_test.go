@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build docker
-// +build linux
+//go:build docker && linux
+// +build docker,linux
+
 // As we compare some paths, running the tests on Linux only
 
 package legacy
@@ -59,6 +60,7 @@ instances:
 - collect_container_size: true
   collect_container_size_frequency: 5
   collect_exit_codes: true
+  ok_exit_codes: []
   collect_images_stats: false
   collect_image_size: true
   collect_disk_stats: true

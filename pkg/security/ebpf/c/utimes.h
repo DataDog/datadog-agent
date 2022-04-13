@@ -9,9 +9,10 @@
   utime syscalls call utimes_common
 */
 
-struct utime_event_t {
+struct utimes_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -62,13 +63,15 @@ SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
 
 int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UTIME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
-    struct utime_event_t event = {
+    struct utimes_event_t event = {
         .syscall.retval = retval,
         .atime = syscall->setattr.atime,
         .mtime = syscall->setattr.mtime,
@@ -77,6 +80,7 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     // dentry resolution in setattr.h
 

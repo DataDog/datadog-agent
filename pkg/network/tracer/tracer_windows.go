@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows && npm
 // +build windows,npm
 
 package tracer
@@ -20,6 +26,7 @@ import (
 const (
 	defaultPollInterval = int(15)
 	defaultBufferSize   = 512
+	minBufferSize       = 256
 )
 
 // Tracer struct for tracking network state and connections
@@ -30,9 +37,9 @@ type Tracer struct {
 	state           network.State
 	reverseDNS      dns.ReverseDNS
 
-	connStatsActive *network.DriverBuffer
-	connStatsClosed *network.DriverBuffer
-	connLock        sync.Mutex
+	activeBuffer *network.ConnectionBuffer
+	closedBuffer *network.ConnectionBuffer
+	connLock     sync.Mutex
 
 	timerInterval int
 
@@ -62,7 +69,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
-		config.CollectDNSDomains,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -79,8 +85,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		connStatsActive: network.NewDriverBuffer(defaultBufferSize),
-		connStatsClosed: network.NewDriverBuffer(defaultBufferSize),
+		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -104,34 +110,62 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	t.connStatsActive.Reset()
-	t.connStatsClosed.Reset()
-
-	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed, func(c *network.ConnectionStats) bool {
+	_, _, err := t.driverInterface.GetConnectionStats(t.activeBuffer, t.closedBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
-
-	activeConnStats := t.connStatsActive.Connections()
-	closedConnStats := t.connStatsClosed.Connections()
-
-	for _, connStat := range closedConnStats {
-		t.state.StoreClosedConnection(&connStat)
-	}
+	activeConnStats := t.activeBuffer.Connections()
+	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
+	t.state.StoreClosedConnections(closedConnStats)
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
-	conns := delta.Connections
-	var ips []util.Address
-	for _, conn := range delta.Connections {
+
+	t.activeBuffer.Reset()
+	t.closedBuffer.Reset()
+
+	ips := make([]util.Address, 0, len(delta.Conns)*2)
+	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
-	return &network.Connections{Conns: conns, DNS: names}, nil
+	return &network.Connections{
+		BufferedData:  delta.BufferedData,
+		DNS:           names,
+		DNSStats:      delta.DNSStats,
+		ConnTelemetry: t.getConnTelemetry(),
+	}, nil
+}
+
+func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
+	tm := map[network.ConnTelemetryType]int64{}
+
+	// allStats is the expvar map.  it is actually a map of maps
+	// top level keys are:
+	//   state (we don't need for this call)
+	//   dns   ( the dns handle stats)
+	//   each of the strings in DriverExpvarNames.  We're interested
+	//   in driver.flowHandleStats, which is "driver_flow_handle_stats"
+	if allstats, err := t.driverInterface.GetStats(); err == nil {
+		if flowStats, ok := allstats["driver_flow_handle_stats"].(map[string]int64); ok {
+			if fme, ok := flowStats["num_flows_missed_max_exceeded"]; ok {
+				tm[network.NPMDriverFlowsMissedMaxExceeded] = fme
+			}
+		}
+	}
+	dnsStats := t.reverseDNS.GetStats()
+	if pp, ok := dnsStats["packets_processed_transport"]; ok {
+		tm[network.MonotonicDNSPacketsProcessed] = pp
+	}
+	if pd, ok := dnsStats["read_packets_skipped"]; ok {
+		tm[network.MonotonicDNSPacketsDropped] = pd
+	}
+
+	return tm
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
@@ -159,4 +193,9 @@ func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 // DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugEBPFMaps is not implemented on this OS for Tracer
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	return "", ebpf.ErrNotImplemented
 }

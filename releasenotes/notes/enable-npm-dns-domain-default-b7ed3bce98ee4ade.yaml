@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable NPM DNS domain collection by default.

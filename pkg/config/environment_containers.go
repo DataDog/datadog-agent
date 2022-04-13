@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+// +build linux windows
+
 package config
 
 import (
@@ -16,32 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// Remember to also register feature in init()
 const (
-	// Docker socket present
-	Docker Feature = "docker"
-	// Containerd socket present
-	Containerd Feature = "containerd"
-	// Cri is any cri socket present
-	Cri Feature = "cri"
-	// Kubernetes environment
-	Kubernetes Feature = "kubernetes"
-	// ECSFargate environment
-	ECSFargate Feature = "ecsfargate"
-	// EKSFargate environment
-	EKSFargate Feature = "eksfargate"
-	// KubeOrchestratorExplorer can be enabled
-	KubeOrchestratorExplorer Feature = "orchestratorexplorer"
-	// CloudFoundry socket present
-	CloudFoundry Feature = "cloudfoundry"
-
-	defaultLinuxDockerSocket       = "/var/run/docker.sock"
-	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
-	defaultLinuxContainerdSocket   = "/var/run/containerd/containerd.sock"
-	defaultLinuxCrioSocket         = "/var/run/crio/crio.sock"
-	defaultHostMountPrefix         = "/host"
-	unixSocketPrefix               = "unix://"
-	winNamedPipePrefix             = "npipe://"
+	defaultLinuxDockerSocket           = "/var/run/docker.sock"
+	defaultWindowsDockerSocketPath     = "//./pipe/docker_engine"
+	defaultLinuxContainerdSocket       = "/var/run/containerd/containerd.sock"
+	defaultWindowsContainerdSocketPath = "//./pipe/containerd-containerd"
+	defaultLinuxCrioSocket             = "/var/run/crio/crio.sock"
+	defaultHostMountPrefix             = "/host"
+	defaultPodmanContainersStoragePath = "/var/lib/containers"
+	unixSocketPrefix                   = "unix://"
+	winNamedPipePrefix                 = "npipe://"
 
 	socketTimeout = 500 * time.Millisecond
 )
@@ -55,6 +42,19 @@ func init() {
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(CloudFoundry)
+	registerFeature(Podman)
+}
+
+// IsAnyContainerFeaturePresent checks if any of known container features is present
+func IsAnyContainerFeaturePresent() bool {
+	return IsFeaturePresent(Docker) ||
+		IsFeaturePresent(Containerd) ||
+		IsFeaturePresent(Cri) ||
+		IsFeaturePresent(Kubernetes) ||
+		IsFeaturePresent(ECSFargate) ||
+		IsFeaturePresent(EKSFargate) ||
+		IsFeaturePresent(CloudFoundry) ||
+		IsFeaturePresent(Podman)
 }
 
 func detectContainerFeatures(features FeatureMap) {
@@ -63,6 +63,7 @@ func detectContainerFeatures(features FeatureMap) {
 	detectContainerd(features)
 	detectFargate(features)
 	detectCloudFoundry(features)
+	detectPodman(features)
 }
 
 func detectKubernetes(features FeatureMap) {
@@ -120,10 +121,7 @@ func detectContainerd(features FeatureMap) {
 	}
 
 	if criSocket != "" {
-		// Containerd support was historically meant for K8S
-		// However, containerd is now used standalone elsewhere.
-		// TODO: Consider having a dedicated setting for containerd standalone
-		if IsKubernetes() {
+		if isCriSupported() {
 			features[Cri] = struct{}{}
 		}
 
@@ -131,6 +129,17 @@ func detectContainerd(features FeatureMap) {
 			features[Containerd] = struct{}{}
 		}
 	}
+
+	// Merge containerd_namespace with containerd_namespaces
+	namespaces := merge(Datadog.GetStringSlice("containerd_namespaces"), Datadog.GetStringSlice("containerd_namespace"))
+	AddOverride("containerd_namespace", namespaces)
+	AddOverride("containerd_namespaces", namespaces)
+}
+
+func isCriSupported() bool {
+	// Containerd support was historically meant for K8S
+	// However, containerd is now used standalone elsewhere.
+	return IsKubernetes()
 }
 
 func detectFargate(features FeatureMap) {
@@ -148,6 +157,15 @@ func detectFargate(features FeatureMap) {
 func detectCloudFoundry(features FeatureMap) {
 	if Datadog.GetBool("cloud_foundry") {
 		features[CloudFoundry] = struct{}{}
+	}
+}
+
+func detectPodman(features FeatureMap) {
+	for _, defaultPath := range getDefaultPodmanPaths() {
+		if _, err := os.Stat(defaultPath); err == nil {
+			features[Podman] = struct{}{}
+			return
+		}
 	}
 }
 
@@ -179,9 +197,37 @@ func getDefaultDockerPaths() []string {
 }
 
 func getDefaultCriPaths() []string {
+	if runtime.GOOS == "windows" {
+		return []string{defaultWindowsContainerdSocketPath}
+	}
+
 	paths := []string{}
 	for _, prefix := range getHostMountPrefixes() {
 		paths = append(paths, path.Join(prefix, defaultLinuxContainerdSocket), path.Join(prefix, defaultLinuxCrioSocket))
 	}
 	return paths
+}
+
+func getDefaultPodmanPaths() []string {
+	paths := []string{}
+	for _, prefix := range getHostMountPrefixes() {
+		paths = append(paths, path.Join(prefix, defaultPodmanContainersStoragePath))
+	}
+	return paths
+}
+
+// merge merges and dedupes 2 slices without changing order
+func merge(s1, s2 []string) []string {
+	dedupe := map[string]struct{}{}
+	merged := []string{}
+
+	for _, elem := range append(s1, s2...) {
+		if _, seen := dedupe[elem]; !seen {
+			merged = append(merged, elem)
+		}
+
+		dedupe[elem] = struct{}{}
+	}
+
+	return merged
 }

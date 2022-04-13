@@ -16,33 +16,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-const (
-	// PayloadTypePod is the name of the pod payload type
-	PayloadTypePod = "pod"
-	// PayloadTypeDeployment is the name of the deployment payload type
-	PayloadTypeDeployment = "deployment"
-	// PayloadTypeReplicaSet is the name of the replica set payload type
-	PayloadTypeReplicaSet = "replicaset"
-	// PayloadTypeService is the name of the service payload type
-	PayloadTypeService = "service"
-	// PayloadTypeNode is the name of the node payload type
-	PayloadTypeNode = "node"
-	// PayloadTypeCluster is the name of the cluster payload type
-	PayloadTypeCluster = "cluster"
-	// PayloadTypeJob is the name of the job payload type
-	PayloadTypeJob = "job"
-	// PayloadTypeCronJob is the name of the cronjob payload type
-	PayloadTypeCronJob = "cronjob"
-	// PayloadTypeDaemonSet is the name of the daemonset payload type
-	PayloadTypeDaemonSet = "daemonset"
-	// PayloadTypeStatefulSet is the name of the statefulset payload type
-	PayloadTypeStatefulSet = "statefulset"
 )
 
 const (
@@ -83,18 +63,18 @@ type Forwarder interface {
 	SubmitV1Intake(payload Payloads, extra http.Header) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
 	SubmitSeries(payload Payloads, extra http.Header) error
-	SubmitEvents(payload Payloads, extra http.Header) error
-	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error
 	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
+	SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -121,7 +101,7 @@ type Options struct {
 	DisableAPIKeyChecking          bool
 	EnabledFeatures                Features
 	APIKeyValidationInterval       time.Duration
-	KeysPerDomain                  map[string][]string
+	DomainResolvers                map[string]resolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	CompletionHandler              transaction.HTTPCompletionHandler
 }
@@ -140,6 +120,24 @@ func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
+	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+	vectorMetricsURL, err := config.GetVectorURL(config.Metrics)
+	if err != nil {
+		log.Error("Misconfiguration of agent vector endpoint for metrics: ", err)
+	}
+	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorMetricsURL != "" {
+		log.Debugf("Configuring forwarder to send metrics to vector: %s", vectorMetricsURL)
+		resolvers[config.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
+			r.GetBaseDomain(),
+			r.GetAPIKeys(),
+			vectorMetricsURL,
+		)
+	}
+	return NewOptionsWithResolvers(resolvers)
+}
+
+// NewOptionsWithResolvers creates new Options with default values
+func NewOptionsWithResolvers(domainResolvers map[string]resolver.DomainResolver) *Options {
 	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
 		log.Warnf(
@@ -163,7 +161,7 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 		DisableAPIKeyChecking:          false,
 		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
-		KeysPerDomain:                  keysPerDomain,
+		DomainResolvers:                domainResolvers,
 		ConnectionResetInterval:        time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 
@@ -198,35 +196,42 @@ type DefaultForwarder struct {
 	NumberOfWorkers int
 
 	domainForwarders map[string]*domainForwarder
-	keysPerDomains   map[string][]string
+	domainResolvers  map[string]resolver.DomainResolver
 	healthChecker    *forwarderHealth
-	internalState    uint32
+	internalState    uint32     // atomic
 	m                sync.Mutex // To control Start/Stop races
 
 	completionHandler transaction.HTTPCompletionHandler
+
+	agentName                       string
+	queueDurationCapacity           *retry.QueueDurationCapacity
+	retryQueueDurationCapacityMutex sync.Mutex
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(options *Options) *DefaultForwarder {
+	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
-		keysPerDomains:   map[string][]string{},
+		domainResolvers:  map[string]resolver.DomainResolver{},
 		internalState:    Stopped,
 		healthChecker: &forwarderHealth{
-			keysPerDomains:        options.KeysPerDomain,
+			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
 		completionHandler: options.CompletionHandler,
+		agentName:         agentName,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	var diskUsageLimit *retry.DiskUsageLimit
 
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
-	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
+	} else if agentName != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		if storagePath == "" {
 			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
@@ -234,7 +239,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
-		storagePath = path.Join(storagePath, agentFolder)
+		storagePath = path.Join(storagePath, agentName)
 		optionalRemovalPolicy, err = retry.NewFileRemovalPolicy(storagePath, outdatedFileInDays, retry.FileRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
@@ -245,6 +250,10 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			}
 			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
+
+		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
+		diskUsageLimit = retry.NewDiskUsageLimit(storagePath, filesystem.NewDisk(), storageMaxSize, diskRatio)
+
 	} else {
 		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
@@ -252,10 +261,12 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+	var queueDiskSpaceUsedList []retry.QueueDiskSpaceUsed
 
-	for domain, keys := range options.KeysPerDomain {
+	for domain, resolver := range options.DomainResolvers {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
-		if keys == nil || len(keys) == 0 {
+		resolver.SetBaseDomain(domain)
+		if resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			var domainFolderPath string
@@ -271,20 +282,32 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
-				storageMaxSize,
+				diskUsageLimit,
 				transactionContainerSort,
-				domain,
-				keys)
-
-			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(
+				resolver)
+			f.domainResolvers[domain] = resolver
+			queueDiskSpaceUsedList = append(queueDiskSpaceUsedList, transactionContainer)
+			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.ConnectionResetInterval,
 				domainForwarderSort)
+			f.domainForwarders[domain] = fwd
+			// Register all alternate domains for each forwarder
+			for _, v := range resolver.GetAlternateDomains() {
+				f.domainForwarders[v] = fwd
+			}
 		}
 	}
+
+	timeInterval := config.Datadog.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
+	f.queueDurationCapacity = retry.NewQueueDurationCapacity(
+		time.Duration(timeInterval)*time.Second,
+		10*time.Second,
+		options.RetryQueuePayloadsTotalMaxSize,
+		diskUsageLimit,
+		queueDiskSpaceUsedList)
 
 	if optionalRemovalPolicy != nil {
 		filesRemoved, err := optionalRemovalPolicy.RemoveUnknownDomains()
@@ -297,10 +320,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	return f
 }
 
-func getAgentFolder(options *Options) string {
+func getAgentName(options *Options) string {
 	if HasFeature(options.EnabledFeatures, CoreFeatures) {
 		return "core"
 	}
+	// If a new Agent is supported by this function, the implementation of
+	// QueueDurationCapacity.ComputeCapacity must be updated.
+	// More specifically, `totalBytesPerSec` should takes into account other Agent processes.
 	return ""
 }
 
@@ -310,7 +336,7 @@ func (f *DefaultForwarder) Start() error {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState == Started {
+	if atomic.LoadUint32(&f.internalState) == Started {
 		return fmt.Errorf("the forwarder is already started")
 	}
 
@@ -319,16 +345,16 @@ func (f *DefaultForwarder) Start() error {
 	}
 
 	// log endpoints configuration
-	endpointLogs := make([]string, 0, len(f.keysPerDomains))
-	for domain, apiKeys := range f.keysPerDomains {
+	endpointLogs := make([]string, 0, len(f.domainResolvers))
+	for domain, dr := range f.domainResolvers {
 		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))",
-			domain, len(apiKeys)))
+			domain, len(dr.GetAPIKeys())))
 	}
 	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
 	f.healthChecker.Start()
-	f.internalState = Started
+	atomic.StoreUint32(&f.internalState, Started)
 	return nil
 }
 
@@ -339,12 +365,12 @@ func (f *DefaultForwarder) Stop() {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState == Stopped {
+	if atomic.LoadUint32(&f.internalState) == Stopped {
 		log.Warnf("the forwarder is already stopped")
 		return
 	}
 
-	f.internalState = Stopped
+	atomic.StoreUint32(&f.internalState, Stopped)
 
 	purgeTimeout := config.Datadog.GetDuration("forwarder_stop_timeout") * time.Second
 	if purgeTimeout > 0 {
@@ -388,21 +414,21 @@ func (f *DefaultForwarder) State() uint32 {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	return f.internalState
+	return atomic.LoadUint32(&f.internalState)
 }
 func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
 	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, true)
 }
 
 func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority transaction.Priority, storableOnDisk bool) []*transaction.HTTPTransaction {
-	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
+	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
-		for domain, apiKeys := range f.keysPerDomains {
-			for _, apiKey := range apiKeys {
+		for domain, dr := range f.domainResolvers {
+			for _, apiKey := range dr.GetAPIKeys() {
 				t := transaction.NewHTTPTransaction()
-				t.Domain = domain
+				t.Domain, _ = dr.Resolve(endpoint)
 				t.Endpoint = endpoint
 				if apiKeyInQueryString {
 					t.Endpoint.Route = fmt.Sprintf("%s?api_key=%s", endpoint.Route, apiKey)
@@ -440,36 +466,41 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	if atomic.LoadUint32(&f.internalState) == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
+	if config.Datadog.GetBool("telemetry.enabled") {
+		f.retryQueueDurationCapacityMutex.Lock()
+		defer f.retryQueueDurationCapacityMutex.Unlock()
 
-	for _, t := range transactions {
-		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
-			log.Errorf(err.Error())
+		now := time.Now()
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
+
+			if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+				log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+			}
+		}
+
+		if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+			log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+		} else {
+			for domain, t := range capacities {
+				tlmRetryQueueDurationCapacity.Set(t.Capacity.Seconds(), f.agentName, domain)
+				tlmRetryQueueDurationBytesPerSec.Set(t.BytesPerSec, f.agentName, domain)
+				tlmRetryQueueDurationCapacityBytes.Set(float64(t.AvailableSpace), f.agentName, domain)
+			}
+		}
+	} else {
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
 		}
 	}
 	return nil
 }
 
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitEvents will send an event type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitServiceChecks will send a service check type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -495,20 +526,27 @@ func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload Payloads, extra htt
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
+	transactions := f.createHTTPTransactions(endpoints.V1MetadataEndpoint, payload, false, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, true, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitSeries will send timeseries to the v2 endpoint
+func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -521,7 +559,7 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 	payload Payloads,
 	extra http.Header,
 	createHTTPTransactions func(endpoint transaction.Endpoint, payload Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction) error {
-	transactions := createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
+	transactions := createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, true, extra)
 
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
@@ -533,55 +571,50 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 
 // SubmitProcessChecks sends process checks
 func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
+}
+
+// SubmitProcessDiscoveryChecks sends process discovery checks
+func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(rtProcessesEndpoint, payload, extra, false)
+	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
 }
 
 // SubmitContainerChecks sends container checks
 func (f *DefaultForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(containerEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
 func (f *DefaultForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(rtContainerEndpoint, payload, extra, false)
+	return f.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
 }
 
 // SubmitConnectionChecks sends connection checks
 func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	switch payloadType {
-	case PayloadTypePod:
-		transactionsIntakePod.Add(1)
-	case PayloadTypeDeployment:
-		transactionsIntakeDeployment.Add(1)
-	case PayloadTypeReplicaSet:
-		transactionsIntakeReplicaSet.Add(1)
-	case PayloadTypeService:
-		transactionsIntakeService.Add(1)
-	case PayloadTypeNode:
-		transactionsIntakeNode.Add(1)
-	case PayloadTypeJob:
-		transactionsIntakeJob.Add(1)
-	case PayloadTypeCronJob:
-		transactionsIntakeCronJob.Add(1)
-	case PayloadTypeCluster:
-		transactionsIntakeCluster.Add(1)
-	case PayloadTypeDaemonSet:
-		transactionsIntakeDaemonSet.Add(1)
-	case PayloadTypeStatefulSet:
-		transactionsIntakeStatefulSet.Add(1)
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+	bumpOrchestratorPayload(payloadType)
+
+	endpoint := endpoints.OrchestratorEndpoint
+	if config.Datadog.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+		endpoint = endpoints.LegacyOrchestratorEndpoint
 	}
 
-	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoint, payload, extra, true)
+}
+
+// SubmitContainerLifecycleEvents sends container lifecycle events
+func (f *DefaultForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.ContainerLifecycleEndpoint, payload, false, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {

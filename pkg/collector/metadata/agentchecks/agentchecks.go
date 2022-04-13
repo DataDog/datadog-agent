@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -25,7 +25,7 @@ func GetPayload(ctx context.Context) *Payload {
 	agentChecksPayload := ACPayload{}
 	hostnameData, _ := util.GetHostnameData(ctx)
 	hostname := hostnameData.Hostname
-	checkStats := runner.GetCheckStats()
+	checkStats := expvars.GetCheckStats()
 	jmxStartupError := status.GetJMXStartupError()
 
 	for _, stats := range checkStats {

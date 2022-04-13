@@ -3,7 +3,7 @@
 
 #include "bpf_helpers.h"
 
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
+#include "constants.h"
 
 #if defined(__x86_64__)
   #define SYSCALL64_PREFIX "__x64_"
@@ -183,6 +183,8 @@
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
 #define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
 
+#define IS_KTHREAD(ppid, pid) ppid == 2 || pid == 2
+
 enum event_type
 {
     EVENT_ANY = 0,
@@ -212,7 +214,22 @@ enum event_type
     EVENT_ARGS_ENVS,
     EVENT_MOUNT_RELEASED,
     EVENT_SELINUX,
+    EVENT_BPF,
+    EVENT_PTRACE,
+    EVENT_MMAP,
+    EVENT_MPROTECT,
+    EVENT_INIT_MODULE,
+    EVENT_DELETE_MODULE,
+    EVENT_SIGNAL,
+    EVENT_SPLICE,
+    EVENT_CGROUP_TRACING,
+    EVENT_DNS,
+    EVENT_NET_DEVICE,
+    EVENT_VETH_PAIR,
+    EVENT_NAMESPACE_SWITCH,
     EVENT_MAX, // has to be the last one
+
+    EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
 };
 
 struct kevent_t {
@@ -225,9 +242,16 @@ struct syscall_t {
     s64 retval;
 };
 
+struct span_context_t {
+   u64 span_id;
+   u64 trace_id;
+};
+
 struct process_context_t {
     u32 pid;
     u32 tid;
+    u32 netns;
+    u32 padding;
 };
 
 struct container_context_t {
@@ -253,8 +277,9 @@ struct ktimeval {
 struct file_metadata_t {
     u32 uid;
     u32 gid;
+    u32 nlink;
     u16 mode;
-    char padding[6];
+    char padding[2];
 
     struct ktimeval ctime;
     struct ktimeval mtime;
@@ -355,19 +380,19 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     .namespace = "",
 };
 
-#define send_event(ctx, event_type, kernel_event)                                                                      \
-    kernel_event.event.type = event_type;                                                                              \
-    kernel_event.event.cpu = bpf_get_smp_processor_id();                                                               \
-    kernel_event.event.timestamp = bpf_ktime_get_ns();                                                                 \
+#define send_event_with_size_ptr(ctx, event_type, kernel_event, kernel_event_size)                                     \
+    kernel_event->event.type = event_type;                                                                             \
+    kernel_event->event.cpu = bpf_get_smp_processor_id();                                                              \
+    kernel_event->event.timestamp = bpf_ktime_get_ns();                                                                \
                                                                                                                        \
-    u64 size = sizeof(kernel_event);                                                                                   \
-    int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event.event.cpu, &kernel_event, size);                   \
+    int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event->event.cpu, kernel_event, kernel_event_size);      \
                                                                                                                        \
-    if (kernel_event.event.type < EVENT_MAX) {                                                                         \
-        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event.event.type);                 \
+    if (kernel_event->event.type < EVENT_MAX) {                                                                        \
+        u64 lookup_type = event_type;                                                                                  \
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &lookup_type);                             \
         if (stats != NULL) {                                                                                           \
             if (!perf_ret) {                                                                                           \
-                __sync_fetch_and_add(&stats->bytes, size + 4);                                                         \
+                __sync_fetch_and_add(&stats->bytes, kernel_event_size + 4);                                            \
                 __sync_fetch_and_add(&stats->count, 1);                                                                \
             } else {                                                                                                   \
                 __sync_fetch_and_add(&stats->lost, 1);                                                                 \
@@ -375,6 +400,32 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         }                                                                                                              \
     }                                                                                                                  \
 
+#define send_event_with_size(ctx, event_type, kernel_event, kernel_event_size)                                         \
+    kernel_event.event.type = event_type;                                                                              \
+    kernel_event.event.cpu = bpf_get_smp_processor_id();                                                               \
+    kernel_event.event.timestamp = bpf_ktime_get_ns();                                                                 \
+                                                                                                                       \
+    int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event.event.cpu, &kernel_event, kernel_event_size);      \
+                                                                                                                       \
+    if (kernel_event.event.type < EVENT_MAX) {                                                                         \
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event.event.type);                 \
+        if (stats != NULL) {                                                                                           \
+            if (!perf_ret) {                                                                                           \
+                __sync_fetch_and_add(&stats->bytes, kernel_event_size + 4);                                            \
+                __sync_fetch_and_add(&stats->count, 1);                                                                \
+            } else {                                                                                                   \
+                __sync_fetch_and_add(&stats->lost, 1);                                                                 \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
+
+#define send_event(ctx, event_type, kernel_event)                                                                      \
+    u64 size = sizeof(kernel_event);                                                                                   \
+    send_event_with_size(ctx, event_type, kernel_event, size)                                                          \
+
+#define send_event_ptr(ctx, event_type, kernel_event)                                                                  \
+    u64 size = sizeof(*kernel_event);                                                                                  \
+    send_event_with_size_ptr(ctx, event_type, kernel_event, size)                                                      \
 
 // implemented in the discarder.h file
 int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id);
@@ -501,8 +552,9 @@ struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
 static __attribute__((always_inline)) u64 get_enabled_events(void) {
     u32 key = 0;
     u64 *mask = bpf_map_lookup_elem(&enabled_events, &key);
-    if (mask)
+    if (mask) {
         return *mask;
+    }
     return 0;
 }
 
@@ -514,4 +566,100 @@ static __attribute__((always_inline)) int is_event_enabled(enum event_type event
     return mask_has_event(get_enabled_events(), event);
 }
 
+static __attribute__((always_inline)) void add_event_to_mask(u64 *mask, enum event_type event) {
+    if (event == EVENT_ALL) {
+        *mask = event;
+    } else {
+        *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
+    }
+}
+
+#define VFS_ARG_POSITION1 1
+#define VFS_ARG_POSITION2 2
+#define VFS_ARG_POSITION3 3
+#define VFS_ARG_POSITION4 4
+#define VFS_ARG_POSITION5 5
+#define VFS_ARG_POSITION6 6
+
+static __attribute__((always_inline)) u64 get_vfs_unlink_dentry_position() {
+    u64 vfs_unlink_dentry_position;
+    LOAD_CONSTANT("vfs_unlink_dentry_position", vfs_unlink_dentry_position);
+    return vfs_unlink_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_mkdir_dentry_position() {
+    u64 vfs_mkdir_dentry_position;
+    LOAD_CONSTANT("vfs_mkdir_dentry_position", vfs_mkdir_dentry_position);
+    return vfs_mkdir_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_link_target_dentry_position() {
+    u64 vfs_link_target_dentry_position;
+    LOAD_CONSTANT("vfs_link_target_dentry_position", vfs_link_target_dentry_position);
+    return vfs_link_target_dentry_position;;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_setxattr_dentry_position() {
+    u64 vfs_setxattr_dentry_position;
+    LOAD_CONSTANT("vfs_setxattr_dentry_position", vfs_setxattr_dentry_position);
+    return vfs_setxattr_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_removexattr_dentry_position() {
+    u64 vfs_removexattr_dentry_position;
+    LOAD_CONSTANT("vfs_removexattr_dentry_position", vfs_removexattr_dentry_position);
+    return vfs_removexattr_dentry_position;
+}
+
+#define VFS_RENAME_REGISTER_INPUT 1
+#define VFS_RENAME_STRUCT_INPUT   2
+
+static __attribute__((always_inline)) u64 get_vfs_rename_input_type() {
+    u64 vfs_rename_input_type;
+    LOAD_CONSTANT("vfs_rename_input_type", vfs_rename_input_type);
+    return vfs_rename_input_type;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_rename_src_dentry_offset() {
+    u64 offset;
+    LOAD_CONSTANT("vfs_rename_src_dentry_offset", offset);
+    return offset ? offset : 16; // offsetof(struct renamedata, old_dentry)
+}
+
+static __attribute__((always_inline)) u64 get_vfs_rename_target_dentry_offset() {
+    u64 offset;
+    LOAD_CONSTANT("vfs_rename_target_dentry_offset", offset);
+    return offset ? offset : 40; // offsetof(struct renamedata, new_dentry)
+}
+
+struct inode_discarder_t {
+    struct path_key_t path_key;
+    u32 is_leaf;
+    u32 padding;
+};
+
+struct is_discarded_by_inode_t {
+    u64 event_type;
+    struct inode_discarder_t discarder;
+    u64 now;
+    u32 tgid;
+    u32 activity_dump_state;
+};
+
+static __attribute__((always_inline))
+void *bpf_map_lookup_or_try_init(struct bpf_map_def *map, void *key, void *zero) {
+    if (map == NULL) {
+        return NULL;
+    }
+
+    void *value = bpf_map_lookup_elem(map, key);
+    if (value != NULL)
+        return value;
+
+    // Use BPF_NOEXIST to prevent race condition
+    if (bpf_map_update_elem(map, key, zero, BPF_NOEXIST) < 0)
+        return NULL;
+
+    return bpf_map_lookup_elem(map, key);
+}
 #endif

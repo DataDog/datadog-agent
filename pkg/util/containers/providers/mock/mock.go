@@ -75,3 +75,8 @@ func (f FakeContainerImpl) GetContainerLimits(containerID string) (*metrics.Cont
 func (f FakeContainerImpl) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
 	return nil, nil
 }
+
+// GetNumFileDescriptors mocks the GetNumFileDescriptors interface method
+func (f FakeContainerImpl) GetNumFileDescriptors(pid int) (int, error) {
+	return 0, nil
+}

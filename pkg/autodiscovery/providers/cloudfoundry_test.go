@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package providers
@@ -14,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,11 +29,7 @@ func (b bbsCacheFake) LastUpdated() time.Time {
 	return b.Updated
 }
 
-func (b bbsCacheFake) GetPollAttempts() int {
-	panic("implement me")
-}
-
-func (b bbsCacheFake) GetPollSuccesses() int {
+func (b bbsCacheFake) UpdatedOnce() <-chan struct{} {
 	panic("implement me")
 }
 
@@ -99,7 +96,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			// inputs with no AD_DATADOGHQ_COM set up => no configs
 			tc: "no_ad_config",
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
-				"processguid1": {{ProcessGUID: "processguid1", CellID: "cellX", Index: 0}, {ProcessGUID: "processguid1", CellID: "cellY", Index: 1}},
+				"processguid1": {{ProcessGUID: "processguid1", CellID: "cellX", InstanceGUID: "instance-guid-1-0"}, {ProcessGUID: "processguid1", CellID: "cellY", InstanceGUID: "instance-guid-1-1"}},
 			},
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"processguid1": {AppGUID: "appguid1", ProcessGUID: "processguid1"},
@@ -110,7 +107,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, but no containers of the app exist
 			tc: "ad_config_present_but_no_containers_running",
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
-				"processguid1": {{ProcessGUID: "processguid1", CellID: "cellX", Index: 0}, {ProcessGUID: "processguid1", CellID: "cellY", Index: 1}},
+				"processguid1": {{ProcessGUID: "processguid1", CellID: "cellX", InstanceGUID: "instance-guid-1-0"}, {ProcessGUID: "processguid1", CellID: "cellY", InstanceGUID: "instance-guid-1-1"}},
 			},
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"differentprocessguid": {
@@ -129,8 +126,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, 1 container exists for the app
 			tc: "ad_config_present_1_container_running",
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
-				"processguid1":          {{ProcessGUID: "processguid1", CellID: "cellX", Index: 0}},
-				"differentprocessguid1": {{ProcessGUID: "differentprocessguid1", CellID: "cellY", Index: 1}},
+				"processguid1":          {{ProcessGUID: "processguid1", CellID: "cellX", InstanceGUID: "instance-guid-1-0"}},
+				"differentprocessguid1": {{ProcessGUID: "differentprocessguid1", CellID: "cellY", InstanceGUID: "different-instance-guid-1-0"}},
 			},
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"processguid1": {
@@ -145,9 +142,9 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			},
 			expected: []integration.Config{
 				{
-					ADIdentifiers: []string{"processguid1/flask-app/0"},
+					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/0",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -159,8 +156,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, 2 containers exist for the app
 			tc: "ad_config_present_2_containers_running",
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
-				"processguid1":          {{ProcessGUID: "processguid1", CellID: "cellX", Index: 0}, {ProcessGUID: "processguid1", CellID: "cellY", Index: 1}},
-				"differentprocessguid1": {{ProcessGUID: "differentprocessguid1", CellID: "cellZ", Index: 1}},
+				"processguid1":          {{ProcessGUID: "processguid1", CellID: "cellX", InstanceGUID: "instance-guid-1-0"}, {ProcessGUID: "processguid1", CellID: "cellY", InstanceGUID: "instance-guid-1-1"}},
+				"differentprocessguid1": {{ProcessGUID: "differentprocessguid1", CellID: "cellZ", InstanceGUID: "different-instance-guid-1-0"}},
 			},
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"processguid1": {
@@ -175,18 +172,18 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			},
 			expected: []integration.Config{
 				{
-					ADIdentifiers: []string{"processguid1/flask-app/0"},
+					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/0",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
 					NodeName:      "cellX",
 				},
 				{
-					ADIdentifiers: []string{"processguid1/flask-app/1"},
+					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-1"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/1",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-1",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -217,7 +214,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid1/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid1/my-postgres",
+					ServiceID:     "appguid1/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
@@ -249,7 +246,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid1/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid1/my-postgres",
+					ServiceID:     "appguid1/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
@@ -261,9 +258,9 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			// complex test with three apps, one having no AD configuration, two having different configurations for both container and non-container services
 			tc: "complex",
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
-				"processguid1": {{ProcessGUID: "processguid1", CellID: "cellX", Index: 0}, {ProcessGUID: "processguid1", CellID: "cellY", Index: 1}},
-				"processguid2": {{ProcessGUID: "processguid2", CellID: "cellY", Index: 0}, {ProcessGUID: "processguid2", CellID: "cellZ", Index: 1}},
-				"processguid3": {{ProcessGUID: "processguid3", CellID: "cellZ", Index: 0}, {ProcessGUID: "processguid3", CellID: "cellZ", Index: 1}},
+				"processguid1": {{ProcessGUID: "processguid1", CellID: "cellX", InstanceGUID: "instance-guid-1-0"}, {ProcessGUID: "processguid1", CellID: "cellY", InstanceGUID: "instance-guid-1-1"}},
+				"processguid2": {{ProcessGUID: "processguid2", CellID: "cellY", InstanceGUID: "instance-guid-2-0"}, {ProcessGUID: "processguid2", CellID: "cellZ", InstanceGUID: "instance-guid-2-1"}},
+				"processguid3": {{ProcessGUID: "processguid3", CellID: "cellZ", InstanceGUID: "instance-guid-3-0"}, {ProcessGUID: "processguid3", CellID: "cellZ", InstanceGUID: "instance-guid-3-1"}},
 			},
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"processguid1": {
@@ -311,25 +308,25 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid1/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid1/my-postgres",
+					ServiceID:     "appguid1/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
 					NodeName:      "cellX",
 				},
 				{
-					ADIdentifiers: []string{"processguid1/flask-app/0"},
+					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/0",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
 					NodeName:      "cellX",
 				},
 				{
-					ADIdentifiers: []string{"processguid1/flask-app/1"},
+					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-1"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/1",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-1",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -338,25 +335,25 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid2/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid2/my-postgres",
+					ServiceID:     "appguid2/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
 					NodeName:      "cellY",
 				},
 				{
-					ADIdentifiers: []string{"processguid2/flask-app/0"},
+					ADIdentifiers: []string{"processguid2/flask-app/instance-guid-2-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid2/flask-app/0",
+					ServiceID:     "processguid2/flask-app/instance-guid-2-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
 					NodeName:      "cellY",
 				},
 				{
-					ADIdentifiers: []string{"processguid2/flask-app/1"},
+					ADIdentifiers: []string{"processguid2/flask-app/instance-guid-2-1"},
 					ClusterCheck:  true,
-					Entity:        "processguid2/flask-app/1",
+					ServiceID:     "processguid2/flask-app/instance-guid-2-1",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -88,6 +90,7 @@ void WritePersistentCache(char *, char *);
 bool TracemallocEnabled();
 char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
+double getProcessStartTime();
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -102,6 +105,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
 	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
+	set_get_process_start_time_cb(rtloader, getProcessStartTime);
 }
 
 //
@@ -251,7 +255,7 @@ func sendTelemetry(pythonVersion string) {
 	aggregator.AddRecurrentSeries(&metrics.Serie{
 		Name:   "datadog.agent.python.version",
 		Points: []metrics.Point{{Value: 1.0}},
-		Tags:   tags,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
 }

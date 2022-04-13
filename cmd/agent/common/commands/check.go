@@ -32,41 +32,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
-	checkRate              bool
-	checkTimes             int
-	checkPause             int
-	checkName              string
-	checkDelay             int
-	logLevel               string
-	formatJSON             bool
-	formatTable            bool
-	breakPoint             string
-	fullSketches           bool
-	saveFlare              bool
-	profileMemory          bool
-	profileMemoryDir       string
-	profileMemoryFrames    string
-	profileMemoryGC        string
-	profileMemoryCombine   string
-	profileMemorySort      string
-	profileMemoryLimit     string
-	profileMemoryDiff      string
-	profileMemoryFilters   string
-	profileMemoryUnit      string
-	profileMemoryVerbose   string
-	discoveryTimeout       uint
-	discoveryRetryInterval uint
+	checkRate                 bool
+	checkTimes                int
+	checkPause                int
+	checkName                 string
+	checkDelay                int
+	logLevel                  string
+	formatJSON                bool
+	formatTable               bool
+	breakPoint                string
+	fullSketches              bool
+	saveFlare                 bool
+	profileMemory             bool
+	profileMemoryDir          string
+	profileMemoryFrames       string
+	profileMemoryGC           string
+	profileMemoryCombine      string
+	profileMemorySort         string
+	profileMemoryLimit        string
+	profileMemoryDiff         string
+	profileMemoryFilters      string
+	profileMemoryUnit         string
+	profileMemoryVerbose      string
+	discoveryTimeout          uint
+	discoveryRetryInterval    uint
+	discoveryMinInstances     uint
+	generateIntegrationTraces bool
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -83,6 +83,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -96,6 +97,7 @@ func setupCmd(cmd *cobra.Command) {
 	createHiddenStringFlag(cmd, &profileMemoryFilters, "m-filters", "", "comma-separated list of file path glob patterns to filter by")
 	createHiddenStringFlag(cmd, &profileMemoryUnit, "m-unit", "", "the binary unit to represent memory usage (kib, mb, etc.). the default is dynamic")
 	createHiddenStringFlag(cmd, &profileMemoryVerbose, "m-verbose", "", "whether or not to include potentially noisy sources")
+	createHiddenBooleanFlag(cmd, &generateIntegrationTraces, "m-trace", false, "send the integration traces")
 
 	cmd.SetArgs([]string{"checkName"})
 }
@@ -122,6 +124,14 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				color.NoColor = true
 			}
 
+			previousIntegrationTracing := false
+			if generateIntegrationTraces {
+				if config.Datadog.IsSet("integration_tracing") {
+					previousIntegrationTracing = config.Datadog.GetBool("integration_tracing")
+				}
+				config.Datadog.Set("integration_tracing", true)
+			}
+
 			if len(args) != 0 {
 				checkName = args[0]
 			} else {
@@ -135,14 +145,15 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return err
 			}
 
-			// use the "noop" forwarder because we want the events to be buffered in memory instead of being flushed to the intake
-			eventPlatformForwarder := epforwarder.NewNoopEventPlatformForwarder()
-			eventPlatformForwarder.Start()
+			// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
+			opts := aggregator.DefaultDemultiplexerOptions(nil)
+			opts.FlushInterval = 0
+			opts.UseNoopForwarder = true
+			opts.UseNoopEventPlatformForwarder = true
+			opts.UseOrchestratorForwarder = false
+			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
-			s := serializer.NewSerializer(common.Forwarder, nil)
-			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-			agg := aggregator.InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, 0)
-			common.LoadComponents(config.Datadog.GetString("confd_path"))
+			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
@@ -154,7 +165,8 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second)
+			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
+				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -169,11 +181,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 					fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 					selectedChecks := []string{checkName}
 					if checkRate {
-						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					} else {
-						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					}
@@ -309,13 +321,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
 			for _, c := range cs {
-				s := runCheck(c, agg)
+				s := runCheck(c, demux)
 
 				// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 				time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
 				if formatJSON {
-					aggregatorData := getMetricsData(agg)
+					aggregatorData := getMetricsData(demux)
 					var collectorData map[string]interface{}
 
 					collectorJSON, _ := status.GetCheckStatusJSON(c, s)
@@ -393,7 +405,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(agg, &checkFileOutput)
+					printMetrics(demux, &checkFileOutput)
 					checkStatus, _ := status.GetCheckStatus(c, s)
 					statusString := string(checkStatus)
 					fmt.Println(statusString)
@@ -430,6 +442,10 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				writeCheckToFile(checkName, &checkFileOutput)
 			}
 
+			if generateIntegrationTraces {
+				config.Datadog.Set("integration_tracing", previousIntegrationTracing)
+			}
+
 			return nil
 		},
 	}
@@ -437,7 +453,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 	return cmd
 }
 
-func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
+func runCheck(c check.Check, demux aggregator.Demultiplexer) *check.Stats {
 	s := check.NewStats(c)
 	times := checkTimes
 	pause := checkPause
@@ -465,7 +481,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buffer) {
+func printMetrics(demux aggregator.Demultiplexer, checkFileOutput *bytes.Buffer) {
+	agg := demux.Aggregator()
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
@@ -568,14 +585,11 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
-	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)
+	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {
-		fmt.Println("Error while writing the check file:", err)
-		return
+		fmt.Println("Error while scrubbing the check file:", err)
 	}
-	defer w.Close()
-
-	_, err = w.Write(checkFileOutput.Bytes())
+	err = ioutil.WriteFile(flarePath, scrubbed, os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
@@ -608,18 +622,22 @@ func toDebugEpEvents(events map[string][]*message.Message) map[string][]eventPla
 	return result
 }
 
-func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
+func getMetricsData(demux aggregator.Demultiplexer) map[string]interface{} {
 	aggData := make(map[string]interface{})
+
+	agg := demux.Aggregator()
 
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
-		// Workaround to get the raw sequence of metrics, see:
-		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
-		var data map[string]interface{}
-		sj, _ := json.Marshal(series)
-		json.Unmarshal(sj, &data) //nolint:errcheck
+		metrics := make([]interface{}, len(series))
+		// Workaround to get the sequence of metrics as plain interface{}
+		for i, serie := range series {
+			serie.PopulateDeviceField()
+			sj, _ := json.Marshal(serie)
+			json.Unmarshal(sj, &metrics[i]) //nolint:errcheck
+		}
 
-		aggData["metrics"] = data["series"]
+		aggData["metrics"] = metrics
 	}
 	if len(sketches) != 0 {
 		aggData["sketches"] = sketches
@@ -648,6 +666,11 @@ func singleCheckRun() bool {
 
 func createHiddenStringFlag(cmd *cobra.Command, p *string, name string, value string, usage string) {
 	cmd.Flags().StringVar(p, name, value, usage)
+	cmd.Flags().MarkHidden(name) //nolint:errcheck
+}
+
+func createHiddenBooleanFlag(cmd *cobra.Command, p *bool, name string, value bool, usage string) {
+	cmd.Flags().BoolVar(p, name, value, usage)
 	cmd.Flags().MarkHidden(name) //nolint:errcheck
 }
 
@@ -721,45 +744,4 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	}
 
 	return nil
-}
-
-// containsCheck returns true if at least one config corresponds to the check name.
-func containsCheck(checkName string, configs []integration.Config) bool {
-	for _, cfg := range configs {
-		if cfg.Name == checkName {
-			return true
-		}
-	}
-
-	return false
-}
-
-// waitForConfigs retries the collection of Autodiscovery configs until the check is found or the timeout is reached.
-// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
-// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
-// This function improves the resiliency of the check command.
-// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func waitForConfigs(checkName string, retryInterval, timeout time.Duration) []integration.Config {
-	allConfigs := common.AC.GetAllConfigs()
-	if containsCheck(checkName, allConfigs) {
-		return allConfigs
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	retryTicker := time.NewTicker(retryInterval)
-	defer retryTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return allConfigs
-		case <-retryTicker.C:
-			allConfigs = common.AC.GetAllConfigs()
-			if containsCheck(checkName, allConfigs) {
-				return allConfigs
-			}
-		}
-	}
 }

@@ -1,8 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,30 +17,34 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// profilingURLTemplate specifies the template for obtaining the profiling URL along with the site.
-	profilingURLTemplate = "https://intake.profile.%s/v1/input"
+	profilingURLTemplate = "https://intake.profile.%s/api/v2/profile"
 	// profilingURLDefault specifies the default intake API URL.
-	profilingURLDefault = "https://intake.profile.datadoghq.com/v1/input"
+	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
+	// profilingV1EndpointSuffix suffix identifying a user-configured V1 endpoint
+	profilingV1EndpointSuffix = "v1/input"
 )
 
 // profilingEndpoints returns the profiling intake urls and their corresponding
 // api keys based on agent configuration. The main endpoint is always returned as
 // the first element in the slice.
-func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err error) {
+func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
 	main := profilingURLDefault
-	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
+	if v := conf.ProfilingProxy.DDURL; v != "" {
 		main = v
-	} else if site := config.Datadog.GetString("site"); site != "" {
-		main = fmt.Sprintf(profilingURLTemplate, site)
+		if strings.HasSuffix(main, profilingV1EndpointSuffix) {
+			log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
+				"The updated endpoint path is /api/v2/profile.", v)
+		}
+	} else if conf.Site != "" {
+		main = fmt.Sprintf(profilingURLTemplate, conf.Site)
 	}
 	u, err := url.Parse(main)
 	if err != nil {
@@ -44,10 +52,9 @@ func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err e
 		return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %v", main, err)
 	}
 	urls = append(urls, u)
-	apiKeys = append(apiKeys, apiKey)
+	apiKeys = append(apiKeys, conf.APIKey())
 
-	if opt := "apm_config.profiling_additional_endpoints"; config.Datadog.IsSet(opt) {
-		extra := config.Datadog.GetStringMapStringSlice(opt)
+	if extra := conf.ProfilingProxy.AdditionalEndpoints; extra != nil {
 		for endpoint, keys := range extra {
 			u, err := url.Parse(endpoint)
 			if err != nil {
@@ -67,22 +74,16 @@ func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err e
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	targets, keys, err := profilingEndpoints(r.conf.APIKey())
+	targets, keys, err := profilingEndpoints(r.conf)
 	if err != nil {
 		return errorHandler(err)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
-	if r.conf.IsFargate {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		orch := fargate.GetOrchestrator(ctx)
-		cancel()
-		if err := ctx.Err(); err != nil && err != context.Canceled {
-			log.Warnf("Failed to get Fargate orchestrator. This may cause issues with your profiles: %v", err)
-		}
+	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
 	}
-	return newProfileProxy(r.conf.NewHTTPTransport(), targets, keys, tags)
+	return newProfileProxy(r.conf, targets, keys, tags)
 }
 
 func errorHandler(err error) http.Handler {
@@ -100,7 +101,7 @@ func errorHandler(err error) http.Handler {
 //
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
-func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
+func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -110,14 +111,22 @@ func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []str
 			req.Header.Set("User-Agent", "")
 		}
 		containerID := req.Header.Get(headerContainerID)
-		if ctags := getContainerTags(containerID); ctags != "" {
+		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 		// URL, Host and key are set in the transport for each outbound request
 	}
-	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	transport := conf.NewHTTPTransport()
+	// The intake's connection timeout is 60 seconds, which is similar to the default profiling periodicity of our
+	// tracers. When a new profile upload is simultaneous to the intake closing the connection, Go's ReverseProxy
+	// returns a 502 error to the tracer. Ensuring that the agent closes the connection before the intake solves this
+	// race condition. A value of 47 was chosen as it's a prime number which doesn't divide 60, reducing the risk of
+	// overlap with other timeouts or periodicities. It provides sufficient buffer time compared to 60, whilst still
+	// allowing connection reuse for tracer setups that upload multiple profiles per minute.
+	transport.IdleConnTimeout = 47 * time.Second
+	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
@@ -137,12 +146,22 @@ type multiTransport struct {
 	keys    []string
 }
 
-func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
+	defer func() {
+		// Hack for backwards-compatibility
+		// The old v1/input endpoint responded with 200 and as this handler
+		// is just a proxy to existing clients, some clients break on
+		// encountering a 202 response when proxying for the new api/v2/profile endpoints.
+		if rresp != nil && rresp.StatusCode == http.StatusAccepted {
+			rresp.Status = http.StatusText(http.StatusOK)
+			rresp.StatusCode = http.StatusOK
+		}
+	}()
 	if len(m.targets) == 1 {
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
@@ -151,10 +170,6 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	var (
-		rresp *http.Response
-		rerr  error
-	)
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
@@ -168,7 +183,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		if resp, err := m.rt.RoundTrip(newreq); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body)
+			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

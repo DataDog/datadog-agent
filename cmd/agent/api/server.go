@@ -25,10 +25,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
-	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	gorilla "github.com/gorilla/mux"
 )
@@ -45,18 +46,26 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 			grpcServer.ServeHTTP(w, r)
 		} else {
-			deadline := time.Now().Add(config.Datadog.GetDuration("server_timeout") * time.Second)
-
-			conn := agent.GetConnection(r)
-			_ = conn.SetWriteDeadline(deadline)
-
 			otherHandler.ServeHTTP(w, r)
 		}
 	})
 }
 
+// timeoutHandler limits requests to the enclosed handler to the value
+// configured in `server_timeout`.
+func timeoutHandlerFunc(otherHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deadline := time.Now().Add(time.Duration(config.Datadog.GetInt64("server_timeout")) * time.Second)
+
+		conn := agent.GetConnection(r)
+		_ = conn.SetWriteDeadline(deadline)
+
+		otherHandler.ServeHTTP(w, r)
+	})
+}
+
 // StartServer creates the router and starts the HTTP server
-func StartServer() error {
+func StartServer(configService *remoteconfig.Service) error {
 	initializeTLS()
 
 	// get the transport we're going to use under HTTP
@@ -83,7 +92,7 @@ func StartServer() error {
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{})
+	pb.RegisterAgentSecureServer(s, &serverSecure{configService: configService})
 
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: tlsAddr,
@@ -118,10 +127,14 @@ func StartServer() error {
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)
 
+	// apply server_timeout to all handlers in the mux (with a few exceptions
+	// such as streaming logs, which reset the deadlines back to zero)
+	handler := timeoutHandlerFunc(mux)
+
 	srv := &http.Server{
-		Addr:    tlsAddr,
-		Handler: grpcHandlerFunc(s, mux),
-		// Handler: grpcHandlerFunc(s, r),
+		Addr: tlsAddr,
+		// handle grpc calls directly, falling back to `handler` for non-grpc reqs
+		Handler: grpcHandlerFunc(s, handler),
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{*tlsKeyPair},
 			NextProtos:   []string{"h2"},

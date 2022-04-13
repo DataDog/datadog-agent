@@ -1,0 +1,7 @@
+.serverless
+!datadog.yaml
+recorder-extension/extensions
+recorder-extension/ext.zip
+src/csharp-tests/bin
+src/csharp-tests/obj
+src/java-tests/*/target

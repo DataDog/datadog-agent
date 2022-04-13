@@ -144,6 +144,32 @@ func GetSharedMetricFilter() (*Filter, error) {
 	return f, nil
 }
 
+// GetPauseContainerFilter returns a filter only excluding pause containers
+func GetPauseContainerFilter() (*Filter, error) {
+	var excludeList []string
+	if config.Datadog.GetBool("exclude_pause_container") {
+		excludeList = append(excludeList,
+			pauseContainerGCR,
+			pauseContainerOpenshift,
+			pauseContainerOpenshift3,
+			pauseContainerKubernetes,
+			pauseContainerGoogle,
+			pauseContainerAzure,
+			pauseContainerECS,
+			pauseContainerEKS,
+			pauseContainerRancher,
+			pauseContainerMCR,
+			pauseContainerWin,
+			pauseContainerAKS,
+			pauseContainerECR,
+			pauseContainerUpstream,
+			pauseContainerCDK,
+		)
+	}
+
+	return NewFilter(nil, excludeList)
+}
+
 // ResetSharedFilter is only to be used in unit tests: it resets the global
 // filter instance to force re-parsing of the configuration.
 func ResetSharedFilter() {
@@ -267,6 +293,8 @@ func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance.
+// Note: exclude filters are not applied to empty container names, empty
+// images and empty namespaces.
 func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) bool {
 	if !cf.Enabled {
 		return false
@@ -290,19 +318,27 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 	}
 
 	// Check if excludeListed
-	for _, r := range cf.ImageExcludeList {
-		if r.MatchString(containerImage) {
-			return true
+	if containerImage != "" {
+		for _, r := range cf.ImageExcludeList {
+			if r.MatchString(containerImage) {
+				return true
+			}
 		}
 	}
-	for _, r := range cf.NameExcludeList {
-		if r.MatchString(containerName) {
-			return true
+
+	if containerName != "" {
+		for _, r := range cf.NameExcludeList {
+			if r.MatchString(containerName) {
+				return true
+			}
 		}
 	}
-	for _, r := range cf.NamespaceExcludeList {
-		if r.MatchString(podNamespace) {
-			return true
+
+	if podNamespace != "" {
+		for _, r := range cf.NamespaceExcludeList {
+			if r.MatchString(podNamespace) {
+				return true
+			}
 		}
 	}
 

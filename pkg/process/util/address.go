@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
 	"encoding/binary"
 	"net"
+	"sync"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
@@ -11,6 +17,7 @@ type Address interface {
 	WriteTo([]byte) int
 	String() string
 	IsLoopback() bool
+	Len() int
 }
 
 // AddressFromNetIP returns an Address from a provided net.IP
@@ -32,8 +39,16 @@ func AddressFromString(ip string) Address {
 }
 
 // NetIPFromAddress returns a net.IP from an Address
-func NetIPFromAddress(addr Address) net.IP {
-	return net.IP(addr.Bytes())
+// Warning: the returned `net.IP` will share the same underlying
+// memory as the given `buf` argument.
+func NetIPFromAddress(addr Address, buf []byte) net.IP {
+	if addrLen := addr.Len(); len(buf) < addrLen {
+		// if the function is misused we allocate
+		buf = make([]byte, addrLen)
+	}
+
+	n := addr.WriteTo(buf)
+	return net.IP(buf[:n])
 }
 
 // ToLowHigh converts an address into a pair of uint64 numbers
@@ -91,6 +106,11 @@ func (a v4Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
 }
 
+// Len returns the number of bytes required to represent this IP
+func (a v4Address) Len() int {
+	return 4
+}
+
 type v6Address [16]byte
 
 // V6Address creates an Address using the uint128 representation of an v6 IP
@@ -126,4 +146,17 @@ func (a v6Address) String() string {
 // IsLoopback returns true if this address is the loopback address
 func (a v6Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
+}
+
+// Len returns the number of bytes required to represent this IP
+func (a v6Address) Len() int {
+	return 16
+}
+
+// IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
+var IPBufferPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, net.IPv6len)
+		return &b
+	},
 }

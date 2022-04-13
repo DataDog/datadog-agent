@@ -1,5 +1,10 @@
-// +build linux
-// +build !android
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && !android
+// +build linux,!android
 
 package netlink
 
@@ -28,6 +33,7 @@ const (
 type Conntracker interface {
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
 	DeleteTranslation(network.ConnectionStats)
+	IsSampling() bool
 	GetStats() map[string]int64
 	Close()
 }
@@ -214,6 +220,10 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	}
 }
 
+func (ctr *realConntracker) IsSampling() bool {
+	return ctr.consumer.GetStats()[samplingPct] < 100
+}
+
 func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
@@ -264,20 +274,22 @@ func (ctr *realConntracker) run() error {
 	}
 
 	go func() {
-		for e := range events {
-			conns := ctr.decoder.DecodeAndReleaseEvent(e)
-			for _, c := range conns {
-				ctr.register(c)
+		for {
+			select {
+			case e, ok := <-events:
+				if !ok {
+					return
+				}
+				conns := ctr.decoder.DecodeAndReleaseEvent(e)
+				for _, c := range conns {
+					ctr.register(c)
+				}
+
+			case <-ctr.compactTicker.C:
+				ctr.compact()
 			}
 		}
 	}()
-
-	go func() {
-		for range ctr.compactTicker.C {
-			ctr.compact()
-		}
-	}()
-
 	return nil
 }
 

@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package v2
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -229,122 +231,241 @@ func TestGetContainerStats(t *testing.T) {
 	ctx := context.Background()
 	assert := assert.New(t)
 
-	containerID := "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d98"
-	handlerPath := "/v2/stats"
-
-	ecsinterface, err := testutil.NewDummyECS(
-		testutil.FileHandlerOption(handlerPath, "./testdata/container_stats.json"),
-	)
-	require.Nil(t, err)
-
-	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
-	require.Nil(t, err)
-
-	expected := &ContainerStats{
-		CPU: CPUStats{
-			System: 3951680000000,
-			Usage: CPUUsage{
-				Kernelmode: 2260000000,
-				Total:      9743590394,
-				Usermode:   7450000000,
+	tests := []struct {
+		name          string
+		fixture       string
+		containerID   string
+		expectedStats *ContainerStats
+		expectedErr   error
+	}{
+		{
+			name:        "net-stats",
+			fixture:     "./testdata/container_stats.json",
+			containerID: "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d98",
+			expectedStats: &ContainerStats{
+				Timestamp: "2019-10-25T10:07:01.006590487Z",
+				CPU: CPUStats{
+					System: 3951680000000,
+					Usage: CPUUsage{
+						Kernelmode: 2260000000,
+						Total:      9743590394,
+						Usermode:   7450000000,
+					},
+				},
+				Memory: MemStats{
+					Details: DetailedMem{
+						RSS:     1564672,
+						Cache:   65499136,
+						PgFault: 430478,
+					},
+					Limit:    268435456,
+					MaxUsage: 139751424,
+					Usage:    77254656,
+				},
+				IO: IOStats{
+					BytesPerDeviceAndKind: []OPStat{
+						{
+							Kind:  "Read",
+							Major: 259,
+							Minor: 0,
+							Value: 12288,
+						},
+						{
+							Kind:  "Write",
+							Major: 259,
+							Minor: 0,
+							Value: 144908288,
+						},
+						{
+							Kind:  "Sync",
+							Major: 259,
+							Minor: 0,
+							Value: 8122368,
+						},
+						{
+							Kind:  "Async",
+							Major: 259,
+							Minor: 0,
+							Value: 136798208,
+						},
+						{
+							Kind:  "Total",
+							Major: 259,
+							Minor: 0,
+							Value: 144920576,
+						},
+					},
+					OPPerDeviceAndKind: []OPStat{
+						{
+							Kind:  "Read",
+							Major: 259,
+							Minor: 0,
+							Value: 3,
+						},
+						{
+							Kind:  "Write",
+							Major: 259,
+							Minor: 0,
+							Value: 1618,
+						},
+						{
+							Kind:  "Sync",
+							Major: 259,
+							Minor: 0,
+							Value: 514,
+						},
+						{
+							Kind:  "Async",
+							Major: 259,
+							Minor: 0,
+							Value: 1107,
+						},
+						{
+							Kind:  "Total",
+							Major: 259,
+							Minor: 0,
+							Value: 1621,
+						},
+					},
+					ReadBytes:  0,
+					WriteBytes: 0,
+				},
+				Networks: NetStatsMap{
+					"eth0": NetStats{
+						RxBytes:   163710528,
+						RxPackets: 113457,
+						TxBytes:   1103607,
+						TxPackets: 16969,
+					},
+				},
 			},
 		},
-		Memory: MemStats{
-			Details: DetailedMem{
-				RSS:     1564672,
-				Cache:   65499136,
-				PgFault: 430478,
+		{
+			name:        "no-net-stats",
+			fixture:     "./testdata/container_stats_empty_net_stats.json",
+			containerID: "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d98",
+			expectedStats: &ContainerStats{
+				Timestamp: "2019-10-25T10:07:01.006590487Z",
+				CPU: CPUStats{
+					System: 3951680000000,
+					Usage: CPUUsage{
+						Kernelmode: 2260000000,
+						Total:      9743590394,
+						Usermode:   7450000000,
+					},
+				},
+				Memory: MemStats{
+					Details: DetailedMem{
+						RSS:     1564672,
+						Cache:   65499136,
+						PgFault: 430478,
+					},
+					Limit:    268435456,
+					MaxUsage: 139751424,
+					Usage:    77254656,
+				},
+				IO: IOStats{
+					BytesPerDeviceAndKind: []OPStat{
+						{
+							Kind:  "Read",
+							Major: 259,
+							Minor: 0,
+							Value: 12288,
+						},
+						{
+							Kind:  "Write",
+							Major: 259,
+							Minor: 0,
+							Value: 144908288,
+						},
+						{
+							Kind:  "Sync",
+							Major: 259,
+							Minor: 0,
+							Value: 8122368,
+						},
+						{
+							Kind:  "Async",
+							Major: 259,
+							Minor: 0,
+							Value: 136798208,
+						},
+						{
+							Kind:  "Total",
+							Major: 259,
+							Minor: 0,
+							Value: 144920576,
+						},
+					},
+					OPPerDeviceAndKind: []OPStat{
+						{
+							Kind:  "Read",
+							Major: 259,
+							Minor: 0,
+							Value: 3,
+						},
+						{
+							Kind:  "Write",
+							Major: 259,
+							Minor: 0,
+							Value: 1618,
+						},
+						{
+							Kind:  "Sync",
+							Major: 259,
+							Minor: 0,
+							Value: 514,
+						},
+						{
+							Kind:  "Async",
+							Major: 259,
+							Minor: 0,
+							Value: 1107,
+						},
+						{
+							Kind:  "Total",
+							Major: 259,
+							Minor: 0,
+							Value: 1621,
+						},
+					},
+					ReadBytes:  0,
+					WriteBytes: 0,
+				},
 			},
-			Limit:    268435456,
-			MaxUsage: 139751424,
-			Usage:    77254656,
 		},
-		IO: IOStats{
-			BytesPerDeviceAndKind: []OPStat{
-				{
-					Kind:  "Read",
-					Major: 259,
-					Minor: 0,
-					Value: 12288,
-				},
-				{
-					Kind:  "Write",
-					Major: 259,
-					Minor: 0,
-					Value: 144908288,
-				},
-				{
-					Kind:  "Sync",
-					Major: 259,
-					Minor: 0,
-					Value: 8122368,
-				},
-				{
-					Kind:  "Async",
-					Major: 259,
-					Minor: 0,
-					Value: 136798208,
-				},
-				{
-					Kind:  "Total",
-					Major: 259,
-					Minor: 0,
-					Value: 144920576,
-				},
-			},
-			OPPerDeviceAndKind: []OPStat{
-				{
-					Kind:  "Read",
-					Major: 259,
-					Minor: 0,
-					Value: 3,
-				},
-				{
-					Kind:  "Write",
-					Major: 259,
-					Minor: 0,
-					Value: 1618,
-				},
-				{
-					Kind:  "Sync",
-					Major: 259,
-					Minor: 0,
-					Value: 514,
-				},
-				{
-					Kind:  "Async",
-					Major: 259,
-					Minor: 0,
-					Value: 1107,
-				},
-				{
-					Kind:  "Total",
-					Major: 259,
-					Minor: 0,
-					Value: 1621,
-				},
-			},
-			ReadBytes:  0,
-			WriteBytes: 0,
+		{
+			name:        "missing-container",
+			fixture:     "./testdata/container_stats.json",
+			containerID: "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42",
+			expectedErr: errors.New("Failed to retrieve container stats for id: 470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42"),
 		},
-		Network: NetStats{},
 	}
 
-	metadata, err := NewClient(ts.URL).GetContainerStats(ctx, containerID)
-	assert.Nil(err)
-	assert.Equal(expected, metadata)
+	handlerPath := "/v2/stats"
 
-	// Container without stats
-	metadata, err = NewClient(ts.URL).GetContainerStats(ctx, "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42")
-	assert.NotNil(err)
-	assert.Nil(metadata)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ecsinterface, err := testutil.NewDummyECS(
+				testutil.FileHandlerOption(handlerPath, test.fixture),
+			)
+			require.Nil(t, err)
 
-	select {
-	case r := <-ecsinterface.Requests:
-		assert.Equal("GET", r.Method)
-		assert.Equal(handlerPath, r.URL.Path)
-	case <-time.After(2 * time.Second):
-		assert.FailNow("Timeout on receive channel")
+			ts, _, err := ecsinterface.Start()
+			defer ts.Close()
+			require.Nil(t, err)
+
+			metadata, err := NewClient(ts.URL).GetContainerStats(ctx, test.containerID)
+			assert.Equal(test.expectedStats, metadata)
+			assert.Equal(test.expectedErr, err)
+
+			select {
+			case r := <-ecsinterface.Requests:
+				assert.Equal("GET", r.Method)
+				assert.Equal(handlerPath, r.URL.Path)
+			case <-time.After(2 * time.Second):
+				assert.FailNow("Timeout on receive channel")
+			}
+		})
 	}
 }

@@ -11,9 +11,12 @@ require './lib/ostools.rb'
 name "datadog-cf-finalize"
 description "steps required to finalize the CF build"
 default_version "1.0.0"
+
 skip_transitive_dependency_licensing true
 
 build do
+    license :project_license
+
     # TODO too many things done here, should be split
     block do
         # Conf files

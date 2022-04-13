@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !windows
 // +build !windows
 
 package checks
@@ -6,7 +12,7 @@ import (
 	"os/user"
 	"strconv"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/gopsutil/cpu"
@@ -33,7 +39,7 @@ func formatUser(fp *procutil.Process) *model.ProcessUser {
 	}
 }
 
-func formatCPU(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
+func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
 	numCPU := float64(system.HostCPUCount())
 	deltaSys := syst2.Total() - syst1.Total()
 	return &model.CPUStat{

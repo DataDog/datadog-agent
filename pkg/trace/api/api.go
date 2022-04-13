@@ -30,22 +30,17 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/appsec"
-	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var bufferPool = sync.Pool{
@@ -90,7 +85,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	appsecHandler, err := appsec.NewIntakeReverseProxy(conf.NewHTTPTransport())
+	appsecHandler, err := appsec.NewIntakeReverseProxy(conf)
 	if err != nil {
 		log.Errorf("Could not instantiate AppSec: %v", err)
 	}
@@ -117,6 +112,9 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	hash, infoHandler := r.makeInfoHandler()
 	r.attachDebugHandlers(mux)
 	for _, e := range endpoints {
+		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
+			continue
+		}
 		mux.Handle(e.Pattern, replyWithVersion(hash, e.Handler(r)))
 	}
 	mux.HandleFunc("/info", infoHandler)
@@ -142,7 +140,7 @@ func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
 	}
-	httpLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
@@ -157,8 +155,9 @@ func (r *HTTPReceiver) Start() {
 	}
 	go func() {
 		defer watchdog.LogOnPanic()
-		r.server.Serve(ln)
-		ln.Close()
+		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
+		}
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
@@ -169,24 +168,26 @@ func (r *HTTPReceiver) Start() {
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
-			r.server.Serve(ln)
-			ln.Close()
+			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+			}
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
 	}
 
-	if path := mainconfig.Datadog.GetString("apm_config.windows_pipe_name"); path != "" {
+	if path := r.conf.WindowsPipeName; path != "" {
 		pipepath := `\\.\pipe\` + path
-		bufferSize := mainconfig.Datadog.GetInt("apm_config.windows_pipe_buffer_size")
-		secdec := mainconfig.Datadog.GetString("apm_config.windows_pipe_security_descriptor")
+		bufferSize := r.conf.PipeBufferSize
+		secdec := r.conf.PipeSecurityDescriptor
 		ln, err := listenPipe(pipepath, secdec, bufferSize)
 		if err != nil {
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
-			r.server.Serve(ln)
-			ln.Close()
+			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Errorf("Could not start Windows Pipes server: %v. Windows Pipes receiver disabled.", err)
+			}
 		}()
 		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
@@ -220,7 +221,7 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 			rate = n
 		}
 		runtime.SetBlockProfileRate(rate)
-		w.Write([]byte(fmt.Sprintf("Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)))
+		fmt.Fprintf(w, "Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)
 	})
 
 	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
@@ -231,7 +232,7 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 
 	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// allow the GUI to call this endpoint so that the status can be reported
-		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+mainconfig.Datadog.GetString("GUI_port"))
+		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+r.conf.GUIPort)
 		expvar.Handler().ServeHTTP(w, req)
 	}))
 }
@@ -255,7 +256,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err := os.Chmod(path, 0722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
-	return ln, err
+	return NewMeasuredListener(ln, "uds_connections"), err
 }
 
 // listenTCP creates a new net.Listener on the provided TCP address.
@@ -272,7 +273,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 		}()
 		return ln, err
 	}
-	return tcpln, err
+	return NewMeasuredListener(tcpln, "tcp_connections"), err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
@@ -367,7 +368,21 @@ const (
 	// headderDroppedP0Spans contains the number of P0 spans dropped by the client.
 	// This value is used for metrics and could be used in the future to adjust priority rates.
 	headerDroppedP0Spans = "Datadog-Client-Dropped-P0-Spans"
+
+	// headerRatesPayloadVersion contains the version of sampling rates.
+	// If both agent and client have the same version, the agent won't return rates in API response.
+	headerRatesPayloadVersion = "Datadog-Rates-Payload-Version"
+
+	// tagContainersTags specifies the name of the tag which holds key/value
+	// pairs representing information about the container (Docker, EC2, etc).
+	tagContainersTags = "_dd.tags.container"
 )
+
+// TagStats returns the stats and tags coinciding with the information found in header.
+// For more information, check the "Datadog-Meta-*" HTTP headers defined in this file.
+func (r *HTTPReceiver) TagStats(v Version, header http.Header) *info.TagStats {
+	return r.tagStats(v, header)
+}
 
 func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	return r.Stats.GetTagStats(info.Tags{
@@ -380,38 +395,73 @@ func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	})
 }
 
-func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+// decodeTracerPayload decodes the payload in http request `req`.
+// - tp is the decoded payload
+// - ranHook reports whether the decoder was able to run the pb.MetaHook
+// - err is the first error encountered
+func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
-		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			return nil, err
+		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
+			return nil, false, err
 		}
-		return tracesFromSpans(spans), nil
+		return &pb.TracerPayload{
+			LanguageName:    ts.Lang,
+			LanguageVersion: ts.LangVersion,
+			ContainerID:     req.Header.Get(headerContainerID),
+			Chunks:          traceChunksFromSpans(spans),
+			TracerVersion:   ts.TracerVersion,
+		}, false, nil
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err := io.Copy(buf, req.Body); err != nil {
-			return nil, err
+		if _, err = io.Copy(buf, req.Body); err != nil {
+			return nil, false, err
 		}
 		var traces pb.Traces
-		err := traces.UnmarshalMsgDictionary(buf.Bytes())
-		return traces, err
+		err = traces.UnmarshalMsgDictionary(buf.Bytes())
+		return &pb.TracerPayload{
+			LanguageName:    ts.Lang,
+			LanguageVersion: ts.LangVersion,
+			ContainerID:     req.Header.Get(headerContainerID),
+			Chunks:          traceChunksFromTraces(traces),
+			TracerVersion:   ts.TracerVersion,
+		}, true, err
+	case V07:
+		buf := getBuffer()
+		defer putBuffer(buf)
+		if _, err = io.Copy(buf, req.Body); err != nil {
+			return nil, false, err
+		}
+		var tracerPayload pb.TracerPayload
+		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
+		return &tracerPayload, true, err
 	default:
 		var traces pb.Traces
-		if err := decodeRequest(req, &traces); err != nil {
-			return nil, err
+		if ranHook, err = decodeRequest(req, &traces); err != nil {
+			return nil, false, err
 		}
-		return traces, nil
+		return &pb.TracerPayload{
+			LanguageName:    ts.Lang,
+			LanguageVersion: ts.LangVersion,
+			ContainerID:     req.Header.Get(headerContainerID),
+			Chunks:          traceChunksFromTraces(traces),
+			TracerVersion:   ts.TracerVersion,
+		}, ranHook, nil
 	}
 }
 
-func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
+// replyOK replies to the given http.ReponseWriter w based on the endpoint version, with either status 200/OK
+// or with a list of rates by service. It returns the number of bytes written along with reporting if the operation
+// was successful.
+func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWriter) (n uint64, ok bool) {
 	switch v {
 	case v01, v02, v03:
-		httpOK(w)
+		return httpOK(w)
 	default:
-		httpRateByService(w, r.dynConf)
+		ratesVersion := req.Header.Get(headerRatesPayloadVersion)
+		return httpRateByService(ratesVersion, w, r.dynConf)
 	}
 }
 
@@ -438,7 +488,7 @@ type StatsProcessor interface {
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
-	ts := r.tagStats(v06, req.Header)
+	ts := r.tagStats(V07, req.Header)
 	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
@@ -460,14 +510,19 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
-		io.Copy(ioutil.Discard, req.Body)
+		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
-		r.replyOK(v, w)
+		r.replyOK(req, v, w)
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
 
-	traces, err := decodeTraces(v, req)
+	start := time.Now()
+	defer func(err error) {
+		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
+		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
+	}(err)
+	tp, ranHook, err := decodeTracerPayload(v, req, ts)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
@@ -485,18 +540,35 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
-	r.replyOK(v, w)
+	if !ranHook {
+		// The decoder of this request did not run the pb.MetaHook. The user is either using
+		// a deprecated endpoint or Content-Type, or, a new decoder was implemented and the
+		// the hook was not added.
+		log.Debug("Decoded the request without running pb.MetaHook. If this is a newly implemented endpoint, please make sure to run it!")
+		if _, ok := pb.MetaHook(); ok {
+			log.Warn("Received request on deprecated API endpoint or Content-Type. Performance is degraded. If you think this is an error, please contact support with this message.")
+			runMetaHook(tp.Chunks)
+		}
+	}
+	if n, ok := r.replyOK(req, v, w); ok {
+		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
+		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
+	}
 
-	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
+	atomic.AddInt64(&ts.TracesReceived, int64(len(tp.Chunks)))
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	cid := req.Header.Get(headerContainerID)
+	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagContainersTags] = ctags
+	}
+
 	payload := &Payload{
 		Source:                 ts,
-		Traces:                 traces,
-		ContainerID:            cid,
-		ContainerTags:          getContainerTags(cid),
+		TracerPayload:          tp,
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
@@ -519,6 +591,23 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 }
 
+// runMetaHook runs the pb.MetaHook on all spans from traces.
+func runMetaHook(chunks []*pb.TraceChunk) {
+	hook, ok := pb.MetaHook()
+	if !ok {
+		return
+	}
+	for _, chunk := range chunks {
+		for _, span := range chunk.Spans {
+			for k, v := range span.Meta {
+				if newv := hook(k, v); newv != v {
+					span.Meta[k] = newv
+				}
+			}
+		}
+	}
+}
+
 func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 	var dropped int64
 	if v := h.Get(headerDroppedP0Traces); v != "" {
@@ -535,35 +624,6 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		}
 	}
 	return dropped
-}
-
-// Payload specifies information about a set of traces received by the API.
-type Payload struct {
-	// Source specifies information about the source of these traces, such as:
-	// language, interpreter, tracer version, etc.
-	Source *info.TagStats
-
-	// ContainerID specifies the container ID from where this payload originated, as
-	// and if sent by the client.
-	ContainerID string
-
-	// ContainerTags specifies orchestrator tags corresponding to the origin of this
-	// trace (e.g. K8S pod, Docker image, ECS, etc). They are of the type "k1:v1,k2:v2".
-	ContainerTags string
-
-	// Traces contains all the traces received in the payload
-	Traces pb.Traces
-
-	// ClientComputedTopLevel specifies that the client has already marked top-level
-	// spans.
-	ClientComputedTopLevel bool
-
-	// ClientComputedStats reports whether the client has computed and sent over stats
-	// so that the agent doesn't have to.
-	ClientComputedStats bool
-
-	// ClientDroppedP0s specifies the number of P0 traces chunks dropped by the client.
-	ClientDroppedP0s int64
 }
 
 // handleServices handle a request with a list of several services
@@ -616,7 +676,7 @@ func (r *HTTPReceiver) loop() {
 				lastLog = now
 
 				// Also publish rates by service (they are updated by receiver)
-				rates := r.dynConf.RateByService.GetAll()
+				rates := r.dynConf.RateByService.GetNewState("").Rates
 				info.UpdateRateByService(rates)
 			}
 		}
@@ -624,7 +684,10 @@ func (r *HTTPReceiver) loop() {
 }
 
 // killProcess exits the process with the given msg; replaced in tests.
-var killProcess = func(format string, a ...interface{}) { osutil.Exitf(format, a...) }
+var killProcess = func(format string, a ...interface{}) {
+	log.Criticalf(format, a...)
+	os.Exit(1)
+}
 
 // watchdog checks the trace-agent's heap and CPU usage and updates the rate limiter using a correct
 // sampling rate to maintain resource usage within set thresholds. These thresholds are defined by
@@ -689,61 +752,82 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest *pb.Traces) error {
+// decodeRequest decodes the payload in http request `req` into `dest`.
+// It handles only v02, v03, v04 requests.
+// - ranHook reports whether the decoder was able to run the pb.MetaHook
+// - err is the first error encountered
+func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error) {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err := io.Copy(buf, req.Body)
+		_, err = io.Copy(buf, req.Body)
 		if err != nil {
-			return err
+			return false, err
 		}
 		_, err = dest.UnmarshalMsg(buf.Bytes())
-		return err
+		return true, err
 	case "application/json":
 		fallthrough
 	case "text/json":
 		fallthrough
 	case "":
-		return json.NewDecoder(req.Body).Decode(dest)
+		err = json.NewDecoder(req.Body).Decode(&dest)
+		return false, err
 	default:
 		// do our best
-		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
+		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
 			buf := getBuffer()
 			defer putBuffer(buf)
 			_, err2 := io.Copy(buf, req.Body)
 			if err2 != nil {
-				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+				return false, err2
 			}
 			_, err2 = dest.UnmarshalMsg(buf.Bytes())
-			if err2 != nil {
-				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
-			}
+			return true, err2
 		}
-		return nil
+		return false, nil
 	}
 }
 
-func tracesFromSpans(spans []pb.Span) pb.Traces {
-	traces := pb.Traces{}
+func traceChunksFromSpans(spans []pb.Span) []*pb.TraceChunk {
+	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
 		byID[s.TraceID] = append(byID[s.TraceID], &s)
 	}
 	for _, t := range byID {
-		traces = append(traces, t)
+		traceChunks = append(traceChunks, &pb.TraceChunk{
+			Priority: int32(sampler.PriorityNone),
+			Spans:    t,
+		})
+	}
+	return traceChunks
+}
+
+func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
+	traceChunks := make([]*pb.TraceChunk, 0, len(traces))
+	for _, trace := range traces {
+		traceChunks = append(traceChunks, &pb.TraceChunk{
+			Priority: int32(sampler.PriorityNone),
+			Spans:    trace,
+		})
 	}
 
-	return traces
+	return traceChunks
 }
 
 // getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
 // is empty or no tags are found, an empty string is returned.
-func getContainerTags(containerID string) string {
+func getContainerTags(fn func(string) ([]string, error), containerID string) string {
 	if containerID == "" {
 		return ""
 	}
-	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
+	if fn == nil {
+		log.Warn("ContainerTags not configured")
+		return ""
+	}
+	list, err := fn("container_id://" + containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return ""

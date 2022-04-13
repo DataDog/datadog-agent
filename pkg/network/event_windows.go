@@ -1,131 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
 // +build windows
 
 package network
 
 import (
-	"bytes"
 	"net"
-	"os/exec"
-	"regexp"
-	"strconv"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-var (
-	ephemeralRanges = map[ConnectionFamily]map[ConnectionType]map[string]uint16{
-		AFINET: {
-			UDP: {
-				"lo": 0,
-				"hi": 0,
-			},
-			TCP: {
-				"lo": 0,
-				"hi": 0,
-			},
-		},
-		AFINET6: {
-			UDP: {
-				"lo": 0,
-				"hi": 0,
-			},
-			TCP: {
-				"lo": 0,
-				"hi": 0,
-			},
-		},
-	}
-)
-
-func init() {
-	var families = [...]ConnectionFamily{AFINET, AFINET6}
-	var protos = [...]ConnectionType{UDP, TCP}
-	for _, f := range families {
-		for _, p := range protos {
-			l, h, err := getEphemeralRange(f, p)
-			if err == nil {
-				ephemeralRanges[f][p]["lo"] = l
-				ephemeralRanges[f][p]["hi"] = h
-			}
-		}
-	}
-}
-func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, err error) {
-	var protoarg string
-	var familyarg string
-	switch f {
-	case AFINET6:
-		familyarg = "ipv6"
-	default:
-		familyarg = "ipv4"
-	}
-	switch t {
-	case TCP:
-		protoarg = "tcp"
-	default:
-		protoarg = "udp"
-	}
-	cmd := exec.Command("netsh", "int", familyarg, "show", "dynamicport", protoarg)
-	cmdOutput := &bytes.Buffer{}
-	// output should be of the format
-	/*
-		Protocol tcp Dynamic Port Range
-		---------------------------------
-		Start Port      : 49000
-		Number of Ports : 16000
-	*/
-	cmd.Stdout = cmdOutput
-	err = cmd.Run()
-	if err != nil {
-		return
-	}
-	output := cmdOutput.Bytes()
-	var startPortLine = regexp.MustCompile(`Start.*: (\d+)`)
-	var numberLine = regexp.MustCompile(`Number.*: (\d+)`)
-
-	startPort := startPortLine.FindStringSubmatch(string(output))
-	rangeLen := numberLine.FindStringSubmatch(string(output))
-
-	portstart, err := strconv.Atoi(startPort[1])
-	if err != nil {
-		return
-	}
-	plen, err := strconv.Atoi(rangeLen[1])
-	if err != nil {
-		return
-	}
-	// argh.  Windows defaults to
-	/*
-	 Protocol tcp Dynamic Port Range
-	 ---------------------------------
-	 Start Port      : 49152
-	 Number of Ports : 16384
-
-	 A quick bit of arithmetic says that adds up to 65536, which overflows the "hi" field.
-	 A bit of hackery to compensate
-	*/
-	low = uint16(portstart)
-	if portstart+plen > 0xFFFF {
-		hi = uint16(0xFFFF)
-	} else {
-		hi = uint16(portstart + plen)
-	}
-	return
-}
-
-func isPortInEphemeralRange(f ConnectionFamily, t ConnectionType, p uint16) EphemeralPortType {
-	rangeLow := ephemeralRanges[f][t]["lo"]
-	rangeHi := ephemeralRanges[f][t]["hi"]
-	if rangeLow == 0 || rangeHi == 0 {
-		return EphemeralUnknown
-	}
-	if p >= rangeLow && p <= rangeHi {
-		return EphemeralTrue
-	}
-	return EphemeralFalse
-}
 func connFamily(addressFamily uint16) ConnectionFamily {
 	if addressFamily == syscall.AF_INET {
 		return AFINET
@@ -215,18 +105,12 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Type = connectionType
 	cs.Family = family
 	cs.Direction = connDirection(flow.Flags)
-	cs.SPortIsEphemeral = isPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
+	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 
 	// reset other fields to default values
 	cs.NetNS = 0
 	cs.IPTranslation = nil
 	cs.IntraHost = false
-	cs.DNSSuccessfulResponses = 0
-	cs.DNSFailedResponses = 0
-	cs.DNSTimeouts = 0
-	cs.DNSSuccessLatencySum = 0
-	cs.DNSFailureLatencySum = 0
-	cs.DNSCountByRcode = nil
 	cs.LastSentBytes = 0
 	cs.LastRecvBytes = 0
 	cs.MonotonicRetransmits = 0

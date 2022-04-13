@@ -1,10 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package modules
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,7 +30,8 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 
 // Process is a module that fetches process level data
 var Process = module.Factory{
-	Name: config.ProcessModule,
+	Name:             config.ProcessModule,
+	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
@@ -39,7 +46,7 @@ var Process = module.Factory{
 
 var _ module.Module = &process{}
 
-type process struct{ probe *procutil.Probe }
+type process struct{ probe procutil.Probe }
 
 // GetStats returns stats for the module
 func (t *process) GetStats() map[string]interface{} {
@@ -108,7 +115,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 func getPids(r *http.Request) ([]int32, error) {
 	contentType := r.Header.Get("Content-Type")
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

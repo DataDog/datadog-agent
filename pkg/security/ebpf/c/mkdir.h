@@ -6,6 +6,7 @@
 struct mkdir_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -47,16 +48,24 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 }
 
 SEC("kprobe/vfs_mkdir")
-int kprobe__vfs_mkdir(struct pt_regs *ctx) {
+int kprobe_vfs_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->mkdir.dentry) {
         return 0;
     }
 
-    syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);;
+    syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    // change the register based on the value of vfs_mkdir_dentry_position
+    if (get_vfs_mkdir_dentry_position() == VFS_ARG_POSITION3) {
+        // prevent the verifier from whining
+        bpf_probe_read(&syscall->mkdir.dentry, sizeof(syscall->mkdir.dentry), &syscall->mkdir.dentry);
+        syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+    }
+
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
     if (filter_syscall(syscall, mkdir_approvers)) {
@@ -67,12 +76,14 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_type) {
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
     set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
@@ -122,14 +133,17 @@ int tracepoint_handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *
 
 int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
-       return 0;
+        monitor_discarded(EVENT_MKDIR);
+        return 0;
     }
 
     struct mkdir_event_t event = {
@@ -141,6 +155,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     fill_file_metadata(syscall->mkdir.dentry, &event.file.metadata);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_MKDIR, event);
     return 0;

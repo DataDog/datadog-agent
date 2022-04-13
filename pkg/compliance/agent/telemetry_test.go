@@ -10,42 +10,36 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type dummyCollector struct{ ctrCount int }
-
-func (dc *dummyCollector) Detect() error                                 { return nil }
-func (dc *dummyCollector) UpdateMetrics(c []*containers.Container) error { return nil }
-func (dc *dummyCollector) List() ([]*containers.Container, error) {
-	ctrList := []*containers.Container{}
-	for i := 0; i < dc.ctrCount; i++ {
-		ctrList = append(ctrList, &containers.Container{ID: strconv.Itoa(i)})
+func createRandomContainers(store *workloadmeta.MockStore, n int) {
+	for i := 0; i < n; i++ {
+		store.SetEntity(&workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   strconv.FormatInt(int64(i), 10),
+			},
+			State: workloadmeta.ContainerState{Running: true},
+		})
 	}
-	return ctrList, nil
-}
-
-type dummyDetector struct{ ctrCount int }
-
-func (dd *dummyDetector) GetPreferred() (collectors.Collector, string, error) {
-	return &dummyCollector{ctrCount: dd.ctrCount}, "dummy", nil
-}
-
-func newDummyDetector(ctrCount int) collectors.DetectorInterface {
-	return &dummyDetector{ctrCount: ctrCount}
 }
 
 func TestReportContainersCount(t *testing.T) {
 	mockSender := mocksender.NewMockSender("foo")
 	mockSender.SetupAcceptAll()
 
-	telemetry := &telemetry{sender: mockSender}
+	fakeStore := workloadmeta.NewMockStore()
+	telemetry := &telemetry{
+		sender:        mockSender,
+		metadataStore: fakeStore,
+	}
 
 	containersCount := 10
-	telemetry.detector = newDummyDetector(containersCount)
+	createRandomContainers(fakeStore, containersCount)
+
 	assert.NoError(t, telemetry.reportContainers())
 	mockSender.AssertNumberOfCalls(t, "Gauge", containersCount)
 	for i := 0; i < containersCount; i++ {

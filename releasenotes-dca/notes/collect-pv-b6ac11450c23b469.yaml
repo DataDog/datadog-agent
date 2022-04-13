@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable collection of PV/PVCs by default in the orchestrator check

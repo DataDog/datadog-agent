@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,16 +24,15 @@ func init() {
 func diagnose() error {
 	_, err := GetDockerUtil()
 	if err != nil {
-		log.Error(err)
-	} else {
-		log.Info("successfully connected to docker")
+		return fmt.Errorf("error connecting to docker: %w", err)
 	}
+	log.Info("successfully connected to docker")
 
 	hostname, err := HostnameProvider(context.TODO(), nil)
 	if err != nil {
-		log.Errorf("returned hostname %q with error: %s", hostname, err)
-	} else {
-		log.Infof("successfully got hostname %q from docker", hostname)
+		return fmt.Errorf("returned hostname %q with error: %w", hostname, err)
 	}
-	return err
+	log.Infof("successfully got hostname %q from docker", hostname)
+
+	return nil
 }

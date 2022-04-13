@@ -1,0 +1,6 @@
+---
+prelude: Process Agent Config Changes
+deprecations:
+  - Removed `LOG_TO_CONSOLE` and `DD_LOGS_STDOUT` environment variables. Use `DD_LOG_TO_CONSOLE` instead.
+  - Removed `LOG_LEVEL` environment variable. Use `DD_LOG_LEVEL` instead.
+  - Removed `warning` as a valid option for `DD_LOG_LEVEL`. Use `warn` instead.

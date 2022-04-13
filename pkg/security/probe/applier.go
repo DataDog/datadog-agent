@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -11,8 +12,8 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 )
@@ -48,6 +49,18 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 	}
 
 	return nil
+}
+
+// applyDefaultPolicy this will apply the deny policy if kernel filters are enabled
+func (rsa *RuleSetApplier) applyDefaultFilterPolicies() {
+	var model Model
+	for _, eventType := range model.GetEventTypes() {
+		if !rsa.config.EnableKernelFilters {
+			_ = rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
+		} else {
+			_ = rsa.applyFilterPolicy(eventType, PolicyModeDeny, math.MaxUint8)
+		}
+	}
 }
 
 func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, approvers rules.Approvers) error {
@@ -89,6 +102,9 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 			return nil, errors.Wrap(err, "failed to flush discarders")
 		}
 	}
+
+	// apply deny filter by default
+	rsa.applyDefaultFilterPolicies()
 
 	for _, eventType := range rs.GetEventTypes() {
 		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {

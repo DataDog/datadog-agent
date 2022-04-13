@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build process && (darwin || freebsd)
 // +build process
 // +build darwin freebsd
 
@@ -131,7 +132,7 @@ func (c *ProcessAgentCheck) run() error {
 func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
 	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
-	if enabled := config.Datadog.GetBool("process_config.enabled"); !enabled {
+	if enabled := config.Datadog.GetBool("process_config.process_collection.enabled"); !enabled {
 		log.Info("live process monitoring is disabled through main configuration file")
 	}
 

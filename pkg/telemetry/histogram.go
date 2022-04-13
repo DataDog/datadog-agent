@@ -6,8 +6,6 @@
 package telemetry
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -38,13 +36,7 @@ func NewHistogram(subsystem, name string, tags []string, help string, buckets []
 // NewHistogramWithOpts creates a Histogram with the given options for telemetry purpose.
 // See NewHistogram()
 func NewHistogramWithOpts(subsystem, name string, tags []string, help string, buckets []float64, opts Options) Histogram {
-	// subsystem is optional
-	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
-		// Prefix metrics with a _, prometheus will add a second _
-		// It will create metrics with a custom separator and
-		// will let us replace it to a dot later in the process.
-		name = fmt.Sprintf("_%s", name)
-	}
+	name = opts.NameWithSeparator(subsystem, name)
 
 	h := &promHistogram{
 		ph: prometheus.NewHistogramVec(

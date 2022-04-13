@@ -57,6 +57,15 @@ func TestGetClusterName(t *testing.T) {
 		freshData = newClusterNameData()
 		assert.Equal(t, "", getClusterName(ctx, freshData, "hostname"))
 	}
+
+	mockConfig.Set("cluster_name", "")
+
+	// Test lowercase
+	wantedClustername := "foo"
+	discoveredClustername := "FoO"
+	dummyFunc := func(c context.Context) (string, error) { return discoveredClustername, nil }
+	setProviderCatalog(map[string]Provider{"dummyProvider": dummyFunc})
+	assert.Equal(t, wantedClustername, getClusterName(ctx, newClusterNameData(), "hostname"))
 }
 
 func TestGetClusterID(t *testing.T) {

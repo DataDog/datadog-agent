@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package admission
@@ -25,12 +26,13 @@ import (
 
 // ControllerContext holds necessary context for the admission controllers
 type ControllerContext struct {
-	IsLeaderFunc     func() bool
-	SecretInformers  informers.SharedInformerFactory
-	WebhookInformers informers.SharedInformerFactory
-	Client           kubernetes.Interface
-	DiscoveryClient  discovery.DiscoveryInterface
-	StopCh           chan struct{}
+	IsLeaderFunc        func() bool
+	LeaderSubscribeFunc func() <-chan struct{}
+	SecretInformers     informers.SharedInformerFactory
+	WebhookInformers    informers.SharedInformerFactory
+	Client              kubernetes.Interface
+	DiscoveryClient     discovery.DiscoveryInterface
+	StopCh              chan struct{}
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -52,6 +54,7 @@ func StartControllers(ctx ControllerContext) error {
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.IsLeaderFunc,
+		ctx.LeaderSubscribeFunc(),
 		secretConfig,
 	)
 
@@ -60,7 +63,7 @@ func StartControllers(ctx ControllerContext) error {
 		return err
 	}
 
-	v1Enabled, err := useAdmissionV1(ctx.DiscoveryClient)
+	v1Enabled, err := useAdmissionV1(ctx)
 	if err != nil {
 		return err
 	}
@@ -71,6 +74,7 @@ func StartControllers(ctx ControllerContext) error {
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.WebhookInformers.Admissionregistration(),
 		ctx.IsLeaderFunc,
+		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
 	)
 
@@ -86,9 +90,11 @@ func StartControllers(ctx ControllerContext) error {
 
 	if v1Enabled {
 		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+		getWebhookStatus = getWebhookStatusV1
 	} else {
 		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
+		getWebhookStatus = getWebhookStatusV1beta1
 	}
 
-	return apiserver.SyncInformers(informers)
+	return apiserver.SyncInformers(informers, 0)
 }

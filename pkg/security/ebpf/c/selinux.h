@@ -24,6 +24,7 @@ enum selinux_event_kind_t
 struct selinux_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct file_t file;
     u32 event_kind;
@@ -73,9 +74,11 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
         char curr = copy->buffer[i];
         if (curr == 0) {
             return 0;
-        } else if ('0' < curr && curr <= '9') {
+        }
+        if ('0' < curr && curr <= '9') {
             return 1;
-        } else if (curr != '0') {
+        }
+        if (curr != '0') {
             return 0;
         }
     }
@@ -138,7 +141,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
         case SELINUX_DISABLE_CHANGE_SOURCE_EVENT:
             syscall.selinux.event_kind = SELINUX_STATUS_CHANGE_EVENT_KIND;
             if (value >= 0) {
-                u32 key = SELINUX_ENFORCE_STATUS_ENFORCE_KEY;
+                u32 key = SELINUX_ENFORCE_STATUS_DISABLE_KEY;
                 bpf_map_update_elem(&selinux_enforce_status, &key, &value, BPF_ANY);
             }
             fill_selinux_status_payload(&syscall);
@@ -170,11 +173,18 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 
 int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SELINUX);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID)
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_SELINUX);
         return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_INVALID) {
+        return 0;
+    }
 
     struct selinux_event_t event = {};
     event.event_kind = syscall->selinux.event_kind;
@@ -183,6 +193,7 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_SELINUX, event);
     return 0;
@@ -196,7 +207,7 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
 
 #define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
     SEC("kprobe/" #func_name)                                               \
-    int kprobe__##func_name(struct pt_regs *ctx) {                          \
+    int kprobe_##func_name(struct pt_regs *ctx) {                           \
         struct file *file = (struct file *)PT_REGS_PARM1(ctx);              \
         const char *buf = (const char *)PT_REGS_PARM2(ctx);                 \
         size_t count = (size_t)PT_REGS_PARM3(ctx);                          \

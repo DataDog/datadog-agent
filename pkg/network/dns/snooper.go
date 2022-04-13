@@ -1,4 +1,10 @@
-//+build windows linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows || linux_bpf
+// +build windows linux_bpf
 
 package dns
 
@@ -108,7 +114,7 @@ func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]str
 }
 
 // GetDNSStats gets the latest Stats keyed by unique Key, and domain
-func (s *socketFilterSnooper) GetDNSStats() map[Key]map[string]map[QueryType]Stats {
+func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 	if s.statKeeper == nil {
 		return nil
 	}
@@ -135,6 +141,11 @@ func (s *socketFilterSnooper) GetStats() map[string]int64 {
 		stats["dropped_stats"] = int64(droppedStats)
 	}
 	return stats
+}
+
+// Start starts the snooper (no-op currently)
+func (s *socketFilterSnooper) Start() error {
+	return nil // no-op as this is done in newSocketFilterSnooper above
 }
 
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
@@ -165,7 +176,6 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 			atomic.AddInt64(&s.truncatedPkts, 1)
 		default:
 			atomic.AddInt64(&s.decodingErrors, 1)
-			log.Tracef("error decoding DNS payload: %v", err)
 		}
 		return nil
 	}

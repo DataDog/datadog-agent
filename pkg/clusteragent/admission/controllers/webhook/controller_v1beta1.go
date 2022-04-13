@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -38,7 +40,7 @@ type ControllerV1beta1 struct {
 }
 
 // NewControllerV1beta1 returns a new Webhook Controller using admissionregistration/v1beta1.
-func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, config Config) *ControllerV1beta1 {
+func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
 	controller.config = config
@@ -48,6 +50,7 @@ func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinform
 	controller.webhooksSynced = webhookInformer.Informer().HasSynced
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
+	controller.isLeaderNotif = isLeaderNotif
 	controller.generateTemplates()
 
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -77,10 +80,11 @@ func (c *ControllerV1beta1) Run(stopCh <-chan struct{}) {
 		return
 	}
 
+	go c.enqueueOnLeaderNotif(stopCh)
 	go wait.Until(c.run, time.Second, stopCh)
 
 	// Trigger a reconciliation to create the Webhook if it doesn't exist
-	c.queue.Add(c.config.getWebhookName())
+	c.triggerReconciliation()
 
 	<-stopCh
 }
@@ -195,11 +199,12 @@ func (c *ControllerV1beta1) generateTemplates() {
 }
 
 func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1beta1.MutatingWebhook {
-	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
 	timeout := c.config.getTimeout()
+	failurePolicy := c.getAdmiV1Beta1FailurePolicy()
+	reinvocationPolicy := c.getReinvocationPolicy()
 	webhook := admiv1beta1.MutatingWebhook{
 		Name: c.config.configName(nameSuffix),
 		ClientConfig: admiv1beta1.WebhookClientConfig{
@@ -222,6 +227,7 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 				},
 			},
 		},
+		ReinvocationPolicy:      &reinvocationPolicy,
 		FailurePolicy:           &failurePolicy,
 		MatchPolicy:             &matchPolicy,
 		SideEffects:             &sideEffects,
@@ -229,13 +235,33 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 		AdmissionReviewVersions: []string{"v1beta1"},
 	}
 
-	labelSelector := buildLabelSelector()
-	if c.config.useNamespaceSelector() {
-		webhook.NamespaceSelector = labelSelector
-		return webhook
-	}
-
-	webhook.ObjectSelector = labelSelector
+	webhook.NamespaceSelector, webhook.ObjectSelector = buildLabelSelectors(c.config.useNamespaceSelector())
 
 	return webhook
+}
+
+func (c *ControllerV1beta1) getAdmiV1Beta1FailurePolicy() admiv1beta1.FailurePolicyType {
+	policy := strings.ToLower(c.config.getFailurePolicy())
+	switch policy {
+	case "ignore":
+		return admiv1beta1.Ignore
+	case "fail":
+		return admiv1beta1.Fail
+	default:
+		_ = log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
+		return admiv1beta1.Ignore
+	}
+}
+
+func (c *ControllerV1beta1) getReinvocationPolicy() admiv1beta1.ReinvocationPolicyType {
+	policy := strings.ToLower(c.config.getReinvocationPolicy())
+	switch policy {
+	case "ifneeded":
+		return admiv1beta1.IfNeededReinvocationPolicy
+	case "never":
+		return admiv1beta1.NeverReinvocationPolicy
+	default:
+		log.Warnf("Unknown reinvocation policy %q - defaulting to %q", c.config.getReinvocationPolicy(), admiv1beta1.IfNeededReinvocationPolicy)
+		return admiv1beta1.IfNeededReinvocationPolicy
+	}
 }

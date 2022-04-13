@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
@@ -18,6 +23,7 @@ type worker struct {
 	// the flushing logic to the aggregator is actually in the batcher.
 	batcher *batcher
 	parser  *parser
+
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
@@ -27,14 +33,10 @@ type worker struct {
 func newWorker(s *Server) *worker {
 	return &worker{
 		server:  s,
-		batcher: newBatcher(s.aggregator),
+		batcher: newBatcher(s.demultiplexer),
 		parser:  newParser(s.sharedFloat64List),
 		samples: make([]metrics.MetricSample, 0, defaultSampleSize),
 	}
-}
-
-func (w *worker) flush() {
-	w.batcher.flush()
 }
 
 func (w *worker) run() {
@@ -43,11 +45,14 @@ func (w *worker) run() {
 		case <-w.server.stopChan:
 			return
 		case <-w.server.health.C:
+		case <-w.server.serverlessFlushChan:
+			w.batcher.flush()
 		case packets := <-w.server.packetsIn:
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
 			w.samples = w.server.parsePackets(w.batcher, w.parser, packets, w.samples)
 		}
+
 	}
 }

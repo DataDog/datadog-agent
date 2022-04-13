@@ -16,13 +16,12 @@ import (
 	"github.com/beevik/ntp"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -69,6 +68,9 @@ func (c *NTPCheck) String() string {
 	return "ntp"
 }
 
+// for testing
+var getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts
+
 func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() ([]string, error)) error {
 	var instance ntpInstanceConfig
 	var initConf ntpInitConfig
@@ -77,7 +79,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 
-	defaultHosts := util.GetCloudProviderNTPHosts(context.TODO())
+	defaultHosts := getCloudProviderNTPHosts(context.TODO())
 
 	// Default to our domains on pool.ntp.org if no cloud provider detected
 	if defaultHosts == nil {
@@ -158,7 +160,7 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

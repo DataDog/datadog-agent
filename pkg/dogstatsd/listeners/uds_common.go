@@ -66,7 +66,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		}
 		err = os.Remove(socketPath)
 		if err != nil {
-			return nil, fmt.Errorf("dogstatsd-usd: cannot remove stale UNIX socket: %v", err)
+			return nil, fmt.Errorf("dogstatsd-uds: cannot remove stale UNIX socket: %v", err)
 		}
 	}
 

@@ -37,19 +37,24 @@ func (suite *ProviderTestSuite) SetupTest() {
 func (suite *ProviderTestSuite) TestProvider() {
 	suite.a.Start()
 	suite.p.Start()
-	suite.Equal(int32(0), suite.p.currentPipelineIndex)
+	suite.Equal(uint32(0), suite.p.currentPipelineIndex)
 	suite.Equal(3, len(suite.p.pipelines))
 
 	c := suite.p.NextPipelineChan()
-	suite.Equal(int32(1), suite.p.currentPipelineIndex)
+	suite.Equal(uint32(1), suite.p.currentPipelineIndex)
+	suite.Equal(suite.p.pipelines[1].InputChan, c)
 
-	suite.p.NextPipelineChan()
-	suite.Equal(int32(2), suite.p.currentPipelineIndex)
+	c = suite.p.NextPipelineChan()
+	suite.Equal(uint32(2), suite.p.currentPipelineIndex)
+	suite.Equal(suite.p.pipelines[2].InputChan, c)
 
-	suite.p.NextPipelineChan()
-	suite.Equal(int32(0), suite.p.currentPipelineIndex)
-	suite.Equal(c, suite.p.NextPipelineChan())
-	suite.Equal(int32(1), suite.p.currentPipelineIndex)
+	c = suite.p.NextPipelineChan()
+	suite.Equal(uint32(3), suite.p.currentPipelineIndex)
+	suite.Equal(suite.p.pipelines[0].InputChan, c) // wraps
+
+	c = suite.p.NextPipelineChan()
+	suite.Equal(uint32(4), suite.p.currentPipelineIndex)
+	suite.Equal(suite.p.pipelines[1].InputChan, c)
 
 	suite.p.Stop()
 	suite.a.Stop()

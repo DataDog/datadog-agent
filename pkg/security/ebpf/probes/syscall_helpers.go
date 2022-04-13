@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -11,7 +12,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
@@ -131,6 +132,26 @@ const (
 	EntryAndExit = Entry | Exit
 )
 
+// getFunctionNameFromSection returns the generated function name from the generated section
+func getFunctionNameFromSection(section string) string {
+	funcName := section
+	if syscallPrefix == "sys_" {
+		funcName = strings.ReplaceAll(funcName, "kprobe/", "kprobe__64_")
+		funcName = strings.ReplaceAll(funcName, "kretprobe/", "kretprobe__64_")
+	} else {
+		// amd64
+		funcName = strings.ReplaceAll(funcName, "__ia32_", "__32_")
+		funcName = strings.ReplaceAll(funcName, "__x64_", "__64_")
+		// arm
+		funcName = strings.ReplaceAll(funcName, "__arm64_", "__64_")
+		funcName = strings.ReplaceAll(funcName, "__arm32_", "__32_")
+		// utils
+		funcName = strings.ReplaceAll(funcName, "/_", "_")
+	}
+	funcName = strings.ReplaceAll(funcName, "tracepoint/syscalls/", "tracepoint_syscalls_")
+	return funcName
+}
+
 // ExpandSyscallProbes returns the list of available hook probes for the syscall func name of the provided probe
 func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*manager.Probe {
 	var probes []*manager.Probe
@@ -155,7 +176,8 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 
 	for _, section := range expandSyscallSections(syscallName, flag, compat...) {
 		probeCopy := probe.Copy()
-		probeCopy.Section = section
+		probeCopy.EBPFSection = section
+		probeCopy.EBPFFuncName = getFunctionNameFromSection(section)
 		probes = append(probes, probeCopy)
 	}
 
@@ -179,11 +201,11 @@ func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, c
 		if getSyscallPrefix() == "sys_" {
 			return selectors
 		}
-		id.Section += "_time32"
+		id.EBPFSection += "_time32"
 	}
 
-	for _, section := range expandSyscallSections(id.Section, flag, compat...) {
-		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: id.UID, Section: section}}
+	for _, section := range expandSyscallSections(id.EBPFSection, flag, compat...) {
+		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: id.UID, EBPFSection: section, EBPFFuncName: getFunctionNameFromSection(section)}}
 		selectors = append(selectors, selector)
 	}
 

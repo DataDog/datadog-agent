@@ -43,6 +43,7 @@ func RunAll(w io.Writer) error {
 		statusString := color.GreenString("PASS")
 		if err != nil {
 			statusString = color.RedString("FAIL")
+			log.Infof("diagnosis error for %s: %v", name, err)
 		}
 		fmt.Fprintln(w, fmt.Sprintf("===> %s\n", statusString))
 	}

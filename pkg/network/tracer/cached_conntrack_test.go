@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
@@ -91,7 +97,16 @@ func TestCachedConntrackExists(t *testing.T) {
 	daddr := util.AddressFromString("2.3.4.5")
 	var sport uint16 = 23
 	var dport uint16 = 223
-	ct := newConnTuple(os.Getpid(), 1234, saddr, daddr, sport, dport, network.TCP)
+	ct := &network.ConnectionStats{
+		Pid:    uint32(os.Getpid()),
+		NetNS:  1234,
+		Source: saddr,
+		Dest:   daddr,
+		SPort:  sport,
+		DPort:  dport,
+		Type:   network.TCP,
+		Family: network.AFINET,
+	}
 
 	m.EXPECT().Exists(gomock.Not(gomock.Nil())).Times(1).DoAndReturn(func(c *netlink.Con) (bool, error) {
 		require.Equal(t, saddr.String(), c.Origin.Src.String())

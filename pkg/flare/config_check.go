@@ -42,7 +42,7 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	if configCheckURL == "" {
 		configCheckURL = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
-	r, err := util.DoGet(c, configCheckURL)
+	r, err := util.DoGet(c, configCheckURL, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
@@ -64,7 +64,7 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	}
 
 	for _, c := range cr.Configs {
-		PrintConfig(w, c)
+		PrintConfig(w, c, "")
 	}
 
 	if withDebug {
@@ -99,7 +99,10 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 }
 
 // PrintConfig prints a human-readable representation of a configuration
-func PrintConfig(w io.Writer, c integration.Config) {
+func PrintConfig(w io.Writer, c integration.Config, checkName string) {
+	if checkName != "" && c.Name != checkName {
+		return
+	}
 	if !c.ClusterCheck {
 		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
 	} else {
@@ -134,15 +137,29 @@ func PrintConfig(w io.Writer, c integration.Config) {
 		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Log Config")))
 		fmt.Fprintln(w, string(c.LogsConfig))
 	}
-	if len(c.ADIdentifiers) > 0 {
+	if c.IsTemplate() {
 		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Auto-discovery IDs")))
 		for _, id := range c.ADIdentifiers {
 			fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
 		}
+		printContainerExclusionRulesInfo(w, &c)
 	}
 	if c.NodeName != "" {
 		state := fmt.Sprintf("dispatched to %s", c.NodeName)
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("State"), color.CyanString(state)))
 	}
 	fmt.Fprintln(w, "===")
+}
+
+func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {
+	var msg string
+	if c.IsCheckConfig() && c.MetricsExcluded {
+		msg = "This configuration matched a metrics container-exclusion rule, so it will not be run by the Agent"
+	} else if c.IsLogConfig() && c.LogsExcluded {
+		msg = "This configuration matched a logs container-exclusion rule, so it will not be run by the Agent"
+	}
+
+	if msg != "" {
+		fmt.Fprintln(w, fmt.Sprintf("%s", color.BlueString(msg)))
+	}
 }

@@ -2,6 +2,7 @@ import base64
 import logging
 import os
 import time
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get('LOGGING_LEVEL', 'INFO'))
@@ -45,7 +46,7 @@ class GithubApp:
         token_payload = self.gen_token_payload()
         bearer_token = jwt.encode(token_payload, base64.b64decode(self.key_b64), algorithm='RS256').decode()
         headers = {
-            'Authorization': 'Bearer {}'.format(bearer_token),
+            'Authorization': f'Bearer {bearer_token}',
             'Accept': 'application/vnd.github.v3+json',
         }
         return headers
@@ -78,24 +79,20 @@ class GithubApp:
         Get installation token for a Github App, which then allows to access
         the Github API with the permissions of this App.
         """
-        endpoint = '/app/installations/{}/access_tokens'.format(self.installation_id)
+        endpoint = f'/app/installations/{self.installation_id}/access_tokens'
         for _ in range(5):  # Retry up to 5 times
             r = self.make_request(endpoint, method='POST')
             if r.status_code != 200 and r.status_code != 201:
                 logger.warning(
-                    """Error in HTTP Request for access token.
-                Status code: {} Response Text: {}""".format(
-                        r.status_code, r.text
-                    )
+                    f"""Error in HTTP Request for access token.
+                Status code: {r.status_code} Response Text: {r.text}"""
                 )
                 time.sleep(1)
                 continue
-            return r.json().get("token")
+            return r.json().get("token"), datetime.strptime(r.json().get("expires_at"), "%Y-%m-%dT%H:%M:%SZ")
         raise GithubAppException(
-            """Unable to retrieve an access token.
-        Status code: {} Response Text: {}""".format(
-                r.status_code, r.text
-            )
+            f"""Unable to retrieve an access token.
+        Status code: {r.status_code} Response Text: {r.text}"""
         )
 
     def get_installation(self):
@@ -111,17 +108,13 @@ class GithubApp:
             r = self.make_request(endpoint, method='GET')
             if r.status_code != 200 and r.status_code != 201:
                 logger.warning(
-                    """Error in HTTP Request for installation id.
-                Status code: {} Response Text: {}""".format(
-                        r.status_code, r.text
-                    )
+                    f"""Error in HTTP Request for installation id.
+                Status code: {r.status_code} Response Text: {r.text}"""
                 )
                 time.sleep(1)
                 continue
             return r.json()[0]["id"]
         raise GithubAppException(
-            """Unable to retrieve installation id.
-        Status code: {} Response Text: {}""".format(
-                r.status_code, r.text
-            )
+            f"""Unable to retrieve installation id.
+        Status code: {r.status_code} Response Text: {r.text}"""
         )

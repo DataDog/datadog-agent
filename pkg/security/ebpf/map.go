@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package ebpf
@@ -11,7 +12,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // BytesMapItem describes a raw table key or value
@@ -99,4 +100,6 @@ var (
 	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
 	// BufferSelectorERPCMonitorKey is the key used to select the active eRPC monitor buffer key
 	BufferSelectorERPCMonitorKey = Uint32MapItem(1)
+	// BufferSelectorDiscarderMonitorKey is the key used to select the active discarder monitor buffer key
+	BufferSelectorDiscarderMonitorKey = Uint32MapItem(2)
 )

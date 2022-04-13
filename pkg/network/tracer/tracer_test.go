@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf || (windows && npm)
 // +build linux_bpf windows,npm
 
 package tracer
@@ -14,6 +20,8 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,6 +40,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -44,7 +54,7 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "trace")
+	log.SetupLogger(seelog.Default, "warn")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -79,15 +89,15 @@ func TestGetStats(t *testing.T) {
 			"dns_pid_collisions",
 		},
 		"tracer": {
-			"closed_conn_polling_lost",
-			"closed_conn_polling_received",
 			"conn_valid_skipped",
 			"expired_tcp_conns",
-			"pid_collisions",
 		},
 		"ebpf": {
 			"tcp_sent_miscounts",
 			"missed_tcp_close",
+			"closed_conn_polling_lost",
+			"closed_conn_polling_received",
+			"pid_collisions",
 		},
 		"dns": {
 			"added",
@@ -168,23 +178,22 @@ func TestTCPSendAndReceive(t *testing.T) {
 	defer c.Close()
 
 	// Connect to server 10 times
-	wg := sync.WaitGroup{}
+	wg := new(errgroup.Group)
 	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() error {
 			// Write clientMessageSize to server, and read response
 			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-				t.Fatal(err)
+				return err
 			}
 
 			r := bufio.NewReader(c)
 			r.ReadBytes(byte('\n'))
-		}()
+			return nil
+		})
 	}
 
-	wg.Wait()
+	err = wg.Wait()
+	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -424,7 +433,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	// incoming.MonotonicSentBytes is 0, when it should be 512
-	skipIfWindows(t)
 
 	// Enable BPF-based system probe
 	cfg := testConfig()
@@ -1037,10 +1045,31 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
+	dnsKey, ok := network.DNSKey(conn)
+	require.True(t, ok)
+
+	dnsStats, ok := connections.DNSStats[dnsKey]
+	require.True(t, ok)
+
+	var total uint32
+	var successfulResponses uint32
+	var timeouts uint32
+	for _, byDomain := range dnsStats {
+		for _, byQueryType := range byDomain {
+			successfulResponses += byQueryType.CountByRcode[uint32(0)]
+			timeouts += byQueryType.Timeouts
+			for _, count := range byQueryType.CountByRcode {
+				total += count
+			}
+		}
+	}
+
+	failedResponses := total - successfulResponses
+
 	// DNS Stats
-	assert.Equal(t, uint32(success), conn.DNSSuccessfulResponses)
-	assert.Equal(t, uint32(failure), conn.DNSFailedResponses)
-	assert.Equal(t, uint32(timeout), conn.DNSTimeouts)
+	assert.Equal(t, uint32(success), successfulResponses)
+	assert.Equal(t, uint32(failure), failedResponses)
+	assert.Equal(t, uint32(timeout), timeouts)
 }
 
 func TestDNSStatsForValidDomain(t *testing.T) {
@@ -1193,10 +1222,20 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 }
 
 func TestConnectionClobber(t *testing.T) {
-	tr, err := NewTracer(testConfig())
-	if err != nil {
-		t.Fatal(err)
+	cfg := testConfig()
+	cfg.CollectUDPConns = false
+	cfg.ExcludedDestinationConnections = map[string][]string{
+		"0.0.0.0/2":   {"*"},
+		"64.0.0.0/3":  {"*"},
+		"96.0.0.0/4":  {"*"},
+		"112.0.0.0/5": {"*"},
+		"120.0.0.0/6": {"*"},
+		"124.0.0.0/7": {"*"},
+		"126.0.0.0/8": {"*"},
+		"128.0.0.0/1": {"*"},
 	}
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
@@ -1212,7 +1251,7 @@ func TestConnectionClobber(t *testing.T) {
 	defer close(doneChan)
 
 	// we only need 1/4 since both send and recv sides will be registered
-	sendCount := connectionBufferCapacity(tr)/4 + 1
+	sendCount := tr.activeBuffer.Capacity()/4 + 1
 	sendAndRecv := func() []net.Conn {
 		connsCh := make(chan net.Conn, sendCount)
 		var conns []net.Conn
@@ -1251,20 +1290,20 @@ func TestConnectionClobber(t *testing.T) {
 
 	// wait for tracer to pick up all connections
 	//
-	// there is not good way do this other than a sleep since we
-	// can't call getConnections in a require.Eventually call
+	// there is not a good way do this other than a sleep since we
+	// can't call getConnections in a `require.Eventually` call
 	// to the get the number of connections as that could
-	// affect the tr.buffer length
+	// affect the `activeBuffer` length
 	time.Sleep(2 * time.Second)
 
-	preCap := connectionBufferCapacity(tr)
+	preCap := tr.activeBuffer.Capacity()
 	connections := getConnections(t, tr)
 	require.NotEmpty(t, connections)
 	src := connections.Conns[0].SPort
 	dst := connections.Conns[0].DPort
 	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
-	require.Equal(t, preCap, connectionBufferCapacity(tr))
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 
 	for _, c := range append(conns, serverConns...) {
 		c.Close()
@@ -1282,14 +1321,12 @@ func TestConnectionClobber(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
-	require.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
-	require.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
-	require.Equal(t, preCap, connectionBufferCapacity(tr))
+	assert.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
+	assert.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
 func TestTCPDirection(t *testing.T) {
-	// incoming flow is marked outgoing: this is a bug, but will be fixed in future PR
-	skipIfWindows(t)
 
 	cfg := testConfig()
 	tr, err := NewTracer(cfg)
@@ -1490,6 +1527,79 @@ func TestHTTPStats(t *testing.T) {
 	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
 }
 
+var regexSSL = regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`)
+
+func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
+	}
+
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not supported.")
+	}
+
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		t.Skip("this feature is not yet support on arm")
+	}
+
+	wget, err := exec.LookPath("wget")
+	if err != nil {
+		t.Skip("wget not found; skipping test.")
+	}
+
+	ldd, err := exec.LookPath("ldd")
+	if err != nil {
+		t.Skip("ldd not found; skipping test.")
+	}
+
+	linked, _ := exec.Command(ldd, wget).Output()
+	libSSLPath := regexSSL.FindString(string(linked))
+	if _, err := os.Stat(libSSLPath); len(libSSLPath) == 0 || os.IsNotExist(err) {
+		t.Skip("libssl.so not found; skipping test.")
+	}
+
+	// Start tracer with HTTPS support
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Spin-up HTTPS server
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+		EnableTLS: true,
+	})
+	defer serverDoneFn()
+
+	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+	exec.Command(wget).Run()
+	time.Sleep(time.Second)
+
+	// Issue request using `wget`
+	// This is necessary (as opposed to using net/http) because we want to
+	// test a HTTP client linked to OpenSSL
+	const targetURL = "https://127.0.0.1:443/200/foobar"
+	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
+	err = requestCmd.Run()
+	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
+
+	require.Eventuallyf(t, func() bool {
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for key := range payload.HTTP {
+			if key.Path == "/200/foobar" {
+				return true
+			}
+		}
+
+		return false
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
+}
+
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
 	cfg := testConfig()
 	enabled := os.Getenv(runtimeCompilationEnvVar) != ""
@@ -1499,6 +1609,9 @@ func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
 
 func testConfig() *config.Config {
 	cfg := config.New()
+	if os.Getenv("BPF_DEBUG") != "" {
+		cfg.BPFDebug = true
+	}
 	if os.Getenv(runtimeCompilationEnvVar) != "" {
 		cfg.EnableRuntimeCompiler = true
 		cfg.AllowPrecompiledFallback = false

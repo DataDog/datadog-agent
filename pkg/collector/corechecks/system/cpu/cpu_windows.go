@@ -7,6 +7,7 @@
 // https://github.com/shirou/gopsutil .  This code is licensed under the New BSD License
 // copyright WAKAYAMA Shirou, and the gopsutil contributors
 
+//go:build windows
 // +build windows
 
 package cpu
@@ -22,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 	"github.com/DataDog/gohai/cpu"
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 var (
@@ -49,7 +48,7 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -92,6 +91,17 @@ func (c *Check) Run() error {
 	return nil
 }
 
+// Configure the PDH counter according to the running environment.
+// On machines with more than 1 NUMA node, it uses "Process Information",
+// otherwise it uses "Processor" (e.g. in containers).
+func getProcessorPDHCounter(counterName, instance string) (pdhutil.PdhSingleInstanceCounterSet, error) {
+	counter, err := pdhutil.GetUnlocalizedCounter("Processor Information", counterName, instance)
+	if err != nil {
+		counter, err = pdhutil.GetUnlocalizedCounter("Processor", counterName, instance)
+	}
+	return counter, err
+}
+
 // Configure the CPU check doesn't need configuration
 func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	if err := c.CommonConfigure(data, source); err != nil {
@@ -108,19 +118,19 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 
 	// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
 	// you visibility about other applications running on the same processor as you
-	c.interruptsCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% Interrupt Time", "_Total")
+	c.interruptsCounter, err = getProcessorPDHCounter("% Interrupt Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish interrupt time counter %v", err)
 	}
-	c.idleCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% Idle Time", "_Total")
+	c.idleCounter, err = getProcessorPDHCounter("% Idle Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish idle time counter %v", err)
 	}
-	c.userCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% User Time", "_Total")
+	c.userCounter, err = getProcessorPDHCounter("% User Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish user time counter %v", err)
 	}
-	c.privilegedCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% Privileged Time", "_Total")
+	c.privilegedCounter, err = getProcessorPDHCounter("% Privileged Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish system time counter %v", err)
 	}

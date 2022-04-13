@@ -32,7 +32,8 @@ import (
 )
 
 type dummyClusterAgent struct {
-	node            map[string]map[string]string
+	nodeLabels      map[string]map[string]string
+	nodeAnnotations map[string]map[string]string
 	responses       map[string][]string
 	responsesByNode apiv1.MetadataResponse
 	rawResponses    map[string]string
@@ -45,7 +46,7 @@ type dummyClusterAgent struct {
 func newDummyClusterAgent() (*dummyClusterAgent, error) {
 	resetGlobalClusterAgentClient()
 	dca := &dummyClusterAgent{
-		node: map[string]map[string]string{
+		nodeLabels: map[string]map[string]string{
 			"node/node1": {
 				"label1": "value",
 				"label2": "value2",
@@ -53,6 +54,12 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"node/node2": {
 				"label3": "value",
 				"label2": "value4",
+			},
+		},
+		nodeAnnotations: map[string]map[string]string{
+			"node/node1": {
+				"annotation1": "value",
+				"annotation2": "value2",
 			},
 		},
 		responses: map[string][]string{
@@ -201,16 +208,31 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case "node":
-			key := fmt.Sprintf("node/%s", nodeName)
-			labels, found := d.node[key]
-			if found {
-				b, err := json.Marshal(labels)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
+			switch s[3] {
+			case "tags":
+				key := fmt.Sprintf("node/%s", nodeName)
+				labels, found := d.nodeLabels[key]
+				if found {
+					b, err := json.Marshal(labels)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.Write(b)
 					return
 				}
-				w.Write(b)
-				return
+			case "annotations":
+				key := fmt.Sprintf("node/%s", nodeName)
+				labels, found := d.nodeAnnotations[key]
+				if found {
+					b, err := json.Marshal(labels)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.Write(b)
+					return
+				}
 			}
 		default:
 		}
@@ -414,14 +436,15 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 		nodeName string
 		expected map[string]string
 		errors   error
-	}{{
-		nodeName: "node1",
-		errors:   nil,
-		expected: map[string]string{
-			"label1": "value",
-			"label2": "value2",
+	}{
+		{
+			nodeName: "node1",
+			errors:   nil,
+			expected: map[string]string{
+				"label1": "value",
+				"label2": "value2",
+			},
 		},
-	},
 		{
 			nodeName: "node2",
 			expected: map[string]string{
@@ -444,6 +467,51 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 			require.Equal(t, len(testCase.expected), len(labels))
 			for key, val := range testCase.expected {
 				assert.Contains(t, labels[key], val)
+			}
+		})
+	}
+}
+
+func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
+	dca, err := newDummyClusterAgent()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	ts, p, err := dca.StartTLS()
+	defer ts.Close()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	ca, err := GetClusterAgentClient()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	testSuite := []struct {
+		nodeName string
+		expected map[string]string
+		errors   error
+	}{
+		{
+			nodeName: "node1",
+			errors:   nil,
+			expected: map[string]string{
+				"annotation1": "value",
+				"annotation2": "value2",
+			},
+		},
+		{
+			nodeName: "fake",
+			expected: nil,
+			errors:   fmt.Errorf("unexpected status code from cluster agent: 404"),
+		},
+	}
+	for _, testCase := range testSuite {
+		suite.T().Run("", func(t *testing.T) {
+			annotations, err := ca.GetNodeAnnotations(testCase.nodeName)
+			t.Logf("Annotations: %s", annotations)
+			require.Equal(t, err, testCase.errors)
+			require.Equal(t, len(testCase.expected), len(annotations))
+			for key, val := range testCase.expected {
+				assert.Contains(t, annotations[key], val)
 			}
 		})
 	}

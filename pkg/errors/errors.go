@@ -14,6 +14,7 @@ const (
 	retriableError
 	partialError
 	unknownError
+	disabledError
 )
 
 // AgentError is an error intended for consumption by a datadog pkg; it can also be
@@ -66,6 +67,19 @@ func NewPartial(partialObj interface{}) *AgentError {
 // IsPartial returns true if the specified error was created by NewPartial.
 func IsPartial(err error) bool {
 	return reasonForError(err) == partialError
+}
+
+// NewDisabled returns a new error which indicates that a particular Agent component is disabled.
+func NewDisabled(component, reason string) *AgentError {
+	return &AgentError{
+		message:     fmt.Sprintf("component %s is disabled: %s", component, reason),
+		errorReason: disabledError,
+	}
+}
+
+// IsDisabled returns true if the specified error was created by NewDisabled.
+func IsDisabled(err error) bool {
+	return reasonForError(err) == disabledError
 }
 
 func reasonForError(err error) errorReason {

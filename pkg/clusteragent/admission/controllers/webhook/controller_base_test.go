@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
@@ -26,6 +27,7 @@ func TestNewController(t *testing.T) {
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration(),
 		func() bool { return true },
+		make(chan struct{}),
 		v1Cfg,
 	)
 
@@ -37,6 +39,7 @@ func TestNewController(t *testing.T) {
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration(),
 		func() bool { return true },
+		make(chan struct{}),
 		v1beta1Cfg,
 	)
 

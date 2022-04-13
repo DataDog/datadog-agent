@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,13 @@ func resetPackageVars() {
 	config.Datadog.Set("ec2_metadata_timeout", initialTimeout)
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
-	token = ec2Token{}
+	token = httputils.NewAPIToken(getToken)
+
+	instanceIDFetcher.Reset()
+	localIPv4Fetcher.Reset()
+	publicIPv4Fetcher.Reset()
+	hostnameFetcher.Reset()
+	networkIDFetcher.Reset()
 }
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -153,7 +159,8 @@ func TestGetHostname(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
 	// clear internal cache
-	cache.Cache.Delete(hostnameCacheKey)
+	hostnameFetcher.Reset()
+
 	// ensure we get an empty string along with the error when not on EC2
 	metadataURL = "foo"
 	val, err = GetHostname(ctx)
@@ -343,7 +350,7 @@ func TestGetToken(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	token, err := getToken(ctx)
+	token, err := token.Get(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, originalToken, token)
 }
@@ -426,7 +433,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
 
 	// Force refresh
-	token.expirationDate = time.Now()
+	token.ExpirationDate = time.Now()
 	ips, err = GetLocalIPv4()
 	require.NoError(t, err)
 	assert.Equal(t, []string{ipv4}, ips)

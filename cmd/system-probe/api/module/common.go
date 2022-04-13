@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package module
 
 import (
@@ -12,8 +17,9 @@ var ErrNotEnabled = errors.New("module is not enabled")
 
 // Factory encapsulates the initialization of a Module
 type Factory struct {
-	Name config.ModuleName
-	Fn   func(cfg *config.Config) (Module, error)
+	Name             config.ModuleName
+	ConfigNamespaces []string
+	Fn               func(cfg *config.Config) (Module, error)
 }
 
 // Module defines the common API implemented by every System Probe Module

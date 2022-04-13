@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package probes
@@ -83,12 +89,12 @@ const (
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
 
-	// SocketHTTPFilter is the socket probe for HTTP
-	SocketHTTPFilter ProbeName = "socket/http_filter"
+	// SockMapFdReturn maps a file descriptor to a kernel sock
+	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
 
-	// IPRouteOutputFlow is the kprobe of a ip_route_output_flow call
+	// IPRouteOutputFlow is the kprobe of an ip_route_output_flow call
 	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
-	// IPRouteOutputFlow is the kretprobe of a ip_route_output_flow call
+	// IPRouteOutputFlow is the kretprobe of an ip_route_output_flow call
 	IPRouteOutputFlowReturn ProbeName = "kretprobe/ip_route_output_flow"
 
 	// ConntrackHashInsert is the probe for new conntrack entries
@@ -100,10 +106,10 @@ const (
 	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
 	SockFDLookupRet ProbeName = "kretprobe/sockfd_lookup_light"
 
-	// DoSendfile is the kprobe used used to trace traffic via SENDFILE(2) syscall
+	// DoSendfile is the kprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfile ProbeName = "kprobe/do_sendfile"
 
-	// DoSendfileRet is the kretprobe used used to trace traffic via SENDFILE(2) syscall
+	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
 )
 
@@ -119,11 +125,6 @@ const (
 	UdpPortBindingsMap    BPFMapName = "udp_port_bindings"
 	TelemetryMap          BPFMapName = "telemetry"
 	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
-	HttpInFlightMap       BPFMapName = "http_in_flight"
-	HttpBatchesMap        BPFMapName = "http_batches"
-	HttpBatchStateMap     BPFMapName = "http_batch_state"
-	HttpNotificationsMap  BPFMapName = "http_notifications"
-	GatewayMap            BPFMapName = "ip_route_dest_gateways"
 	ConntrackMap          BPFMapName = "conntrack"
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 	SockFDLookupArgsMap   BPFMapName = "sockfd_lookup_args"

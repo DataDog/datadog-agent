@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package leaderelection
@@ -97,6 +98,60 @@ func TestNewLeaseAcquiring(t *testing.T) {
 	ip, err := le.GetLeaderIP()
 	assert.Equal(t, "", ip)
 	assert.NoError(t, err)
+}
+
+func TestSubscribe(t *testing.T) {
+	const leaseName = "datadog-leader-election"
+
+	client := fake.NewSimpleClientset()
+	le := &LeaderEngine{
+		HolderIdentity:  "foo",
+		LeaseName:       leaseName,
+		LeaderNamespace: "default",
+		LeaseDuration:   1 * time.Second,
+		coreClient:      client.CoreV1(),
+		leaderMetric:    &dummyGauge{},
+	}
+
+	notif1 := le.Subscribe()
+	notif2 := le.Subscribe()
+	require.Len(t, le.subscribers, 2)
+
+	_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+	require.True(t, errors.IsNotFound(err))
+
+	le.leaderElector, err = le.newElection()
+	require.NoError(t, err)
+
+	le.EnsureLeaderElectionRuns()
+	require.True(t, le.IsLeader())
+
+	counter1, counter2 := 0, 0
+	for {
+		select {
+		case <-notif1:
+			counter1++
+			if counter1 > 1 {
+				require.Fail(t, "Received too many notifications")
+				return
+			}
+
+		case <-notif2:
+			counter2++
+			if counter2 > 1 {
+				require.Fail(t, "Received too many notifications")
+				return
+			}
+
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "Waiting on leader notification timed out")
+			return
+		}
+
+		if counter1 == 1 && counter2 == 1 {
+			break
+		}
+	}
 }
 
 func TestGetLeaderIPFollower(t *testing.T) {

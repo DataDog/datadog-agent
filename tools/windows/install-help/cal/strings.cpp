@@ -25,6 +25,7 @@ std::wstring propertyProgramFilesDir;     // IDS_PROPERTY_PROGRAMFILESDIR
 std::wstring logsSuffix;      // IDS_LOGSSUFFIX
 std::wstring authTokenSuffix; // IDS_AUTHTOKENSUFFIX
 std::wstring datadogyaml;     // IDS_DATADOGYAML
+std::wstring installInfo;     // IDS_INSTALLINFO
 std::wstring confdsuffix;     // IDS_CONFSDSUFFIX
 std::wstring logsdirsuffix;   // IDS_LOGSDIRSUFFIX
 std::wstring datadogdir;
@@ -38,6 +39,7 @@ std::wstring programdataroot;
 std::wstring logfilename;
 std::wstring authtokenfilename;
 std::wstring datadogyamlfile;
+std::wstring installInfoFile;
 std::wstring confddir;
 std::wstring logdir;
 std::wstring installdir;
@@ -73,6 +75,7 @@ std::wstring *loadStrings[] = {&datadog_path,
                                &logsSuffix,
                                &authTokenSuffix,
                                &datadogyaml,
+                               &installInfo,
                                &confdsuffix,
                                &logsdirsuffix,
                                &datadogdir,
@@ -163,6 +166,7 @@ void getOsStrings()
     logfilename = programdataroot + logsSuffix;
     authtokenfilename = programdataroot + authTokenSuffix;
     datadogyamlfile = programdataroot + datadogyaml;
+    installInfoFile = programdataroot + installInfo;
     confddir = programdataroot + confdsuffix;
     logdir = programdataroot + logsdirsuffix;
     datadogrundir = programdataroot + L"run\\";

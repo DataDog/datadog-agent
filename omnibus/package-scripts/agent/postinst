@@ -11,7 +11,7 @@ LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
 
-KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 # If we are inside the Docker container, do nothing
@@ -72,6 +72,14 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     chmod 0440 ${CONFIG_DIR}/security-agent.yaml.example || true
     if [ -f "$CONFIG_DIR/security-agent.yaml" ]; then
       chmod 0440 ${CONFIG_DIR}/security-agent.yaml || true
+    fi
+
+    if [ -d "$CONFIG_DIR/compliance.d" ]; then
+      chown -R root:root ${CONFIG_DIR}/compliance.d || true
+    fi
+
+    if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
+      chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
     fi
 
     # Make the system-probe and security-agent binaries and eBPF programs owned by root

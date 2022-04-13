@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -95,7 +96,12 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 				datadogMetricFromStore.Value = queryResult.Value
 
 				// If we get a valid but old metric, flag it as invalid
-				if currentTime.Unix()-queryResult.Timestamp <= mr.metricsMaxAge {
+				maxAge := datadogMetric.MaxAge
+				if maxAge == 0 {
+					maxAge = time.Duration(mr.metricsMaxAge) * time.Second
+				}
+
+				if time.Duration(currentTime.Unix()-queryResult.Timestamp)*time.Second <= maxAge {
 					datadogMetricFromStore.Valid = true
 					datadogMetricFromStore.Error = nil
 					datadogMetricFromStore.UpdateTime = time.Unix(queryResult.Timestamp, 0).UTC()

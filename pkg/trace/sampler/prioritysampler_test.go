@@ -6,26 +6,23 @@
 package sampler
 
 import (
-	"math"
 	"math/rand"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/cihub/seelog"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	testServiceA = "service-a"
-	testServiceB = "service-b"
-)
+func randomTraceID() uint64 {
+	return uint64(rand.Int63())
+}
 
 func getTestPrioritySampler() *PrioritySampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1.0,
@@ -35,28 +32,33 @@ func getTestPrioritySampler() *PrioritySampler {
 	return NewPrioritySampler(conf, &DynamicConfig{})
 }
 
-func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (pb.Trace, *pb.Span) {
+func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (*pb.TraceChunk, *pb.Span) {
 	tID := randomTraceID()
-	trace := pb.Trace{
-		&pb.Span{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: service, Type: "web", Meta: map[string]string{"env": defaultEnv}, Metrics: map[string]float64{}},
-		&pb.Span{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: service, Type: "sql"},
+	spans := []*pb.Span{
+		{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: service, Type: "web", Meta: map[string]string{"env": defaultEnv}, Metrics: map[string]float64{}},
+		{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: service, Type: "sql"},
 	}
-	r := rand.Float64()
 	priority := PriorityAutoDrop
-	rates := s.ratesByService()
-	key := ServiceSignature{trace[0].Service, defaultEnv}
-	var rate float64
-	if serviceRate, ok := rates[key]; ok {
-		rate = serviceRate
-		trace[0].Metrics[agentRateKey] = serviceRate
-	} else {
-		rate = 1
+	r := rand.Float64()
+	rates := s.rateByService.rates
+	key := ServiceSignature{spans[0].Service, defaultEnv}
+
+	serviceRate, ok := rates[key.String()]
+	if !ok {
+		serviceRate, _ = rates[ServiceSignature{}.String()]
+	}
+	rate := float64(1)
+	if serviceRate != nil {
+		rate = serviceRate.r
 	}
 	if r <= rate {
 		priority = PriorityAutoKeep
 	}
-	SetSamplingPriority(trace[0], priority)
-	return trace, trace[0]
+	spans[0].Metrics[agentRateKey] = rate
+	return &pb.TraceChunk{
+		Priority: int32(priority),
+		Spans:    spans,
+	}, spans[0]
 }
 
 func TestPrioritySample(t *testing.T) {
@@ -67,251 +69,217 @@ func TestPrioritySample(t *testing.T) {
 
 	s := getTestPrioritySampler()
 
-	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "checking fresh backend total score is 0")
-	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "checkeing fresh backend sampled score is 0")
+	assert.Equal(float32(0), s.localRates.totalSeen, "checking fresh backend total score is 0")
+	assert.Equal(int64(0), s.localRates.totalKept, "checkeing fresh backend sampled score is 0")
 
 	s = getTestPrioritySampler()
-	trace, root := getTestTraceWithService(t, "my-service", s)
+	chunk, root := getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, -1)
-	sampled := s.Sample(trace, root, env, false)
+	chunk.Priority = -1
+	sampled := s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with negative priority is dropped")
-	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
-	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
+	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a priority -1 trace should *NOT* impact sampler backend")
+	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority -1 trace should *NOT* impact sampler backend")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 0)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = 0
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with priority 0 is dropped")
-	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
-	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority 0 trace should *NOT* increase sampled score")
+	assert.True(float32(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
+	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 0 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 1)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = 1
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 1 is kept")
-	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
-	assert.True(0.0 < s.Sampler.Backend.GetSampledScore(), "sampling a priority 0 trace should increase sampled score")
+	assert.True(float32(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
+	assert.True(int64(0) < s.localRates.totalKept, "sampling a priority 0 trace should increase sampled score")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 2)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = 2
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 2 is kept")
-	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority 2 trace should *NOT* increase total score")
-	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority 2 trace should *NOT* increase sampled score")
+	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a priority 2 trace should *NOT* increase total score")
+	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 2 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, PriorityUserKeep)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = int32(PriorityUserKeep)
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with high priority is kept")
-	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a high priority trace should *NOT* increase total score")
-	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a high priority trace should *NOT* increase sampled score")
+	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a high priority trace should *NOT* increase total score")
+	assert.Equal(int64(0), s.localRates.totalKept, "sampling a high priority trace should *NOT* increase sampled score")
 
-	delete(root.Metrics, KeySamplingPriority)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = int32(PriorityNone)
+	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "this should not happen but a trace without priority sampling set should be dropped")
 }
 
-func TestPrioritySampleThresholdTo1(t *testing.T) {
-	assert := assert.New(t)
-	env := defaultEnv
-
-	s := getTestPrioritySampler()
-	for i := 0; i < 1e2; i++ {
-		trace, root := getTestTraceWithService(t, "my-service", s)
-		SetSamplingPriority(root, SamplingPriority(i%2))
-		sampled := s.Sample(trace, root, env, false)
-		if sampled {
-			rate, _ := root.Metrics[agentRateKey]
-			assert.Equal(1.0, rate)
-		}
+func TestPrioritySamplerWithNilRemote(t *testing.T) {
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1.0,
+		TargetTPS:       1.0,
 	}
-	for i := 0; i < 1e3; i++ {
-		trace, root := getTestTraceWithService(t, "my-service", s)
-		SetSamplingPriority(root, SamplingPriority(i%2))
-		sampled := s.Sample(trace, root, env, false)
-		if sampled {
-			rate, _ := root.Metrics[agentRateKey]
-			if rate < 1 {
-				assert.True(rate < prioritySamplingRateThresholdTo1)
-			}
-		}
-	}
+	s := NewPrioritySampler(conf, NewDynamicConfig())
+	s.Start()
+	s.updateRates()
+	s.reportStats()
+	chunk, root := getTestTraceWithService(t, "my-service", s)
+	assert.True(t, s.Sample(time.Now(), chunk, root, "", 0))
+	s.Stop()
 }
 
-func TestTargetTPSByService(t *testing.T) {
-	rand.Seed(1)
-	// Test the "effectiveness" of the targetTPS option.
+func TestPrioritySamplerWithRemote(t *testing.T) {
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1.0,
+		TargetTPS:       1.0,
+	}
+	s := NewPrioritySampler(conf, NewDynamicConfig())
+	s.remoteRates = newRemoteRates(nil, 10, "6.0.0")
+	s.Start()
+	s.updateRates()
+	s.reportStats()
+	chunk, root := getTestTraceWithService(t, "my-service", s)
+	assert.True(t, s.Sample(time.Now(), chunk, root, "", 0))
+	s.Stop()
+}
+
+func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	assert := assert.New(t)
-	s := getTestPrioritySampler()
 
 	type testCase struct {
 		targetTPS     float64
-		tps           float64
+		generatedTPS  float64
+		service       string
+		localRate     bool
+		clientDrop    bool
 		relativeError float64
+		expectedTPS   float64
 	}
 	testCases := []testCase{
-		{targetTPS: 10.0, tps: 20.0, relativeError: 0.2},
+		{targetTPS: 5.0, generatedTPS: 50.0, expectedTPS: 5.0, relativeError: 0.05, service: "bim"},
 	}
 	if !testing.Short() {
 		testCases = append(testCases,
-			testCase{targetTPS: 5.0, tps: 50.0, relativeError: 0.2},
-			testCase{targetTPS: 3.0, tps: 200.0, relativeError: 0.2},
-			testCase{targetTPS: 1.0, tps: 1000.0, relativeError: 0.2},
-			testCase{targetTPS: 10.0, tps: 10.0, relativeError: 0.001},
-			testCase{targetTPS: 10.0, tps: 3.0, relativeError: 0.001})
+			testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.05, service: "2"},
+			testCase{targetTPS: 10.0, generatedTPS: 10.0, expectedTPS: 10.0, relativeError: 0.03, service: "4"},
+			testCase{targetTPS: 10.0, generatedTPS: 3.0, expectedTPS: 3.0, relativeError: 0.03, service: "10"},
+			testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.1, service: "0.5"},
+		)
 	}
 
-	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
-	const (
-		initPeriods = 50
-		periods     = 500
-	)
+	// Duplicate each testcases and use local rates instead of remote rates
+	for i := len(testCases) - 1; i >= 0; i-- {
+		tc := testCases[i]
+		tc.localRate = true
+		tc.service = "local" + tc.service
+		testCases = append(testCases, tc)
+	}
+	// Duplicate each testcases and consider that agent client drops unsampled spans
+	for i := len(testCases) - 1; i >= 0; i-- {
+		tc := testCases[i]
+		tc.clientDrop = true
+		testCases = append(testCases, tc)
+	}
 
-	s.Sampler.rateThresholdTo1 = 1
+	// setting up remote store
+	testCasesRates := apmsampling.APMSampling{TargetTPS: make([]apmsampling.TargetTPS, 0, len(testCases))}
 	for _, tc := range testCases {
-		t.Logf("testing targetTPS=%0.1f tps=%0.1f", tc.targetTPS, tc.tps)
-		s.Sampler.targetTPS = tc.targetTPS
-		periodSeconds := defaultDecayPeriod.Seconds()
-		tracesPerPeriod := tc.tps * periodSeconds
-		// Set signature score offset high enough not to kick in during the test.
-		s.Sampler.signatureScoreOffset.Store(2 * tc.tps)
-		s.Sampler.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
 
-		sampledCount := 0
-		handledCount := 0
-
-		for period := 0; period < initPeriods+periods; period++ {
-			s.Sampler.Backend.DecayScore()
-			s.Sampler.AdjustScoring()
-			for i := 0; i < int(tracesPerPeriod); i++ {
-				trace, root := getTestTraceWithService(t, "service-a", s)
-				sampled := s.Sample(trace, root, defaultEnv, false)
-				// Once we got into the "supposed-to-be" stable "regime", count the samples
-				if period > initPeriods {
-					handledCount++
-					if sampled {
-						sampledCount++
-					}
-				}
-			}
+		if tc.localRate {
+			continue
 		}
-
-		// When tps is lower than targetTPS it means that we are actually not sampling
-		// anything, so the target is the original tps, and not targetTPS.
-		// Also, in that case, results should be more precise.
-		targetTPS := tc.targetTPS
-		relativeError := 0.01
-		if tc.targetTPS > tc.tps {
-			targetTPS = tc.tps
-		} else {
-			relativeError = 0.1 + defaultDecayFactor - 1
-		}
-
-		// Check that the sampled score is roughly equal to targetTPS. This is different from
-		// the score sampler test as here we run adjustscoring on a regular basis so the converges to targetTPS.
-		assert.InEpsilon(targetTPS, s.Sampler.Backend.GetSampledScore(), relativeError)
-
-		// We should have keep the right percentage of traces
-		assert.InEpsilon(targetTPS/tc.tps, float64(sampledCount)/float64(handledCount), relativeError)
-
-		// We should have a throughput of sampled traces around targetTPS
-		// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
-		// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-		assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds), relativeError)
+		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, apmsampling.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
 	}
-}
-
-func TestTPSClientDrop(t *testing.T) {
-	rand.Seed(1)
-	// Test the "effectiveness" of the targetTPS option.
-	assert := assert.New(t)
-	s := getTestPrioritySampler()
-
-	type testCase struct {
-		targetTPS     float64
-		tps           float64
-		relativeError float64
-	}
-	testCases := []testCase{
-		{targetTPS: 10.0, tps: 20.0, relativeError: 0.2},
-	}
-	if !testing.Short() {
-		testCases = append(testCases,
-			testCase{targetTPS: 5.0, tps: 50.0, relativeError: 0.2},
-			testCase{targetTPS: 3.0, tps: 200.0, relativeError: 0.2},
-			testCase{targetTPS: 1.0, tps: 1000.0, relativeError: 0.2},
-			testCase{targetTPS: 10.0, tps: 3.0, relativeError: 0.001})
-	}
-	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
-	const (
-		initPeriods = 50
-		periods     = 500
-	)
-
-	s.Sampler.rateThresholdTo1 = 1
 	for _, tc := range testCases {
-		t.Logf("testing targetTPS=%0.1f tps=%0.1f", tc.targetTPS, tc.tps)
-		s.Sampler.targetTPS = tc.targetTPS
-		periodSeconds := defaultDecayPeriod.Seconds()
-		tracesPerPeriod := tc.tps * periodSeconds
-		// Set signature score offset high enough not to kick in during the test.
-		s.Sampler.signatureScoreOffset.Store(2 * tc.tps)
-		s.Sampler.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
+		rand.Seed(3)
+		s := getTestPrioritySampler()
+		s.remoteRates = newTestRemoteRates()
+		generatedConfigVersion := uint64(120)
+		s.remoteRates.onUpdate(configGenerator(generatedConfigVersion, testCasesRates))
 
-		sampledCount := 0
-		handledCount := 0
+		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)
+		s.localRates.targetTPS = atomic.NewFloat(tc.targetTPS)
 
-		for period := 0; period < initPeriods+periods; period++ {
-			s.Sampler.Backend.DecayScore()
-			s.Sampler.AdjustScoring()
+		var sampledCount, handledCount int
+		const warmUpDuration, testDuration = 2, 10
+		testTime := time.Now()
+		for timeElapsed := 0; timeElapsed < warmUpDuration+testDuration; timeElapsed++ {
+			tracesPerPeriod := tc.generatedTPS * bucketDuration.Seconds()
+			testTime = testTime.Add(bucketDuration)
+			var clientDrops int
 			for i := 0; i < int(tracesPerPeriod); i++ {
-				trace, root := getTestTraceWithService(t, "service-a", s)
+				chunk, root := getTestTraceWithService(t, tc.service, s)
+
 				var sampled bool
-				if prio, _ := GetSamplingPriority(root); prio == 1 {
-					sampled = s.Sample(trace, root, defaultEnv, true)
+				if !tc.clientDrop {
+					sampled = s.Sample(testTime, chunk, root, defaultEnv, 0)
 				} else {
-					s.CountClientDroppedP0s(1)
-				}
-				// Once we got into the "supposed-to-be" stable "regime", count the samples
-				if period > initPeriods {
-					handledCount++
-					if sampled {
-						sampledCount++
+					if prio, _ := GetSamplingPriority(chunk); prio == 1 {
+						sampled = s.Sample(testTime, chunk, root, defaultEnv, float64(clientDrops))
+						clientDrops = 0
+					} else {
+						clientDrops++
 					}
+				}
+
+				tpsTag, okTPS := root.Metrics[tagRemoteTPS]
+				versionTag, okVersion := root.Metrics[tagRemoteVersion]
+				if !tc.localRate && timeElapsed > 1 {
+					localRates, _ := s.localRates.getAllSignatureSampleRates()
+					remoteRates := s.remoteRates.getAllSignatureSampleRates()
+					require.Equal(t, len(localRates), len(remoteRates))
+
+					for sig, rate := range localRates {
+						remoteRate, ok := remoteRates[sig]
+						assert.True(ok)
+						require.Equal(t, rate, remoteRate.r)
+					}
+				}
+
+				if !tc.localRate && sampled {
+					assert.True(okTPS)
+					assert.Equal(tc.targetTPS, tpsTag)
+					assert.True(okVersion)
+					assert.Equal(float64(generatedConfigVersion), versionTag)
+				} else {
+					assert.False(okTPS)
+					assert.False(okVersion)
+				}
+
+				if timeElapsed < warmUpDuration {
+					continue
+				}
+
+				// outside of warmUp the rate should match
+				// skipping clientDrop as the feedback loop is different when client drops
+				// seen is actually the last rate sent
+				if !tc.clientDrop {
+					appliedRate := root.Metrics[agentRateKey]
+					assert.InEpsilon(tc.expectedTPS/tc.generatedTPS, appliedRate, 0.0000001)
+				}
+
+				// We track rates stats only when the warm up phase is over
+				handledCount++
+				if sampled {
+					sampledCount++
 				}
 			}
 		}
 
-		// When tps is lower than targetTPS it means that we are actually not sampling
-		// anything, so the target is the original tps, and not targetTPS.
-		// Also, in that case, results should be more precise.
-		targetTPS := tc.targetTPS
-		relativeError := 0.01
-		if tc.targetTPS > tc.tps {
-			targetTPS = tc.tps
-		} else {
-			relativeError = 0.1 + defaultDecayFactor - 1
-		}
-
-		// Check that the sampled score is roughly equal to targetTPS. This is different from
-		// the score sampler test as here we run adjustscoring on a regular basis so the converges to targetTPS.
-		assert.InEpsilon(targetTPS, s.Sampler.Backend.GetSampledScore(), relativeError)
-
-		// We should have keep the right percentage of traces
-		assert.InEpsilon(targetTPS/tc.tps, float64(sampledCount)/float64(handledCount), relativeError)
+		// We should keep the right percentage of traces
+		assert.InEpsilon(tc.expectedTPS/tc.generatedTPS, float64(sampledCount)/float64(handledCount), tc.relativeError)
 
 		// We should have a throughput of sampled traces around targetTPS
 		// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 		// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-		assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds), relativeError)
+		assert.InEpsilon(tc.expectedTPS, float64(sampledCount)/(float64(testDuration)*bucketDuration.Seconds()), tc.relativeError)
 	}
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
@@ -24,6 +29,8 @@ type dogstatsdServiceCheck struct {
 	hostname  string
 	message   string
 	tags      []string
+	// containerID represents the container ID of the sender (optional).
+	containerID []byte
 }
 
 var (
@@ -90,6 +97,8 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
+	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
+		newServiceCheck.containerID = p.extractContainerID(optionalField)
 	}
 	if err != nil {
 		return serviceCheck, err

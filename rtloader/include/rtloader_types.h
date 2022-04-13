@@ -131,6 +131,8 @@ typedef char *(*cb_read_persistent_cache_t)(char *);
 typedef char *(*cb_obfuscate_sql_t)(char *, char *, char **);
 // (exec_plan, normalize, error_message)
 typedef char *(*cb_obfuscate_sql_exec_plan_t)(char *, bool, char **);
+// ()
+typedef double (*cb_get_process_start_time_t)(void);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

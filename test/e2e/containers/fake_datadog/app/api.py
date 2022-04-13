@@ -62,7 +62,7 @@ def record_and_loads(filename: str, content_type: str, content_encoding: str, co
         content = zlib.decompress(content)
 
     content = content.decode()
-    content = "%s\n" % content if content[-1] != "\n" else content
+    content = f"{content}\n" if content[-1] != "\n" else content
     with open(path.join(record_dir, filename), "a") as f:
         f.write(content)
 
@@ -88,7 +88,7 @@ def fix_data(data):
         # https://docs.mongodb.com/v2.6/faq/developers/#dollar-sign-operator-escaping
         patch_key=lambda x: x.translate(str.maketrans('.$', '\uff0e\uff04')),
         # Values that cannot fit in a 64 bits integer must be represented as a float.
-        patch_leaf=lambda x: float(x) if isinstance(x, int) and x > 2 ** 63 - 1 else x,
+        patch_leaf=lambda x: float(x) if isinstance(x, int) and x > 2**63 - 1 else x,
     )
 
 
@@ -250,7 +250,7 @@ def logs():
     return Response(status=200)
 
 
-@app.route("/api/v1/orchestrator", methods=["POST"])
+@app.route("/api/v2/orch", methods=["POST"])
 def orchestrator():
     # TODO
     return Response(status=200)

@@ -6,11 +6,12 @@
 struct chown_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
-    uid_t user;
-    gid_t group;
+    uid_t uid;
+    gid_t gid;
 };
 
 int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *syscall) {
@@ -67,21 +68,24 @@ SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t,
 
 int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct chown_event_t event = {
         .syscall.retval = retval,
         .file = syscall->setattr.file,
-        .user = syscall->setattr.user,
-        .group = syscall->setattr.group,
+        .uid = syscall->setattr.user,
+        .gid = syscall->setattr.group,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     // dentry resolution in setattr.h
 

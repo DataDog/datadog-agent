@@ -49,3 +49,7 @@ func (r *Rate) flush(timestamp float64) ([]*Serie, error) {
 		},
 	}, nil
 }
+
+func (r *Rate) isStateful() bool {
+	return true
+}

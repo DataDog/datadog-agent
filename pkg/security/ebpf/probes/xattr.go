@@ -3,47 +3,66 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // xattrProbes holds the list of probes used to track xattr events
 var xattrProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_setxattr",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/vfs_setxattr",
+			EBPFFuncName: "kprobe_vfs_setxattr",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_removexattr",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/vfs_removexattr",
+			EBPFFuncName: "kprobe_vfs_removexattr",
+		},
 	},
 }
 
 func getXattrProbes() []*manager.Probe {
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "setxattr",
 	}, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "fsetxattr",
 	}, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "lsetxattr",
 	}, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "removexattr",
 	}, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "fremovexattr",
 	}, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "lremovexattr",
 	}, EntryAndExit)...)
 	return xattrProbes

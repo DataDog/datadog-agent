@@ -6,6 +6,7 @@
 struct setxattr_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -76,15 +77,22 @@ SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
 
 int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 event_type) {
     struct syscall_cache_t *syscall = peek_syscall(event_type);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->xattr.file.path_key.ino) {
         return 0;
     }
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-    syscall->xattr.dentry = dentry;
+    syscall->xattr.dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+
+    if ((event_type == EVENT_SETXATTR && get_vfs_setxattr_dentry_position() == VFS_ARG_POSITION2) ||
+        (event_type == EVENT_REMOVEXATTR && get_vfs_removexattr_dentry_position() == VFS_ARG_POSITION2)) {
+        // prevent the verifier from whining
+        bpf_probe_read(&syscall->xattr.dentry, sizeof(syscall->xattr.dentry), &syscall->xattr.dentry);
+        syscall->xattr.dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    }
 
     set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
 
@@ -105,12 +113,14 @@ int __attribute__((always_inline)) xattr_predicate(u64 type) {
 }
 
 SEC("kprobe/dr_setxattr_callback")
-int __attribute__((always_inline)) dr_setxattr_callback(struct pt_regs *ctx) {
+int __attribute__((always_inline)) kprobe_dr_setxattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_SETXATTR);
         return discard_syscall(syscall);
     }
 
@@ -118,22 +128,24 @@ int __attribute__((always_inline)) dr_setxattr_callback(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/vfs_setxattr")
-int kprobe__vfs_setxattr(struct pt_regs *ctx) {
+int kprobe_vfs_setxattr(struct pt_regs *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_SETXATTR);
 }
 
 SEC("kprobe/vfs_removexattr")
-int kprobe__vfs_removexattr(struct pt_regs *ctx) {
+int kprobe_vfs_removexattr(struct pt_regs *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);
 }
 
 int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
     struct syscall_cache_t *syscall = pop_syscall(event_type);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct setxattr_event_t event = {
         .syscall.retval = retval,
@@ -146,6 +158,7 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_file_metadata(syscall->xattr.dentry, &event.file.metadata);
+    fill_span_context(&event.span);
 
     send_event(ctx, event_type, event);
 

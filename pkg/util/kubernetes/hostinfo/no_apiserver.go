@@ -3,10 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build !kubeapiserver
+//go:build kubelet && !kubeapiserver
+// +build kubelet,!kubeapiserver
 
 package hostinfo
 
-func apiserverNodeLabels(nodeName string) (map[string]string, error) {
+import "context"
+
+func apiserverNodeLabels(ctx context.Context, nodeName string) (map[string]string, error) {
+	return nil, nil
+}
+
+func apiserverNodeAnnotations(ctx context.Context, nodeName string) (map[string]string, error) {
 	return nil, nil
 }

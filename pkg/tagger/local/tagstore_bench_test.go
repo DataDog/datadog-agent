@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 )
 
 const (
@@ -41,7 +42,7 @@ func init() {
 }
 
 func BenchmarkTagStoreThroughput(b *testing.B) {
-	store := newTagStore()
+	store := tagstore.NewTagStore()
 
 	doneCh := make(chan struct{})
 	pruneTicker := time.NewTicker(time.Second)
@@ -49,7 +50,7 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 	go func() {
 		select {
 		case <-pruneTicker.C:
-			store.prune()
+			store.Prune()
 		case <-doneCh:
 			return
 		}
@@ -69,7 +70,7 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 		go func() {
 			for i := 0; i < 1000; i++ {
 				id := ids[rand.Intn(nEntities)]
-				store.lookup(id, collectors.HighCardinality)
+				store.Lookup(id, collectors.HighCardinality)
 			}
 			wg.Done()
 		}()
@@ -85,7 +86,7 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 // store is thread-safe, processTagInfo is always used synchronously by the
 // tagger at the moment.
 func BenchmarkTagStore_processTagInfo(b *testing.B) {
-	store := newTagStore()
+	store := tagstore.NewTagStore()
 
 	for i := 0; i < b.N; i++ {
 		processRandomTagInfoBatch(store)
@@ -115,11 +116,11 @@ func generateRandomTags() []string {
 	return tags
 }
 
-func processRandomTagInfoBatch(store *tagStore) {
+func processRandomTagInfoBatch(store *tagstore.TagStore) {
 	tagInfos := make([]*collectors.TagInfo, 0, batchSize)
 	for i := 0; i < batchSize; i++ {
 		tagInfos = append(tagInfos, generateRandomTagInfo())
 	}
 
-	store.processTagInfo(tagInfos)
+	store.ProcessTagInfo(tagInfos)
 }

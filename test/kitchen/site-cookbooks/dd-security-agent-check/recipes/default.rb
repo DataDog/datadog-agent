@@ -17,13 +17,26 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
-  # To uncomment when gitlab runner are able to build with GOARCH=386
-  # cookbook_file "#{wrk_dir}/testsuite32" do
-  #   source "testsuite32"
-  #   mode '755'
-  # end
+  cookbook_file "#{wrk_dir}/nikos.tar.gz" do
+    source "nikos.tar.gz"
+    mode '755'
+  end
+
+  archive_file "nikos.tar.gz" do
+    path "#{wrk_dir}/nikos.tar.gz"
+    destination "/opt/datadog-agent/embedded/nikos/embedded"
+  end
+
+  # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
+  swap_file '/mnt/swapfile' do
+    size 2048
+  end
 
   kernel_module 'loop' do
+    action :load
+  end
+
+  kernel_module 'veth' do
     action :load
   end
 
@@ -53,26 +66,59 @@ if node['platform_family'] != 'windows'
       service 'docker' do
         action [ :enable, :start ]
       end
+    elsif ['ubuntu'].include?(node[:platform])
+      docker_installation_package 'default' do
+        action :create
+        setup_docker_repo false
+        package_name 'docker.io'
+      end
     else
       docker_service 'default' do
         action [:create, :start]
       end
     end
 
-    docker_image 'centos' do
-      tag '7'
-      action :pull
+    file "#{wrk_dir}/Dockerfile" do
+      content <<-EOF
+      FROM centos:7
+      ENV DOCKER_DD_AGENT=yes
+      ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
+      RUN yum -y install xfsprogs e2fsprogs iproute
+      CMD sleep 7200
+      EOF
+      action :create
+    end
+
+    docker_image 'testsuite-img' do
+      tag 'latest'
+      source wrk_dir
+      action :build
     end
 
     docker_container 'docker-testsuite' do
-      repo 'centos'
-      tag '7'
+      repo 'testsuite-img'
+      tag 'latest'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
-      command "sleep 3600"
-      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc', '/etc/os-release:/host/etc/os-release']
-      env ['HOST_PROC=/host/proc', 'DOCKER_DD_AGENT=yes']
+      volumes [
+        # security-agent misc
+        '/tmp/security-agent:/tmp/security-agent',
+        # HOST_* paths
+        '/proc:/host/proc',
+        '/etc:/host/etc',
+        '/sys:/host/sys',
+        # os-release
+        '/etc/os-release:/host/etc/os-release',
+        '/usr/lib/os-release:/host/usr/lib/os-release',
+        # passwd and groups
+        '/etc/passwd:/etc/passwd',
+        '/etc/group:/etc/group',
+      ]
+      env [
+        'HOST_PROC=/host/proc',
+        'HOST_ETC=/host/etc',
+        'HOST_SYS=/host/sys',
+      ]
       privileged true
-      pid_mode 'host'
     end
 
     docker_exec 'debug_fs' do
@@ -80,28 +126,10 @@ if node['platform_family'] != 'windows'
       command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
     end
 
-    docker_exec 'install_xfs' do
-      container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs', 'glibc.i686']
-    end
-
     for i in 0..7 do
       docker_exec 'create_loop' do
         container 'docker-testsuite'
         command ['bash', '-c', "mknod /dev/loop#{i} b 7 #{i} || true"]
-      end
-    end
-  end
-
-  if not platform_family?('suse')
-    package 'Install i386 libc' do
-      case node[:platform]
-      when 'redhat', 'centos', 'fedora', 'oracle'
-        package_name 'glibc.i686'
-      when 'ubuntu', 'debian'
-        package_name 'libc6-i386'
-      # when 'suse'
-      #   package_name 'glibc-32bit'
       end
     end
   end

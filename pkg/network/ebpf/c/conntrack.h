@@ -17,7 +17,7 @@ static __always_inline u32 ct_status(const struct nf_conn *ct) {
     return status;
 }
 
-static __always_inline void print_translation(const conn_tuple_t *t) {
+static __always_inline void print_translation(const conntrack_tuple_t *t) {
     if (t->metadata & CONN_TYPE_TCP) {
         log_debug("TCP\n");
     } else {
@@ -28,8 +28,8 @@ static __always_inline void print_translation(const conn_tuple_t *t) {
     print_ip(t->daddr_h, t->daddr_l, t->dport, t->metadata);
 }
 
-static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t *t, const struct nf_conntrack_tuple *ct) {
-    __builtin_memset(t, 0, sizeof(conn_tuple_t));
+static __always_inline int nf_conntrack_tuple_to_conntrack_tuple(conntrack_tuple_t *t, const struct nf_conntrack_tuple *ct) {
+    __builtin_memset(t, 0, sizeof(conntrack_tuple_t));
 
     switch (ct->dst.protonum) {
     case IPPROTO_TCP:

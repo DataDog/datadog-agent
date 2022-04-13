@@ -20,7 +20,7 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   s3_endpoint "https://s3.amazonaws.com"
   s3_region 'us-east-1'
   s3_force_path_style true
-  s3_authenticated_download true
+  s3_authenticated_download ENV.fetch('S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS', '') == '' ? true : false
   if ENV['WINDOWS_BUILDER']
     s3_role true
     s3_role_arn 'arn:aws:iam::486234852809:role/ci-datadog-agent'

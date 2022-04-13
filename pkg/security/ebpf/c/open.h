@@ -18,6 +18,7 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -127,10 +128,11 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
 }
 
 SEC("kprobe/vfs_truncate")
-int kprobe__vfs_truncate(struct pt_regs *ctx) {
+int kprobe_vfs_truncate(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->open.dentry) {
         return 0;
@@ -152,10 +154,11 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/vfs_open")
-int kprobe__vfs_open(struct pt_regs *ctx) {
+int kprobe_vfs_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct path *path = (struct path *)PT_REGS_PARM1(ctx);
     struct file *file = (struct file *)PT_REGS_PARM2(ctx);
@@ -166,10 +169,11 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/do_dentry_open")
-int kprobe__do_dentry_open(struct pt_regs *ctx) {
+int kprobe_do_dentry_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
@@ -191,7 +195,7 @@ struct io_open {
 };
 
 SEC("kprobe/io_openat2")
-int kprobe__io_openat2(struct pt_regs *ctx) {
+int kprobe_io_openat2(struct pt_regs *ctx) {
     struct io_open req;
     if (bpf_probe_read(&req, sizeof(req), (void*) PT_REGS_PARM1(ctx))) {
         return 0;
@@ -207,17 +211,20 @@ int kprobe__io_openat2(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     // increase mount ref
     inc_mount_ref(syscall->open.file.path_key.mount_id);
-    if (syscall->discarded)
+    if (syscall->discarded) {
         return 0;
+    }
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
@@ -299,16 +306,17 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 }
 
 SEC("kretprobe/io_openat2")
-int kretprobe__io_openat2(struct pt_regs *ctx) {
+int kretprobe_io_openat2(struct pt_regs *ctx) {
     struct file *f = (struct file *) PT_REGS_RC(ctx);
-    if (IS_ERR(f))
+    if (IS_ERR(f)) {
         return 0;
+    }
 
     return sys_open_ret(ctx, 0, DR_KPROBE);
 }
 
 SEC("kprobe/filp_close")
-int kprobe__filp_close(struct pt_regs *ctx) {
+int kprobe_filp_close(struct pt_regs *ctx) {
     struct file *file = (struct file *) PT_REGS_PARM1(ctx);
     u32 mount_id = get_file_mount_id(file);
     if (mount_id) {
@@ -320,14 +328,21 @@ int kprobe__filp_close(struct pt_regs *ctx) {
 
 int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID) {
-       return 0;
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_OPEN);
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_INVALID) {
+        return 0;
     }
 
     struct open_event_t event = {
@@ -340,6 +355,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     fill_file_metadata(syscall->open.dentry, &event.file.metadata);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_OPEN, event);
     return 0;

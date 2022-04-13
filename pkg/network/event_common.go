@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -103,29 +108,73 @@ func (e EphemeralPortType) String() string {
 	}
 }
 
-// Connections wraps a collection of ConnectionStats
-type Connections struct {
-	DNS                         map[util.Address][]string
-	Conns                       []ConnectionStats
-	ConnTelemetry               *ConnectionsTelemetry
-	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
-	HTTP                        map[http.Key]http.RequestStats
+// BufferedData encapsulates data whose underlying memory can be recycled
+type BufferedData struct {
+	Conns  []ConnectionStats
+	buffer *clientBuffer
 }
 
-// ConnectionsTelemetry stores telemetry from the system probe related to connections collection
-type ConnectionsTelemetry struct {
-	MonotonicKprobesTriggered          int64
-	MonotonicKprobesMissed             int64
-	MonotonicConntrackRegisters        int64
-	MonotonicConntrackRegistersDropped int64
-	MonotonicDNSPacketsProcessed       int64
-	MonotonicConnsClosed               int64
-	ConnsBpfMapSize                    int64
-	MonotonicUDPSendsProcessed         int64
-	MonotonicUDPSendsMissed            int64
-	ConntrackSamplingPercent           int64
-	DNSStatsDropped                    int64
+// Connections wraps a collection of ConnectionStats
+type Connections struct {
+	BufferedData
+	DNS                         map[util.Address][]string
+	ConnTelemetry               map[ConnTelemetryType]int64
+	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	HTTP                        map[http.Key]http.RequestStats
+	DNSStats                    dns.StatsByKeyByNameByType
 }
+
+// ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
+// The string name of each telemetry type is the metric name which will be emitted
+type ConnTelemetryType string
+
+//revive:disable:exported
+const (
+	MonotonicKprobesTriggered          ConnTelemetryType = "kprobes_triggered"
+	MonotonicKprobesMissed                               = "kprobes_missed"
+	MonotonicConnsClosed                                 = "conns_closed"
+	MonotonicConntrackRegisters                          = "conntrack_registers"
+	MonotonicConntrackRegistersDropped                   = "conntrack_registers_dropped"
+	MonotonicDNSPacketsProcessed                         = "dns_packets_processed"
+	MonotonicUDPSendsProcessed                           = "udp_sends_processed"
+	MonotonicUDPSendsMissed                              = "udp_sends_missed"
+	DNSStatsDropped                                      = "dns_stats_dropped"
+	ConnsBpfMapSize                                      = "conns_bpf_map_size"
+	ConntrackSamplingPercent                             = "conntrack_sampling_percent"
+	NPMDriverFlowsMissedMaxExceeded                      = "driver_flows_missed_max_exceeded"
+	MonotonicDNSPacketsDropped                           = "dns_packets_dropped"
+	HTTPRequestsDropped                                  = "http_requests_dropped"
+	HTTPRequestsMissed                                   = "http_requests_missed"
+)
+
+//revive:enable
+
+var (
+	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
+	// into the network connections payload
+	ConnTelemetryTypes = []ConnTelemetryType{
+		ConnsBpfMapSize,
+		ConntrackSamplingPercent,
+		DNSStatsDropped,
+		NPMDriverFlowsMissedMaxExceeded,
+		HTTPRequestsDropped,
+		HTTPRequestsMissed,
+	}
+
+	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
+	// into the network connections payload
+	MonotonicConnTelemetryTypes = []ConnTelemetryType{
+		MonotonicKprobesTriggered,
+		MonotonicKprobesMissed,
+		MonotonicConntrackRegisters,
+		MonotonicConntrackRegistersDropped,
+		MonotonicDNSPacketsProcessed,
+		MonotonicConnsClosed,
+		MonotonicUDPSendsProcessed,
+		MonotonicUDPSendsMissed,
+		MonotonicDNSPacketsDropped,
+	}
+)
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
 type RuntimeCompilationTelemetry struct {
@@ -176,23 +225,17 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                       uint16
-	DPort                       uint16
-	Type                        ConnectionType
-	Family                      ConnectionFamily
-	Direction                   ConnectionDirection
-	SPortIsEphemeral            EphemeralPortType
-	IPTranslation               *IPTranslation
-	IntraHost                   bool
-	DNSSuccessfulResponses      uint32
-	DNSFailedResponses          uint32
-	DNSTimeouts                 uint32
-	DNSSuccessLatencySum        uint64
-	DNSFailureLatencySum        uint64
-	DNSCountByRcode             map[uint32]uint32
-	DNSStatsByDomainByQueryType map[string]map[dns.QueryType]dns.Stats
+	SPort            uint16
+	DPort            uint16
+	Type             ConnectionType
+	Family           ConnectionFamily
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
+	IPTranslation    *IPTranslation
+	IntraHost        bool
+	Via              *Via
 
-	Via *Via
+	IsAssured bool
 }
 
 // Via has info about the routing decision for a flow
@@ -217,6 +260,11 @@ func (c ConnectionStats) String() string {
 	return ConnectionSummary(&c, nil)
 }
 
+// IsExpired returns whether the connection is expired according to the provided time and timeout.
+func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
+	return c.LastUpdateEpoch+timeout <= now
+}
+
 // ByteKey returns a unique key for this connection represented as a byte array
 // It's as following:
 //
@@ -238,6 +286,12 @@ func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
 	return buf[:n], nil
+}
+
+// IsShortLived returns true when a connection went through its whole lifecycle
+// between two connection checks
+func (c ConnectionStats) IsShortLived() bool {
+	return c.LastTCPEstablished >= 1 && c.LastTCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"

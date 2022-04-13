@@ -7,6 +7,7 @@
 struct unlink_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -41,17 +42,25 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
 }
 
 SEC("kprobe/vfs_unlink")
-int kprobe__vfs_unlink(struct pt_regs *ctx) {
+int kprobe_vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->unlink.file.path_key.ino) {
         return 0;
     }
 
-    // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    // change the register based on the value of vfs_unlink_dentry_position
+    if (get_vfs_unlink_dentry_position() == VFS_ARG_POSITION3) {
+        // prevent the verifier from whining
+        bpf_probe_read(&dentry, sizeof(dentry), &dentry);
+        dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+    }
+
+    // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
     set_file_inode(dentry, &syscall->unlink.file, 1);
     fill_file_metadata(dentry, &syscall->unlink.file.metadata);
@@ -77,10 +86,11 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/dr_unlink_callback")
-int __attribute__((always_inline)) dr_unlink_callback(struct pt_regs *ctx) {
+int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->resolver.ret < 0) {
         return mark_as_discarded(syscall);
@@ -91,16 +101,13 @@ int __attribute__((always_inline)) dr_unlink_callback(struct pt_regs *ctx) {
 
 int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
-
-    // ensure that we invalidate all the layers
-    u64 inode = syscall->unlink.file.path_key.ino;
-    invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, inode, 1);
 
     u64 enabled_events = get_enabled_events();
     int pass_to_userspace = !syscall->discarded &&
@@ -115,6 +122,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_RMDIR, event);
         } else {
@@ -126,12 +134,15 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_UNLINK, event);
         }
     }
 
-    invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
+    if (retval >= 0) {
+        invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
+    }
 
     return 0;
 }

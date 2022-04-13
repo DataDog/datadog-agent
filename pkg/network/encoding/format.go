@@ -1,25 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
 	"math"
 	"sync"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 )
 
 const maxRoutes = math.MaxInt32
-
-var connsPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.Connections)
-	},
-}
 
 var connPool = sync.Pool{
 	New: func() interface{} {
@@ -33,12 +30,30 @@ type RouteIdx struct {
 	Route model.Route
 }
 
+type ipCache map[util.Address]string
+
+func (ipc ipCache) Get(addr util.Address) string {
+	if v, ok := ipc[addr]; ok {
+		return v
+	}
+
+	v := addr.String()
+	ipc[addr] = v
+	return v
+}
+
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats *model.HTTPAggregations, dnsWithQueryType bool) *model.Connection {
+func FormatConnection(
+	conn network.ConnectionStats,
+	routes map[string]RouteIdx,
+	httpStats *model.HTTPAggregations,
+	dnsFormatter *dnsFormatter,
+	ipc ipCache,
+) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort)
-	c.Raddr = formatAddr(conn.Dest, conn.DPort)
+	c.Laddr = formatAddr(conn.Source, conn.SPort, ipc)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort, ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
@@ -51,83 +66,21 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
 	c.RemoteNetworkId = ""
-	c.IpTranslation = formatIPTranslation(conn.IPTranslation)
+	c.IpTranslation = formatIPTranslation(conn.IPTranslation, ipc)
 	c.Rtt = conn.RTT
 	c.RttVar = conn.RTTVar
 	c.IntraHost = conn.IntraHost
-	c.DnsSuccessfulResponses = conn.DNSSuccessfulResponses
-	c.DnsFailedResponses = conn.DNSFailedResponses
-	c.DnsTimeouts = conn.DNSTimeouts
-	c.DnsSuccessLatencySum = conn.DNSSuccessLatencySum
-	c.DnsFailureLatencySum = conn.DNSFailureLatencySum
-	c.DnsCountByRcode = conn.DNSCountByRcode
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
 
-	if dnsWithQueryType {
-		c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
-		c.DnsStatsByDomainByQueryType = formatDNSStatsByDomainByQueryType(conn.DNSStatsByDomainByQueryType, domainSet)
-	} else {
-		// downconvert to simply by domain
-		c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
-		c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType)
-	}
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
+	dnsFormatter.FormatConnectionDNS(conn, c)
 
 	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
 	return c
-}
-
-var dnsPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.DNSEntry)
-	},
-}
-
-// FormatDNS converts a map[util.Address][]string to a map using IPs string representation
-func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
-	if dns == nil {
-		return nil
-	}
-
-	ipToNames := make(map[string]*model.DNSEntry, len(dns))
-	for addr, names := range dns {
-		entry := dnsPool.Get().(*model.DNSEntry)
-		entry.Names = names
-		ipToNames[addr.String()] = entry
-	}
-
-	return ipToNames
-}
-
-var telemetryPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.ConnectionsTelemetry)
-	},
-}
-
-// FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
-	if tel == nil {
-		return nil
-	}
-
-	t := telemetryPool.Get().(*model.ConnectionsTelemetry)
-	t.MonotonicKprobesTriggered = tel.MonotonicKprobesTriggered
-	t.MonotonicKprobesMissed = tel.MonotonicKprobesMissed
-	t.MonotonicConntrackRegisters = tel.MonotonicConntrackRegisters
-	t.MonotonicConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
-	t.MonotonicDnsPacketsProcessed = tel.MonotonicDNSPacketsProcessed
-	t.MonotonicConnsClosed = tel.MonotonicConnsClosed
-	t.ConnsBpfMapSize = tel.ConnsBpfMapSize
-	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
-	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
-	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
-	t.DnsStatsDropped = tel.DNSStatsDropped
-	return t
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
@@ -144,6 +97,19 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		t.KernelHeaderFetchResult = model.KernelHeaderFetchResult(tel.KernelHeaderFetchResult)
 		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
 		ret[asset] = t
+	}
+	return ret
+}
+
+// FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
+	if tel == nil {
+		return nil
+	}
+
+	ret := make(map[string]int64)
+	for k, v := range tel {
+		ret[string(k)] = v
 	}
 	return ret
 }
@@ -203,8 +169,8 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 // Build the key for the http map based on whether the local or remote side is http.
 func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	// Retrieve translated addresses
-	laddr, lport := nat.GetLocalAddress(c)
-	raddr, rport := nat.GetRemoteAddress(c)
+	laddr, lport := network.GetNATLocalAddress(c)
+	raddr, rport := network.GetNATRemoteAddress(c)
 
 	// HTTP data is always indexed as (client, server), so we flip
 	// the lookup key if necessary using the port range heuristic
@@ -224,19 +190,18 @@ func returnToPool(c *model.Connections) {
 	}
 	if c.Dns != nil {
 		for _, e := range c.Dns {
+			e.Reset()
 			dnsPool.Put(e)
 		}
 	}
-	telemetryPool.Put(c.ConnTelemetry)
-	connsPool.Put(c)
 }
 
-func formatAddr(addr util.Address, port uint16) *model.Addr {
+func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
 	if addr == nil {
 		return nil
 	}
 
-	return &model.Addr{Ip: addr.String(), Port: int32(port)}
+	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port)}
 }
 
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
@@ -287,71 +252,14 @@ func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
 	}
 }
 
-func formatDNSStatsByDomainByQueryType(stats map[string]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
-	m := make(map[int32]*model.DNSStatsByQueryType)
-	for d, bytype := range stats {
-
-		byqtype := &model.DNSStatsByQueryType{}
-		byqtype.DnsStatsByQueryType = make(map[int32]*model.DNSStats)
-		for t, stat := range bytype {
-			var ms model.DNSStats
-			ms.DnsCountByRcode = stat.CountByRcode
-			ms.DnsFailureLatencySum = stat.FailureLatencySum
-			ms.DnsSuccessLatencySum = stat.SuccessLatencySum
-			ms.DnsTimeouts = stat.Timeouts
-			byqtype.DnsStatsByQueryType[int32(t)] = &ms
-		}
-		pos, ok := domainSet[d]
-		if !ok {
-			pos = len(domainSet)
-			domainSet[d] = pos
-		}
-		m[int32(pos)] = byqtype
-	}
-	return m
-}
-
-func formatDNSStatsByDomain(stats map[string]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
-	m := make(map[int32]*model.DNSStats)
-	for d, bytype := range stats {
-		pos, ok := domainSet[d]
-		if !ok {
-			pos = len(domainSet)
-			domainSet[d] = pos
-		}
-
-		for _, stat := range bytype {
-
-			if ms, ok := m[int32(pos)]; ok {
-				for rcode, count := range stat.CountByRcode {
-					ms.DnsCountByRcode[rcode] += count
-				}
-				ms.DnsFailureLatencySum += stat.FailureLatencySum
-				ms.DnsSuccessLatencySum += stat.SuccessLatencySum
-				ms.DnsTimeouts += stat.Timeouts
-
-			} else {
-				var ms model.DNSStats
-				ms.DnsCountByRcode = stat.CountByRcode
-				ms.DnsFailureLatencySum = stat.FailureLatencySum
-				ms.DnsSuccessLatencySum = stat.SuccessLatencySum
-				ms.DnsTimeouts = stat.Timeouts
-
-				m[int32(pos)] = &ms
-			}
-		}
-	}
-	return m
-}
-
-func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
+func formatIPTranslation(ct *network.IPTranslation, ipc ipCache) *model.IPTranslation {
 	if ct == nil {
 		return nil
 	}
 
 	return &model.IPTranslation{
-		ReplSrcIP:   ct.ReplSrcIP.String(),
-		ReplDstIP:   ct.ReplDstIP.String(),
+		ReplSrcIP:   ipc.Get(ct.ReplSrcIP),
+		ReplDstIP:   ipc.Get(ct.ReplDstIP),
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
 	}

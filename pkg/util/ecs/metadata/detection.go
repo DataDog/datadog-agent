@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package metadata
@@ -14,7 +15,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
-	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
+	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 
 func detectAgentV1URL() (string, error) {
@@ -123,37 +123,17 @@ func testURLs(urls []string, timeout time.Duration) string {
 }
 
 func getAgentV3URLFromEnv() (string, error) {
-	agentURL, found := os.LookupEnv(v3.DefaultMetadataURIEnvVariable)
+	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv3EnvVariable)
 	if !found {
 		return "", fmt.Errorf("Could not initialize client: missing metadata v3 URL")
 	}
 	return agentURL, nil
 }
 
-func getAgentV3URLFromDocker(ctx context.Context, containerID string) (string, error) {
-	du, err := docker.GetDockerUtil()
-	if err != nil {
-		return "", err
+func getAgentV4URLFromEnv() (string, error) {
+	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv4EnvVariable)
+	if !found {
+		return "", fmt.Errorf("Could not initialize client: missing metadata v4 URL")
 	}
-
-	container, err := du.Inspect(ctx, containerID, false)
-	if err != nil {
-		return "", err
-	}
-
-	for _, env := range container.Config.Env {
-		substrings := strings.Split(env, "=")
-		if len(substrings) != 2 {
-			log.Tracef("invalid container env format: %s", env)
-		}
-
-		k := substrings[0]
-		v := substrings[1]
-
-		if k == v3.DefaultMetadataURIEnvVariable {
-			return v, nil
-		}
-	}
-
-	return "", fmt.Errorf("metadata v3 URL not found in container %s", containerID)
+	return agentURL, nil
 }

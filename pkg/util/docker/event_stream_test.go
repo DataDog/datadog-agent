@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -17,17 +18,17 @@ func TestSubscribe(t *testing.T) {
 	state := newEventStreamState()
 	assert.Equal(t, 0, len(state.subscribers))
 
-	sub1, err := state.subscribe("listener1")
+	sub1, err := state.subscribe("listener1", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, sub1)
 	assert.Equal(t, 1, len(state.subscribers))
 
-	sub2, err := state.subscribe("listener2")
+	sub2, err := state.subscribe("listener2", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, sub2)
 	assert.Equal(t, 2, len(state.subscribers))
 
-	_, err = state.subscribe("listener2")
+	_, err = state.subscribe("listener2", nil)
 	assert.Equal(t, ErrAlreadySubscribed, err)
 	assert.Equal(t, 2, len(state.subscribers))
 }
@@ -36,7 +37,7 @@ func TestUnsubscribe(t *testing.T) {
 	state := newEventStreamState()
 	assert.Equal(t, 0, len(state.subscribers))
 
-	_, err := state.subscribe("listener1")
+	_, err := state.subscribe("listener1", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(state.subscribers))
 

@@ -14,10 +14,10 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	// Refactor relevant bits
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
@@ -43,6 +43,18 @@ type CaptureBuffer struct {
 	Buff        *packets.Packet
 }
 
+// for testing purposes
+type backendFs struct {
+	fs afero.Fs
+
+	sync.RWMutex
+}
+
+// captureFs, used exclusively for testing purposes
+var captureFs = backendFs{
+	fs: afero.NewOsFs(),
+}
+
 // CapPool is a pool of CaptureBuffer
 var CapPool = sync.Pool{
 	New: func() interface{} {
@@ -50,13 +62,9 @@ var CapPool = sync.Pool{
 	},
 }
 
-// for testing purposes, modify atomically
-var inMemoryFs int64
-
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
-	File     *os.File
-	testFile afero.File
+	File     afero.File
 	zWriter  *zstd.Writer
 	writer   *bufio.Writer
 	Traffic  chan *CaptureBuffer
@@ -73,10 +81,9 @@ type TrafficCaptureWriter struct {
 }
 
 // NewTrafficCaptureWriter creates a TrafficCaptureWriter instance.
-func NewTrafficCaptureWriter(l string, depth int) *TrafficCaptureWriter {
+func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
-		Location:    l,
 		Traffic:     make(chan *CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
 	}
@@ -122,55 +129,89 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 	return nil
 }
 
-// Capture start the traffic capture and writes the packets to file for the specified duration.
-func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
+// ValidateLocation validates the location passed as an argument is writable.
+// The location and/or and error if any are returned.
+func (tc *TrafficCaptureWriter) ValidateLocation(l string) (string, error) {
+	captureFs.RLock()
+	defer captureFs.RUnlock()
+
+	if captureFs.fs == nil {
+		return "", fmt.Errorf("no filesystem backend available, impossible to start capture")
+	}
+
+	defaultLocation := (l == "")
+
+	var location string
+	if defaultLocation {
+		location = config.Datadog.GetString("dogstatsd_capture_path")
+		if location == "" {
+			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
+		}
+	} else {
+		location = l
+	}
+
+	s, err := captureFs.fs.Stat(location)
+	if os.IsNotExist(err) {
+		if defaultLocation {
+			err := captureFs.fs.MkdirAll(location, 0755)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			return "", log.Errorf("specified location does not exist: %v ", err)
+		}
+	} else if !s.IsDir() {
+		return "", log.Errorf("specified location is not a directory: %v ", l)
+	}
+
+	if !defaultLocation && s.Mode()&os.FileMode(2) == 0 {
+		return "", log.Errorf("specified location (%v) is not world writable: %v", l, s.Mode())
+	}
+
+	return location, nil
+
+}
+
+// Capture start the traffic capture and writes the packets to file at the
+// specified location and for the specified duration.
+func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bool) {
 
 	log.Debug("Starting capture...")
 
-	var err error
+	var (
+		err      error
+		location string
+	)
 
-	tc.Lock()
-	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
-	if err = os.MkdirAll(filepath.Dir(p), 0770); err != nil {
-		log.Errorf("There was an issue writing the expected location: %v ", err)
-		tc.Unlock()
+	captureFs.RLock()
+	defer captureFs.RUnlock()
+
+	if captureFs.fs == nil {
+		log.Errorf("no filesystem backend available, impossible to start capture")
+		return
+	}
+
+	location, err = tc.ValidateLocation(l)
+	if err != nil {
 		return
 	}
 
 	var target io.Writer
 
-	// inMemoryFS is used for testing purposes
-	if atomic.LoadInt64(&inMemoryFs) > 0 {
-		appFS := afero.NewMemMapFs()
-		err := appFS.MkdirAll(tc.Location, 0755)
-		if err != nil {
-			log.Errorf("There was an issue starting the capture: %v ", err)
+	tc.Lock()
+	tc.Location = location
+	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
 
-			tc.Unlock()
-			return
-		}
+	fp, err := captureFs.fs.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0660)
+	if err != nil {
+		log.Errorf("There was an issue starting the capture: %v ", err)
 
-		fp, err := appFS.Create(p)
-		if err != nil {
-			log.Errorf("There was an issue starting the capture: %v ", err)
-
-			tc.Unlock()
-			return
-		}
-
-		tc.testFile = fp
-		target = tc.testFile
-	} else {
-		fp, err := os.Create(p)
-		if err != nil {
-			log.Errorf("There was an issue starting the capture: %v ", err)
-
-			tc.Unlock()
-			return
-		}
-		tc.File = fp
-		target = tc.File
+		tc.Unlock()
+		return
 	}
+	tc.File = fp
+	target = tc.File
 
 	if compressed {
 		tc.zWriter = zstd.NewWriter(target)
@@ -179,7 +220,10 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
 		tc.writer = bufio.NewWriter(target)
 	}
 
-	tc.shutdown = make(chan struct{})
+	// Do not use `tc.shutdown` directly as `tc.shutdown` can be set to nil
+	shutdown := make(chan struct{})
+	tc.shutdown = shutdown
+
 	tc.ongoing = true
 
 	err = tc.WriteHeader()
@@ -215,12 +259,8 @@ process:
 				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
 				tc.StopCapture()
 			}
-		case <-tc.shutdown:
+		case <-shutdown:
 			log.Debug("Capture shutting down")
-			tc.Lock()
-			tc.shutdown = nil
-			tc.Unlock()
-
 			break process
 		}
 	}
@@ -284,6 +324,7 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 
 	if tc.shutdown != nil {
 		close(tc.shutdown)
+		tc.shutdown = nil
 	}
 
 	log.Debug("Capture was stopped")

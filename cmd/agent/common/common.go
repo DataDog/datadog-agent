@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -37,11 +36,11 @@ var (
 	// DSD is the global dogstatsd instance
 	DSD *dogstatsd.Server
 
+	// ExpvarServer is the global expvar server
+	ExpvarServer *http.Server
+
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler
-
-	// Forwarder is the global forwarder instance
-	Forwarder forwarder.Forwarder
 
 	// MainCtx is the main agent context passed to components
 	MainCtx context.Context

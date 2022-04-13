@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dns
 
 /*
@@ -126,6 +131,10 @@ func (d *dnsDriver) Close() error {
 	}
 	d.readBuffers = nil
 	return nil
+}
+
+func (d *dnsDriver) GetStatsForHandle() (map[string]int64, error) {
+	return d.h.GetStatsForHandle()
 }
 
 func createDNSFilters() ([]driver.FilterDefinition, error) {

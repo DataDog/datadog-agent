@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -189,6 +190,10 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", statfile)
+		ret.User = -1
+		ret.System = -1
+		ret.Shares = -1
+		ret.UsageTotal = -1
 		return ret, nil
 	} else if err != nil {
 		return nil, err
@@ -200,13 +205,13 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 		if fields[0] == "user" {
 			user, err := strconv.ParseUint(fields[1], 10, 64)
 			if err == nil {
-				ret.User = user
+				ret.User = float64(user)
 			}
 		}
 		if fields[0] == "system" {
 			system, err := strconv.ParseUint(fields[1], 10, 64)
 			if err == nil {
-				ret.System = system
+				ret.System = float64(system)
 			}
 		}
 	}
@@ -219,13 +224,15 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	if err == nil {
 		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
+		ret.UsageTotal = -1
 		log.Debugf("Missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
 	}
 
 	shares, err := c.ParseSingleStat("cpu", "cpu.shares")
 	if err == nil {
-		ret.Shares = shares
+		ret.Shares = float64(shares)
 	} else {
+		// Shares cannot be 0, so not required to set to -1
 		log.Debugf("Missing cpu shares stat for %s: %s", c.ContainerID, err.Error())
 	}
 

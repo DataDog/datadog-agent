@@ -10,4 +10,5 @@ import "k8s.io/client-go/dynamic"
 // KubeClient is the Kubernetes (API server) client interface
 type KubeClient interface {
 	dynamic.Interface
+	ClusterID() (string, error)
 }

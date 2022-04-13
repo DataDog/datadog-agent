@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package app
@@ -17,13 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -31,7 +33,7 @@ const (
 )
 
 func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
-	stopper := restart.NewSerialStopper()
+	stopper := startstop.NewSerialStopper()
 	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
 		return err
 	}
@@ -43,17 +45,21 @@ func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader fun
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
 
 	if err != nil {
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
+	}
+
+	for _, status := range endpoints.GetStatus() {
+		log.Info(status)
 	}
 
 	destinationsCtx := client.NewDestinationsContext()
@@ -64,10 +70,10 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
+	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
-func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
@@ -98,10 +104,11 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		reporter,
 		scheduler,
 		configDir,
+		endpoints,
 		checks.WithInterval(checkInterval),
 		checks.WithMaxEvents(checkMaxEvents),
 		checks.WithHostname(hostname),
-		checks.WithMatchRule(func(rule *compliance.Rule) bool {
+		checks.WithMatchRule(func(rule *compliance.RuleCommon) bool {
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
 		checks.WithKubernetesClient(apiCl.DynamicCl, ""),

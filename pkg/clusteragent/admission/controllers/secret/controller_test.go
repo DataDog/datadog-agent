@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package secret
@@ -187,6 +188,7 @@ func (f *fixture) run(t *testing.T) *Controller {
 		f.client,
 		factory.Core().V1().Secrets(),
 		func() bool { return true },
+		make(chan struct{}),
 		cfg,
 	)
 

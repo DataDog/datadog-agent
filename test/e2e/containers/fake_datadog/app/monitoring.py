@@ -14,7 +14,7 @@ def extract_exception_name(exc_info=None):
     """
     if not exc_info:
         exc_info = sys.exc_info()
-    return '{}.{}'.format(exc_info[0].__module__, exc_info[0].__name__)
+    return f'{exc_info[0].__module__}.{exc_info[0].__name__}'
 
 
 def monitor_flask(app: Flask):
@@ -52,7 +52,7 @@ def monitor_flask(app: Flask):
         'exceptions_duration_seconds',
         'Backend API top-level exception latency',
         ['method', 'path', 'type'],
-        **additional_kwargs
+        **additional_kwargs,
     )
 
     @app.before_request
@@ -69,6 +69,6 @@ def monitor_flask(app: Flask):
     def log_exception(exc_info):
         class_name = extract_exception_name(exc_info)
         exception_latency.labels(request.method, request.url_rule, class_name).observe(time.time() - g._start_time)
-        app.logger.error('Exception on %s [%s]' % (request.path, request.method), exc_info=exc_info)
+        app.logger.error(f'Exception on {request.path} [{request.method}]', exc_info=exc_info)
 
     app.log_exception = log_exception

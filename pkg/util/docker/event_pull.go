@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/docker/docker/api/types"
@@ -42,7 +44,7 @@ func (d *DockerUtil) openEventChannel(ctx context.Context, since, until time.Tim
 
 // processContainerEvent formats the events from a channel.
 // It can return nil, nil if the event is filtered out, one should check for nil pointers before using the event.
-func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Message) (*ContainerEvent, error) {
+func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Message, filter *containers.Filter) (*ContainerEvent, error) {
 	// Type filtering
 	if msg.Type != "container" {
 		return nil, nil
@@ -68,7 +70,7 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 			log.Warnf("can't resolve image name %s: %s", imageName, err)
 		}
 	}
-	if d.cfg.filter.IsExcluded(containerName, imageName, "") {
+	if filter != nil && filter.IsExcluded(containerName, imageName, "") {
 		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil
 	}
@@ -104,7 +106,7 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 
 // LatestContainerEvents returns events matching the filter that occurred after the time passed.
 // It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
-func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time) ([]*ContainerEvent, time.Time, error) {
+func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error) {
 	var events []*ContainerEvent
 	filters := map[string]string{"type": "container"}
 
@@ -117,7 +119,7 @@ func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time)
 	for {
 		select {
 		case msg := <-msgChan:
-			event, err := d.processContainerEvent(ctx, msg)
+			event, err := d.processContainerEvent(ctx, msg, filter)
 			if err != nil {
 				log.Warnf("error parsing docker message: %s", err)
 				continue

@@ -1,8 +1,7 @@
 #ifndef __IP_H
 #define __IP_H
 
-#include <linux/kconfig.h>
-
+#include "kconfig.h"
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 
@@ -36,12 +35,18 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
     __u8 l4_proto = 0;
     switch (l3_proto) {
     case ETH_P_IP:
+    {
+        __u8 ipv4_hdr_len = (load_byte(skb, info->data_off) & 0x0f) << 2;
+        if (ipv4_hdr_len < sizeof(struct iphdr)) {
+            return 0;
+        }
         l4_proto = load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
         info->tup.metadata |= CONN_V4;
         read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, saddr), &info->tup.saddr_l);
         read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, daddr), &info->tup.daddr_l);
-        info->data_off += sizeof(struct iphdr); // TODO: this assumes there are no IP options
+        info->data_off += ipv4_hdr_len;
         break;
+    }
     case ETH_P_IPV6:
         l4_proto = load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
         info->tup.metadata |= CONN_V6;
@@ -70,6 +75,10 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
         info->data_off += ((load_byte(skb, info->data_off + offsetof(struct tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
         break;
     default:
+        return 0;
+    }
+
+    if ((skb->len - info->data_off) < 0) {
         return 0;
     }
 

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build !serverless
+// +build !serverless
+
 package listeners
 
 import (
@@ -16,15 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
-	// Label keys of Docker Autodiscovery
-	newIdentifierLabel         = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
-	dockerADTemplateCheckNames = "com.datadoghq.ad.check_names"
+	// Label keys of Container Autodiscovery
+	newIdentifierLabel            = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel         = "com.datadoghq.sd.check.id"
+	containerADTemplateCheckNames = "com.datadoghq.ad.check_names"
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -68,9 +69,9 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 }
 
 // getCheckNamesFromLabels unmarshals the json string of check names
-// defined in docker labels and returns a slice of check names
+// defined in container labels and returns a slice of check names
 func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
-	if checkLabels, found := labels[dockerADTemplateCheckNames]; found {
+	if checkLabels, found := labels[containerADTemplateCheckNames]; found {
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(checkLabels), &checkNames)
 		if err != nil {
@@ -111,16 +112,6 @@ func standardTagsDigest(labels map[string]string) string {
 	_, _ = h.Write([]byte(labels[kubernetes.VersionTagLabelKey]))
 	_, _ = h.Write([]byte(labels[kubernetes.ServiceTagLabelKey]))
 	return strconv.FormatUint(h.Sum64(), 16)
-}
-
-// isServiceAnnotated returns true if the Service has an annotation with a given key
-func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
-	if ksvc != nil {
-		if _, found := ksvc.GetAnnotations()[annotationKey]; found {
-			return true
-		}
-	}
-	return false
 }
 
 // newContainerFilters instantiates the required container filters for AD listeners

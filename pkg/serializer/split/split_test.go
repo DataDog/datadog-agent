@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package split
@@ -16,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -44,7 +47,7 @@ func TestSplitPayloadsSeries(t *testing.T) {
 }
 
 func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
-	testSeries := metrics.Series{}
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < numPoints; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -64,18 +67,18 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
 
-	payloads, err := Payloads(testSeries, compress, MarshalJSON)
+	payloads, err := Payloads(testSeries, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
 	originalLength := len(testSeries)
-	var splitSeries = []metrics.Series{}
+	var splitSeries = []metricsserializer.Series{}
 	for _, payload := range payloads {
-		var s = map[string]metrics.Series{}
+		var s = map[string]metricsserializer.Series{}
 
 		if compress {
 			*payload, err = compression.Decompress(nil, *payload)
@@ -87,7 +90,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		splitSeries = append(splitSeries, s["series"])
 	}
 
-	unrolledSeries := metrics.Series{}
+	unrolledSeries := metricsserializer.Series{}
 	for _, series := range splitSeries {
 		for _, s := range series {
 			unrolledSeries = append(unrolledSeries, s)
@@ -100,7 +103,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 var result forwarder.Payloads
 
 func BenchmarkSplitPayloadsSeries(b *testing.B) {
-	testSeries := metrics.Series{}
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < 400000; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -110,7 +113,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -119,7 +122,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries, true, MarshalJSON)
+		r, _ = Payloads(testSeries, true, JSONMarshalFct)
 
 	}
 	// ensure we actually had to split
@@ -167,7 +170,7 @@ func TestSplitPayloadsEvents(t *testing.T) {
 }
 
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
-	testEvent := metrics.Events{}
+	testEvent := metricsserializer.Events{}
 	for i := 0; i < numPoints; i++ {
 		event := metrics.Event{
 			Title:          "test title",
@@ -181,7 +184,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		testEvent = append(testEvent, &event)
 	}
 
-	payloads, err := Payloads(testEvent, compress, MarshalJSON)
+	payloads, err := Payloads(testEvent, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
 	originalLength := len(testEvent)
@@ -233,7 +236,7 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 }
 
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
-	testServiceChecks := metrics.ServiceChecks{}
+	testServiceChecks := metricsserializer.ServiceChecks{}
 	for i := 0; i < numPoints; i++ {
 		sc := metrics.ServiceCheck{
 			CheckName: "test.check",
@@ -246,7 +249,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 		testServiceChecks = append(testServiceChecks, &sc)
 	}
 
-	payloads, err := Payloads(testServiceChecks, compress, MarshalJSON)
+	payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
 	originalLength := len(testServiceChecks)
@@ -296,17 +299,17 @@ func TestSplitPayloadsSketches(t *testing.T) {
 }
 
 func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
-	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
+	testSketchSeries := make(metricsserializer.SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries[i] = metrics.Makeseries(i)
+		testSketchSeries[i] = metricsserializer.Makeseries(i)
 	}
 
-	payloads, err := Payloads(testSketchSeries, compress, MarshalJSON)
+	payloads, err := Payloads(testSketchSeries, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
-	var splitSketches = []metrics.SketchSeriesList{}
+	var splitSketches = []metricsserializer.SketchSeriesList{}
 	for _, payload := range payloads {
-		var s = map[string]metrics.SketchSeriesList{}
+		var s = map[string]metricsserializer.SketchSeriesList{}
 
 		if compress {
 			*payload, err = compression.Decompress(nil, *payload)
@@ -320,7 +323,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 	}
 
 	originalLength := len(testSketchSeries)
-	unrolledSketches := metrics.SketchSeriesList{}
+	unrolledSketches := metricsserializer.SketchSeriesList{}
 	for _, sketches := range splitSketches {
 		for _, s := range sketches {
 			unrolledSketches = append(unrolledSketches, s)

@@ -6,10 +6,24 @@
 package message
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
+
+// Payload represents an encoded collection of messages ready to be sent to the intake
+type Payload struct {
+	// The slice of sources messages encoded in the payload
+	Messages []*Message
+	// The encoded bytes to be sent to the intake (sometimes compressed)
+	Encoded []byte
+	// The content encoding. A header for HTTP, empty for TCP
+	Encoding string
+	// The size of the unencoded payload
+	UnencodedSize int
+}
 
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
@@ -73,4 +87,18 @@ func (m *Message) GetStatus() string {
 // GetLatency returns the latency delta from ingestion time until now
 func (m *Message) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
+}
+
+// GetHostname returns the hostname to applied the given log message
+func (m *Message) GetHostname() string {
+	if m.Lambda != nil {
+		return m.Lambda.ARN
+	}
+	hostname, err := util.GetHostname(context.TODO())
+	if err != nil {
+		// this scenario is not likely to happen since
+		// the agent cannot start without a hostname
+		hostname = "unknown"
+	}
+	return hostname
 }

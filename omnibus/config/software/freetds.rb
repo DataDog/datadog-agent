@@ -10,7 +10,10 @@ source url: "ftp://ftp.freetds.org/pub/freetds/stable/freetds-#{version}.tar.gz"
 relative_path "freetds-#{version}"
 
 build do
-  ship_license "./COPYING"
+  license "LGPL-2.1"
+  license_file "./COPYING"
+  license_file "./COPYING.lib"
+
   env = with_standard_compiler_flags(with_embedded_path)
 
   configure_args = [
@@ -20,7 +23,7 @@ build do
   configure_command = configure_args.unshift("./configure").join(" ")
 
   command configure_command, env: env, in_msys_bash: true
-  make env: env
+  command "make -j #{workers}", env: env
 
   # Only `libtdsodbc.so/libtdsodbc.so.0.0.0` are needed for SQLServer integration.
   # Hence we only need to copy those.

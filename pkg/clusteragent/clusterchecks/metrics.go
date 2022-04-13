@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -40,4 +41,8 @@ var (
 	busyness = telemetry.NewGaugeWithOpts("cluster_checks", "busyness",
 		[]string{"node", le.JoinLeaderLabel}, "Busyness of a node per the number of metrics submitted and average duration of all checks run",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	configsInfo = telemetry.NewGaugeWithOpts("cluster_checks", "configs_info",
+		[]string{"node", "check_id", le.JoinLeaderLabel}, "Information about the dispatched checks (node, check ID)",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 )

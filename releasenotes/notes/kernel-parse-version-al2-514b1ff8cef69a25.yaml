@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes system-probe startup failure due to kernel version parsing on Linux 4.14.252+.
+    This specifically was affecting versions of Amazon Linux 2, but could affect any Linux kernel in the 4.14 tree with sublevel >= 252.

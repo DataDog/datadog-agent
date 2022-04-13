@@ -11,6 +11,7 @@ import (
 	"context"
 	_ "expvar"
 	"fmt"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -28,11 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 var (
@@ -68,8 +72,9 @@ extensions for special Datadog features.`,
 	confPath   string
 	socketPath string
 
-	metaScheduler *metadata.Scheduler
-	statsd        *dogstatsd.Server
+	metaScheduler  *metadata.Scheduler
+	statsd         *dogstatsd.Server
+	dogstatsdStats *http.Server
 )
 
 const (
@@ -128,6 +133,18 @@ func runAgent(ctx context.Context) (err error) {
 		log.Infof("Config will be read from env variables")
 	}
 
+	// go_expvar server
+	port := config.Datadog.GetInt("dogstatsd_stats_port")
+	dogstatsdStats = &http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
+		Handler: http.DefaultServeMux,
+	}
+	go func() {
+		if err := dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
+		}
+	}()
+
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
@@ -174,24 +191,28 @@ func runAgent(ctx context.Context) (err error) {
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// setup the forwarder
+	// setup the demultiplexer
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f, nil)
 
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseOrchestratorForwarder = false
+	opts.UseEventPlatformForwarder = false
+	opts.UseContainerLifecycleForwarder = false
 	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
-	metaScheduler = metadata.NewScheduler(s)
+	metaScheduler = metadata.NewScheduler(demux)
 	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return
@@ -205,20 +226,20 @@ func runAgent(ctx context.Context) (err error) {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		tagger.Init()
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
+
+		tagger.SetDefaultTagger(local.NewTagger(store))
+		if err := tagger.Init(ctx); err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hname)
-
-	statsd, err = dogstatsd.NewServer(aggregatorInstance, nil)
+	statsd, err = dogstatsd.NewServer(demux)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
 	}
-
-	// send a starting metric and event
-	aggregatorInstance.AddAgentStartupTelemetry(version.AgentVersion)
 	return
 }
 
@@ -262,11 +283,16 @@ func stopAgent(cancel context.CancelFunc) {
 		metaScheduler.Stop()
 	}
 
+	if dogstatsdStats != nil {
+		if err := dogstatsdStats.Shutdown(context.Background()); err != nil {
+			log.Errorf("Error shutting down dogstatsd stats server: %s", err)
+		}
+	}
+
 	if statsd != nil {
 		statsd.Stop()
 	}
 
 	log.Info("See ya!")
 	log.Flush()
-	return
 }

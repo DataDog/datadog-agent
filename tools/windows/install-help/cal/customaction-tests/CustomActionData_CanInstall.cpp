@@ -12,7 +12,7 @@ TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserExists_WithPasswo
     CustomActionData customActionCtx(tm);
 
     customActionCtx.init(LR"(
-DDAGENTUSER_NAME=different_domain\\test
+DDAGENTUSER_NAME=different_domain\test
 DDAGENTUSER_PASSWORD=1234
 )");
     bool shouldResetPass;

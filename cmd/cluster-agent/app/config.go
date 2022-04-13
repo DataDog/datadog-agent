@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package app
@@ -11,17 +12,18 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 
 	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(commands.Config(getSettingsClient))
+	ClusterAgentCmd.AddCommand(cmdconfig.Config(getSettingsClient))
 }
 
 func setupConfig() error {
@@ -45,7 +47,7 @@ func setupConfig() error {
 	return util.SetAuthToken()
 }
 
-func getSettingsClient() (commonsettings.Client, error) {
+func getSettingsClient(_ *cobra.Command, _ []string) (commonsettings.Client, error) {
 	err := setupConfig()
 	if err != nil {
 		return nil, err
@@ -59,5 +61,21 @@ func getSettingsClient() (commonsettings.Client, error) {
 
 // initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
 func initRuntimeSettings() error {
-	return commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{})
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
+		return err
+	}
+
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction")); err != nil {
+		return err
+	}
+
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate("runtime_block_profile_rate")); err != nil {
+		return err
+	}
+
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines("internal_profiling_goroutines")); err != nil {
+		return err
+	}
+
+	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("internal_profiling"))
 }

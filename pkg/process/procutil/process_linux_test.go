@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package procutil
@@ -26,9 +32,13 @@ var (
 	skipLocalTest = true
 )
 
-func getProbeWithPermission(options ...Option) *Probe {
+func getProbe(options ...Option) *probe {
+	return NewProcessProbe(options...).(*probe)
+}
+
+func getProbeWithPermission(options ...Option) *probe {
 	options = append(options, WithPermission(true))
-	return NewProcessProbe(options...)
+	return getProbe(options...)
 }
 
 func TestGetActivePIDs(t *testing.T) {
@@ -152,7 +162,7 @@ func testProcessesByPID(t *testing.T) {
 	expectedProcs, err := process.AllProcesses()
 	assert.NoError(t, err)
 
-	procByPID, err := probe.ProcessesByPID(time.Now())
+	procByPID, err := probe.ProcessesByPID(time.Now(), true)
 	assert.NoError(t, err)
 
 	// make sure the process that has no command line doesn't get included in the output
@@ -164,6 +174,21 @@ func testProcessesByPID(t *testing.T) {
 			assert.Contains(t, procByPID, pid)
 			compareProcess(t, ConvertFromFilledProcess(expectProc), procByPID[pid])
 		}
+	}
+
+	// Test processesByPID with collectStats == false
+	procByPID, err = probe.ProcessesByPID(time.Now(), false)
+	assert.NoError(t, err)
+	for _, proc := range procByPID {
+		// Make sure that the createTime is there
+		assert.NotEmpty(t, proc.Stats.CreateTime)
+
+		assert.NotEmpty(t, proc.Pid)
+		assert.NotEmpty(t, proc.Name)
+		assert.NotEmpty(t, proc.Cmdline)
+
+		// Make sure that the memory stats are not collected
+		assert.Empty(t, proc.Stats.MemInfoEx)
 	}
 }
 
@@ -261,17 +286,17 @@ func TestMultipleProbes(t *testing.T) {
 
 	now := time.Now()
 
-	procByPID1, err := probe1.ProcessesByPID(now)
+	procByPID1, err := probe1.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	resetNiceValues(procByPID1)
-	procByPID2, err := probe2.ProcessesByPID(now)
+	procByPID2, err := probe2.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	resetNiceValues(procByPID2)
 	for i := 0; i < 10; i++ {
-		currProcByPID1, err := probe1.ProcessesByPID(now)
+		currProcByPID1, err := probe1.ProcessesByPID(now, true)
 		assert.NoError(t, err)
 		resetNiceValues(currProcByPID1)
-		currProcByPID2, err := probe2.ProcessesByPID(now)
+		currProcByPID2, err := probe2.ProcessesByPID(now, true)
 		assert.NoError(t, err)
 		resetNiceValues(currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, currProcByPID2)
@@ -291,7 +316,7 @@ func TestProcfsChange(t *testing.T) {
 
 	now := time.Now()
 
-	procByPID, err := probe.ProcessesByPID(now)
+	procByPID, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 
 	// update the procfs file structure to add a pid, make sure next time it reads in the updates
@@ -301,7 +326,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/test_procfs/proc/10389", "resources/10389")
 		assert.NoError(t, err)
 	}()
-	newProcByPID1, err := probe.ProcessesByPID(now)
+	newProcByPID1, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	assert.Contains(t, newProcByPID1, int32(10389))
 	assert.NotContains(t, procByPID, int32(10389))
@@ -313,7 +338,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/29613", "resources/test_procfs/proc/29613")
 		assert.NoError(t, err)
 	}()
-	newProcByPID2, err := probe.ProcessesByPID(now)
+	newProcByPID2, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	assert.NotContains(t, newProcByPID2, int32(29613))
 	assert.Contains(t, procByPID, int32(29613))
@@ -625,7 +650,7 @@ func testParseIO(t *testing.T) {
 
 func TestFetchFieldsWithoutPermission(t *testing.T) {
 	t.Skip("This test is not working in CI, but could be tested locally")
-	probe := NewProcessProbe()
+	probe := getProbe()
 	defer probe.Close()
 	// PID 1 should be owned by root so we would always get permission error
 	pid := int32(1)
@@ -888,7 +913,7 @@ func TestGetFDCountLocalFS(t *testing.T) {
 
 func TestGetFDCountLocalFSImproved(t *testing.T) {
 	maySkipLocalTest(t)
-	probe := NewProcessProbe()
+	probe := getProbe()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -960,14 +985,14 @@ func TestProcessesByPIDsAndPerm(t *testing.T) {
 
 	probe := getProbeWithPermission()
 	defer probe.Close()
-	procs, err := probe.ProcessesByPID(time.Now())
+	procs, err := probe.ProcessesByPID(time.Now(), true)
 	require.NoError(t, err)
 	for _, p := range procs {
 		assert.False(t, p.Stats.IOStat.IsZeroValue())
 	}
 
 	WithPermission(false)(probe)
-	procs, err = probe.ProcessesByPID(time.Now())
+	procs, err = probe.ProcessesByPID(time.Now(), true)
 	require.NoError(t, err)
 	for _, p := range procs {
 		assert.EqualValues(t, &IOCountersStat{
@@ -1197,7 +1222,7 @@ func benchmarkGetProcsProcutil(b *testing.B) {
 	now := time.Now()
 	for i := 0; i < b.N; i++ {
 		// ignore errors for benchmarking
-		_, _ = probe.ProcessesByPID(now)
+		_, _ = probe.ProcessesByPID(now, true)
 	}
 }
 

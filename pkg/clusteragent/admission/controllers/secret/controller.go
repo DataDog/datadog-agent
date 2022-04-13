@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package secret
@@ -40,10 +41,11 @@ type Controller struct {
 	dnsNamesDigest uint64
 	queue          workqueue.RateLimitingInterface
 	isLeaderFunc   func() bool
+	isLeaderNotif  <-chan struct{}
 }
 
 // NewController returns a new Secret Controller.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, isLeaderFunc func() bool, config Config) *Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) *Controller {
 	dnsNames := generateDNSNames(config.GetNs(), config.GetSvc())
 	controller := &Controller{
 		clientSet:      client,
@@ -54,6 +56,7 @@ func NewController(client kubernetes.Interface, secretInformer coreinformers.Sec
 		dnsNamesDigest: digestDNSNames(dnsNames),
 		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "secrets"),
 		isLeaderFunc:   isLeaderFunc,
+		isLeaderNotif:  isLeaderNotif,
 	}
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleObject,
@@ -75,12 +78,34 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
+	go c.enqueueOnLeaderNotif(stopCh)
 	go wait.Until(c.run, time.Second, stopCh)
 
 	// Trigger a reconciliation to create the Secret if it doesn't exist
-	c.queue.Add(fmt.Sprintf("%s/%s", c.config.GetNs(), c.config.GetName()))
+	c.triggerReconciliation()
 
 	<-stopCh
+}
+
+// enqueueOnLeaderNotif watches leader notifications and triggers a
+// reconciliation in case the current process becomes leader.
+// This ensures that the latest configuration of the leader
+// is applied to the secret object. Typically, during a rolling update.
+func (c *Controller) enqueueOnLeaderNotif(stop <-chan struct{}) {
+	for {
+		select {
+		case <-c.isLeaderNotif:
+			log.Infof("Got a leader notification, enqueuing a reconciliation for %s/%s", c.config.GetNs(), c.config.GetName())
+			c.triggerReconciliation()
+		case <-stop:
+			return
+		}
+	}
+}
+
+// triggerReconciliation forces a reconciliation loop by enqueuing the secret object namespaced name.
+func (c *Controller) triggerReconciliation() {
+	c.queue.Add(fmt.Sprintf("%s/%s", c.config.GetNs(), c.config.GetName()))
 }
 
 // handleObject enqueues the targeted Secret object when an event occurs.

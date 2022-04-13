@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 )
 
 const (
@@ -83,6 +83,7 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 	if err != nil {
 		return int(pid), packets.NoOrigin, err
 	}
+
 	return int(pid), entity, nil
 }
 
@@ -120,7 +121,7 @@ func entityForPID(pid int32, capture bool) (string, error) {
 		return replay.ContainerIDForPID(pid)
 	}
 
-	cID, err := providers.ContainerImpl().ContainerIDForPID(int(pid))
+	cID, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(pid), pidToEntityCacheDuration)
 	if err != nil {
 		return "", err
 	}

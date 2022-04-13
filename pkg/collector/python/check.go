@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
@@ -78,7 +79,7 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	}
 	defer gstate.unlock()
 
-	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
+	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
 	cResult := C.run_check(rtloader, c.instance)
 	if cResult == nil {

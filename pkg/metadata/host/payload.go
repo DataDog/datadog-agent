@@ -27,6 +27,7 @@ type Meta struct {
 	HostAliases    []string `json:"host_aliases"`
 	InstanceID     string   `json:"instance-id"`
 	AgentHostname  string   `json:"agent-hostname,omitempty"`
+	ClusterName    string   `json:"cluster-name,omitempty"`
 }
 
 // NetworkMeta is metadata about the host's network
@@ -37,7 +38,8 @@ type NetworkMeta struct {
 
 // LogsMeta is metadata about the host's logs agent
 type LogsMeta struct {
-	Transport string `json:"transport"`
+	Transport            string `json:"transport"`
+	AutoMultilineEnabled bool   `json:"auto_multi_line_detection_enabled"`
 }
 
 // Tags contains the detected host tags
@@ -59,6 +61,11 @@ type ProxyMeta struct {
 	ProxyBehaviorChanged bool `json:"proxy-behavior-changed"`
 }
 
+// OtlpMeta is metadata about the otlp pipeline
+type OtlpMeta struct {
+	Enabled bool `json:"enabled"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Os            string            `json:"os"`
@@ -72,4 +79,5 @@ type Payload struct {
 	LogsMeta      *LogsMeta         `json:"logs"`
 	InstallMethod *InstallMethod    `json:"install-method"`
 	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
+	OtlpMeta      *OtlpMeta         `json:"otlp"`
 }

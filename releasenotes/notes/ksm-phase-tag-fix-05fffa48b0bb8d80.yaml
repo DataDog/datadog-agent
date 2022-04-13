@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Tag Namespace and PV and PVC metrics correctly with ``phase`` instead of ``pod_phase``
+    in the Kube State Metrics Core check.

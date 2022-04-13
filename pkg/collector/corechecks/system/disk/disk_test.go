@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package disk
@@ -12,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/v3/disk"
 )
 
 var (
@@ -22,13 +23,13 @@ var (
 			Device:     "/dev/sda2",
 			Mountpoint: "/",
 			Fstype:     "ext4",
-			Opts:       "rw,relatime,errors=remount-ro,data=ordered",
+			Opts:       []string{"rw,relatime,errors=remount-ro,data=ordered"},
 		},
 		{
 			Device:     "/dev/sda1",
 			Mountpoint: "/boot/efi",
 			Fstype:     "vfat",
-			Opts:       "rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+			Opts:       []string{"rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro"},
 		},
 	}
 	diskUsageSamples = map[string]*disk.UsageStat{

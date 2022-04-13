@@ -41,13 +41,13 @@ There are 3 main directories:
 
 ```bash
 $ cd ${GOPATH}/src/github.com/DataDog/datadog-agent 
-$ aws-vault exec ${DEV} -- inv -e e2e-tests -t dev --image datadog/agent-dev:master
+$ aws-vault exec ${DEV} -- inv -e e2e-tests -t dev --agent-image datadog/agent-dev:master --dca-image datadog/cluster-agent-dev:master
 ```
 
 ### Locally (Linux only)
 
 ```bash
-$ inv -e e2e-tests -t local --image datadog/agent-dev:master
+$ inv -e e2e-tests -t local --agent-image datadog/agent-dev:master --dca-image datadog/cluster-agent-dev:master
 ```
 
 # Argo workflow

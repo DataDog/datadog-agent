@@ -91,14 +91,6 @@ func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHead
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payloads forwarder.Payloads, extraHeaders http.Header) error {
-	f.computeStats(payloads)
-	return nil
-}
-func (f *forwarderBenchStub) SubmitServiceChecks(payloads forwarder.Payloads, extraHeaders http.Header) error {
-	f.computeStats(payloads)
-	return nil
-}
 func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
@@ -227,7 +219,7 @@ func main() {
 	mockConfig.Set("dogstatsd_stats_buffer", 100)
 	s := serializer.NewSerializer(f, nil)
 	aggr := aggregator.InitAggregator(s, nil, "localhost")
-	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), nil)
+	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels())
 	if err != nil {
 		log.Errorf("Problem allocating dogstatsd server: %s", err)
 		return

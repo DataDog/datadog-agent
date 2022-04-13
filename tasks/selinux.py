@@ -19,7 +19,7 @@ def compile_system_probe_policy_file(
 ):
     """
     Takes a SELinux .te policy file and compiles it into a .pp policy module.
-  """
+    """
 
     # Get the filename without the .te extension
     policy_filename = os.path.splitext(te_file)[0]
@@ -31,9 +31,9 @@ def compile_system_probe_policy_file(
     output_module_name = ".".join([os.path.join(output_directory, os.path.basename(policy_filename)), "pp"])
 
     # Compile the module
-    command = "checkmodule -M -m -o {} {}".format(temp_module_name, te_file)
+    command = f"checkmodule -M -m -o {temp_module_name} {te_file}"
     ctx.run(command)
 
     # Package the module
-    command = "semodule_package -o {} -m {}".format(output_module_name, temp_module_name)
+    command = f"semodule_package -o {output_module_name} -m {temp_module_name}"
     ctx.run(command)

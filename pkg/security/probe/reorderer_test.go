@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -83,8 +84,9 @@ func TestOrderRate(t *testing.T) {
 	retention := 5
 
 	var lock sync.RWMutex
+	ctx, cancel := context.WithCancel(context.Background())
 
-	reOrderer := NewReOrderer(func(cpu uint64, data []byte) {
+	reOrderer := NewReOrderer(ctx, func(cpu uint64, data []byte) {
 		lock.Lock()
 		event = append(event, data[2])
 		lock.Unlock()
@@ -99,13 +101,11 @@ func TestOrderRate(t *testing.T) {
 			MetricRate: 200 * time.Millisecond,
 		})
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
 	wg.Add(1)
-	go reOrderer.Start(ctx, &wg)
+	go reOrderer.Start(&wg)
 
 	var e uint8
 	for i := 0; i != 10; i++ {

@@ -214,7 +214,7 @@ DWORD TargetMachine::DetectDomainInformation()
                 return nErr;
             }
             _dcFlags = dcInfo->Flags;
-            WcaLog(LOGMSG_STANDARD, "Domain Controller is %s", IsReadOnlyDomainController() ? "Read-Only" : "Writable");
+            WcaLog(LOGMSG_STANDARD, "Domain Controller is %S", IsReadOnlyDomainController() ? L"Read-Only" : L"Writable");
             NetApiBufferFree(dcInfo);
         }
     }

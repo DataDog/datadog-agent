@@ -27,6 +27,7 @@ extern std::wstring programdataroot;
 extern std::wstring logfilename;
 extern std::wstring authtokenfilename;
 extern std::wstring datadogyamlfile;
+extern std::wstring installInfoFile;
 extern std::wstring confddir;
 extern std::wstring logdir;
 extern std::wstring installdir;

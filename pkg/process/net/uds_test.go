@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package net
@@ -48,7 +54,7 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 	time.Sleep(1 * time.Second)
 	fi, err := os.Stat(socketPath)
 	require.NoError(t, err)
-	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
+	assert.Equal(t, "Srwx-w----", fi.Mode().String())
 }
 
 func TestNewUDSListener(t *testing.T) {

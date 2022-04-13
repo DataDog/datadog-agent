@@ -1,0 +1,15 @@
+# Each section from every release note is combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: The rare sampler can now be disabled using the environment variable DD_APM_DISABLE_RARE_SAMPLER
+    or the `apm_config.disable_rare_sampler` configuration. By default the rare sampler catches 5 extra trace chunks
+    per second on top of the head base sampling.
+    The TPS is spread to catch all combinations of service, name, resource, http.status, error.type missed by 
+    head base sampling.

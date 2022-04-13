@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inmetrics.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -154,7 +155,7 @@ func (mp *provider) GetAgentCID() (string, error) {
 	prefix := config.Datadog.GetString("container_cgroup_prefix")
 	cID, _, err := readCgroupsForPath("/proc/self/cgroup", prefix)
 	if err != nil {
-		return "", err
+		return "", err
 	}
 	return cID, err
 }
@@ -200,6 +201,12 @@ func (mp *provider) GetDefaultGateway() (net.IP, error) {
 // by parsing the routing table file in the proc file system.
 func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	return defaultHostIPs()
+}
+
+// GetNumFileDescriptors returns the number of open file descriptors for a given
+// pid
+func (mp *provider) GetNumFileDescriptors(pid int) (int, error) {
+	return GetFileDescriptorLen(pid)
 }
 
 func (mp *provider) getCgroup(containerID string) (*ContainerCgroup, error) {

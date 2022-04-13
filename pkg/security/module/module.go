@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -18,9 +19,12 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/skydive-project/go-debouncer"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -28,14 +32,22 @@ import (
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/statsd"
 )
+
+const (
+	statsdPoolSize = 64
+)
+
+// Opts define module options
+type Opts struct {
+	StatsdClient statsd.ClientInterface
+}
 
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
@@ -43,10 +55,9 @@ type Module struct {
 	wg               sync.WaitGroup
 	probe            *sprobe.Probe
 	config           *sconfig.Config
-	ruleSets         [2]*rules.RuleSet
-	currentRuleSet   uint64
+	currentRuleSet   atomic.Value
 	reloading        uint64
-	statsdClient     *statsd.Client
+	statsdClient     statsd.ClientInterface
 	apiServer        *APIServer
 	grpcServer       *grpc.Server
 	listener         net.Listener
@@ -54,10 +65,11 @@ type Module struct {
 	sigupChan        chan os.Signal
 	ctx              context.Context
 	cancelFnc        context.CancelFunc
-	rulesLoaded      func(rs *rules.RuleSet)
+	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
 
 	selfTester *SelfTester
+	reloader   *debouncer.Debouncer
 }
 
 // Register the runtime security agent module
@@ -100,7 +112,7 @@ func (m *Module) Init() error {
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
-	if err := m.probe.Init(m.statsdClient); err != nil {
+	if err := m.probe.Init(); err != nil {
 		return errors.Wrap(err, "failed to init probe")
 	}
 
@@ -114,13 +126,15 @@ func (m *Module) Start() error {
 		return errors.Wrap(err, "failed to start probe")
 	}
 
-	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
-	// context is ready when we start the probes
-	if err := m.probe.Snapshot(); err != nil {
+	m.reloader.Start()
+
+	if err := m.Reload(); err != nil {
 		return err
 	}
 
-	if err := m.Reload(); err != nil {
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
+	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
 
@@ -134,14 +148,9 @@ func (m *Module) Start() error {
 		defer m.wg.Done()
 
 		for range m.sigupChan {
-			log.Info("Reload configuration")
-
-			if err := m.Reload(); err != nil {
-				log.Errorf("failed to reload configuration: %s", err)
-			}
+			m.triggerReload()
 		}
 	}()
-
 	return nil
 }
 
@@ -163,10 +172,25 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if m.config.RuntimeEnabled {
-		if eventTypes, exists := categories[model.RuntimeCategory]; exists {
+	if m.config.NetworkEnabled {
+		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
 				enabled[eventType] = true
+			}
+		}
+	}
+
+	if m.config.RuntimeEnabled {
+		// everything but FIM
+		for _, category := range model.GetAllCategories() {
+			if category == model.FIMCategory || category == model.NetworkCategory {
+				continue
+			}
+
+			if eventTypes, exists := categories[category]; exists {
+				for _, eventType := range eventTypes {
+					enabled[eventType] = true
+				}
 			}
 		}
 	}
@@ -208,6 +232,13 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
+func (m *Module) triggerReload() {
+	log.Info("Reload configuration")
+	if err := m.Reload(); err != nil {
+		log.Errorf("failed to reload configuration: %s", err)
+	}
+}
+
 // Reload the rule set
 func (m *Module) Reload() error {
 	m.Lock()
@@ -219,23 +250,40 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	newRuleSetOpts := func() *rules.Opts {
-		return rules.NewOptsWithParams(
-			model.SECLConstants,
-			sprobe.SupportedDiscarders,
-			m.getEventTypeEnabled(),
-			sprobe.AllCustomRuleIDs(),
-			model.SECLLegacyAttributes,
-			&seclog.PatternLogger{})
+	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
+	for name, value := range model.SECLVariables {
+		probeVariables[name] = value
 	}
 
-	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
-
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
+	var opts rules.Opts
+	opts.
+		WithConstants(model.SECLConstants).
+		WithVariables(probeVariables).
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(m.getEventTypeEnabled()).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
+		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+
+	// switch SECLVariables to use the real Event structure and not the mock model.Event one
+	opts.WithVariables(sprobe.SECLVariables)
+	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
+	})
+
+	ruleSet := m.probe.NewRuleSet(&opts)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
@@ -262,12 +310,10 @@ func (m *Module) Reload() error {
 
 	ruleSet.AddListener(m)
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet)
+		m.rulesLoaded(ruleSet, loadErr)
 	}
 
-	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
-	m.ruleSets[currentRuleSet] = ruleSet
-	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
+	m.currentRuleSet.Store(ruleSet)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
@@ -293,6 +339,8 @@ func (m *Module) Reload() error {
 
 // Close the module
 func (m *Module) Close() {
+	m.reloader.Stop()
+
 	close(m.sigupChan)
 	m.cancelFnc()
 
@@ -390,6 +438,10 @@ func (m *Module) metricsSender() {
 	for {
 		select {
 		case <-statsTicker.C:
+			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
+				continue
+			}
+
 			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
@@ -439,29 +491,35 @@ func (m *Module) GetProbe() *sprobe.Probe {
 
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
-	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
+	if ruleSet := m.currentRuleSet.Load(); ruleSet != nil {
+		return ruleSet.(*rules.RuleSet)
+	}
+	return nil
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet)) {
+func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
 	m.rulesLoaded = cb
 }
 
-// NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config) (module.Module, error) {
-	var statsdClient *statsd.Client
-	var err error
-	if cfg != nil {
-		statsdAddr := os.Getenv("STATSD_URL")
-		if statsdAddr == "" {
-			statsdAddr = cfg.StatsdAddr
-		}
+func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, error) {
+	if len(opts) != 0 && opts[0].StatsdClient != nil {
+		return opts[0].StatsdClient, nil
+	}
 
-		if statsdClient, err = statsd.New(statsdAddr); err != nil {
-			return nil, err
-		}
-	} else {
-		log.Warn("metrics won't be sent to DataDog")
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		statsdAddr = cfg.StatsdAddr
+	}
+
+	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
+}
+
+// NewModule instantiates a runtime security system-probe module
+func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
+	statsdClient, err := getStatdClient(cfg, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	probe, err := sprobe.NewProbe(cfg, statsdClient)
@@ -480,21 +538,21 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	}
 
 	m := &Module{
-		config:         cfg,
-		probe:          probe,
-		statsdClient:   statsdClient,
-		apiServer:      NewAPIServer(cfg, probe, statsdClient),
-		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
-		sigupChan:      make(chan os.Signal, 1),
-		currentRuleSet: 1,
-		ctx:            ctx,
-		cancelFnc:      cancelFnc,
-		selfTester:     selfTester,
+		config:       cfg,
+		probe:        probe,
+		statsdClient: statsdClient,
+		apiServer:    NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:   grpc.NewServer(),
+		rateLimiter:  NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		sigupChan:    make(chan os.Signal, 1),
+		ctx:          ctx,
+		cancelFnc:    cancelFnc,
+		selfTester:   selfTester,
 	}
 	m.apiServer.module = m
+	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
-	seclog.SetPatterns(cfg.LogPatterns)
+	seclog.SetPatterns(cfg.LogPatterns...)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 

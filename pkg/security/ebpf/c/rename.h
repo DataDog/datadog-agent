@@ -6,6 +6,7 @@
 struct rename_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t old;
@@ -41,18 +42,29 @@ SYSCALL_KPROBE0(renameat2) {
 }
 
 SEC("kprobe/vfs_rename")
-int kprobe__vfs_rename(struct pt_regs *ctx) {
+int kprobe_vfs_rename(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->rename.target_file.path_key.ino) {
         return 0;
     }
 
-    struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+    struct dentry *src_dentry;
+    struct dentry *target_dentry;
+
+    if (get_vfs_rename_input_type() == VFS_RENAME_REGISTER_INPUT) {
+        src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+        target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+    } else {
+        struct renamedata *rename_data = (struct renamedata *)PT_REGS_PARM1(ctx);
+
+        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *) rename_data + get_vfs_rename_src_dentry_offset());
+        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *) rename_data + get_vfs_rename_target_dentry_offset());
+    }
 
     syscall->rename.src_dentry = src_dentry;
     syscall->rename.target_dentry = target_dentry;
@@ -61,10 +73,6 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     syscall->rename.target_file.metadata = syscall->rename.src_file.metadata;
     if (is_overlayfs(src_dentry)) {
         syscall->rename.target_file.flags |= UPPER_LAYER;
-    }
-
-    if (filter_syscall(syscall, rename_approvers)) {
-        return mark_as_discarded(syscall);
     }
 
     // use src_dentry as target inode is currently empty and the target file will
@@ -78,6 +86,11 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     u64 inode = get_dentry_ino(target_dentry);
     if (inode) {
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
+    }
+
+    // always return after any invalidate_inode call
+    if (filter_syscall(syscall, rename_approvers)) {
+        return mark_as_discarded(syscall);
     }
 
     // If we are discarded, we still want to invalidate the inode
@@ -103,20 +116,25 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
     // invalidate inode from src dentry to handle ovl folder
-    if (syscall->rename.target_file.path_key.ino != inode) {
+    if (syscall->rename.target_file.path_key.ino != inode && retval >= 0) {
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
-    // invalidate user face inode, so no need to bump the discarder revision in the event
-    invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, 1);
+    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RENAME);
 
-    if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
+    // invalidate user space inode, so no need to bump the discarder revision in the event
+    if (retval >= 0) {
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, !pass_to_userspace);
+    }
+
+    if (pass_to_userspace) {
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.dentry = syscall->rename.src_dentry;
@@ -172,11 +190,13 @@ int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t 
 
 int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct rename_event_t event = {
         .syscall.retval = retval,
@@ -186,6 +206,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_RENAME, event);
 

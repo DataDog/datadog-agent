@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -166,7 +167,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 
 		for _, labelToGet := range config.LabelsToGet {
 			labelValue, found := metric.Labels[labelToGet]
-			if found {
+			if found && labelValue != "" {
 				current.labelsToAdd = append(current.labelsToAdd, label{labelToGet, labelValue})
 			}
 		}

@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"testing"
 
+	scrubberpkg "github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
@@ -162,7 +161,7 @@ func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
 	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningEnvs {
-				if scrubbedVal, _ := log.CredentialsCleanerBytes([]byte(p)); scrubbedVal != nil {
+				if scrubbedVal, _ := scrubberpkg.ScrubBytes([]byte(p)); scrubbedVal != nil {
 					c = true
 				}
 

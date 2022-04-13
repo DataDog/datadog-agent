@@ -18,17 +18,8 @@
         "group": {
             "type": "string"
         },
-        "executable_path": {
-            "type": "string"
-        },
         "comm": {
             "type": "string"
-        },
-        "executable_inode": {
-            "type": "integer"
-        },
-        "executable_mount_id": {
-            "type": "integer"
         },
         "tty": {
             "allOf": [
@@ -46,10 +37,10 @@
             ]
         },
         "fork_time": {
-            "$ref": "file:///datetime.json"
+            "$ref": "/schemas/datetime.json"
         },
         "exec_time": {
-            "$ref": "file:///datetime.json"
+            "$ref": "/schemas/datetime.json"
         },
         "credentials": {
             "type": "object",
@@ -144,10 +135,25 @@
                     "type": "integer"
                 },
                 "modification_time": {
-                    "$ref": "file:///datetime.json"
+                    "$ref": "/schemas/datetime.json"
                 },
                 "change_time": {
-                    "$ref": "file:///datetime.json"
+                    "$ref": "/schemas/datetime.json"
+                },
+                "envs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "argv0": {
+                    "type": "string"
                 }
             },
             "required": [
@@ -164,7 +170,7 @@
             ]
         },
         "container": {
-            "$ref": "file:///container.json"
+            "$ref": "/schemas/container.json"
         }
     },
     "oneOf": [
@@ -201,10 +207,7 @@
         "tid",
         "uid",
         "gid",
-        "executable_path",
         "comm",
-        "executable_inode",
-        "executable_mount_id",
         "credentials",
         "executable"
     ]

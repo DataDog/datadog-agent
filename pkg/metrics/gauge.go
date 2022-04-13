@@ -32,3 +32,7 @@ func (g *Gauge) flush(timestamp float64) ([]*Serie, error) {
 		},
 	}, nil
 }
+
+func (g *Gauge) isStateful() bool {
+	return false
+}

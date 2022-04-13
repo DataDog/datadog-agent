@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build ec2
 // +build ec2
 
 package ec2
@@ -11,8 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -30,6 +30,48 @@ var (
 )
 
 func fetchEc2Tags(ctx context.Context) ([]string, error) {
+	if config.Datadog.GetBool("collect_ec2_tags_use_imds") {
+		// prefer to fetch tags from IMDS, falling back to the API
+		tags, err := fetchEc2TagsFromIMDS(ctx)
+		if err == nil {
+			return tags, nil
+		}
+
+		log.Debugf("Could not fetch tags from instance metadata (trying EC2 API instead): %s", err)
+	}
+
+	return fetchEc2TagsFromAPI(ctx)
+}
+
+func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
+	keysStr, err := getMetadataItem(ctx, "/tags/instance")
+	if err != nil {
+		return nil, err
+	}
+
+	// keysStr is a newline-separated list of strings containing tag keys
+	keys := strings.Split(keysStr, "\n")
+
+	tags := make([]string, 0, len(keys))
+	for _, key := range keys {
+		// The key is a valid URL component and need not be escaped:
+		//
+		// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#tag-restrictions
+		// > If you enable instance tags in instance metadata, instance tag
+		// > keys can only use letters (a-z, A-Z), numbers (0-9), and the
+		// > following characters: -_+=,.@:. Instance tag keys can't use spaces,
+		// > /, or the reserved names ., .., or _index.
+		val, err := getMetadataItem(ctx, "/tags/instance/"+key)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, fmt.Sprintf("%s:%s", key, val))
+	}
+
+	return tags, nil
+}
+
+func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	instanceIdentity, err := getInstanceIdentity(ctx)
 	if err != nil {
 		return nil, err
@@ -131,18 +173,12 @@ type ec2Identity struct {
 func getInstanceIdentity(ctx context.Context) (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := doHTTPRequest(ctx, instanceIdentityURL, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	res, err := doHTTPRequest(ctx, instanceIdentityURL)
 	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
+		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)
 	}
 
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to read identity body, %s", err)
-	}
-
-	err = json.Unmarshal(all, &instanceIdentity)
+	err = json.Unmarshal([]byte(res), &instanceIdentity)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to unmarshall json, %s", err)
 	}
@@ -164,18 +200,12 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole)
 	if err != nil {
-		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
+		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
 	}
 
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return iamParams, fmt.Errorf("unable to read iam role body, %s", err)
-	}
-
-	err = json.Unmarshal(all, &iamParams)
+	err = json.Unmarshal([]byte(res), &iamParams)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to unmarshall json, %s", err)
 	}
@@ -183,15 +213,10 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 }
 
 func getIAMRole(ctx context.Context) (string, error) {
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/")
 	if err != nil {
-		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
+		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
 	}
 
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("unable to read security credentials body, %s", err)
-	}
-	return string(all), nil
+	return res, nil
 }

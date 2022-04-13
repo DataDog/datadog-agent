@@ -1,4 +1,10 @@
-//+build windows
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
+// +build windows
 
 package driver
 
@@ -44,6 +50,13 @@ const (
 	StatsHandle HandleType = "Stats"
 )
 
+// handleTypeToPathName maps the handle type to the path name that the driver is expecting.
+var handleTypeToPathName = map[HandleType]string{
+	FlowHandle:  "flowstatshandle",
+	DataHandle:  "transporthandle",
+	StatsHandle: "driverstatshandle", // for now just use that; any path will do
+}
+
 // Handle struct stores the windows handle for the driver as well as information about what type of filter is set
 type Handle struct {
 	windows.Handle
@@ -55,7 +68,12 @@ type Handle struct {
 
 // NewHandle creates a new windows handle attached to the driver
 func NewHandle(flags uint32, handleType HandleType) (*Handle, error) {
-	p, err := windows.UTF16PtrFromString(deviceName)
+	pathext, ok := handleTypeToPathName[handleType]
+	if !ok {
+		return nil, fmt.Errorf("Unknown Handle type %v", handleType)
+	}
+	fullpath := deviceName + `\` + pathext
+	p, err := windows.UTF16PtrFromString(fullpath)
 	if err != nil {
 		return nil, err
 	}

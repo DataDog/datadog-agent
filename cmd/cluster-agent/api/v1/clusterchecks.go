@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package v1
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 
@@ -19,9 +21,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	dcautil "github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var (
+	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
+		[]string{"handler", "status"}, "Counter of requests made to the cluster agent API.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+)
+
+func incrementRequestMetric(handler string, status int) {
+	apiRequests.Inc(handler, strconv.Itoa(status))
+}
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
@@ -181,7 +194,7 @@ func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handl
 
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusPreconditionFailed)
+	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte("Cluster-checks are not enabled"))
 }
 

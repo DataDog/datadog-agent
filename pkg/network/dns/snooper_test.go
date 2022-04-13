@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package dns
@@ -18,6 +24,7 @@ import (
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go4.org/intern"
 )
 
 func skipIfDNSNotSupported(t *testing.T) {
@@ -190,9 +197,9 @@ func getKey(
 	}
 }
 
-func hasDomains(stats map[string]map[QueryType]Stats, domains ...string) bool {
+func hasDomains(stats map[*intern.Value]map[QueryType]Stats, domains ...string) bool {
 	for _, domain := range domains {
-		if _, ok := stats[domain]; !ok {
+		if _, ok := stats[intern.GetByString(domain)]; !ok {
 			return false
 		}
 	}
@@ -200,7 +207,7 @@ func hasDomains(stats map[string]map[QueryType]Stats, domains ...string) bool {
 	return true
 }
 
-func countDNSResponses(stats map[Key]map[string]map[QueryType]Stats) int {
+func countDNSResponses(stats StatsByKeyByNameByType) int {
 	total := 0
 	for _, statsByDomain := range stats {
 		for _, statsByType := range statsByDomain {
@@ -233,14 +240,14 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 	}
 
 	key := getKey(queryIP, queryPort, validDNSServerIP, syscall.IPPROTO_TCP)
-	var allStats map[Key]map[string]map[QueryType]Stats
+	var allStats StatsByKeyByNameByType
 	require.Eventuallyf(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil && countDNSResponses(allStats) >= len(domains)
 	}, 3*time.Second, 10*time.Millisecond, "not enough DNS responses")
 
 	// Exactly one rcode (0, success) is expected
-	stats := allStats[key][""][TypeA]
+	stats := allStats[key][intern.GetByString("")][TypeA]
 	require.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(3), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 	assert.True(t, stats.SuccessLatencySum >= uint64(1))
@@ -265,7 +272,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 		require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
 	}
 
-	var allStats map[Key]map[string]map[QueryType]Stats
+	var allStats StatsByKeyByNameByType
 	key := getKey(queryIP, queryPort, validDNSServerIP, syscall.IPPROTO_TCP)
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
@@ -274,7 +281,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 
 	// Exactly one rcode (0, success) is expected
 	for _, d := range domains {
-		stats := allStats[key][d][TypeA]
+		stats := allStats[key][intern.GetByString(d)][TypeA]
 		require.Equal(t, 1, len(stats.CountByRcode))
 		assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 		assert.True(t, stats.SuccessLatencySum >= uint64(1))
@@ -324,7 +331,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	}()
 	waitLock.Lock()
 	queryIP, queryPort, _ = sendDNSQueries(t, domains, localhost, "udp")
-	var allStats map[Key]map[string]map[QueryType]Stats
+	var allStats StatsByKeyByNameByType
 
 	// First check the one sent over TCP. Expected error type: NXDomain
 	require.Eventually(t, func() bool {
@@ -332,8 +339,8 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		return hasDomains(allStats[key1], domains...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for TCP requests")
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key1][d][TypeA].CountByRcode))
-		assert.Equal(t, uint32(1), allStats[key1][d][TypeA].CountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][d])
+		require.Equal(t, 1, len(allStats[key1][intern.GetByString(d)][TypeA].CountByRcode))
+		assert.Equal(t, uint32(1), allStats[key1][intern.GetByString(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][intern.GetByString(d)])
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
@@ -343,8 +350,8 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		return hasDomains(allStats[key2], domains...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for UDP requests")
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key2][d][TypeA].CountByRcode))
-		assert.Equal(t, uint32(1), allStats[key2][d][TypeA].CountByRcode[uint32(layers.DNSResponseCodeServFail)])
+		require.Equal(t, 1, len(allStats[key2][intern.GetByString(d)][TypeA].CountByRcode))
+		assert.Equal(t, uint32(1), allStats[key2][intern.GetByString(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeServFail)])
 	}
 }
 
@@ -358,16 +365,16 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{domainQueried}, invalidServerIP, "udp")
 	require.Nil(t, reps[0])
 
-	var allStats map[Key]map[string]map[QueryType]Stats
+	var allStats StatsByKeyByNameByType
 	key := getKey(queryIP, queryPort, invalidServerIP, syscall.IPPROTO_UDP)
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
-	assert.Equal(t, 0, len(allStats[key][domainQueried][TypeA].CountByRcode))
-	assert.Equal(t, uint32(1), allStats[key][domainQueried][TypeA].Timeouts)
-	assert.Equal(t, uint64(0), allStats[key][domainQueried][TypeA].SuccessLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][domainQueried][TypeA].FailureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][intern.GetByString(domainQueried)][TypeA].CountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][intern.GetByString(domainQueried)][TypeA].Timeouts)
+	assert.Equal(t, uint64(0), allStats[key][intern.GetByString(domainQueried)][TypeA].SuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][intern.GetByString(domainQueried)][TypeA].FailureLatencySum)
 }
 
 func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
@@ -381,16 +388,16 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 	require.Nil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, invalidServerIP, syscall.IPPROTO_UDP)
-	var allStats map[Key]map[string]map[QueryType]Stats
+	var allStats StatsByKeyByNameByType
 	require.Eventuallyf(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	assert.Equal(t, 0, len(allStats[key][""][TypeA].CountByRcode))
-	assert.Equal(t, uint32(1), allStats[key][""][TypeA].Timeouts)
-	assert.Equal(t, uint64(0), allStats[key][""][TypeA].SuccessLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][""][TypeA].FailureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][intern.GetByString("")][TypeA].CountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][intern.GetByString("")][TypeA].Timeouts)
+	assert.Equal(t, uint64(0), allStats[key][intern.GetByString("")][TypeA].SuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][intern.GetByString("")][TypeA].FailureLatencySum)
 }
 
 func TestParsingError(t *testing.T) {
@@ -428,13 +435,13 @@ func TestDNSOverIPv6(t *testing.T) {
 	require.NotNil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, serverIP, syscall.IPPROTO_UDP)
-	var allStats map[Key]map[string]map[QueryType]Stats
+	var allStats StatsByKeyByNameByType
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key]["nxdomain-123.com"][TypeA]
+	stats := allStats[key][intern.GetByString("nxdomain-123.com")][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
 }
@@ -471,13 +478,13 @@ func TestDNSNestedCNAME(t *testing.T) {
 	require.NotNil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, serverIP, syscall.IPPROTO_UDP)
-	var allStats map[Key]map[string]map[QueryType]Stats
+	var allStats StatsByKeyByNameByType
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key]["example.com"][TypeA]
+	stats := allStats[key][intern.GetByString("example.com")][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 

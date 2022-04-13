@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
@@ -108,6 +113,19 @@ func GetProcRoot() string {
 	}
 
 	return "/proc"
+}
+
+// GetSysRoot retrieves the current sysfs dir we should use
+func GetSysRoot() string {
+	if v := os.Getenv("HOST_SYS"); v != "" {
+		return v
+	}
+
+	if config.IsContainerized() && PathExists("/host") {
+		return "/host/sys"
+	}
+
+	return "/sys"
 }
 
 // WithAllProcs will execute `fn` for every pid under procRoot. `fn` is

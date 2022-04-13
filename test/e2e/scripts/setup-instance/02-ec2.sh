@@ -39,10 +39,10 @@ done
 aws ec2 create-tags --resources "${SPOT_REQUEST_ID}" "${INSTANCE_ID}" \
     --region "${REGION}" \
     --tags \
-    Key=repository,Value=github.com/DataDog/datadog-agent \
-    Key=branch,Value="${BRANCH}" \
-    Key=commit,Value="${COMMIT_ID:0:8}" \
-    Key=user,Value="${COMMIT_USER}"
+    "Key=repository,Value=github.com/DataDog/datadog-agent" \
+    "Key=branch,Value='${BRANCH}'" \
+    "Key=commit,Value='${COMMIT_ID:0:8}'" \
+    "Key=user,Value='${COMMIT_USER}'"
 
 until [[ -n ${INSTANCE_ENDPOINT:+x} ]]; do
     sleep 5

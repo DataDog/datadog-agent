@@ -12,7 +12,7 @@ check_already_deployed_version_6:
     !reference [.on_deploy_a6]
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -25,7 +25,7 @@ check_already_deployed_version_7:
     !reference [.on_deploy_a7]
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_deb-x64-a7", "agent_deb-arm64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -39,7 +39,7 @@ check_if_build_only:
     !reference [.on_deploy]
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: []
   script:
-    - if [ "$DEB_RPM_BUCKET_BRANCH" == "none" ]; then echo "Stopping pipeline"; exit 1; fi
+    - if [ "$BUCKET_BRANCH" == "none" ]; then echo "Stopping pipeline"; exit 1; fi

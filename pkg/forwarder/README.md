@@ -25,8 +25,7 @@ forwarder.Start()
 
 payload1 := []byte("some payload")
 payload2 := []byte("another payload")
-forwarder.SubmitSeries(Payloads{&payload1, &payload2}
-)
+forwarder.SubmitSeries(Payloads{&payload1, &payload2}, ...)
 
 // ...
 

@@ -6,7 +6,7 @@
 #define MIN_PASS_LEN 16         /* minimum length of password to generate */
 #define MAX_PASS_LEN 20         /* maximum length of password to generate */
 #define MIN_NUM_LOWER_CHARS 2   /* minimum allowable number of lowercase chars */
-#define MIN_NUM_UPPER_CHARS 2   /* minumum allowable number of uppercase chars */
+#define MIN_NUM_UPPER_CHARS 2   /* minimum allowable number of uppercase chars */
 #define MIN_NUM_NUMBER_CHARS 2  /* minimum allowable number of numeric chars */
 #define MIN_NUM_SPECIAL_CHARS 2 /* minimum number of special characters */
 #include "SID.h"
@@ -117,17 +117,19 @@ UINT doUninstallAs(UNINSTALL_TYPE t);
 
 // see https://stackoverflow.com/a/45565001/425565
 // Template ErrType can be HRESULT (long) or DWORD (unsigned long)
-template <class ErrType> std::string GetErrorMessageStr(ErrType errCode)
+template<class ErrType> std::wstring GetErrorMessageStrW(ErrType errCode)
 {
     const int buffsize = 4096;
-    char buffer[buffsize];
+    wchar_t buffer[buffsize];
     const DWORD len =
-        FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK,
+        FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK,
                        nullptr, // (not used with FORMAT_MESSAGE_FROM_SYSTEM)
                        errCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), &buffer[0], buffsize, nullptr);
     if (len > 0)
     {
-        return std::string(buffer, len);
+        return std::wstring(buffer, len);
     }
-    return "Failed to retrieve error message string.";
+    std::wstringstream wsstr;
+    wsstr << L"Failed to retrieve error message string for code " << errCode;
+    return  wsstr.str();
 }

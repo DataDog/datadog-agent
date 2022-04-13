@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Metric series can now be submitted using the V2 API by setting
+    `use_v2_api.series` to true.  This value defaults to false, and
+    should only be set to true in internal testing scenarios.  The
+    default will change in a future release.

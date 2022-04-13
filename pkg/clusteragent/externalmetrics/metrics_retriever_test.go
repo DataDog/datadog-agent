@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -230,6 +231,73 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:  11.0,
 						Valid:  false,
 						Error:  fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
+						// UpdateTime not set as it will not be compared directly
+					},
+					query: "query-metric1",
+				},
+			},
+		},
+		{
+			maxAge: 15,
+			desc:   "Test expired data from backend defining per-metric maxAge (overrides global maxAge)",
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+						MaxAge:     20 * time.Second,
+					},
+					query: "query-metric0",
+				},
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     true,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+						MaxAge:     5 * time.Second,
+					},
+					query: "query-metric1",
+				},
+			},
+			queryResults: map[string]autoscalers.Point{
+				"query-metric0": {
+					Value:     10.0,
+					Timestamp: defaultTestTime.Unix(),
+					Valid:     true,
+				},
+				"query-metric1": {
+					Value:     11.0,
+					Timestamp: defaultPreviousUpdateTime.Unix(),
+					Valid:     true,
+				},
+			},
+			queryError: nil,
+			expected: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      10.0,
+						UpdateTime: defaultTestTime,
+						Valid:      true,
+						Error:      nil,
+						MaxAge:     20 * time.Second,
+					},
+					query: "query-metric0",
+				},
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:     "metric1",
+						Active: true,
+						Value:  11.0,
+						Valid:  false,
+						Error:  fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
+						MaxAge: 5 * time.Second,
 						// UpdateTime not set as it will not be compared directly
 					},
 					query: "query-metric1",

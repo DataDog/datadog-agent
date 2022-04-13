@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds the ability to change `log_level` in the process agent at runtime using ``process-agent config set log_level <log-level>``

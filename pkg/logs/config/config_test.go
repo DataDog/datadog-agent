@@ -40,25 +40,12 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
 	suite.Equal(nil, suite.config.Get("logs_config.processing_rules"))
 	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
+	suite.Equal(false, suite.config.GetBool("logs_config.use_tcp"))
+	suite.Equal(false, suite.config.GetBool("logs_config.force_use_tcp"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
+	suite.Equal(false, suite.config.GetBool("logs_config.force_use_http"))
 	suite.Equal(false, suite.config.GetBool("logs_config.k8s_container_use_file"))
-}
-
-func (suite *ConfigTestSuite) TestDefaultSources() {
-	// container collect all source
-
-	source := ContainerCollectAllSource()
-	suite.Nil(source)
-
-	suite.config.Set("logs_config.container_collect_all", true)
-
-	source = ContainerCollectAllSource()
-	suite.NotNil(source)
-
-	suite.Equal("container_collect_all", source.Name)
-	suite.Equal(DockerType, source.Config.Type)
-	suite.Equal("docker", source.Config.Source)
-	suite.Equal("docker", source.Config.Service)
+	suite.Equal(true, suite.config.GetBool("logs_config.use_v2_api"))
 }
 
 func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEmptyValues() {
@@ -154,6 +141,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.Set("logs_config.sender_backoff_max", 2.0)
 	suite.config.Set("logs_config.sender_recovery_interval", 10)
 	suite.config.Set("logs_config.sender_recovery_reset", true)
+	suite.config.Set("logs_config.use_v2_api", false)
 
 	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[
 	{"api_key": "456", "host": "additional.endpoint.1", "port": 1234, "use_compression": true, "compression_level": 2},
@@ -173,6 +161,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		RecoveryInterval: 10,
 		RecoveryReset:    true,
 		Version:          EPIntakeVersion1,
+		IsReliable:       true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		APIKey:           "456",
@@ -180,7 +169,12 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2,
+		CompressionLevel: 6,
+		BackoffFactor:    3,
+		BackoffBase:      1.0,
+		BackoffMax:       2.0,
+		RecoveryInterval: 10,
+		RecoveryReset:    true,
 		Version:          EPIntakeVersion1,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
@@ -189,7 +183,12 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2,
+		CompressionLevel: 6,
+		BackoffFactor:    3,
+		BackoffBase:      1.0,
+		BackoffMax:       2.0,
+		RecoveryInterval: 10,
+		RecoveryReset:    true,
 		Version:          EPIntakeVersion1,
 	}
 
@@ -218,7 +217,8 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		UseSSL:           true,
 		UseCompression:   false,
 		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128"}
+		ProxyAddress:     "proxy.test:3128",
+		IsReliable:       true}
 	expectedAdditionalEndpoint := Endpoint{
 		APIKey:           "456",
 		Host:             "additional.endpoint",
@@ -242,6 +242,8 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	suite.config.Set("logs_config.use_compression", true)
 	suite.config.Set("logs_config.compression_level", 6)
 	suite.config.Set("logs_config.logs_no_ssl", false)
+	suite.config.Set("logs_config.use_v2_api", false)
+
 	endpointsInConfig := []map[string]interface{}{
 		{
 			"api_key":           "456     \n\n",
@@ -270,6 +272,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion1,
+		IsReliable:       true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		APIKey:           "456",
@@ -277,7 +280,11 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion1,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
@@ -286,7 +293,11 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion1,
 	}
 
@@ -305,7 +316,6 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	suite.config.Set("logs_config.use_compression", true)
 	suite.config.Set("logs_config.compression_level", 6)
 	suite.config.Set("logs_config.logs_no_ssl", false)
-	suite.config.Set("logs_config.use_v2_api", true)
 	endpointsInConfig := []map[string]interface{}{
 		{
 			"api_key":           "456     \n\n",
@@ -338,7 +348,8 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		Version:          EPIntakeVersion2,
 		TrackType:        "test-track",
 		Protocol:         "test-proto",
-		Source:           "test-source",
+		Origin:           "test-source",
+		IsReliable:       true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		APIKey:           "456",
@@ -346,7 +357,11 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion1,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
@@ -355,11 +370,15 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion2,
 		TrackType:        "test-track",
 		Protocol:         "test-proto",
-		Source:           "test-source",
+		Origin:           "test-source",
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
@@ -392,7 +411,9 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		UseSSL:           true,
 		UseCompression:   false,
 		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128"}
+		ProxyAddress:     "proxy.test:3128",
+		IsReliable:       true,
+	}
 	expectedAdditionalEndpoint := Endpoint{
 		APIKey:           "456",
 		Host:             "additional.endpoint",
@@ -418,22 +439,29 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 
 	suite.Nil(err)
 
+	main := Endpoint{
+		APIKey:           "123",
+		Host:             "my-proxy",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Protocol:         "test-proto",
+		Origin:           "test-source",
+		IsReliable:       true,
+	}
+
 	expectedEndpoints := &Endpoints{
-		UseHTTP:   true,
-		BatchWait: coreConfig.DefaultBatchWait * time.Second,
-		Main: Endpoint{
-			APIKey:           "123",
-			Host:             "my-proxy",
-			Port:             443,
-			UseSSL:           true,
-			UseCompression:   true,
-			CompressionLevel: 6,
-			BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
-			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
-			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
-			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
-			Version:          EPIntakeVersion1,
-		},
+		UseHTTP:                true,
+		BatchWait:              coreConfig.DefaultBatchWait * time.Second,
+		Main:                   main,
+		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
@@ -457,22 +485,29 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 
 	suite.Nil(err)
 
+	main := Endpoint{
+		APIKey:           "123",
+		Host:             "default-intake.logs.mydomain.com",
+		Port:             0,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Origin:           "test-source",
+		Protocol:         "test-proto",
+		IsReliable:       true,
+	}
+
 	expectedEndpoints := &Endpoints{
-		UseHTTP:   true,
-		BatchWait: 10 * time.Second,
-		Main: Endpoint{
-			APIKey:           "123",
-			Host:             "default-intake.logs.mydomain.com",
-			Port:             0,
-			UseSSL:           true,
-			UseCompression:   true,
-			CompressionLevel: 6,
-			BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
-			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
-			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
-			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
-			Version:          EPIntakeVersion1,
-		},
+		UseHTTP:                true,
+		BatchWait:              10 * time.Second,
+		Main:                   main,
+		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
@@ -486,29 +521,124 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("logs_config.batch_wait", 1)
 
+	main := Endpoint{
+		APIKey:           "123",
+		Host:             "http-intake.logs.datadoghq.com",
+		Port:             0,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Origin:           "lambda-extension",
+		Protocol:         "test-proto",
+		IsReliable:       true,
+	}
+
 	expectedEndpoints := &Endpoints{
-		UseHTTP:   true,
-		BatchWait: 1 * time.Second,
-		Main: Endpoint{
-			APIKey:           "123",
-			Host:             "lambda-http-intake.logs.datadoghq.com",
-			Port:             0,
-			UseSSL:           true,
-			UseCompression:   true,
-			CompressionLevel: 6,
-			BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
-			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
-			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
-			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
-			Version:          EPIntakeVersion1,
-		},
+		UseHTTP:                true,
+		BatchWait:              1 * time.Second,
+		Main:                   main,
+		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
-	endpoints, err := BuildServerlessEndpoints("test-track", "test-proto", "test-source")
+	endpoints, err := BuildServerlessEndpoints("test-track", "test-proto")
 
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func getTestEndpoint(host string, port int, ssl bool) Endpoint {
+	return Endpoint{
+		APIKey:           "123",
+		Host:             host,
+		Port:             port,
+		UseSSL:           ssl,
+		UseCompression:   true,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Protocol:         "test-proto",
+		Origin:           "test-source",
+		IsReliable:       true,
+	}
+}
+
+func getTestEndpoints(e Endpoint) *Endpoints {
+	return &Endpoints{
+		UseHTTP:                true,
+		BatchWait:              coreConfig.DefaultBatchWait * time.Second,
+		Main:                   e,
+		Endpoints:              []Endpoint{e},
+		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
+		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+	}
+}
+func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("vector.logs.enabled", true)
+	suite.config.Set("vector.logs.url", "http://vector.host:8080/")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("vector.logs.enabled", true)
+	suite.config.Set("vector.logs.url", "https://vector.host:8443/")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("vector.logs.enabled", true)
+	suite.config.Set("vector.logs.url", "vector.host:8443")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverride() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.logs_no_ssl", true)
+	suite.config.Set("vector.logs.enabled", true)
+	suite.config.Set("vector.logs.url", "vector.host:8443")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, false))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.logs_no_ssl", true)
+	suite.config.Set("vector.logs.enabled", true)
+	suite.config.Set("vector.logs.url", "vector.host:8443")
+	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -177,19 +182,19 @@ func main() {
 	}
 
 	labelJoins := map[string]*cluster.JoinsConfig{
-		"kube_daemonset_labels": &cluster.JoinsConfig{
+		"kube_daemonset_labels": {
 			LabelsToMatch: []string{"daemonset", "namespace"},
 			LabelsToGet:   []string{"label_service", "label_chart_name", "label_chart_version", "label_team", "label_app"},
 		},
-		"kube_deployment_labels": &cluster.JoinsConfig{
+		"kube_deployment_labels": {
 			LabelsToMatch: []string{"deployment", "namespace"},
 			LabelsToGet:   []string{"label_service", "label_chart_name", "label_chart_version", "label_team", "label_logs_team", "label_kafka_topic", "label_consumer_group", "label_app"},
 		},
-		"kube_job_labels": &cluster.JoinsConfig{
+		"kube_job_labels": {
 			LabelsToMatch: []string{"job_name", "namespace"},
 			LabelsToGet:   []string{"label_service", "label_chart_name", "label_chart_version", "label_team", "label_logs_team", "label_app"},
 		},
-		"kube_statefulset_labels": &cluster.JoinsConfig{
+		"kube_statefulset_labels": {
 			LabelsToMatch: []string{"statefulset", "namespace"},
 			LabelsToGet:   []string{"label_service", "label_chart_name", "label_chart_version", "label_team", "label_logs_team", "label_kafka_topic", "label_consumer_group", "label_app"},
 		},

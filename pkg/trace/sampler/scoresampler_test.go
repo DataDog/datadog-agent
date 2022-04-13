@@ -7,26 +7,24 @@ package sampler
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
+	"strconv"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
-const defaultEnv = "none"
+const defaultEnv = "testEnv"
 
-func getTestErrorsSampler() *ErrorsSampler {
-	// Disable debug logs in these tests
-	seelog.UseLogger(seelog.Disabled)
-
+func getTestErrorsSampler(tps float64) *ErrorsSampler {
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1,
-		TargetTPS:       0,
+		ErrorTPS:        tps,
 	}
 	return NewErrorsSampler(conf)
 }
@@ -43,69 +41,87 @@ func getTestTrace() (pb.Trace, *pb.Span) {
 func TestExtraSampleRate(t *testing.T) {
 	assert := assert.New(t)
 
-	s := getTestErrorsSampler()
+	s := getTestErrorsSampler(10)
 	trace, root := getTestTrace()
-	signature := testComputeSignature(trace)
+	signature := testComputeSignature(trace, "")
 
+	testTime := time.Now()
 	// Feed the s with a signature so that it has a < 1 sample rate
 	for i := 0; i < int(1e6); i++ {
-		s.Sample(trace, root, defaultEnv)
+		s.Sample(testTime, trace, root, defaultEnv)
 	}
+	// trigger rates update
+	s.Sample(testTime.Add(10*time.Second), trace, root, defaultEnv)
 
-	sRate := s.GetSampleRate(trace, root, signature)
+	sRate := s.getSignatureSampleRate(signature)
 
 	// Then turn on the extra sample rate, then ensure it affects both existing and new signatures
 	s.extraRate = 0.33
 
-	assert.Equal(s.GetSampleRate(trace, root, signature), s.extraRate*sRate)
+	assert.Equal(s.getSignatureSampleRate(signature), s.extraRate*sRate)
 }
 
-func TestErrorSampleThresholdTo1(t *testing.T) {
+func TestShrink(t *testing.T) {
 	assert := assert.New(t)
-	env := defaultEnv
 
-	s := getTestErrorsSampler()
-	for i := 0; i < 1e2; i++ {
+	s := getTestErrorsSampler(10)
+	testTime := time.Now()
+
+	sigs := []Signature{}
+	for i := 1; i < 3*shrinkCardinality; i++ {
 		trace, root := getTestTrace()
-		s.Sample(trace, root, env)
-		rate, _ := root.Metrics["_dd.errors_sr"]
-		assert.Equal(1.0, rate)
+		sigs = append(sigs, computeSignatureWithRootAndEnv(trace, root, ""))
+
+		trace[1].Service = strconv.FormatInt(int64(i+1000), 10)
+		s.Sample(testTime, trace, root, defaultEnv)
 	}
-	for i := 0; i < 1e3; i++ {
-		trace, root := getTestTrace()
-		s.Sample(trace, root, env)
-		rate, _ := root.Metrics["_dd.errors_sr"]
-		if rate < 1 {
-			assert.True(rate < errorSamplingRateThresholdTo1)
-		}
+
+	// verify that shrink did not apply to first signatures
+	for i := 1; i < shrinkCardinality; i++ {
+		assert.Equal(sigs[i], s.shrink(sigs[i]))
+	}
+
+	// shrunk
+	for i := 2 * shrinkCardinality; i < 3*shrinkCardinality-1; i++ {
+		assert.Equal(sigs[i]%shrinkCardinality, s.shrink(sigs[i]))
+	}
+
+	assert.Equal(int64(shrinkCardinality), s.size())
+}
+
+func TestDisable(t *testing.T) {
+	assert := assert.New(t)
+
+	s := getTestErrorsSampler(0)
+	trace, root := getTestTrace()
+	for i := 0; i < int(1e2); i++ {
+		assert.False(s.Sample(time.Now(), trace, root, defaultEnv))
 	}
 }
 
 func TestTargetTPS(t *testing.T) {
 	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
-	s := getTestErrorsSampler()
+	targetTPS := 10.0
+	s := getTestErrorsSampler(targetTPS)
 
-	targetTPS := 5.0
-	tps := 100.0
+	generatedTPS := 200.0
 	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
-	initPeriods := 20
-	periods := 50
+	initPeriods := 2
+	periods := 10
 
-	s.targetTPS = targetTPS
-	periodSeconds := defaultDecayPeriod.Seconds()
-	tracesPerPeriod := tps * periodSeconds
-	// Set signature score offset high enough not to kick in during the test.
-	s.signatureScoreOffset.Store(2 * tps)
-	s.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
+	s.targetTPS = atomic.NewFloat(targetTPS)
+	periodSeconds := bucketDuration.Seconds()
+	tracesPerPeriod := generatedTPS * periodSeconds
 
 	sampledCount := 0
 
+	testTime := time.Now()
 	for period := 0; period < initPeriods+periods; period++ {
-		s.Backend.DecayScore()
+		testTime = testTime.Add(bucketDuration)
 		for i := 0; i < int(tracesPerPeriod); i++ {
 			trace, root := getTestTrace()
-			sampled := s.Sample(trace, root, defaultEnv)
+			sampled := s.Sample(testTime, trace, root, defaultEnv)
 			// Once we got into the "supposed-to-be" stable "regime", count the samples
 			if period > initPeriods && sampled {
 				sampledCount++
@@ -113,17 +129,13 @@ func TestTargetTPS(t *testing.T) {
 		}
 	}
 
-	// Check that the sampled score pre-targetTPS is equals to the incoming number of traces per second
-	assert.InEpsilon(tps, s.Backend.GetSampledScore(), 0.01)
-
-	// We should have kept less traces per second than targetTPS
-	assert.True(s.targetTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
+	// We should keep the right percentage of traces
+	assert.InEpsilon(targetTPS/generatedTPS, float64(sampledCount)/(tracesPerPeriod*float64(periods)), 0.2)
 
 	// We should have a throughput of sampled traces around targetTPS
 	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(s.targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
-		0.01+defaultDecayFactor-1)
+	assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods)*bucketDuration.Seconds()), 0.2)
 }
 
 func BenchmarkSampler(b *testing.B) {
@@ -132,8 +144,9 @@ func BenchmarkSampler(b *testing.B) {
 	// Up to signatureCount different signatures
 	signatureCount := 20
 
-	s := getTestErrorsSampler()
+	s := getTestErrorsSampler(10)
 
+	ts := time.Now()
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -145,6 +158,6 @@ func BenchmarkSampler(b *testing.B) {
 			&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Start: 500000000, Duration: 500000, Service: "redis", Type: "redis"},
 			&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Start: 700000000, Duration: 700000, Service: "mcnulty", Type: ""},
 		}
-		s.Sample(trace, trace[0], defaultEnv)
+		s.Sample(ts, trace, trace[0], defaultEnv)
 	}
 }

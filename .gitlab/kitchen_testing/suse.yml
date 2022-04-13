@@ -15,23 +15,24 @@
     KITCHEN_OSVERS: "sles-12,sles-15"
     DEFAULT_KITCHEN_OSVERS: "sles-15"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-# Kitchen: scenarios (os * agent)
+# Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------
 
 .kitchen_scenario_suse_a6:
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_suse
+    - .kitchen_azure_x64
   needs: ["deploy_suse_rpm_testing-a6"]
 
 .kitchen_scenario_suse_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_suse
+    - .kitchen_azure_x64
   needs: ["deploy_suse_rpm_testing-a7"]
 
 # Kitchen: final test matrix (tests * scenarios)
@@ -106,3 +107,11 @@ kitchen_suse_upgrade7_iot_agent-a7:
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_upgrade7_iot_agent
+
+kitchen_suse_process_agent-a7:
+  variables:
+    KITCHEN_OSVERS: "sles-15"
+    DEFAULT_KITCHEN_OSVERS: "sles-15"
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_process_agent

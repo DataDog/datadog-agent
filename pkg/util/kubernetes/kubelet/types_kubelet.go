@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
@@ -43,11 +44,12 @@ type PodOwner struct {
 
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
-	HostNetwork    bool            `json:"hostNetwork,omitempty"`
-	NodeName       string          `json:"nodeName,omitempty"`
-	InitContainers []ContainerSpec `json:"initContainers,omitempty"`
-	Containers     []ContainerSpec `json:"containers,omitempty"`
-	Volumes        []VolumeSpec    `json:"volumes,omitempty"`
+	HostNetwork       bool            `json:"hostNetwork,omitempty"`
+	NodeName          string          `json:"nodeName,omitempty"`
+	InitContainers    []ContainerSpec `json:"initContainers,omitempty"`
+	Containers        []ContainerSpec `json:"containers,omitempty"`
+	Volumes           []VolumeSpec    `json:"volumes,omitempty"`
+	PriorityClassName string          `json:"priorityClassName,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
@@ -101,6 +103,7 @@ type Status struct {
 	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
 	AllContainers  []ContainerStatus
 	Conditions     []Conditions `json:"conditions,omitempty"`
+	QOSClass       string       `json:"qosClass,omitempty"`
 }
 
 // GetAllContainers returns the list of init and regular containers
@@ -117,11 +120,12 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name  string         `json:"name"`
-	Image string         `json:"image"`
-	ID    string         `json:"containerID"`
-	Ready bool           `json:"ready"`
-	State ContainerState `json:"state"`
+	Name    string         `json:"name"`
+	Image   string         `json:"image"`
+	ImageID string         `json:"imageID"`
+	ID      string         `json:"containerID"`
+	Ready   bool           `json:"ready"`
+	State   ContainerState `json:"state"`
 }
 
 // IsPending returns if the container doesn't have an ID

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package model
@@ -40,6 +41,7 @@ type DatadogMetricInternal struct {
 	AutoscalerReferences string
 	UpdateTime           time.Time
 	Error                error
+	MaxAge               time.Duration
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -53,6 +55,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		Deleted:              false,
 		Autogen:              false,
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
+		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -129,6 +132,7 @@ func (d *DatadogMetricInternal) UpdateFrom(currentSpec datadoghq.DatadogMetricSp
 		d.resolveQuery(currentSpec.Query)
 	}
 	d.query = currentSpec.Query
+	d.MaxAge = currentSpec.MaxAge.Duration
 }
 
 // shouldResolveQuery returns whether we should try to resolve a new query

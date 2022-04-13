@@ -1,28 +1,33 @@
 #ifndef _COMMIT_CREDS_H_
 #define _COMMIT_CREDS_H_
 
-struct credentials_event_t {
+struct setuid_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
-    union {
-        struct {
-            u32 uid;
-            u32 euid;
-            u32 fsuid;
-        } setuid;
+    u32 uid;
+    u32 euid;
+    u32 fsuid;
+};
 
-        struct {
-            u32 gid;
-            u32 egid;
-            u32 fsgid;
-        } setgid;
+struct setgid_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    u32 gid;
+    u32 egid;
+    u32 fsgid;
+};
 
-        struct {
-            u64 cap_effective;
-            u64 cap_permitted;
-        } capset;
-    };
+struct capset_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    u64 cap_effective;
+    u64 cap_permitted;
 };
 
 int __attribute__((always_inline)) credentials_update(u64 type) {
@@ -40,44 +45,58 @@ int __attribute__((always_inline)) credentials_predicate(u64 type) {
 
 int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (retval < 0)
+    if (retval < 0) {
         return 0;
+    }
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &pid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
         return 0;
     }
 
-    u64 event_type = 0;
-    struct credentials_event_t event = {};
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-
     switch (syscall->type) {
-        case EVENT_SETUID:
-            event_type = EVENT_SETUID;
-            event.setuid.uid = pid_entry->credentials.uid;
-            event.setuid.euid = pid_entry->credentials.euid;
-            event.setuid.fsuid = pid_entry->credentials.fsuid;
-            break;
-        case EVENT_SETGID:
-            event_type = EVENT_SETGID;
-            event.setgid.gid = pid_entry->credentials.gid;
-            event.setgid.egid = pid_entry->credentials.egid;
-            event.setgid.fsgid = pid_entry->credentials.fsgid;
-            break;
-        case EVENT_CAPSET:
-            event_type = EVENT_CAPSET;
-            event.capset.cap_effective = pid_entry->credentials.cap_effective;
-            event.capset.cap_permitted = pid_entry->credentials.cap_permitted;
-            break;
+    case EVENT_SETUID: {
+        struct setuid_event_t event = {};
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
+        fill_span_context(&event.span);
+
+        event.uid = pid_entry->credentials.uid;
+        event.euid = pid_entry->credentials.euid;
+        event.fsuid = pid_entry->credentials.fsuid;
+        send_event(ctx, EVENT_SETUID, event);
+        break;
+    }
+    case EVENT_SETGID: {
+        struct setgid_event_t event = {};
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
+        fill_span_context(&event.span);
+
+        event.gid = pid_entry->credentials.gid;
+        event.egid = pid_entry->credentials.egid;
+        event.fsgid = pid_entry->credentials.fsgid;
+        send_event(ctx, EVENT_SETGID, event);
+        break;
+    }
+    case EVENT_CAPSET: {
+        struct capset_event_t event = {};
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
+        fill_span_context(&event.span);
+
+        event.cap_effective = pid_entry->credentials.cap_effective;
+        event.cap_permitted = pid_entry->credentials.cap_permitted;
+        send_event(ctx, EVENT_CAPSET, event);
+        break;
+    }
     }
 
-    send_event(ctx, event_type, event);
     return 0;
 }
 
@@ -216,8 +235,6 @@ int tracepoint_syscalls_sys_exit_setresuid16(struct tracepoint_syscalls_sys_exit
     return credentials_update_ret(args, args->ret);
 }
 
-
-
 SYSCALL_KPROBE0(setgid) {
     return credentials_update(EVENT_SETGID);
 }
@@ -348,8 +365,6 @@ int tracepoint_syscalls_sys_exit_setresgid16(struct tracepoint_syscalls_sys_exit
     return credentials_update_ret(args, args->ret);
 }
 
-
-
 SYSCALL_KPROBE0(capset) {
     return credentials_update(EVENT_CAPSET);
 }
@@ -368,15 +383,34 @@ int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_e
     return credentials_update_ret(args, args->ret);
 }
 
+struct cred_ids {
+    kuid_t uid;
+    kgid_t gid;
+    kuid_t suid;
+    kgid_t sgid;
+    kuid_t euid;
+    kgid_t egid;
+    kuid_t fsuid;
+    kgid_t fsgid;
+    unsigned securebits;
+    kernel_cap_t cap_inheritable;
+    kernel_cap_t cap_permitted;
+    kernel_cap_t cap_effective;
+    kernel_cap_t cap_bset;
+    kernel_cap_t cap_ambient;
+};
+
 SEC("kprobe/commit_creds")
-int kprobe__commit_creds(struct pt_regs *ctx) {
-    struct cred *credentials = (struct cred *)PT_REGS_PARM1(ctx);
+int kprobe_commit_creds(struct pt_regs *ctx) {
+    u64 creds_uid_offset;
+    LOAD_CONSTANT("creds_uid_offset", creds_uid_offset);
+    struct cred_ids *credentials = (struct cred_ids *)(PT_REGS_PARM1(ctx) + creds_uid_offset);
     struct pid_cache_t new_pid_entry = {};
 
     // update pid_cache entry for the current process
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u8 new_entry = 0;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &pid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
         new_entry = 1;
         pid_entry = &new_pid_entry;

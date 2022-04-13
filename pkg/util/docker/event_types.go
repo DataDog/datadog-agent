@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -11,6 +12,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -52,6 +55,7 @@ type eventSubscriber struct {
 	eventChan  chan *ContainerEvent
 	errorChan  chan error
 	cancelChan chan struct{}
+	filter     *containers.Filter
 }
 
 // eventStreamState holds the state for event streaming towards subscribers

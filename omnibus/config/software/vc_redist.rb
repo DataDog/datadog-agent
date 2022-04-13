@@ -16,6 +16,9 @@ else
 end
 
 build do
+  license "Microsoft Visual Studio 2008"
+  license_file "https://s3.amazonaws.com/dd-agent-omnibus/omnibus/vcredist_90_license.pdf"
+
   # Because python is built with really old (VS2008) visual c++, and with the CRT
   # as a DLL, we need to redistribute the CRT DLLS.  We (now) need the DLLS in
   # both embedded and dist, as we have executables in each of those directories

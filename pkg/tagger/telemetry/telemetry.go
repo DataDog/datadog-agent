@@ -1,15 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package telemetry
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
-
-// PruneType represents the `prune_type` tag for the pruned_entities metric
-type PruneType string
+import (
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
 
 const (
-	// DeletedEntity refers to deleting entities due to a deletion event
-	DeletedEntity PruneType = "deletion_event"
-	// EmptyEntry refers to deleting entities with empty entries
-	EmptyEntry PruneType = "empty_entries"
+	// queryEmptyEntityID refers to a query made with an empty entity id
+	queryEmptyEntityID = "empty_entity_id"
+	// queryEmptyTags refers to a query that returned no tags
+	queryEmptyTags = "empty_tags"
+	// querySuccess refers to a successful query
+	querySuccess = "success"
 )
 
 var (
@@ -28,9 +35,9 @@ var (
 		[]string{}, "Number of pruned tagger entities.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	// Queries tracks the number of queries made against the tagger.
-	Queries = telemetry.NewCounterWithOpts("tagger", "queries",
-		[]string{"cardinality"}, "Queries made against the tagger.",
+	// queries tracks the number of queries made against the tagger.
+	queries = telemetry.NewCounterWithOpts("tagger", "queries",
+		[]string{"cardinality", "status"}, "Queries made against the tagger.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	// ClientStreamErrors tracks how many errors were received when streaming
@@ -67,3 +74,38 @@ var (
 		[]string{}, "Number of of times the tagger has received a notification with a group of events",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
+
+// CardinalityTelemetry contains queries counters for a single cardinality level.
+type CardinalityTelemetry struct {
+	EmptyEntityID telemetry.SimpleCounter
+	EmptyTags     telemetry.SimpleCounter
+	Success       telemetry.SimpleCounter
+}
+
+// NewCardinalityTelemetry creates new set of counters for a cardinality level.
+func NewCardinalityTelemetry(name string) CardinalityTelemetry {
+	return CardinalityTelemetry{
+		EmptyEntityID: queries.WithValues(name, queryEmptyEntityID),
+		EmptyTags:     queries.WithValues(name, queryEmptyTags),
+		Success:       queries.WithValues(name, querySuccess),
+	}
+}
+
+var lowCardinalityQueries = NewCardinalityTelemetry(collectors.LowCardinalityString)
+var orchestratorCardinalityQueries = NewCardinalityTelemetry(collectors.OrchestratorCardinalityString)
+var highCardinalityQueries = NewCardinalityTelemetry(collectors.HighCardinalityString)
+var unknownCardinalityQueries = NewCardinalityTelemetry(collectors.UnknownCardinalityString)
+
+// QueriesByCardinality returns a set of counters for a given cardinality level.
+func QueriesByCardinality(card collectors.TagCardinality) *CardinalityTelemetry {
+	switch card {
+	case collectors.LowCardinality:
+		return &lowCardinalityQueries
+	case collectors.OrchestratorCardinality:
+		return &orchestratorCardinalityQueries
+	case collectors.HighCardinality:
+		return &highCardinalityQueries
+	default:
+		return &unknownCardinalityQueries
+	}
+}

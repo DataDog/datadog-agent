@@ -15,14 +15,14 @@ import (
 
 func TestEmptyArray(t *testing.T) {
 	source := make([][]string, 0)
-	result := ConcatenateTags(source)
+	result := ConcatenateTags(source...)
 	require.Equal(t, []string{}, result)
 }
 
 func TestOneArray(t *testing.T) {
 	source := make([][]string, 1)
 	source[0] = []string{"one", "two"}
-	result := ConcatenateTags(source)
+	result := ConcatenateTags(source...)
 	require.Equal(t, []string{"one", "two"}, result)
 }
 
@@ -32,6 +32,6 @@ func TestThreeArrays(t *testing.T) {
 	source[1] = []string{}
 	source[2] = []string{"4", "5", "6"}
 
-	result := ConcatenateTags(source)
+	result := ConcatenateTags(source...)
 	require.Equal(t, []string{"one", "two", "4", "5", "6"}, result)
 }

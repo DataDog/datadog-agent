@@ -3,31 +3,41 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // renameProbes holds the list of probes used to track file rename events
 var renameProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_rename",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/vfs_rename",
+			EBPFFuncName: "kprobe_vfs_rename",
+		},
 	},
 }
 
 func getRenameProbes() []*manager.Probe {
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "rename",
 	}, EntryAndExit)...)
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "renameat",
 	}, EntryAndExit)...)
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "renameat2",
 	}, EntryAndExit)...)
 	return renameProbes

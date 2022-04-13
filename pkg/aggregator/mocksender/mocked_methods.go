@@ -103,6 +103,11 @@ func (m *MockSender) GetSenderStats() check.SenderStats {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string) {
-	m.Called(msgs, clusterID, payloadType)
+func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
+	m.Called(msgs, clusterID, nodeType)
+}
+
+// ContainerLifecycleEvent submit container life cycle messages
+func (m *MockSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
+	m.Called(msgs)
 }

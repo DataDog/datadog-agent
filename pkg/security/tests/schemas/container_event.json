@@ -3,10 +3,10 @@
     "$id": "container_event.json",
     "allOf": [
         {
-            "$ref": "file:///host_event.json"
+            "$ref": "/schemas/host_event.json"
         },
         {
-            "$ref": "file:///container_context.json"
+            "$ref": "/schemas/container_context.json"
         }
     ]
 }

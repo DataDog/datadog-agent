@@ -47,21 +47,23 @@ type LogSource struct {
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
-	LatencyStats *util.StatsTracker
+	LatencyStats     *util.StatsTracker
+	hiddenFromStatus bool
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, config *LogsConfig) *LogSource {
 	return &LogSource{
-		Name:         name,
-		Config:       config,
-		Status:       NewLogStatus(),
-		inputs:       make(map[string]bool),
-		lock:         &sync.Mutex{},
-		Messages:     NewMessages(),
-		BytesRead:    expvar.Int{},
-		info:         make(map[string]InfoProvider),
-		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
+		Name:             name,
+		Config:           config,
+		Status:           NewLogStatus(),
+		inputs:           make(map[string]bool),
+		lock:             &sync.Mutex{},
+		Messages:         NewMessages(),
+		BytesRead:        expvar.Int{},
+		info:             make(map[string]InfoProvider),
+		LatencyStats:     util.NewStatsTracker(time.Hour*24, time.Hour),
+		hiddenFromStatus: false,
 	}
 }
 
@@ -131,4 +133,18 @@ func (s *LogSource) GetInfoStatus() map[string][]string {
 		info[v.InfoKey()] = v.Info()
 	}
 	return info
+}
+
+// HideFromStatus hides the source from the status output
+func (s *LogSource) HideFromStatus() {
+	s.lock.Lock()
+	s.hiddenFromStatus = true
+	s.lock.Unlock()
+}
+
+// IsHiddenFromStatus returns true if this source should be hidden from the status output
+func (s *LogSource) IsHiddenFromStatus() bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.hiddenFromStatus
 }

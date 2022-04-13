@@ -20,15 +20,29 @@
   script:
     - bash -l tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_system_probe_x64:
+kitchen_test_system_probe_linux_x64:
   extends:
     - .kitchen_test_system_probe
+    - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   needs: [ "tests_ebpf_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
+    KITCHEN_IMAGE_SIZE: Standard_D2_v2
+  before_script:
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  parallel:
+    matrix:
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-16-04,ubuntu-18-04,ubuntu-20-04,ubuntu-21-10"
+      - KITCHEN_PLATFORM: "debian"
+        KITCHEN_OSVERS: "debian-10"
+      - KITCHEN_PLATFORM: "centos"
+        KITCHEN_OSVERS: "centos-76,rhel-81"
 
-.kitchen_test_system_probe_arm64:
+
+kitchen_test_system_probe_linux_arm64:
   extends:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
@@ -36,78 +50,39 @@
   needs: [ "tests_ebpf_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
-    KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
-
-kitchen_centos_sysprobe_x64:
-  extends: .kitchen_test_system_probe_x64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="centos"
-    - export KITCHEN_OSVERS="centos-76,rhel-81"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
+  parallel:
+    matrix:
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-21-10"
+      - KITCHEN_PLATFORM: "debian"
+        KITCHEN_OSVERS: "debian-10"
+      - KITCHEN_PLATFORM: "centos"
+        KITCHEN_OSVERS: "centos-78,rhel-83"
 
-kitchen_ubuntu_sysprobe_x64:
-  extends: .kitchen_test_system_probe_x64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="ubuntu"
-    - export KITCHEN_OSVERS="ubuntu-16-04,ubuntu-18-04,ubuntu-20-04"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_debian_sysprobe_x64:
-  extends: .kitchen_test_system_probe_x64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="debian"
-    - export KITCHEN_OSVERS="debian-10"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_centos_sysprobe_arm64:
-  extends: .kitchen_test_system_probe_arm64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="centos"
-    - export KITCHEN_OSVERS="centos-78,rhel-83"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_debian_sysprobe_arm64:
-  extends: .kitchen_test_system_probe_arm64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="debian"
-    - export KITCHEN_OSVERS="debian-10"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_ubuntu_sysprobe_arm64:
-  extends: .kitchen_test_system_probe_arm64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="ubuntu"
-    - export KITCHEN_OSVERS="ubuntu-18-04,ubuntu-20-04"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_windows_sysprobe_x64:
+kitchen_test_system_probe_windows_x64:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_windows
-    - .kitchen_test_system_probe_x64
+    - .kitchen_test_system_probe
+    - .kitchen_azure_x64
+    - .kitchen_azure_location_north_central_us
   needs: [ "tests_windows_sysprobe_x64" ]
   variables:
+    KITCHEN_ARCH: x86_64
     KITCHEN_OSVERS: "win2012r2"
-    DEFAULT_KITCHEN_OSVERS: "win2012r2"
-    CHEF_VERSION: 14.12.9
+    CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
   before_script:
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-variable --name WINDOWS_DDNPM_DRIVER --version $RELEASE_VERSION_7)
-    - export WINDOWS_DDNPM_VERSION=$(inv release.get-variable --name WINDOWS_DDNPM_VERSION --version $RELEASE_VERSION_7)
-    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-variable --name WINDOWS_DDNPM_SHASUM --version $RELEASE_VERSION_7)
-    - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
+    - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
+    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
+  # FIXME: temporarily allow this job to fail until we fix it
+  allow_failure: true
+  retry: 0

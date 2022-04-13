@@ -2,7 +2,7 @@
 # Preparation stage: layout and chmods #
 ########################################
 
-FROM ubuntu:21.04 as builder
+FROM ubuntu:21.10 as builder
 
 WORKDIR /output
 
@@ -12,11 +12,11 @@ COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
 COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
-COPY readsecret.sh .
+COPY readsecret.sh readsecret_multiple_providers.sh ./
 
 RUN chmod 755 entrypoint.sh \
-    && chown root:root readsecret.sh \
-    && chmod 550 readsecret.sh \
+    && chown root:root readsecret.sh readsecret_multiple_providers.sh \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
@@ -25,14 +25,27 @@ RUN chmod 755 entrypoint.sh \
 # Actual docker image construction #
 ####################################
 
-FROM ubuntu:21.04
+FROM ubuntu:21.10
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
-ENV PATH="/opt/datadog-agent/bin/:$PATH"
+ ARG CIBUILD
+# NOTE about APT mirrorlists:
+# It seems that this feature could use some improvement. If you just get mirrorlist
+# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
+# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
+# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
+# should be reliable enough in combination and also well maintained.
+ RUN if [ "$CIBUILD" = "true" ]; then \
+  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist && \
+  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' \
+         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' /etc/apt/sources.list; \
+   fi
 
-# Allow User Group to exec the secret backend script.
-ENV DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+ENV PATH="/opt/datadog-agent/bin/:$PATH" \
+    DOCKER_DD_AGENT="true" \
+    # Allow User Group to exec the secret backend script.
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 RUN apt-get update \
     && apt full-upgrade -y \

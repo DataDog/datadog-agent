@@ -45,7 +45,7 @@ func (t *telemetry) run(ctx context.Context) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")
 
-	metricsTicker := time.NewTicker(5 * time.Minute)
+	metricsTicker := time.NewTicker(1 * time.Minute)
 	defer metricsTicker.Stop()
 
 	for {

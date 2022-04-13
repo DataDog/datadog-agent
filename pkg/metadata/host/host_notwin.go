@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package host
@@ -12,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

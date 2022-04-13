@@ -3,31 +3,42 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
 
-import (
-	"github.com/DataDog/ebpf/manager"
-)
+import manager "github.com/DataDog/ebpf-manager"
 
 // selinuxProbes holds the list of probes used to track fs write events
 var selinuxProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/sel_write_disable",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/sel_write_disable",
+			EBPFFuncName: "kprobe_sel_write_disable",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/sel_write_enforce",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/sel_write_enforce",
+			EBPFFuncName: "kprobe_sel_write_enforce",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/sel_write_bool",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/sel_write_bool",
+			EBPFFuncName: "kprobe_sel_write_bool",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/sel_commit_bools_write",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/sel_commit_bools_write",
+			EBPFFuncName: "kprobe_sel_commit_bools_write",
+		},
 	},
 }
 

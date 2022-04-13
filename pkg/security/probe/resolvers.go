@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"path"
 	"sort"
 	"strings"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,6 +34,7 @@ type Resolvers struct {
 	ProcessResolver   *ProcessResolver
 	UserGroupResolver *UserGroupResolver
 	TagsResolver      *TagsResolver
+	NamespaceResolver *NamespaceResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -52,17 +54,28 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	mountResolver, err := NewMountResolver(probe)
+	if err != nil {
+		return nil, err
+	}
+
+	namespaceResolver, err := NewNamespaceResolver(probe)
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		DentryResolver:    dentryResolver,
-		MountResolver:     NewMountResolver(probe),
+		MountResolver:     mountResolver,
 		TimeResolver:      timeResolver,
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      NewTagsResolver(config),
+		NamespaceResolver: namespaceResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, NewProcessResolverOpts(probe.config.CookieCacheSize))
 	if err != nil {
 		return nil, err
 	}
@@ -77,30 +90,27 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+// resolveFileFieldsPath resolves the inode to a full path
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
-	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound {
+	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
+	if err != nil {
 		return pathStr, err
 	}
 
 	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
 	if mountErr != nil {
-		return "", mountErr
+		return pathStr, mountErr
 	}
 
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
 	}
-	pathStr = path.Join(mountPath, pathStr)
+
+	if mountPath != "/" {
+		pathStr = mountPath + pathStr
+	}
 
 	return pathStr, err
-}
-
-// ResolveFilePath resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) ResolveFilePath(e *model.FileEvent) string {
-	path, _ := r.resolveFileFieldsPath(&e.FileFields)
-	return path
 }
 
 // ResolveFileFieldsUser resolves the user id of the file to a username
@@ -167,6 +177,14 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 	return e.FSGroup
 }
 
+// ResolvePCEContainerTags resolves the container tags of a ProcessCacheEntry
+func (r *Resolvers) ResolvePCEContainerTags(e *model.ProcessCacheEntry) []string {
+	if len(e.ContainerTags) == 0 && len(e.ContainerID) > 0 {
+		e.ContainerTags = r.TagsResolver.Resolve(e.ContainerID)
+	}
+	return e.ContainerTags
+}
+
 // Start the resolvers
 func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
@@ -178,7 +196,11 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	return r.DentryResolver.Start(r.probe)
+	if err := r.DentryResolver.Start(r.probe); err != nil {
+		return err
+	}
+
+	return r.NamespaceResolver.Start(ctx)
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
@@ -188,6 +210,7 @@ func (r *Resolvers) Snapshot() error {
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
+	r.NamespaceResolver.SetState(snapshotted)
 
 	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
 	if err != nil {
@@ -229,22 +252,38 @@ func (r *Resolvers) snapshot() error {
 	cacheModified := false
 
 	for _, proc := range processes {
+		ppid, err := proc.Ppid()
+		if err != nil {
+			continue
+		}
+
+		if IsKThread(uint32(ppid), uint32(proc.Pid)) {
+			continue
+		}
+
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err := r.MountResolver.SyncCache(proc); err != nil {
+		if err = r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", proc.Pid))
+				log.Debug(fmt.Errorf("snapshot failed for %d: couldn't sync mount points: %w", proc.Pid, err))
 			}
 		}
 
 		// Sync the process cache
-		cacheModified = r.ProcessResolver.SyncCache(proc)
+		if r.ProcessResolver.SyncCache(proc) {
+			cacheModified = true
+		}
+
+		// Sync the namespace cache
+		if r.NamespaceResolver.SyncCache(proc) {
+			cacheModified = true
+		}
 	}
 
 	// There is a possible race condition when a process starts right after we called process.AllProcesses
 	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
 	// process cache anymore
 	if cacheModified {
-		return errors.New("cache modified")
+		return fmt.Errorf("cache modified")
 	}
 
 	return nil

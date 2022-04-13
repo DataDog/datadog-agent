@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package kubernetesapiserver
@@ -136,7 +137,7 @@ func convertFilter(conf []string) string {
 
 // Run executes the check.
 func (k *KubeASCheck) Run() error {
-	sender, err := aggregator.GetSender(k.ID())
+	sender, err := k.GetSender()
 	if err != nil {
 		return err
 	}

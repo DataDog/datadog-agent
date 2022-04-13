@@ -8,14 +8,15 @@
 struct mount_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     u32 mount_id;
     u32 group_id;
     dev_t device;
     u32 parent_mount_id;
-    unsigned long parent_ino;
-    unsigned long root_ino;
+    unsigned long parent_inode;
+    unsigned long root_inode;
     u32 root_mount_id;
     u32 padding;
     char fstype[FSTYPE_LEN];
@@ -31,10 +32,11 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 }
 
 SEC("kprobe/attach_recursive_mnt")
-int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
+int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     syscall->mount.src_mnt = (struct mount *)PT_REGS_PARM1(ctx);
     syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM2(ctx);
@@ -61,10 +63,11 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/propagate_mnt")
-int kprobe__propagate_mnt(struct pt_regs *ctx) {
+int kprobe_propagate_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM1(ctx);
     syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM2(ctx);
@@ -91,12 +94,14 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_type) {
-    if (retval)
+    if (retval) {
         return 0;
+    }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct dentry *dentry = get_mountpoint_dentry(syscall->mount.dest_mountpoint);
     struct path_key_t path_key = {
@@ -136,8 +141,9 @@ int tracepoint_handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *
 
 int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct mount_event_t event = {
         .syscall.retval = retval,
@@ -145,8 +151,8 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
         .group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .device = get_mount_dev(syscall->mount.src_mnt),
         .parent_mount_id = syscall->mount.path_key.mount_id,
-        .parent_ino = syscall->mount.path_key.ino,
-        .root_ino = syscall->mount.root_key.ino,
+        .parent_inode = syscall->mount.path_key.ino,
+        .root_inode = syscall->mount.root_key.ino,
         .root_mount_id = syscall->mount.root_key.mount_id,
     };
     bpf_probe_read_str(&event.fstype, FSTYPE_LEN, (void*) syscall->mount.fstype);
@@ -157,6 +163,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_MOUNT, event);
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package flare
@@ -10,6 +11,7 @@ package flare
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -207,5 +209,95 @@ func exportWindowsEventLog(eventLogChannel, eventLogQuery, destFileName, tempDir
 
 func (p permissionsInfos) add(filePath string) {}
 func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) error {
+	return nil
+}
+
+func zipServiceStatus(tempDir, hostname string) error {
+	f := filepath.Join(tempDir, hostname, "servicestatus.txt")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return fmt.Errorf("Error in ensureParentDirsExist %v", err)
+	}
+
+	fh, err := os.Create(f)
+	if err != nil {
+		return fmt.Errorf("Error creating temp file %s %v", f, err)
+	}
+	defer fh.Close()
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+
+	cmd := exec.CommandContext(cancelctx, "powershell", "-c", "get-service", "data*,ddnpm", "|", "fl")
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err != nil {
+		log.Warnf("Error running powershell command %v", err)
+		// for some reason the lodctr command returns error 259 even when
+		// it succeeds.  Log the error in case it's some other error,
+		// but continue on.
+	}
+
+	_, err = fh.Write(out.Bytes())
+	if err != nil {
+		log.Warnf("Error writing file %v", err)
+		return err
+	}
+	// compute the location of the driver
+	ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
+	if err == nil {
+		pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
+		fi, err := os.Stat(pathtodriver)
+		if err != nil {
+			fh.WriteString(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))
+		} else {
+			fh.WriteString(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))
+		}
+	} else {
+		return fmt.Errorf("Error getting path to datadog agent binaries %v", err)
+	}
+	return nil
+}
+
+// zipDatadogRegistry function saves all Datadog registry keys and values from HKLM\Software\Datadog.
+// The implementation is based on the invoking Windows built-in reg.exe command, which does all
+// heavy lifting (instead of relying on explicit and recursive Registry API calls).
+// More technical details can be found in the PR https://github.com/DataDog/datadog-agent/pull/11290
+func zipDatadogRegistry(tempDir, hostname string) error {
+	// Generate raw exported registry file which we will scrub just in case
+	rawf := filepath.Join(tempDir, hostname, "datadog-raw.reg")
+	err := ensureParentDirsExist(rawf)
+	if err != nil {
+		return fmt.Errorf("Error in ensureParentDirsExist %v", err)
+	}
+
+	// reg.exe is built in Windows utility which will be always present
+	// https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg
+	cmd := exec.Command("reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if stderr.Len() > 0 {
+			return fmt.Errorf("Error getting Datadog registry exported via reg command. %v [%s]", stderr.String(), err)
+		}
+		return fmt.Errorf("Error getting Datadog registry exported via reg command. %v", err)
+	}
+	// Temporary datadog-raw.reg is created. Remove it when the function exits
+	defer os.Remove(rawf)
+
+	// Read raw registry file in memory ...
+	data, err := ioutil.ReadFile(rawf)
+	if err != nil {
+		return err
+	}
+
+	// ... scrub it and write it back
+	f := filepath.Join(tempDir, hostname, "datadog.reg")
+	err = writeScrubbedFile(f, data)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

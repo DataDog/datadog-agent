@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows && npm
 // +build windows,npm
 
 package network
@@ -167,7 +173,7 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats.
 // It returns the count of connections added to the active and closed buffers, respectively.
-func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf *DriverBuffer, filter func(*ConnectionStats) bool) (int, int, error) {
+func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, closedBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, int, error) {
 	di.bufferLock.Lock()
 	defer di.bufferLock.Unlock()
 

@@ -1,4 +1,10 @@
-//+build windows linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows || linux_bpf
+// +build windows linux_bpf
 
 package dns
 
@@ -8,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go4.org/intern"
 )
 
 // packetType tells us whether the packet is a query or a reply (successful/failed)
@@ -32,8 +39,8 @@ type dnsPacketInfo struct {
 	transactionID uint16
 	key           Key
 	pktType       packetType
-	rCode         uint8  // responseCode
-	question      string // only relevant for query packets
+	rCode         uint8         // responseCode
+	question      *intern.Value // only relevant for query packets
 	queryType     QueryType
 }
 
@@ -44,14 +51,14 @@ type stateKey struct {
 
 type stateValue struct {
 	ts       uint64
-	question string
+	question *intern.Value
 	qtype    QueryType
 }
 
 type dnsStatKeeper struct {
 	mux sync.Mutex
 	// map a DNS key to a map of domain strings to a map of query types to a map of  DNS stats
-	stats            map[Key]map[string]map[QueryType]Stats
+	stats            StatsByKeyByNameByType
 	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
@@ -66,7 +73,7 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[Key]map[string]map[QueryType]Stats),
+		stats:            make(StatsByKeyByNameByType),
 		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
@@ -123,7 +130,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	allStats, ok := d.stats[info.key]
 	if !ok {
-		allStats = make(map[string]map[QueryType]Stats)
+		allStats = make(map[*intern.Value]map[QueryType]Stats)
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
@@ -165,11 +172,11 @@ func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
 	return numStats, droppedStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[Key]map[string]map[QueryType]Stats {
+func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
-	d.stats = make(map[Key]map[string]map[QueryType]Stats)
+	d.stats = make(StatsByKeyByNameByType)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
 	atomic.StoreInt32(&d.lastNumStats, int32(d.numStats))
 	atomic.StoreInt32(&d.lastDroppedStats, int32(d.droppedStats))
@@ -180,13 +187,13 @@ func (d *dnsStatKeeper) GetAndResetAllStats() map[Key]map[string]map[QueryType]S
 
 // Snapshot returns a deep copy of all DNS stats.
 // Please only use this for testing.
-func (d *dnsStatKeeper) Snapshot() map[Key]map[string]map[QueryType]Stats {
+func (d *dnsStatKeeper) Snapshot() StatsByKeyByNameByType {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
-	snapshot := make(map[Key]map[string]map[QueryType]Stats)
+	snapshot := make(StatsByKeyByNameByType)
 	for key, statsByDomain := range d.stats {
-		snapshot[key] = make(map[string]map[QueryType]Stats)
+		snapshot[key] = make(map[*intern.Value]map[QueryType]Stats)
 		for domain, statsByQType := range statsByDomain {
 			snapshot[key][domain] = make(map[QueryType]Stats)
 			for qtype, statsCopy := range statsByQType {
@@ -217,7 +224,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			// When we expire a state, we need to increment timeout count for that key:domain
 			allStats, ok := d.stats[k.key]
 			if !ok {
-				allStats = make(map[string]map[QueryType]Stats)
+				allStats = make(map[*intern.Value]map[QueryType]Stats)
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {

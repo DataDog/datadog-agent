@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -117,7 +118,8 @@ func Test_resourcequotaTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			resourcequotaTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			resourcequotaTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -190,8 +192,8 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			now = tt.args.now
-			cronJobNextScheduleTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := tt.args.now()
+			cronJobNextScheduleTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, tt.args.hostname, tt.args.tags, tt.expected.message)
 				s.AssertNumberOfCalls(t, "ServiceCheck", 1)
@@ -235,8 +237,8 @@ func Test_cronJobLastScheduleTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			now = tt.args.now
-			cronJobLastScheduleTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := tt.args.now()
+			cronJobLastScheduleTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -311,7 +313,8 @@ func Test_jobCompleteTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			jobCompleteTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			jobCompleteTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, tt.args.hostname, tt.args.tags, "")
 				s.AssertNumberOfCalls(t, "ServiceCheck", 1)
@@ -324,9 +327,10 @@ func Test_jobCompleteTransformer(t *testing.T) {
 
 func Test_jobFailedTransformer(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     args
-		expected *serviceCheck
+		name                 string
+		args                 args
+		expectedServiceCheck *serviceCheck
+		expectedMetric       *metricsExpected
 	}{
 		{
 			name: "nominal case, job_name tag",
@@ -337,14 +341,20 @@ func Test_jobFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
+						"condition": "true",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
-			expected: &serviceCheck{
+			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
 				status: metrics.ServiceCheckCritical,
-				tags:   []string{"job_name:foo", "namespace:default"},
+				tags:   []string{"kube_cronjob:foo", "namespace:default"},
+			},
+			expectedMetric: &metricsExpected{
+				name: "kubernetes_state.job.completion.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -356,14 +366,20 @@ func Test_jobFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
+						"condition": "true",
 					},
 				},
-				tags: []string{"job:foo-1509998340", "namespace:default"},
+				tags: []string{"job:foo-1509998340", "namespace:default", "condition:true"},
 			},
-			expected: &serviceCheck{
+			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
 				status: metrics.ServiceCheckCritical,
-				tags:   []string{"job:foo", "namespace:default"},
+				tags:   []string{"kube_cronjob:foo", "namespace:default"},
+			},
+			expectedMetric: &metricsExpected{
+				name: "kubernetes_state.job.completion.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -375,23 +391,32 @@ func Test_jobFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
+						"condition": "true",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
-			expected: nil,
+			expectedServiceCheck: nil,
+			expectedMetric:       nil,
 		},
 	}
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			jobFailedTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
-			if tt.expected != nil {
-				s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, tt.args.hostname, tt.args.tags, "")
+			currentTime := time.Now()
+			jobFailedTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expectedServiceCheck != nil {
+				s.AssertServiceCheck(t, tt.expectedServiceCheck.name, tt.expectedServiceCheck.status, tt.args.hostname, tt.expectedServiceCheck.tags, "")
 				s.AssertNumberOfCalls(t, "ServiceCheck", 1)
 			} else {
 				s.AssertNotCalled(t, "ServiceCheck")
+			}
+			if tt.expectedMetric != nil {
+				s.AssertMetric(t, "Gauge", tt.expectedMetric.name, tt.expectedMetric.val, tt.args.hostname, tt.expectedMetric.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
 			}
 		})
 	}
@@ -461,7 +486,8 @@ func Test_jobStatusSucceededTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			jobStatusSucceededTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			jobStatusSucceededTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -487,14 +513,15 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
 			expected: &metricsExpected{
 				name: "kubernetes_state.job.failed",
 				val:  1,
-				tags: []string{"job_name:foo", "namespace:default"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -506,15 +533,32 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
 					},
 				},
-				tags: []string{"job:foo-1509998340", "namespace:default"},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
 			expected: &metricsExpected{
 				name: "kubernetes_state.job.failed",
 				val:  1,
-				tags: []string{"job:foo", "namespace:default"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
+		},
+		{
+			name: "irrelevant reason",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "Evicted",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
+			},
+			expected: nil,
 		},
 		{
 			name: "inactive",
@@ -529,16 +573,21 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
-			expected: nil,
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  0,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
+			},
 		},
 	}
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			jobStatusFailedTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			jobStatusFailedTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
-				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
 			} else {
 				s.AssertNotCalled(t, "Gauge")
@@ -592,7 +641,8 @@ func Test_pvPhaseTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			pvPhaseTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			pvPhaseTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -650,7 +700,8 @@ func Test_serviceTypeTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			serviceTypeTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			serviceTypeTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -708,7 +759,8 @@ func Test_podPhaseTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			podPhaseTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			podPhaseTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -814,7 +866,8 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			containerWaitingReasonTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			containerWaitingReasonTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -899,7 +952,8 @@ func Test_containerTerminatedReasonTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			containerTerminatedReasonTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			containerTerminatedReasonTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -987,7 +1041,8 @@ func Test_limitrangeTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			limitrangeTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			limitrangeTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -1059,7 +1114,8 @@ func Test_nodeUnschedulableTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			nodeUnschedulableTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			nodeUnschedulableTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -1146,7 +1202,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:unknown"},
-				status:  metrics.ServiceCheckUnknown,
+				status:  metrics.ServiceCheckWarning,
 				message: "foo is currently reporting Ready = unknown",
 			},
 			expectedMetric: &metricsExpected{
@@ -1390,7 +1446,8 @@ func Test_nodeConditionTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			nodeConditionTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			nodeConditionTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expectedServiceCheck != nil {
 				s.AssertServiceCheck(t, tt.expectedServiceCheck.name, tt.expectedServiceCheck.status, tt.expectedServiceCheck.hostname, tt.expectedServiceCheck.tags, tt.expectedServiceCheck.message)
 				s.AssertNumberOfCalls(t, "ServiceCheck", 1)
@@ -1419,21 +1476,21 @@ func Test_validateJob(t *testing.T) {
 			name:  "kube_job",
 			val:   1.0,
 			tags:  []string{"foo:bar", "kube_job:foo-1600167000"},
-			want:  []string{"foo:bar", "kube_cronjob:foo"},
+			want:  []string{"foo:bar", "kube_job:foo-1600167000", "kube_cronjob:foo"},
 			want1: true,
 		},
 		{
 			name:  "job",
 			val:   1.0,
 			tags:  []string{"foo:bar", "job:foo-1600167000"},
-			want:  []string{"foo:bar", "kube_cronjob:foo"},
+			want:  []string{"foo:bar", "job:foo-1600167000", "kube_cronjob:foo"},
 			want1: true,
 		},
 		{
 			name:  "job_name and kube_job",
 			val:   1.0,
 			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
-			want:  []string{"foo:bar", "kube_cronjob:foo", "kube_cronjob:foo"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo"},
 			want1: true,
 		},
 		{
@@ -1447,7 +1504,7 @@ func Test_validateJob(t *testing.T) {
 			name:  "invalid",
 			val:   0.0,
 			tags:  []string{"foo:bar", "job_name:foo"},
-			want:  nil,
+			want:  []string{"foo:bar", "job_name:foo"},
 			want1: false,
 		},
 	}
@@ -1528,7 +1585,8 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			containerResourceRequestsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			containerResourceRequestsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -1607,7 +1665,8 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			containerResourceLimitsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			containerResourceLimitsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -1728,7 +1787,8 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			nodeAllocatableTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			nodeAllocatableTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -1849,7 +1909,8 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			nodeCapacityTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			currentTime := time.Now()
+			nodeCapacityTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
@@ -1902,8 +1963,8 @@ func Test_timestampTransformers(t *testing.T) {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			now = argsTemplate.now
-			tt.transformer(s, tt.name, argsTemplate.metric, argsTemplate.hostname, argsTemplate.tags)
+			currentTime := argsTemplate.now()
+			tt.transformer(s, tt.name, argsTemplate.metric, argsTemplate.hostname, argsTemplate.tags, currentTime)
 			s.AssertMetric(t, "Gauge", tt.newName, expectedTemplate.val, expectedTemplate.hostname, expectedTemplate.tags)
 			s.AssertNumberOfCalls(t, "Gauge", 1)
 		})

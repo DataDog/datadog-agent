@@ -27,29 +27,13 @@ const (
 )
 
 var (
-	cacheExpVars         = expvar.NewMap("orchestrator-cache")
-	deploymentCacheHits  = expvar.Int{}
-	replicaSetCacheHits  = expvar.Int{}
-	nodeCacheHits        = expvar.Int{}
-	serviceCacheHits     = expvar.Int{}
-	podCacheHits         = expvar.Int{}
-	clusterCacheHits     = expvar.Int{}
-	jobCacheHits         = expvar.Int{}
-	cronJobCacheHits     = expvar.Int{}
-	daemonSetCacheHits   = expvar.Int{}
-	statefulSetCacheHits = expvar.Int{}
+	// cache hit
+	cacheExpVars = expvar.NewMap("orchestrator-cache")
+	cacheHits    = map[NodeType]*expvar.Int{}
 
-	sendExpVars     = expvar.NewMap("orchestrator-sends")
-	deploymentHits  = expvar.Int{}
-	replicaSetHits  = expvar.Int{}
-	nodeHits        = expvar.Int{}
-	serviceHits     = expvar.Int{}
-	podHits         = expvar.Int{}
-	clusterHits     = expvar.Int{}
-	jobHits         = expvar.Int{}
-	cronJobHits     = expvar.Int{}
-	daemonSetHits   = expvar.Int{}
-	statefulSetHits = expvar.Int{}
+	// cache miss, send to backend
+	sendExpVars = expvar.NewMap("orchestrator-sends")
+	cacheMiss   = map[NodeType]*expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
@@ -60,27 +44,12 @@ var (
 )
 
 func init() {
-	cacheExpVars.Set("Pods", &podCacheHits)
-	cacheExpVars.Set("Deployments", &deploymentCacheHits)
-	cacheExpVars.Set("ReplicaSets", &replicaSetCacheHits)
-	cacheExpVars.Set("Nodes", &nodeCacheHits)
-	cacheExpVars.Set("Services", &serviceCacheHits)
-	cacheExpVars.Set("Clusters", &clusterCacheHits)
-	cacheExpVars.Set("Jobs", &jobCacheHits)
-	cacheExpVars.Set("CronJobs", &cronJobCacheHits)
-	cacheExpVars.Set("DaemonSets", &daemonSetCacheHits)
-	cacheExpVars.Set("StatefulSets", &statefulSetCacheHits)
-
-	sendExpVars.Set("Pods", &podHits)
-	sendExpVars.Set("Deployments", &deploymentHits)
-	sendExpVars.Set("ReplicaSets", &replicaSetHits)
-	sendExpVars.Set("Nodes", &nodeHits)
-	sendExpVars.Set("Services", &serviceHits)
-	sendExpVars.Set("Clusters", &clusterHits)
-	sendExpVars.Set("Jobs", &jobHits)
-	sendExpVars.Set("CronJobs", &cronJobHits)
-	sendExpVars.Set("DaemonSets", &daemonSetHits)
-	sendExpVars.Set("StatefulSets", &statefulSetHits)
+	for _, nodeType := range NodeTypes() {
+		cacheHits[nodeType] = &expvar.Int{}
+		cacheMiss[nodeType] = &expvar.Int{}
+		cacheExpVars.Set(nodeType.String(), cacheHits[nodeType])
+		sendExpVars.Set(nodeType.String(), cacheMiss[nodeType])
+	}
 }
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
@@ -104,61 +73,22 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType Node
 	}
 }
 
-// TODO introduce proper interface and typing between different resources.
 func incCacheHit(nodeType NodeType) {
-	switch nodeType {
-	case K8sNode:
-		nodeCacheHits.Add(1)
-	case K8sService:
-		serviceCacheHits.Add(1)
-	case K8sReplicaSet:
-		replicaSetCacheHits.Add(1)
-	case K8sDeployment:
-		deploymentCacheHits.Add(1)
-	case K8sPod:
-		podCacheHits.Add(1)
-	case K8sCluster:
-		clusterCacheHits.Add(1)
-	case K8sJob:
-		jobCacheHits.Add(1)
-	case K8sCronJob:
-		cronJobCacheHits.Add(1)
-	case K8sDaemonSet:
-		daemonSetCacheHits.Add(1)
-	case K8sStatefulSet:
-		statefulSetCacheHits.Add(1)
-	default:
-		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
+	if nodeType.String() == "" {
+		log.Errorf("Unknown NodeType %v will not update cache hits", nodeType)
 		return
 	}
+	e := cacheHits[nodeType]
+	e.Add(1)
 	tlmCacheHits.Inc(nodeType.TelemetryTags()...)
 }
 
 func incCacheMiss(nodeType NodeType) {
-	switch nodeType {
-	case K8sNode:
-		nodeHits.Add(1)
-	case K8sService:
-		serviceHits.Add(1)
-	case K8sReplicaSet:
-		replicaSetHits.Add(1)
-	case K8sDeployment:
-		deploymentHits.Add(1)
-	case K8sPod:
-		podHits.Add(1)
-	case K8sCluster:
-		clusterHits.Add(1)
-	case K8sJob:
-		jobHits.Add(1)
-	case K8sCronJob:
-		cronJobHits.Add(1)
-	case K8sDaemonSet:
-		daemonSetHits.Add(1)
-	case K8sStatefulSet:
-		statefulSetHits.Add(1)
-	default:
-		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
+	if nodeType.String() == "" {
+		log.Errorf("Unknown NodeType %v will not update cache misses", nodeType)
 		return
 	}
+	e := cacheMiss[nodeType]
+	e.Add(1)
 	tlmCacheMisses.Inc(nodeType.TelemetryTags()...)
 }

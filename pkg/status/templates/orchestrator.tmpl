@@ -32,12 +32,12 @@ Orchestrator Explorer
   ======================
   {{- range $key, $values := .OrchestratorEndpoints}}
   {{- if gt (len $values) 1}}
-  {{$key}} - API Keys ending with:
+    {{$key}} - API Keys ending with:
   {{- range $values }}
       - {{ . }}
   {{- end}}
   {{- else}}
-  {{$key}} - API Key ending with: {{index $values 0}}
+    {{$key}} - API Key ending with: {{index $values 0}}
   {{- end}}
   {{- end}}
 
@@ -50,26 +50,16 @@ Orchestrator Explorer
   Cache Stats
   ===========
     Elements in the cache: {{.CacheNumber}}
-    Pods:
-      Last Run: (Hits: {{.PodsStats.CacheHits}} Miss: {{.PodsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Pods}} Miss: {{.CacheMiss.Pods}})
-    Deployments:
-      Last Run: (Hits: {{.DeploymentsStats.CacheHits}} Miss: {{.DeploymentsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Deployments}} Miss: {{.CacheMiss.Deployments}})
-    ReplicaSets:
-      Last Run: (Hits: {{.ReplicaSetsStats.CacheHits}} Miss: {{.ReplicaSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.ReplicaSets}} Miss: {{.CacheMiss.ReplicaSets}})
-    Services:
-      Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
-    Nodes:
-      Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
-    Cluster:
-      Last Run: (Hits: {{.ClustersStats.CacheHits}} Miss: {{.ClustersStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Clusters}} Miss: {{.CacheMiss.Clusters}})
-    Job:
-      Last Run: (Hits: {{.JobsStats.CacheHits}} Miss: {{.JobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Jobs}} Miss: {{.CacheMiss.Jobs}})
-    CronJob:
-      Last Run: (Hits: {{.CronJobsStats.CacheHits}} Miss: {{.CronJobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.CronJobs}} Miss: {{.CacheMiss.CronJobs}})
-    DaemonSets:
-      Last Run: (Hits: {{.DaemonSetsStats.CacheHits}} Miss: {{.DaemonSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.DaemonSets}} Miss: {{.CacheMiss.DaemonSets}})
-    StatefulSets:
-      Last Run: (Hits: {{.StatefulSetsStats.CacheHits}} Miss: {{.StatefulSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.StatefulSets}} Miss: {{.CacheMiss.StatefulSets}})
+{{range $index, $element := .CacheInformation}}
+    {{ $element.NodeType }}
+      Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
+{{end}}
+{{- if .CLCEnabled }}
+  ==================================================
+  Dispatched Configurations on Cluster Check Runners
+  ==================================================
+    To print orchestrator check details run agent clusterchecks --check orchestrator
+{{end}}
 {{else}}
 {{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}

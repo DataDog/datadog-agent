@@ -24,9 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
@@ -48,7 +47,7 @@ type noopStatsProcessor struct{}
 func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
-	dynConf := sampler.NewDynamicConfig("none")
+	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
 	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
@@ -64,8 +63,6 @@ func newTestReceiverConfig() *config.AgentConfig {
 }
 
 func TestMain(m *testing.M) {
-	seelog.UseLogger(seelog.Disabled)
-
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
 	killProcess = func(_ string, _ ...interface{}) {}
 
@@ -117,6 +114,26 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	testBody(http.StatusRequestEntityTooLarge, " []")
 }
 
+func TestListenTCP(t *testing.T) {
+	t.Run("measured", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*measuredListener)
+		assert.True(t, ok)
+	})
+
+	t.Run("limited", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*rateLimitedListener)
+		assert.True(t, ok)
+	})
+}
+
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	r := newTestReceiverFromConfig(config.New())
@@ -134,6 +151,7 @@ func TestStateHeaders(t *testing.T) {
 		// this one will return 500, but that's fine, we want to test that all
 		// reponses have the header regardless of status code
 		"/v0.5/traces",
+		"/v0.7/traces",
 	} {
 		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
 		if err != nil {
@@ -170,7 +188,7 @@ func TestLegacyReceiver(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
 			)
 
 			// send traces to that endpoint without a content-type
@@ -188,8 +206,8 @@ func TestLegacyReceiver(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				assert.Len(p.Traces, 1)
-				rt := p.Traces[0]
+				assert.Len(p.Chunks(), 1)
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -235,7 +253,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
 			)
 
 			// send traces to that endpoint without a content-type
@@ -253,7 +271,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				rt := p.Traces[0]
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -295,7 +313,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
 			)
 
 			// send traces to that endpoint using the msgpack content-type
@@ -320,7 +338,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -343,7 +361,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -375,7 +393,7 @@ func TestReceiverDecodingError(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
 	r := newTestReceiverFromConfig(conf)
-	server := httptest.NewServer(http.HandlerFunc(r.handleWithVersion(v04, r.handleTraces)))
+	server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
 	data := []byte("} invalid json")
 	var client http.Client
 
@@ -408,7 +426,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
 	r := newTestReceiverFromConfig(conf)
-	server := httptest.NewServer(http.HandlerFunc(r.handleWithVersion(v05, r.handleTraces)))
+	server := httptest.NewServer(r.handleWithVersion(v05, r.handleTraces))
 	var client http.Client
 	traceCount := 2
 
@@ -495,51 +513,67 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	traces, err := decodeTraces(v05, req)
+	req.Header.Set(headerContainerID, "abcdef123789456")
+	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
+		Tags: info.Tags{
+			Lang:          "python",
+			LangVersion:   "3.8.1",
+			TracerVersion: "1.2.3",
+		},
+	})
 	assert.NoError(err)
-	assert.EqualValues(traces, pb.Traces{
-		{
+	assert.EqualValues(tp, &pb.TracerPayload{
+		ContainerID:     "abcdef123789456",
+		LanguageName:    "python",
+		LanguageVersion: "3.8.1",
+		TracerVersion:   "1.2.3",
+		Chunks: []*pb.TraceChunk{
 			{
-				Service:  "Service",
-				Name:     "Name",
-				Resource: "Resource",
-				TraceID:  1,
-				SpanID:   2,
-				ParentID: 3,
-				Start:    123,
-				Duration: 456,
-				Error:    1,
-				Meta:     map[string]string{"A": "B"},
-				Metrics:  map[string]float64{"X": 1.2},
-				Type:     "sql",
-			},
-			{
-				Service:  "Service2",
-				Name:     "Name2",
-				Resource: "Resource2",
-				TraceID:  2,
-				SpanID:   3,
-				ParentID: 3,
-				Start:    789,
-				Duration: 456,
-				Error:    0,
-				Meta:     map[string]string{"c": "d"},
-				Metrics:  map[string]float64{"y": 1.4},
-				Type:     "sql",
-			},
-			{
-				Service:  "Service2",
-				Name:     "Name2",
-				Resource: "Resource2",
-				TraceID:  2,
-				SpanID:   3,
-				ParentID: 3,
-				Start:    789,
-				Duration: 456,
-				Error:    0,
-				Meta:     map[string]string{"c": "d"},
-				Metrics:  nil,
-				Type:     "sql",
+				Priority: int32(sampler.PriorityNone),
+				Spans: []*pb.Span{
+					{
+						Service:  "Service",
+						Name:     "Name",
+						Resource: "Resource",
+						TraceID:  1,
+						SpanID:   2,
+						ParentID: 3,
+						Start:    123,
+						Duration: 456,
+						Error:    1,
+						Meta:     map[string]string{"A": "B"},
+						Metrics:  map[string]float64{"X": 1.2},
+						Type:     "sql",
+					},
+					{
+						Service:  "Service2",
+						Name:     "Name2",
+						Resource: "Resource2",
+						TraceID:  2,
+						SpanID:   3,
+						ParentID: 3,
+						Start:    789,
+						Duration: 456,
+						Error:    0,
+						Meta:     map[string]string{"c": "d"},
+						Metrics:  map[string]float64{"y": 1.4},
+						Type:     "sql",
+					},
+					{
+						Service:  "Service2",
+						Name:     "Name2",
+						Resource: "Resource2",
+						TraceID:  2,
+						SpanID:   3,
+						ParentID: 3,
+						Start:    789,
+						Duration: 456,
+						Error:    0,
+						Meta:     map[string]string{"c": "d"},
+						Metrics:  nil,
+						Type:     "sql",
+					},
+				},
 			},
 		},
 	})
@@ -687,7 +721,7 @@ func TestHandleTraces(t *testing.T) {
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
+	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 
 	for n := 0; n < 10; n++ {
 		// consume the traces channel without doing anything
@@ -715,7 +749,7 @@ func TestHandleTraces(t *testing.T) {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived)
-		assert.Equal(int64(59222), ts.TracesBytes)
+		assert.Equal(int64(61822), ts.TracesBytes)
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
@@ -825,7 +859,7 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 	receiver := newTestReceiverFromConfig(conf)
 	receiver.RateLimiter.SetTargetRate(0.000001) // Make sure we sample aggressively
 
-	server := httptest.NewServer(http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces)))
+	server := httptest.NewServer(receiver.handleWithVersion(v04, receiver.handleTraces))
 
 	defer server.Close()
 	url := server.URL + "/v0.4/traces"
@@ -869,7 +903,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
+	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 
 	// benchmark
 	b.ResetTimer()
@@ -910,7 +944,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
+	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 
 	// benchmark
 	b.ResetTimer()

@@ -145,7 +145,7 @@ func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 		TemplateURL: suite.etcdURL,
 		TemplateDir: "/foo",
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	if err != nil {
 		panic(err)
 	}
@@ -166,7 +166,7 @@ func (suite *EtcdTestSuite) TestBadConnection() {
 		TemplateURL: "http://127.0.0.1:1337",
 		TemplateDir: "/foo",
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.Collect(ctx)
@@ -183,7 +183,7 @@ func (suite *EtcdTestSuite) TestWorkingAuth() {
 		Username:    etcdUser,
 		Password:    etcdPass,
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.Collect(ctx)
@@ -200,7 +200,7 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 		Username:    etcdUser,
 		Password:    "invalid",
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.Collect(ctx)

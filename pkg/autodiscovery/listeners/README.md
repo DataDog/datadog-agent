@@ -8,6 +8,8 @@ This package is providing the `ServiceListener` concept to the agent. A `Service
 
 Services can be:
 - Docker containers
+- Containerd containers
+- Podman containers
 - Kubelet containers
 - Kubelet pods
 - ECS containers
@@ -20,11 +22,11 @@ Services can be:
 
 `ServiceListener` monitors events related to `Service` lifecycles. It then formats and transmits this data to `AutoConfig`.
 
-Note: It's important to enable only one `ServiceListener` per `Service` type, for example, in Kubernetes `DockerListener` and `KubeletListener` must not run together because they watch the same containers.
+Note: It's important to enable only one `ServiceListener` per `Service` type, for example, in Kubernetes `ContainerListener` and `KubeletListener` must not run together because they watch the same containers.
 
-### `DockerListener`
+### `ContainerListener`
 
-`DockerListener` first gets current running containers and send these to the `AutoConfig`. Then it starts listening on the Docker event API for container activity and pass by `Services` mentioned in start/stop events to the `AutoConfig` through the corresponding channel.
+`ContainerListener` first gets current running containers and send these to the `AutoConfig`. Then it starts watching workloadmeta container events and pass by `Services` mentioned in start/stop events to the `AutoConfig` through the corresponding channel.
 
 ### `ECSListener`
 
@@ -57,6 +59,8 @@ TODO
 | Listener | AD identifiers | Host | Port | Tag | Pid | Env | Hostname
 |---|---|---|---|---|---|---|---|
 | Docker | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Containerd | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ |
+| Podman | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | ECS | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | Kubelet | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | KubeService | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |

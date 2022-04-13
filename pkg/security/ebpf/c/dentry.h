@@ -89,9 +89,12 @@ struct dentry * __attribute__((always_inline)) get_vfsmount_dentry(struct vfsmou
     return dentry;
 }
 
-struct super_block * __attribute__((always_inline)) get_dentry_sb(struct dentry *dentry) {
+struct super_block *__attribute__((always_inline)) get_dentry_sb(struct dentry *dentry) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_sb_offset", offset);
+
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
+    bpf_probe_read(&sb, sizeof(sb), (char *)dentry + offset);
     return sb;
 }
 
@@ -143,6 +146,7 @@ void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, st
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
+    bpf_probe_read(&file->nlink, sizeof(file->nlink), (void *)&d_inode->i_nlink);
     bpf_probe_read(&file->mode, sizeof(file->mode), &d_inode->i_mode);
     bpf_probe_read(&file->uid, sizeof(file->uid), &d_inode->i_uid);
     bpf_probe_read(&file->gid, sizeof(file->gid), &d_inode->i_gid);

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows || darwin
 // +build linux windows darwin
 
 package v5
@@ -11,7 +12,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
+	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
 	"github.com/stretchr/testify/require"
 )
 

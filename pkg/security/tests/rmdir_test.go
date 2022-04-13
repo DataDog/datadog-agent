@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -16,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestRmdir(t *testing.T) {
@@ -47,16 +48,15 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testFile)
 
-		err = test.GetSignal(t, func() error {
-			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
-				t.Fatal(error(err))
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); errno != 0 {
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
-
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 		})
@@ -75,16 +75,15 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testDir)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
-				t.Fatal(err)
+				return error(err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
-
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 		})
@@ -113,17 +112,11 @@ func TestRmdirInvalidate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = test.GetSignal(t, func() error {
-			if err := syscall.Rmdir(testFile); err != nil {
-				t.Fatal(err)
-			}
-			return nil
+		test.WaitSignal(t, func() error {
+			return syscall.Rmdir(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rmdir.file.path", testFile)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}
 }

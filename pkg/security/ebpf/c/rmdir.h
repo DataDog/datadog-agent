@@ -6,6 +6,7 @@
 struct rmdir_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -33,10 +34,11 @@ int __attribute__((always_inline)) rmdir_predicate(u64 type) {
 
 // security_inode_rmdir is shared between rmdir and unlink syscalls
 SEC("kprobe/security_inode_rmdir")
-int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
+int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
@@ -103,12 +105,14 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/dr_security_inode_rmdir_callback")
-int __attribute__((always_inline)) dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
+int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_RMDIR);
         return mark_as_discarded(syscall);
     }
     return 0;
@@ -116,8 +120,9 @@ int __attribute__((always_inline)) dr_security_inode_rmdir_callback(struct pt_re
 
 int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -132,11 +137,14 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
+        fill_span_context(&event.span);
 
         send_event(ctx, EVENT_RMDIR, event);
     }
 
-    invalidate_inode(ctx, syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino, !pass_to_userspace);
+    if (retval >= 0) {
+        invalidate_inode(ctx, syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino, !pass_to_userspace);
+    }
 
     return 0;
 }

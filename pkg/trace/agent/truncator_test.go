@@ -86,7 +86,7 @@ func TestTruncateMetaKeyTooLong(t *testing.T) {
 
 func TestTruncateMetaValueTooLong(t *testing.T) {
 	s := testSpan()
-	val := strings.Repeat("TOOLONG", 5000)
+	val := strings.Repeat("TOOLONG", 25000)
 	s.Meta["foo"] = val
 	Truncate(s)
 	for _, v := range s.Meta {

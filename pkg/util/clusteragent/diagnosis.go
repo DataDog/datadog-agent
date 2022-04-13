@@ -7,7 +7,6 @@ package clusteragent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -16,8 +15,5 @@ func init() {
 
 func diagnose() error {
 	_, err := GetClusterAgentClient()
-	if err != nil {
-		log.Error(err)
-	}
 	return err
 }

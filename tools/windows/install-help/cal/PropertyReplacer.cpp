@@ -156,6 +156,8 @@ std::wstring replace_yaml_properties(
          {L"LOGS_DD_URL",                       L"^[ #]*logs_dd_url:.*",                                    format_simple_value(L"  logs_dd_url: ")},
          {L"PROCESS_ENABLED",                   L"^[ #]*process_config:.*",                                 simple_replace(L"process_config:")},
          {L"PROCESS_DD_URL",                    L"^[ #]*process_config:.*",                                 format_simple_value(L"process_config:\n  process_dd_url: ")},
+         {L"PROCESS_DISCOVERY_ENABLED",         L"^[ #]*process_config:.*",                                 simple_replace(L"process_config:")},
+         {L"PROCESS_DISCOVERY_ENABLED",         L"^[ #]*process_discovery:.*",                              simple_replace(L"  process_discovery:")},
          {L"APM_ENABLED",                       L"^[ #]*apm_config:.*",                                     simple_replace(L"apm_config:")},
          {L"TRACE_DD_URL",                      L"^[ #]*apm_config:.*",                                     simple_replace(L"apm_config:")},
          {L"CMD_PORT",                          L"^[ #]*cmd_port:.*",                                       format_simple_value(L"cmd_port: ")},
@@ -168,7 +170,7 @@ std::wstring replace_yaml_properties(
     {
         auto propKey = std::get<WxsKey>(prop);
         auto propValue = propertyRetriever(propKey);
-        
+
         if (propValue)
         {
             if (!PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever)))
@@ -183,15 +185,33 @@ std::wstring replace_yaml_properties(
     auto processEnabledProp = propertyRetriever(L"PROCESS_ENABLED");
     if (processEnabledProp)
     {
-        std::wstring processEnabled = to_bool(*processEnabledProp) ? L"true" : L"disabled";
+        std::wstring processEnabled = to_bool(*processEnabledProp) ? L"true" : L"false";
+        auto p = PropertyReplacer::match(input, L"process_config:");
         if (!PropertyReplacer::match(input, L"process_config:")
+                 .then(L"^[ #]*process_collection:.*")
+                 .replace_with(L"  process_collection:") ||
+            !PropertyReplacer::match(input, L"^[ #]*process_collection:.*")
                  .then(L"^[ #]*enabled:.*")
-                 // Note that this is a string, and should be between ""
-                 .replace_with(L"  enabled: \"" + processEnabled + L"\""))
+                 .replace_with(L"    enabled: " + processEnabled))
         {
             if (failedToReplace != nullptr)
             {
                 failedToReplace->push_back(L"PROCESS_ENABLED");
+            }
+        }
+    }
+
+    auto processDiscoveryEnabledProp = propertyRetriever(L"PROCESS_DISCOVERY_ENABLED");
+    if (processDiscoveryEnabledProp)
+    {
+        if (!PropertyReplacer::match(input, L"process_config:")
+                 .then(L"^  process_discovery:.*")
+                 .then(L"^[ #]*enabled:.*")
+                 .replace_with(L"    enabled: " + *processDiscoveryEnabledProp))
+        {
+            if (failedToReplace != nullptr)
+            {
+                failedToReplace->push_back(L"PROCESS_DISCOVERY_ENABLED");
             }
         }
     }

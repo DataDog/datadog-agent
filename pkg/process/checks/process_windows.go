@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
 // +build windows
 
 package checks
@@ -7,9 +13,13 @@ import (
 
 	"github.com/DataDog/gopsutil/cpu"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
+
+func init() {
+	defaultWindowsProbe = procutil.NewWindowsToolhelpProbe()
+}
 
 func formatUser(fp *procutil.Process) *model.ProcessUser {
 	return &model.ProcessUser{
@@ -17,7 +27,7 @@ func formatUser(fp *procutil.Process) *model.ProcessUser {
 	}
 }
 
-func formatCPU(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
+func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
 	numCPU := float64(runtime.NumCPU())
 	deltaSys := float64(t2.Timestamp - t1.Timestamp)
 	// under windows, utime & stime are number of 100-ns increments.  The elapsed time

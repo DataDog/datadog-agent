@@ -752,9 +752,9 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
 #define NUM_SERVICES 4
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(), NULL,
-                   SERVICE_AUTO_START, data.Username().c_str(), password),
+                   SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), password),
         serviceDef(traceService.c_str(), L"Datadog Trace Agent", L"Send tracing metrics to Datadog", trace_exe.c_str(),
-                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.Username().c_str(), password),
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.FullyQualifiedUsername().c_str(), password),
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
@@ -776,7 +776,7 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
 #define NUM_SERVICES 1
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(), NULL,
-                   SERVICE_AUTO_START, data.Username().c_str(), password),
+                   SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), password),
     };
     int servicesToInstall = NUM_SERVICES;
 #endif
@@ -849,9 +849,9 @@ int uninstallServices(CustomActionData &data)
 #define NUM_SERVICES 4
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, data.Username().c_str(), NULL),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), NULL),
         serviceDef(traceService.c_str(), L"Datadog Trace Agent", L"Send tracing metrics to Datadog", trace_exe.c_str(),
-                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.Username().c_str(), NULL),
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.FullyQualifiedUsername().c_str(), NULL),
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
@@ -862,7 +862,7 @@ int uninstallServices(CustomActionData &data)
 #define NUM_SERVICES 1
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, data.Username().c_str(), NULL),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), NULL),
     };
 #endif
     WcaLog(LOGMSG_STANDARD, "Uninstalling services");
@@ -881,8 +881,8 @@ int uninstallServices(CustomActionData &data)
         DWORD rbret = services[i].destroy(hScManager);
         if (rbret != 0)
         {
-            std::string lastErrStr = GetErrorMessageStr(rbret);
-            WcaLog(LOGMSG_STANDARD, "Failed to uninstall service %s (%d)", lastErrStr.c_str(), rbret);
+            auto lastErrStr = GetErrorMessageStrW(rbret);
+            WcaLog(LOGMSG_STANDARD, "Failed to uninstall service %S (%d)", lastErrStr.c_str(), rbret);
         }
     }
     WcaLog(LOGMSG_STANDARD, "done uinstalling services");
@@ -900,9 +900,9 @@ int verifyServices(CustomActionData &data)
 #define SYSPROBE_INDEX 3
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, data.Username().c_str(), NULL),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), NULL),
         serviceDef(traceService.c_str(), L"Datadog Trace Agent", L"Send tracing metrics to Datadog", trace_exe.c_str(),
-                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.Username().c_str(), NULL),
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.FullyQualifiedUsername().c_str(), NULL),
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
@@ -919,7 +919,7 @@ int verifyServices(CustomActionData &data)
 #define NUM_SERVICES 1
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, data.Username().c_str(), NULL),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), NULL),
     };
     int servicesToInstall = NUM_SERVICES;
 #endif

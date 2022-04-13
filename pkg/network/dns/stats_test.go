@@ -1,4 +1,10 @@
-//+build windows linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows || linux_bpf
+// +build windows linux_bpf
 
 package dns
 
@@ -13,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"go4.org/intern"
 )
 
 const (
@@ -36,7 +43,7 @@ func testLatency(
 	expectedFailureLatency uint64,
 	expectedTimeouts uint32,
 ) {
-	var d = "abc.com"
+	var d = intern.GetByString("abc.com")
 	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
 	key := getSampleDNSKey()
 	qPkt := dnsPacketInfo{transactionID: 1, pktType: query, key: key, question: d, queryType: TypeA}
@@ -76,7 +83,7 @@ func TestTimeout(t *testing.T) {
 func TestExpiredStateRemoval(t *testing.T) {
 	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
 	key := getSampleDNSKey()
-	var d = "abc.com"
+	var d = intern.GetByString("abc.com")
 	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: query, key: key, question: d, queryType: TypeA}
 	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: successfulResponse, queryType: TypeA}
 	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: query, key: key, question: d, queryType: TypeA}

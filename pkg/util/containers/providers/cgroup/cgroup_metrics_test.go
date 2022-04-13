@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package cgroup
@@ -33,9 +34,9 @@ func TestCPU(t *testing.T) {
 
 	timeStat, err := cgroup.CPU()
 	assert.Nil(t, err)
-	assert.Equal(t, timeStat.User, uint64(64140))
-	assert.Equal(t, timeStat.System, uint64(18327))
-	assert.Equal(t, timeStat.Shares, uint64(1024))
+	assert.Equal(t, timeStat.User, float64(64140))
+	assert.Equal(t, timeStat.System, float64(18327))
+	assert.Equal(t, timeStat.Shares, float64(1024))
 	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
 }
 

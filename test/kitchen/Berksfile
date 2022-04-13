@@ -1,6 +1,6 @@
 source 'https://supermarket.chef.io'
 
-cookbook 'datadog', '~> 4.4.0'
+cookbook 'datadog', '~> 4.12.0'
 
 # We pin an old version of the apt cookbook because this cookbook triggers an "apt update" by default
 # and in newer versions this update is not allowed to fail, while in 3.X it is. For some reason
@@ -25,7 +25,6 @@ cookbook 'dd-agent-import-conf', path: './site-cookbooks/dd-agent-import-conf'
 cookbook 'dd-agent-5', path: './site-cookbooks/dd-agent-5'
 cookbook 'dd-agent-sles-workaround', path: './site-cookbooks/dd-agent-sles-workaround'
 cookbook 'dd-agent-rhel-workaround', path: './site-cookbooks/dd-agent-rhel-workaround'
-cookbook 'dd-agent-debian-workaround', path: './site-cookbooks/dd-agent-debian-workaround'
 cookbook 'dd-agent-system-files-check', path: './site-cookbooks/dd-agent-system-files-check'
 cookbook 'dd-security-agent-check', path: './site-cookbooks/dd-security-agent-check'
 cookbook 'dd-system-probe-check', path: './site-cookbooks/dd-system-probe-check'

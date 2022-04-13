@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
+	"github.com/DataDog/datadog-agent/pkg/metadata/internal/resources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -20,7 +20,7 @@ import (
 type ResourcesCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (rp *ResourcesCollector) Send(ctx context.Context, s *serializer.Serializer) error {
+func (rp *ResourcesCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	hostname, _ := util.GetHostname(ctx)
 
 	res := resources.GetPayload(hostname)

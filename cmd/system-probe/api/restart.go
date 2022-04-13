@@ -1,7 +1,11 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -14,6 +18,11 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	moduleName := config.ModuleName(vars["module-name"])
 
+	if moduleName == config.SecurityRuntimeModule {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	var target module.Factory
 	for _, f := range modules.All {
 		if f.Name == moduleName {
@@ -22,7 +31,7 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if target.Name != moduleName {
-		http.Error(w, fmt.Sprintf("invalid module: %s", moduleName), http.StatusBadRequest)
+		http.Error(w, "invalid module", http.StatusBadRequest)
 		return
 	}
 

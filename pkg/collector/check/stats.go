@@ -24,6 +24,7 @@ const (
 var EventPlatformNameTranslations = map[string]string{
 	"dbm-samples":              "Database Monitoring Query Samples",
 	"dbm-metrics":              "Database Monitoring Query Metrics",
+	"dbm-activity":             "Database Monitoring Activity Samples",
 	"network-devices-metadata": "Network Devices Metadata",
 }
 

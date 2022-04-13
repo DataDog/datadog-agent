@@ -5,6 +5,8 @@ nodes:
   extraMounts:
   - containerPath: /var/lib/kubelet/config.json
     hostPath: /root/.docker/config.json
+  - containerPath: /host/datadog-agent
+    hostPath: /home/core/datadog-agent
   extraPortMappings:
   - containerPort: 30001
     hostPort: 443

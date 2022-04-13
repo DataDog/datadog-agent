@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -64,7 +64,7 @@ type PrometheusServicesConfigProvider struct {
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationProviders) (ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -292,7 +292,7 @@ func (p *PrometheusServicesConfigProvider) promAnnotationsDiffer(first, second m
 }
 
 func init() {
-	RegisterProvider("prometheus_services", NewPrometheusServicesConfigProvider)
+	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the PrometheusServicesConfigProvider

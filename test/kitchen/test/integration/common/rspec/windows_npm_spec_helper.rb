@@ -6,9 +6,10 @@ shared_examples_for 'a Windows Agent with NPM driver that can start' do
     expect(is_windows_service_installed("ddnpm")).to be_truthy
   end
   it 'has Windows NPM driver files installed' do
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
+    program_files = safe_program_files
+    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
+    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
+    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
   end
 
   it 'does not have the driver running on install' do
@@ -18,7 +19,7 @@ shared_examples_for 'a Windows Agent with NPM driver that can start' do
 
 
   it 'can successfully start the driver' do
-    ## start the service 
+    ## start the service
     result = system "net start ddnpm 2>&1"
 
     ## now expect it to be running
@@ -31,9 +32,10 @@ shared_examples_for 'a Windows Agent with no NPM driver installed' do
     expect(is_windows_service_installed("ddnpm")).to be_falsey
   end
   it 'does not have the Windows NPM driver files installed' do
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
+    program_files = safe_program_files
+    expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
+    expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
+    expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
   end
 end
 
@@ -45,9 +47,10 @@ shared_examples_for 'a Windows Agent with NPM driver installed' do
     expect(is_windows_service_installed("ddnpm")).to be_truthy
   end
   it 'has Windows NPM driver files installed' do
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
+    program_files = safe_program_files
+    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
+    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
+    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
   end
 end
 
@@ -64,7 +67,7 @@ shared_examples_for 'a Windows Agent with NPM running' do
     if !confYaml.key("process_config")
       confYaml["process_config"] = {}
     end
-    confYaml["process_config"]["enabled"] = "true"
+    confYaml["process_config"]["process_collection"] = { "enabled": true }
     File.write(conf_path, confYaml.to_yaml)
 
     if os != :windows
@@ -74,7 +77,7 @@ shared_examples_for 'a Windows Agent with NPM running' do
     end
     spf = File.read(spconf_path)
     spconfYaml = YAML.load(spf)
-    if !spconfYaml 
+    if !spconfYaml
       spconfYaml = {}
     end
     if !spconfYaml.key("network_config")

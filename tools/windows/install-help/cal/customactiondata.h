@@ -1,11 +1,13 @@
 #pragma once
 
-#include <msi.h>
-#include <map>
-#include <string>
-
 #include "SID.h"
 #include "TargetMachine.h"
+
+#include <map>
+#include <Msi.h>
+#include <optional>
+#include <string>
+
 
 class ICustomActionData
 {
@@ -14,12 +16,11 @@ class ICustomActionData
     virtual bool isUserLocalUser() const = 0;
     virtual bool DoesUserExist() const = 0;
     virtual const std::wstring &UnqualifiedUsername() const = 0;
-    virtual const std::wstring &Username() const = 0;
     virtual const std::wstring &Domain() const = 0;
+    virtual const std::wstring &FullyQualifiedUsername() const = 0;
     virtual PSID Sid() const = 0;
     virtual void Sid(sid_ptr &sid) = 0;
     virtual bool installSysprobe() const = 0;
-    virtual bool UserParamMismatch() const = 0;
     virtual std::shared_ptr<ITargetMachine> GetTargetMachine() const = 0;
 
   protected:
@@ -30,6 +31,12 @@ class ICustomActionData
 
 class CustomActionData : ICustomActionData
 {
+  private:
+    struct User
+    {
+        std::wstring Domain;
+        std::wstring Name;
+    };
   public:
     CustomActionData(std::shared_ptr<ITargetMachine> targetMachine);
     CustomActionData();
@@ -46,34 +53,29 @@ class CustomActionData : ICustomActionData
     bool isUserLocalUser() const override;
     bool DoesUserExist() const override;
     const std::wstring &UnqualifiedUsername() const override;
-    const std::wstring &Username() const override;
+    const std::wstring &FullyQualifiedUsername() const override;
     const std::wstring &Domain() const override;
     PSID Sid() const override;
     void Sid(sid_ptr &sid) override;
     bool installSysprobe() const override;
-    bool UserParamMismatch() const override;
     std::shared_ptr<ITargetMachine> GetTargetMachine() const override;
 
     bool npmPresent() const;
+
   private:
     MSIHANDLE _hInstall;
     bool _domainUser;
-    bool _userParamMismatch;
     std::map<std::wstring, std::wstring> values;
-    std::wstring _unqualifiedUsername;
-    std::wstring _domain;
-    std::wstring _fqUsername;
-    std::wstring pvsUser;   // previously installed user, read from registry
-    std::wstring pvsDomain; // previously installed domain for user, read from registry
+    User _user;
+    std::wstring _fullyQualifiedUsername;
     sid_ptr _sid;
     bool _doInstallSysprobe;
     bool _ddnpmPresent;
     bool _ddUserExists;
     std::shared_ptr<ITargetMachine> _targetMachine;
-    bool findPreviousUserInfo();
-    void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain,
-                              std::wstring &computed_user);
-    void findSuppliedUserInfo(std::wstring &input, std::wstring &computed_domain, std::wstring &computed_user);
+    std::optional<User> findPreviousUserInfo();
+    std::optional<User> findSuppliedUserInfo();
+    void ensureDomainHasCorrectFormat();
     bool parseUsernameData();
     bool parseSysprobeData();
 };

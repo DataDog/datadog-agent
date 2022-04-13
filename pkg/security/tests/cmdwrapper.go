@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build functionaltests stresstests
+//go:build functionaltests || stresstests
+// +build functionaltests stresstests
 
 package tests
 
@@ -17,9 +18,8 @@ type wrapperType string
 
 const (
 	stdWrapperType    wrapperType = "std"
-	dockerWrapperType             = "docker"
-	multiWrapperType              = "multi"
-	skipWrapperType               = "skip"
+	dockerWrapperType wrapperType = "docker"
+	multiWrapperType  wrapperType = "multi"
 )
 
 type cmdWrapper interface {
@@ -52,8 +52,9 @@ func newStdCmdWrapper() *stdCmdWrapper {
 }
 
 type dockerCmdWrapper struct {
-	executable string
-	root       string
+	executable    string
+	root          string
+	containerName string
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
@@ -61,7 +62,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 	for _, env := range envs {
 		dockerArgs = append(dockerArgs, "-e"+env)
 	}
-	dockerArgs = append(dockerArgs, "docker-wrapper", bin)
+	dockerArgs = append(dockerArgs, d.containerName, bin)
 	dockerArgs = append(dockerArgs, args...)
 
 	cmd := exec.Command(d.executable, dockerArgs...)
@@ -71,18 +72,13 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 }
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
-	cmd := exec.Command(d.executable, "run", "-d", "--name", "docker-wrapper", "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return out, err
-	}
-	return nil, nil
+	d.containerName = fmt.Sprintf("docker-wrapper-%s", randStringRunes(6))
+	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
+	return cmd.CombinedOutput()
 }
 
 func (d *dockerCmdWrapper) stop() ([]byte, error) {
-	cmd := exec.Command(d.executable, "kill", "docker-wrapper")
-	_ = cmd.Run()
-
-	cmd = exec.Command(d.executable, "rm", "-f", "docker-wrapper")
+	cmd := exec.Command(d.executable, "kill", d.containerName)
 	return cmd.CombinedOutput()
 }
 
@@ -92,11 +88,13 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 		_, _ = d.stop()
 
 		if out, err := d.start(); err != nil {
-			t.Fatalf("%s: %s", string(out), err)
+			t.Errorf("%s: %s", string(out), err)
+			return
 		}
 		fnc(t, d.Type(), d.Command)
 		if out, err := d.stop(); err != nil {
-			t.Fatalf("%s: %s", string(out), err)
+			t.Errorf("%s: %s", string(out), err)
+			return
 		}
 	})
 }

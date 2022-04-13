@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -12,14 +13,14 @@ import (
 	"strings"
 
 	sebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/ebpf"
+	"github.com/cilium/ebpf"
 )
 
 const (
 	// SELinuxStatusDisableKey represents the key in the kernel map managing the current SELinux disable status
 	SELinuxStatusDisableKey uint32 = 0
 	// SELinuxStatusEnforceKey represents the key in the kernel map managing the current SELinux enforce status
-	SELinuxStatusEnforceKey uint32 = 0
+	SELinuxStatusEnforceKey uint32 = 1
 )
 
 func snapshotSELinux(selinuxStatusMap *ebpf.Map) error {

@@ -80,11 +80,9 @@ func (r *Retrier) NextRetry() time.Time {
 }
 
 // LastError allows users to know what the last retry failure error was
-func (r *Retrier) LastError() error {
-	r.RLock()
-	defer r.RUnlock()
-
-	return r.lastTryError
+func (r *Retrier) LastError() *Error {
+	// Thread safety is handled by wrapError
+	return r.wrapError(r.lastTryError)
 }
 
 // TriggerRetry triggers a new retry and returns the result

@@ -1,0 +1,5 @@
+features:
+  - |
+    CWS: SECL expressions can now make use of predefined variables.
+    `${process.pid}` variable refers to the pid of the process that
+    trigger the event. 

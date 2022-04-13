@@ -48,3 +48,19 @@ func IsKubernetes() bool {
 func IsECSFargate() bool {
 	return os.Getenv("ECS_FARGATE") != ""
 }
+
+// IsHostProcAvailable returns whether host proc is available or not
+func IsHostProcAvailable() bool {
+	if IsContainerized() {
+		return pathExists("/host/proc")
+	}
+	return true
+}
+
+// IsHostSysAvailable returns whether host proc is available or not
+func IsHostSysAvailable() bool {
+	if IsContainerized() {
+		return pathExists("/host/sys")
+	}
+	return true
+}

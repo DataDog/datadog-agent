@@ -28,7 +28,7 @@ root_dir = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\system-
 print root_dir
 print Dir.entries(root_dir)
 
-Dir.glob("#{root_dir}/**/testsuite").each do |f|
+Dir.glob("#{root_dir}/**/testsuite.exe").each do |f|
   pkg = f.delete_prefix(root_dir).delete_suffix('/testsuite')
   describe "system-probe tests for #{pkg}" do
     it 'successfully runs' do

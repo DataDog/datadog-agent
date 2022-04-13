@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -18,6 +18,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -26,7 +27,7 @@ import (
 )
 
 const (
-	// AD on the load-balanced service IPs
+	kubeServiceID               = "service"
 	kubeServiceAnnotationPrefix = "ad.datadoghq.com/service."
 )
 
@@ -38,7 +39,7 @@ type KubeServiceConfigProvider struct {
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -146,23 +147,28 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 
 func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
 	var configs []integration.Config
+
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
 			log.Debug("Ignoring a nil service")
 			continue
 		}
+
 		serviceID := apiserver.EntityForService(svc)
-		svcConf, errors := extractTemplatesFromMap(serviceID, svc.Annotations, kubeServiceAnnotationPrefix)
+		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
+
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
+
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
 			svcConf[i].Source = "kube_services:" + serviceID
 			svcConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 		}
+
 		configs = append(configs, svcConf...)
 	}
 
@@ -170,7 +176,7 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 }
 
 func init() {
-	RegisterProvider("kube_services", NewKubeServiceConfigProvider)
+	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the KubeServiceConfigProvider

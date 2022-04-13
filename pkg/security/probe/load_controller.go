@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -13,12 +14,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/pkg/errors"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,11 +31,11 @@ type eventCounterLRUKey struct {
 // LoadController is used to monitor and control the pressure put on the host
 type LoadController struct {
 	sync.RWMutex
-	probe        *Probe
-	statsdClient *statsd.Client
+	probe *Probe
 
-	eventsTotal    int64
-	eventsCounters *simplelru.LRU
+	eventsTotal        int64
+	eventsCounters     *simplelru.LRU
+	pidDiscardersCount int64
 
 	EventsCountThreshold int64
 	DiscarderTimeout     time.Duration
@@ -42,15 +43,14 @@ type LoadController struct {
 }
 
 // NewLoadController instantiates a new load controller
-func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadController, error) {
+func NewLoadController(probe *Probe) (*LoadController, error) {
 	lru, err := simplelru.NewLRU(probe.config.PIDCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	lc := &LoadController{
-		probe:        probe,
-		statsdClient: statsdClient,
+		probe: probe,
 
 		eventsCounters: lru,
 
@@ -59,6 +59,17 @@ func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadControll
 		ControllerPeriod:     probe.config.LoadControllerControlPeriod,
 	}
 	return lc, nil
+}
+
+// SendStats sends load controller stats
+func (lc *LoadController) SendStats() error {
+	// send load_controller.pids_discarder metric
+	if count := atomic.SwapInt64(&lc.pidDiscardersCount, 0); count > 0 {
+		if err := lc.probe.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
+			return errors.Wrap(err, "couldn't send load_controller.pids_discarder metric")
+		}
+	}
+	return nil
 }
 
 // Count processes the provided events and ensures the load of the provided event type is within the configured limits
@@ -118,7 +129,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	// push a temporary discarder on the noisiest process & event type tuple
 	seclog.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.pidDiscarders.discardWithTimeout(0xffffffffffffffff, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
+	if err := lc.probe.pidDiscarders.discardWithTimeout(allEventTypes, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
@@ -127,33 +138,27 @@ func (lc *LoadController) discardNoisiestProcess() {
 	oldMaxCount := atomic.SwapUint64(maxCount, 0)
 	atomic.AddInt64(&lc.eventsTotal, -int64(oldMaxCount))
 
-	if lc.statsdClient != nil {
-		// send load_controller.pids_discarder metric
-		if err := lc.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, 1, []string{}, 1.0); err != nil {
-			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
-			return
-		}
+	atomic.AddInt64(&lc.pidDiscardersCount, 1)
 
-		// fetch noisy process metadata
-		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
-		if process == nil {
-			log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
-			return
-		}
-
-		ts := time.Now()
-		lc.probe.DispatchCustomEvent(
-			NewNoisyProcessEvent(
-				oldMaxCount,
-				lc.EventsCountThreshold,
-				lc.ControllerPeriod,
-				ts.Add(lc.DiscarderTimeout),
-				process,
-				lc.probe.GetResolvers(),
-				ts,
-			),
-		)
+	// fetch noisy process metadata
+	process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
+	if process == nil {
+		log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
+		return
 	}
+
+	ts := time.Now()
+	lc.probe.DispatchCustomEvent(
+		NewNoisyProcessEvent(
+			oldMaxCount,
+			lc.EventsCountThreshold,
+			lc.ControllerPeriod,
+			ts.Add(lc.DiscarderTimeout),
+			process,
+			lc.probe.GetResolvers(),
+			ts,
+		),
+	)
 }
 
 // cleanupCounter resets the internal counter of the provided pid
