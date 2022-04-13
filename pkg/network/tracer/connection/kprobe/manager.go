@@ -33,6 +33,8 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.IP6MakeSkb:           "kprobe__ip6_make_skb",
 	probes.UDPRecvMsg:           "kprobe__udp_recvmsg",
 	probes.UDPRecvMsgReturn:     "kretprobe__udp_recvmsg",
+	probes.UDPv6RecvMsg:         "kprobe__udpv6_recvmsg",
+	probes.UDPv6RecvMsgReturn:   "kretprobe__udpv6_recvmsg",
 	probes.TCPRetransmit:        "kprobe__tcp_retransmit_skb",
 	probes.InetCskAcceptReturn:  "kretprobe__inet_csk_accept",
 	probes.InetCskListenStop:    "kprobe__inet_csk_listen_stop",
@@ -52,6 +54,7 @@ var altProbes = map[probes.ProbeName]string{
 	probes.TCPRetransmitPre470: "kprobe__tcp_retransmit_skb_pre_4_7_0",
 	probes.IP6MakeSkbPre470:    "kprobe__ip6_make_skb__pre_4_7_0",
 	probes.UDPRecvMsgPre410:    "kprobe__udp_recvmsg_pre_4_1_0",
+	probes.UDPv6RecvMsgPre410:  "kprobe__udpv6_recvmsg_pre_4_1_0",
 	probes.TCPSendMsgPre410:    "kprobe__tcp_sendmsg__pre_4_1_0",
 }
 
@@ -62,6 +65,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.TcpStatsMap)},
 			{Name: string(probes.ConnCloseBatchMap)},
 			{Name: "udp_recv_sock"},
+			{Name: "udpv6_recv_sock"},
 			{Name: string(probes.PortBindingsMap)},
 			{Name: string(probes.UdpPortBindingsMap)},
 			{Name: "pending_bind"},
@@ -105,6 +109,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRetransmitPre470), EBPFFuncName: "kprobe__tcp_retransmit_skb_pre_4_7_0"}, MatchFuncName: "^tcp_retransmit_skb$"},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.IP6MakeSkbPre470), EBPFFuncName: "kprobe__ip6_make_skb__pre_4_7_0"}, MatchFuncName: "^ip6_make_skb$"},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPRecvMsgPre410), EBPFFuncName: "kprobe__udp_recvmsg_pre_4_1_0"}, MatchFuncName: "^udp_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: "kprobe__udpv6_recvmsg_pre_4_1_0"}, MatchFuncName: "^udpv6_recvmsg$"},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: "kprobe__tcp_sendmsg__pre_4_1_0"}, MatchFuncName: "^tcp_sendmsg$"},
 		)
 	}

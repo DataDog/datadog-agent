@@ -887,9 +887,11 @@ func TestConnectionAssured(t *testing.T) {
 	// register test as client
 	getConnections(t, tr)
 
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	done := make(chan struct{})
 	err = server.Run(done, clientMessageSize)
@@ -932,9 +934,11 @@ func TestConnectionNotAssured(t *testing.T) {
 	// register test as client
 	getConnections(t, tr)
 
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return nil
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return nil
+		},
+	}
 
 	done := make(chan struct{})
 	err = server.Run(done, clientMessageSize)
