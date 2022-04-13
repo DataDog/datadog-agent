@@ -118,7 +118,7 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 }
 
 // ReceiveInto reads one or more netlink.Messages off the socket
-func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, int32, error) {
+func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 	oob := make([]byte, unix.CmsgSpace(24))
 	n, oobn, err := s.recvmsg(s.recvbuf, oob, 0)
 	if err != nil {
@@ -148,7 +148,7 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, int32, error) {
 		msgs = append(msgs, m)
 	}
 
-	var netns int32
+	var netns uint32
 	if oobn > 0 {
 		oob = oob[:oobn]
 		scms, err := unix.ParseSocketControlMessage(oob)
@@ -162,13 +162,13 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, int32, error) {
 	return msgs, netns, nil
 }
 
-func parseNetNS(scms []unix.SocketControlMessage) int32 {
+func parseNetNS(scms []unix.SocketControlMessage) uint32 {
 	for _, m := range scms {
 		if m.Header.Level != unix.SOL_NETLINK || m.Header.Type != unix.NETLINK_LISTEN_ALL_NSID {
 			continue
 		}
 
-		return *(*int32)(unsafe.Pointer(&m.Data[0]))
+		return *(*uint32)(unsafe.Pointer(&m.Data[0]))
 	}
 
 	return 0
