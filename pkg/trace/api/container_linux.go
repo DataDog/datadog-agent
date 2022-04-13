@@ -82,8 +82,7 @@ type containerCache struct {
 	sync.RWMutex
 }
 
-
-var cache = containerCache{ cache:  make(map[int32]*cacheVal) }
+var cache = containerCache{cache: make(map[int32]*cacheVal)}
 
 const cacheExpire = 5 * time.Minute
 
