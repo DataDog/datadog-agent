@@ -683,23 +683,32 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 		return nil
 	}
 
-	proc, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return nil
+	var ppid uint32
+	inserted := false
+	entry := p.entryCache[pid]
+	if entry == nil {
+		proc, err := process.NewProcess(int32(pid))
+		if err != nil {
+			return nil
+		}
+
+		filledProc := utils.GetFilledProcess(proc)
+		if filledProc == nil {
+			return nil
+		}
+
+		// ignore kthreads
+		if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+			return nil
+		}
+
+		entry, inserted = p.syncCache(proc)
+		ppid = uint32(filledProc.Ppid)
+	} else {
+		ppid = entry.PPid
 	}
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		return nil
-	}
-
-	// ignore kthreads
-	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-		return nil
-	}
-
-	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
-	entry, inserted := p.syncCache(proc)
+	parent := p.resolveWithProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
 		entry.SetAncestor(parent)
 	}
