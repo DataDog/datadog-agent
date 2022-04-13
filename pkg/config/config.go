@@ -631,11 +631,11 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.namespace")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
-	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 9162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
 	// No default as the agent falls back to `network_devices.namespace` if empty.
 	config.BindEnv("snmp_traps_config.namespace")
-	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 	config.SetKnown("snmp_traps_config.users")
 
