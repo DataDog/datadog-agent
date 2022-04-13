@@ -347,6 +347,11 @@ func StartAgent() error {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
+	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
+	if util.EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
