@@ -64,6 +64,7 @@ typedef struct {
     // be populated with the "original" (pre-normalization) source port number of
     // the TCP segment containing the beginning of a given HTTP request
     __u16 owned_by_src_port;
+    __u64 tags;
 } http_transaction_t;
 
 typedef struct {
