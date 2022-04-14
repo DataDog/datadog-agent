@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/fsuid.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -239,6 +240,47 @@ int test_mkdirat_error(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 
+int test_process_set(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: Please pass a syscall name, real and effective id.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int real_id = atoi(argv[2]);
+    int effective_id = atoi(argv[3]);
+
+    char *subcmd = argv[1];
+
+    int res;
+    if (strcmp(subcmd, "setuid") == 0) {
+        res = setuid(real_id);
+    } else if (strcmp(subcmd, "setreuid") == 0) {
+        res = setreuid(real_id, effective_id);
+    } else if (strcmp(subcmd, "setresuid") == 0) {
+        res = setresuid(real_id, effective_id, 0);
+    } else if (strcmp(subcmd, "setfsuid") == 0) {
+        res = setfsuid(real_id);
+    } else if (strcmp(subcmd, "setgid") == 0) {
+        res = setgid(real_id);
+    } else if (strcmp(subcmd, "setregid") == 0) {
+        res = setregid(real_id, effective_id);
+    } else if (strcmp(subcmd, "setresgid") == 0) {
+        res = setresgid(real_id, effective_id, 0);
+    } else if (strcmp(subcmd, "setfsgid") == 0) {
+        res = setfsgid(real_id);
+    } else {
+        fprintf(stderr, "Unknown subcommand `%s`\n", subcmd);
+        return EXIT_FAILURE;
+    }
+
+    if (res != 0) {
+        fprintf(stderr, "%s failed", subcmd);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -261,6 +303,8 @@ int main(int argc, char **argv) {
         return test_splice();
     } else if (strcmp(cmd, "mkdirat-error") == 0) {
         return test_mkdirat_error(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "process-credentials") == 0) {
+        return test_process_set(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;
