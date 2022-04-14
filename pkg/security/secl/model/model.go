@@ -254,8 +254,8 @@ type Credentials struct {
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (e *Process) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
+	if e.FileEvent.PathResolutionError != nil {
+		return e.FileEvent.PathResolutionError.Error()
 	}
 	return ""
 }
@@ -263,16 +263,11 @@ func (e *Process) GetPathResolutionError() string {
 // Process represents a process
 type Process struct {
 	// proc_cache_t
-	FileFields FileFields `field:"file" msg:"file"`
+	FileEvent FileEvent `field:"file" msg:"file"`
 
 	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
 	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
 	NetNS uint32 `field:"-" msg:"-"`
-
-	PathnameStr         string `field:"file.path" msg:"path" op_override:"eval.GlobCmp"` // Path of the process executable
-	BasenameStr         string `field:"file.name" msg:"name"`                            // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem" msg:"filesystem"`                // FileSystem of the process executable
-	PathResolutionError error  `field:"-" msg:"-"`
 
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
@@ -366,7 +361,7 @@ type FileEvent struct {
 	FileFields
 	PathnameStr string `field:"path,ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
 	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`                        // File's basename
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
+	Filesystem  string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
 }

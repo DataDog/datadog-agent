@@ -611,7 +611,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		// copy some of the field from the entry
 		event.Exec.Process = event.processCacheEntry.Process
-		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
+		event.Exec.FileEvent = event.processCacheEntry.Process.FileEvent
 	case model.ExitEventType:
 		// do nothing
 	case model.SetuidEventType:

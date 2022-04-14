@@ -192,7 +192,7 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileFields.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -442,8 +442,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileFields.Inode, inode, event)
+			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileEvent.Inode, inode, event)
 			}
 
 			str := event.String()
@@ -845,9 +845,9 @@ func TestProcessMetadata(t *testing.T) {
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
-			assertRights(t, event.Exec.FileFields.Mode, uint16(expectedMode))
-			assertNearTime(t, event.Exec.FileFields.MTime)
-			assertNearTime(t, event.Exec.FileFields.CTime)
+			assertRights(t, event.Exec.FileEvent.Mode, uint16(expectedMode))
+			assertNearTime(t, event.Exec.FileEvent.MTime)
+			assertNearTime(t, event.Exec.FileEvent.CTime)
 		})
 	})
 

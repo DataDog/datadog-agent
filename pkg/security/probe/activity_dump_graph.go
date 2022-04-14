@@ -97,7 +97,7 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	}
 	pan := node{
 		ID:    p.GetID(),
-		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, args),
+		Label: fmt.Sprintf("%s %s", p.Process.FileEvent.PathnameStr, args),
 		Size:  60,
 		Color: processColor,
 	}

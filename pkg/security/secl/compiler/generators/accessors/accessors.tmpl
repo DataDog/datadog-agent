@@ -78,8 +78,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 						{{$Return := $SubName | printf "element%s"}}
 						{{if and (ne $Field.Handler "") (not $Mock) }}
+							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-							{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element." $Field.Struct ")"}}
+							{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element" $SubName ")"}}
 						{{end}}
 
 						{{if eq $Field.ReturnType "int"}}
@@ -199,8 +200,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 				{{$Return := $SubName | printf "element%s"}}
 				{{if and (ne $Field.Handler "") (not $Mock) }}
+					{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 					{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element." $Field.Struct ")"}}
+					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element" $SubName ")"}}
 				{{end}}
 
 				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
