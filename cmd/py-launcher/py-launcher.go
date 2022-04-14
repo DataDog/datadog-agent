@@ -69,6 +69,4 @@ func main() {
 	if res == 0 {
 		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(rtloader)))
 	}
-
-	python.Destroy()
 }
