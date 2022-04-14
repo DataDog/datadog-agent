@@ -359,57 +359,73 @@ func (s *store) pull(ctx context.Context) {
 
 func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Lock()
+	s.subscribersMut.RLock()
+
+	filteredEvents := make(map[subscriber][]Event, len(s.subscribers))
+	for _, sub := range s.subscribers {
+		filteredEvents[sub] = make([]Event, 0, len(evs))
+	}
 
 	for _, ev := range evs {
-		meta := ev.Entity.GetID()
+		entityID := ev.Entity.GetID()
 
-		telemetry.EventsReceived.Inc(string(meta.Kind), string(ev.Source))
+		telemetry.EventsReceived.Inc(string(entityID.Kind), string(ev.Source))
 
-		entitiesOfKind, ok := s.store[meta.Kind]
+		entitiesOfKind, ok := s.store[entityID.Kind]
 		if !ok {
-			s.store[meta.Kind] = make(map[string]*cachedEntity)
-			entitiesOfKind = s.store[meta.Kind]
+			s.store[entityID.Kind] = make(map[string]*cachedEntity)
+			entitiesOfKind = s.store[entityID.Kind]
 		}
 
-		cachedEntity, ok := entitiesOfKind[meta.ID]
+		cachedEntity, ok := entitiesOfKind[entityID.ID]
 
 		switch ev.Type {
 		case EventTypeSet:
 			if !ok {
-				entitiesOfKind[meta.ID] = newCachedEntity()
-				cachedEntity = entitiesOfKind[meta.ID]
+				entitiesOfKind[entityID.ID] = newCachedEntity()
+				cachedEntity = entitiesOfKind[entityID.ID]
 			}
 
 			if found := cachedEntity.set(ev.Source, ev.Entity); !found {
 				telemetry.StoredEntities.Inc(
-					string(meta.Kind),
+					string(entityID.Kind),
 					string(ev.Source),
 				)
 			}
 		case EventTypeUnset:
-			if ok && cachedEntity.unset(ev.Source) {
-				telemetry.StoredEntities.Dec(
-					string(meta.Kind),
-					string(ev.Source),
-				)
+			// if the entity we're trying to remove was not
+			// present in the store, skip generating any
+			// events for downstream subscribers. this
+			// fixes an issue where collectors emit
+			// EventTypeUnset events for pause containers
+			// they never emitted a EventTypeSet for.
 
-				if len(cachedEntity.sources) == 0 {
-					delete(entitiesOfKind, meta.ID)
-				}
+			if !ok {
+				continue
+			}
+
+			_, sourceOk := cachedEntity.sources[ev.Source]
+			if !sourceOk {
+				continue
+			}
+
+			cachedEntity.unset(ev.Source)
+
+			telemetry.StoredEntities.Dec(
+				string(entityID.Kind),
+				string(ev.Source),
+			)
+
+			if len(cachedEntity.sources) == 0 {
+				delete(entitiesOfKind, entityID.ID)
 			}
 		default:
 			log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
 		}
-	}
 
-	s.subscribersMut.RLock()
-	filteredEvents := make(map[subscriber][]Event, len(s.subscribers))
-	for _, sub := range s.subscribers {
-		filter := sub.filter
-		filteredEvents[sub] = make([]Event, 0, len(evs))
+		for _, sub := range s.subscribers {
+			filter := sub.filter
 
-		for _, ev := range evs {
-			entityID := ev.Entity.GetID()
 			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) {
 				// event should be filtered out because it
 				// doesn't match the filter
@@ -441,6 +457,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			}
 		}
 	}
+
 	s.subscribersMut.RUnlock()
 
 	// unlock the store before notifying subscribers, as they might need to
