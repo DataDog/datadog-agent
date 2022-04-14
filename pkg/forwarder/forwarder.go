@@ -302,12 +302,14 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 
 	timeInterval := config.Datadog.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
-	f.queueDurationCapacity = retry.NewQueueDurationCapacity(
-		time.Duration(timeInterval)*time.Second,
-		10*time.Second,
-		options.RetryQueuePayloadsTotalMaxSize,
-		diskUsageLimit,
-		queueDiskSpaceUsedList)
+	if f.agentName != "" {
+		f.queueDurationCapacity = retry.NewQueueDurationCapacity(
+			time.Duration(timeInterval)*time.Second,
+			10*time.Second,
+			options.RetryQueuePayloadsTotalMaxSize,
+			diskUsageLimit,
+			queueDiskSpaceUsedList)
+	}
 
 	if optionalRemovalPolicy != nil {
 		filesRemoved, err := optionalRemovalPolicy.RemoveUnknownDomains()
@@ -475,18 +477,22 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 			forwarder := f.domainForwarders[t.Domain]
 			forwarder.sendHTTPTransactions(t)
 
-			if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
-				log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+			if f.queueDurationCapacity != nil {
+				if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+					log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+				}
 			}
 		}
 
-		if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
-			log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
-		} else {
-			for domain, t := range capacities {
-				tlmRetryQueueDurationCapacity.Set(t.Capacity.Seconds(), f.agentName, domain)
-				tlmRetryQueueDurationBytesPerSec.Set(t.BytesPerSec, f.agentName, domain)
-				tlmRetryQueueDurationCapacityBytes.Set(float64(t.AvailableSpace), f.agentName, domain)
+		if f.queueDurationCapacity != nil {
+			if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+				log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+			} else {
+				for domain, t := range capacities {
+					tlmRetryQueueDurationCapacity.Set(t.Capacity.Seconds(), f.agentName, domain)
+					tlmRetryQueueDurationBytesPerSec.Set(t.BytesPerSec, f.agentName, domain)
+					tlmRetryQueueDurationCapacityBytes.Set(float64(t.AvailableSpace), f.agentName, domain)
+				}
 			}
 		}
 	} else {
