@@ -79,7 +79,7 @@ func TestScalar(t *testing.T) {
 
 func TestPattern(t *testing.T) {
 	t.Run("sensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(GlobValueType, "http://test*", DefaultStringCmpOpts)
+		matcher, err := NewStringMatcher(PatternValueType, "http://test*", DefaultStringCmpOpts)
 		if err != nil {
 			t.Error(err)
 		}
@@ -94,7 +94,7 @@ func TestPattern(t *testing.T) {
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(GlobValueType, "http://TEst*", StringCmpOpts{GlobCaseInsensitive: true})
+		matcher, err := NewStringMatcher(PatternValueType, "http://TEst*", StringCmpOpts{PatternCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
@@ -109,7 +109,7 @@ func TestPattern(t *testing.T) {
 	})
 
 	t.Run("sensitive-case-scalar", func(t *testing.T) {
-		matcher, err := NewStringMatcher(GlobValueType, "http://test123", DefaultStringCmpOpts)
+		matcher, err := NewStringMatcher(PatternValueType, "http://test123", DefaultStringCmpOpts)
 		if err != nil {
 			t.Error(err)
 		}
@@ -124,7 +124,7 @@ func TestPattern(t *testing.T) {
 	})
 
 	t.Run("insensitive-case-scalar", func(t *testing.T) {
-		matcher, err := NewStringMatcher(GlobValueType, "http://test123", StringCmpOpts{GlobCaseInsensitive: true})
+		matcher, err := NewStringMatcher(PatternValueType, "http://test123", StringCmpOpts{PatternCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
