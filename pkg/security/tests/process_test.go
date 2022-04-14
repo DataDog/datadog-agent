@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -983,7 +982,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		},
 		{
 			ID:         "test_capset",
-			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "testsuite"`,
+			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "syscall_go_tester"`,
 		},
 	}
 
@@ -994,6 +993,11 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	defer test.Close()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1083,37 +1087,12 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err := threadCapabilities.Load(); err != nil {
 			t.Fatal(err)
 		}
-
-		var threadCapabilitiesLock sync.Mutex
+		// remove capabilities that are removed by syscall_go_tester
+		threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
+		threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
 
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				threadCapabilitiesLock.Lock()
-				defer threadCapabilitiesLock.Unlock()
-
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				// remove capabilities that we do not need
-				threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
-				threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
-				if err := threadCapabilities.Apply(capability.CAPS); err != nil {
-					errChan <- err
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, goSyscallTester, "-process-credentials-capset")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_capset")
 
@@ -1125,9 +1104,6 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
 			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)
 			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet, t)
-
-			threadCapabilitiesLock.Lock()
-			defer threadCapabilitiesLock.Unlock()
 
 			for _, c := range capability.List() {
 				if expectedValue := threadCapabilities.Get(capability.EFFECTIVE, c); expectedValue != newSet.Get(capability.EFFECTIVE, c) {
