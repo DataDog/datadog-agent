@@ -1251,6 +1251,11 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		}
 	}
 
+	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
+	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
 	// ignoring the python_version configuration value.
 	if ForceDefaultPython == "true" {
@@ -1305,6 +1310,14 @@ func ResolveSecrets(config Config, origin string) error {
 		}
 	}
 	return nil
+}
+
+// EnvVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
+func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
+	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
+	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
+
+	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
 // SanitizeAPIKeyConfig strips newlines and other control characters from a given key.

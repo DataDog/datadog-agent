@@ -221,11 +221,3 @@ func GetGoRoutinesDump() (string, error) {
 	data, err := ioutil.ReadAll(resp.Body)
 	return string(data), err
 }
-
-// EnvVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
-func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
-	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
-	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
-
-	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
-}
