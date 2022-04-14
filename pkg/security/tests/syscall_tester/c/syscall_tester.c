@@ -231,9 +231,8 @@ int test_mkdirat_error(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    fprintf(stderr, "mkdir path: %s\n", argv[1]);
     if (mkdirat(0, argv[1], 0777) == 0) {
-        fprintf(stderr, "mkdirat succeeded event though we expected it to fail");
+        fprintf(stderr, "mkdirat succeeded even though we expected it to fail");
         return EXIT_FAILURE;
     }
 
