@@ -269,9 +269,9 @@ type Process struct {
 	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
 	NetNS uint32 `field:"-" msg:"-"`
 
-	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
-	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem" msg:"filesystem"` // FileSystem of the process executable
+	PathnameStr         string `field:"file.path" msg:"path" op_override:"eval.GlobCmp"` // Path of the process executable
+	BasenameStr         string `field:"file.name" msg:"name"`                            // Basename of the path of the process executable
+	Filesystem          string `field:"file.filesystem" msg:"filesystem"`                // FileSystem of the process executable
 	PathResolutionError error  `field:"-" msg:"-"`
 
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID

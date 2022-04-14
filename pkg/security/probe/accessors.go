@@ -933,6 +933,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.PathnameStr
@@ -3086,6 +3087,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) []string {
 				if ptr := ctx.Cache[field]; ptr != nil {
 					if result := (*[]string)(ptr); result != nil {
@@ -3872,6 +3874,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.PathnameStr
@@ -4951,6 +4954,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) []string {
 				if ptr := ctx.Cache[field]; ptr != nil {
 					if result := (*[]string)(ptr); result != nil {
@@ -5737,6 +5741,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.PathnameStr
@@ -7761,6 +7766,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) []string {
 				if ptr := ctx.Cache[field]; ptr != nil {
 					if result := (*[]string)(ptr); result != nil {
@@ -8547,6 +8553,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.GlobCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.PathnameStr

@@ -115,6 +115,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_args_envs_dedup",
 			Expression: `exec.file.name == "ls" && exec.argv == "test123456"`,
 		},
+		{
+			ID:         "test_rule_ancestors_glob",
+			Expression: `exec.file.name == "ls" && exec.argv == "glob" && process.ancestors.file.path =~ "/usr/**"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -596,6 +600,18 @@ func TestProcessContext(t *testing.T) {
 			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
 				t.Error("should have envs")
 			}
+		})
+	})
+
+	t.Run("ancestors-glob", func(t *testing.T) {
+		lsExecutable := which(t, "ls")
+
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command(lsExecutable, "glob")
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_ancestors_glob")
 		})
 	})
 }
