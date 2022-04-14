@@ -214,6 +214,31 @@ int test_splice() {
     return EXIT_SUCCESS;
 }
 
+int test_mkdirat_error(int argc, char** argv) {
+    if (argc != 2) {
+        fprintf(stderr, "%s: Please pass a path to mkdirat.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    if (setregid(1, 1) != 0) {
+        fprintf(stderr, "setregid failed");
+        return EXIT_FAILURE;
+    }
+
+    if (setreuid(1, 1) != 0) {
+        fprintf(stderr, "setreuid failed");
+        return EXIT_FAILURE;
+    }
+
+    fprintf(stderr, "mkdir path: %s\n", argv[1]);
+    if (mkdirat(0, argv[1], 0777) == 0) {
+        fprintf(stderr, "mkdirat succeeded event though we expected it to fail");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -234,6 +259,8 @@ int main(int argc, char **argv) {
         return test_signal(argc - 1, argv + 1);
     } else if (strcmp(cmd, "splice") == 0) {
         return test_splice();
+    } else if (strcmp(cmd, "mkdirat-error") == 0) {
+        return test_mkdirat_error(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;
