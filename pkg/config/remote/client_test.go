@@ -118,8 +118,9 @@ func TestClientValidResponse(t *testing.T) {
 	rawApmConfig, err := apmConfig.MarshalMsg(nil)
 	assert.NoError(t, err)
 	target1 := generateTarget(rawApmConfig, 5)
+	target2 := generateTarget(rawApmConfig, 3)
 	target2content, _ := generateRandomTarget(2)
-	targets := generateTargets(targetsKey, 1, data.TargetFiles{"datadog/3/APM_SAMPLING/config-id-1/1": target1})
+	targets := generateTargets(targetsKey, 1, data.TargetFiles{"datadog/3/APM_SAMPLING/config-id-1/1": target1, "employee/APM_SAMPLING/config-id-3/1": target2})
 	config.Datadog.Set("remote_configuration.director_root", embeddedRoot)
 
 	c, err := newClient("test-agent", []rdata.Product{rdata.ProductAPMSampling})
@@ -143,6 +144,7 @@ func TestClientValidResponse(t *testing.T) {
 		TargetFiles: []*pbgo.File{
 			{Path: "datadog/3/APM_SAMPLING/config-id-1/1", Raw: rawApmConfig},
 			{Path: "datadog/3/TESTING1/config-id-2/2", Raw: target2content},
+			{Path: "employee/APM_SAMPLING/config-id-3/1", Raw: rawApmConfig},
 		},
 	}, nil)
 
@@ -152,10 +154,13 @@ func TestClientValidResponse(t *testing.T) {
 	apmUpdates := c.APMSamplingUpdates()
 	require.Len(t, apmUpdates, 1)
 	apmUpdate := <-apmUpdates
-	assert.Len(t, apmUpdate, 1)
+	assert.Len(t, apmUpdate, 2)
 	assert.Equal(t, "config-id-1", apmUpdate[0].ID)
 	assert.Equal(t, uint64(5), apmUpdate[0].Version)
 	assert.Equal(t, apmConfig, apmUpdate[0].Config)
+	assert.Equal(t, "config-id-3", apmUpdate[1].ID)
+	assert.Equal(t, uint64(3), apmUpdate[1].Version)
+	assert.Equal(t, apmConfig, apmUpdate[1].Config)
 }
 
 func generateKey() keys.Signer {

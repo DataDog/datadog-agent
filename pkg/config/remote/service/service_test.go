@@ -243,9 +243,10 @@ func TestService(t *testing.T) {
 	}
 	fileAPM1 := []byte(`testapm1`)
 	fileAPM2 := []byte(`testapm2`)
+	fileAPM3 := []byte(`testapmepmloyee`)
 	uptaneClient.On("TargetsMeta").Return(targets, nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustom, nil)
-	uptaneClient.On("Targets").Return(data.TargetFiles{"datadog/2/APM_SAMPLING/id/1": {}, "datadog/2/TESTING1/id/1": {}, "datadog/2/APM_SAMPLING/id/2": {}, "datadog/2/APPSEC/id/1": {}}, nil)
+	uptaneClient.On("Targets").Return(data.TargetFiles{"datadog/2/APM_SAMPLING/id/1": {}, "datadog/2/TESTING1/id/1": {}, "datadog/2/APM_SAMPLING/id/2": {}, "datadog/2/APPSEC/id/1": {}, "employee/APM_SAMPLING/id/3": {}}, nil)
 	uptaneClient.On("State").Return(uptane.State{
 		ConfigState: map[string]uptane.MetaState{
 			"root.json":      {Version: 1},
@@ -263,6 +264,7 @@ func TestService(t *testing.T) {
 	uptaneClient.On("DirectorRoot", uint64(4)).Return(root4, nil)
 	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return(fileAPM1, nil)
 	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/2").Return(fileAPM2, nil)
+	uptaneClient.On("TargetFile", "employee/APM_SAMPLING/id/3").Return(fileAPM3, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -281,7 +283,7 @@ func TestService(t *testing.T) {
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, [][]byte{root3, root4}, configResponse.Roots)
-	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles)
+	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}, {Path: "employee/APM_SAMPLING/id/3", Raw: fileAPM3}}, configResponse.TargetFiles)
 	assert.Equal(t, targets, configResponse.Targets)
 	err = service.refresh()
 	assert.NoError(t, err)
