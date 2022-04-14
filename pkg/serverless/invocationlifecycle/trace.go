@@ -13,7 +13,6 @@ import (
 	"time"
 
 	rand "github.com/DataDog/datadog-agent/pkg/serverless/random"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -41,22 +40,23 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string, inferredSpan inferredspan.InferredSpan) {
+func startExecutionSpan(startTime time.Time, rawPayload string) {
 	currentExecutionInfo.startTime = startTime
-	currentExecutionInfo.traceID = rand.Random.Uint64()
-	currentExecutionInfo.spanID = rand.Random.Uint64()
 	currentExecutionInfo.parentID = 0
 
 	payload := convertRawPayload(rawPayload)
 
-	if InferredSpansEnabled && payload.Headers == nil {
+	if InferredSpansEnabled {
 		currentExecutionInfo.traceID = inferredSpan.Span.TraceID
 		currentExecutionInfo.parentID = inferredSpan.Span.SpanID
+	} else {
+		currentExecutionInfo.traceID = rand.Random.Uint64()
+		currentExecutionInfo.spanID = rand.Random.Uint64()
 	}
 
 	if payload.Headers != nil {
-		traceID, e1 := convertStrToUint64(payload.Headers[TraceIDHeader])
-		parentID, e2 := convertStrToUint64(payload.Headers[ParentIDHeader])
+		traceID, e1 := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
+		parentID, e2 := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
 
 		if e1 == nil {
 			currentExecutionInfo.traceID = traceID
@@ -80,16 +80,14 @@ func startExecutionSpan(startTime time.Time, rawPayload string, inferredSpan inf
 func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
-	traceID := currentExecutionInfo.traceID
-	parentID := currentExecutionInfo.parentID
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
 		Name:     "aws.lambda",
 		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",
-		TraceID:  traceID,
+		TraceID:  currentExecutionInfo.traceID,
 		SpanID:   currentExecutionInfo.spanID,
-		ParentID: parentID,
+		ParentID: currentExecutionInfo.parentID,
 		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
 		Meta: map[string]string{
@@ -131,15 +129,6 @@ func convertRawPayload(rawPayload string) invocationPayload {
 	return payload
 }
 
-func convertStrToUint64(s string) (uint64, error) {
-	num, err := strconv.ParseUint(s, 0, 64)
-	if err != nil {
-		log.Debug("Error with string conversion of trace or parent ID")
-	}
-
-	return num, err
-}
-
 // TraceID returns the current TraceID
 func TraceID() uint64 {
 	return currentExecutionInfo.traceID
@@ -148,4 +137,10 @@ func TraceID() uint64 {
 // SpanID returns the current SpanID
 func SpanID() uint64 {
 	return currentExecutionInfo.spanID
+}
+
+// Used for setting the InferredSpansEnable var when testing
+// This allows us to avoid setting env vars in tests
+func SetVarForTest() {
+	InferredSpansEnabled = true
 }

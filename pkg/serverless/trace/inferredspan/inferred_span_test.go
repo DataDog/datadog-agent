@@ -92,11 +92,13 @@ func TestFilterFunctionTags(t *testing.T) {
 func TestCompleteInferredSpanWithNoError(t *testing.T) {
 
 	startTime := time.Now()
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
 
 	inferredSpan := GenerateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
-	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Start = calculateStartTime(startTime.UnixMilli())
 	inferredSpan.Span.Name = "aws.mock"
 	inferredSpan.Span.Service = "aws.mock"
 	inferredSpan.Span.Resource = "test-function"
@@ -105,8 +107,6 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 		Stage: "dev",
 	}
 
-	duration := 1 * time.Second
-	endTime := startTime.Add(duration)
 	isError := false
 	var tracePayload *api.Payload
 	mockProcessTrace := func(payload *api.Payload) {
@@ -122,7 +122,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	assert.Equal(t, "dev", span.Meta["stage"])
 	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
-	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int64(duration.Seconds()), span.Duration)
 	assert.Equal(t, int32(0), inferredSpan.Span.Error)
 	assert.False(t, inferredSpan.IsAsync)
 }
@@ -130,11 +130,13 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 func TestCompleteInferredSpanWithError(t *testing.T) {
 
 	startTime := time.Now()
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
 
 	inferredSpan := GenerateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
-	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Start = calculateStartTime(startTime.UnixMilli())
 	inferredSpan.Span.Name = "aws.mock"
 	inferredSpan.Span.Service = "aws.mock"
 	inferredSpan.Span.Resource = "test-function"
@@ -143,8 +145,6 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 		Stage: "dev",
 	}
 
-	duration := 1 * time.Second
-	endTime := startTime.Add(duration)
 	isError := true
 	var tracePayload *api.Payload
 	mockProcessTrace := func(payload *api.Payload) {
@@ -160,7 +160,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	assert.Equal(t, "dev", span.Meta["stage"])
 	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
-	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int64(duration.Seconds()), span.Duration)
 	assert.Equal(t, int32(1), inferredSpan.Span.Error)
 	assert.False(t, inferredSpan.IsAsync)
 }
@@ -176,7 +176,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
-	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Start = calculateStartTime(startTime.UnixMilli())
 	inferredSpan.Span.Name = "aws.mock"
 	inferredSpan.Span.Service = "aws.mock"
 	inferredSpan.Span.Resource = "test-function"
@@ -200,7 +200,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	assert.Equal(t, "dev", span.Meta["stage"])
 	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
-	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int64(duration.Seconds()), span.Duration)
 	assert.Equal(t, int32(0), inferredSpan.Span.Error)
 	assert.True(t, inferredSpan.IsAsync)
 }

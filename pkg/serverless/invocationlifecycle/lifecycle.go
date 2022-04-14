@@ -6,6 +6,9 @@
 package invocationlifecycle
 
 import (
+	"os"
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -22,6 +25,12 @@ type LifecycleProcessor struct {
 	DetectLambdaLibrary func() bool
 }
 
+var traceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
+var managedServiceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
+
+// InferredSpansEnabled tells us if the Env Vars are enabled
+// for inferred spans to be created
+var InferredSpansEnabled = traceEnabled && managedServiceEnabled
 var inferredSpan inferredspan.InferredSpan
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -32,13 +41,13 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, inferredSpan)
-
 		if InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to create inferred span")
 			inferredSpan = inferredspan.GenerateInferredSpan(startDetails.StartTime)
 			inferredspan.RouteInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
 		}
+
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
 	}
 }
 

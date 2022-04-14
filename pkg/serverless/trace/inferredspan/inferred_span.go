@@ -6,8 +6,6 @@
 package inferredspan
 
 import (
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -56,13 +54,6 @@ var functionTagsToIgnore = []string{
 	functionVersionTagKey,
 	coldStartTagKey,
 }
-
-var traceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
-var managedServiceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
-
-// InferredSpansEnabled tells us if the Env Vars are enabled
-// for inferred spans to be created
-var InferredSpansEnabled = traceEnabled && managedServiceEnabled
 
 // CheckIsInferredSpan determines if a span belongs to a managed service or not
 // _inferred_span.tag_source = "self" => managed service span
@@ -125,11 +116,13 @@ func CompleteInferredSpan(
 	endTime time.Time,
 	isError bool,
 	inferredSpan InferredSpan) {
-
+	log.Debug("Inside CompleteInferredSpan")
 	if inferredSpan.IsAsync {
-		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		log.Debug("This is async")
+		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.Unix() - inferredSpan.Span.Start
 	} else {
-		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
+		log.Debug("This is not async")
+		inferredSpan.Span.Duration = endTime.Unix() - inferredSpan.Span.Start
 	}
 	if isError {
 		inferredSpan.Span.Error = 1
@@ -158,5 +151,6 @@ func GenerateInferredSpan(startTime time.Time) InferredSpan {
 	inferredSpan.Span.SpanID = rand.Random.Uint64()
 	inferredSpan.Span.TraceID = rand.Random.Uint64()
 	inferredSpan.CurrentInvocationStartTime = startTime
+	log.Debug("Generated new Inferred span ", inferredSpan)
 	return inferredSpan
 }

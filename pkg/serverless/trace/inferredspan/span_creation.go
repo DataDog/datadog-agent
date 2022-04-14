@@ -114,5 +114,5 @@ func setSynchronicity(span *InferredSpan, attributes EventKeys) {
 
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
-	return (epoch / 1000) * 1e9
+	return (epoch / 1000)
 }
