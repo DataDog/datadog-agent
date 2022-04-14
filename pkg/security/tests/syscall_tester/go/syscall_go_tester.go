@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	bpfLoad  bool
-	bpfClone bool
+	bpfLoad            bool
+	bpfClone           bool
 	capsetProcessCreds bool
 )
 
