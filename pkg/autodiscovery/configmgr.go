@@ -97,7 +97,6 @@ func newSimpleConfigManager() configManager {
 func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
 
 	cm.store.setServiceForEntity(svc, svc.GetServiceID())
 
@@ -112,6 +111,7 @@ func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc lis
 		templates = append(templates, tpls...)
 	}
 
+	resolvedSet := map[string]integration.Config{}
 	for _, template := range templates {
 		// resolve the template
 		resolvedConfig, err := cm.resolveTemplateForService(template, svc)
@@ -119,8 +119,13 @@ func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc lis
 			continue
 		}
 
-		// ask the Collector to schedule the checks
-		changes.scheduleConfig(resolvedConfig)
+		resolvedSet[resolvedConfig.Digest()] = resolvedConfig
+	}
+
+	// build the config changes to return
+	changes := configChanges{}
+	for _, v := range resolvedSet {
+		changes.scheduleConfig(v)
 	}
 
 	return changes
