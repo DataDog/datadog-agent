@@ -711,6 +711,9 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 	parent := p.resolveWithProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
 		entry.SetAncestor(parent)
+		if parent.Comm == entry.Comm && parent.ArgsEntry.Equals(entry.ArgsEntry) && parent.EnvsEntry.Equals(entry.EnvsEntry) {
+			parent.ShareArgsEnvs(entry)
+		}
 	}
 
 	return entry
