@@ -565,7 +565,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456"}, []string{"DEDUP=dedup123"}
+		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456; echo"}, []string{"DEDUP=dedup123"}
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, envs)
