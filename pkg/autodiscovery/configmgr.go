@@ -135,8 +135,9 @@ func (cm *simpleConfigManager) processDelService(svc listeners.Service) configCh
 	cm.store.removeServiceForEntity(svc.GetServiceID())
 	removedConfigs := cm.store.removeConfigsForService(svc.GetServiceID())
 	for _, c := range removedConfigs {
-		cm.store.removeLoadedConfig(c)
-		changes.unscheduleConfig(c)
+		if cm.store.removeLoadedConfig(c) {
+			changes.unscheduleConfig(c)
+		}
 	}
 
 	return changes
@@ -190,8 +191,9 @@ func (cm *simpleConfigManager) processDelConfigs(configs []integration.Config) c
 			tplDigest := c.Digest()
 			removedConfigs := cm.store.removeConfigsForTemplate(tplDigest)
 			for _, rc := range removedConfigs {
-				cm.store.removeLoadedConfig(rc)
-				changes.unscheduleConfig(rc)
+				if cm.store.removeLoadedConfig(rc) {
+					changes.unscheduleConfig(rc)
+				}
 			}
 
 			// Remove template from the cache

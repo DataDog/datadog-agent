@@ -117,8 +117,7 @@ func (suite *SimpleConfigManagerSuite) TestNewTemplateBeforeService_ConfigRemove
 
 	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
-	// XXX this is probably a bug:
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule)
 }
 
 // A new template config is not scheduled when there is no matching service, but
@@ -139,8 +138,7 @@ func (suite *SimpleConfigManagerSuite) TestNewTemplateBeforeService_ServiceRemov
 
 	changes = suite.cm.processDelConfigs([]integration.Config{templateConfig})
 	assertConfigsMatch(suite.T(), changes.schedule)
-	// XXX this is probably a bug:
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule)
 }
 
 // A new service is not scheduled when there is no matching template, but
@@ -161,8 +159,7 @@ func (suite *SimpleConfigManagerSuite) TestNewServiceBeforeTemplate_ConfigRemove
 
 	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
-	// XXX this is probably a bug:
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule)
 }
 
 // A new service is not scheduled when there is no matching template, but
@@ -183,8 +180,7 @@ func (suite *SimpleConfigManagerSuite) TestNewServiceBeforeTemplate_ServiceRemov
 
 	changes = suite.cm.processDelConfigs([]integration.Config{templateConfig})
 	assertConfigsMatch(suite.T(), changes.schedule)
-	// XXX this is probably a bug:
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule)
 }
 
 func TestSimpleConfigManagement(t *testing.T) {

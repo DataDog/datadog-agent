@@ -15,7 +15,8 @@ import (
 // store holds useful mappings for the AD
 type store struct {
 	// serviceToConfigs maps service ID to a slice of resolved templates
-	// for that service.
+	// for that service.  Configs are never removed from this map, even if the
+	// template for which they were resolved is removed.
 	serviceToConfigs map[string][]integration.Config
 
 	// serviceToTagsHash maps tagger entity ID to a hash of the tags associated
@@ -24,7 +25,8 @@ type store struct {
 	serviceToTagsHash map[string]string
 
 	// templateToConfigs maps config digest of a template to the resolved templates
-	// created from it.
+	// created from it.  Configs are never removed from this map, even if the
+	// service for which they were resolved is removed.
 	templateToConfigs map[string][]integration.Config
 
 	// loadedConfigs contains all scheduled configs (so, non-template configs
@@ -133,11 +135,16 @@ func (s *store) setLoadedConfig(config integration.Config) {
 	s.loadedConfigs[config.Digest()] = config
 }
 
-// removeLoadedConfig removes a loaded config by its digest
-func (s *store) removeLoadedConfig(config integration.Config) {
+// removeLoadedConfig removes a loaded config by its digest, returning true if it was found.
+func (s *store) removeLoadedConfig(config integration.Config) bool {
 	s.m.Lock()
 	defer s.m.Unlock()
-	delete(s.loadedConfigs, config.Digest())
+	digest := config.Digest()
+	if _, found := s.loadedConfigs[digest]; found {
+		delete(s.loadedConfigs, digest)
+		return true
+	}
+	return false
 }
 
 // mapOverLoadedConfigs calls the given function with the map of all
