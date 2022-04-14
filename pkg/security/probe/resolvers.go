@@ -11,6 +11,7 @@ package probe
 import (
 	"context"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -214,7 +215,13 @@ func (r *Resolvers) Snapshot() error {
 	if err != nil {
 		return errors.Wrap(err, "unable to snapshot SELinux")
 	}
-	return snapshotSELinux(selinuxStatusMap)
+
+	if err := snapshotSELinux(selinuxStatusMap); err != nil {
+		return err
+	}
+
+	runtime.GC()
+	return nil
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
