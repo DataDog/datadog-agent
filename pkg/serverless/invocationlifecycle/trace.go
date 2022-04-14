@@ -42,6 +42,8 @@ var currentExecutionInfo executionStartInfo
 // It should be called at the start of the invocation.
 func startExecutionSpan(startTime time.Time, rawPayload string) {
 	currentExecutionInfo.startTime = startTime
+	currentExecutionInfo.traceID = rand.Random.Uint64()
+	currentExecutionInfo.spanID = rand.Random.Uint64()
 	currentExecutionInfo.parentID = 0
 
 	payload := convertRawPayload(rawPayload)
@@ -49,9 +51,6 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 	if InferredSpansEnabled {
 		currentExecutionInfo.traceID = inferredSpan.Span.TraceID
 		currentExecutionInfo.parentID = inferredSpan.Span.SpanID
-	} else {
-		currentExecutionInfo.traceID = rand.Random.Uint64()
-		currentExecutionInfo.spanID = rand.Random.Uint64()
 	}
 
 	if payload.Headers != nil {
@@ -66,10 +65,10 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 		}
 
 		if e2 == nil {
-			currentExecutionInfo.parentID = parentID
 			if InferredSpansEnabled {
 				inferredSpan.Span.ParentID = parentID
-				currentExecutionInfo.parentID = inferredSpan.Span.SpanID
+			} else {
+				currentExecutionInfo.parentID = parentID
 			}
 		}
 	}
@@ -139,8 +138,9 @@ func SpanID() uint64 {
 	return currentExecutionInfo.spanID
 }
 
-// Used for setting the InferredSpansEnable var when testing
-// This allows us to avoid setting env vars in tests
+// SetVarForTest is used for setting the
+// InferredSpansEnable var when testing. This
+// allows us to avoid setting some env vars in tests
 func SetVarForTest() {
 	InferredSpansEnabled = true
 }

@@ -16,7 +16,7 @@ import (
 // specific set of data to the span expected from a REST event.
 func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpan InferredSpan) {
 
-	log.Debug("Creating an inferred span for a REST API Gateway")
+	log.Debug("Enriching an inferred span for a REST API Gateway")
 	requestContext := attributes.RequestContext
 	resource := fmt.Sprintf("%s %s", attributes.HTTPMethod, attributes.Path)
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, attributes.Path)
@@ -45,7 +45,7 @@ func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpa
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a HTTP event.
 func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpan InferredSpan) {
-	log.Debug("Creating an inferred span for a HTTP API Gateway")
+	log.Debug("Enriching an inferred span for a HTTP API Gateway")
 	requestContext := attributes.RequestContext
 	http := requestContext.HTTP
 	path := requestContext.RawPath
@@ -77,7 +77,7 @@ func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpa
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Websocket event.
 func EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys, inferredSpan InferredSpan) {
-
+	log.Debug("Enriching an inferred span for a Websocket API Gateway")
 	requestContext := attributes.RequestContext
 	endpoint := requestContext.RouteKey
 	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, endpoint)
@@ -114,5 +114,5 @@ func setSynchronicity(span *InferredSpan, attributes EventKeys) {
 
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
-	return (epoch / 1000)
+	return (epoch / 1000) * 1e9
 }
