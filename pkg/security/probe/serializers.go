@@ -475,10 +475,31 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 }
 
 func newDDContextSerializer(e *Event) *DDContextSerializer {
-	return &DDContextSerializer{
+	s := &DDContextSerializer{
 		SpanID:  e.SpanContext.SpanID,
 		TraceID: e.SpanContext.TraceID,
 	}
+	if s.SpanID != 0 || s.TraceID != 0 {
+		return s
+	}
+
+	ctx := eval.NewContext(e.GetPointer())
+	it := &model.ProcessAncestorsIterator{}
+	ptr := it.Front(ctx)
+
+	for ptr != nil {
+		pce := (*model.ProcessCacheEntry)(ptr)
+
+		if pce.SpanID != 0 || pce.TraceID != 0 {
+			s.SpanID = pce.SpanID
+			s.TraceID = pce.TraceID
+			break
+		}
+
+		ptr = it.Next()
+	}
+
+	return s
 }
 
 func newUserContextSerializer(e *Event) *UserContextSerializer {

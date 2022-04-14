@@ -13,7 +13,13 @@ import (
 	"time"
 )
 
-// SetAncestor set the ancestor
+// SetSpan sets the span
+func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
+	pc.SpanID = spanID
+	pc.TraceID = traceID
+}
+
+// SetAncestor sets the ancestor
 func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	pc.Ancestor = parent
 	parent.Retain()

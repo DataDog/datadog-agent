@@ -595,6 +595,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
+		event.processCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
