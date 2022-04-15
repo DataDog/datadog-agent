@@ -149,8 +149,8 @@ func (e *ebpfConntracker) processEvent(ev netlink.Event) {
 	for _, c := range conns {
 		if netlink.IsNAT(c) {
 			log.Tracef("initial conntrack %s", c)
-			src := formatKey(uint32(c.NetNS), c.Origin)
-			dst := formatKey(uint32(c.NetNS), c.Reply)
+			src := formatKey(c.NetNS, c.Origin)
+			dst := formatKey(c.NetNS, c.Reply)
 			if src != nil && dst != nil {
 				if err := e.addTranslation(src, dst); err != nil {
 					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
