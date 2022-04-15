@@ -57,15 +57,15 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.19
 	github.com/DataDog/btf-internals v0.0.0-20220401093927-f65bd0b466d5
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
@@ -332,7 +332,7 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
-	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
+	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
