@@ -72,10 +72,10 @@ fi
 
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
-./build_recorder.sh
-./build_go_functions.sh
-./build_java_functions.sh
-./build_csharp_functions.sh
+# ./build_recorder.sh
+# ./build_go_functions.sh
+# ./build_java_functions.sh
+# ./build_csharp_functions.sh
 
 if [ -z "$NODE_LAYER_VERSION" ]; then
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
@@ -243,8 +243,10 @@ for function_name in "${all_functions[@]}"; do
                 # remove configuration log line from dd-trace-go
                 grep -v "DATADOG TRACER CONFIGURATION" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/.{9}-.{4}-.{4}-.{4}-.{12}/REQUEST_ID/g" |
                 perl -p -e "s/(TIMESTAMP:)\d{3}/\1XXX/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
