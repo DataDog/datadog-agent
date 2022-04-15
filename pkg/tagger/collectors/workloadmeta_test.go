@@ -355,10 +355,10 @@ func TestHandleKubePod(t *testing.T) {
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
 						"eks_fargate_node:foobar",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
