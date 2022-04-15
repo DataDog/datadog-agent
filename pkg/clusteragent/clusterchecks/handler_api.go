@@ -9,30 +9,38 @@
 package clusterchecks
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-const notReadyReason = "Startup in progress"
+var errNotReady = errors.New("Startup in progress")
 
-// ShouldHandle indicates whether the cluster-agent should serve cluster-check
-// requests. Current known responses:
-//   - 302, string: follower, leader IP in string
-//   - 503, string: not ready, error string returned
-//   - 200, "": leader and ready for serving requests
-func (h *Handler) ShouldHandle() (int, string) {
+// RejectOrForward performs some checks on incoming queries that should go to a leader:
+// - Forward to leader if we are a follower
+// - Reject with "not ready" if leader election status is unknown
+func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.Request) bool {
 	h.m.RLock()
 	defer h.m.RUnlock()
 
 	switch h.state {
 	case leader:
-		return http.StatusOK, ""
+		return false
 	case follower:
-		return http.StatusFound, fmt.Sprintf("%s:%d", h.leaderIP, h.port)
+		if h.leaderForwarder == nil {
+			http.Error(rw, "Follower unable to forward as leaderForwarder is not available yet", http.StatusServiceUnavailable)
+			return true
+		}
+
+		h.leaderForwarder.Forward(rw, req)
+		return true
+	case unknown:
+		fallthrough
 	default:
-		return http.StatusServiceUnavailable, notReadyReason
+		http.Error(rw, errNotReady.Error(), http.StatusServiceUnavailable)
+		return true
 	}
 }
 
@@ -47,7 +55,7 @@ func (h *Handler) GetState() (types.StateResponse, error) {
 	case follower:
 		return types.StateResponse{NotRunning: "currently follower"}, nil
 	default:
-		return types.StateResponse{NotRunning: notReadyReason}, nil
+		return types.StateResponse{NotRunning: errNotReady.Error()}, nil
 	}
 }
 

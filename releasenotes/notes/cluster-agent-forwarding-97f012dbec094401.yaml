@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Cluster Agent followers now forward quries to Cluster Agent leaders themselves, allowing to reduce overall number of connection to the Cluster Agent and to better spread the load between leader and forwarders.

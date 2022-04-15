@@ -10,12 +10,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -36,8 +38,6 @@ const (
 	authorizationHeaderKey = "Authorization"
 	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
 	RealIPHeader = "X-Real-Ip"
-
-	clusterAgentName = "datadog cluster agent"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -68,11 +68,13 @@ type DCAClient struct {
 	// used to setup the DCAClient
 	initRetry retry.Retrier
 
-	clusterAgentAPIEndpoint       string          // ${SCHEME}://${clusterAgentHost}:${PORT}
-	ClusterAgentVersion           version.Version // Version of the cluster-agent we're connected to
-	clusterAgentAPIClient         *http.Client
+	clusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
 	clusterAgentAPIRequestHeaders http.Header
-	leaderClient                  *leaderClient
+
+	clusterAgentClientLock sync.RWMutex
+	clusterAgentVersion    version.Version // Version of the cluster-agent we're connected to
+	clusterAgentAPIClient  *http.Client
+	leaderClient           *leaderClient
 }
 
 // resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
@@ -118,30 +120,78 @@ func (c *DCAClient) init() error {
 	podIP := config.Datadog.GetString("clc_runner_host")
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
-	// TODO remove insecure
-	c.clusterAgentAPIClient = buildDCAHttpClient()
+	if err := c.initHTTPClient(); err != nil {
+		return err
+	}
+
+	// Run DCA connection refresh
+	c.startReconnectHandler(time.Duration(config.Datadog.GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
+
+	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.clusterAgentVersion.String())
+	return nil
+}
+
+func (c *DCAClient) startReconnectHandler(reconnectPeriod time.Duration) {
+	t := time.NewTicker(reconnectPeriod)
+	go func() {
+		for {
+			<-t.C
+			err := c.initHTTPClient()
+			if err != nil {
+				log.Infof("Failed to re-create HTTP Connection, err: %v", err)
+			}
+		}
+	}()
+}
+
+func (c *DCAClient) initHTTPClient() error {
+	var err error
+	// Copy of http.DefaulTransport with adapted settings
+	clusterAgentAPIClient := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   1 * time.Second,
+				KeepAlive: 20 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     false,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			TLSHandshakeTimeout:   2 * time.Second,
+			MaxConnsPerHost:       1,
+			IdleConnTimeout:       60 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+		Timeout: 3 * time.Second,
+	}
+
+	// We need to have a client to perform `GetVersion`, only happens during the first call
+	if c.clusterAgentAPIClient == nil {
+		c.clusterAgentAPIClient = clusterAgentAPIClient
+	}
 
 	// Validate the cluster-agent client by checking the version
-	c.ClusterAgentVersion, err = c.GetVersion()
+	clusterAgentVersion, err := c.GetVersion()
 	if err != nil {
 		return err
 	}
-	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.ClusterAgentVersion.String())
 
-	// Clone the http client in a new client with built-in redirect handler
-	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.clusterAgentAPIEndpoint)
+	c.clusterAgentClientLock.Lock()
+	defer c.clusterAgentClientLock.Unlock()
+	c.clusterAgentAPIClient = clusterAgentAPIClient
+	c.clusterAgentVersion = clusterAgentVersion
+
+	// Before DCA 1.21, we cannot rely on DCA follower forwarding, creating a leaderClient in this case
+	// TODO: Remove when we drop compatibility
+	if c.clusterAgentVersion.Major == 1 && c.clusterAgentVersion.Minor < 21 {
+		log.Warnf("You're using an older Cluster Agent version. Newer Agent versions work best with Cluster Agent >= 1.21")
+		c.initLeaderClient()
+	}
 
 	return nil
 }
 
-// Version returns ClusterAgentVersion already stored in the DCAClient
-func (c *DCAClient) Version() version.Version {
-	return c.ClusterAgentVersion
-}
-
-// ClusterAgentAPIEndpoint returns the Agent API Endpoint URL as a string
-func (c *DCAClient) ClusterAgentAPIEndpoint() string {
-	return c.clusterAgentAPIEndpoint
+func (c *DCAClient) initLeaderClient() {
+	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.clusterAgentAPIEndpoint)
 }
 
 // getClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
@@ -158,7 +208,7 @@ func getClusterAgentEndpoint() (string, error) {
 		if strings.HasPrefix(dcaURL, "http://") {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", dcaURL)
 		}
-		if strings.Contains(dcaURL, "://") == false {
+		if !strings.Contains(dcaURL, "://") {
 			log.Tracef("Adding https scheme to %s: https://%s", dcaURL, dcaURL)
 			dcaURL = fmt.Sprintf("https://%s", dcaURL)
 		}
@@ -207,154 +257,146 @@ func getClusterAgentEndpoint() (string, error) {
 	return u.String(), nil
 }
 
-func buildDCAHttpClient() *http.Client {
-	// Copy of http.DefaulTransport with adapted settings
-	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   1 * time.Second,
-			KeepAlive: 20 * time.Second,
-		}).DialContext,
-		ForceAttemptHTTP2:     false,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-		TLSHandshakeTimeout:   2 * time.Second,
-		MaxConnsPerHost:       1,
-		IdleConnTimeout:       60 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+// Version returns ClusterAgentVersion already stored in the DCAClient
+func (c *DCAClient) Version() version.Version {
+	c.clusterAgentClientLock.RLock()
+	defer c.clusterAgentClientLock.RUnlock()
+
+	return c.clusterAgentVersion
+}
+
+// ClusterAgentAPIEndpoint returns the Agent API Endpoint URL as a string
+func (c *DCAClient) ClusterAgentAPIEndpoint() string {
+	return c.clusterAgentAPIEndpoint
+}
+
+// TODO: remove when we drop compatibility with older Agents, see end of `init()`
+func (c *DCAClient) buildURL(useLeaderClient bool, path string) string {
+	if useLeaderClient && c.leaderClient != nil {
+		return c.leaderClient.buildURL(path)
 	}
 
-	return &http.Client{
-		Transport: tr,
-		Timeout:   3 * time.Second,
+	return c.clusterAgentAPIEndpoint + "/" + path
+}
+
+// TODO: remove when we drop compatibility with older Agents, see end of `init()`
+func (c *DCAClient) httpClient(useLeaderClient bool) *http.Client {
+	c.clusterAgentClientLock.RLock()
+	defer c.clusterAgentClientLock.RUnlock()
+
+	if useLeaderClient && c.leaderClient != nil {
+		return &c.leaderClient.Client
 	}
+
+	return c.clusterAgentAPIClient
+}
+
+// TODO: remove the client parameter when we drop compatibility with older Agents, see end of `init()`
+func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Reader, readResponseBody, useLeaderClient bool) ([]byte, error) {
+	url := c.buildURL(useLeaderClient, path)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build request during query to: %s, err: %w", url, err)
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	client := c.httpClient(useLeaderClient)
+	resp, err := client.Do(req)
+	if err != nil {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			err = errors.NewTimeoutError(url, err)
+		}
+
+		return nil, errors.NewRemoteServiceError(url, err.Error())
+	}
+	defer resp.Body.Close()
+
+	if readResponseBody && resp.StatusCode == http.StatusOK {
+		respBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, errors.NewRemoteServiceError(url, err.Error())
+		}
+
+		return respBody, nil
+	}
+
+	// Make sure we read always body, required to re-use HTTP Connections
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.NewRemoteServiceError(url, resp.Status)
+	}
+	return nil, nil
+}
+
+func (c *DCAClient) doJSONQuery(ctx context.Context, path, method string, body io.Reader, obj interface{}, useLeaderClient bool) error {
+	respBody, err := c.doQuery(ctx, path, method, body, true, useLeaderClient)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(respBody, obj)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal JSON from URL: %s, err: %w", path, err)
+	}
+
+	return nil
+}
+
+// TODO: remove when we drop compatibility with older Agents, see end of `init()`
+func (c *DCAClient) doJSONQueryToLeader(ctx context.Context, path, method string, body io.Reader, obj interface{}) error {
+	if c.leaderClient == nil {
+		return c.doJSONQuery(ctx, path, method, body, obj, false)
+	}
+
+	willRetry := c.leaderClient.hasLeader()
+	err := c.doJSONQuery(ctx, path, method, body, obj, true)
+	if err != nil && willRetry {
+		log.Debugf("Got error on leader, retrying via the service: %v", err)
+		c.leaderClient.resetURL()
+		err = c.doJSONQuery(ctx, path, method, body, obj, true)
+	}
+
+	return err
 }
 
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
 func (c *DCAClient) GetVersion() (version.Version, error) {
-	const dcaVersionPath = "version"
 	var version version.Version
-	var err error
-
-	// https://host:port/version
-	rawURL := fmt.Sprintf("%s/%s", c.clusterAgentAPIEndpoint, dcaVersionPath)
-
-	req, err := http.NewRequest("GET", rawURL, nil)
-	if err != nil {
-		return version, err
-	}
-	req.Header = c.clusterAgentAPIRequestHeaders
-
-	resp, err := c.clusterAgentAPIClient.Do(req)
-	if err != nil {
-		return version, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return version, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return version, err
-	}
-
-	err = json.Unmarshal(body, &version)
-
+	err := c.doJSONQuery(context.TODO(), "version", "GET", nil, &version, false)
 	return version, err
 }
 
 // GetNodeLabels returns the node labels from the Cluster Agent.
-func (c *DCAClient) getMapStringString(queryPath, objectName string) (map[string]string, error) {
-	var err error
-	var result map[string]string
-
-	// https://host:port/api/v1/tags/node/{nodeName}
-	// https://host:port/api/v1/tags/namespace/{nsName}
-	// https://host:port/api/v1/annotations/node/{nodeName}
-	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, queryPath, objectName)
-
-	req, err := http.NewRequest("GET", rawURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header = c.clusterAgentAPIRequestHeaders
-
-	resp, err := c.clusterAgentAPIClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(body, &result)
-	return result, err
-}
-
-// GetNodeLabels returns the node labels from the Cluster Agent.
 func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
-	return c.getMapStringString("api/v1/tags/node", nodeName)
+	var result map[string]string
+	err := c.doJSONQuery(context.TODO(), "api/v1/tags/node/"+nodeName, "GET", nil, &result, false)
+	return result, err
 }
 
 // GetNamespaceLabels returns the namespace labels from the Cluster Agent.
 func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
-	return c.getMapStringString("api/v1/tags/namespace", nsName)
+	var result map[string]string
+	err := c.doJSONQuery(context.TODO(), "api/v1/tags/namespace/"+nsName, "GET", nil, &result, false)
+	return result, err
 }
 
 // GetNodeAnnotations returns the node annotations from the Cluster Agent.
 func (c *DCAClient) GetNodeAnnotations(nodeName string) (map[string]string, error) {
-	return c.getMapStringString("api/v1/annotations/node", nodeName)
+	var result map[string]string
+	err := c.doJSONQuery(context.TODO(), "api/v1/annotations/node/"+nodeName, "GET", nil, &result, false)
+	return result, err
 }
 
 // GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.
 func (c *DCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
-	const dcaCFAppsMeta = "api/v1/tags/cf/apps"
-	var err error
-	var tags map[string][]string
-
-	// https://host:port/api/v1/tags/cf/apps/{nodename}
-	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaCFAppsMeta, nodename)
-
-	req, err := http.NewRequest("GET", rawURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header = c.clusterAgentAPIRequestHeaders
-
-	resp, err := c.clusterAgentAPIClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(body, &tags)
-	return tags, err
+	var result map[string][]string
+	err := c.doJSONQuery(context.TODO(), "api/v1/tags/cf/apps/"+nodename, "GET", nil, &result, false)
+	return result, err
 }
 
 // GetPodsMetadataForNode queries the datadog cluster agent to get nodeName registered
 // Kubernetes pods metadata.
 func (c *DCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
-	const dcaMetadataPath = "api/v1/tags/pod"
-	var err error
-
-	if c == nil {
-		return nil, fmt.Errorf("cluster agent's client is not properly initialized")
-	}
 	/* https://host:port/api/v1/tags/pod/{nodeName}
 	response example:
 	{
@@ -377,31 +419,11 @@ func (c *DCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPod
 		}
 	}
 	*/
-	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName)
-	req, err := http.NewRequest("GET", rawURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header = c.clusterAgentAPIRequestHeaders
-
-	resp, err := c.clusterAgentAPIClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
-	}
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
 	metadataPodPayload := apiv1.NewMetadataResponse()
-	if err = json.Unmarshal(b, metadataPodPayload); err != nil {
+	err := c.doJSONQuery(context.TODO(), "api/v1/tags/pod/"+nodeName, "GET", nil, metadataPodPayload, false)
+	if err != nil {
 		return nil, err
 	}
-
 	if _, ok := metadataPodPayload.Nodes[nodeName]; !ok {
 		return nil, fmt.Errorf("cluster agent didn't return pods metadata for node: %s", nodeName)
 	}
@@ -411,102 +433,21 @@ func (c *DCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPod
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
 // Kubernetes metadata.
 func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	const dcaMetadataPath = "api/v1/tags/pod"
 	var metadataNames metadataNames
-	var err error
-
-	if c == nil {
-		return nil, fmt.Errorf("cluster agent's client is not properly initialized")
-	}
-	if ns == "" {
-		return nil, fmt.Errorf("namespace is empty")
-	}
-
-	// https://host:port/api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
-	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
-	req, err := http.NewRequest("GET", rawURL, nil)
+	err := c.doJSONQuery(context.TODO(), fmt.Sprintf("api/v1/tags/pod/%s/%s/%s", nodeName, ns, podName), "GET", nil, &metadataNames, false)
 	if err != nil {
-		return metadataNames, err
+		return nil, err
 	}
-	req.Header = c.clusterAgentAPIRequestHeaders
-
-	resp, err := c.clusterAgentAPIClient.Do(req)
-	if err != nil {
-		return metadataNames, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return metadataNames, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
-	}
-
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return metadataNames, err
-	}
-	err = json.Unmarshal(b, &metadataNames)
-	if err != nil {
-		return metadataNames, err
-	}
-
 	return metadataNames, nil
 }
 
 // GetKubernetesClusterID queries the datadog cluster agent to get the Kubernetes cluster ID
 // Prefer calling clustername.GetClusterID which has a cached response
 func (c *DCAClient) GetKubernetesClusterID() (string, error) {
-	const dcaClusterIDPath = "api/v1/cluster/id"
 	var clusterID string
-	var err error
-
-	if c == nil {
-		return "", fmt.Errorf("cluster agent's client is not properly initialized")
-	}
-
-	// https://host:port/api/v1/cluster/id
-	rawURL := fmt.Sprintf("%s/%s", c.clusterAgentAPIEndpoint, dcaClusterIDPath)
-	req, err := http.NewRequest("GET", rawURL, nil)
+	err := c.doJSONQuery(context.TODO(), "api/v1/cluster/id", "GET", nil, &clusterID, false)
 	if err != nil {
 		return "", err
 	}
-	req.Header = c.clusterAgentAPIRequestHeaders
-
-	resp, err := c.clusterAgentAPIClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
-	}
-
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	err = json.Unmarshal(b, &clusterID)
-	return clusterID, err
-}
-
-// doLeaderRequest performs a http request to the leader.
-func (c *DCAClient) doLeaderRequest(req *http.Request) ([]byte, error) {
-	resp, err := c.leaderClient.Do(req)
-	if err != nil {
-		if err, ok := err.(net.Error); ok && err.Timeout() {
-			return nil, errors.NewTimeoutError(clusterAgentName, err)
-		}
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode >= 500 {
-			return nil, errors.NewRemoteServiceError(clusterAgentName, resp.Status)
-		}
-
-		return nil, fmt.Errorf("unexpected response: %d - %s", resp.StatusCode, resp.Status)
-	}
-
-	return ioutil.ReadAll(resp.Body)
+	return clusterID, nil
 }
