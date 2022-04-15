@@ -249,7 +249,7 @@ def build_latency_tools(ctx, build_dir, static=True):
 
 @task
 def build_embed_latency_tools(ctx, static=True):
-    build_dir = os.path.join(".", "pkg", "security", "tests", "latency")
+    build_dir = os.path.join(".", "pkg", "security", "tests", "latency", "bin")
     create_dir_if_needed(build_dir)
     build_latency_tools(ctx, build_dir, static=static)
 

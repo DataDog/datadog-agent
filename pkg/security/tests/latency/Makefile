@@ -1,4 +1,4 @@
-name = bench_net_DNS
+name = bin/bench_net_DNS
 src = c/bench_net_DNS.c
 obj = $(src:.c=.o)
 

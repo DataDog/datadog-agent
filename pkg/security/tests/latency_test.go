@@ -9,12 +9,16 @@
 package tests
 
 import (
+	"embed"
 	"flag"
 	"fmt"
+	"os"
 	"os/exec"
 	"testing"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/cihub/seelog"
 )
 
 var (
@@ -23,6 +27,63 @@ var (
 	nbSkips int
 	host    string
 )
+
+//go:embed latency/bin
+var benchLatencyhFS embed.FS
+
+// modified version of testModule.CreateWithOption, to be able to call it without testing module
+func CreateWithOption(sfilename string, user, group, mode int) (string, unsafe.Pointer, error) {
+	var macros []*rules.MacroDefinition
+	var rules []*rules.RuleDefinition
+	logLevel, found := seelog.LogLevelFromString("warn")
+	if !found {
+		return "", nil, fmt.Errorf("invalid log level '%s'", logLevel)
+	}
+	st, err := newSimpleTest(macros, rules, "", logLevel)
+	if err != nil {
+		return "", nil, err
+	}
+
+	testFile, testFilePtr, err := st.Path(filename)
+	if err != nil {
+		return testFile, testFilePtr, err
+	}
+
+	// Create file
+	f, err := os.OpenFile(testFile, os.O_CREATE, os.FileMode(mode))
+	if err != nil {
+		return "", nil, err
+	}
+	f.Close()
+
+	// Chown the file
+	err = os.Chown(testFile, user, group)
+	return testFile, testFilePtr, err
+}
+
+// load embedded binary
+func loadBenchLatencyBin(binary string) (string, error) {
+	testerBin, err := benchLatencyhFS.ReadFile(fmt.Sprintf("latency/bin/%s", binary))
+	if err != nil {
+		return "", err
+	}
+
+	perm := 0o700
+	binPath, _, _ := CreateWithOptions(binary, -1, -1, perm)
+
+	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
+	if err != nil {
+		return "", err
+	}
+
+	if _, err = f.Write(testerBin); err != nil {
+		f.Close()
+		return "", err
+	}
+	f.Close()
+
+	return binPath, nil
+}
 
 // bench induced latency for DNS req
 func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string) {
@@ -38,6 +99,13 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 		defer test.Close()
 	}
 
+	// load bench binary
+	executable, err := loadBenchLatencyBin("bench_net_DNS")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(executable)
+
 	// exec the bench tool
 	cmd := exec.Command("taskset", "-c", fmt.Sprint(coreID),
 		executable, host, fmt.Sprint(nbRuns), fmt.Sprint(nbSkips))
@@ -50,28 +118,25 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 
 // goal: measure the induced latency when no kprobes/tc are loaded
 func TestLatency_DNSNoKprobe(t *testing.T) {
-	executable := "pkg/security/tests/latency/bench_net_DNS"
-	benchLatencyDNS(t, nil, executable)
+	benchLatencyDNS(t, nil, "bench_net_DNS")
 }
 
 // goal: measure the induced latency when kprobes are loaded, but without a matching rule
 func TestLatency_DNSNoRule(t *testing.T) {
-	executable := "pkg/security/tests/latency/bench_net_DNS"
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: fmt.Sprintf(`dns.question.name == "%s.nope"`, host),
 	}
-	benchLatencyDNS(t, rule, executable)
+	benchLatencyDNS(t, rule, "bench_net_DNS")
 }
 
 // goal: measure the induced latency when kprobes are loaded, with a matching rule
 func TestLatency_DNS(t *testing.T) {
-	executable := "pkg/security/tests/latency/bench_net_DNS"
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: fmt.Sprintf(`dns.question.name == "%s"`, host),
 	}
-	benchLatencyDNS(t, rule, executable)
+	benchLatencyDNS(t, rule, "bench_net_DNS")
 }
 
 func init() {
