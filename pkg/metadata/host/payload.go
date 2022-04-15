@@ -38,7 +38,8 @@ type NetworkMeta struct {
 
 // LogsMeta is metadata about the host's logs agent
 type LogsMeta struct {
-	Transport string `json:"transport"`
+	Transport            string `json:"transport"`
+	AutoMultilineEnabled bool   `json:"auto_multi_line_detection_enabled"`
 }
 
 // Tags contains the detected host tags

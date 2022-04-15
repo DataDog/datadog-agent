@@ -1,0 +1,37 @@
+Processes
+=========
+{{- range $process := .Processes}}
+> PID: {{ .Pid }} NSPID: {{ .NsPid }} PPID: {{ .Command.Ppid }}
+  Container ID: {{ .ContainerId }}
+  Exe: {{ .Command.Exe }}
+  Args:{{ range .Command.Args}} '{{.}}'{{ end }}
+  Cwd: {{ .Command.Cwd }}
+{{- with .User }}
+  User: {{.Name}} Uid: {{.Uid}} Gid: {{.Gid}} Euid: {{.Euid}} Egid: {{.Egid}} Suid: {{.Suid}} Sgid: {{.Sgid}}
+{{- end }}
+  Create Time: {{ timeMilli .CreateTime }}
+  State: {{ .State }}
+{{- with .Memory }}
+  Memory:
+    RSS:    {{ bytes .Rss}}
+    VMS:    {{ bytes .Vms}}
+    Swap:   {{ bytes .Swap}}
+    Shared: {{ bytes .Shared}}
+    Text:   {{ bytes .Text}}
+    Lib:    {{ bytes .Lib}}
+    Data:   {{ bytes .Data}}
+    Dirty:  {{ bytes .Dirty}}
+{{- end }}
+{{- with .Cpu }}
+  CPU: Total: {{ cpupct .TotalPct }} System: {{ cpupct .SystemPct }} User: {{ cpupct .UserPct }}
+  Threads: {{ .NumThreads }}
+  Nice: {{ .Nice }}
+{{- end }}
+  Open Files: {{ .OpenFdCount }}
+  Context Switches: Voluntary: {{ .VoluntaryCtxSwitches }} Involuntary: {{ .InvoluntaryCtxSwitches }}
+{{- with .IoStat }}
+  IO:
+    Read:  {{ io .ReadBytesRate }} B/s {{ io .ReadRate }} Ops/s
+    Write: {{ io .WriteBytesRate }} B/s {{ io .WriteRate }} Ops/s
+{{- end }}
+{{- end }}

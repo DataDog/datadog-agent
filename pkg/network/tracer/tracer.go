@@ -110,11 +110,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := (!config.EnableRuntimeCompiler ||
-		config.AllowPrecompiledFallback ||
-		// hotfix: always force offset guessing for kernel < 4.6 when HTTPS monitoring is enabled
-		(config.EnableHTTPSMonitoring && currKernelVersion < kernel.VersionCode(4, 6, 0)))
-
+	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {
@@ -167,6 +163,10 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
+	}
+
+	if err = tr.reverseDNS.Start(); err != nil {
+		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
 	}
 
 	return tr, nil
@@ -343,41 +343,50 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}, nil
 }
 
-func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
+func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
-	tm := &network.ConnectionsTelemetry{
-		MonotonicKprobesTriggered: kprobeStats.Hits,
-		MonotonicKprobesMissed:    kprobeStats.Misses,
-		ConnsBpfMapSize:           int64(mapSize),
-		MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
+	tm := map[network.ConnTelemetryType]int64{
+		network.MonotonicKprobesTriggered: kprobeStats.Hits,
+		network.MonotonicKprobesMissed:    kprobeStats.Misses,
+		network.ConnsBpfMapSize:           int64(mapSize),
+		network.MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
 	}
 
 	conntrackStats := t.conntracker.GetStats()
 	if rt, ok := conntrackStats["registers_total"]; ok {
-		tm.MonotonicConntrackRegisters = rt
+		tm[network.MonotonicConntrackRegisters] = rt
 	}
 	if rtd, ok := conntrackStats["registers_dropped"]; ok {
-		tm.MonotonicConntrackRegistersDropped = rtd
+		tm[network.MonotonicConntrackRegistersDropped] = rtd
 	}
 	if sp, ok := conntrackStats["sampling_pct"]; ok {
-		tm.ConntrackSamplingPercent = sp
+		tm[network.ConntrackSamplingPercent] = sp
 	}
 
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm.MonotonicDNSPacketsProcessed = pp
+		tm[network.MonotonicDNSPacketsProcessed] = pp
 	}
 
 	if ds, ok := dnsStats["dropped_stats"]; ok {
-		tm.DNSStatsDropped = ds
+		tm[network.DNSStatsDropped] = ds
+	}
+
+	httpStats := t.httpMonitor.GetStats()
+	if ds, ok := httpStats["http_requests_dropped"]; ok {
+		tm[network.HTTPRequestsDropped] = ds
+	}
+
+	if ms, ok := httpStats["http_requests_missed"]; ok {
+		tm[network.HTTPRequestsMissed] = ms
 	}
 
 	ebpfStats := t.ebpfTracer.GetTelemetry()
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
-		tm.MonotonicUDPSendsProcessed = usp
+		tm[network.MonotonicUDPSendsProcessed] = usp
 	}
 	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
-		tm.MonotonicUDPSendsMissed = usm
+		tm[network.MonotonicUDPSendsMissed] = usm
 	}
 
 	return tm
@@ -562,6 +571,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"ebpf":      t.ebpfTracer.GetTelemetry(),
 		"kprobes":   ddebpf.GetProbeStats(),
 		"dns":       t.reverseDNS.GetStats(),
+		"http":      t.httpMonitor.GetStats(),
 	}
 
 	return ret, nil

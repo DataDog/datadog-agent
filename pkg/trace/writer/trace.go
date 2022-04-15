@@ -16,12 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -68,7 +66,7 @@ type TraceWriter struct {
 	syncMode  bool
 	flushChan chan chan struct{}
 
-	easylog *logutil.ThrottledLogger
+	easylog *log.ThrottledLogger
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -85,7 +83,7 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 		flushChan: make(chan chan struct{}),
 		syncMode:  cfg.SynchronousFlushing,
 		tick:      5 * time.Second,
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		easylog:   log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -212,7 +210,7 @@ outer:
 
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
-	w.tracerPayloads = w.tracerPayloads[:0]
+	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
@@ -228,14 +226,13 @@ func (w *TraceWriter) flush() {
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
 	p := pb.AgentPayload{
-		AgentVersion:   version.AgentVersion,
+		AgentVersion:   info.Version,
 		HostName:       w.hostname,
 		Env:            w.env,
 		TargetTPS:      w.targetTPS,
 		ErrorTPS:       w.errorTPS,
 		TracerPayloads: w.tracerPayloads,
 	}
-	log.DebugfServerless("Sending trace payload : %+v", p)
 	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)

@@ -1,7 +1,15 @@
 FROM ubuntu:21.10 AS baseimage
 ARG CIBUILD
+# NOTE about APT mirrorlists:
+# It seems that this feature could use some improvement. If you just get mirrorlist
+# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
+# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
+# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
+# should be reliable enough in combination and also well maintained.
 RUN if [ "$CIBUILD" = "true" ]; then \
-  sed -i 's#http://archive.ubuntu.com#http://us-east-1.ec2.archive.ubuntu.com#g' /etc/apt/sources.list; \
+  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist && \
+  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' \
+         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' /etc/apt/sources.list; \
   fi
 
 FROM baseimage AS faccessat
@@ -106,7 +114,9 @@ ENV DOCKER_DD_AGENT=true \
     # Exit container if entrypoint fails
     S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     # Allow readonlyrootfs
-    S6_READ_ONLY_ROOT=1
+    S6_READ_ONLY_ROOT=1 \
+    # Allow User Group to exec the secret backend script.
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 # make sure we have recent dependencies
 RUN apt update \
@@ -161,7 +171,7 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
- && chmod 500 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+ && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
 
 # Update links to python binaries
 

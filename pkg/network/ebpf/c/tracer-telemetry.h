@@ -2,10 +2,8 @@
 #define __TRACER_TELEMETRY_H
 
 #include "tracer-maps.h"
-
 #include "bpf_endian.h"
-
-#include <linux/kconfig.h>
+#include "kconfig.h"
 #include <net/sock.h>
 
 enum telemetry_counter

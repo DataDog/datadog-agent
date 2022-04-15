@@ -10,9 +10,7 @@ package constantfetch
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"debug/elf"
-	"encoding/base32"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -20,11 +18,12 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type rcSymbolPair struct {
@@ -34,18 +33,22 @@ type rcSymbolPair struct {
 
 type RuntimeCompilationConstantFetcher struct {
 	config       *ebpf.Config
-	statsdClient *statsd.Client
+	statsdClient statsd.ClientInterface
 	headers      []string
 	symbolPairs  []rcSymbolPair
 	result       map[string]uint64
 }
 
-func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient *statsd.Client) *RuntimeCompilationConstantFetcher {
+func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient statsd.ClientInterface) *RuntimeCompilationConstantFetcher {
 	return &RuntimeCompilationConstantFetcher{
 		config:       config,
 		statsdClient: statsdClient,
 		result:       make(map[string]uint64),
 	}
+}
+
+func (cf *RuntimeCompilationConstantFetcher) String() string {
+	return "runtime-compilation"
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
@@ -57,7 +60,7 @@ func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, h
 		Id:        id,
 		Operation: fmt.Sprintf("sizeof(%s)", typeName),
 	})
-	cf.result[id] = errorSentinel
+	cf.result[id] = ErrorSentinel
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
@@ -69,11 +72,14 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 		Id:        id,
 		Operation: fmt.Sprintf("offsetof(%s, %s)", typeName, fieldName),
 	})
-	cf.result[id] = errorSentinel
+	cf.result[id] = ErrorSentinel
 }
 
 const runtimeCompilationTemplate = `
 #include <linux/kconfig.h>
+#ifdef CONFIG_HAVE_ARCH_COMPILER_H
+#include <asm/compiler.h>
+#endif
 {{ range .headers }}
 #include <{{ . }}>
 {{ end }}
@@ -181,16 +187,18 @@ func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runt
 	return strings.NewReader(p.cCode), nil
 }
 
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
-	hasher := sha256.New()
-	if _, err := hasher.Write([]byte(a.cCode)); err != nil {
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+	cCodeHash, err := runtime.Sha256hex([]byte(a.cCode))
+	if err != nil {
 		return "", err
 	}
-	cCodeHash := hasher.Sum(nil)
-	// base32 is only [A-V0-9]+
-	cCodeHashB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash)
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHashB32, flagHash)), nil
+	unameHash, err := runtime.UnameHash(uname)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameHash, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {

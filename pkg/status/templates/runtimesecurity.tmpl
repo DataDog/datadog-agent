@@ -12,6 +12,33 @@ Runtime Security
   {{- end }}
   Connected: {{.connected}}
   Events received: {{.eventReceived}}
+  {{- with .environment }}
+
+  Environment
+  ===========
+    {{- if .warnings }}
+    Warnings:
+      {{- range $warning := .warnings }}
+      - {{ $warning }}
+      {{- end }}
+    {{- end }}
+    {{ if .kernelLockdown }}
+    Kernel lockdown: {{ .kernelLockdown }}
+    {{- end }}
+    {{ if .constantFetchers }}
+    Available constant fetchers
+    ===========================
+      {{ range $fetcher := .constantFetchers.Fetchers }}
+      {{ $fetcher }}
+      {{- end }}
+
+    Constants
+    =========
+      {{ range $constant := .constantFetchers.Values }}
+      {{ $constant.ID }} = {{ $constant.Value }} (from {{ $constant.Source }})
+      {{- end }}
+    {{- end }}
+  {{- end }}
   {{- end }}
 {{- end }}
 

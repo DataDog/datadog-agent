@@ -98,3 +98,24 @@ func TestAddTags(t *testing.T) {
 	assert.ElementsMatch(t, []string{"key:val", "key1:val1", "key2:val2"}, dimsWithTags.tags)
 	assert.ElementsMatch(t, []string{"key:val"}, testDims.tags)
 }
+
+func TestAllFieldsAreCopied(t *testing.T) {
+	dims := &Dimensions{
+		name:     "example.name",
+		host:     "hostname",
+		tags:     []string{"tagOne:a", "tagTwo:b"},
+		originID: "origin_id",
+	}
+
+	newDims := dims.
+		AddTags("tagThree:c").
+		WithSuffix("suffix").
+		WithAttributeMap(pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
+			"tagFour": pdata.NewAttributeValueString("d"),
+		}))
+
+	assert.Equal(t, "example.name.suffix", newDims.Name())
+	assert.Equal(t, "hostname", newDims.Host())
+	assert.ElementsMatch(t, []string{"tagOne:a", "tagTwo:b", "tagThree:c", "tagFour:d"}, newDims.Tags())
+	assert.Equal(t, "origin_id", newDims.OriginID())
+}

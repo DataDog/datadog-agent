@@ -50,8 +50,9 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 SEC("kprobe/vfs_mkdir")
 int kprobe_vfs_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->mkdir.dentry) {
         return 0;
@@ -75,12 +76,14 @@ int kprobe_vfs_mkdir(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_type) {
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
     set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
@@ -130,14 +133,17 @@ int tracepoint_handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *
 
 int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
-       return 0;
+        monitor_discarded(EVENT_MKDIR);
+        return 0;
     }
 
     struct mkdir_event_t event = {

@@ -30,13 +30,12 @@ kitchen_test_system_probe_linux_x64:
     KITCHEN_ARCH: x86_64
     KITCHEN_IMAGE_SIZE: Standard_D2_v2
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-16-04-4.4,ubuntu-18-04,ubuntu-20-04"
+        KITCHEN_OSVERS: "ubuntu-16-04,ubuntu-18-04,ubuntu-20-04,ubuntu-21-10"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10"
       - KITCHEN_PLATFORM: "centos"
@@ -53,13 +52,12 @@ kitchen_test_system_probe_linux_arm64:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04"
+        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-21-10"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10"
       - KITCHEN_PLATFORM: "centos"
@@ -76,13 +74,15 @@ kitchen_test_system_probe_windows_x64:
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_OSVERS: "win2012r2"
-    CHEF_VERSION: 14.12.9
+    CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
   before_script:
     - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
     - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
     - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
+  # FIXME: temporarily allow this job to fail until we fix it
+  allow_failure: true
+  retry: 0

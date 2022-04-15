@@ -28,8 +28,9 @@ shared_examples_for 'an Agent with process disabled' do
   it 'has process disabled' do
     confYaml = read_conf_file()
     expect(confYaml).to have_key("process_config")
-    expect(confYaml["process_config"]).to have_key("enabled")
-    expect(confYaml["process_config"]["enabled"]).to eq("disabled")
+    expect(confYaml["process_config"]).to have_key("process_collection")
+    expect(confYaml["process_config"]["process_collection"]).to have_key("enabled")
+    expect(confYaml["process_config"]["process_collection"]["enabled"]).to eq(false)
     expect(confYaml["process_config"]["process_discovery"]["enabled"]).to eq(false)
   end
   it 'does not have the process agent running' do

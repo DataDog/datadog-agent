@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package serializer
 
@@ -14,8 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,13 +36,13 @@ func generateData(points int, items int, tags int) metrics.Series {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags: func() []string {
+			Tags: tagset.CompositeTagsFromSlice(func() []string {
 				ts := make([]string, tags)
 				for t := 0; t < tags; t++ {
 					ts[t] = fmt.Sprintf("tag%d:foobar", t)
 				}
 				return ts
-			}(),
+			}()),
 		})
 	}
 	return series
@@ -73,12 +75,14 @@ func BenchmarkSeries(b *testing.B) {
 	}
 	bufferContext := marshaler.DefaultBufferContext()
 	pb := func(series metrics.Series) (forwarder.Payloads, error) {
-		return series.MarshalSplitCompress(bufferContext)
+		iterableSeries := &metricsserializer.IterableSeries{IterableSeries: metricsserializer.CreateIterableSeries(series)}
+		return iterableSeries.MarshalSplitCompress(bufferContext)
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true)
 	json := func(series metrics.Series) (forwarder.Payloads, error) {
-		return payloadBuilder.Build(series)
+		iterableSeries := &metricsserializer.IterableSeries{IterableSeries: metricsserializer.CreateIterableSeries(series)}
+		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 
 	for _, items := range []int{5, 10, 100, 500, 1000, 10000, 100000} {

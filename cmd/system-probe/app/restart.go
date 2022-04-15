@@ -7,7 +7,7 @@ package app
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/spf13/cobra"
@@ -39,7 +39,7 @@ func moduleRestart(_ *cobra.Command, args []string) error {
 
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		err := fmt.Errorf("error restarting module: %s", body)
 		return err
 	}

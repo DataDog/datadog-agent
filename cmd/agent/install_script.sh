@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.7.1.post
+install_script_version=1.8.0.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -264,6 +264,8 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   #  - 20.0 = sets explicit patch version x.20.0
   # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=$DD_AGENT_MINOR_VERSION
+  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
+  agent_minor_version_without_patch="${agent_minor_version%.*}"
 fi
 
 agent_dist_channel=stable
@@ -297,7 +299,7 @@ fi
 
 if [ ! "$apikey" ]; then
   # if it's an upgrade, then we will use the transition script
-  if [ ! "$upgrade" ]; then
+  if [ ! "$upgrade" ] && [ ! -e "$config_file" ]; then
     printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
     exit 1;
   fi
@@ -457,6 +459,20 @@ elif [ "$OS" = "Debian" ]; then
         $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
     fi
 
+    if [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 8 ]; then
+      if [ -n "$agent_minor_version_without_patch" ]; then
+          if [ "$agent_minor_version_without_patch" -ge "36" ]; then
+              printf "\033[31mDebian < 8 only supports $nice_flavor %s up to %s.35.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33m$nice_flavor $agent_major_version.35 will be the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.34 now.\n\033[0m"
+              agent_minor_version=34
+          fi
+      fi
+    fi
+
     printf "\033[34m\n* Installing the $nice_flavor package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
 Failed to update the sources after adding the Datadog repository.
@@ -556,8 +572,6 @@ elif [ "$OS" = "SUSE" ]; then
   
   echo -e "\033[34m\n* Installing the $nice_flavor package\n\033[0m"
 
-  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
-  agent_minor_version_without_patch="${agent_minor_version%.*}"
   # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
   # we explicitly test for SUSE11 = "yes", as some SUSE11 don't have /etc/os-release, thus SUSE_VER is empty
   if [ "$DISTRIBUTION" == "openSUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 15 ]; }; then

@@ -18,10 +18,10 @@ import (
 	"google.golang.org/grpc"
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
+	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 )
 
 var (

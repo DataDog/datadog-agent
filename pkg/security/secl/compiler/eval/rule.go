@@ -6,6 +6,7 @@
 package eval
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -136,7 +137,7 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 	for id, macro := range opts.Macros {
 		macros[id] = macro.evaluator
 	}
-	state := newState(model, "", macros)
+	state := NewState(model, "", macros)
 
 	eval, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
@@ -194,16 +195,22 @@ func (r *Rule) genMacroPartials() (map[Field]map[MacroID]*MacroEvaluator, error)
 	partials := make(map[Field]map[MacroID]*MacroEvaluator)
 	for _, field := range r.GetFields() {
 		for id, macro := range r.Opts.Macros {
-
-			// NOTE(safchain) this is not working with nested macro. It will be removed once partial
-			// will be generated another way
-			evaluator, err := macroToEvaluator(macro.ast, r.Model, r.Opts, field)
-			if err != nil {
-				if err, ok := err.(*ErrAstToEval); ok {
-					return nil, errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: macro.Expression}, "macro syntax error")
+			var err error
+			var evaluator *MacroEvaluator
+			if macro.ast != nil {
+				// NOTE(safchain) this is not working with nested macro. It will be removed once partial
+				// will be generated another way
+				evaluator, err = macroToEvaluator(macro.ast, r.Model, r.Opts, field)
+				if err != nil {
+					if err, ok := err.(*ErrAstToEval); ok {
+						return nil, fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos})
+					}
+					return nil, fmt.Errorf("macro compilation error: %w", err)
 				}
-				return nil, errors.Wrap(err, "macro compilation error")
+			} else {
+				evaluator = macro.GetEvaluator()
 			}
+
 			macroEvaluators, exists := partials[field]
 			if !exists {
 				macroEvaluators = make(map[MacroID]*MacroEvaluator)
@@ -224,7 +231,7 @@ func (r *Rule) GenPartials() error {
 	}
 
 	for _, field := range r.GetFields() {
-		state := newState(r.Model, field, macroPartials[field])
+		state := NewState(r.Model, field, macroPartials[field])
 		pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
 		if err != nil {
 			return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, r.ID)

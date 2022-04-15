@@ -74,9 +74,11 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
         char curr = copy->buffer[i];
         if (curr == 0) {
             return 0;
-        } else if ('0' < curr && curr <= '9') {
+        }
+        if ('0' < curr && curr <= '9') {
             return 1;
-        } else if (curr != '0') {
+        }
+        if (curr != '0') {
             return 0;
         }
     }
@@ -171,11 +173,18 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 
 int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SELINUX);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID)
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_SELINUX);
         return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_INVALID) {
+        return 0;
+    }
 
     struct selinux_event_t event = {};
     event.event_kind = syscall->selinux.event_kind;

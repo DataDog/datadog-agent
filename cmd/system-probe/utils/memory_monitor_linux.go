@@ -10,7 +10,6 @@ package utils
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,14 +38,19 @@ func getActionCallback(action string) (func(), string, error) {
 	case "profile":
 		return func() {
 			tmpDir := os.TempDir()
-			tmpFiles, err := ioutil.ReadDir(tmpDir)
+			tmpFiles, err := os.ReadDir(tmpDir)
 			if err != nil {
 				log.Errorf("Failed to list old memory profiles: %s", err)
 			} else {
 				var oldProfiles []os.FileInfo
 				for _, tmpFile := range tmpFiles {
 					if strings.HasPrefix(tmpFile.Name(), "memcg-pprof-heap") {
-						oldProfiles = append(oldProfiles, tmpFile)
+						tmpFileInfo, err := tmpFile.Info()
+						if err != nil {
+							log.Errorf("Failed to get file info for: %s", tmpFile.Name())
+							continue
+						}
+						oldProfiles = append(oldProfiles, tmpFileInfo)
 					}
 				}
 
@@ -60,7 +64,7 @@ func getActionCallback(action string) (func(), string, error) {
 				}
 			}
 
-			memProfile, err := ioutil.TempFile(tmpDir, "memcg-pprof-heap")
+			memProfile, err := os.CreateTemp(tmpDir, "memcg-pprof-heap")
 			if err != nil {
 				log.Errorf("Failed to generate memory profile: %s", err)
 				return
@@ -80,7 +84,7 @@ func getActionCallback(action string) (func(), string, error) {
 }
 
 // NewMemoryMonitor instantiates a new memory monitor
-func NewMemoryMonitor(pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
+func NewMemoryMonitor(kind string, pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
 	var memoryMonitors []cgroups.MemoryMonitor
 
 	for pressureLevel, action := range pressureLevels {
@@ -129,5 +133,5 @@ func NewMemoryMonitor(pressureLevels map[string]string, thresholds map[string]st
 		memoryMonitors = append(memoryMonitors, memoryMonitor)
 	}
 
-	return cgroups.NewMemoryController(memoryMonitors...)
+	return cgroups.NewMemoryController(kind, memoryMonitors...)
 }

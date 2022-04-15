@@ -106,14 +106,17 @@ DEFAULT_MODULES = {
     "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
+    "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil",
         condition=lambda: sys.platform == 'win32',
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/obfuscate": GoModule("pkg/obfuscate"),
+    "pkg/trace": GoModule("pkg/trace"),
     "pkg/otlp/model": GoModule("pkg/otlp/model"),
     "pkg/security/secl": GoModule("pkg/security/secl"),
+    "pkg/remoteconfig/client": GoModule("pkg/remoteconfig/client"),
 }
 
 MAIN_TEMPLATE = """package main

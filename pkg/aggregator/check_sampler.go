@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -127,7 +127,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 		} else {
 
-			log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags(), err)
+			log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
 		}
 	}
 	for _, serie := range series {
@@ -186,4 +186,8 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	cs.sketches = make(metrics.SketchSeriesList, 0)
 
 	return series, sketches
+}
+
+func (cs *CheckSampler) release() {
+	cs.contextResolver.release()
 }

@@ -292,13 +292,6 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: 1235,
 		},
 		{
-			key:      "process_config.container_source",
-			env:      "DD_PROCESS_CONFIG_CONTAINER_SOURCE",
-			value:    `["docker","kubernetes"]`,
-			expType:  "stringSlice",
-			expected: []string{"docker", "kubernetes"},
-		},
-		{
 			key:      "process_config.scrub_args",
 			env:      "DD_SCRUB_ARGS",
 			value:    "false",

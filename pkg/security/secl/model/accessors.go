@@ -3,6 +3,7 @@
 package model
 
 import (
+	"net"
 	"reflect"
 	"unsafe"
 
@@ -23,6 +24,9 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	case "ptrace.tracee.ancestors":
 		return &ProcessAncestorsIterator{}, nil
 
+	case "signal.target.ancestors":
+		return &ProcessAncestorsIterator{}, nil
+
 	}
 
 	return nil, &eval.ErrIteratorNotSupported{Field: field}
@@ -39,9 +43,13 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("chown"),
 
+		eval.EventType("dns"),
+
 		eval.EventType("exec"),
 
 		eval.EventType("link"),
+
+		eval.EventType("load_module"),
 
 		eval.EventType("mkdir"),
 
@@ -67,7 +75,13 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("setxattr"),
 
+		eval.EventType("signal"),
+
+		eval.EventType("splice"),
+
 		eval.EventType("unlink"),
+
+		eval.EventType("unload_module"),
 
 		eval.EventType("utimes"),
 	}
@@ -81,6 +95,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).BPF.Cmd)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "bpf.map.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Map.Name
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -101,6 +125,40 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).BPF.Program.AttachType)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "bpf.prog.helpers":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+
+				result := make([]int, len((*Event)(ctx.Object).BPF.Program.Helpers))
+				for i, v := range (*Event)(ctx.Object).BPF.Program.Helpers {
+					result[i] = int(v)
+				}
+				return result
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "bpf.prog.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Program.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "bpf.prog.tag":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).BPF.Program.Tag
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -518,13 +576,62 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ContainerContext.Tags
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
+		}, nil
+
+	case "dns.question.class":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Class)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.count":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Count)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).DNS.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.question.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.args":
@@ -539,7 +646,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Argv
@@ -550,7 +656,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Argv
@@ -571,7 +676,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Argv
@@ -670,9 +774,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "exec.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).Exec.Process.Envp
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).Exec.Process.Envs
@@ -1261,6 +1374,176 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "load_module.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).LoadModule.File.Filesytem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).LoadModule.File.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).LoadModule.File.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).LoadModule.File.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).LoadModule.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).LoadModule.File.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "load_module.loaded_from_memory":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).LoadModule.LoadedFromMemory
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).LoadModule.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "load_module.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).LoadModule.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "mkdir.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1631,6 +1914,94 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "network.destination.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
+				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Destination.IP, nil)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.destination.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Destination.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.device.ifindex":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Device.IfIndex)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.device.ifname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).NetworkContext.Device.IfName
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "network.l3_protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.L3Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.l4_protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.L4Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.source.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
+				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Source.IP, nil)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "network.source.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).NetworkContext.Source.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "open.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1828,7 +2199,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -1854,7 +2224,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -1905,7 +2274,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -2154,9 +2522,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Envp
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -2917,7 +3309,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Argv
@@ -2928,7 +3319,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Argv
@@ -2949,7 +3339,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Argv
@@ -3048,9 +3437,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "process.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).ProcessContext.Process.Envp
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Envs
@@ -3396,7 +3794,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -3422,7 +3819,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -3473,7 +3869,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -3722,9 +4117,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "ptrace.tracee.ancestors.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Envp
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
 	case "ptrace.tracee.ancestors.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 
@@ -4485,7 +4904,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.args_flags":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv
@@ -4496,7 +4914,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.args_options":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv
@@ -4517,7 +4934,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.argv":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv
@@ -4616,9 +5032,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "ptrace.tracee.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.Envp
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
 	case "ptrace.tracee.envs":
 		return &eval.StringArrayEvaluator{
-
 			EvalFnc: func(ctx *eval.Context) []string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Envs
@@ -5857,6 +6282,1781 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "signal.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.PID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.ancestors.args":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Args
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Argv
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Argv
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.args_truncated":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result bool
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.ArgsTruncated
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Argv
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.argv0":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Argv0
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.cap_effective":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.CapEffective)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.cap_permitted":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.CapPermitted)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.comm":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Comm
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.container.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.ContainerID
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.cookie":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Cookie)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.CreatedAt)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.egid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.EGID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.egroup":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Credentials.EGroup
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Envp
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Envs
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.envs_truncated":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result bool
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.EnvsTruncated
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.euid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.EUID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.euser":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Credentials.EUser
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.change_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.CTime)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.filesystem":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Filesystem
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.GID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.FileFields.Group
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.in_upper_layer":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result bool
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.FileFields.InUpperLayer
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.Inode)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.mode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.Mode)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.modification_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.MTime)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.MountID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.name":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.BasenameStr
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.path":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.PathnameStr
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.rights":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.Mode)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.UID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.file.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.FileFields.User
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.fsgid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.FSGID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.fsgroup":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Credentials.FSGroup
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.fsuid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.FSUID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.fsuser":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Credentials.FSUser
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.GID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Credentials.Group
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.pid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Pid)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.ppid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.PPid)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.tid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Tid)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.tty_name":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.TTYName
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.Credentials.UID)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.ancestors.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Credentials.User
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "signal.target.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Args
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Argv
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Argv
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.ArgsTruncated
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Argv
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Argv0
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.CapEffective)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Comm
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.ContainerID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.cookie":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Cookie)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.CreatedAt)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.EGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.EGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Envp
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Envs
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.EnvsTruncated
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.EUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Filesystem
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "signal.target.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.FSGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.FSGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.FSUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.FSUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.TTYName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Target.Process.Credentials.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.User
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.Filesytem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Splice.File.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "splice.pipe_entry_flag":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.PipeEntryFlag)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.pipe_exit_flag":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.PipeExitFlag)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "splice.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Splice.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "unlink.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6002,6 +8202,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unload_module.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).UnloadModule.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unload_module.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).UnloadModule.SyscallEvent.Retval)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6167,9 +8387,17 @@ func (e *Event) GetFields() []eval.Field {
 
 		"bpf.cmd",
 
+		"bpf.map.name",
+
 		"bpf.map.type",
 
 		"bpf.prog.attach_type",
+
+		"bpf.prog.helpers",
+
+		"bpf.prog.name",
+
+		"bpf.prog.tag",
 
 		"bpf.prog.type",
 
@@ -6255,6 +8483,16 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.tags",
 
+		"dns.question.class",
+
+		"dns.question.count",
+
+		"dns.question.name",
+
+		"dns.question.size",
+
+		"dns.question.type",
+
 		"exec.args",
 
 		"exec.args_flags",
@@ -6282,6 +8520,8 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.egid",
 
 		"exec.egroup",
+
+		"exec.envp",
 
 		"exec.envs",
 
@@ -6401,6 +8641,40 @@ func (e *Event) GetFields() []eval.Field {
 
 		"link.retval",
 
+		"load_module.file.change_time",
+
+		"load_module.file.filesystem",
+
+		"load_module.file.gid",
+
+		"load_module.file.group",
+
+		"load_module.file.in_upper_layer",
+
+		"load_module.file.inode",
+
+		"load_module.file.mode",
+
+		"load_module.file.modification_time",
+
+		"load_module.file.mount_id",
+
+		"load_module.file.name",
+
+		"load_module.file.path",
+
+		"load_module.file.rights",
+
+		"load_module.file.uid",
+
+		"load_module.file.user",
+
+		"load_module.loaded_from_memory",
+
+		"load_module.name",
+
+		"load_module.retval",
+
 		"mkdir.file.change_time",
 
 		"mkdir.file.destination.mode",
@@ -6475,6 +8749,24 @@ func (e *Event) GetFields() []eval.Field {
 
 		"mprotect.vm_protection",
 
+		"network.destination.ip",
+
+		"network.destination.port",
+
+		"network.device.ifindex",
+
+		"network.device.ifname",
+
+		"network.l3_protocol",
+
+		"network.l4_protocol",
+
+		"network.size",
+
+		"network.source.ip",
+
+		"network.source.port",
+
 		"open.file.change_time",
 
 		"open.file.destination.mode",
@@ -6536,6 +8828,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.egid",
 
 		"process.ancestors.egroup",
+
+		"process.ancestors.envp",
 
 		"process.ancestors.envs",
 
@@ -6624,6 +8918,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.egid",
 
 		"process.egroup",
+
+		"process.envp",
 
 		"process.envs",
 
@@ -6717,6 +9013,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"ptrace.tracee.ancestors.egroup",
 
+		"ptrace.tracee.ancestors.envp",
+
 		"ptrace.tracee.ancestors.envs",
 
 		"ptrace.tracee.ancestors.envs_truncated",
@@ -6804,6 +9102,8 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.egid",
 
 		"ptrace.tracee.egroup",
+
+		"ptrace.tracee.envp",
 
 		"ptrace.tracee.envs",
 
@@ -7053,6 +9353,226 @@ func (e *Event) GetFields() []eval.Field {
 
 		"setxattr.retval",
 
+		"signal.pid",
+
+		"signal.retval",
+
+		"signal.target.ancestors.args",
+
+		"signal.target.ancestors.args_flags",
+
+		"signal.target.ancestors.args_options",
+
+		"signal.target.ancestors.args_truncated",
+
+		"signal.target.ancestors.argv",
+
+		"signal.target.ancestors.argv0",
+
+		"signal.target.ancestors.cap_effective",
+
+		"signal.target.ancestors.cap_permitted",
+
+		"signal.target.ancestors.comm",
+
+		"signal.target.ancestors.container.id",
+
+		"signal.target.ancestors.cookie",
+
+		"signal.target.ancestors.created_at",
+
+		"signal.target.ancestors.egid",
+
+		"signal.target.ancestors.egroup",
+
+		"signal.target.ancestors.envp",
+
+		"signal.target.ancestors.envs",
+
+		"signal.target.ancestors.envs_truncated",
+
+		"signal.target.ancestors.euid",
+
+		"signal.target.ancestors.euser",
+
+		"signal.target.ancestors.file.change_time",
+
+		"signal.target.ancestors.file.filesystem",
+
+		"signal.target.ancestors.file.gid",
+
+		"signal.target.ancestors.file.group",
+
+		"signal.target.ancestors.file.in_upper_layer",
+
+		"signal.target.ancestors.file.inode",
+
+		"signal.target.ancestors.file.mode",
+
+		"signal.target.ancestors.file.modification_time",
+
+		"signal.target.ancestors.file.mount_id",
+
+		"signal.target.ancestors.file.name",
+
+		"signal.target.ancestors.file.path",
+
+		"signal.target.ancestors.file.rights",
+
+		"signal.target.ancestors.file.uid",
+
+		"signal.target.ancestors.file.user",
+
+		"signal.target.ancestors.fsgid",
+
+		"signal.target.ancestors.fsgroup",
+
+		"signal.target.ancestors.fsuid",
+
+		"signal.target.ancestors.fsuser",
+
+		"signal.target.ancestors.gid",
+
+		"signal.target.ancestors.group",
+
+		"signal.target.ancestors.pid",
+
+		"signal.target.ancestors.ppid",
+
+		"signal.target.ancestors.tid",
+
+		"signal.target.ancestors.tty_name",
+
+		"signal.target.ancestors.uid",
+
+		"signal.target.ancestors.user",
+
+		"signal.target.args",
+
+		"signal.target.args_flags",
+
+		"signal.target.args_options",
+
+		"signal.target.args_truncated",
+
+		"signal.target.argv",
+
+		"signal.target.argv0",
+
+		"signal.target.cap_effective",
+
+		"signal.target.cap_permitted",
+
+		"signal.target.comm",
+
+		"signal.target.container.id",
+
+		"signal.target.cookie",
+
+		"signal.target.created_at",
+
+		"signal.target.egid",
+
+		"signal.target.egroup",
+
+		"signal.target.envp",
+
+		"signal.target.envs",
+
+		"signal.target.envs_truncated",
+
+		"signal.target.euid",
+
+		"signal.target.euser",
+
+		"signal.target.file.change_time",
+
+		"signal.target.file.filesystem",
+
+		"signal.target.file.gid",
+
+		"signal.target.file.group",
+
+		"signal.target.file.in_upper_layer",
+
+		"signal.target.file.inode",
+
+		"signal.target.file.mode",
+
+		"signal.target.file.modification_time",
+
+		"signal.target.file.mount_id",
+
+		"signal.target.file.name",
+
+		"signal.target.file.path",
+
+		"signal.target.file.rights",
+
+		"signal.target.file.uid",
+
+		"signal.target.file.user",
+
+		"signal.target.fsgid",
+
+		"signal.target.fsgroup",
+
+		"signal.target.fsuid",
+
+		"signal.target.fsuser",
+
+		"signal.target.gid",
+
+		"signal.target.group",
+
+		"signal.target.pid",
+
+		"signal.target.ppid",
+
+		"signal.target.tid",
+
+		"signal.target.tty_name",
+
+		"signal.target.uid",
+
+		"signal.target.user",
+
+		"signal.type",
+
+		"splice.file.change_time",
+
+		"splice.file.filesystem",
+
+		"splice.file.gid",
+
+		"splice.file.group",
+
+		"splice.file.in_upper_layer",
+
+		"splice.file.inode",
+
+		"splice.file.mode",
+
+		"splice.file.modification_time",
+
+		"splice.file.mount_id",
+
+		"splice.file.name",
+
+		"splice.file.path",
+
+		"splice.file.rights",
+
+		"splice.file.uid",
+
+		"splice.file.user",
+
+		"splice.pipe_entry_flag",
+
+		"splice.pipe_exit_flag",
+
+		"splice.retval",
+
 		"unlink.file.change_time",
 
 		"unlink.file.filesystem",
@@ -7082,6 +9602,10 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.file.user",
 
 		"unlink.retval",
+
+		"unload_module.name",
+
+		"unload_module.retval",
 
 		"utimes.file.change_time",
 
@@ -7122,6 +9646,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.BPF.Cmd), nil
 
+	case "bpf.map.name":
+
+		return e.BPF.Map.Name, nil
+
 	case "bpf.map.type":
 
 		return int(e.BPF.Map.Type), nil
@@ -7129,6 +9657,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "bpf.prog.attach_type":
 
 		return int(e.BPF.Program.AttachType), nil
+
+	case "bpf.prog.helpers":
+
+		result := make([]int, len(e.BPF.Program.Helpers))
+		for i, v := range e.BPF.Program.Helpers {
+			result[i] = int(v)
+		}
+		return result, nil
+
+	case "bpf.prog.name":
+
+		return e.BPF.Program.Name, nil
+
+	case "bpf.prog.tag":
+
+		return e.BPF.Program.Tag, nil
 
 	case "bpf.prog.type":
 
@@ -7298,6 +9842,26 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ContainerContext.Tags, nil
 
+	case "dns.question.class":
+
+		return int(e.DNS.Class), nil
+
+	case "dns.question.count":
+
+		return int(e.DNS.Count), nil
+
+	case "dns.question.name":
+
+		return e.DNS.Name, nil
+
+	case "dns.question.size":
+
+		return int(e.DNS.Size), nil
+
+	case "dns.question.type":
+
+		return int(e.DNS.Type), nil
+
 	case "exec.args":
 
 		return e.Exec.Process.Args, nil
@@ -7353,6 +9917,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.egroup":
 
 		return e.Exec.Process.Credentials.EGroup, nil
+
+	case "exec.envp":
+
+		return e.Exec.Process.Envp, nil
 
 	case "exec.envs":
 
@@ -7590,6 +10158,74 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Link.SyscallEvent.Retval), nil
 
+	case "load_module.file.change_time":
+
+		return int(e.LoadModule.File.FileFields.CTime), nil
+
+	case "load_module.file.filesystem":
+
+		return e.LoadModule.File.Filesytem, nil
+
+	case "load_module.file.gid":
+
+		return int(e.LoadModule.File.FileFields.GID), nil
+
+	case "load_module.file.group":
+
+		return e.LoadModule.File.FileFields.Group, nil
+
+	case "load_module.file.in_upper_layer":
+
+		return e.LoadModule.File.FileFields.InUpperLayer, nil
+
+	case "load_module.file.inode":
+
+		return int(e.LoadModule.File.FileFields.Inode), nil
+
+	case "load_module.file.mode":
+
+		return int(e.LoadModule.File.FileFields.Mode), nil
+
+	case "load_module.file.modification_time":
+
+		return int(e.LoadModule.File.FileFields.MTime), nil
+
+	case "load_module.file.mount_id":
+
+		return int(e.LoadModule.File.FileFields.MountID), nil
+
+	case "load_module.file.name":
+
+		return e.LoadModule.File.BasenameStr, nil
+
+	case "load_module.file.path":
+
+		return e.LoadModule.File.PathnameStr, nil
+
+	case "load_module.file.rights":
+
+		return int(e.LoadModule.File.FileFields.Mode), nil
+
+	case "load_module.file.uid":
+
+		return int(e.LoadModule.File.FileFields.UID), nil
+
+	case "load_module.file.user":
+
+		return e.LoadModule.File.FileFields.User, nil
+
+	case "load_module.loaded_from_memory":
+
+		return e.LoadModule.LoadedFromMemory, nil
+
+	case "load_module.name":
+
+		return e.LoadModule.Name, nil
+
+	case "load_module.retval":
+
+		return int(e.LoadModule.SyscallEvent.Retval), nil
+
 	case "mkdir.file.change_time":
 
 		return int(e.Mkdir.File.FileFields.CTime), nil
@@ -7737,6 +10373,42 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mprotect.vm_protection":
 
 		return e.MProtect.VMProtection, nil
+
+	case "network.destination.ip":
+
+		return e.NetworkContext.Destination.IP, nil
+
+	case "network.destination.port":
+
+		return int(e.NetworkContext.Destination.Port), nil
+
+	case "network.device.ifindex":
+
+		return int(e.NetworkContext.Device.IfIndex), nil
+
+	case "network.device.ifname":
+
+		return e.NetworkContext.Device.IfName, nil
+
+	case "network.l3_protocol":
+
+		return int(e.NetworkContext.L3Protocol), nil
+
+	case "network.l4_protocol":
+
+		return int(e.NetworkContext.L4Protocol), nil
+
+	case "network.size":
+
+		return int(e.NetworkContext.Size), nil
+
+	case "network.source.ip":
+
+		return e.NetworkContext.Source.IP, nil
+
+	case "network.source.port":
+
+		return int(e.NetworkContext.Source.Port), nil
 
 	case "open.file.change_time":
 
@@ -8108,6 +10780,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			result := element.ProcessContext.Process.Credentials.EGroup
 
 			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.envp":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Envp
+
+			values = append(values, result...)
 
 			ptr = iterator.Next()
 		}
@@ -8830,6 +11524,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ProcessContext.Process.Credentials.EGroup, nil
 
+	case "process.envp":
+
+		return e.ProcessContext.Process.Envp, nil
+
 	case "process.envs":
 
 		return e.ProcessContext.Process.Envs, nil
@@ -9260,6 +11958,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			result := element.ProcessContext.Process.Credentials.EGroup
 
 			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "ptrace.tracee.ancestors.envp":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Envp
+
+			values = append(values, result...)
 
 			ptr = iterator.Next()
 		}
@@ -9982,6 +12702,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.PTrace.Tracee.Process.Credentials.EGroup, nil
 
+	case "ptrace.tracee.envp":
+
+		return e.PTrace.Tracee.Process.Envp, nil
+
 	case "ptrace.tracee.envs":
 
 		return e.PTrace.Tracee.Process.Envs, nil
@@ -10478,6 +13202,1256 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 
+	case "signal.pid":
+
+		return int(e.Signal.PID), nil
+
+	case "signal.retval":
+
+		return int(e.Signal.SyscallEvent.Retval), nil
+
+	case "signal.target.ancestors.args":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Args
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.args_flags":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Argv
+
+			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.args_options":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Argv
+
+			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.args_truncated":
+
+		var values []bool
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.ArgsTruncated
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.argv":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Argv
+
+			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.argv0":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Argv0
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.cap_effective":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.CapEffective)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.cap_permitted":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.comm":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Comm
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.container.id":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.ContainerID
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.cookie":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Cookie)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.created_at":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.CreatedAt)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.egid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.EGID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.egroup":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Credentials.EGroup
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.envp":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Envp
+
+			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.envs":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Envs
+
+			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.envs_truncated":
+
+		var values []bool
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.EnvsTruncated
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.euid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.EUID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.euser":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Credentials.EUser
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.change_time":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.CTime)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.filesystem":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Filesystem
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.gid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.GID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.group":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.FileFields.Group
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.in_upper_layer":
+
+		var values []bool
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.FileFields.InUpperLayer
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.inode":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.Inode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.mode":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.Mode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.modification_time":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.MTime)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.mount_id":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.MountID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.name":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.BasenameStr
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.path":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.PathnameStr
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.rights":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.Mode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.uid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.UID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.file.user":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.FileFields.User
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.fsgid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.FSGID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.fsgroup":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Credentials.FSGroup
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.fsuid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.FSUID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.fsuser":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Credentials.FSUser
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.gid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.GID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.group":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Credentials.Group
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.pid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Pid)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.ppid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.PPid)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.tid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Tid)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.tty_name":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.TTYName
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.uid":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.Credentials.UID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.ancestors.user":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Credentials.User
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "signal.target.args":
+
+		return e.Signal.Target.Process.Args, nil
+
+	case "signal.target.args_flags":
+
+		return e.Signal.Target.Process.Argv, nil
+
+	case "signal.target.args_options":
+
+		return e.Signal.Target.Process.Argv, nil
+
+	case "signal.target.args_truncated":
+
+		return e.Signal.Target.Process.ArgsTruncated, nil
+
+	case "signal.target.argv":
+
+		return e.Signal.Target.Process.Argv, nil
+
+	case "signal.target.argv0":
+
+		return e.Signal.Target.Process.Argv0, nil
+
+	case "signal.target.cap_effective":
+
+		return int(e.Signal.Target.Process.Credentials.CapEffective), nil
+
+	case "signal.target.cap_permitted":
+
+		return int(e.Signal.Target.Process.Credentials.CapPermitted), nil
+
+	case "signal.target.comm":
+
+		return e.Signal.Target.Process.Comm, nil
+
+	case "signal.target.container.id":
+
+		return e.Signal.Target.Process.ContainerID, nil
+
+	case "signal.target.cookie":
+
+		return int(e.Signal.Target.Process.Cookie), nil
+
+	case "signal.target.created_at":
+
+		return int(e.Signal.Target.Process.CreatedAt), nil
+
+	case "signal.target.egid":
+
+		return int(e.Signal.Target.Process.Credentials.EGID), nil
+
+	case "signal.target.egroup":
+
+		return e.Signal.Target.Process.Credentials.EGroup, nil
+
+	case "signal.target.envp":
+
+		return e.Signal.Target.Process.Envp, nil
+
+	case "signal.target.envs":
+
+		return e.Signal.Target.Process.Envs, nil
+
+	case "signal.target.envs_truncated":
+
+		return e.Signal.Target.Process.EnvsTruncated, nil
+
+	case "signal.target.euid":
+
+		return int(e.Signal.Target.Process.Credentials.EUID), nil
+
+	case "signal.target.euser":
+
+		return e.Signal.Target.Process.Credentials.EUser, nil
+
+	case "signal.target.file.change_time":
+
+		return int(e.Signal.Target.Process.FileFields.CTime), nil
+
+	case "signal.target.file.filesystem":
+
+		return e.Signal.Target.Process.Filesystem, nil
+
+	case "signal.target.file.gid":
+
+		return int(e.Signal.Target.Process.FileFields.GID), nil
+
+	case "signal.target.file.group":
+
+		return e.Signal.Target.Process.FileFields.Group, nil
+
+	case "signal.target.file.in_upper_layer":
+
+		return e.Signal.Target.Process.FileFields.InUpperLayer, nil
+
+	case "signal.target.file.inode":
+
+		return int(e.Signal.Target.Process.FileFields.Inode), nil
+
+	case "signal.target.file.mode":
+
+		return int(e.Signal.Target.Process.FileFields.Mode), nil
+
+	case "signal.target.file.modification_time":
+
+		return int(e.Signal.Target.Process.FileFields.MTime), nil
+
+	case "signal.target.file.mount_id":
+
+		return int(e.Signal.Target.Process.FileFields.MountID), nil
+
+	case "signal.target.file.name":
+
+		return e.Signal.Target.Process.BasenameStr, nil
+
+	case "signal.target.file.path":
+
+		return e.Signal.Target.Process.PathnameStr, nil
+
+	case "signal.target.file.rights":
+
+		return int(e.Signal.Target.Process.FileFields.Mode), nil
+
+	case "signal.target.file.uid":
+
+		return int(e.Signal.Target.Process.FileFields.UID), nil
+
+	case "signal.target.file.user":
+
+		return e.Signal.Target.Process.FileFields.User, nil
+
+	case "signal.target.fsgid":
+
+		return int(e.Signal.Target.Process.Credentials.FSGID), nil
+
+	case "signal.target.fsgroup":
+
+		return e.Signal.Target.Process.Credentials.FSGroup, nil
+
+	case "signal.target.fsuid":
+
+		return int(e.Signal.Target.Process.Credentials.FSUID), nil
+
+	case "signal.target.fsuser":
+
+		return e.Signal.Target.Process.Credentials.FSUser, nil
+
+	case "signal.target.gid":
+
+		return int(e.Signal.Target.Process.Credentials.GID), nil
+
+	case "signal.target.group":
+
+		return e.Signal.Target.Process.Credentials.Group, nil
+
+	case "signal.target.pid":
+
+		return int(e.Signal.Target.Process.Pid), nil
+
+	case "signal.target.ppid":
+
+		return int(e.Signal.Target.Process.PPid), nil
+
+	case "signal.target.tid":
+
+		return int(e.Signal.Target.Process.Tid), nil
+
+	case "signal.target.tty_name":
+
+		return e.Signal.Target.Process.TTYName, nil
+
+	case "signal.target.uid":
+
+		return int(e.Signal.Target.Process.Credentials.UID), nil
+
+	case "signal.target.user":
+
+		return e.Signal.Target.Process.Credentials.User, nil
+
+	case "signal.type":
+
+		return int(e.Signal.Type), nil
+
+	case "splice.file.change_time":
+
+		return int(e.Splice.File.FileFields.CTime), nil
+
+	case "splice.file.filesystem":
+
+		return e.Splice.File.Filesytem, nil
+
+	case "splice.file.gid":
+
+		return int(e.Splice.File.FileFields.GID), nil
+
+	case "splice.file.group":
+
+		return e.Splice.File.FileFields.Group, nil
+
+	case "splice.file.in_upper_layer":
+
+		return e.Splice.File.FileFields.InUpperLayer, nil
+
+	case "splice.file.inode":
+
+		return int(e.Splice.File.FileFields.Inode), nil
+
+	case "splice.file.mode":
+
+		return int(e.Splice.File.FileFields.Mode), nil
+
+	case "splice.file.modification_time":
+
+		return int(e.Splice.File.FileFields.MTime), nil
+
+	case "splice.file.mount_id":
+
+		return int(e.Splice.File.FileFields.MountID), nil
+
+	case "splice.file.name":
+
+		return e.Splice.File.BasenameStr, nil
+
+	case "splice.file.path":
+
+		return e.Splice.File.PathnameStr, nil
+
+	case "splice.file.rights":
+
+		return int(e.Splice.File.FileFields.Mode), nil
+
+	case "splice.file.uid":
+
+		return int(e.Splice.File.FileFields.UID), nil
+
+	case "splice.file.user":
+
+		return e.Splice.File.FileFields.User, nil
+
+	case "splice.pipe_entry_flag":
+
+		return int(e.Splice.PipeEntryFlag), nil
+
+	case "splice.pipe_exit_flag":
+
+		return int(e.Splice.PipeExitFlag), nil
+
+	case "splice.retval":
+
+		return int(e.Splice.SyscallEvent.Retval), nil
+
 	case "unlink.file.change_time":
 
 		return int(e.Unlink.File.FileFields.CTime), nil
@@ -10537,6 +14511,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "unlink.retval":
 
 		return int(e.Unlink.SyscallEvent.Retval), nil
+
+	case "unload_module.name":
+
+		return e.UnloadModule.Name, nil
+
+	case "unload_module.retval":
+
+		return int(e.UnloadModule.SyscallEvent.Retval), nil
 
 	case "utimes.file.change_time":
 
@@ -10609,10 +14591,22 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "bpf.cmd":
 		return "bpf", nil
 
+	case "bpf.map.name":
+		return "bpf", nil
+
 	case "bpf.map.type":
 		return "bpf", nil
 
 	case "bpf.prog.attach_type":
+		return "bpf", nil
+
+	case "bpf.prog.helpers":
+		return "bpf", nil
+
+	case "bpf.prog.name":
+		return "bpf", nil
+
+	case "bpf.prog.tag":
 		return "bpf", nil
 
 	case "bpf.prog.type":
@@ -10741,6 +14735,21 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.tags":
 		return "*", nil
 
+	case "dns.question.class":
+		return "dns", nil
+
+	case "dns.question.count":
+		return "dns", nil
+
+	case "dns.question.name":
+		return "dns", nil
+
+	case "dns.question.size":
+		return "dns", nil
+
+	case "dns.question.type":
+		return "dns", nil
+
 	case "exec.args":
 		return "exec", nil
 
@@ -10781,6 +14790,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.egroup":
+		return "exec", nil
+
+	case "exec.envp":
 		return "exec", nil
 
 	case "exec.envs":
@@ -10960,6 +14972,57 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "link.retval":
 		return "link", nil
 
+	case "load_module.file.change_time":
+		return "load_module", nil
+
+	case "load_module.file.filesystem":
+		return "load_module", nil
+
+	case "load_module.file.gid":
+		return "load_module", nil
+
+	case "load_module.file.group":
+		return "load_module", nil
+
+	case "load_module.file.in_upper_layer":
+		return "load_module", nil
+
+	case "load_module.file.inode":
+		return "load_module", nil
+
+	case "load_module.file.mode":
+		return "load_module", nil
+
+	case "load_module.file.modification_time":
+		return "load_module", nil
+
+	case "load_module.file.mount_id":
+		return "load_module", nil
+
+	case "load_module.file.name":
+		return "load_module", nil
+
+	case "load_module.file.path":
+		return "load_module", nil
+
+	case "load_module.file.rights":
+		return "load_module", nil
+
+	case "load_module.file.uid":
+		return "load_module", nil
+
+	case "load_module.file.user":
+		return "load_module", nil
+
+	case "load_module.loaded_from_memory":
+		return "load_module", nil
+
+	case "load_module.name":
+		return "load_module", nil
+
+	case "load_module.retval":
+		return "load_module", nil
+
 	case "mkdir.file.change_time":
 		return "mkdir", nil
 
@@ -11071,6 +15134,33 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mprotect.vm_protection":
 		return "mprotect", nil
 
+	case "network.destination.ip":
+		return "*", nil
+
+	case "network.destination.port":
+		return "*", nil
+
+	case "network.device.ifindex":
+		return "*", nil
+
+	case "network.device.ifname":
+		return "*", nil
+
+	case "network.l3_protocol":
+		return "*", nil
+
+	case "network.l4_protocol":
+		return "*", nil
+
+	case "network.size":
+		return "*", nil
+
+	case "network.source.ip":
+		return "*", nil
+
+	case "network.source.port":
+		return "*", nil
+
 	case "open.file.change_time":
 		return "open", nil
 
@@ -11162,6 +15252,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.egroup":
+		return "*", nil
+
+	case "process.ancestors.envp":
 		return "*", nil
 
 	case "process.ancestors.envs":
@@ -11294,6 +15387,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.egroup":
+		return "*", nil
+
+	case "process.envp":
 		return "*", nil
 
 	case "process.envs":
@@ -11434,6 +15530,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.ancestors.egroup":
 		return "ptrace", nil
 
+	case "ptrace.tracee.ancestors.envp":
+		return "ptrace", nil
+
 	case "ptrace.tracee.ancestors.envs":
 		return "ptrace", nil
 
@@ -11564,6 +15663,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 
 	case "ptrace.tracee.egroup":
+		return "ptrace", nil
+
+	case "ptrace.tracee.envp":
 		return "ptrace", nil
 
 	case "ptrace.tracee.envs":
@@ -11938,6 +16040,336 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "setxattr.retval":
 		return "setxattr", nil
 
+	case "signal.pid":
+		return "signal", nil
+
+	case "signal.retval":
+		return "signal", nil
+
+	case "signal.target.ancestors.args":
+		return "signal", nil
+
+	case "signal.target.ancestors.args_flags":
+		return "signal", nil
+
+	case "signal.target.ancestors.args_options":
+		return "signal", nil
+
+	case "signal.target.ancestors.args_truncated":
+		return "signal", nil
+
+	case "signal.target.ancestors.argv":
+		return "signal", nil
+
+	case "signal.target.ancestors.argv0":
+		return "signal", nil
+
+	case "signal.target.ancestors.cap_effective":
+		return "signal", nil
+
+	case "signal.target.ancestors.cap_permitted":
+		return "signal", nil
+
+	case "signal.target.ancestors.comm":
+		return "signal", nil
+
+	case "signal.target.ancestors.container.id":
+		return "signal", nil
+
+	case "signal.target.ancestors.cookie":
+		return "signal", nil
+
+	case "signal.target.ancestors.created_at":
+		return "signal", nil
+
+	case "signal.target.ancestors.egid":
+		return "signal", nil
+
+	case "signal.target.ancestors.egroup":
+		return "signal", nil
+
+	case "signal.target.ancestors.envp":
+		return "signal", nil
+
+	case "signal.target.ancestors.envs":
+		return "signal", nil
+
+	case "signal.target.ancestors.envs_truncated":
+		return "signal", nil
+
+	case "signal.target.ancestors.euid":
+		return "signal", nil
+
+	case "signal.target.ancestors.euser":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.change_time":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.filesystem":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.gid":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.group":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.in_upper_layer":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.inode":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.mode":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.modification_time":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.mount_id":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.name":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.path":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.rights":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.uid":
+		return "signal", nil
+
+	case "signal.target.ancestors.file.user":
+		return "signal", nil
+
+	case "signal.target.ancestors.fsgid":
+		return "signal", nil
+
+	case "signal.target.ancestors.fsgroup":
+		return "signal", nil
+
+	case "signal.target.ancestors.fsuid":
+		return "signal", nil
+
+	case "signal.target.ancestors.fsuser":
+		return "signal", nil
+
+	case "signal.target.ancestors.gid":
+		return "signal", nil
+
+	case "signal.target.ancestors.group":
+		return "signal", nil
+
+	case "signal.target.ancestors.pid":
+		return "signal", nil
+
+	case "signal.target.ancestors.ppid":
+		return "signal", nil
+
+	case "signal.target.ancestors.tid":
+		return "signal", nil
+
+	case "signal.target.ancestors.tty_name":
+		return "signal", nil
+
+	case "signal.target.ancestors.uid":
+		return "signal", nil
+
+	case "signal.target.ancestors.user":
+		return "signal", nil
+
+	case "signal.target.args":
+		return "signal", nil
+
+	case "signal.target.args_flags":
+		return "signal", nil
+
+	case "signal.target.args_options":
+		return "signal", nil
+
+	case "signal.target.args_truncated":
+		return "signal", nil
+
+	case "signal.target.argv":
+		return "signal", nil
+
+	case "signal.target.argv0":
+		return "signal", nil
+
+	case "signal.target.cap_effective":
+		return "signal", nil
+
+	case "signal.target.cap_permitted":
+		return "signal", nil
+
+	case "signal.target.comm":
+		return "signal", nil
+
+	case "signal.target.container.id":
+		return "signal", nil
+
+	case "signal.target.cookie":
+		return "signal", nil
+
+	case "signal.target.created_at":
+		return "signal", nil
+
+	case "signal.target.egid":
+		return "signal", nil
+
+	case "signal.target.egroup":
+		return "signal", nil
+
+	case "signal.target.envp":
+		return "signal", nil
+
+	case "signal.target.envs":
+		return "signal", nil
+
+	case "signal.target.envs_truncated":
+		return "signal", nil
+
+	case "signal.target.euid":
+		return "signal", nil
+
+	case "signal.target.euser":
+		return "signal", nil
+
+	case "signal.target.file.change_time":
+		return "signal", nil
+
+	case "signal.target.file.filesystem":
+		return "signal", nil
+
+	case "signal.target.file.gid":
+		return "signal", nil
+
+	case "signal.target.file.group":
+		return "signal", nil
+
+	case "signal.target.file.in_upper_layer":
+		return "signal", nil
+
+	case "signal.target.file.inode":
+		return "signal", nil
+
+	case "signal.target.file.mode":
+		return "signal", nil
+
+	case "signal.target.file.modification_time":
+		return "signal", nil
+
+	case "signal.target.file.mount_id":
+		return "signal", nil
+
+	case "signal.target.file.name":
+		return "signal", nil
+
+	case "signal.target.file.path":
+		return "signal", nil
+
+	case "signal.target.file.rights":
+		return "signal", nil
+
+	case "signal.target.file.uid":
+		return "signal", nil
+
+	case "signal.target.file.user":
+		return "signal", nil
+
+	case "signal.target.fsgid":
+		return "signal", nil
+
+	case "signal.target.fsgroup":
+		return "signal", nil
+
+	case "signal.target.fsuid":
+		return "signal", nil
+
+	case "signal.target.fsuser":
+		return "signal", nil
+
+	case "signal.target.gid":
+		return "signal", nil
+
+	case "signal.target.group":
+		return "signal", nil
+
+	case "signal.target.pid":
+		return "signal", nil
+
+	case "signal.target.ppid":
+		return "signal", nil
+
+	case "signal.target.tid":
+		return "signal", nil
+
+	case "signal.target.tty_name":
+		return "signal", nil
+
+	case "signal.target.uid":
+		return "signal", nil
+
+	case "signal.target.user":
+		return "signal", nil
+
+	case "signal.type":
+		return "signal", nil
+
+	case "splice.file.change_time":
+		return "splice", nil
+
+	case "splice.file.filesystem":
+		return "splice", nil
+
+	case "splice.file.gid":
+		return "splice", nil
+
+	case "splice.file.group":
+		return "splice", nil
+
+	case "splice.file.in_upper_layer":
+		return "splice", nil
+
+	case "splice.file.inode":
+		return "splice", nil
+
+	case "splice.file.mode":
+		return "splice", nil
+
+	case "splice.file.modification_time":
+		return "splice", nil
+
+	case "splice.file.mount_id":
+		return "splice", nil
+
+	case "splice.file.name":
+		return "splice", nil
+
+	case "splice.file.path":
+		return "splice", nil
+
+	case "splice.file.rights":
+		return "splice", nil
+
+	case "splice.file.uid":
+		return "splice", nil
+
+	case "splice.file.user":
+		return "splice", nil
+
+	case "splice.pipe_entry_flag":
+		return "splice", nil
+
+	case "splice.pipe_exit_flag":
+		return "splice", nil
+
+	case "splice.retval":
+		return "splice", nil
+
 	case "unlink.file.change_time":
 		return "unlink", nil
 
@@ -11982,6 +16414,12 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "unlink.retval":
 		return "unlink", nil
+
+	case "unload_module.name":
+		return "unload_module", nil
+
+	case "unload_module.retval":
+		return "unload_module", nil
 
 	case "utimes.file.change_time":
 		return "utimes", nil
@@ -12040,6 +16478,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "bpf.map.name":
+
+		return reflect.String, nil
+
 	case "bpf.map.type":
 
 		return reflect.Int, nil
@@ -12047,6 +16489,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "bpf.prog.attach_type":
 
 		return reflect.Int, nil
+
+	case "bpf.prog.helpers":
+
+		return reflect.Int, nil
+
+	case "bpf.prog.name":
+
+		return reflect.String, nil
+
+	case "bpf.prog.tag":
+
+		return reflect.String, nil
 
 	case "bpf.prog.type":
 
@@ -12216,6 +16670,26 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "dns.question.class":
+
+		return reflect.Int, nil
+
+	case "dns.question.count":
+
+		return reflect.Int, nil
+
+	case "dns.question.name":
+
+		return reflect.String, nil
+
+	case "dns.question.size":
+
+		return reflect.Int, nil
+
+	case "dns.question.type":
+
+		return reflect.Int, nil
+
 	case "exec.args":
 
 		return reflect.String, nil
@@ -12269,6 +16743,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "exec.egroup":
+
+		return reflect.String, nil
+
+	case "exec.envp":
 
 		return reflect.String, nil
 
@@ -12508,6 +16986,74 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "load_module.file.change_time":
+
+		return reflect.Int, nil
+
+	case "load_module.file.filesystem":
+
+		return reflect.String, nil
+
+	case "load_module.file.gid":
+
+		return reflect.Int, nil
+
+	case "load_module.file.group":
+
+		return reflect.String, nil
+
+	case "load_module.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "load_module.file.inode":
+
+		return reflect.Int, nil
+
+	case "load_module.file.mode":
+
+		return reflect.Int, nil
+
+	case "load_module.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "load_module.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "load_module.file.name":
+
+		return reflect.String, nil
+
+	case "load_module.file.path":
+
+		return reflect.String, nil
+
+	case "load_module.file.rights":
+
+		return reflect.Int, nil
+
+	case "load_module.file.uid":
+
+		return reflect.Int, nil
+
+	case "load_module.file.user":
+
+		return reflect.String, nil
+
+	case "load_module.loaded_from_memory":
+
+		return reflect.Bool, nil
+
+	case "load_module.name":
+
+		return reflect.String, nil
+
+	case "load_module.retval":
+
+		return reflect.Int, nil
+
 	case "mkdir.file.change_time":
 
 		return reflect.Int, nil
@@ -12656,6 +17202,42 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "network.destination.ip":
+
+		return reflect.Struct, nil
+
+	case "network.destination.port":
+
+		return reflect.Int, nil
+
+	case "network.device.ifindex":
+
+		return reflect.Int, nil
+
+	case "network.device.ifname":
+
+		return reflect.String, nil
+
+	case "network.l3_protocol":
+
+		return reflect.Int, nil
+
+	case "network.l4_protocol":
+
+		return reflect.Int, nil
+
+	case "network.size":
+
+		return reflect.Int, nil
+
+	case "network.source.ip":
+
+		return reflect.Struct, nil
+
+	case "network.source.port":
+
+		return reflect.Int, nil
+
 	case "open.file.change_time":
 
 		return reflect.Int, nil
@@ -12777,6 +17359,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.ancestors.egroup":
+
+		return reflect.String, nil
+
+	case "process.ancestors.envp":
 
 		return reflect.String, nil
 
@@ -12953,6 +17539,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.egroup":
+
+		return reflect.String, nil
+
+	case "process.envp":
 
 		return reflect.String, nil
 
@@ -13140,6 +17730,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "ptrace.tracee.ancestors.envp":
+
+		return reflect.String, nil
+
 	case "ptrace.tracee.ancestors.envs":
 
 		return reflect.String, nil
@@ -13313,6 +17907,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "ptrace.tracee.egroup":
+
+		return reflect.String, nil
+
+	case "ptrace.tracee.envp":
 
 		return reflect.String, nil
 
@@ -13812,6 +18410,446 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "signal.pid":
+
+		return reflect.Int, nil
+
+	case "signal.retval":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.args":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.args_flags":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.args_options":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.args_truncated":
+
+		return reflect.Bool, nil
+
+	case "signal.target.ancestors.argv":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.argv0":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.cap_effective":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.cap_permitted":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.comm":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.container.id":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.cookie":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.created_at":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.egid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.egroup":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.envp":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.envs":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.envs_truncated":
+
+		return reflect.Bool, nil
+
+	case "signal.target.ancestors.euid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.euser":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.file.change_time":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.filesystem":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.file.gid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.group":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "signal.target.ancestors.file.inode":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.mode":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.name":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.file.path":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.file.rights":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.uid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.file.user":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.fsgid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.fsgroup":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.fsuid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.fsuser":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.gid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.group":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.pid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.ppid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.tid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.tty_name":
+
+		return reflect.String, nil
+
+	case "signal.target.ancestors.uid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ancestors.user":
+
+		return reflect.String, nil
+
+	case "signal.target.args":
+
+		return reflect.String, nil
+
+	case "signal.target.args_flags":
+
+		return reflect.String, nil
+
+	case "signal.target.args_options":
+
+		return reflect.String, nil
+
+	case "signal.target.args_truncated":
+
+		return reflect.Bool, nil
+
+	case "signal.target.argv":
+
+		return reflect.String, nil
+
+	case "signal.target.argv0":
+
+		return reflect.String, nil
+
+	case "signal.target.cap_effective":
+
+		return reflect.Int, nil
+
+	case "signal.target.cap_permitted":
+
+		return reflect.Int, nil
+
+	case "signal.target.comm":
+
+		return reflect.String, nil
+
+	case "signal.target.container.id":
+
+		return reflect.String, nil
+
+	case "signal.target.cookie":
+
+		return reflect.Int, nil
+
+	case "signal.target.created_at":
+
+		return reflect.Int, nil
+
+	case "signal.target.egid":
+
+		return reflect.Int, nil
+
+	case "signal.target.egroup":
+
+		return reflect.String, nil
+
+	case "signal.target.envp":
+
+		return reflect.String, nil
+
+	case "signal.target.envs":
+
+		return reflect.String, nil
+
+	case "signal.target.envs_truncated":
+
+		return reflect.Bool, nil
+
+	case "signal.target.euid":
+
+		return reflect.Int, nil
+
+	case "signal.target.euser":
+
+		return reflect.String, nil
+
+	case "signal.target.file.change_time":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.filesystem":
+
+		return reflect.String, nil
+
+	case "signal.target.file.gid":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.group":
+
+		return reflect.String, nil
+
+	case "signal.target.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "signal.target.file.inode":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.mode":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.name":
+
+		return reflect.String, nil
+
+	case "signal.target.file.path":
+
+		return reflect.String, nil
+
+	case "signal.target.file.rights":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.uid":
+
+		return reflect.Int, nil
+
+	case "signal.target.file.user":
+
+		return reflect.String, nil
+
+	case "signal.target.fsgid":
+
+		return reflect.Int, nil
+
+	case "signal.target.fsgroup":
+
+		return reflect.String, nil
+
+	case "signal.target.fsuid":
+
+		return reflect.Int, nil
+
+	case "signal.target.fsuser":
+
+		return reflect.String, nil
+
+	case "signal.target.gid":
+
+		return reflect.Int, nil
+
+	case "signal.target.group":
+
+		return reflect.String, nil
+
+	case "signal.target.pid":
+
+		return reflect.Int, nil
+
+	case "signal.target.ppid":
+
+		return reflect.Int, nil
+
+	case "signal.target.tid":
+
+		return reflect.Int, nil
+
+	case "signal.target.tty_name":
+
+		return reflect.String, nil
+
+	case "signal.target.uid":
+
+		return reflect.Int, nil
+
+	case "signal.target.user":
+
+		return reflect.String, nil
+
+	case "signal.type":
+
+		return reflect.Int, nil
+
+	case "splice.file.change_time":
+
+		return reflect.Int, nil
+
+	case "splice.file.filesystem":
+
+		return reflect.String, nil
+
+	case "splice.file.gid":
+
+		return reflect.Int, nil
+
+	case "splice.file.group":
+
+		return reflect.String, nil
+
+	case "splice.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "splice.file.inode":
+
+		return reflect.Int, nil
+
+	case "splice.file.mode":
+
+		return reflect.Int, nil
+
+	case "splice.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "splice.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "splice.file.name":
+
+		return reflect.String, nil
+
+	case "splice.file.path":
+
+		return reflect.String, nil
+
+	case "splice.file.rights":
+
+		return reflect.Int, nil
+
+	case "splice.file.uid":
+
+		return reflect.Int, nil
+
+	case "splice.file.user":
+
+		return reflect.String, nil
+
+	case "splice.pipe_entry_flag":
+
+		return reflect.Int, nil
+
+	case "splice.pipe_exit_flag":
+
+		return reflect.Int, nil
+
+	case "splice.retval":
+
+		return reflect.Int, nil
+
 	case "unlink.file.change_time":
 
 		return reflect.Int, nil
@@ -13869,6 +18907,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "unlink.retval":
+
+		return reflect.Int, nil
+
+	case "unload_module.name":
+
+		return reflect.String, nil
+
+	case "unload_module.retval":
 
 		return reflect.Int, nil
 
@@ -13951,6 +18997,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "bpf.map.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Map.Name"}
+		}
+		e.BPF.Map.Name = str
+
+		return nil
+
 	case "bpf.map.type":
 
 		var ok bool
@@ -13970,6 +19027,39 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.AttachType"}
 		}
 		e.BPF.Program.AttachType = uint32(v)
+
+		return nil
+
+	case "bpf.prog.helpers":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Helpers"}
+		}
+		e.BPF.Program.Helpers = append(e.BPF.Program.Helpers, uint32(v))
+
+		return nil
+
+	case "bpf.prog.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Name"}
+		}
+		e.BPF.Program.Name = str
+
+		return nil
+
+	case "bpf.prog.tag":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Tag"}
+		}
+		e.BPF.Program.Tag = str
 
 		return nil
 
@@ -14429,6 +19519,61 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "dns.question.class":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Class"}
+		}
+		e.DNS.Class = uint16(v)
+
+		return nil
+
+	case "dns.question.count":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Count"}
+		}
+		e.DNS.Count = uint16(v)
+
+		return nil
+
+	case "dns.question.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Name"}
+		}
+		e.DNS.Name = str
+
+		return nil
+
+	case "dns.question.size":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
+		}
+		e.DNS.Size = uint16(v)
+
+		return nil
+
+	case "dns.question.type":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Type"}
+		}
+		e.DNS.Type = uint16(v)
+
+		return nil
+
 	case "exec.args":
 
 		var ok bool
@@ -14577,6 +19722,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGroup"}
 		}
 		e.Exec.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "exec.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envp"}
+		}
+		e.Exec.Process.Envp = append(e.Exec.Process.Envp, str)
 
 		return nil
 
@@ -15217,6 +20373,187 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "load_module.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.CTime"}
+		}
+		e.LoadModule.File.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "load_module.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.Filesytem"}
+		}
+		e.LoadModule.File.Filesytem = str
+
+		return nil
+
+	case "load_module.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.GID"}
+		}
+		e.LoadModule.File.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "load_module.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Group"}
+		}
+		e.LoadModule.File.FileFields.Group = str
+
+		return nil
+
+	case "load_module.file.in_upper_layer":
+
+		var ok bool
+		if e.LoadModule.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "load_module.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Inode"}
+		}
+		e.LoadModule.File.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "load_module.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
+		}
+		e.LoadModule.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "load_module.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.MTime"}
+		}
+		e.LoadModule.File.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "load_module.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.MountID"}
+		}
+		e.LoadModule.File.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "load_module.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.BasenameStr"}
+		}
+		e.LoadModule.File.BasenameStr = str
+
+		return nil
+
+	case "load_module.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.PathnameStr"}
+		}
+		e.LoadModule.File.PathnameStr = str
+
+		return nil
+
+	case "load_module.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
+		}
+		e.LoadModule.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "load_module.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.UID"}
+		}
+		e.LoadModule.File.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "load_module.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.User"}
+		}
+		e.LoadModule.File.FileFields.User = str
+
+		return nil
+
+	case "load_module.loaded_from_memory":
+
+		var ok bool
+		if e.LoadModule.LoadedFromMemory, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.LoadedFromMemory"}
+		}
+		return nil
+
+	case "load_module.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Name"}
+		}
+		e.LoadModule.Name = str
+
+		return nil
+
+	case "load_module.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.SyscallEvent.Retval"}
+		}
+		e.LoadModule.SyscallEvent.Retval = int64(v)
+
+		return nil
+
 	case "mkdir.file.change_time":
 
 		var ok bool
@@ -15618,6 +20955,105 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "network.destination.ip":
+
+		var ok bool
+		v, ok := value.(net.IP)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IP"}
+		}
+		e.NetworkContext.Destination.IP = v
+
+		return nil
+
+	case "network.destination.port":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.Port"}
+		}
+		e.NetworkContext.Destination.Port = uint16(v)
+
+		return nil
+
+	case "network.device.ifindex":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfIndex"}
+		}
+		e.NetworkContext.Device.IfIndex = uint32(v)
+
+		return nil
+
+	case "network.device.ifname":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfName"}
+		}
+		e.NetworkContext.Device.IfName = str
+
+		return nil
+
+	case "network.l3_protocol":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L3Protocol"}
+		}
+		e.NetworkContext.L3Protocol = uint16(v)
+
+		return nil
+
+	case "network.l4_protocol":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L4Protocol"}
+		}
+		e.NetworkContext.L4Protocol = uint16(v)
+
+		return nil
+
+	case "network.size":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Size"}
+		}
+		e.NetworkContext.Size = uint32(v)
+
+		return nil
+
+	case "network.source.ip":
+
+		var ok bool
+		v, ok := value.(net.IP)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IP"}
+		}
+		e.NetworkContext.Source.IP = v
+
+		return nil
+
+	case "network.source.port":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
+		}
+		e.NetworkContext.Source.Port = uint16(v)
+
+		return nil
+
 	case "open.file.change_time":
 
 		var ok bool
@@ -16006,6 +21442,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "process.ancestors.envp":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envp"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(e.ProcessContext.Ancestor.ProcessContext.Process.Envp, str)
 
 		return nil
 
@@ -16604,6 +22055,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envp"}
+		}
+		e.ProcessContext.Process.Envp = append(e.ProcessContext.Process.Envp, str)
+
+		return nil
+
 	case "process.envs":
 
 		var ok bool
@@ -17154,6 +22616,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "ptrace.tracee.ancestors.envp":
+
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Envp"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp, str)
 
 		return nil
 
@@ -17749,6 +23226,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EGroup"}
 		}
 		e.PTrace.Tracee.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "ptrace.tracee.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Envp"}
+		}
+		e.PTrace.Tracee.Process.Envp = append(e.PTrace.Tracee.Process.Envp, str)
 
 		return nil
 
@@ -19092,6 +24580,1375 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "signal.pid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.PID"}
+		}
+		e.Signal.PID = uint32(v)
+
+		return nil
+
+	case "signal.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.SyscallEvent.Retval"}
+		}
+		e.Signal.SyscallEvent.Retval = int64(v)
+
+		return nil
+
+	case "signal.target.ancestors.args":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Args"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Args = str
+
+		return nil
+
+	case "signal.target.ancestors.args_flags":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
+
+		return nil
+
+	case "signal.target.ancestors.args_options":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
+
+		return nil
+
+	case "signal.target.ancestors.args_truncated":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Signal.Target.Ancestor.ProcessContext.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ArgsTruncated"}
+		}
+		return nil
+
+	case "signal.target.ancestors.argv":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
+
+		return nil
+
+	case "signal.target.ancestors.argv0":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv0"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Argv0 = str
+
+		return nil
+
+	case "signal.target.ancestors.cap_effective":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
+
+		return nil
+
+	case "signal.target.ancestors.cap_permitted":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
+
+		return nil
+
+	case "signal.target.ancestors.comm":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Comm"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Comm = str
+
+		return nil
+
+	case "signal.target.ancestors.container.id":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = str
+
+		return nil
+
+	case "signal.target.ancestors.cookie":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Cookie"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Cookie = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.created_at":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CreatedAt"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
+
+		return nil
+
+	case "signal.target.ancestors.egid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.egroup":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "signal.target.ancestors.envp":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Envp"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Envp = append(e.Signal.Target.Ancestor.ProcessContext.Process.Envp, str)
+
+		return nil
+
+	case "signal.target.ancestors.envs":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Envs"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Envs = append(e.Signal.Target.Ancestor.ProcessContext.Process.Envs, str)
+
+		return nil
+
+	case "signal.target.ancestors.envs_truncated":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Signal.Target.Ancestor.ProcessContext.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.EnvsTruncated"}
+		}
+		return nil
+
+	case "signal.target.ancestors.euid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.euser":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser = str
+
+		return nil
+
+	case "signal.target.ancestors.file.change_time":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.CTime"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.filesystem":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Filesystem"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Filesystem = str
+
+		return nil
+
+	case "signal.target.ancestors.file.gid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.GID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.group":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.Group"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.Group = str
+
+		return nil
+
+	case "signal.target.ancestors.file.in_upper_layer":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "signal.target.ancestors.file.inode":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.Inode"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.mode":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.Mode"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.modification_time":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.MTime"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.mount_id":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.MountID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.name":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.BasenameStr"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.BasenameStr = str
+
+		return nil
+
+	case "signal.target.ancestors.file.path":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PathnameStr"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.PathnameStr = str
+
+		return nil
+
+	case "signal.target.ancestors.file.rights":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.Mode"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.uid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.UID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.file.user":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileFields.User"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.FileFields.User = str
+
+		return nil
+
+	case "signal.target.ancestors.fsgid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.fsgroup":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
+
+		return nil
+
+	case "signal.target.ancestors.fsuid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.fsuser":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser = str
+
+		return nil
+
+	case "signal.target.ancestors.gid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.GID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.group":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group = str
+
+		return nil
+
+	case "signal.target.ancestors.pid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Pid"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Pid = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.ppid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PPid"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.PPid = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.tid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Tid"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Tid = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.tty_name":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.TTYName"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.TTYName = str
+
+		return nil
+
+	case "signal.target.ancestors.uid":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.UID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
+
+		return nil
+
+	case "signal.target.ancestors.user":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.User"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = str
+
+		return nil
+
+	case "signal.target.args":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Args"}
+		}
+		e.Signal.Target.Process.Args = str
+
+		return nil
+
+	case "signal.target.args_flags":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
+		}
+		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
+
+		return nil
+
+	case "signal.target.args_options":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
+		}
+		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
+
+		return nil
+
+	case "signal.target.args_truncated":
+
+		var ok bool
+		if e.Signal.Target.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ArgsTruncated"}
+		}
+		return nil
+
+	case "signal.target.argv":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
+		}
+		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
+
+		return nil
+
+	case "signal.target.argv0":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv0"}
+		}
+		e.Signal.Target.Process.Argv0 = str
+
+		return nil
+
+	case "signal.target.cap_effective":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.CapEffective"}
+		}
+		e.Signal.Target.Process.Credentials.CapEffective = uint64(v)
+
+		return nil
+
+	case "signal.target.cap_permitted":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.CapPermitted"}
+		}
+		e.Signal.Target.Process.Credentials.CapPermitted = uint64(v)
+
+		return nil
+
+	case "signal.target.comm":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Comm"}
+		}
+		e.Signal.Target.Process.Comm = str
+
+		return nil
+
+	case "signal.target.container.id":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ContainerID"}
+		}
+		e.Signal.Target.Process.ContainerID = str
+
+		return nil
+
+	case "signal.target.cookie":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Cookie"}
+		}
+		e.Signal.Target.Process.Cookie = uint32(v)
+
+		return nil
+
+	case "signal.target.created_at":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CreatedAt"}
+		}
+		e.Signal.Target.Process.CreatedAt = uint64(v)
+
+		return nil
+
+	case "signal.target.egid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGID"}
+		}
+		e.Signal.Target.Process.Credentials.EGID = uint32(v)
+
+		return nil
+
+	case "signal.target.egroup":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGroup"}
+		}
+		e.Signal.Target.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "signal.target.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Envp"}
+		}
+		e.Signal.Target.Process.Envp = append(e.Signal.Target.Process.Envp, str)
+
+		return nil
+
+	case "signal.target.envs":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Envs"}
+		}
+		e.Signal.Target.Process.Envs = append(e.Signal.Target.Process.Envs, str)
+
+		return nil
+
+	case "signal.target.envs_truncated":
+
+		var ok bool
+		if e.Signal.Target.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.EnvsTruncated"}
+		}
+		return nil
+
+	case "signal.target.euid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EUID"}
+		}
+		e.Signal.Target.Process.Credentials.EUID = uint32(v)
+
+		return nil
+
+	case "signal.target.euser":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EUser"}
+		}
+		e.Signal.Target.Process.Credentials.EUser = str
+
+		return nil
+
+	case "signal.target.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.CTime"}
+		}
+		e.Signal.Target.Process.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "signal.target.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Filesystem"}
+		}
+		e.Signal.Target.Process.Filesystem = str
+
+		return nil
+
+	case "signal.target.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.GID"}
+		}
+		e.Signal.Target.Process.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "signal.target.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.Group"}
+		}
+		e.Signal.Target.Process.FileFields.Group = str
+
+		return nil
+
+	case "signal.target.file.in_upper_layer":
+
+		var ok bool
+		if e.Signal.Target.Process.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "signal.target.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.Inode"}
+		}
+		e.Signal.Target.Process.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "signal.target.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.Mode"}
+		}
+		e.Signal.Target.Process.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "signal.target.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.MTime"}
+		}
+		e.Signal.Target.Process.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "signal.target.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.MountID"}
+		}
+		e.Signal.Target.Process.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "signal.target.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.BasenameStr"}
+		}
+		e.Signal.Target.Process.BasenameStr = str
+
+		return nil
+
+	case "signal.target.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.PathnameStr"}
+		}
+		e.Signal.Target.Process.PathnameStr = str
+
+		return nil
+
+	case "signal.target.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.Mode"}
+		}
+		e.Signal.Target.Process.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "signal.target.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.UID"}
+		}
+		e.Signal.Target.Process.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "signal.target.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileFields.User"}
+		}
+		e.Signal.Target.Process.FileFields.User = str
+
+		return nil
+
+	case "signal.target.fsgid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSGID"}
+		}
+		e.Signal.Target.Process.Credentials.FSGID = uint32(v)
+
+		return nil
+
+	case "signal.target.fsgroup":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSGroup"}
+		}
+		e.Signal.Target.Process.Credentials.FSGroup = str
+
+		return nil
+
+	case "signal.target.fsuid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSUID"}
+		}
+		e.Signal.Target.Process.Credentials.FSUID = uint32(v)
+
+		return nil
+
+	case "signal.target.fsuser":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSUser"}
+		}
+		e.Signal.Target.Process.Credentials.FSUser = str
+
+		return nil
+
+	case "signal.target.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.GID"}
+		}
+		e.Signal.Target.Process.Credentials.GID = uint32(v)
+
+		return nil
+
+	case "signal.target.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.Group"}
+		}
+		e.Signal.Target.Process.Credentials.Group = str
+
+		return nil
+
+	case "signal.target.pid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Pid"}
+		}
+		e.Signal.Target.Process.Pid = uint32(v)
+
+		return nil
+
+	case "signal.target.ppid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.PPid"}
+		}
+		e.Signal.Target.Process.PPid = uint32(v)
+
+		return nil
+
+	case "signal.target.tid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Tid"}
+		}
+		e.Signal.Target.Process.Tid = uint32(v)
+
+		return nil
+
+	case "signal.target.tty_name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.TTYName"}
+		}
+		e.Signal.Target.Process.TTYName = str
+
+		return nil
+
+	case "signal.target.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.UID"}
+		}
+		e.Signal.Target.Process.Credentials.UID = uint32(v)
+
+		return nil
+
+	case "signal.target.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.User"}
+		}
+		e.Signal.Target.Process.Credentials.User = str
+
+		return nil
+
+	case "signal.type":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Type"}
+		}
+		e.Signal.Type = uint32(v)
+
+		return nil
+
+	case "splice.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.CTime"}
+		}
+		e.Splice.File.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "splice.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.Filesytem"}
+		}
+		e.Splice.File.Filesytem = str
+
+		return nil
+
+	case "splice.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.GID"}
+		}
+		e.Splice.File.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "splice.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Group"}
+		}
+		e.Splice.File.FileFields.Group = str
+
+		return nil
+
+	case "splice.file.in_upper_layer":
+
+		var ok bool
+		if e.Splice.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "splice.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Inode"}
+		}
+		e.Splice.File.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "splice.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
+		}
+		e.Splice.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "splice.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MTime"}
+		}
+		e.Splice.File.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "splice.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MountID"}
+		}
+		e.Splice.File.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "splice.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.BasenameStr"}
+		}
+		e.Splice.File.BasenameStr = str
+
+		return nil
+
+	case "splice.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PathnameStr"}
+		}
+		e.Splice.File.PathnameStr = str
+
+		return nil
+
+	case "splice.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
+		}
+		e.Splice.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "splice.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.UID"}
+		}
+		e.Splice.File.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "splice.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.User"}
+		}
+		e.Splice.File.FileFields.User = str
+
+		return nil
+
+	case "splice.pipe_entry_flag":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeEntryFlag"}
+		}
+		e.Splice.PipeEntryFlag = uint32(v)
+
+		return nil
+
+	case "splice.pipe_exit_flag":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeExitFlag"}
+		}
+		e.Splice.PipeExitFlag = uint32(v)
+
+		return nil
+
+	case "splice.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Splice.SyscallEvent.Retval"}
+		}
+		e.Splice.SyscallEvent.Retval = int64(v)
+
+		return nil
+
 	case "unlink.file.change_time":
 
 		var ok bool
@@ -19251,6 +26108,28 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.SyscallEvent.Retval"}
 		}
 		e.Unlink.SyscallEvent.Retval = int64(v)
+
+		return nil
+
+	case "unload_module.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.Name"}
+		}
+		e.UnloadModule.Name = str
+
+		return nil
+
+	case "unload_module.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.SyscallEvent.Retval"}
+		}
+		e.UnloadModule.SyscallEvent.Retval = int64(v)
 
 		return nil
 

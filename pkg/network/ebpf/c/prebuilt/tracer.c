@@ -1,3 +1,4 @@
+#include "kconfig.h"
 #include "tracer.h"
 
 #include "tracer-events.h"
@@ -5,14 +6,12 @@
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "sockfd.h"
-#include "tags.h"
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "ip.h"
 #include "ipv6.h"
 
-#include <linux/kconfig.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
 #include <net/tcp_states.h>

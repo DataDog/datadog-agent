@@ -82,12 +82,6 @@ func (tx *httpTX) Incomplete() bool {
 	return tx.request_started == 0 || tx.response_status_code == 0
 }
 
-// Tags returns an uint64 representing the tags bitfields
-// Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *httpTX) Tags() uint64 {
-	return uint64(tx.tags)
-}
-
 // IsDirty detects whether the batch page we're supposed to read from is still
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed

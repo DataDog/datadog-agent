@@ -7,12 +7,8 @@ package metrics
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 
-	jsoniter "github.com/json-iterator/go"
-
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -68,34 +64,6 @@ func (series *IterableSeries) IterationStopped() {
 	series.cancel()
 }
 
-// WriteHeader writes the payload header for this type
-func (series *IterableSeries) WriteHeader(stream *jsoniter.Stream) error {
-	return writeHeader(stream)
-}
-
-// WriteFooter writes the payload footer for this type
-func (series *IterableSeries) WriteFooter(stream *jsoniter.Stream) error {
-	return writeFooter(stream)
-}
-
-// WriteCurrentItem writes the json representation of an item
-func (series *IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
-	current := series.Current()
-	if current == nil {
-		return errors.New("nil serie")
-	}
-	return writeItem(stream, current)
-}
-
-// DescribeCurrentItem returns a text description for logs
-func (series *IterableSeries) DescribeCurrentItem() string {
-	current := series.Current()
-	if current == nil {
-		return "nil serie"
-	}
-	return describeItem(current)
-}
-
 // MoveNext advances to the next element.
 // Returns false for the end of the iteration.
 func (series *IterableSeries) MoveNext() bool {
@@ -111,11 +79,4 @@ func (series *IterableSeries) MoveNext() bool {
 // Current returns the current serie.
 func (series *IterableSeries) Current() *Serie {
 	return series.current
-}
-
-// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled MetricPayload objects.
-func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return marshalSplitCompress(series, bufferContext)
 }

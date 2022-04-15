@@ -84,7 +84,7 @@ build_omnibus-nikos_arm64:
   variables:
     ARCH: arm64
 
-build_vckpg_deps:
+build_vcpkg_deps:
   stage: deps_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:

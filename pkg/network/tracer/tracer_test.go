@@ -1542,6 +1542,10 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
 
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not supported.")
+	}
+
 	if strings.HasPrefix(runtime.GOARCH, "arm") {
 		t.Skip("this feature is not yet support on arm")
 	}
@@ -1570,44 +1574,38 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	testHTTPS := func(keepalives bool) {
-		// Spin-up HTTPS server
-		serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-			EnableTLS:        true,
-			EnableKeepAlives: keepalives,
-		})
-		defer serverDoneFn()
+	// Spin-up HTTPS server
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+		EnableTLS: true,
+	})
+	defer serverDoneFn()
 
-		// Run wget once to make sure the OpenSSL is detected and uprobes are attached
-		exec.Command(wget).Run()
-		time.Sleep(time.Second)
+	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+	exec.Command(wget).Run()
+	time.Sleep(time.Second)
 
-		// Issue request using `wget`
-		// This is necessary (as opposed to using net/http) because we want to
-		// test a HTTP client linked to OpenSSL
-		const targetURL = "https://127.0.0.1:443/200/foobar"
-		requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
-		err = requestCmd.Run()
-		assert.NoErrorf(t, err, "failed to issue request via wget: %s", err)
+	// Issue request using `wget`
+	// This is necessary (as opposed to using net/http) because we want to
+	// test a HTTP client linked to OpenSSL
+	const targetURL = "https://127.0.0.1:443/200/foobar"
+	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
+	err = requestCmd.Run()
+	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
 
-		assert.Eventuallyf(t, func() bool {
-			payload, _ := tr.GetActiveConnections("1")
-			for key := range payload.HTTP {
-				if key.Path == "/200/foobar" {
-					return true
-				}
+	require.Eventuallyf(t, func() bool {
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for key := range payload.HTTP {
+			if key.Path == "/200/foobar" {
+				return true
 			}
+		}
 
-			return false
-		}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
-	}
-
-	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPS(true)
-	})
-	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPS(false)
-	})
+		return false
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -21,9 +22,9 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 
 	endInvocationTime := time.Now()
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
@@ -32,11 +33,11 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	go testProcessor.OnInvokeEnd(&endDetails)
 
-	generatedMetrics := <-metricChannel
+	generatedMetrics := demux.WaitForSamples(time.Millisecond * 250)
 
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
@@ -44,7 +45,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 		Mtype:      metrics.DistributionType,
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
-		Timestamp:  float64(endInvocationTime.UnixNano()),
+		Timestamp:  float64(endInvocationTime.UnixNano()) / float64(time.Second),
 	}})
 }
 
@@ -52,7 +53,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -64,7 +65,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
@@ -80,7 +81,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
 
@@ -91,7 +92,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
@@ -107,7 +108,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -130,7 +131,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeEnd(&endDetails)
 
@@ -150,7 +151,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	var tracePayload *api.Payload
@@ -172,7 +173,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeEnd(&endDetails)
 

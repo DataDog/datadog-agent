@@ -41,8 +41,19 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 	}
 }
 
+// AssertCompositeTagsEqual evaluates if two CompositeTags are equal (the order doesn't matters).
+func AssertCompositeTagsEqual(t assert.TestingT, expected, actual tagset.CompositeTags) {
+	var expectedTags []string
+	expected.ForEach(func(tag string) { expectedTags = append(expectedTags, tag) })
+
+	var actualTags []string
+	actual.ForEach(func(tag string) { actualTags = append(actualTags, tag) })
+
+	AssertTagsEqual(t, expectedTags, actualTags)
+}
+
 // AssertSeriesEqual evaluate if two list of series match
-func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
+func AssertSeriesEqual(t *testing.T, expected []*Serie, series []*Serie) {
 	assert.Equal(t, len(expected), len(series))
 	for _, serie := range series {
 		found := false
@@ -59,10 +70,7 @@ func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
 // AssertSerieEqual evaluate if two are equal.
 func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	assert.Equal(t, expected.Name, actual.Name)
-	if expected.Tags != nil {
-		assert.NotNil(t, actual.Tags)
-		AssertTagsEqual(t, expected.Tags, actual.Tags)
-	}
+	AssertCompositeTagsEqual(t, expected.Tags, actual.Tags)
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.MType, actual.MType)
 	assert.Equal(t, expected.Interval, actual.Interval)
@@ -97,13 +105,16 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSer
 	}
 	assert.Equal(t, exp.Name, act.Name, "Name")
 
+	expTagsCount := exp.Tags.Len()
+	actTagsCount := act.Tags.Len()
+
 	switch {
-	case len(exp.Tags) == 0:
-		assert.Len(t, act.Tags, 0, "(act) Tags: should be empty")
-	case len(act.Tags) == 0:
-		assert.Len(t, exp.Tags, 0, "(act) Tags: shouldn't be empty")
+	case expTagsCount == 0:
+		assert.Equal(t, actTagsCount, 0, "(act) Tags: should be empty")
+	case actTagsCount == 0:
+		assert.Equal(t, expTagsCount, 0, "(act) Tags: shouldn't be empty")
 	default:
-		AssertTagsEqual(t, exp.Tags, act.Tags)
+		AssertCompositeTagsEqual(t, exp.Tags, act.Tags)
 	}
 
 	assert.Equal(t, exp.Host, act.Host, "Host")
@@ -132,41 +143,6 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSer
 			}
 		}
 	}
-}
-
-func makesketch(n int) *quantile.Sketch {
-	s, c := &quantile.Sketch{}, quantile.Default()
-	for i := 0; i < n; i++ {
-		s.Insert(c, float64(i))
-	}
-	return s
-}
-
-// Makeseries creates a SketchSeries with i+5 Sketch Points
-func Makeseries(i int) SketchSeries {
-	// Makeseries is deterministic so that we can test for mutation.
-	ss := SketchSeries{
-		Name: fmt.Sprintf("name.%d", i),
-		Tags: []string{
-			fmt.Sprintf("a:%d", i),
-			fmt.Sprintf("b:%d", i),
-		},
-		Host:     fmt.Sprintf("host.%d", i),
-		Interval: int64(i),
-	}
-
-	// We create i+5 Sketch Points to insure all hosts have at least 5 Sketch Points for tests
-	for j := 0; j < i+5; j++ {
-		ss.Points = append(ss.Points, SketchPoint{
-			Ts:     10 * int64(j),
-			Sketch: makesketch(j),
-		})
-	}
-
-	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(ss.Tags))
-
-	return ss
 }
 
 type tHelper interface {

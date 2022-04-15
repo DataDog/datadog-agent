@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"

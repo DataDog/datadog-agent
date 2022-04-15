@@ -259,3 +259,45 @@ func zipServiceStatus(tempDir, hostname string) error {
 	}
 	return nil
 }
+
+// zipDatadogRegistry function saves all Datadog registry keys and values from HKLM\Software\Datadog.
+// The implementation is based on the invoking Windows built-in reg.exe command, which does all
+// heavy lifting (instead of relying on explicit and recursive Registry API calls).
+// More technical details can be found in the PR https://github.com/DataDog/datadog-agent/pull/11290
+func zipDatadogRegistry(tempDir, hostname string) error {
+	// Generate raw exported registry file which we will scrub just in case
+	rawf := filepath.Join(tempDir, hostname, "datadog-raw.reg")
+	err := ensureParentDirsExist(rawf)
+	if err != nil {
+		return fmt.Errorf("Error in ensureParentDirsExist %v", err)
+	}
+
+	// reg.exe is built in Windows utility which will be always present
+	// https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg
+	cmd := exec.Command("reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if stderr.Len() > 0 {
+			return fmt.Errorf("Error getting Datadog registry exported via reg command. %v [%s]", stderr.String(), err)
+		}
+		return fmt.Errorf("Error getting Datadog registry exported via reg command. %v", err)
+	}
+	// Temporary datadog-raw.reg is created. Remove it when the function exits
+	defer os.Remove(rawf)
+
+	// Read raw registry file in memory ...
+	data, err := ioutil.ReadFile(rawf)
+	if err != nil {
+		return err
+	}
+
+	// ... scrub it and write it back
+	f := filepath.Join(tempDir, hostname, "datadog.reg")
+	err = writeScrubbedFile(f, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

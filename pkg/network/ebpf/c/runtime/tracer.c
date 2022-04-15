@@ -1,3 +1,4 @@
+#include "kconfig.h"
 #include "tracer.h"
 
 #include "tracer-events.h"
@@ -10,13 +11,11 @@
 #include "netns.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
-#include "tags.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
 #endif
 
-#include <linux/kconfig.h>
 #include <linux/version.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
