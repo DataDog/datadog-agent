@@ -286,14 +286,6 @@ __attribute__((always_inline)) u32 get_netns_from_nf_conn(struct nf_conn *ct) {
     return get_netns_from_net(net);
 }
 
-struct namespace_switch_event_t {
-    struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
-    struct container_context_t container;
-    struct syscall_t syscall;
-};
-
 SEC("kprobe/switch_task_namespaces")
 int kprobe_switch_task_namespaces(struct pt_regs *ctx) {
     struct nsproxy *new_ns = (struct nsproxy *)PT_REGS_PARM2(ctx);
@@ -310,13 +302,6 @@ int kprobe_switch_task_namespaces(struct pt_regs *ctx) {
     u32 netns = get_netns_from_net(net);
     u32 tid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&netns_cache, &tid, &netns, BPF_ANY);
-
-    struct namespace_switch_event_t evt = {};
-    struct proc_cache_t *entry = fill_process_context(&evt.process);
-    fill_container_context(entry, &evt.container);
-    fill_span_context(&evt.span);
-
-    send_event(ctx, EVENT_NAMESPACE_SWITCH, evt);
     return 0;
 }
 
