@@ -249,7 +249,6 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/.{9}-.{4}-.{4}-.{4}-.{12}/REQUEST_ID/g" |
                 perl -p -e "s/(TIMESTAMP:)\d{3}/\1XXX/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
