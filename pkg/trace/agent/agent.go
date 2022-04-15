@@ -55,6 +55,9 @@ type Agent struct {
 	obfuscator     *obfuscate.Obfuscator
 	cardObfuscator *ccObfuscator
 
+	// FilterSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
+	FilterSpan func(*pb.Span) bool
+
 	// ModifySpan will be called on all spans, if non-nil.
 	ModifySpan func(*pb.Span)
 
@@ -202,6 +205,9 @@ func (a *Agent) Process(p *api.Payload) {
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
+
+	a.filterSpans(p)
+
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
 		if len(chunk.Spans) == 0 {
@@ -348,6 +354,23 @@ func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)
+
+// filterSpans removes all spans for which the provided FilterSpan function returns true
+func (a *Agent) filterSpans(p *api.Payload) {
+	if a.FilterSpan == nil {
+		return
+	}
+	for i := 0; i < len(p.Chunks()); i++ {
+		chunk := p.Chunk(i)
+		filteredSpans := []*pb.Span{}
+		for _, span := range chunk.Spans {
+			if !a.FilterSpan(span) {
+				filteredSpans = append(filteredSpans, span)
+			}
+		}
+		chunk.Spans = filteredSpans
+	}
+}
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
 	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
