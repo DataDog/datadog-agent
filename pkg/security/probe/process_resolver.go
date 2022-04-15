@@ -338,38 +338,38 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	pid := uint32(proc.Pid)
 	// the provided process is a kernel process if its virtual memory size is null
-	isKernelProcess := filledProc.MemInfo.VMS == 0
-
-	if !isKernelProcess {
-		// Get process filename and pre-fill the cache
-		procExecPath := utils.ProcExePath(proc.Pid)
-		pathnameStr, err := os.Readlink(procExecPath)
-		if err != nil {
-			return errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid)
-		}
-		if pathnameStr == "/ (deleted)" {
-			return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
-		}
-
-		// Get the file fields of the process binary
-		info, err := p.retrieveExecFileFields(procExecPath)
-		if err != nil {
-			return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
-		}
-
-		// Retrieve the container ID of the process from /proc
-		containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
-		if err != nil {
-			return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
-		}
-
-		entry.FileEvent.FileFields = *info
-		entry.FileEvent.PathnameStr = pathnameStr
-		entry.FileEvent.BasenameStr = path.Base(pathnameStr)
-		entry.Process.ContainerID = string(containerID)
-		// resolve container path with the MountResolver
-		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
+	if filledProc.MemInfo.VMS == 0 {
+		return fmt.Errorf("cannot snapshot kernel threads")
 	}
+
+	// Get process filename and pre-fill the cache
+	procExecPath := utils.ProcExePath(proc.Pid)
+	pathnameStr, err := os.Readlink(procExecPath)
+	if err != nil {
+		return errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid)
+	}
+	if pathnameStr == "/ (deleted)" {
+		return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
+	}
+
+	// Get the file fields of the process binary
+	info, err := p.retrieveExecFileFields(procExecPath)
+	if err != nil {
+		return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
+	}
+
+	// Retrieve the container ID of the process from /proc
+	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+	if err != nil {
+		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
+	}
+
+	entry.FileEvent.FileFields = *info
+	entry.FileEvent.PathnameStr = pathnameStr
+	entry.FileEvent.BasenameStr = path.Base(pathnameStr)
+	entry.Process.ContainerID = string(containerID)
+	// resolve container path with the MountResolver
+	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -388,7 +388,6 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
 	}
-	var err error
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(proc.Pid)
 	if err != nil {
 		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)

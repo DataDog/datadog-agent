@@ -256,7 +256,7 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 	if p == o {
 		return true
-	} else if o == nil {
+	} else if p == nil || o == nil {
 		return false
 	}
 
