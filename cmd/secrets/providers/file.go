@@ -31,8 +31,11 @@ func ReadSecretFile(path string) s.Secret {
 		return s.Secret{Value: "", ErrorMsg: err.Error()}
 	}
 
+	// In kubernetes when kubelet mounts the secret|configmap key as a file, it
+	// is always a symlink to allow “atomic update“.
 	if fi.Mode()&os.ModeSymlink != 0 {
-		// Ensure that the symlink is in the same dir
+		// Check that the symlink is in the same dir.  This is not a security measure, but just a
+		// sanity check.
 		target, err := os.Readlink(path)
 		if err != nil {
 			return s.Secret{Value: "", ErrorMsg: fmt.Sprintf("failed to read symlink target: %v", err)}
@@ -46,14 +49,14 @@ func ReadSecretFile(path string) s.Secret {
 			}
 		}
 
+		targetDir := filepath.Dir(target)
+
 		dirAbs, err := filepath.Abs(dir)
 		if err != nil {
 			return s.Secret{Value: "", ErrorMsg: fmt.Sprintf("failed to resolve absolute path of directory: %v", err)}
 		}
 
-		// This used to use filepath.HasPrefix, it has been changed to strings.HasPrefix for clarity and to preserve behavior.
-		// filepath.HasPrefix is broken but there is no stdlib replacement.
-		if !strings.HasPrefix(target, dirAbs) {
+		if !strings.HasPrefix(targetDir+"/", dirAbs+"/") {
 			return s.Secret{Value: "", ErrorMsg: fmt.Sprintf("not following symlink %q outside of %q", target, dir)}
 		}
 	}
