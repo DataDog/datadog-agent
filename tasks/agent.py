@@ -129,6 +129,12 @@ def build(
         python_runtimes=python_runtimes,
     )
 
+    if sys.platform == 'darwin' and platform.processor() == 'arm64':
+        # Using amd64 when building with Mac M1
+        env["GOARCH"] = "amd64"
+        # Important for x-compiling
+        env["CGO_ENABLED"] = "1"
+
     if sys.platform == 'win32':
         py_runtime_var = get_win_py_runtime_var(python_runtimes)
 
