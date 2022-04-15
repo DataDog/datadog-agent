@@ -93,7 +93,7 @@ func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error
 
 func getStateString(state *pbgo.FileMetaState, padding int) string {
 	if state == nil {
-		return fmt.Sprintf(color.YellowString("%*s\n", padding, "- Not found"))
+		return color.YellowString(fmt.Sprintf("%*s\n", padding, "- Not found"))
 	}
 	return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
 }

@@ -71,14 +71,16 @@ func (c *CRIUtil) init() error {
 		return fmt.Errorf("failed to get dialer: %s", err)
 	}
 
-	conn, err := grpc.Dial(c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(c.connectionTimeout), grpc.WithContextDialer(dialer))
+	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithContextDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
 
 	c.client = pb.NewRuntimeServiceClient(conn)
 	// validating the connection by fetching the version
-	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
 	request := &pb.VersionRequest{}
 	r, err := c.client.Version(ctx, request)

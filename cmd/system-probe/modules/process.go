@@ -37,9 +37,6 @@ var Process = module.Factory{
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
-		if p == nil {
-			return nil, ErrProcessUnsupported
-		}
 		return &process{probe: p}, nil
 	},
 }

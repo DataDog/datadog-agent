@@ -59,7 +59,7 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
-	envs := append([]string{processConfigKey, processAgentKey})
+	envs := []string{processConfigKey, processAgentKey}
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 

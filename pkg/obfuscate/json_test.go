@@ -22,7 +22,7 @@ import (
 const obfuscateTestFile = "./testdata/json_tests.xml"
 
 type xmlObfuscateTests struct {
-	XMLName xml.Name            `xml:"ObfuscateTests,-"`
+	XMLName xml.Name            `xml:"ObfuscateTests"`
 	Tests   []*xmlObfuscateTest `xml:"TestSuite>Test"`
 }
 
