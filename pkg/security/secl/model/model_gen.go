@@ -1005,6 +1005,18 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
+		case "span_id":
+			z.SpanID, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "SpanID")
+				return
+			}
+		case "trace_id":
+			z.TraceID, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "TraceID")
+				return
+			}
 		case "tty":
 			z.TTYName, err = dc.ReadString()
 			if err != nil {
@@ -1108,9 +1120,9 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 16
+	// map header, size 18
 	// write "file"
-	err = en.Append(0xde, 0x0, 0x10, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	err = en.Append(0xde, 0x0, 0x12, 0xa4, 0x66, 0x69, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
@@ -1165,6 +1177,26 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 			err = msgp.WrapError(err, "ContainerTags", za0001)
 			return
 		}
+	}
+	// write "span_id"
+	err = en.Append(0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.SpanID)
+	if err != nil {
+		err = msgp.WrapError(err, "SpanID")
+		return
+	}
+	// write "trace_id"
+	err = en.Append(0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.TraceID)
+	if err != nil {
+		err = msgp.WrapError(err, "TraceID")
+		return
 	}
 	// write "tty"
 	err = en.Append(0xa3, 0x74, 0x74, 0x79)
@@ -1296,9 +1328,9 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 16
+	// map header, size 18
 	// string "file"
-	o = append(o, 0xde, 0x0, 0x10, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	o = append(o, 0xde, 0x0, 0x12, 0xa4, 0x66, 0x69, 0x6c, 0x65)
 	o, err = z.FileEvent.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "FileEvent")
@@ -1319,6 +1351,12 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0001 := range z.ContainerTags {
 		o = msgp.AppendString(o, z.ContainerTags[za0001])
 	}
+	// string "span_id"
+	o = append(o, 0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.SpanID)
+	// string "trace_id"
+	o = append(o, 0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.TraceID)
 	// string "tty"
 	o = append(o, 0xa3, 0x74, 0x74, 0x79)
 	o = msgp.AppendString(o, z.TTYName)
@@ -1436,6 +1474,18 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "span_id":
+			z.SpanID, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SpanID")
+				return
+			}
+		case "trace_id":
+			z.TraceID, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TraceID")
+				return
+			}
 		case "tty":
 			z.TTYName, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
@@ -1542,7 +1592,7 @@ func (z *Process) Msgsize() (s int) {
 	for za0001 := range z.ContainerTags {
 		s += msgp.StringPrefixSize + len(z.ContainerTags[za0001])
 	}
-	s += 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 11 + msgp.Uint64Size + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 5
+	s += 8 + msgp.Uint64Size + 9 + msgp.Uint64Size + 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 11 + msgp.Uint64Size + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 5
 	if z.ArgsEntry == nil {
 		s += msgp.NilSize
 	} else {

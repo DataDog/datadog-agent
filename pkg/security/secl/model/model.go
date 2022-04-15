@@ -271,6 +271,9 @@ type Process struct {
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
 
+	SpanID  uint64 `field:"-" msg:"span_id"`
+	TraceID uint64 `field:"-" msg:"trace_id"`
+
 	TTYName string `field:"tty_name" msg:"tty"` // Name of the TTY associated with the process
 	Comm    string `field:"comm" msg:"comm"`    // Comm attribute of the process
 

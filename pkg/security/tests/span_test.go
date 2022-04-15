@@ -20,6 +20,8 @@ import (
 )
 
 func TestSpan(t *testing.T) {
+	executable := which(t, "touch")
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_span_rule_open",
@@ -27,7 +29,7 @@ func TestSpan(t *testing.T) {
 		},
 		{
 			ID:         "test_span_rule_exec",
-			Expression: `exec.file.path == "/usr/bin/touch"`,
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ]`, executable),
 		},
 	}
 
@@ -80,8 +82,13 @@ func TestSpan(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		args := []string{"span-exec", "104", "204", "/usr/bin/touch", testFile}
-		envs := []string{}
+		var args []string
+		var envs []string
+		if kind == dockerWrapperType {
+			args = []string{"span-exec", "104", "204", "/usr/bin/touch", testFile}
+		} else if kind == stdWrapperType {
+			args = []string{"span-exec", "104", "204", executable, testFile}
+		}
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
