@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"k8s.io/client-go/transport"
 )
 
 var (
@@ -41,6 +43,7 @@ type kubeletClientConfig struct {
 	clientCertPath string
 	clientKeyPath  string
 	token          string
+	tokenPath      string
 }
 
 type kubeletClient struct {
@@ -77,29 +80,31 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 			return nil, err
 		}
 	}
-	customTransport.TLSClientConfig = tlsConfig
 
-	// Do not use token in plain text
-	headers := http.Header{}
-	if config.scheme == "https" {
-		if config.token != "" {
-			headers.Set(authorizationHeaderKey, fmt.Sprintf("bearer %s", config.token))
+	customTransport.TLSClientConfig = tlsConfig
+	httpClient := http.Client{
+		Transport: customTransport,
+	}
+
+	if config.scheme == "https" && config.token != "" {
+		// Configure the authentication token.
+		// Support dynamic auth tokens, aka Bound Service Account Token Volume (k8s v1.22+)
+		// This uses the same refresh period used in the client-go (1 minute).
+		httpClient.Transport, err = transport.NewBearerAuthWithRefreshRoundTripper(config.token, config.tokenPath, customTransport)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	// Defaulting timeout
 	if timeout == 0 {
-		timeout = 30 * time.Second
+		httpClient.Timeout = 30 * time.Second
 	}
 
 	return &kubeletClient{
-		client: http.Client{
-			Transport: customTransport,
-			Timeout:   timeout,
-		},
+		client:     httpClient,
 		kubeletURL: fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
 		config:     config,
-		headers:    headers,
 	}, nil
 }
 
@@ -188,6 +193,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		clientCertPath: kubeletClientCertPath,
 		clientKeyPath:  kubeletClientKeyPath,
 		token:          kubeletToken,
+		tokenPath:      kubeletTokenPath,
 	}
 
 	// Kubelet is unavailable, proxying calls through the APIServer (for instance EKS Fargate)
