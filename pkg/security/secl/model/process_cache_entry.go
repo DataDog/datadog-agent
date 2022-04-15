@@ -85,10 +85,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PPid = pc.Pid
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
-	childEntry.FileFields = pc.FileFields
-	childEntry.PathnameStr = pc.PathnameStr
-	childEntry.BasenameStr = pc.BasenameStr
-	childEntry.Filesystem = pc.Filesystem
+	childEntry.FileEvent = pc.FileEvent
 	childEntry.ContainerID = pc.ContainerID
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials

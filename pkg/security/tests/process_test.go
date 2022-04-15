@@ -109,11 +109,15 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_envp",
-			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"]`,
+			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"] && exec.args =~ "*example.com"`,
 		},
 		{
 			ID:         "test_rule_args_envs_dedup",
 			Expression: `exec.file.name == "ls" && exec.argv == "test123456"`,
+		},
+		{
+			ID:         "test_rule_ancestors_glob",
+			Expression: `exec.file.name == "ls" && exec.argv == "glob" && process.ancestors.file.path =~ "/usr/**"`,
 		},
 	}
 
@@ -188,7 +192,7 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileFields.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -264,7 +268,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"-al"}
+		args := []string{"-al", "http://example.com"}
 		envs := []string{"ENVP=test"}
 
 		test.WaitSignal(t, func() error {
@@ -438,8 +442,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileFields.Inode, inode, event)
+			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileEvent.Inode, inode, event)
 			}
 
 			str := event.String()
@@ -565,7 +569,6 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, envs)
-			// we need to ignore the error because the string of "a" generates a "File name too long" error
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -596,6 +599,18 @@ func TestProcessContext(t *testing.T) {
 			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
 				t.Error("should have envs")
 			}
+		})
+	})
+
+	t.Run("ancestors-glob", func(t *testing.T) {
+		lsExecutable := which(t, "ls")
+
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command(lsExecutable, "glob")
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_ancestors_glob")
 		})
 	})
 }
@@ -829,9 +844,9 @@ func TestProcessMetadata(t *testing.T) {
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
-			assertRights(t, event.Exec.FileFields.Mode, uint16(expectedMode))
-			assertNearTime(t, event.Exec.FileFields.MTime)
-			assertNearTime(t, event.Exec.FileFields.CTime)
+			assertRights(t, event.Exec.FileEvent.Mode, uint16(expectedMode))
+			assertNearTime(t, event.Exec.FileEvent.MTime)
+			assertNearTime(t, event.Exec.FileEvent.CTime)
 		})
 	})
 

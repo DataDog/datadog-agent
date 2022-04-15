@@ -139,7 +139,7 @@ func isValidTTYName(ttyName string) bool {
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
-	read, err := UnmarshalBinary(data, &e.FileFields)
+	read, err := UnmarshalBinary(data, &e.FileEvent)
 	if err != nil {
 		return 0, err
 	}

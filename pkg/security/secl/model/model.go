@@ -253,8 +253,8 @@ type Credentials struct {
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (e *Process) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
+	if e.FileEvent.PathResolutionError != nil {
+		return e.FileEvent.PathResolutionError.Error()
 	}
 	return ""
 }
@@ -262,16 +262,11 @@ func (e *Process) GetPathResolutionError() string {
 // Process represents a process
 type Process struct {
 	// proc_cache_t
-	FileFields FileFields `field:"file" msg:"file"`
+	FileEvent FileEvent `field:"file" msg:"file"`
 
 	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
 	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
 	NetNS uint32 `field:"-" msg:"-"`
-
-	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
-	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem" msg:"filesystem"` // FileSystem of the process executable
-	PathResolutionError error  `field:"-" msg:"-"`
 
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
@@ -363,9 +358,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr string `field:"path,ResolveFilePath" msg:"path"`                   // File's path
-	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`               // File's basename
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"` // File's filesystem
+	PathnameStr string `field:"path,ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
+	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`                        // File's basename
+	Filesystem  string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
 }
@@ -774,11 +769,11 @@ type NetworkContext struct {
 //msgp:ignore DNSEvent
 type DNSEvent struct {
 	ID    uint16 `field:"-"`
-	Name  string `field:"question.name" op_override:"DNSNameCmp"` // the queried domain name
-	Type  uint16 `field:"question.type"`                          // a two octet code which specifies the DNS question type
-	Class uint16 `field:"question.class"`                         // the class looked up by the DNS question
-	Size  uint16 `field:"question.size"`                          // the total DNS request size in bytes
-	Count uint16 `field:"question.count"`                         // the total count of questions in the DNS request
+	Name  string `field:"question.name" op_override:"eval.DNSNameCmp"` // the queried domain name
+	Type  uint16 `field:"question.type"`                               // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class"`                              // the class looked up by the DNS question
+	Size  uint16 `field:"question.size"`                               // the total DNS request size in bytes
+	Count uint16 `field:"question.count"`                              // the total count of questions in the DNS request
 }
 
 // NetDevice represents a network device

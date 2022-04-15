@@ -363,12 +363,12 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 			return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
 		}
 
-		entry.FileFields = *info
-		entry.Process.PathnameStr = pathnameStr
-		entry.Process.BasenameStr = path.Base(pathnameStr)
+		entry.FileEvent.FileFields = *info
+		entry.FileEvent.PathnameStr = pathnameStr
+		entry.FileEvent.BasenameStr = path.Base(pathnameStr)
 		entry.Process.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
-		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileFields.MountID)
+		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
@@ -549,22 +549,22 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
 	var err error
 
-	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		if entry.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileFields); err == nil {
-			entry.BasenameStr = path.Base(entry.PathnameStr)
+	if entry.FileEvent.Inode != 0 && entry.FileEvent.MountID != 0 {
+		if entry.FileEvent.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields); err == nil {
+			entry.FileEvent.BasenameStr = path.Base(entry.FileEvent.PathnameStr)
 		}
 	}
 
-	return entry.PathnameStr, err
+	return entry.FileEvent.PathnameStr, err
 }
 
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
-	if entry.FileFields.MountID != 0 {
-		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileFields.MountID)
+	if entry.FileEvent.MountID != 0 {
+		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID)
 	}
 
-	return entry.Filesystem
+	return entry.FileEvent.Filesystem
 }
 
 // ApplyBootTime realign timestamp from the boot time
@@ -997,7 +997,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		}
 	}
 
-	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)
+	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
 	return entry, true
 }
