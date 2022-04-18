@@ -51,25 +51,23 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 
 	currentExecutionInfo.requestPayload = rawPayload
 
-	if payload.Headers != nil || invokeEventHeaders.TraceID != "" {
-		var traceID, parentID uint64
-		var e1, e2 error
+	var traceID, parentID uint64
+	var e1, e2 error
 
-		if payload.Headers != nil {
-			traceID, e1 = convertStrToUnit64(payload.Headers[TraceIDHeader])
-			parentID, e2 = convertStrToUnit64(payload.Headers[ParentIDHeader])
-		} else {
-			traceID, e1 = convertStrToUnit64(invokeEventHeaders.TraceID)
-			parentID, e2 = convertStrToUnit64(invokeEventHeaders.ParentID)
-		}
+	if payload.Headers != nil {
+		traceID, e1 = convertStrToUnit64(payload.Headers[TraceIDHeader])
+		parentID, e2 = convertStrToUnit64(payload.Headers[ParentIDHeader])
+	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
+		traceID, e1 = convertStrToUnit64(invokeEventHeaders.TraceID)
+		parentID, e2 = convertStrToUnit64(invokeEventHeaders.ParentID)
+	}
 
-		if e1 == nil {
-			currentExecutionInfo.traceID = traceID
-		}
+	if e1 == nil {
+		currentExecutionInfo.traceID = traceID
+	}
 
-		if e2 == nil {
-			currentExecutionInfo.parentID = parentID
-		}
+	if e2 == nil {
+		currentExecutionInfo.parentID = parentID
 	}
 }
 
