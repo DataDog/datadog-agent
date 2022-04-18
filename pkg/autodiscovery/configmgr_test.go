@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// changeMatch verifies that the given slice of changes has exactly
+// assertConfigsMatch verifies that the given slice of changes has exactly
 // one match to each of the given functions, regardless of order.
 func assertConfigsMatch(t *testing.T, configs []integration.Config, matches ...func(integration.Config) bool) {
 	matchCount := make([]int, len(matches))
@@ -44,6 +44,7 @@ func assertConfigsMatch(t *testing.T, configs []integration.Config, matches ...f
 	}
 }
 
+// matchAll matches when all of the given functions match
 func matchAll(matches ...func(integration.Config) bool) func(integration.Config) bool {
 	return func(config integration.Config) bool {
 		for _, f := range matches {
@@ -55,12 +56,14 @@ func matchAll(matches ...func(integration.Config) bool) func(integration.Config)
 	}
 }
 
+// matchName matches config.Name
 func matchName(name string) func(integration.Config) bool {
 	return func(config integration.Config) bool {
 		return config.Name == name
 	}
 }
 
+// matchLogsConfig matches config.LogsConfig (for verifying templates are applied)
 func matchLogsConfig(logsConfig string) func(integration.Config) bool {
 	return func(config integration.Config) bool {
 		return string(config.LogsConfig) == logsConfig
@@ -314,6 +317,28 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 					i--
 				}
 			}
+
+			// verify that the loaded configs are correct
+			cm.mapOverLoadedConfigs(func(loaded map[string]integration.Config) {
+				failed := false
+
+				for digest := range scheduled {
+					if _, found := loaded[digest]; !found {
+						fmt.Printf("config with digest %s is not scheduled and should be", digest)
+						failed = true
+					}
+				}
+
+				for digest := range loaded {
+					if _, found := scheduled[digest]; !found {
+						fmt.Printf("config with digest %s is scheduled and should not be", digest)
+						failed = true
+					}
+				}
+				if failed {
+					suite.T().Fatalf("mapOverLoadedConfigs returned unexpected set of configs")
+				}
+			})
 
 			op++
 			if op > removeAfterOps && len(services) == 0 && len(configs) == 0 {
