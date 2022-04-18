@@ -67,6 +67,7 @@ type Tracer struct {
 	expiredTCPConns  int64 `stats:"atomic"`
 	closedConns      int64 `stats:"atomic"`
 	connStatsMapSize int64 `stats:"atomic"`
+	lastCheck        int64 `stats:"atomic"`
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -342,6 +343,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.getConnTelemetry(len(active))
 	rctm := t.getRuntimeCompilationTelemetry()
+	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,

@@ -32,30 +32,22 @@ func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
 func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]string, error) {
 	enabled := make(map[probes.ProbeName]string, 0)
 
+	kv410 := kernel.VersionCode(4, 1, 0)
+	kv470 := kernel.VersionCode(4, 7, 0)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
 	}
-	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
 	if c.CollectTCPConns {
-		if !runtimeTracer && pre410Kernel {
-			enableProbe(enabled, probes.TCPSendMsgPre410)
-		} else {
-			enableProbe(enabled, probes.TCPSendMsg)
-		}
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPCleanupRBuf)
 		enableProbe(enabled, probes.TCPClose)
 		enableProbe(enabled, probes.TCPCloseReturn)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
-
-		if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
-			enableProbe(enabled, probes.TCPRetransmitPre470)
-		} else {
-			enableProbe(enabled, probes.TCPRetransmit)
-		}
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 
 		missing, err := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"})
 		if err == nil && len(missing) == 0 {
@@ -67,30 +59,32 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 	}
 
 	if c.CollectUDPConns {
-		enableProbe(enabled, probes.UDPRecvMsgReturn)
 		enableProbe(enabled, probes.UDPDestroySock)
 		enableProbe(enabled, probes.UDPDestroySockReturn)
 		enableProbe(enabled, probes.IPMakeSkb)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsg, probes.UDPRecvMsgPre410, kv410))
+		enableProbe(enabled, probes.UDPRecvMsgReturn)
 
 		if c.CollectIPv6Conns {
-			if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
-				enableProbe(enabled, probes.IP6MakeSkbPre470)
-			} else {
-				enableProbe(enabled, probes.IP6MakeSkb)
-			}
-
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
 			enableProbe(enabled, probes.Inet6Bind)
 			enableProbe(enabled, probes.Inet6BindRet)
-		}
-
-		if !runtimeTracer && pre410Kernel {
-			enableProbe(enabled, probes.UDPRecvMsgPre410)
-		} else {
-			enableProbe(enabled, probes.UDPRecvMsg)
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsg, probes.UDPv6RecvMsgPre410, kv410))
+			enableProbe(enabled, probes.UDPv6RecvMsgReturn)
 		}
 	}
 
 	return enabled, nil
+}
+
+func selectVersionBasedProbe(runtimeTracer bool, kv kernel.Version, dfault probes.ProbeName, versioned probes.ProbeName, reqVer kernel.Version) probes.ProbeName {
+	if runtimeTracer {
+		return dfault
+	}
+	if kv < reqVer {
+		return versioned
+	}
+	return dfault
 }
