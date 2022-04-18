@@ -6,5 +6,9 @@ coverage:
   precision: 2
 
   status:
-    project: off
-    patch: off
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
