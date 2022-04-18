@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -132,4 +133,8 @@ func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
 // GetExtraConfig is not supported
 func (s *EnvironmentService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *EnvironmentService) FilterTemplates(configs map[string]integration.Config) {
 }

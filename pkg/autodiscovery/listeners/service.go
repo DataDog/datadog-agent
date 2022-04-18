@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -114,6 +115,10 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 	}
 
 	return false
+}
+
+// FilterTemplates implements Service#FilterTemplates.
+func (s *service) FilterTemplates(configs map[string]integration.Config) {
 }
 
 // GetExtraConfig returns extra configuration associated with the service.

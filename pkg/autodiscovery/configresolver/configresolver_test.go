@@ -93,6 +93,10 @@ func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte(s.ExtraConfig[string(key)]), nil
 }
 
+// FilterConfigs does nothing.
+func (s *dummyService) FilterTemplates(map[string]integration.Config) {
+}
+
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)

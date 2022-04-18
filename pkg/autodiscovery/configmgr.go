@@ -346,6 +346,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 
 	serviceAndADIDs := cm.activeServices[svcID]
 	adIDs := serviceAndADIDs.adIDs // nil slice if service is not defined
+	svc := serviceAndADIDs.svc
 
 	// get the existing resolutions for this service
 	existingResolutions, found := cm.serviceResolutions[svcID]
@@ -353,13 +354,19 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 		existingResolutions = map[string]string{}
 	}
 
-	// calculate the expected matching templates by template digest
-	expectedResolutions := map[string]struct{}{}
+	// determine the matching templates by template digest
+	expectedResolutions := map[string]integration.Config{}
 	for _, adID := range adIDs {
 		digests := cm.templatesByADID.get(adID)
 		for _, digest := range digests {
-			expectedResolutions[digest] = struct{}{}
+			tpl := cm.activeConfigs[digest]
+			expectedResolutions[digest] = tpl
 		}
+	}
+
+	// allow the service to filter those templates
+	if svc != nil {
+		svc.FilterTemplates(expectedResolutions)
 	}
 
 	// compare existing to expected, generating changes and modifying
@@ -371,10 +378,9 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 		}
 	}
 
-	for digest := range expectedResolutions {
+	for digest, config := range expectedResolutions {
 		if _, found := existingResolutions[digest]; !found {
-			config := cm.activeConfigs[digest]
-			resolved, ok := cm.resolveTemplateForService(config, serviceAndADIDs.svc)
+			resolved, ok := cm.resolveTemplateForService(config, svc)
 			if !ok {
 				continue
 			}

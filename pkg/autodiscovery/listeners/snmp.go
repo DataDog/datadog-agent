@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -419,6 +420,10 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(fmt.Sprintf("%d", s.config.MinCollectionInterval)), nil
 	}
 	return []byte{}, ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *SNMPService) FilterTemplates(configs map[string]integration.Config) {
 }
 
 func convertToCommaSepTags(tags []string) string {
