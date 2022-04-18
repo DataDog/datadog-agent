@@ -130,8 +130,8 @@ github.com/DataDog/datadog-go/v5 v5.1.0 h1:Zmq3tCk9+Tdq8Du73M71Zo6Dyx+cEo9QkCSCq
 github.com/DataDog/datadog-go/v5 v5.1.0/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a h1:vqz6k806rvz01tIzOA2UHE3j1IEAMcDxw8O+nA3H+Mk=
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a/go.mod h1:2qOvG41jii2ks6Umn6MbDGlHRgwoFiYXcjgQQ9VlsS0=
-github.com/DataDog/ebpf-manager v0.0.0-20220325092125-b2221d88caf3 h1:QixW0L0iCNVo/7+rt/dggbp0Qq29bLMO3Uqf4jgfPUw=
-github.com/DataDog/ebpf-manager v0.0.0-20220325092125-b2221d88caf3/go.mod h1:eOlqnaKvEMqn47uNlK+UMdQHwpnL0xXFJAhxwYgLqT0=
+github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde h1:tAtD5vDOWsD3s44PMuqVnQ4ADPwqyw1usEZ2Afs5j9g=
+github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde/go.mod h1:8v4KnNvpgDUsYDSxC0cgKq8Why5Z0oI4lN9gy/sMEJs=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c h1:a9OMhZzrrB4nd2eAsXZIBkQ061Gb/QT4CI2g+OWWevs=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c/go.mod h1:lMIXf2EAzxbIv2zEvWu1bdqlaclUWoCtN13MHuPcY5I=
 github.com/DataDog/gohai v0.0.0-20220329101230-3b6a804fdd24 h1:R8hgt2Rj4j5vED8q/SLVYSqmlA466xpBjRdBe+QOwO0=
@@ -344,8 +344,8 @@ github.com/cilium/ebpf v0.2.0/go.mod h1:To2CFviqOWL/M0gIMsvSMlqe7em/l1ALkX1PyjrX
 github.com/cilium/ebpf v0.4.0/go.mod h1:4tRaxcgiL706VnOzHOdBlY8IEAIdxINsQBcU4xJJXRs=
 github.com/cilium/ebpf v0.5.0/go.mod h1:4tRaxcgiL706VnOzHOdBlY8IEAIdxINsQBcU4xJJXRs=
 github.com/cilium/ebpf v0.6.2/go.mod h1:4tRaxcgiL706VnOzHOdBlY8IEAIdxINsQBcU4xJJXRs=
-github.com/cilium/ebpf v0.8.1 h1:bLSSEbBLqGPXxls55pGr5qWZaTqcmfDJHhou7t254ao=
-github.com/cilium/ebpf v0.8.1/go.mod h1:f5zLIM0FSNuAkSyLAN7X+Hy6yznlF1mNiWUMfxMtrgk=
+github.com/cilium/ebpf v0.8.2-0.20220404151855-0d439865ca15 h1:eZrQJDHgjOgeSOw2x8tgjO9B13n1BR9yqwlq1AIu2kk=
+github.com/cilium/ebpf v0.8.2-0.20220404151855-0d439865ca15/go.mod h1:f5zLIM0FSNuAkSyLAN7X+Hy6yznlF1mNiWUMfxMtrgk=
 github.com/circonus-labs/circonus-gometrics v2.3.1+incompatible/go.mod h1:nmEj6Dob7S7YxXgwXpfOuvO54S+tGdZdw9fuRZt25Ag=
 github.com/circonus-labs/circonusllhist v0.1.3/go.mod h1:kMXHVDlOchFAehlya5ePtbp5jckzBHf4XRpQvBOLI+I=
 github.com/clbanning/mxj v1.8.4 h1:HuhwZtbyvyOw+3Z1AowPkU87JkJUSv751ELWaiTpj8I=

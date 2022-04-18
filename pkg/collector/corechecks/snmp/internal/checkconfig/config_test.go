@@ -471,7 +471,7 @@ bulk_max_repetitions: -5
 `)
 	// language=yaml
 	rawInitConfig = []byte(``)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "bulk max repetition must be a positive integer. Invalid value: -5")
 }
 
@@ -1147,7 +1147,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
 	coreconfig.Datadog.Set("network_devices.namespace", "")
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
 

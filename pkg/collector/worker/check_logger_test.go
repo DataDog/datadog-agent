@@ -57,7 +57,7 @@ func TestShouldLogLastVerboseLog(t *testing.T) {
 	for idx := 1; idx < 10; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 
-		for logIdx := 0; logIdx < 61; logIdx++ {
+		for logIdx := 1; logIdx < 61; logIdx++ {
 			// Given a CheckLogger
 			checkLogger := CheckLogger{Check: testCheck}
 			// When I start the check
@@ -68,11 +68,14 @@ func TestShouldLogLastVerboseLog(t *testing.T) {
 			checkLogger.CheckFinished()
 
 			lastVerboseLog := checkLogger.lastVerboseLog
+			shouldLog := checkLogger.shouldLog
 
 			// Then lastVerboseLog should be true for 5th run
+			// And shouldLog should be true as well so that we log the next run message
 			// initialCheckLoggingSeriesLimit should be 5
 			if logIdx == 5 {
 				assert.True(t, lastVerboseLog, fmt.Sprintf("Loop idx: %d", logIdx))
+				assert.True(t, shouldLog, fmt.Sprintf("Loop idx: %d", logIdx))
 			} else {
 				assert.False(t, lastVerboseLog, fmt.Sprintf("Loop idx: %d", logIdx))
 			}

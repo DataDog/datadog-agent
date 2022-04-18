@@ -64,6 +64,7 @@ func runProcessing(inputFile, outputFile string, dirs []string) error {
 		}
 		includeDirs = append(includeDirs, dir)
 	}
+	ps := newPathSearcher(includeDirs)
 
 	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
 		return err
@@ -79,14 +80,20 @@ func runProcessing(inputFile, outputFile string, dirs []string) error {
 		return fmt.Errorf("error setting mode on output file: %s", err)
 	}
 
+	bof := bufio.NewWriter(of)
+
 	includedFiles := make(map[string]struct{})
-	if err := processIncludes(inputFile, of, includeDirs, includedFiles); err != nil {
+	if err := processIncludes(inputFile, bof, ps, includedFiles); err != nil {
 		return fmt.Errorf("error processing includes: %s", err)
+	}
+
+	if err := bof.Flush(); err != nil {
+		return fmt.Errorf("error flushing buffer to disk: %s", err)
 	}
 	return nil
 }
 
-func processIncludes(path string, out io.Writer, includeDirs []string, includedFiles map[string]struct{}) error {
+func processIncludes(path string, out io.Writer, ps *pathSearcher, includedFiles map[string]struct{}) error {
 	if _, included := includedFiles[path]; included {
 		return nil
 	}
@@ -104,11 +111,11 @@ func processIncludes(path string, out io.Writer, includeDirs []string, includedF
 		match := includeRegexp.FindSubmatch(scanner.Bytes())
 		if len(match) == 2 {
 			headerName := string(match[1])
-			headerPath, err := findInclude(path, headerName, includeDirs)
+			headerPath, err := ps.findInclude(path, headerName)
 			if err != nil {
 				return fmt.Errorf("error searching for header: %s", err)
 			}
-			if err := processIncludes(headerPath, out, includeDirs, includedFiles); err != nil {
+			if err := processIncludes(headerPath, out, ps, includedFiles); err != nil {
 				return err
 			}
 			continue
@@ -119,14 +126,55 @@ func processIncludes(path string, out io.Writer, includeDirs []string, includedF
 	return nil
 }
 
-func findInclude(srcPath string, headerName string, includeDirs []string) (string, error) {
-	allDirs := append([]string{filepath.Dir(srcPath)}, includeDirs...)
+type pathCacheEntry struct {
+	srcPath    string
+	headerName string
+}
 
-	for _, dir := range allDirs {
-		p := filepath.Join(dir, headerName)
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
+type pathSearcher struct {
+	includeDirs []string
+	cache       map[pathCacheEntry]string
+}
+
+func newPathSearcher(includeDirs []string) *pathSearcher {
+	return &pathSearcher{
+		includeDirs: includeDirs,
+		cache:       make(map[pathCacheEntry]string),
+	}
+}
+
+func isFilePresent(dir string, headerName string) (string, bool) {
+	p := filepath.Join(dir, headerName)
+	_, err := os.Stat(p)
+	return p, err == nil
+}
+
+func (ps *pathSearcher) findIncludeInner(srcPath string, headerName string) (string, error) {
+	if fullPath, ok := isFilePresent(filepath.Dir(srcPath), headerName); ok {
+		return fullPath, nil
+	}
+
+	for _, dir := range ps.includeDirs {
+		if fullPath, ok := isFilePresent(dir, headerName); ok {
+			return fullPath, nil
 		}
 	}
 	return "", fmt.Errorf("file %s not found", headerName)
+}
+
+func (ps *pathSearcher) findInclude(srcPath string, headerName string) (string, error) {
+	ce := pathCacheEntry{
+		srcPath:    srcPath,
+		headerName: headerName,
+	}
+
+	if fullPath, present := ps.cache[ce]; present {
+		return fullPath, nil
+	}
+
+	computed, err := ps.findIncludeInner(srcPath, headerName)
+	if err == nil {
+		ps.cache[ce] = computed
+	}
+	return computed, err
 }

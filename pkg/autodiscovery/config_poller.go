@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -122,6 +123,11 @@ func (pd *configPoller) collect(ctx context.Context) ([]integration.Config, []in
 	var newConf []integration.Config
 	var removedConf []integration.Config
 	old := pd.configs
+
+	start := time.Now()
+	defer func() {
+		telemetry.PollDuration.Observe(time.Since(start).Seconds(), pd.provider.String())
+	}()
 
 	fetched, err := pd.provider.Collect(ctx)
 	if err != nil {

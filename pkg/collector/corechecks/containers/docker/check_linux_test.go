@@ -286,3 +286,23 @@ func TestDockerNetworkExtension(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.net.bytes_rcvd", 7, "", []string{"foo:bar", "docker_network:bridge"})
 	mockSender.AssertMetric(t, "Rate", "docker.net.bytes_sent", 7, "", []string{"foo:bar", "docker_network:bridge"})
 }
+
+func TestNetworkCustomOnFailure(t *testing.T) {
+	// Make sure we don't panic if generic part fails
+	networkExt := dockerNetworkExtension{procPath: "/proc"}
+
+	networkExt.preRun()
+	networkExt.processContainer(dockerTypes.Container{
+		ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
+		Names:   []string{"agent"},
+		Image:   "datadog/agent",
+		ImageID: "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6",
+		Labels: map[string]string{
+			"io.kubernetes.pod.namespace": "kubens",
+		},
+		State:      containers.ContainerRunningState,
+		SizeRw:     100,
+		SizeRootFs: 200,
+	})
+	networkExt.postRun()
+}

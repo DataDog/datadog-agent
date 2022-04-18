@@ -609,7 +609,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     agent_integration_tests(ctx, install_deps, race, remote_docker)
     dsd_integration_tests(ctx, install_deps, race, remote_docker)
     dca_integration_tests(ctx, install_deps, race, remote_docker)
-    trace_integration_tests(ctx, install_deps, race, remote_docker)
+    trace_integration_tests(ctx, install_deps, race)
 
 
 @task

@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	s "github.com/DataDog/datadog-agent/pkg/secrets"
 )
@@ -50,7 +51,9 @@ func ReadSecretFile(path string) s.Secret {
 			return s.Secret{Value: "", ErrorMsg: fmt.Sprintf("failed to resolve absolute path of directory: %v", err)}
 		}
 
-		if !filepath.HasPrefix(target, dirAbs) {
+		// This used to use filepath.HasPrefix, it has been changed to strings.HasPrefix for clarity and to preserve behavior.
+		// filepath.HasPrefix is broken but there is no stdlib replacement.
+		if !strings.HasPrefix(target, dirAbs) {
 			return s.Secret{Value: "", ErrorMsg: fmt.Sprintf("not following symlink %q outside of %q", target, dir)}
 		}
 	}

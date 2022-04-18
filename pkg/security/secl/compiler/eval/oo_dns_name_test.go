@@ -3,36 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
-package probe
+package eval
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestLowerCaseEquals(t *testing.T) {
 	t.Run("no-match", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Value:     "BAR",
-			ValueType: eval.ScalarValueType,
+			ValueType: ScalarValueType,
 		}
 
-		b := &eval.StringEvaluator{
+		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "foo"
 			},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
@@ -44,20 +38,20 @@ func TestLowerCaseEquals(t *testing.T) {
 	})
 
 	t.Run("scalar", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Value:     "FOO",
-			ValueType: eval.ScalarValueType,
+			ValueType: ScalarValueType,
 		}
 
-		b := &eval.StringEvaluator{
+		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "foo"
 			},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
@@ -69,20 +63,20 @@ func TestLowerCaseEquals(t *testing.T) {
 	})
 
 	t.Run("glob", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Value:     "FO*",
-			ValueType: eval.PatternValueType,
+			ValueType: PatternValueType,
 		}
 
-		b := &eval.StringEvaluator{
+		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "foo"
 			},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
@@ -94,20 +88,20 @@ func TestLowerCaseEquals(t *testing.T) {
 	})
 
 	t.Run("regex", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Value:     "FO.*",
-			ValueType: eval.RegexpValueType,
+			ValueType: RegexpValueType,
 		}
 
-		b := &eval.StringEvaluator{
+		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "foo"
 			},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
 		assert.Empty(t, err)
@@ -121,23 +115,23 @@ func TestLowerCaseEquals(t *testing.T) {
 
 func TestLowerCaseContains(t *testing.T) {
 	t.Run("no-match", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "BAR"
 			},
 		}
 
-		var values eval.StringValues
-		values.AppendFieldValue(eval.FieldValue{Value: "aaa", Type: eval.ScalarValueType})
-		values.AppendFieldValue(eval.FieldValue{Value: "foo", Type: eval.ScalarValueType})
+		var values StringValues
+		values.AppendFieldValue(FieldValue{Value: "aaa", Type: ScalarValueType})
+		values.AppendFieldValue(FieldValue{Value: "foo", Type: ScalarValueType})
 
-		b := &eval.StringValuesEvaluator{
+		b := &StringValuesEvaluator{
 			Values: values,
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
@@ -145,23 +139,23 @@ func TestLowerCaseContains(t *testing.T) {
 	})
 
 	t.Run("scalar", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "FOO"
 			},
 		}
 
-		var values eval.StringValues
-		values.AppendFieldValue(eval.FieldValue{Value: "aaa", Type: eval.ScalarValueType})
-		values.AppendFieldValue(eval.FieldValue{Value: "foo", Type: eval.ScalarValueType})
+		var values StringValues
+		values.AppendFieldValue(FieldValue{Value: "aaa", Type: ScalarValueType})
+		values.AppendFieldValue(FieldValue{Value: "foo", Type: ScalarValueType})
 
-		b := &eval.StringValuesEvaluator{
+		b := &StringValuesEvaluator{
 			Values: values,
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
@@ -169,23 +163,23 @@ func TestLowerCaseContains(t *testing.T) {
 	})
 
 	t.Run("glob", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "foo"
 			},
 		}
 
-		var values eval.StringValues
-		values.AppendFieldValue(eval.FieldValue{Value: "aaa", Type: eval.ScalarValueType})
-		values.AppendFieldValue(eval.FieldValue{Value: "FOO*", Type: eval.PatternValueType})
+		var values StringValues
+		values.AppendFieldValue(FieldValue{Value: "aaa", Type: ScalarValueType})
+		values.AppendFieldValue(FieldValue{Value: "FOO*", Type: PatternValueType})
 
-		b := &eval.StringValuesEvaluator{
+		b := &StringValuesEvaluator{
 			Values: values,
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
@@ -193,31 +187,31 @@ func TestLowerCaseContains(t *testing.T) {
 	})
 
 	t.Run("regex", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "foo"
 			},
 		}
 
-		var values eval.StringValues
-		values.AppendFieldValue(eval.FieldValue{Value: "aaa", Type: eval.ScalarValueType})
-		values.AppendFieldValue(eval.FieldValue{Value: "FO.*", Type: eval.RegexpValueType})
+		var values StringValues
+		values.AppendFieldValue(FieldValue{Value: "aaa", Type: ScalarValueType})
+		values.AppendFieldValue(FieldValue{Value: "FO.*", Type: RegexpValueType})
 
-		b := &eval.StringValuesEvaluator{
+		b := &StringValuesEvaluator{
 			Values: values,
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 
-		values.AppendFieldValue(eval.FieldValue{Value: "[Ff][Oo].*", Type: eval.RegexpValueType})
+		values.AppendFieldValue(FieldValue{Value: "[Ff][Oo].*", Type: RegexpValueType})
 
-		b = &eval.StringValuesEvaluator{
+		b = &StringValuesEvaluator{
 			Values: values,
 		}
 
@@ -227,34 +221,34 @@ func TestLowerCaseContains(t *testing.T) {
 	})
 
 	t.Run("eval", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "FOO"
 			},
 		}
 
-		var values eval.StringValues
-		values.AppendFieldValue(eval.FieldValue{Value: "aaa", Type: eval.ScalarValueType})
-		values.AppendFieldValue(eval.FieldValue{Value: "fo*", Type: eval.PatternValueType})
+		var values StringValues
+		values.AppendFieldValue(FieldValue{Value: "aaa", Type: ScalarValueType})
+		values.AppendFieldValue(FieldValue{Value: "fo*", Type: PatternValueType})
 
-		opts := eval.StringCmpOpts{
-			ScalarCaseInsensitive: true,
-			GlobCaseInsensitive:   true,
+		opts := StringCmpOpts{
+			ScalarCaseInsensitive:  true,
+			PatternCaseInsensitive: true,
 		}
 
 		if err := values.Compile(opts); err != nil {
 			t.Error(err)
 		}
 
-		b := &eval.StringValuesEvaluator{
-			EvalFnc: func(ctx *eval.Context) *eval.StringValues {
+		b := &StringValuesEvaluator{
+			EvalFnc: func(ctx *Context) *StringValues {
 				return &values
 			},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
 		assert.Empty(t, err)
@@ -264,19 +258,19 @@ func TestLowerCaseContains(t *testing.T) {
 
 func TestLowerCaseArrayContains(t *testing.T) {
 	t.Run("no-match", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "BAR"
 			},
 		}
 
-		b := &eval.StringArrayEvaluator{
+		b := &StringArrayEvaluator{
 			Values: []string{"aaa", "bbb"},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringArrayContains(a, b, nil, state)
 		assert.Empty(t, err)
@@ -284,19 +278,19 @@ func TestLowerCaseArrayContains(t *testing.T) {
 	})
 
 	t.Run("scalar", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "FOO"
 			},
 		}
 
-		b := &eval.StringArrayEvaluator{
+		b := &StringArrayEvaluator{
 			Values: []string{"aaa", "foo"},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringArrayContains(a, b, nil, state)
 		assert.Empty(t, err)
@@ -304,21 +298,21 @@ func TestLowerCaseArrayContains(t *testing.T) {
 	})
 
 	t.Run("eval", func(t *testing.T) {
-		a := &eval.StringEvaluator{
+		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *eval.Context) string {
+			EvalFnc: func(ctx *Context) string {
 				return "foo"
 			},
 		}
-		b := &eval.StringArrayEvaluator{
+		b := &StringArrayEvaluator{
 			Field: "array",
-			EvalFnc: func(ctx *eval.Context) []string {
+			EvalFnc: func(ctx *Context) []string {
 				return []string{"aaa", "foo"}
 			},
 		}
 
-		var ctx eval.Context
-		state := eval.NewState(&model.Model{}, "", nil)
+		var ctx Context
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := DNSNameCmp.StringArrayContains(a, b, nil, state)
 		assert.Empty(t, err)

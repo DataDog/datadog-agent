@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.35.1:
+
+7.35.1 / 6.35.1
+======
+
+.. _Release Notes_7.35.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-04-12
+
+
+.. _Release Notes_7.35.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The weak dependency of datadog-agent, datadog-iot-agent and dogstatsd deb
+  packages on the datadog-signing-keys package has been fixed to ensure
+  proper upgrade to version 1:1.1.0.
+
+
 .. _Release Notes_7.35.0:
 
 7.35.0 / 6.35.0
@@ -42,7 +65,7 @@ Upgrade Notes
   0% of traces to Datadog, instead of 100% in previous Agent versions. 
 
 - The OTLP ingest endpoint is now considered stable for traces.
-  Its configuration is located in the `top-level ``otlp_config`` section <https://github.com/DataDog/datadog-agent/blob/7.35.0/pkg/config/config_template.yaml#L2915-L2918>`_.
+  Its configuration is located in the top-level `otlp_config section <https://github.com/DataDog/datadog-agent/blob/7.35.0/pkg/config/config_template.yaml#L2915-L2918>`_.
   
   Support for the deprecated ``experimental.otlp`` section and the ``DD_OTLP_GRPC_PORT`` and ``DD_OTLP_HTTP_PORT``
   environment variables will be removed in Agent 7.37. Use the ``otlp_config`` section or the
@@ -61,120 +84,109 @@ New Features
 
 - The security Agent now offers a command to directly download the policy file from the API.
 
-- Policy can now define macros with items specified as a YAML list
-  instead of a SECL expression, as
+- CWS: Policy can now define macros with items specified as a YAML list
+  instead of a SECL expression, as:::
   
-    ```
     - my_macro:
       values:
         - value1
         - value2
-    ```
   
   In addition, macros and rules can now be updated in later loaded policies
-  (`default.policy` is loaded first, the other policies in the folder are loaded
+  (``default.policy`` is loaded first, the other policies in the folder are loaded
   in alphabetical order).
   
-  The previous macro can be modified with:
+  The previous macro can be modified with:::
   
-    ```
     - my_macro:
       combine: merge
       values:
         - value3
-    ```
   
-  It can also be overriden with:
+  It can also be overriden with:::
   
-    ```
     - my_macro:
       combine: override
       values:
         - my-single-value
-    ```
   
-  Rules can now also be disabled with:
-    ```
+  Rules can now also be disabled with:::
+  
     - my_rule:
       disabled: true
-    ````
 
 - Cloud Workload Security now works on Google's Container Optimized OS LTS versions, starting
   from v81.
 
-- Allow setting variables to store states through rule actions.
-  Action rules can now be defined as follows:
+- CWS: Allow setting variables to store states through rule actions.
+  Action rules can now be defined as follows:::
   
-  ```
-  - id: my_rule
-    expression: ...
-    actions:
-      - set:
-          name: my_boolean_variable
-          value: true
-      - set:
-          name: my_string_variable
-          value: a string
-      - set:
-          name: my_other_variable
-          field: process.file.name
-  ```
+    - id: my_rule
+      expression: ...
+      actions:
+        - set:
+            name: my_boolean_variable
+            value: true
+        - set:
+            name: my_string_variable
+            value: a string
+        - set:
+            name: my_other_variable
+            field: process.file.name
   
   These actions will be executed when the rule is triggered by an event.
-  Right now, only `set` actions can be defined.
-  `name` is the name of the variable that will be set by the actions.
+  Right now, only ``set`` actions can be defined.
+  ``name`` is the name of the variable that will be set by the actions.
   The value for the variable can be specified by using:
-  - `value` for a predefined value
+
+  - ``value`` for a predefined value
     (strings, integers, booleans, array of strings and array of integers are currently supported).
-  - `field` for the value of an event field.
+  - ``field`` for the value of an event field.
   
-  Variable arrays can be modified by specifying `append: true`.
+  Variable arrays can be modified by specifying ``append: true``.
   
-  Variables can be reused in rule expressions like a regular variable:
+  Variables can be reused in rule expressions like a regular variable:::
+
+    - id: my_other_rule
+      expression: |-
+        open.file.path == ${my_other_variable}
+
+  By default, variables are global. They can be bounded to a specific process by using the ``process``
+  scope as follows:::
+
+    - set:
+        name: my_scoped_variable
+        scope: process
+        value: true
   
-  ```
-  - id: my_other_rule
-    expression: |-
-      open.file.path == ${my_other_variable}
-  ```
-  
-  By default, variables are global. They can be bounded to a specific process by using the `process`
-  scope as follows:
-  
-  ```
-  - set:
-      name: my_scoped_variable
-      scope: process
-      value: true
-  ```
-  
-  The variable can be referenced in other expressions as `${process.my_scoped_variable}`. When the process dies, the
+  The variable can be referenced in other expressions as ``${process.my_scoped_variable}``. When the process dies, the
   variable with be automatically freed.
 
-- Configuration `process_config.enabled` is now split into two settings: `process_config.process_collection.enabled` and `process_config.container_collection.enabled`. This will allow better control over the process Agent.
-  `process_config.enabled` now translates to these new settings:
-  * `process_config.enabled=true`: `process_config.process_collection.enabled=true`
-  * `process_config.enabled=false`: `process_config.container_collection.enabled=true` and `process_config.process_collection.enabled=false`
-  * `process_config.enabled=disabled`: `process_config.container_collection.enabled=false` and `process_config.process_collection.enabled=false`
+- Configuration ``process_config.enabled`` is now split into two settings: ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled``. This will allow better control over the process Agent.
+  ``process_config.enabled`` now translates to these new settings:
+
+  * ``process_config.enabled=true``: ``process_config.process_collection.enabled=true``
+  * ``process_config.enabled=false``: ``process_config.container_collection.enabled=true`` and ``process_config.process_collection.enabled=false``
+  * ``process_config.enabled=disabled``: ``process_config.container_collection.enabled=false`` and ``process_config.process_collection.enabled=false``
 
 - Expose additional CloudFoundry metadata in the DCA API that the
   PCF firehose nozzles can use to reduce the load on the CC API.
 
 - Added new "Helm" cluster check that collects information about the Helm releases deployed in the cluster.
 
-- Add the `process_agent_runtime_config_dump.yaml` file to the core Agent flare with `process-agent` runtime settings.
+- Add the ``process_agent_runtime_config_dump.yaml`` file to the core Agent flare with ``process-agent`` runtime settings.
 
-- Add `process-agent status` output to the core Agent status command.
+- Add ``process-agent status`` output to the core Agent status command.
 
-- Added new `process-agent status` command to help with troubleshooting and for better consistency with the core Agent. This command is intended to eventually replace `process-agent --info`.
+- Added new ``process-agent status`` command to help with troubleshooting and for better consistency with the core Agent. This command is intended to eventually replace `process-agent --info`.
 
 - CWS rules can now be written on kernel module loading and deletion events.
 
 - The splice event type was added to CWS. It can be used to detect the Dirty Pipe vulnerability.
 
 - Add two options under a new config prefix to send logs
-  to Vector instead of Datadog. `vector.logs.enabled`
-  must be set to true, along with `vector.logs.url` that
+  to Vector instead of Datadog. ``vector.logs.enabled``
+  must be set to true, along with ``vector.logs.url`` that
   should be set to point to a Vector configured accordingly.
   This overrides the main endpoints, additional endpoints
   remains fully functional.
@@ -292,17 +304,17 @@ Deprecation Notes
 - The security Agent commands ``check-policies`` and ``reload`` are deprecated.
   Use ``runtime policy check`` and ``runtime policy reload`` respectively instead.
 
-- Configuration `process_config.enabled` is now deprecated.  Use `process_config.process_collection.enabled` and `process_config.container_collection.enabled` settings instead to control container and process collection in the process Agent.
+- Configuration ``process_config.enabled`` is now deprecated.  Use ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled`` settings instead to control container and process collection in the process Agent.
 
-- Removed `API_KEY` environment variable from the process agent. Use `DD_API_KEY` instead
+- Removed ``API_KEY`` environment variable from the process agent. Use ``DD_API_KEY`` instead
 
-- Removes the `DD_PROCESS_AGENT_CONTAINER_SOURCE` environment variable from the Process Agent. The list of container sources now entirely depends on the activated features.
+- Removes the ``DD_PROCESS_AGENT_CONTAINER_SOURCE`` environment variable from the Process Agent. The list of container sources now entirely depends on the activated features.
 
-- Removed unused `process_config.windows.args_refresh_interval` config setting
+- Removed unused ``process_config.windows.args_refresh_interval`` config setting
 
-- Removed unused `process_config.windows.add_new_args` config setting
+- Removed unused ``process_config.windows.add_new_args`` config setting
 
-- Removes the process_config.max_ctr_procs_per_message setting.
+- Removes the ``process_config.max_ctr_procs_per_message`` setting.
 
 
 .. _Release Notes_7.35.0_Bug Fixes:
