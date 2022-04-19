@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -65,72 +66,108 @@ func TestMain(m *testing.M) {
 func TestGetStats(t *testing.T) {
 	dnsSupported := dnsSupported(t)
 	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
 	<-time.After(time.Second)
 
-	linuxExpected := map[string][]string{
-		"conntrack": {
-			"state_size",
-			"enobufs",
-			"throttles",
-			"sampling_pct",
-			"read_errors",
-			"msg_errors",
-		},
-		"state": {
-			"stats_resets",
-			"closed_conn_dropped",
-			"conn_dropped",
-			"time_sync_collisions",
-			"dns_stats_dropped",
-			"dns_pid_collisions",
-		},
-		"tracer": {
-			"conn_valid_skipped",
-			"expired_tcp_conns",
-		},
-		"ebpf": {
-			"tcp_sent_miscounts",
-			"missed_tcp_close",
-			"closed_conn_polling_lost",
-			"closed_conn_polling_received",
-			"pid_collisions",
-		},
-		"dns": {
-			"added",
-			"decoding_errors",
-			"errors",
-			"expired",
-			"ips",
-			"lookups",
-			"oversized",
-			"packets_captured",
-			"packets_dropped",
-			"packets_processed",
-			"queries",
-			"resolved",
-			"socket_polls",
-			"successes",
-			"timestamp_micro_secs",
-			"truncated_packets",
-		},
-		"kprobes": nil,
-	}
-	windowsExpected := map[string][]string{
-		"driver":                   nil,
-		"flows":                    nil,
-		"driver_total_flow_stats":  nil,
-		"driver_flow_handle_stats": nil,
-		"state":                    nil,
-		"dns":                      nil,
-	}
+	tr.GetActiveConnections("-1")
+	linuxExpected := map[string]interface{}{}
+	err = json.Unmarshal([]byte(`{
+      "conntrack": {
+        "enobufs": 0,
+        "evicts_total": 0,
+        "gets_total": 9,
+        "msg_errors": 0,
+        "orphan_size": 0,
+        "read_errors": 0,
+        "registers_dropped": 2,
+        "registers_total": 0,
+        "sampling_pct": 100,
+        "state_size": 0,
+        "throttles": 0,
+        "unregisters_total": 0
+      },
+      "dns": {
+        "added": 0,
+        "decoding_errors": 583,
+        "dropped_stats": 0,
+        "errors": 0,
+        "expired": 0,
+        "ips": 0,
+        "lookups": 5,
+        "num_stats": 0,
+        "oversized": 0,
+        "packets_captured": 586,
+        "packets_dropped": 0,
+        "packets_processed": 586,
+        "queries": 0,
+        "resolved": 0,
+        "socket_polls": 6,
+        "successes": 0,
+        "timestamp_micro_secs": 1649790301434884,
+        "truncated_packets": 0
+      },
+      "ebpf": {
+        "closed_conn_polling_lost": 0,
+        "closed_conn_polling_received": 0,
+        "conn_stats_max_entries_hit": 0,
+        "missed_tcp_close": 0,
+        "missed_udp_close": 0,
+        "pid_collisions": 0,
+        "tcp_conns4": 1,
+        "tcp_conns6": 0,
+        "tcp_sent_miscounts": 0,
+        "udp_conns4": 4,
+        "udp_conns6": 0,
+        "udp_sends_missed": 0,
+        "udp_sends_processed": 162
+      },
+      "http": {
+        "aggregations": 0,
+        "dropped": 0,
+        "hits1_xx": 0,
+        "hits2_xx": 0,
+        "hits3_xx": 0,
+        "hits4_xx": 0,
+        "hits5_xx": 0,
+        "misses": 0,
+        "rejected": 0
+      },
+      "kprobes": {},
+      "state": {
+        "closed_conn_dropped": 0,
+		"conn_dropped": 0,
+		"dns_pid_collisions": 0,
+		"dns_stats_dropped": 0,
+		"http_stats_dropped": 0,
+		"stats_resets": 0,
+		"time_sync_collisions": 0
+      },
+      "tracer": {
+        "closed_conns": 1,
+        "conn_stats_map_size": 5,
+        "expired_tcp_conns": 0,
+        "runtime": {
+          "runtime_compilation_enabled": 0
+        },
+        "skipped_conns": 0
+      }
+    }`), &linuxExpected)
+	require.NoError(t, err)
 
 	expected := linuxExpected
 	if runtime.GOOS == "windows" {
-		expected = windowsExpected
+		expected = map[string]interface{}{
+			"driver":                   nil,
+			"flows":                    nil,
+			"driver_total_flow_stats":  nil,
+			"driver_flow_handle_stats": nil,
+			"state":                    nil,
+			"dns":                      nil,
+		}
 	}
 
 	actual, _ := tr.GetStats()
@@ -141,7 +178,7 @@ func TestGetStats(t *testing.T) {
 			continue
 		}
 		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
-		for _, name := range entries {
+		for name := range entries.(map[string]interface{}) {
 			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 		}
 	}
