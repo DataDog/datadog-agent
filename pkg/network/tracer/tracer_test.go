@@ -195,6 +195,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 	err = wg.Wait()
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
+
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
@@ -247,6 +249,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	r := bufio.NewReader(c)
 	_, _ = r.ReadBytes(byte('\n'))
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
@@ -272,8 +275,7 @@ func TestTCPShortlived(t *testing.T) {
 	}
 	defer tr.Stop()
 
-	// Simulate registering by calling get one time
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := NewTCPServer(func(c net.Conn) {
@@ -372,6 +374,7 @@ func TestTCPOverIPv6(t *testing.T) {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
@@ -424,6 +427,7 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
 	// Confirm that we could not find connection created above
@@ -461,6 +465,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	_, err = c.Read(make([]byte, serverMessageSize))
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
@@ -517,6 +522,7 @@ func TestUDPDisabled(t *testing.T) {
 
 	c.Read(make([]byte, serverMessageSize))
 
+	initTracerState(t, tr)
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
@@ -545,6 +551,8 @@ func TestLocalDNSCollectionDisabled(t *testing.T) {
 	// Write anything
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
+
+	initTracerState(t, tr)
 
 	// Iterate through active connections making sure there are no local DNS calls
 	for _, c := range getConnections(t, tr).Conns {
@@ -577,6 +585,9 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	assert.NoError(t, err)
 
 	found := false
+
+	initTracerState(t, tr)
+
 	// Iterate through active connections making sure theres at least one connection
 	for _, c := range getConnections(t, tr).Conns {
 		found = found || isLocalDNS(c)
@@ -612,6 +623,8 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	// Write anything
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
+
+	initTracerState(t, tr)
 
 	// Make sure we're not picking up 127.0.0.1:80
 	for _, c := range getConnections(t, tr).Conns {
@@ -989,6 +1002,11 @@ func addrPort(addr string) int {
 	return p
 }
 
+func initTracerState(t *testing.T, tr *Tracer) {
+	err := tr.RegisterClient("1")
+	require.NoError(t, err)
+}
+
 func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections, err := tr.GetActiveConnections("1")
@@ -1035,6 +1053,8 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 
 	// Allow the DNS reply to be processed in the snooper
 	time.Sleep(time.Millisecond * 500)
+
+	initTracerState(t, tr)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -1093,8 +1113,7 @@ func TestTCPEstablished(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up state
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	server := NewTCPServer(func(c net.Conn) {
 		io.Copy(ioutil.Discard, c)
@@ -1151,8 +1170,7 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up state
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	c.Write([]byte("hello"))
 	c.Close()
@@ -1182,6 +1200,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
@@ -1211,6 +1230,7 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	bytesSent, err := conn.Write(message)
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
@@ -1297,6 +1317,7 @@ func TestConnectionClobber(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	preCap := tr.activeBuffer.Capacity()
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 	require.NotEmpty(t, connections)
 	src := connections.Conns[0].SPort
@@ -1333,8 +1354,7 @@ func TestTCPDirection(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up tracer state
-	_ = getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// Start an HTTP server on localhost:8080
 	serverAddr := "127.0.0.1:8080"
@@ -1418,8 +1438,7 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up tracer state
-	_ = getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// open and close another client connection to force port binding delete
 	wg.Add(1)
@@ -1472,8 +1491,7 @@ func TestHTTPStats(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up tracer state
-	_ = getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// Start an HTTP server on localhost:8080
 	serverAddr := "127.0.0.1:8080"
