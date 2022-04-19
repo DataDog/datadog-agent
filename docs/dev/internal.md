@@ -13,7 +13,7 @@ Use the following guidelines in order to decide when and how to use `internal` f
 3. If the folder you are editing already has `internal` folders, try to move code to these `internal` folders instead of creating new ones.
 4. When creating new `internal` folders, try to use the deepest possible `internal` folder to limit the packages that can import yours. 
    For example, if making `a/b/c/d` internal, consider moving it to `a/b/c/internal/d` instead of `a/internal/b/c/d`.
-   With the second path code from `a/b` won't be able to access the `d` package, while it could with the first path.
+   With the first path, code from `a/b` won't be able to access the `d` package, while it could with the second path.
 
 ## Appendix: refactor example
 
