@@ -121,20 +121,21 @@ func (m *Module) Init() error {
 
 // Start the module
 func (m *Module) Start() error {
-	// start the manager and its probes / perf maps
-	if err := m.probe.Start(); err != nil {
-		return errors.Wrap(err, "failed to start probe")
-	}
-
-	m.reloader.Start()
-
-	if err := m.Reload(); err != nil {
-		return err
+	// setup the manager and its probes / perf maps
+	if err := m.probe.Setup(); err != nil {
+		return errors.Wrap(err, "failed to setup probe")
 	}
 
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
 	// context is ready when we start the probes
 	if err := m.probe.Snapshot(); err != nil {
+		return err
+	}
+
+	m.probe.Start()
+	m.reloader.Start()
+
+	if err := m.Reload(); err != nil {
 		return err
 	}
 

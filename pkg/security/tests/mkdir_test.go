@@ -10,8 +10,6 @@ package tests
 
 import (
 	"os"
-	"runtime"
-	"sync"
 	"syscall"
 	"testing"
 
@@ -92,7 +90,7 @@ func TestMkdirError(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdirat_error",
-			Expression: `process.file.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
+			Expression: `process.file.name == "syscall_tester" && mkdir.retval == EACCES`,
 		},
 	}
 
@@ -102,8 +100,13 @@ func TestMkdirError(t *testing.T) {
 	}
 	defer test.Close()
 
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("mkdirat-error", func(t *testing.T) {
-		_, testatFilePtr, err := test.Path("testat2-mkdir")
+		testatFile, _, err := test.Path("testat2-mkdir")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,42 +116,7 @@ func TestMkdirError(t *testing.T) {
 		}
 
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			errChan := make(chan error, 1)
-
-			go func() {
-				defer wg.Done()
-
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1, 1, 0); errno != 0 {
-					errChan <- error(errno)
-					return
-				}
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1, 1, 0); errno != 0 {
-					errChan <- error(errno)
-					return
-				}
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
-					errChan <- error(errno)
-					return
-				}
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "mkdirat-error", testatFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
 			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
