@@ -72,6 +72,18 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
+// ShareArgsEnvs share args and envs between the current entry and the given child entry
+func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
+	childEntry.ArgsEntry = pc.ArgsEntry
+	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
+		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+	}
+	childEntry.EnvsEntry = pc.EnvsEntry
+	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
+		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+	}
+}
+
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.SetAncestor(pc)
@@ -85,14 +97,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.ArgsEntry = pc.ArgsEntry
-	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
-	}
-	childEntry.EnvsEntry = pc.EnvsEntry
-	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
-	}
+	pc.ShareArgsEnvs(childEntry)
 }
 
 /*func (pc *ProcessCacheEntry) String() string {
@@ -206,6 +211,18 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	}
 
 	return values, truncated
+}
+
+func stringArraysEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // ArgsEntry defines a args cache entry
@@ -326,4 +343,18 @@ func (p *EnvsEntry) toMap() {
 func (p *EnvsEntry) Get(key string) string {
 	p.toMap()
 	return p.kv[key]
+}
+
+// Equals compares two EnvsEntry
+func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
+	if p == o {
+		return true
+	} else if o == nil {
+		return false
+	}
+
+	pa, _ := p.ToArray()
+	oa, _ := o.ToArray()
+
+	return stringArraysEqual(pa, oa)
 }

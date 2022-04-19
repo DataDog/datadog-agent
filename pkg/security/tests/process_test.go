@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -272,7 +273,6 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
-			// we need to ignore the error because "--password" is not a valid option for ls
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
