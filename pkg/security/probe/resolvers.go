@@ -254,8 +254,6 @@ func (r *Resolvers) snapshot() error {
 		return createA < createB
 	})
 
-	cacheModified := false
-
 	for _, proc := range processes {
 		ppid, err := proc.Ppid()
 		if err != nil {
@@ -274,21 +272,10 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Sync the process cache
-		if r.ProcessResolver.SyncCache(proc) {
-			cacheModified = true
-		}
+		r.ProcessResolver.SyncCache(proc)
 
 		// Sync the namespace cache
-		if r.NamespaceResolver.SyncCache(proc) {
-			cacheModified = true
-		}
-	}
-
-	// There is a possible race condition when a process starts right after we called process.AllProcesses
-	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
-	// process cache anymore
-	if cacheModified {
-		log.Debugf("cache modified")
+		r.NamespaceResolver.SyncCache(proc)
 	}
 
 	return nil
