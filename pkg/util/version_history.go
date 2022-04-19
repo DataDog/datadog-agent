@@ -7,7 +7,6 @@ package util
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -69,13 +68,12 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 	}
 
 	installInfo, err := os.ReadFile(installInfoFilePath)
-	if err != nil {
-		log.Infof("Cannot read %s: %s", installInfoFilePath, err)
-	}
-	if !errors.Is(err, os.ErrNotExist) {
+	if err == nil {
 		if err := yaml.Unmarshal(installInfo, &newEntry); err != nil {
 			log.Infof("Cannot deserialize yaml file: %s: %s", installInfoFilePath, err)
 		}
+	} else {
+		log.Infof("Cannot read %s: %s", installInfoFilePath, err)
 	}
 
 	if len(history.Entries) == 0 || history.Entries[len(history.Entries)-1].Version != newEntry.Version {
