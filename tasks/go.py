@@ -490,6 +490,8 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
         raise Exit(message=message)
 
+    # delete test_folder to avoid FileExistsError while running this task again
+    ctx.run(f"rm -rf ./{test_folder}")
 
 @task
 def tidy_all(ctx):
