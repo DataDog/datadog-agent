@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/pkg/errors"
 )
 
@@ -43,6 +44,14 @@ func GetProbeStats() map[string]int64 {
 	for event, st := range m {
 		parts := eventRegexp.FindStringSubmatch(event)
 		if len(parts) > 2 {
+			// only get stats for our pid
+			if len(parts) > 3 {
+				if pid, err := strconv.ParseInt(parts[3], 10, 32); err != nil {
+					if int(pid) != manager.Getpid() {
+						continue
+					}
+				}
+			}
 			// strip UID and PID from name
 			event = parts[1]
 		}
