@@ -75,12 +75,20 @@ func (t *Tailer) readAvailable() (int, error) {
 	for {
 		inBuf := make([]byte, 4096)
 		n, err := f.Read(inBuf)
-		bytes += n
 		if n == 0 || err != nil {
 			return bytes, err
 		}
-		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementLastReadOffset(n)
+		// try to put this buffer into the decoder channel
+		select {
+		case t.decoder.InputChan <- decoder.NewInput(inBuf[:n]):
+			t.incrementLastReadOffset(n)
+			bytes += n
+		default:
+			// the buffer is full, so pretend that this is all of the data that
+			// is available in the file at this point, in order to close the
+			// file and wait for the next poll interval.
+			return bytes, io.EOF
+		}
 	}
 }
 

@@ -522,6 +522,14 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 		offset = 120
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		offset = 152
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		offset = 152
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		fallthrough
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		offset = 160
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		offset = 208
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel5_6):
 		offset = 120
@@ -573,6 +581,12 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	}
 
 	switch {
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 176
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		fallthrough
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		return 192
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16) && ubuntuAbiVersionCheck(kv, hashMixAbiMinVersion):
 		fallthrough
 	// Commit 355b98553789b646ed97ad801a619ff898471b92 introduces a hashmix field for security
@@ -621,6 +635,8 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	offset := uint64(144)
 
 	switch {
+	case kv.IsCOSKernel():
+		offset = 168
 	case kv.IsRH7Kernel():
 		offset = 240
 	}

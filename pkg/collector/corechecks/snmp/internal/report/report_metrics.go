@@ -81,7 +81,10 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 		for fullIndex, value := range metricValues {
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows
 			if _, ok := rowTagsCache[fullIndex]; !ok {
-				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.MetricTags.GetTags(fullIndex, values)...)
+				tmpTags := common.CopyStrings(tags)
+				tmpTags = append(tmpTags, metricConfig.StaticTags...)
+				tmpTags = append(tmpTags, metricConfig.MetricTags.GetTags(fullIndex, values)...)
+				rowTagsCache[fullIndex] = tmpTags
 			}
 			rowTags := rowTagsCache[fullIndex]
 			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options)

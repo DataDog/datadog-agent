@@ -33,11 +33,16 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-func extractField(field string) (Field, Field, RegisterID, error) {
-	var regID RegisterID
+func extractField(field string, state *State) (Field, Field, RegisterID, error) {
+	if state.regexpCache.arraySubscriptFindRE == nil {
+		state.regexpCache.arraySubscriptFindRE = regexp.MustCompile(`\[([^\]]*)\]`)
+	}
+	if state.regexpCache.arraySubscriptReplaceRE == nil {
+		state.regexpCache.arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+	}
 
-	re := regexp.MustCompile(`\[([^\]]*)\]`)
-	ids := re.FindStringSubmatch(field)
+	var regID RegisterID
+	ids := state.regexpCache.arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
@@ -48,10 +53,10 @@ func extractField(field string) (Field, Field, RegisterID, error) {
 		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	re = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
-	field, itField := re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`)
+	resField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
+	itField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
-	return field, itField, regID, nil
+	return resField, itField, regID, nil
 }
 
 type ident struct {
@@ -70,7 +75,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident)
+	field, itField, regID, err := extractField(*obj.Ident, state)
 	if err != nil {
 		return nil, obj.Pos, err
 	}

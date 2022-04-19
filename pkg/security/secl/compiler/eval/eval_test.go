@@ -287,7 +287,8 @@ func TestSimpleBitOperations(t *testing.T) {
 func TestStringMatcher(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			name: "/usr/bin/c$t",
+			name:  "/usr/bin/c$t",
+			argv0: "http://example.com",
 		},
 	}
 
@@ -330,6 +331,8 @@ func TestStringMatcher(t *testing.T) {
 		{Expr: `process.name =~ r".*/[abc]+/bin/.*"`, Expected: false},
 		{Expr: `process.name == r".*/bin/.*"`, Expected: true},
 		{Expr: `r".*/bin/.*" == process.name`, Expected: true},
+		{Expr: `process.argv0 =~ "http://*"`, Expected: true},
+		{Expr: `process.argv0 =~ "*example.com"`, Expected: true},
 	}
 
 	for _, test := range tests {

@@ -51,3 +51,12 @@ func makesketch(n int) *quantile.Sketch {
 	}
 	return s
 }
+
+func CreateIterableSeries(series metrics.Series) *metrics.IterableSeries {
+	iterableSeries := metrics.NewIterableSeries(func(*metrics.Serie) {}, 1000, 1000)
+	for _, serie := range series {
+		iterableSeries.Append(serie)
+	}
+	iterableSeries.SenderStopped()
+	return iterableSeries
+}

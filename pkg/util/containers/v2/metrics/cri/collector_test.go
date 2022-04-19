@@ -46,7 +46,7 @@ func TestGetContainerStats(t *testing.T) {
 		client: mockedCriClient,
 	}
 
-	stats, err := collector.GetContainerStats(containerID, 10*time.Second)
+	stats, err := collector.GetContainerStats("", containerID, 10*time.Second)
 	assert.NoError(t, err)
 
 	assert.Equal(t, pointer.UIntToFloatPtr(1000), stats.CPU.Total)
@@ -55,7 +55,7 @@ func TestGetContainerStats(t *testing.T) {
 
 func TestGetContainerNetworkStats(t *testing.T) {
 	collector := criCollector{}
-	stats, err := collector.GetContainerNetworkStats("123", time.Second)
+	stats, err := collector.GetContainerNetworkStats("", "123", time.Second)
 	assert.NoError(t, err)
 	assert.Nil(t, stats) // The CRI collector does not return any network data
 }

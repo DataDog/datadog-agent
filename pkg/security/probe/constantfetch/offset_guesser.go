@@ -103,13 +103,14 @@ func (og *OffsetGuesser) AppendOffsetofRequest(id, typeName, fieldName, headerNa
 
 // FinishAndGetResults returns the results
 func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
-	loader := ebpf.NewLoader(og.config, false)
+	loader := ebpf.NewOffsetGuesserLoader(og.config)
 	defer loader.Close()
 
 	bytecodeReader, err := loader.Load()
 	if err != nil {
 		return og.res, err
 	}
+	defer bytecodeReader.Close()
 
 	options := manager.Options{
 		ConstantEditors: []manager.ConstantEditor{
@@ -127,6 +128,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 	for _, probe := range probes.AllProbes() {
 		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
 	}
+	options.ExcludedFunctions = append(options.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
 		return og.res, err

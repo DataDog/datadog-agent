@@ -71,13 +71,9 @@ func (c *containerdCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (c *containerdCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	namespace, err := c.containerNamespace(containerID)
-	if err != nil {
-		return nil, err
-	}
-	c.client.SetCurrentNamespace(namespace)
-
+func (c *containerdCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+	// TODO: Relying on `SetCurrentNamespace` is not correct as the collector is supposed to allow for concurrent calls
+	c.client.SetCurrentNamespace(containerNS)
 	metrics, err := c.getContainerdMetrics(containerID)
 	if err != nil {
 		return nil, err
@@ -124,13 +120,16 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 	return containerStats, nil
 }
 
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (c *containerdCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
+}
+
 // GetContainerNetworkStats returns network stats by container ID.
-func (c *containerdCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
-	namespace, err := c.containerNamespace(containerID)
-	if err != nil {
-		return nil, err
-	}
-	c.client.SetCurrentNamespace(namespace)
+func (c *containerdCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+	// TODO: Relying on `SetCurrentNamespace` is not correct as the collector is supposed to allow for concurrent calls
+	c.client.SetCurrentNamespace(containerNS)
 
 	metrics, err := c.getContainerdMetrics(containerID)
 	if err != nil {
@@ -220,13 +219,4 @@ func (c *containerdCollector) refreshPIDCache(currentTime time.Time, cacheValidi
 
 	c.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, nil)
 	return nil
-}
-
-func (c *containerdCollector) containerNamespace(containerID string) (string, error) {
-	container, err := c.workloadmetaStore.GetContainer(containerID)
-	if err != nil {
-		return "", err
-	}
-
-	return container.Namespace, nil
 }

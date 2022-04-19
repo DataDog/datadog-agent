@@ -27,6 +27,7 @@ type testItem struct {
 
 type testProcess struct {
 	name      string
+	argv0     string
 	uid       int
 	gid       int
 	pid       int
@@ -213,7 +214,15 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.name":
 
 		return &StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
+			EvalFnc:     func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
+			Field:       field,
+			OpOverrides: GlobCmp,
+		}, nil
+
+	case "process.argv0":
+
+		return &StringEvaluator{
+			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).process.argv0 },
 			Field:   field,
 		}, nil
 
@@ -502,6 +511,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 
 		return e.process.name, nil
 
+	case "process.argv0":
+
+		return e.process.argv0, nil
+
 	case "process.uid":
 
 		return e.process.uid, nil
@@ -567,6 +580,10 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 		return "network", nil
 
 	case "process.name":
+
+		return "*", nil
+
+	case "process.argv0":
 
 		return "*", nil
 
@@ -674,6 +691,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 		e.process.name = value.(string)
 		return nil
 
+	case "process.argv0":
+
+		e.process.argv0 = value.(string)
+		return nil
+
 	case "process.uid":
 
 		e.process.uid = value.(int)
@@ -749,6 +771,10 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 		return reflect.Array, nil
 
 	case "process.name":
+
+		return reflect.String, nil
+
+	case "process.argv0":
 
 		return reflect.String, nil
 

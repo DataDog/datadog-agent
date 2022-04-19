@@ -81,7 +81,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		var s = map[string]metricsserializer.Series{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 
@@ -193,7 +193,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		var s map[string]interface{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 
@@ -258,7 +258,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 		var s []interface{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 
@@ -312,7 +312,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 		var s = map[string]metricsserializer.SketchSeriesList{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 

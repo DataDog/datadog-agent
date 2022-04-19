@@ -49,9 +49,10 @@ def split_junitxml(xml_path, codeowners, output_dir):
         # don't, so for determining ownership we append "/" temporarily.
         owners = codeowners.of(path + "/")
         if not owners:
-            raise KeyError(f"No code owner found for {path}")
+            main_owner = "none"
+        else:
+            main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
 
-        main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
         try:
             xml = output_xmls[main_owner]
         except KeyError:
