@@ -22,7 +22,7 @@ type fakeCPUCount struct {
 func newFakeCPUCount(count int, err error) *fakeCPUCount {
 	f := fakeCPUCount{count: count, err: err}
 	cpuInfoFunc = f.info
-	hostCPUCount = 0
+	hostCPUCount.Store(0)
 	hostCPUFailedAttempts = 0
 	return &f
 }
