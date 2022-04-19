@@ -7,20 +7,20 @@ package clusteragent
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
-
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -117,8 +117,7 @@ func (c *DCAClient) init() error {
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	// TODO remove insecure
-	c.clusterAgentAPIClient = util.GetClient(false)
-	c.clusterAgentAPIClient.Timeout = 2 * time.Second
+	c.clusterAgentAPIClient = buildDCAHttpClient()
 
 	// Validate the cluster-agent client by checking the version
 	c.ClusterAgentVersion, err = c.GetVersion()
@@ -204,6 +203,28 @@ func getClusterAgentEndpoint() (string, error) {
 	}
 
 	return u.String(), nil
+}
+
+func buildDCAHttpClient() *http.Client {
+	// Copy of http.DefaulTransport with adapted settings
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   1 * time.Second,
+			KeepAlive: 20 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     false,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		TLSHandshakeTimeout:   2 * time.Second,
+		MaxConnsPerHost:       1,
+		IdleConnTimeout:       60 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: tr,
+		Timeout:   3 * time.Second,
+	}
 }
 
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.

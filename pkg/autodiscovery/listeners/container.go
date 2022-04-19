@@ -13,11 +13,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+)
+
+const (
+	newIdentifierLabel    = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
 )
 
 func init() {
@@ -75,6 +81,10 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 	}
 
+	if !container.State.Running && container.Runtime == workloadmeta.ContainerRuntimeECSFargate {
+		return
+	}
+
 	ports := make([]ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
 		ports = append(ports, ContainerPort{
@@ -89,7 +99,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	svc := &service{
 		entity: container,
-		adIdentifiers: ComputeContainerServiceIDs(
+		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
 			container.Labels,
@@ -108,7 +118,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}
 	} else {
-		checkNames, err := getCheckNamesFromLabels(container.Labels)
+		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
 			log.Errorf("error getting check names from labels on container %s: %v", container.ID, err)
 		}
@@ -159,4 +169,34 @@ func findKubernetesInLabels(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// computeContainerServiceIDs takes an entity name, an image (resolved to an
+// actual name) and labels and computes the service IDs for this container
+// service.
+func computeContainerServiceIDs(entity string, image string, labels map[string]string) []string {
+	// ID override label
+	if l, found := labels[newIdentifierLabel]; found {
+		return []string{l}
+	}
+	if l, found := labels[legacyIdentifierLabel]; found {
+		log.Warnf("found legacy %s label for %s, please use the new name %s",
+			legacyIdentifierLabel, entity, newIdentifierLabel)
+		return []string{l}
+	}
+
+	ids := []string{entity}
+
+	// Add Image names (long then short if different)
+	long, short, _, err := containers.SplitImageName(image)
+	if err != nil {
+		log.Warnf("error while spliting image name: %s", err)
+	}
+	if len(long) > 0 {
+		ids = append(ids, long)
+	}
+	if len(short) > 0 && short != long {
+		ids = append(ids, short)
+	}
+	return ids
 }

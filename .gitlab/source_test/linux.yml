@@ -4,8 +4,6 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - python3 -m pip install wheel
-    - python3 -m pip install -r requirements.txt
     - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
@@ -155,7 +153,6 @@ go_mod_tidy_check:
   needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - python3 -m pip install -r requirements.txt
   script:
     - inv -e check-mod-tidy
   artifacts:

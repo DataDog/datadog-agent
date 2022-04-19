@@ -215,6 +215,7 @@ bulk_max_repetitions: 20
 
 	assert.Equal(t, expectedMetrics, config.Metrics)
 	assert.Equal(t, expectedMetricTags, config.MetricTags)
+	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
 	assert.Equal(t, 1, len(config.Profiles))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
@@ -475,7 +476,7 @@ bulk_max_repetitions: -5
 `)
 	// language=yaml
 	rawInitConfig = []byte(``)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "bulk max repetition must be a positive integer. Invalid value: -5")
 }
 
@@ -1151,7 +1152,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
 	coreconfig.Datadog.Set("network_devices.namespace", "")
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
 

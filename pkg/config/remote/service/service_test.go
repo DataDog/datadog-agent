@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/base32"
-	"encoding/json"
 	"errors"
 	"os"
 	"testing"
@@ -233,9 +232,7 @@ func TestService(t *testing.T) {
 	root3 := []byte(`testroot3`)
 	root4 := []byte(`testroot4`)
 	targets := []byte(`testtargets`)
-	testTargetsCustom, _ := json.Marshal(&targetsCustom{
-		ClientState: []byte("test_state"),
-	})
+	testTargetsCustom := []byte(`{"client_state":"test_state"}`)
 	client := &pbgo.Client{
 		State: &pbgo.ClientState{
 			RootVersion: 2,
@@ -278,7 +275,7 @@ func TestService(t *testing.T) {
 			string(rdata.ProductAPMSampling),
 		},
 		ActiveClients:      []*pbgo.Client{client},
-		BackendClientState: []byte("test_state"),
+		BackendClientState: []byte(`"test_state"`),
 	}).Return(lastConfigResponse, nil)
 
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})

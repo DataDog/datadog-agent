@@ -51,10 +51,10 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 	defer compiledOutput.Close()
 
 	probes := []*manager.Probe{
-		{Section: "kprobe/tcp_recvmsg"},
-		{Section: "kretprobe/tcp_recvmsg"},
-		{Section: "kprobe/tcp_sendmsg"},
-		{Section: "kretprobe/tcp_sendmsg"},
+		{Section: "kprobe/tcp_recvmsg", UID: "tcpq"},
+		{Section: "kretprobe/tcp_recvmsg", UID: "tcpq"},
+		{Section: "kprobe/tcp_sendmsg", UID: "tcpq"},
+		{Section: "kretprobe/tcp_sendmsg", UID: "tcpq"},
 	}
 
 	maps := []*manager.Map{

@@ -76,7 +76,7 @@ func buildLatestConfigsRequest(hostname string, state uptane.State, activeClient
 }
 
 type targetsCustom struct {
-	ClientState []byte `json:"client_state"`
+	ClientState json.RawMessage `json:"client_state"`
 }
 
 func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {

@@ -82,7 +82,7 @@ func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 
 			for _, value := range rule.GetFieldValues(field) {
 				switch value.Type {
-				case eval.ScalarValueType, eval.PatternValueType:
+				case eval.ScalarValueType, eval.PatternValueType, eval.GlobValueType:
 					isAnApprover, err := isAnApprover(event, ctx, rule, field, value.Value)
 					if err != nil {
 						return nil, err

@@ -73,7 +73,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// handle SIGTERM
+	// handle SIGTERM signal
 	go handleSignals(serverlessDaemon, stopCh)
 
 	// block here until we receive a stop signal

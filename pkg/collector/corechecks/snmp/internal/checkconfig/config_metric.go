@@ -27,6 +27,7 @@ type SymbolConfig struct {
 	MatchPatternCompiled *regexp.Regexp
 
 	ScaleFactor float64 `yaml:"scale_factor"`
+	Format      string  `yaml:"format"`
 }
 
 // MetricTagConfig holds metric tag info
@@ -82,6 +83,7 @@ type MetricsConfig struct {
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols"`
 
+	StaticTags []string            `yaml:"static_tags"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags"`
 
 	ForcedType string              `yaml:"forced_type"`
