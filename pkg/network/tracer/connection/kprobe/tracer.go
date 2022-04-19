@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -106,20 +106,21 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := newManager(perfHandlerTCP, runtimeTracer)
-	setupDumpHandler(m)
+	m.DumpHandler = dumpMapsHandler
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
-			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
+		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+			mgrOptions.ExcludedFunctions = append(mgrOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
-	for probeName := range enabledProbes {
+	for probeName, funcName := range enabledProbes {
 		mgrOptions.ActivatedProbes = append(
 			mgrOptions.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probeName),
+					EBPFSection:  string(probeName),
+					EBPFFuncName: funcName,
 				},
 			})
 	}
@@ -203,7 +204,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
-	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
+	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
 		if filter != nil && !filter(conn) {

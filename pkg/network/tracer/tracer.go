@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -66,6 +66,7 @@ type Tracer struct {
 	expiredTCPConns  int64
 	closedConns      int64
 	connStatsMapSize int64
+	lastCheck        int64
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -240,16 +241,17 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	}
 
 	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
-			offsetOptions.ExcludedSections = append(offsetOptions.ExcludedSections, p.Section)
+		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
-	for probeName := range enabledProbes {
+	for probeName, funcName := range enabledProbes {
 		offsetOptions.ActivatedProbes = append(
 			offsetOptions.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probeName),
+					EBPFSection:  string(probeName),
+					EBPFFuncName: funcName,
 				},
 			})
 	}
@@ -329,6 +331,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
+	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -557,6 +560,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"conn_valid_skipped":  skipped, // Skipped connections (e.g. Local DNS requests)
 		"expired_tcp_conns":   expiredTCP,
 		"conn_stats_map_size": connStatsMapSize,
+		"last_check":          atomic.LoadInt64(&t.lastCheck),
 	}
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v
