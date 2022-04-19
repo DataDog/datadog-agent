@@ -57,7 +57,7 @@ const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 func TestMain(m *testing.M) {
 	log.SetupLogger(seelog.Default, "warn")
 	cfg := testConfig()
-	if cfg.EnableRuntimeCompiler {
+	if cfg.EnableRuntimeCompilation {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
 	os.Exit(m.Run())
@@ -1666,7 +1666,7 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
 	cfg := testConfig()
 	enabled := os.Getenv(runtimeCompilationEnvVar) != ""
-	assert.Equal(t, enabled, cfg.EnableRuntimeCompiler)
+	assert.Equal(t, enabled, cfg.EnableRuntimeCompilation)
 	assert.NotEqual(t, enabled, cfg.AllowPrecompiledFallback)
 }
 
@@ -1676,7 +1676,7 @@ func testConfig() *config.Config {
 		cfg.BPFDebug = true
 	}
 	if os.Getenv(runtimeCompilationEnvVar) != "" {
-		cfg.EnableRuntimeCompiler = true
+		cfg.EnableRuntimeCompilation = true
 		cfg.AllowPrecompiledFallback = false
 	}
 	return cfg

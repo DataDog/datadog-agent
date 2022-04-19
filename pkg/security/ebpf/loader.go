@@ -43,7 +43,7 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, error) {
 	if l.config.RuntimeCompilationEnabled {
 		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper)
 		if err != nil {
-			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
+			log.Warnf("failed to fetch compiled runtime-security probe, falling back to pre-compiled: %s", err)
 		}
 	}
 

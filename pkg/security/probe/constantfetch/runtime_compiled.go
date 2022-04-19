@@ -12,18 +12,12 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
-	"io"
-	"path/filepath"
 	"sort"
-	"strings"
 	"text/template"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type rcSymbolPair struct {
@@ -32,18 +26,16 @@ type rcSymbolPair struct {
 }
 
 type RuntimeCompilationConstantFetcher struct {
-	config       *ebpf.Config
-	statsdClient statsd.ClientInterface
-	headers      []string
-	symbolPairs  []rcSymbolPair
-	result       map[string]uint64
+	config      *ebpf.Config
+	headers     []string
+	symbolPairs []rcSymbolPair
+	result      map[string]uint64
 }
 
-func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient statsd.ClientInterface) *RuntimeCompilationConstantFetcher {
+func NewRuntimeCompilationConstantFetcher(config *ebpf.Config) *RuntimeCompilationConstantFetcher {
 	return &RuntimeCompilationConstantFetcher{
-		config:       config,
-		statsdClient: statsdClient,
-		result:       make(map[string]uint64),
+		config: config,
+		result: make(map[string]uint64),
 	}
 }
 
@@ -89,7 +81,8 @@ size_t {{.Id}} = {{.Operation}};
 {{ end }}
 `
 
-func (cf *RuntimeCompilationConstantFetcher) getCCode() (string, error) {
+// GetCCode generates and returns c code to be compiled
+func (cf *RuntimeCompilationConstantFetcher) GetCCode() (string, error) {
 	headers := sortAndDedup(cf.headers)
 	tmpl, err := template.New("runtimeCompilationTemplate").Parse(runtimeCompilationTemplate)
 	if err != nil {
@@ -107,32 +100,15 @@ func (cf *RuntimeCompilationConstantFetcher) getCCode() (string, error) {
 	return buffer.String(), nil
 }
 
-func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, error) {
-	provider := &constantFetcherRCProvider{
-		cCode: cCode,
-	}
-	runtimeCompiler := runtime.NewRuntimeCompiler()
-	reader, err := runtimeCompiler.CompileObjectFile(config, nil, "constant_fetcher.c", provider)
-
-	if cf.statsdClient != nil {
-		telemetry := runtimeCompiler.GetRCTelemetry()
-		if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
-			log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
-		}
-	}
-
-	return reader, err
-}
-
 func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
-	cCode, err := cf.getCCode()
+	cCode, err := cf.GetCCode()
 	if err != nil {
 		return nil, err
 	}
 
-	elfFile, err := cf.compileConstantFetcher(cf.config, cCode)
+	elfFile, err := runtime.ConstantFetcher.GetCompiledOutput(nil, cf.config.RuntimeCompilerOutputDir, cCode)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch compiled constant fetcher: %s", err)
 	}
 
 	f, err := elf.NewFile(elfFile)
@@ -168,28 +144,6 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 
 	log.Infof("runtime compiled constants: %v", cf.result)
 	return cf.result, nil
-}
-
-type constantFetcherRCProvider struct {
-	cCode string
-}
-
-func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runtime.RuntimeCompilationTelemetry) (io.Reader, error) {
-	return strings.NewReader(p.cCode), nil
-}
-
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
-	cCodeHash, err := runtime.Sha256hex([]byte(a.cCode))
-	if err != nil {
-		return "", err
-	}
-
-	unameHash, err := runtime.UnameHash(uname)
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameHash, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {

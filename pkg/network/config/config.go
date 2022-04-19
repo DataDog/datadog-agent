@@ -161,6 +161,12 @@ type Config struct {
 
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
+
+	// EnableRuntimeCompilation enables the use of the embedded compiler to build eBPF programs on-host
+	EnableRuntimeCompilation bool
+
+	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails
+	AllowPrecompiledFallback bool
 }
 
 func join(pieces ...string) string {
@@ -221,6 +227,9 @@ func New() *Config {
 		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+
+		EnableRuntimeCompilation: cfg.GetBool(join(netNS, "enable_runtime_compilation")),
+		AllowPrecompiledFallback: true,
 	}
 
 	httpRRKey := join(netNS, "http_replace_rules")

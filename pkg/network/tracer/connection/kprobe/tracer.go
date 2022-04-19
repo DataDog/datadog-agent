@@ -17,6 +17,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -83,13 +84,14 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	runtimeTracer := false
 	var buf bytecode.AssetReader
 	var err error
-	if config.EnableRuntimeCompiler {
-		buf, err = getRuntimeCompiledTracer(config)
+	if config.EnableRuntimeCompilation {
+		cflags := runtime.GetNetworkAssetCFlags(config)
+		buf, err = runtime.Tracer.GetCompiledOutput(cflags, config.RuntimeCompilerOutputDir)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network tracer: %s", err)
+				return nil, fmt.Errorf("failed to fetch compiled network tracer: %s", err)
 			}
-			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
+			log.Warnf("failed to fetch compiled network tracer, falling back to pre-compiled: %s", err)
 		} else {
 			runtimeTracer = true
 			defer func() { _ = buf.Close() }()

@@ -186,17 +186,6 @@ var (
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
 
-	// Runtime Compiled Constants metrics
-
-	// MetricRuntimeCompiledConstantsEnabled is used to report if the runtime compilation has succeeded
-	MetricRuntimeCompiledConstantsEnabled = newRuntimeCompiledConstantsMetric(".enabled")
-	// MetricRuntimeCompiledConstantsCompilationResult is used to report the result of the runtime compilation
-	MetricRuntimeCompiledConstantsCompilationResult = newRuntimeCompiledConstantsMetric(".compilation_result")
-	// MetricRuntimeCompiledConstantsCompilationDuration is used to report the duration of the runtime compilation
-	MetricRuntimeCompiledConstantsCompilationDuration = newRuntimeCompiledConstantsMetric(".compilation_duration")
-	// MetricRuntimeCompiledConstantsHeaderFetchResult is used to report the result of the header fetching
-	MetricRuntimeCompiledConstantsHeaderFetchResult = newRuntimeCompiledConstantsMetric(".header_fetch_result")
-
 	// RuntimeMonitor metrics
 
 	// MetricRuntimeMonitorGoAlloc is the name of the metric used to report the size in bytes of allocated heap objects
@@ -367,8 +356,4 @@ func newRuntimeMetric(name string) string {
 
 func newAgentMetric(name string) string {
 	return MetricAgentPrefix + name
-}
-
-func newRuntimeCompiledConstantsMetric(name string) string {
-	return newRuntimeMetric(".runtime_compilation.constants" + name)
 }

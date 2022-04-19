@@ -6,9 +6,6 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-//go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/tcp-queue-length-kern.c ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/c
-//go:generate go run ../../../../ebpf/bytecode/runtime/integrity.go ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/bytecode/runtime/tcp-queue-length.go runtime
-
 package probe
 
 import (
@@ -43,9 +40,9 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, nil)
+	compiledOutput, err := runtime.TcpQueueLength.GetCompiledOutput(nil, cfg.RuntimeCompilerOutputDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch compiled tcp queue length probe: %s", err)
 	}
 	defer compiledOutput.Close()
 

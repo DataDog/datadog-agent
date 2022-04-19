@@ -15,6 +15,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -64,13 +65,14 @@ type subprogram interface {
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
 	var bytecode bytecode.AssetReader
 	var err error
-	if c.EnableRuntimeCompiler {
-		bytecode, err = getRuntimeCompiledHTTP(c)
+	if c.EnableRuntimeCompilation {
+		cflags := runtime.GetNetworkAssetCFlags(c)
+		bytecode, err = runtime.Http.GetCompiledOutput(cflags, c.RuntimeCompilerOutputDir)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network http tracer: %s", err)
+				return nil, fmt.Errorf("failed to fetch compiled network http tracer: %s", err)
 			}
-			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
+			log.Warnf("failed to fetch compiled network http tracer, falling back to pre-compiled: %s", err)
 		}
 	}
 

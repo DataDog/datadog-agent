@@ -6,9 +6,6 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-//go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/oom-kill-kern.c ../../../../ebpf/bytecode/build/runtime/oom-kill.c ../../../../ebpf/c
-//go:generate go run ../../../../ebpf/bytecode/runtime/integrity.go ../../../../ebpf/bytecode/build/runtime/oom-kill.c ../../../../ebpf/bytecode/runtime/oom-kill.go runtime
-
 package probe
 
 import (
@@ -40,9 +37,9 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	compiledOutput, err := runtime.OomKill.Compile(cfg, nil)
+	compiledOutput, err := runtime.OomKill.GetCompiledOutput(nil, cfg.RuntimeCompilerOutputDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch compiled oom kill probe: %s", err)
 	}
 	defer compiledOutput.Close()
 

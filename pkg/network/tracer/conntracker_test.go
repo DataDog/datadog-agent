@@ -85,7 +85,7 @@ func TestConntrackers(t *testing.T) {
 }
 
 func setupEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
-	cfg.EnableRuntimeCompiler = true
+	cfg.EnableRuntimeCompilation = true
 	cfg.AllowPrecompiledFallback = false
 	return NewEBPFConntracker(cfg)
 }

@@ -40,7 +40,7 @@ const inactivityRestartDuration = 20 * time.Minute
 var NetworkTracer = module.Factory{
 	Name:             config.NetworkTracerModule,
 	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(_ *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
 		// Checking whether the current OS + kernel version is supported by the tracer

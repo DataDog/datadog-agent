@@ -19,6 +19,7 @@ const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
+	rcNS  = "runtime_compiler_config"
 
 	defaultConnsMessageBatchSize = 600
 
@@ -93,14 +94,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "excluded_linux_versions"), []string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tracepoints"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "enable_runtime_compiler"), false, "DD_ENABLE_RUNTIME_COMPILER")
-	cfg.BindEnvAndSetDefault(join(spNS, "runtime_compiler_output_dir"), defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "enable_kernel_header_download"), false, "DD_ENABLE_KERNEL_HEADER_DOWNLOAD")
-	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_dirs"), []string{}, "DD_KERNEL_HEADER_DIRS")
-	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_download_dir"), defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "apt_config_dir"), suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "yum_repos_dir"), suffixHostEtc(defaultYumReposDirSuffix), "DD_YUM_REPOS_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -133,6 +126,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
 
 	// network_config namespace only
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_runtime_compilation"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_RUNTIME_COMPILATION")
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
@@ -165,6 +159,16 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
+
+	// runtime compilation settings
+	cfg.BindEnvAndSetDefault(join(rcNS, "runtime_compiler_output_dir"), defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
+	cfg.BindEnvAndSetDefault(join(rcNS, "enable_kernel_header_download"), false, "DD_ENABLE_KERNEL_HEADER_DOWNLOAD")
+	cfg.BindEnvAndSetDefault(join(rcNS, "kernel_header_dirs"), []string{}, "DD_KERNEL_HEADER_DIRS")
+	cfg.BindEnvAndSetDefault(join(rcNS, "kernel_header_download_dir"), defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
+	cfg.BindEnvAndSetDefault(join(rcNS, "apt_config_dir"), suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
+	cfg.BindEnvAndSetDefault(join(rcNS, "yum_repos_dir"), suffixHostEtc(defaultYumReposDirSuffix), "DD_YUM_REPOS_DIR")
+	cfg.BindEnvAndSetDefault(join(rcNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
+	cfg.BindEnvAndSetDefault(join(rcNS, "skip_runtime_compilation"), false, "DD_SKIP_RUNTIME_COMPILATION")
 }
 
 func join(pieces ...string) string {

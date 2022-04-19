@@ -4,15 +4,13 @@
 package constantfetch
 
 import (
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
 
 	if coreFetcher, err := NewBTFConstantFetcherFromCurrentKernel(); err == nil {
@@ -20,7 +18,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 	}
 
 	if config.RuntimeCompiledConstantsEnabled {
-		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
+		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config)
 		fetchers = append(fetchers, rcConstantFetcher)
 	}
 

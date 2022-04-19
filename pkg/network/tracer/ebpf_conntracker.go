@@ -20,6 +20,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -59,10 +60,12 @@ type ebpfConntracker struct {
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
-	buf, err := getRuntimeCompiledConntracker(cfg)
+	cflags := runtime.GetNetworkAssetCFlags(cfg)
+	buf, err := runtime.Conntrack.GetCompiledOutput(cflags, cfg.RuntimeCompilerOutputDir)
 	if err != nil {
-		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
+		return nil, fmt.Errorf("failed to fetch compiled ebpf conntracker: %w", err)
 	}
+	defer buf.Close()
 
 	m, err := getManager(buf, cfg.ConntrackMaxStateSize)
 	if err != nil {

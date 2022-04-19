@@ -16,6 +16,7 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -126,7 +127,7 @@ type Config struct {
 	NetworkLazyInterfacePrefixes []string
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
-	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
+	// RuntimeCompiledConstantsEnabled defines if the runtime compilation based constant fetcher is enabled
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
@@ -149,7 +150,7 @@ func setEnv() {
 }
 
 // NewConfig returns a new Config object
-func NewConfig(cfg *config.Config) (*Config, error) {
+func NewConfig(cfg *config.Config) *Config {
 	c := &Config{
 		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
@@ -195,7 +196,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		// runtime compilation
 		RuntimeCompilationEnabled:       aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
 		RuntimeCompiledConstantsEnabled: aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
-		RuntimeCompiledConstantsIsSet:   aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -204,7 +204,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 	}
 
 	if !c.IsEnabled() {
-		return c, nil
+		return c
 	}
 
 	if !aconfig.Datadog.IsSet("runtime_security_config.enable_approvers") && c.EnableKernelFilters {
@@ -223,13 +223,19 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.MapDentryResolutionEnabled = true
 	}
 
-	// not enable at the system-probe level, disable for cws as well
-	if !c.Config.EnableRuntimeCompiler {
-		c.RuntimeCompilationEnabled = false
-	}
-
 	if !c.RuntimeCompilationEnabled {
 		c.RuntimeCompiledConstantsEnabled = false
+	}
+
+	// Enable runtime compiled constants on COS unless explicitly disabled
+	kv, err := kernel.NewKernelVersion()
+	if err == nil && kv.IsCOSKernel() {
+		runtimeCompilationExplicitlyDisabled := aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.enabled") && !c.RuntimeCompilationEnabled
+		runtimeCompiledConstantsExplicitlyDisabled := aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled") && !c.RuntimeCompiledConstantsEnabled
+
+		if !runtimeCompilationExplicitlyDisabled && !runtimeCompiledConstantsExplicitlyDisabled {
+			c.RuntimeCompiledConstantsEnabled = true
+		}
 	}
 
 	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))
@@ -260,5 +266,5 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 	}
 
 	setEnv()
-	return c, nil
+	return c
 }

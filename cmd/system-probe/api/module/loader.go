@@ -68,7 +68,11 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 
 		l.modules[factory.Name] = module
 
-		log.Infof("module: %s started", factory.Name)
+		// Skip this log line for the runtime compilation module, as it's already done running by the time
+		// we've reached here
+		if factory.Name != "compiler" {
+			log.Infof("module: %s started", factory.Name)
+		}
 	}
 
 	l.router = router

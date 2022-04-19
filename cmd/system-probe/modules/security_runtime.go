@@ -14,7 +14,6 @@ import (
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -27,11 +26,7 @@ var SecurityRuntime = module.Factory{
 	Name:             config.SecurityRuntimeModule,
 	ConfigNamespaces: []string{"runtime_security_config"},
 	Fn: func(agentConfig *config.Config) (module.Module, error) {
-		config, err := sconfig.NewConfig(agentConfig)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid security runtime module configuration")
-		}
-
+		config := sconfig.NewConfig(agentConfig)
 		m, err := secmodule.NewModule(config)
 		if err == ebpf.ErrNotImplemented {
 			log.Info("Datadog runtime security agent is only supported on Linux")

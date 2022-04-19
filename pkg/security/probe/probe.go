@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -208,20 +207,11 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 	return err
 }
 
-func isSyscallWrapperRequired() (bool, error) {
-	openSyscall, err := manager.GetSyscallFnName("open")
-	if err != nil {
-		return false, err
-	}
-
-	return !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_"), nil
-}
-
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	useSyscallWrapper, err := isSyscallWrapperRequired()
+	useSyscallWrapper, err := ebpf.IsSyscallWrapperRequired()
 	if err != nil {
 		return err
 	}
@@ -1172,8 +1162,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		log.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
-	p.ensureConfigDefaults()
-
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
@@ -1323,16 +1311,9 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	return p, nil
 }
 
-func (p *Probe) ensureConfigDefaults() {
-	// enable runtime compiled constants on COS by default
-	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.config.RuntimeCompiledConstantsEnabled = true
-	}
-}
-
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config, p.kernelVersion, p.statsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config, p.kernelVersion))
 	kv, err := p.GetKernelVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
@@ -1343,7 +1324,7 @@ func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config, p.kernelVersion, p.statsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config, p.kernelVersion))
 	kv, err := p.GetKernelVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)

@@ -19,7 +19,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/runtimecompiler"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -113,7 +113,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
+	needsOffsets := !config.EnableRuntimeCompilation || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {
@@ -191,7 +191,8 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 
 	var c netlink.Conntracker
 	var err error
-	if cfg.EnableRuntimeCompiler {
+
+	if cfg.EnableRuntimeCompilation {
 		c, err = NewEBPFConntracker(cfg)
 		if err == nil {
 			return c, nil
@@ -202,10 +203,10 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 				log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
 				return netlink.NewNoOpConntracker(), nil
 			}
-			return nil, fmt.Errorf("error compiling ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+			return nil, fmt.Errorf("failed to initialize ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 		}
 
-		log.Warnf("error compiling ebpf conntracker, falling back to netlink version: %s", err)
+		log.Warnf("failed to initialize ebpf conntracker, falling back to netlink version: %s", err)
 	}
 
 	c, err = netlink.NewConntracker(cfg)
@@ -342,6 +343,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
+	khfr := int(runtimecompiler.RuntimeCompiler.GetHeaderFetchTelemetry())
 	rctm := t.getRuntimeCompilationTelemetry()
 	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 
@@ -351,6 +353,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
+		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
 	}, nil
 }
@@ -415,29 +418,15 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 }
 
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
-	telemetryByAsset := map[string]map[string]int64{
-		"tracer":          runtime.Tracer.GetTelemetry(),
-		"conntrack":       runtime.Conntrack.GetTelemetry(),
-		"http":            runtime.Http.GetTelemetry(),
-		"oomKill":         runtime.OomKill.GetTelemetry(),
-		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
-		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
-	}
-
 	result := make(map[string]network.RuntimeCompilationTelemetry)
+
+	telemetryByAsset := runtimecompiler.RuntimeCompiler.GetCompilationTelemetry()
+
 	for assetName, telemetry := range telemetryByAsset {
-		tm := network.RuntimeCompilationTelemetry{}
-		if enabled, ok := telemetry["runtime_compilation_enabled"]; ok {
-			tm.RuntimeCompilationEnabled = enabled == 1
-		}
-		if result, ok := telemetry["runtime_compilation_result"]; ok {
-			tm.RuntimeCompilationResult = int32(result)
-		}
-		if result, ok := telemetry["kernel_header_fetch_result"]; ok {
-			tm.KernelHeaderFetchResult = int32(result)
-		}
-		if duration, ok := telemetry["runtime_compilation_duration"]; ok {
-			tm.RuntimeCompilationDuration = duration
+		tm := network.RuntimeCompilationTelemetry{
+			RuntimeCompilationEnabled:  telemetry.CompilationEnabled(),
+			RuntimeCompilationResult:   telemetry.CompilationResult(),
+			RuntimeCompilationDuration: telemetry.CompilationDurationNS(),
 		}
 		result[assetName] = tm
 	}
@@ -617,9 +606,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
-			tracerStats := t.statsReporter.Report()
-			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
-			ret["tracer"] = tracerStats
+			ret["tracer"] = t.statsReporter.Report()
 		}
 	}
 

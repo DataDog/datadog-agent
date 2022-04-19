@@ -16,6 +16,9 @@ import (
 
 // All System Probe modules should register their factories here
 var All = []module.Factory{
+	// Compiler must always be first module in this list so that if runtime compilation is required, it occurs
+	// prior to any other modules starting.
+	Compiler,
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,

@@ -40,6 +40,7 @@ const (
 	TCPQueueLengthTracerModule ModuleName = "tcp_queue_length_tracer"
 	SecurityRuntimeModule      ModuleName = "security_runtime"
 	ProcessModule              ModuleName = "process"
+	CompilerModule             ModuleName = "compiler"
 )
 
 func key(pieces ...string) string {
@@ -203,6 +204,8 @@ func load(configPath string) (*Config, error) {
 	if !cfg.GetBool("network_config.enabled") && cfg.GetBool("service_monitoring_config.enabled") {
 		log.Info("service_monitoring.enabled detected: enabling system-probe with network module running.")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
+		// ensure others can key off of this single config value for NPM status
+		cfg.Set("network_config.enabled", true)
 	}
 
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {
@@ -225,6 +228,14 @@ func load(configPath string) (*Config, error) {
 	if len(c.EnabledModules) > 0 {
 		c.Enabled = true
 		cfg.Set(key(spNS, "enabled"), c.Enabled)
+	}
+
+	if cfg.GetBool("runtime_compiler_config.skip_runtime_compilation") {
+		log.Infof("runtime_compiler_config.skip_runtime_compilation detected, skipping runtime compilation module")
+	} else {
+		// At this point we can't tell for sure whether or not runtime compilation is going to be
+		// required, so we'll enable the module by default
+		c.EnabledModules[CompilerModule] = struct{}{}
 	}
 
 	return c, nil

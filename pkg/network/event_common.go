@@ -119,6 +119,7 @@ type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]string
 	ConnTelemetry               map[ConnTelemetryType]int64
+	KernelHeaderFetchResult     int
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
@@ -180,7 +181,6 @@ var (
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
-	KernelHeaderFetchResult    int32
 	RuntimeCompilationDuration int64
 }
 
