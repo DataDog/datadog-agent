@@ -132,18 +132,16 @@ func (p *processor) flush() {
 
 // flushContainers forwards queued container events to the aggregator
 func (p *processor) flushContainers() {
-	if !p.containersQueue.isEmpty() {
-		msgs := p.containersQueue.dump()
-		p.containersQueue.reset()
+	msgs := p.containersQueue.flush()
+	if len(msgs) > 0 {
 		p.sender.ContainerLifecycleEvent(msgs)
 	}
 }
 
 // flushPods forwards queued pod events to the aggregator
 func (p *processor) flushPods() {
-	if !p.podsQueue.isEmpty() {
-		msgs := p.podsQueue.dump()
-		p.podsQueue.reset()
+	msgs := p.podsQueue.flush()
+	if len(msgs) > 0 {
 		p.sender.ContainerLifecycleEvent(msgs)
 	}
 }

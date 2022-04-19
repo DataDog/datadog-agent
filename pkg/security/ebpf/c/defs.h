@@ -3,7 +3,7 @@
 
 #include "bpf_helpers.h"
 
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
+#include "constants.h"
 
 #if defined(__x86_64__)
   #define SYSCALL64_PREFIX "__x64_"

@@ -39,11 +39,16 @@ int socket__http_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    // don't bother to inspect packet contents when there is no chance we're dealing with plain HTTP
-    if (!(skb_info.tup.metadata&CONN_TYPE_TCP) || skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) {
+    // If the socket is for https and it is finishing,
+    // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
+    // Otherwise, don't bother to inspect packet contents
+    // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
+    if (!(skb_info.tup.metadata&CONN_TYPE_TCP)) {
         return 0;
     }
-
+    if ((skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
+        return 0;
+    }
 
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
@@ -95,6 +100,16 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
     if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
         return NULL;
     }
+
+    // Set the `.netns` and `.pid` values to always be 0.
+    // They can't be sourced from inside `read_conn_tuple_skb`,
+    // which is used elsewhere to produce the same `conn_tuple_t` value from a `struct __sk_buff*` value,
+    // so we ensure it is always 0 here so that both paths produce the same `conn_tuple_t` value.
+    // `netns` is not used in the userspace program part that binds http information to `ConnectionStats`,
+    // so this is isn't a problem.
+    t.netns = 0;
+    t.pid = 0;
+
     __builtin_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
 
     if (!is_ephemeral_port(ssl_sock->tup.sport)) {

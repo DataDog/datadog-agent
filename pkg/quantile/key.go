@@ -15,7 +15,6 @@ const (
 	uvneginf = -uvinf
 
 	maxKey = uvinf - 1 // 1 spot for +/- inf
-	minKey = uvneginf + 1
 )
 
 // A Key represents a quantized version of a float64. See Config for more details

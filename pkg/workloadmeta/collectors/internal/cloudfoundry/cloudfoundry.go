@@ -164,7 +164,9 @@ func (c *collector) Pull(ctx context.Context) error {
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceClusterOrchestrator,
-			Entity: expired,
+			Entity: &workloadmeta.Container{
+				EntityID: expired,
+			},
 		})
 	}
 

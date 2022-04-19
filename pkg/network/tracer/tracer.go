@@ -329,7 +329,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
-	ctm := t.getConnTelemetry(len(active))
+	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
 	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 
@@ -341,6 +341,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
 	}, nil
+}
+
+func (t *Tracer) RegisterClient(clientID string) error {
+	t.state.RegisterClient(clientID)
+	return nil
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {

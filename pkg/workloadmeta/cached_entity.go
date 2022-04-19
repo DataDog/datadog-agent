@@ -80,3 +80,17 @@ func (e *cachedEntity) computeCache() {
 
 	e.cached = merged
 }
+
+func (e *cachedEntity) copy() *cachedEntity {
+	newEntity := newCachedEntity()
+
+	newEntity.cached = e.cached.DeepCopy()
+
+	copy(newEntity.sortedSources, e.sortedSources)
+
+	for source, entity := range e.sources {
+		newEntity.sources[source] = entity
+	}
+
+	return newEntity
+}

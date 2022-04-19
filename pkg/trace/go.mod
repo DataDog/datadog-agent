@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/trace
 go 1.17
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/Microsoft/go-winio v0.5.1
@@ -19,7 +19,7 @@ require (
 	go.opentelemetry.io/collector/model v0.44.0
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	google.golang.org/grpc v1.44.0
+	google.golang.org/grpc v1.45.0
 	k8s.io/apimachinery v0.21.5
 )
 
