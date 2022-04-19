@@ -36,6 +36,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 				{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 				{Tag: "interface_alias", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
 			},
+			StaticTags: []string{"table_static_tag:val"},
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
@@ -44,6 +45,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 		Device:       DeviceMeta{Vendor: "f5"},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+		StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 		MetricTags: []MetricTagConfig{
 			{
 				OID:     "1.3.6.1.2.1.1.5.0",
