@@ -150,7 +150,9 @@ func (c *collector) expiredEvents() []workloadmeta.CollectorEvent {
 		res = append(res, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceRuntime,
-			Entity: expired,
+			Entity: &workloadmeta.Container{
+				EntityID: expired,
+			},
 		})
 	}
 

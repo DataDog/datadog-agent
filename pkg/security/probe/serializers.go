@@ -374,22 +374,22 @@ func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *Fil
 }
 
 func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers) *FileSerializer {
-	mode := uint32(process.FileFields.Mode)
+	mode := uint32(process.FileEvent.Mode)
 	return &FileSerializer{
-		Path:                process.PathnameStr,
+		Path:                process.FileEvent.PathnameStr,
 		PathResolutionError: process.GetPathResolutionError(),
-		Name:                process.BasenameStr,
-		Inode:               getUint64Pointer(&process.FileFields.Inode),
-		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		Filesystem:          process.Filesystem,
-		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
+		Name:                process.FileEvent.BasenameStr,
+		Inode:               getUint64Pointer(&process.FileEvent.Inode),
+		MountID:             getUint32Pointer(&process.FileEvent.MountID),
+		Filesystem:          process.FileEvent.Filesystem,
+		InUpperLayer:        getInUpperLayer(r, &process.FileEvent.FileFields),
 		Mode:                getUint32Pointer(&mode),
-		UID:                 int64(process.FileFields.UID),
-		GID:                 int64(process.FileFields.GID),
-		User:                r.ResolveFileFieldsUser(&process.FileFields),
-		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
-		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.MTime))),
-		Ctime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.CTime))),
+		UID:                 int64(process.FileEvent.UID),
+		GID:                 int64(process.FileEvent.GID),
+		User:                r.ResolveFileFieldsUser(&process.FileEvent.FileFields),
+		Group:               r.ResolveFileFieldsGroup(&process.FileEvent.FileFields),
+		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileEvent.MTime))),
+		Ctime:               getTimeIfNotZero(time.Unix(0, int64(process.FileEvent.CTime))),
 	}
 }
 
@@ -475,10 +475,31 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 }
 
 func newDDContextSerializer(e *Event) *DDContextSerializer {
-	return &DDContextSerializer{
+	s := &DDContextSerializer{
 		SpanID:  e.SpanContext.SpanID,
 		TraceID: e.SpanContext.TraceID,
 	}
+	if s.SpanID != 0 || s.TraceID != 0 {
+		return s
+	}
+
+	ctx := eval.NewContext(e.GetPointer())
+	it := &model.ProcessAncestorsIterator{}
+	ptr := it.Front(ctx)
+
+	for ptr != nil {
+		pce := (*model.ProcessCacheEntry)(ptr)
+
+		if pce.SpanID != 0 || pce.TraceID != 0 {
+			s.SpanID = pce.SpanID
+			s.TraceID = pce.TraceID
+			break
+		}
+
+		ptr = it.Next()
+	}
+
+	return s
 }
 
 func newUserContextSerializer(e *Event) *UserContextSerializer {
