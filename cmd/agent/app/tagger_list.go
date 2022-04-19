@@ -98,7 +98,7 @@ var taggerListCommand = &cobra.Command{
 
 				for i, tag := range tags {
 					tagInfo := strings.Split(tag, ":")
-					fmt.Fprintf(color.Output, fmt.Sprintf("%s:%s", color.BlueString(tagInfo[0]), color.CyanString(strings.Join(tagInfo[1:], ":"))))
+					fmt.Fprintf(color.Output, "%s:%s", color.BlueString(tagInfo[0]), color.CyanString(strings.Join(tagInfo[1:], ":")))
 					if i != len(tags)-1 {
 						fmt.Fprintf(color.Output, " ")
 					}

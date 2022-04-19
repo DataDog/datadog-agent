@@ -397,11 +397,12 @@ func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterf
 			}
 		}
 
-		if total > 0 {
-			pbm.probe.DispatchCustomEvent(
-				NewEventLostReadEvent(m, total),
-			)
-		}
+		// Disable custom event for now
+		// if total > 0 {
+		// 	pbm.probe.DispatchCustomEvent(
+		// 		NewEventLostReadEvent(m, total),
+		// 	)
+		// }
 	}
 	return nil
 }

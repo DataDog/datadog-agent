@@ -193,6 +193,23 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	return stats, nil
 }
 
+// Register registers the client to system probe
+func (r *RemoteSysProbeUtil) Register(clientID string) error {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", registerURL, clientID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return err
+	} else if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
+	}
+
+	return nil
+}
+
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
 		path: globalSocketPath,

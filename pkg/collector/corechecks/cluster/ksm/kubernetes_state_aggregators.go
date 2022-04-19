@@ -221,79 +221,81 @@ func (a *lastCronJobAggregator) flush(sender aggregator.Sender, k *KSMCheck, lab
 	a.accumulator = make(map[cronJob]cronJobState)
 }
 
-var cronJobAggregator = newLastCronJobAggregator()
+func defaultMetricAggregators() map[string]metricAggregator {
+	cronJobAggregator := newLastCronJobAggregator()
 
-var metricAggregators = map[string]metricAggregator{
-	"kube_persistentvolume_status_phase": newSumValuesAggregator(
-		"persistentvolumes.by_phase",
-		"kube_persistentvolume_status_phase",
-		[]string{"storageclass", "phase"},
-	),
-	"kube_service_spec_type": newCountObjectsAggregator(
-		"service.count",
-		"kube_service_spec_type",
-		[]string{"namespace", "type"},
-	),
-	"kube_namespace_status_phase": newSumValuesAggregator(
-		"namespace.count",
-		"kube_namespace_status_phase",
-		[]string{"phase"},
-	),
-	"kube_replicaset_owner": newCountObjectsAggregator(
-		"replicaset.count",
-		"kube_replicaset_owner",
-		[]string{"namespace", "owner_name", "owner_kind"},
-	),
-	"kube_job_owner": newCountObjectsAggregator(
-		"job.count",
-		"kube_job_owner",
-		[]string{"namespace", "owner_name", "owner_kind"},
-	),
-	"kube_deployment_labels": newCountObjectsAggregator(
-		"deployment.count",
-		"kube_deployment_labels",
-		[]string{"namespace"},
-	),
-	"kube_daemonset_labels": newCountObjectsAggregator(
-		"daemonset.count",
-		"kube_daemonset_labels",
-		[]string{"namespace"},
-	),
-	"kube_statefulset_labels": newCountObjectsAggregator(
-		"statefulset.count",
-		"kube_statefulset_labels",
-		[]string{"namespace"},
-	),
-	"kube_cronjob_labels": newCountObjectsAggregator(
-		"cronjob.count",
-		"kube_cronjob_labels",
-		[]string{"namespace"},
-	),
-	"kube_endpoint_labels": newCountObjectsAggregator(
-		"endpoint.count",
-		"kube_endpoint_labels",
-		[]string{"namespace"},
-	),
-	"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
-		"hpa.count",
-		"kube_horizontalpodautoscaler_labels",
-		[]string{"namespace"},
-	),
-	"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
-		"vpa.count",
-		"kube_verticalpodautoscaler_labels",
-		[]string{"namespace"},
-	),
-	"kube_node_info": newCountObjectsAggregator(
-		"node.count",
-		"kube_node_info",
-		[]string{"kubelet_version", "container_runtime_version", "kernel_version", "os_image"},
-	),
-	"kube_pod_info": newCountObjectsAggregator(
-		"pod.count",
-		"kube_pod_info",
-		[]string{"node", "namespace", "created_by_kind", "created_by_name"},
-	),
-	"kube_job_complete": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
-	"kube_job_failed":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
+	return map[string]metricAggregator{
+		"kube_persistentvolume_status_phase": newSumValuesAggregator(
+			"persistentvolumes.by_phase",
+			"kube_persistentvolume_status_phase",
+			[]string{"storageclass", "phase"},
+		),
+		"kube_service_spec_type": newCountObjectsAggregator(
+			"service.count",
+			"kube_service_spec_type",
+			[]string{"namespace", "type"},
+		),
+		"kube_namespace_status_phase": newSumValuesAggregator(
+			"namespace.count",
+			"kube_namespace_status_phase",
+			[]string{"phase"},
+		),
+		"kube_replicaset_owner": newCountObjectsAggregator(
+			"replicaset.count",
+			"kube_replicaset_owner",
+			[]string{"namespace", "owner_name", "owner_kind"},
+		),
+		"kube_job_owner": newCountObjectsAggregator(
+			"job.count",
+			"kube_job_owner",
+			[]string{"namespace", "owner_name", "owner_kind"},
+		),
+		"kube_deployment_labels": newCountObjectsAggregator(
+			"deployment.count",
+			"kube_deployment_labels",
+			[]string{"namespace"},
+		),
+		"kube_daemonset_labels": newCountObjectsAggregator(
+			"daemonset.count",
+			"kube_daemonset_labels",
+			[]string{"namespace"},
+		),
+		"kube_statefulset_labels": newCountObjectsAggregator(
+			"statefulset.count",
+			"kube_statefulset_labels",
+			[]string{"namespace"},
+		),
+		"kube_cronjob_labels": newCountObjectsAggregator(
+			"cronjob.count",
+			"kube_cronjob_labels",
+			[]string{"namespace"},
+		),
+		"kube_endpoint_labels": newCountObjectsAggregator(
+			"endpoint.count",
+			"kube_endpoint_labels",
+			[]string{"namespace"},
+		),
+		"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
+			"hpa.count",
+			"kube_horizontalpodautoscaler_labels",
+			[]string{"namespace"},
+		),
+		"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
+			"vpa.count",
+			"kube_verticalpodautoscaler_labels",
+			[]string{"namespace"},
+		),
+		"kube_node_info": newCountObjectsAggregator(
+			"node.count",
+			"kube_node_info",
+			[]string{"kubelet_version", "container_runtime_version", "kernel_version", "os_image"},
+		),
+		"kube_pod_info": newCountObjectsAggregator(
+			"pod.count",
+			"kube_pod_info",
+			[]string{"node", "namespace", "created_by_kind", "created_by_name"},
+		),
+		"kube_job_complete": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
+		"kube_job_failed":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
+	}
 }
