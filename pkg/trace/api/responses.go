@@ -120,3 +120,10 @@ func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *samp
 	err = encoder.Encode(response)
 	return
 }
+
+// HTTPError replies to the request with the specified error and
+// HTTP status in JSON format.
+func HTTPError(w http.ResponseWriter, status int, err error) {
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), status)
+}

@@ -8,9 +8,9 @@ package config
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"html"
 	"net/http"
 	"net/url"
@@ -595,54 +595,27 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	return nil
 }
 
-//UpdateConfigHandler returns handler for configuration changes during runtime
+// UpdateConfigHandler returns handler for runtime configuration changes.
 func UpdateConfigHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_ = req.ParseForm()
-
 		setting := html.UnescapeString(req.Form.Get("setting"))
 		value := html.UnescapeString(req.Form.Get("value"))
-
-		log.Warnf("Got a request to change a setting: %s", setting)
-
 		switch setting {
 		case "log_level":
-			currentLvl, err := log.GetLogLevel()
-			if err != nil {
-				log.Errorf("Couldn't get log level: %s", err.Error())
-				httpSettingError(w, http.StatusBadRequest, err)
+			lvl := strings.ToLower(value)
+			if lvl == "warning" {
+				lvl = "warn"
+			}
+			if err := coreconfig.ChangeLogLevel(lvl); err != nil {
+				api.HTTPError(w, http.StatusInternalServerError, err)
 				return
 			}
-
-			seelogLogLevel := strings.ToLower(value)
-			if seelogLogLevel == "warning" {
-				seelogLogLevel = "warn"
-			}
-
-			if seelogLogLevel == currentLvl.String() {
-				httpSettingError(w, http.StatusBadRequest,
-					errors.New("current log level equals requested value"))
-				return
-			}
-
-			if err = coreconfig.ChangeLogLevel(seelogLogLevel); err != nil {
-				httpSettingError(w, http.StatusBadRequest, err)
-				return
-			}
-			coreconfig.Datadog.Set("log_level", seelogLogLevel)
-
-			log.Infof("Switched log level from %s to %s", currentLvl, seelogLogLevel)
+			coreconfig.Datadog.Set("log_level", lvl)
+			log.Infof("Switched log level to %s", lvl)
 		default:
-			httpSettingError(w, http.StatusBadRequest, errors.New("unrecognized setting"))
+			api.HTTPError(w, http.StatusBadRequest, errors.New("unrecognized setting"))
 			return
 		}
-
-		w.Write([]byte("Success"))
-
-		return
 	})
-}
-func httpSettingError(w http.ResponseWriter, status int, err error) {
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), status)
 }
