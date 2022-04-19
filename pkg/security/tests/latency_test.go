@@ -32,7 +32,7 @@ var (
 var benchLatencyhFS embed.FS
 
 // modified version of testModule.CreateWithOption, to be able to call it without testing module
-func CreateWithOption(sfilename string, user, group, mode int) (string, unsafe.Pointer, error) {
+func CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
 	var macros []*rules.MacroDefinition
 	var rules []*rules.RuleDefinition
 	logLevel, found := seelog.LogLevelFromString("warn")
@@ -100,7 +100,7 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 	}
 
 	// load bench binary
-	executable, err := loadBenchLatencyBin("bench_net_DNS")
+	executable, err := loadBenchLatencyBin(executable)
 	if err != nil {
 		t.Fatal(err)
 	}
