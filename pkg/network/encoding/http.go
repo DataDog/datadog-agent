@@ -12,8 +12,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-var sentinelValue = new(model.HTTPAggregations)
-
 type httpEncoder struct {
 	aggregations map[http.Key]*model.HTTPAggregations
 
@@ -42,7 +40,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		encoder.aggregations[httpKeyFromConn(conn)] = sentinelValue
+		encoder.aggregations[httpKeyFromConn(conn)] = nil
 	}
 
 	encoder.buildAggregations(payload)
@@ -54,12 +52,7 @@ func (e *httpEncoder) GetHTTPAggregations(c network.ConnectionStats) *model.HTTP
 		return nil
 	}
 
-	key := httpKeyFromConn(c)
-	if aggregation, ok := e.aggregations[key]; ok && aggregation != sentinelValue {
-		return aggregation
-	}
-
-	return nil
+	return e.aggregations[httpKeyFromConn(c)]
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
@@ -76,8 +69,7 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			continue
 		}
 
-		if aggregation == sentinelValue {
-			// if this is sentinel value, instantiate a real one
+		if aggregation == nil {
 			aggregation = &model.HTTPAggregations{
 				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
 			}
