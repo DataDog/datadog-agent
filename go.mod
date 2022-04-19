@@ -414,12 +414,12 @@ require (
 	google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 )
 
-require github.com/docker/libnetwork v0.5.6
-
 require (
-	github.com/Sirupsen/logrus v1.0.6 // indirect
-	go.opentelemetry.io/collector/pdata v0.49.0 // indirect
+	github.com/docker/libnetwork v0.5.6
+	go.opentelemetry.io/collector/pdata v0.49.0
 )
+
+require github.com/Sirupsen/logrus v1.0.6 // indirect
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
