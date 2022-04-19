@@ -286,9 +286,11 @@ func TestPull(t *testing.T) {
 			expectedEvents: append(expectedEvents, workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeUnset,
 				Source: workloadmeta.SourceRuntime,
-				Entity: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   expiredID,
+				Entity: &workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   expiredID,
+					},
 				},
 			}),
 		},

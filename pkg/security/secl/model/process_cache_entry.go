@@ -13,7 +13,13 @@ import (
 	"time"
 )
 
-// SetAncestor set the ancestor
+// SetSpan sets the span
+func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
+	pc.SpanID = spanID
+	pc.TraceID = traceID
+}
+
+// SetAncestor sets the ancestor
 func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	pc.Ancestor = parent
 	parent.Retain()
@@ -73,10 +79,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PPid = pc.Pid
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
-	childEntry.FileFields = pc.FileFields
-	childEntry.PathnameStr = pc.PathnameStr
-	childEntry.BasenameStr = pc.BasenameStr
-	childEntry.Filesystem = pc.Filesystem
+	childEntry.FileEvent = pc.FileEvent
 	childEntry.ContainerID = pc.ContainerID
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
@@ -230,6 +233,20 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 	}
 
 	return p.Values, p.Truncated
+}
+
+// Equals compares two ArgsEntry
+func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
+	if p == o {
+		return true
+	} else if p == nil || o == nil {
+		return false
+	}
+
+	pa, _ := p.ToArray()
+	oa, _ := o.ToArray()
+
+	return stringArraysEqual(pa, oa)
 }
 
 // EnvsEntry defines a args cache entry

@@ -226,13 +226,14 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewLoader(p.config, useSyscallWrapper)
+	loader := ebpf.NewProbeLoader(p.config, useSyscallWrapper)
 	defer loader.Close()
 
 	bytecodeReader, err := loader.Load()
 	if err != nil {
 		return err
 	}
+	defer bytecodeReader.Close()
 
 	var ok bool
 	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
@@ -291,16 +292,19 @@ func (p *Probe) Init() error {
 	return nil
 }
 
-// Start the runtime security probe
-func (p *Probe) Start() error {
-	p.wg.Add(1)
-	go p.reOrderer.Start(&p.wg)
-
+// Setup the runtime security probe
+func (p *Probe) Setup() error {
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
 
 	return p.monitor.Start(p.ctx, &p.wg)
+}
+
+// Start processing events
+func (p *Probe) Start() {
+	p.wg.Add(1)
+	go p.reOrderer.Start(&p.wg)
 }
 
 // SetEventHandler set the probe event handler
@@ -594,6 +598,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
+		event.processCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
@@ -611,7 +616,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		// copy some of the field from the entry
 		event.Exec.Process = event.processCacheEntry.Process
-		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
+		event.Exec.FileEvent = event.processCacheEntry.Process.FileEvent
 	case model.ExitEventType:
 		// do nothing
 	case model.SetuidEventType:
@@ -698,8 +703,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
-	case model.NamespaceSwitchEventType:
-		break
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1084,6 +1087,7 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 		newProbe.IfIndex = int(device.IfIndex)
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
+		newProbe.KeepProgramSpec = false
 
 		netnsEditor := []manager.ConstantEditor{
 			{

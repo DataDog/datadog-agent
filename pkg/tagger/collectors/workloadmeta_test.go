@@ -225,9 +225,9 @@ func TestHandleKubePod(t *testing.T) {
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
-					}),
+					},
 					StandardTags: []string{},
 				},
 				{
@@ -280,9 +280,9 @@ func TestHandleKubePod(t *testing.T) {
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
-					}),
+					},
 					StandardTags: []string{},
 				},
 				{
@@ -326,10 +326,38 @@ func TestHandleKubePod(t *testing.T) {
 						fmt.Sprintf("pod_name:%s", podName),
 						"oshift_deployment:gitlab-ce-1",
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
 						"oshift_deployment_config:gitlab-ce",
-					}),
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "static tags",
+			staticTags: map[string]string{
+				"eks_fargate_node": "foobar",
+			},
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"eks_fargate_node:foobar",
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -641,9 +669,9 @@ func TestHandleContainer(t *testing.T) {
 						"app_name:datadog-agent",
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"owner_team:container-integrations",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -677,12 +705,12 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						// Notice that the names include the custom prefixes
 						// added in labelsAsTags and envAsTags.
 						"custom_label_prefix_team:container-integrations",
 						"custom_env_prefix_some_env:some_env_val",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -711,11 +739,11 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"docker_image:redis", // Notice that there's no tag
 						"image_name:redis",
 						"short_image:redis",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -744,13 +772,13 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"nomad_task:test-task",
 						"nomad_job:test-job",
 						"nomad_group:test-group",
 						"nomad_namespace:test-namespace",
 						"nomad_dc:test-dc",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -780,11 +808,11 @@ func TestHandleContainer(t *testing.T) {
 					OrchestratorCardTags: []string{
 						"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"chronos_job:app1_process-orders",
 						"chronos_job_owner:qa",
 						"marathon_app:/system/dd-agent",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -823,10 +851,10 @@ func TestHandleContainer(t *testing.T) {
 						"rancher_container:testAD-redis-1",
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"rancher_service:testAD/redis",
 						"rancher_stack:testAD",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -857,10 +885,10 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"swarm_namespace:default",
 						"swarm_service:helloworld",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
