@@ -8,9 +8,9 @@ package config
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"html"
 	"net/http"
 	"net/url"
@@ -608,14 +608,19 @@ func UpdateConfigHandler() http.Handler {
 				lvl = "warn"
 			}
 			if err := coreconfig.ChangeLogLevel(lvl); err != nil {
-				api.HTTPError(w, http.StatusInternalServerError, err)
+				httpError(w, http.StatusInternalServerError, err)
 				return
 			}
 			coreconfig.Datadog.Set("log_level", lvl)
 			log.Infof("Switched log level to %s", lvl)
 		default:
-			api.HTTPError(w, http.StatusBadRequest, errors.New("unrecognized setting"))
+			httpError(w, http.StatusBadRequest, errors.New("unrecognized setting"))
 			return
 		}
 	})
+}
+
+func httpError(w http.ResponseWriter, status int, err error) {
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), status)
 }
