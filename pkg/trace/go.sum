@@ -197,8 +197,8 @@ github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9dec
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yusufpapurcu/wmi v1.2.2 h1:KBNDSne4vP5mbSWnJbO+51IMOXJB67QiYCSBrubbPRg=
 github.com/yusufpapurcu/wmi v1.2.2/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
-go.opentelemetry.io/collector/model v0.44.0 h1:I+M6X2NANYChOGYrpbxCoEYJah3eHdMvumKjothIAtA=
-go.opentelemetry.io/collector/model v0.44.0/go.mod h1:4jo1R8uBDspLCxUGhQ0k3v/EFXFbW7s0AIy3LuGLbcU=
+go.opentelemetry.io/collector/model v0.49.0 h1:mbUSNgpaBE3GWmzGsRb5t0xILpXIVYv7scPTTfoMt6c=
+go.opentelemetry.io/collector/model v0.49.0/go.mod h1:nOYQv9KoFPs6ihJwOi24qB209EOhS9HkwhGj54YiEAw=
 go.opentelemetry.io/collector/pdata v0.49.0 h1:aYj5rOlRC0x7lGXbc185LMsMMoY/pjOTXr5s1O2SzXs=
 go.opentelemetry.io/collector/pdata v0.49.0/go.mod h1:YwmKuiFhNgtmhRdpi8Q8FAWPa0AwJTCSlssSsAtuRcY=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=
