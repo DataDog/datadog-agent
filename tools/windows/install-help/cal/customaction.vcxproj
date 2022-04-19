@@ -171,6 +171,7 @@
     <ClCompile Include="FinalizeInstall.cpp" />
     <ClCompile Include="PropertyReplacer.cpp" />
     <ClCompile Include="rollback.cpp" />
+    <ClCompile Include="SID.cpp" />
     <ClCompile Include="TargetMachine.cpp" />
     <ClCompile Include="precompiled\stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

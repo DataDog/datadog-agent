@@ -121,7 +121,12 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                 {
                     // case (6)
                     WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.FullyQualifiedUsername().c_str());
-                    if (_wcsicmp(data.Domain().c_str(), L"NT AUTHORITY") != 0)
+                    const auto ntAuthoritySid = WellKnownSID::NTAuthority();
+                    if (!ntAuthoritySid.has_value())
+                    {
+                        WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
+                    }
+                    if (!EqualPrefixSid(data.Sid(), ntAuthoritySid.value().get()))
                     {
                         // Don't reset password for NT AUTHORITY\* users
                         bResetPassword = true;
