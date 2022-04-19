@@ -50,9 +50,6 @@ const (
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
 
-	computeStatsKey   = "_dd.compute_stats"
-	computeStatsValue = "1"
-
 	extensionVersionKey = "dd_extension_version"
 
 	regionKey     = "region"
@@ -89,7 +86,6 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	}
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
-	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
 	tags = setIfNotEmpty(tags, FunctionARNKey, arn)
 	tags = setIfNotEmpty(tags, extensionVersionKey, GetExtensionVersion())
 
@@ -118,7 +114,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 // BuildTagsFromMap builds an array of tag based on map of tags
 func BuildTagsFromMap(tags map[string]string) []string {
 	tagsMap := make(map[string]string)
-	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
+	tagBlackList := []string{traceOriginMetadataKey}
 	for k, v := range tags {
 		tagsMap[k] = v
 	}
