@@ -23,9 +23,9 @@ import (
 
 func TestWithAttributeMap(t *testing.T) {
 	attributes := pcommon.NewMapFromRaw(map[string]interface{}{
-		"key1": pcommon.NewValueString("val1"),
-		"key2": pcommon.NewValueString("val2"),
-		"key3": pcommon.NewValueString(""),
+		"key1": "val1",
+		"key2": "val2",
+		"key3": "",
 	})
 
 	dims := Dimensions{}
@@ -111,7 +111,7 @@ func TestAllFieldsAreCopied(t *testing.T) {
 		AddTags("tagThree:c").
 		WithSuffix("suffix").
 		WithAttributeMap(pcommon.NewMapFromRaw(map[string]interface{}{
-			"tagFour": pcommon.NewValueString("d"),
+			"tagFour": "d",
 		}))
 
 	assert.Equal(t, "example.name.suffix", newDims.Name())
