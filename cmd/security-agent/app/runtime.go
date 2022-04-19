@@ -270,12 +270,10 @@ func init() {
 	activityDumpGenerateCmd.AddCommand(activityDumpGenerateDumpCmd)
 	activityDumpGenerateCmd.AddCommand(activityDumpGenerateProfileCmd)
 	activityDumpGenerateCmd.AddCommand(activityDumpGenerateGraphCmd)
-	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
 
+	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
 	activityDumpCmd.AddCommand(activityDumpListCmd)
 	activityDumpCmd.AddCommand(activityDumpStopCmd)
-	activityDumpCmd.AddCommand(activityDumpGenerateProfileCmd)
-	activityDumpCmd.AddCommand(activityDumpGenerateGraphCmd)
 	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)

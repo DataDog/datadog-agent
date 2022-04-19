@@ -23,6 +23,9 @@ var (
 	dispatchedConfigs = telemetry.NewGaugeWithOpts("cluster_checks", "configs_dispatched",
 		[]string{"node", le.JoinLeaderLabel}, "Number of check configurations dispatched, by node.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	dispatchedEndpoints = telemetry.NewGaugeWithOpts("endpoint_checks", "configs_dispatched",
+		[]string{"node", le.JoinLeaderLabel}, "Number of endpoint check configurations dispatched, by node.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	rebalancingDecisions = telemetry.NewCounterWithOpts("cluster_checks", "rebalancing_decisions",
 		[]string{le.JoinLeaderLabel}, "Total number of check rebalancing decisions",
 		telemetry.Options{NoDoubleUnderscoreSep: true})

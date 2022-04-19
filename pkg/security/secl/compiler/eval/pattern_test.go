@@ -43,6 +43,10 @@ func TestPatternNextSegment(t *testing.T) {
 
 func TestPatternMatches(t *testing.T) {
 	t.Run("sensitive-case", func(t *testing.T) {
+		if !PatternMatches("*abc*", "/abc/", false) {
+			t.Error("should match")
+		}
+
 		if !PatternMatches("*test123", "aaatest123", false) {
 			t.Error("should match")
 		}

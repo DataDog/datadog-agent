@@ -73,10 +73,21 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	expires := c.expire.ComputeExpires()
 	for _, expired := range expires {
+		var entity workloadmeta.Entity
+		switch expired.Kind {
+		case workloadmeta.KindECSTask:
+			entity = &workloadmeta.ECSTask{EntityID: expired}
+		case workloadmeta.KindContainer:
+			entity = &workloadmeta.Container{EntityID: expired}
+		default:
+			log.Errorf("cannot handle expired entity of kind %q, skipping", expired.Kind)
+			continue
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceRuntime,
-			Entity: expired,
+			Entity: entity,
 		})
 	}
 

@@ -7,7 +7,6 @@ package workloadmeta
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -177,10 +176,9 @@ const (
 // the agent.
 //
 // This interface is implemented by several concrete types, and is typically
-// cast to that concrete type to get detailed information.  For EntityTypeSet
-// events, the concrete type corresponds to the entity's type (GetID().Kind),
-// and it is safe to make an unchecked cast.  For EntityTypeUnset, the entity
-// is an EntityID and such a cast will fail.
+// cast to that concrete type to get detailed information.  The concrete type
+// corresponds to the entity's type (GetID().Kind), and it is safe to make an
+// unchecked cast.
 type Entity interface {
 	// GetID gets the EntityID for this entity.
 	GetID() EntityID
@@ -207,28 +205,6 @@ type EntityID struct {
 
 	// ID is the ID for this entity, in a format specific to the entity Kind.
 	ID string
-}
-
-// EntityID satisfies the Entity interface for EntityID to allow a standalone
-// EntityID to be passed in events of type EventTypeUnset without the need to
-// build a full, concrete entity.
-var _ Entity = EntityID{}
-
-// GetID implements Entity#GetID.
-func (i EntityID) GetID() EntityID {
-	return i
-}
-
-// Merge implements Entity#Merge.
-func (i EntityID) Merge(e Entity) error {
-	// Merge returns an error because EntityID is not expected to be merged
-	// with another Entity, because it's used as an identifier.
-	return errors.New("cannot merge EntityID with another entity")
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (i EntityID) DeepCopy() Entity {
-	return i
 }
 
 // String implements Entity#String.
