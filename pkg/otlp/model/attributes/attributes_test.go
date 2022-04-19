@@ -21,20 +21,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/model/pdata"
 	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 func TestTagsFromAttributes(t *testing.T) {
-	attributeMap := map[string]pdata.AttributeValue{
-		conventions.AttributeProcessExecutableName: pdata.NewAttributeValueString("otelcol"),
-		conventions.AttributeProcessExecutablePath: pdata.NewAttributeValueString("/usr/bin/cmd/otelcol"),
-		conventions.AttributeProcessCommand:        pdata.NewAttributeValueString("cmd/otelcol"),
-		conventions.AttributeProcessCommandLine:    pdata.NewAttributeValueString("cmd/otelcol --config=\"/path/to/config.yaml\""),
-		conventions.AttributeProcessPID:            pdata.NewAttributeValueInt(1),
-		conventions.AttributeProcessOwner:          pdata.NewAttributeValueString("root"),
-		conventions.AttributeOSType:                pdata.NewAttributeValueString("linux"),
-		conventions.AttributeK8SDaemonSetName:      pdata.NewAttributeValueString("daemon_set_name"),
-		conventions.AttributeAWSECSClusterARN:      pdata.NewAttributeValueString("cluster_arn"),
-		"tags.datadoghq.com/service":               pdata.NewAttributeValueString("service_name"),
+	attributeMap := map[string]pcommon.Value{
+		conventions.AttributeProcessExecutableName: pcommon.NewValueString("otelcol"),
+		conventions.AttributeProcessExecutablePath: pcommon.NewValueString("/usr/bin/cmd/otelcol"),
+		conventions.AttributeProcessCommand:        pcommon.NewValueString("cmd/otelcol"),
+		conventions.AttributeProcessCommandLine:    pcommon.NewValueString("cmd/otelcol --config=\"/path/to/config.yaml\""),
+		conventions.AttributeProcessPID:            pcommon.NewValueInt(1),
+		conventions.AttributeProcessOwner:          pcommon.NewValueString("root"),
+		conventions.AttributeOSType:                pcommon.NewValueString("linux"),
+		conventions.AttributeK8SDaemonSetName:      pcommon.NewValueString("daemon_set_name"),
+		conventions.AttributeAWSECSClusterARN:      pcommon.NewValueString("cluster_arn"),
+		"tags.datadoghq.com/service":               pcommon.NewValueString("service_name"),
 	}
 	attrs := pdata.NewAttributeMapFromMap(attributeMap)
 
@@ -48,7 +49,7 @@ func TestTagsFromAttributes(t *testing.T) {
 }
 
 func TestTagsFromAttributesEmpty(t *testing.T) {
-	attrs := pdata.NewAttributeMap()
+	attrs := pcommon.NewMap()
 
 	assert.Equal(t, []string{}, TagsFromAttributes(attrs))
 }
@@ -85,34 +86,34 @@ func TestContainerTagFromAttributesEmpty(t *testing.T) {
 func TestOriginIDFromAttributes(t *testing.T) {
 	tests := []struct {
 		name     string
-		attrs    pdata.AttributeMap
+		attrs    pcommon.Map
 		originID string
 	}{
 		{
 			name: "pod UID and container ID",
-			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
-				conventions.AttributeContainerID: pdata.NewAttributeValueString("container_id_goes_here"),
-				conventions.AttributeK8SPodUID:   pdata.NewAttributeValueString("k8s_pod_uid_goes_here"),
+			attrs: pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
+				conventions.AttributeContainerID: pcommon.NewValueString("container_id_goes_here"),
+				conventions.AttributeK8SPodUID:   pcommon.NewValueString("k8s_pod_uid_goes_here"),
 			}),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only container ID",
-			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
-				conventions.AttributeContainerID: pdata.NewAttributeValueString("container_id_goes_here"),
+			attrs: pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
+				conventions.AttributeContainerID: pcommon.NewValueString("container_id_goes_here"),
 			}),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only pod UID",
-			attrs: pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
-				conventions.AttributeK8SPodUID: pdata.NewAttributeValueString("k8s_pod_uid_goes_here"),
+			attrs: pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
+				conventions.AttributeK8SPodUID: pcommon.NewValueString("k8s_pod_uid_goes_here"),
 			}),
 			originID: "kubernetes_pod_uid://k8s_pod_uid_goes_here",
 		},
 		{
 			name:  "none",
-			attrs: pdata.NewAttributeMap(),
+			attrs: pcommon.NewMap(),
 		},
 	}
 

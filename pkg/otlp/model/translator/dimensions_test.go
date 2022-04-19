@@ -19,10 +19,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 func TestWithAttributeMap(t *testing.T) {
-	attributes := pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
+	attributes := pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
 		"key1": pdata.NewAttributeValueString("val1"),
 		"key2": pdata.NewAttributeValueString("val2"),
 		"key3": pdata.NewAttributeValueString(""),
@@ -110,7 +111,7 @@ func TestAllFieldsAreCopied(t *testing.T) {
 	newDims := dims.
 		AddTags("tagThree:c").
 		WithSuffix("suffix").
-		WithAttributeMap(pdata.NewAttributeMapFromMap(map[string]pdata.AttributeValue{
+		WithAttributeMap(pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
 			"tagFour": pdata.NewAttributeValueString("d"),
 		}))
 
