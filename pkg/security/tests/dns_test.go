@@ -21,14 +21,10 @@ import (
 )
 
 func TestDNS(t *testing.T) {
-	kv, err := kernel.NewKernelVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if kv.IsRH7Kernel() || kv.IsSLES12Kernel() || kv.IsSLES15Kernel() || kv.IsOracleUEKKernel() {
-		t.Skip()
-	}
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -57,6 +53,23 @@ func TestDNS(t *testing.T) {
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
+
+			if !validateDNSSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
+
+	t.Run("dns-case", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			_, err = net.LookupIP("GOOGLE.COM")
+			if err != nil {
+				return err
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "dns", event.GetType(), "wrong event type")
+			assert.Equal(t, "GOOGLE.COM", event.DNS.Name, "wrong domain name")
 
 			if !validateDNSSchema(t, event) {
 				t.Error(event.String())

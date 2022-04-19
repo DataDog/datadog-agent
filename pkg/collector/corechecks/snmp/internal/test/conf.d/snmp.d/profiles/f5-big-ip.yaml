@@ -19,6 +19,9 @@ metric_tags:
       prefix: \1
       suffix: \2
 
+static_tags:
+  - 'static_tag:from_profile_root'
+
 metadata:
   device:
     fields:

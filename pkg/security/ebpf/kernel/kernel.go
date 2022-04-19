@@ -140,6 +140,24 @@ func NewKernelVersion() (*Version, error) {
 	return nil, errors.New("failed to detect operating system version")
 }
 
+// IsDebianKernel returns whether the kernel is an ubuntu kernel
+func (k *Version) IsDebianKernel() bool {
+	return k.OsRelease["ID"] == "debian"
+}
+
+// UbuntuKernelVersion returns a parsed ubuntu kernel version or nil if not on ubuntu or if parsing failed
+func (k *Version) UbuntuKernelVersion() *kernel.UbuntuKernelVersion {
+	if k.OsRelease["ID"] != "ubuntu" {
+		return nil
+	}
+
+	ukv, err := kernel.NewUbuntuKernelVersion(k.UnameRelease)
+	if err != nil {
+		return nil
+	}
+	return ukv
+}
+
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
 	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
@@ -152,17 +170,22 @@ func (k *Version) IsRH8Kernel() bool {
 
 // IsSuseKernel returns whether the kernel is a suse kernel
 func (k *Version) IsSuseKernel() bool {
-	return k.OsRelease["ID"] == "sles" || k.OsRelease["ID"] == "opensuse-leap"
+	return k.IsSLESKernel() || k.OsRelease["ID"] == "opensuse-leap"
 }
 
-// IsSLES12Kernel returns whether the kernel is a sles 12 kernel
-func (k *Version) IsSLES12Kernel() bool {
+// IsSuse12Kernel returns whether the kernel is a sles 12 kernel
+func (k *Version) IsSuse12Kernel() bool {
 	return k.IsSuseKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "12")
 }
 
-// IsSLES15Kernel returns whether the kernel is a sles 15 kernel
-func (k *Version) IsSLES15Kernel() bool {
+// IsSuse15Kernel returns whether the kernel is a sles 15 kernel
+func (k *Version) IsSuse15Kernel() bool {
 	return k.IsSuseKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "15")
+}
+
+// IsSLESKernel returns whether the kernel is a sles kernel
+func (k *Version) IsSLESKernel() bool {
+	return k.OsRelease["ID"] == "sles"
 }
 
 // IsOracleUEKKernel returns whether the kernel is an oracle uek kernel

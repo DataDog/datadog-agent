@@ -66,6 +66,7 @@ func (mp *MetricsProvider) Clear() {
 type ContainerEntry struct {
 	ContainerStats provider.ContainerStats
 	NetworkStats   provider.ContainerNetworkStats
+	OpenFiles      *uint64
 	Error          error
 }
 
@@ -104,7 +105,7 @@ func (mp *Collector) Clear() {
 }
 
 // GetContainerStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return &entry.ContainerStats, entry.Error
 	}
@@ -112,8 +113,17 @@ func (mp *Collector) GetContainerStats(containerID string, cacheValidity time.Du
 	return nil, fmt.Errorf("container not found")
 }
 
+// GetContainerOpenFilesCount returns stats from MockContainerEntry
+func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	if entry, found := mp.containers[containerID]; found {
+		return entry.OpenFiles, entry.Error
+	}
+
+	return nil, fmt.Errorf("container not found")
+}
+
 // GetContainerNetworkStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return &entry.NetworkStats, entry.Error
 	}

@@ -58,7 +58,7 @@ func (collector *criCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (collector *criCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (collector *criCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := collector.getCriContainerStats(containerID)
 	if err != nil {
 		return nil, err
@@ -75,8 +75,14 @@ func (collector *criCollector) GetContainerStats(containerID string, cacheValidi
 	}, nil
 }
 
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (collector *criCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
+}
+
 // GetContainerNetworkStats returns network stats by container ID.
-func (collector *criCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (collector *criCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	// Not available
 	return nil, nil
 }

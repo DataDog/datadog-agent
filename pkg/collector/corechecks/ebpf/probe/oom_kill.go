@@ -49,6 +49,7 @@ func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	probes := []*manager.Probe{
 		{
 			Section: "kprobe/oom_kill_process",
+			UID:     "oom",
 		},
 	}
 

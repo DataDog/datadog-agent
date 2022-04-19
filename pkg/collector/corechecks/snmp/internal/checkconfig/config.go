@@ -186,6 +186,7 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
 	}
+	tags = append(tags, definition.StaticTags...)
 	c.ProfileTags = tags
 	return nil
 }

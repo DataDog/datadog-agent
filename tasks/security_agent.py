@@ -435,6 +435,7 @@ def docker_functional_tests(
     major_version='7',
     testflags='',
     static=False,
+    bundle_ebpf=True,
     skip_linters=False,
 ):
     build_functional_tests(
@@ -443,7 +444,7 @@ def docker_functional_tests(
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
-        bundle_ebpf=True,
+        bundle_ebpf=bundle_ebpf,
         static=static,
         skip_linters=skip_linters,
     )
@@ -451,10 +452,12 @@ def docker_functional_tests(
     dockerfile = """
 FROM debian:bullseye
 
+ENV DOCKER_DD_AGENT=yes
+
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs libc6:i386 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates \
     && rm -rf /var/lib/apt/lists/*
     """
 
@@ -475,16 +478,20 @@ RUN apt-get update -y \
     cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
-    cmd += '-v /:/host/root -e HOST_ROOT=/host/root '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
+    cmd += '-v /sys:/host/sys -e HOST_SYS=/host/sys '
+    cmd += '-v /etc/os-release:/host/etc/os-release '
+    cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
+    cmd += '-v /etc/passwd:/etc/passwd '
+    cmd += '-v /etc/group:/etc/group '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
-        "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
-        "image_tag": docker_image_tag_name + ":latest",
+        "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
+        "image_tag": f"{docker_image_tag_name}:latest",
     }
 
     ctx.run(cmd.format(**args))

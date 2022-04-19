@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -27,7 +28,6 @@ import (
 	"github.com/pkg/errors"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -208,44 +208,32 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 	return err
 }
 
+func isSyscallWrapperRequired() (bool, error) {
+	openSyscall, err := manager.GetSyscallFnName("open")
+	if err != nil {
+		return false, err
+	}
+
+	return !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_"), nil
+}
+
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	var err error
-	var bytecodeReader bytecode.AssetReader
-
-	useSyscallWrapper := false
-	openSyscall, err := manager.GetSyscallFnName("open")
+	useSyscallWrapper, err := isSyscallWrapperRequired()
 	if err != nil {
 		return err
 	}
-	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
-		useSyscallWrapper = true
-	}
 
-	if p.config.EnableRuntimeCompiler {
-		bytecodeReader, err = getRuntimeCompiledProbe(p.config, useSyscallWrapper)
-		if err != nil {
-			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
-		} else {
-			defer bytecodeReader.Close()
-		}
-	}
+	loader := ebpf.NewProbeLoader(p.config, useSyscallWrapper)
+	defer loader.Close()
 
-	// fallback to pre-compiled version
-	if bytecodeReader == nil {
-		asset := "runtime-security"
-		if useSyscallWrapper {
-			asset += "-syscall-wrapper"
-		}
-
-		bytecodeReader, err = bytecode.GetReader(p.config.BPFDir, asset+".o")
-		if err != nil {
-			return err
-		}
-		defer bytecodeReader.Close()
+	bytecodeReader, err := loader.Load()
+	if err != nil {
+		return err
 	}
+	defer bytecodeReader.Close()
 
 	var ok bool
 	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
@@ -607,6 +595,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
+		event.processCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
@@ -624,7 +613,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		// copy some of the field from the entry
 		event.Exec.Process = event.processCacheEntry.Process
-		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
+		event.Exec.FileEvent = event.processCacheEntry.Process.FileEvent
 	case model.ExitEventType:
 		// do nothing
 	case model.SetuidEventType:
@@ -1097,6 +1086,7 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 		newProbe.IfIndex = int(device.IfIndex)
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
+		newProbe.KeepProgramSpec = false
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -1204,6 +1194,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
+	// the constant fetching mechanism can be quite memory intensive, between kernel header downloading,
+	// runtime compilation, BTF parsing...
+	// let's ensure the GC has run at this point before doing further memory intensive stuff
+	runtime.GC()
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
@@ -1266,6 +1260,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Value: getNetStructType(p.kernelVersion),
 		},
 	)
+
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 
@@ -1331,7 +1326,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.config.EnableRuntimeCompiledConstants = true
+		p.config.RuntimeCompiledConstantsEnabled = true
 	}
 }
 
@@ -1379,7 +1374,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
 
-	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSLES12Kernel() || kv.IsSLES15Kernel()) {
+	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSuse12Kernel() || kv.IsSuse15Kernel()) {
 		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
 	}
 	// namespace nr offsets
@@ -1393,8 +1388,16 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// network related constants
 	constantFetcher.AppendOffsetofRequest("net_device_ifindex_offset", "struct net_device", "ifindex", "linux/netdevice.h")
 	constantFetcher.AppendOffsetofRequest("sock_common_skc_net_offset", "struct sock_common", "skc_net", "net/sock.h")
+	constantFetcher.AppendOffsetofRequest("sock_common_skc_family_offset", "struct sock_common", "skc_family", "net/sock.h")
+	constantFetcher.AppendOffsetofRequest("flowi4_saddr_offset", "struct flowi4", "saddr", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest("flowi4_uli_offset", "struct flowi4", "uli", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest("flowi6_saddr_offset", "struct flowi6", "saddr", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest("flowi6_uli_offset", "struct flowi6", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest("socket_sock_offset", "struct socket", "sk", "linux/net.h")
-	constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
+
+	if !kv.IsRH7Kernel() {
+		constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
+	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
 		constantFetcher.AppendOffsetofRequest("net_proc_inum_offset", "struct net", "proc_inum", "net/net_namespace.h")

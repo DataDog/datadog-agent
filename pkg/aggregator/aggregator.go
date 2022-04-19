@@ -248,15 +248,13 @@ type BufferedAggregator struct {
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
 type FlushAndSerializeInParallel struct {
-	Enabled     bool
 	ChannelSize int
 	BufferSize  int
 }
 
 // NewFlushAndSerializeInParallel creates a new instance of FlushAndSerializeInParallel.
-func NewFlushAndSerializeInParallel(serializer serializer.MetricSerializer, config config.Config) FlushAndSerializeInParallel {
+func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInParallel {
 	return FlushAndSerializeInParallel{
-		Enabled:     config.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && serializer != nil && serializer.IsIterableSeriesSupported(),
 		BufferSize:  config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
 		ChannelSize: config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
 	}
@@ -311,7 +309,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName:                   agentName,
 		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
-		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(s, config.Datadog),
+		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
 	}
 
 	return aggregator
@@ -544,24 +542,11 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
-	if !agg.flushAndSerializeInParallel.Enabled {
+	sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
+	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 
-		series, sketches := agg.GetSeriesAndSketches(trigger.time)
-		agg.appendDefaultSeries(trigger.time, &series)
-
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
-		agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
-
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
+	if len(sketches) > 0 {
+		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 	}
 }
 

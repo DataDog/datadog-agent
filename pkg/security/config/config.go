@@ -92,10 +92,6 @@ type Config struct {
 	SelfTestEnabled bool
 	// EnableRemoteConfig defines if the agent configuration should be fetched from the backend
 	EnableRemoteConfig bool
-	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
-	EnableRuntimeCompiledConstants bool
-	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
-	RuntimeCompiledConstantsIsSet bool
 	// ActivityDumpEnabled defines if the activity dump manager should be enabled
 	ActivityDumpEnabled bool
 	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
@@ -128,6 +124,12 @@ type Config struct {
 	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
 	// agent detect when a network namespace should be purged from all caches.
 	NetworkLazyInterfacePrefixes []string
+	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
+	RuntimeCompilationEnabled bool
+	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
+	RuntimeCompiledConstantsEnabled bool
+	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
+	RuntimeCompiledConstantsIsSet bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -179,8 +181,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
 		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
-		EnableRuntimeCompiledConstants:     aconfig.Datadog.GetBool("runtime_security_config.enable_runtime_compiled_constants"),
-		RuntimeCompiledConstantsIsSet:      aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants"),
 		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:   time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
@@ -188,10 +188,14 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpTracedEventTypes:       model.ParseEventTypeStringSlice(aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:      time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
 		ActivityDumpCgroupWaitListSize:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
-		ActivityDumpCgroupOutputDirectory:  aconfig.Datadog.GetString("runtime_security_config.activity.cgroup_output_directory"),
+		ActivityDumpCgroupOutputDirectory:  aconfig.Datadog.GetString("runtime_security_config.activity_dump.cgroup_output_directory"),
 		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 		NetworkEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 		NetworkLazyInterfacePrefixes:       aconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
+		// runtime compilation
+		RuntimeCompilationEnabled:       aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
+		RuntimeCompiledConstantsEnabled: aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+		RuntimeCompiledConstantsIsSet:   aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -219,8 +223,13 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.MapDentryResolutionEnabled = true
 	}
 
+	// not enable at the system-probe level, disable for cws as well
 	if !c.Config.EnableRuntimeCompiler {
-		c.EnableRuntimeCompiledConstants = false
+		c.RuntimeCompilationEnabled = false
+	}
+
+	if !c.RuntimeCompilationEnabled {
+		c.RuntimeCompiledConstantsEnabled = false
 	}
 
 	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))
