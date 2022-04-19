@@ -292,16 +292,19 @@ func (p *Probe) Init() error {
 	return nil
 }
 
-// Start the runtime security probe
-func (p *Probe) Start() error {
-	p.wg.Add(1)
-	go p.reOrderer.Start(&p.wg)
-
+// Setup the runtime security probe
+func (p *Probe) Setup() error {
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
 
 	return p.monitor.Start(p.ctx, &p.wg)
+}
+
+// Start processing events
+func (p *Probe) Start() {
+	p.wg.Add(1)
+	go p.reOrderer.Start(&p.wg)
 }
 
 // SetEventHandler set the probe event handler

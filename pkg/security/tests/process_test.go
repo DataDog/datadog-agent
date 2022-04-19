@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -564,7 +565,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456"}, []string{"DEDUP=dedup123"}
+		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456; echo"}, []string{"DEDUP=dedup123"}
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, envs)
@@ -583,20 +584,20 @@ func TestProcessContext(t *testing.T) {
 				t.Error(err)
 			}
 
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
-				t.Error("shouldn't have args")
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
+				t.Errorf("shouldn't have args, got %+v (%s)", json, spew.Sdump(data))
 			}
 
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
-				t.Error("shouldn't have envs")
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
+				t.Errorf("shouldn't have envs, got %+v (%s)", json, spew.Sdump(data))
 			}
 
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
-				t.Error("should have args")
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
+				t.Errorf("should have args, got %+v (%s)", json, spew.Sdump(data))
 			}
 
-			if _, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
-				t.Error("should have envs")
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
+				t.Errorf("should have envs, got %+v (%s)", json, spew.Sdump(data))
 			}
 		})
 	})
