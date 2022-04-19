@@ -21,13 +21,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+var myPid int
+
+func init() {
+	myPid = manager.Getpid()
+}
+
 type KprobeStats struct {
 	Hits   int64
 	Misses int64
 }
 
 // event name format is p|r_<funcname>_<uid>_<pid>
-var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)(_[^_]*)(_[^_]*)$`)
+var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
 
 // KprobeProfile is the default path to the kprobe_profile file
 const KprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
@@ -47,7 +53,7 @@ func GetProbeStats() map[string]int64 {
 			// only get stats for our pid
 			if len(parts) > 3 {
 				if pid, err := strconv.ParseInt(parts[3], 10, 32); err != nil {
-					if int(pid) != manager.Getpid() {
+					if int(pid) != myPid {
 						continue
 					}
 				}
