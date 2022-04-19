@@ -478,6 +478,10 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	}
 
 	parent := p.entryCache[entry.PPid]
+	if parent == nil && entry.PPid >= 1 {
+		parent = p.resolve(entry.PPid, entry.PPid)
+	}
+
 	if parent != nil {
 		parent.Fork(entry)
 	}
@@ -519,6 +523,10 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
+	return p.resolve(pid, tid)
+}
+
+func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
 		return entry
@@ -675,25 +683,37 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 		return nil
 	}
 
-	proc, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return nil
+	var ppid uint32
+	inserted := false
+	entry := p.entryCache[pid]
+	if entry == nil {
+		proc, err := process.NewProcess(int32(pid))
+		if err != nil {
+			return nil
+		}
+
+		filledProc := utils.GetFilledProcess(proc)
+		if filledProc == nil {
+			return nil
+		}
+
+		// ignore kthreads
+		if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+			return nil
+		}
+
+		entry, inserted = p.syncCache(proc)
+		ppid = uint32(filledProc.Ppid)
+	} else {
+		ppid = entry.PPid
 	}
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		return nil
-	}
-
-	// ignore kthreads
-	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-		return nil
-	}
-
-	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
-	entry, inserted := p.syncCache(proc)
+	parent := p.resolveWithProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
 		entry.SetAncestor(parent)
+		if parent.Comm == entry.Comm && parent.ArgsEntry.Equals(entry.ArgsEntry) && parent.EnvsEntry.Equals(entry.EnvsEntry) {
+			parent.ShareArgsEnvs(entry)
+		}
 	}
 
 	return entry
