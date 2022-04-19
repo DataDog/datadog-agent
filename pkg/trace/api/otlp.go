@@ -31,6 +31,7 @@ import (
 	"go.opentelemetry.io/collector/model/otlpgrpc"
 	"go.opentelemetry.io/collector/model/pdata"
 	semconv "go.opentelemetry.io/collector/model/semconv/v1.6.1"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -145,10 +146,10 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	var in otlpgrpc.TracesRequest
+	in := ptraceotlp.NewRequest()
 	switch getMediaType(req) {
 	case "application/x-protobuf":
-		in, err = otlpgrpc.UnmarshalTracesRequest(slurp)
+		err := in.UnmarshalProto(slurp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_proto"), 1)
@@ -157,7 +158,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case "application/json":
 		fallthrough
 	default:
-		in, err = otlpgrpc.UnmarshalJSONTracesRequest(slurp)
+		err := in.UnmarshalJSON(slurp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_json"), 1)
