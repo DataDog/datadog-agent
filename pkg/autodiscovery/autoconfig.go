@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -62,8 +62,8 @@ type AutoConfig struct {
 	delService         chan listeners.Service
 	store              *store
 	m                  sync.RWMutex
-	// ranOnce is an atomic uint32 set to 1 once the AutoConfig has been executed
-	ranOnce uint32
+	// ranOnce is set to 1 once the AutoConfig has been executed
+	ranOnce *atomic.Bool
 }
 
 type listenerCandidate struct {
@@ -87,6 +87,7 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
 		scheduler:          scheduler,
+		ranOnce:            atomic.NewBool(false),
 	}
 	// We need to listen to the service channels before anything is sent to them
 	go ac.serviceListening()
@@ -199,14 +200,14 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 func (ac *AutoConfig) LoadAndRun() {
 	resolvedConfigs := ac.GetAllConfigs()
 	ac.schedule(resolvedConfigs)
-	atomic.StoreUint32(&ac.ranOnce, 1)
+	ac.ranOnce.Store(true)
 	log.Debug("LoadAndRun done.")
 }
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
 // components that depend on this value.
 func (ac *AutoConfig) ForceRanOnceFlag() {
-	atomic.StoreUint32(&ac.ranOnce, 1)
+	ac.ranOnce.Store(true)
 }
 
 // HasRunOnce returns true if the AutoConfig has ran once.
@@ -214,7 +215,7 @@ func (ac *AutoConfig) HasRunOnce() bool {
 	if ac == nil {
 		return false
 	}
-	return atomic.LoadUint32(&ac.ranOnce) == 1
+	return ac.ranOnce.Load()
 }
 
 // GetAllConfigs queries all the providers and returns all the integration
