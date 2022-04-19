@@ -109,6 +109,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200916142827-bd33bbf0497b+incompatible
 	github.com/docker/go-connections v0.4.0
+	github.com/docker/libnetwork v0.5.6
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.13.0
@@ -184,6 +185,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.305.1
 	go.opentelemetry.io/collector v0.49.0
 	go.opentelemetry.io/collector/model v0.49.0
+	go.opentelemetry.io/collector/pdata v0.49.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
@@ -412,11 +414,6 @@ require (
 	github.com/go-logr/logr/funcr v0.0.0 // indirect
 	// See internal/patch/grpc-go-insecure/README.md for more details.
 	google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
-)
-
-require (
-	github.com/docker/libnetwork v0.5.6
-	go.opentelemetry.io/collector/pdata v0.49.0
 )
 
 require github.com/Sirupsen/logrus v1.0.6 // indirect
