@@ -65,12 +65,12 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {
 }
 
 func (h *httpStatKeeper) add(tx httpTX) {
-	if !tx.IsValid() {
-		atomic.AddInt64(&h.telemetry.rejected, 1)
+	rawPath := tx.Path(h.buffer)
+	if rawPath == nil {
+		atomic.AddInt64(&h.telemetry.malformed, 1)
 		return
 	}
-
-	path, rejected := h.processHTTPPath(tx)
+	path, rejected := h.processHTTPPath(rawPath)
 	if rejected {
 		atomic.AddInt64(&h.telemetry.rejected, 1)
 		return
@@ -144,9 +144,7 @@ func (h *httpStatKeeper) newKey(tx httpTX, path string) Key {
 	}
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx httpTX) (pathStr string, rejected bool) {
-	path := tx.Path(h.buffer)
-
+func (h *httpStatKeeper) processHTTPPath(path []byte) (pathStr string, rejected bool) {
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
 			if r.Repl == "" {

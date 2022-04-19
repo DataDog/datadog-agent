@@ -25,6 +25,7 @@ type telemetry struct {
 	misses                                      int64 `stats:"atomic"` // this happens when we can't cope with the rate of events
 	dropped                                     int64 `stats:"atomic"` // this happens when httpStatKeeper reaches capacity
 	rejected                                    int64 `stats:"atomic"` // this happens when an user-defined reject-filter matches a request
+	malformed                                   int64 `stats:"atomic"` // this happens when the request doesn't have the expected format
 	aggregations                                int64 `stats:"atomic"`
 
 	reporter stats.Reporter
@@ -78,6 +79,7 @@ func (t *telemetry) reset() telemetry {
 	delta.misses = atomic.SwapInt64(&t.misses, 0)
 	delta.dropped = atomic.SwapInt64(&t.dropped, 0)
 	delta.rejected = atomic.SwapInt64(&t.rejected, 0)
+	delta.malformed = atomic.SwapInt64(&t.malformed, 0)
 	delta.aggregations = atomic.SwapInt64(&t.aggregations, 0)
 	delta.elapsed = now - then
 
@@ -94,7 +96,7 @@ func (t *telemetry) report() map[string]interface{} {
 	totalRequests := stats["hits1_xx"].(int64) + stats["hits2_xx"].(int64) + stats["hits3_xx"].(int64) + stats["hits4_xx"].(int64) + stats["hits5_xx"].(int64)
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) aggregations=%d",
+		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
 		totalRequests,
 		float64(totalRequests)/float64(t.elapsed),
 		misses,
@@ -103,6 +105,8 @@ func (t *telemetry) report() map[string]interface{} {
 		float64(dropped)/float64(t.elapsed),
 		rejected,
 		float64(rejected)/float64(t.elapsed),
+		t.malformed,
+		float64(t.malformed)/float64(t.elapsed),
 		aggregations,
 	)
 

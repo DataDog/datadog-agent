@@ -41,48 +41,6 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 	assert.Equal(t, "/foo/", string(tx.Path(b)))
 }
 
-func TestIsValid(t *testing.T) {
-	t.Run("valid", func(t *testing.T) {
-		tx := httpTX{
-			request_fragment: requestFragment(
-				[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-			),
-		}
-
-		assert.True(t, tx.IsValid())
-	})
-
-	t.Run("no leading slash", func(t *testing.T) {
-		tx := httpTX{
-			request_fragment: requestFragment(
-				[]byte("GET foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-			),
-		}
-
-		assert.False(t, tx.IsValid())
-	})
-
-	t.Run("not existing verb", func(t *testing.T) {
-		tx := httpTX{
-			request_fragment: requestFragment(
-				[]byte("WRONG_VERB foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-			),
-		}
-
-		assert.False(t, tx.IsValid())
-	})
-
-	t.Run("verb too short", func(t *testing.T) {
-		tx := httpTX{
-			request_fragment: requestFragment(
-				[]byte("OPTIO foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-			),
-		}
-
-		assert.False(t, tx.IsValid())
-	})
-}
-
 func TestLatency(t *testing.T) {
 	tx := httpTX{
 		response_last_seen: 2e6,
@@ -106,20 +64,6 @@ func BenchmarkPath(b *testing.B) {
 		_ = tx.Path(buf)
 	}
 	runtime.KeepAlive(buf)
-}
-
-func BenchmarkIsValid(b *testing.B) {
-	tx := httpTX{
-		request_fragment: requestFragment(
-			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
-	}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = tx.IsValid()
-	}
 }
 
 func requestFragment(fragment []byte) [HTTPBufferSize]_Ctype_char {

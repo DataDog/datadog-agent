@@ -23,20 +23,6 @@ const (
 	HTTPBufferSize = int(C.HTTP_BUFFER_SIZE)
 )
 
-var (
-	HTTPVerbs = map[string]struct{}{
-		"OPTIONS": {},
-		"GET":     {},
-		"HEAD":    {},
-		"POST":    {},
-		"PUT":     {},
-		"PATCH":   {},
-		"DELETE":  {},
-		"TRACE":   {},
-		"CONNECT": {},
-	}
-)
-
 type httpTX C.http_transaction_t
 type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
@@ -52,7 +38,11 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
 
-func (tx *httpTX) validateFragment(validateHTTPVerb bool, outPath []byte) (bool, []byte) {
+// Path returns the URL from the request fragment captured in eBPF with
+// GET variables excluded.
+// Example:
+// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
+func (tx *httpTX) Path(buffer []byte) []byte {
 	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
 
 	// b might contain a null terminator in the middle
@@ -62,47 +52,18 @@ func (tx *httpTX) validateFragment(validateHTTPVerb bool, outPath []byte) (bool,
 	for i = 0; i < bLen && b[i] != ' '; i++ {
 	}
 
-	if validateHTTPVerb {
-		if _, ok := HTTPVerbs[string(b[:i])]; !ok {
-			return false, nil
-		}
-	}
-
 	i++
 
 	if i >= bLen || (b[i] != '/' && b[i] != '*') {
-		return false, nil
+		return nil
 	}
 
-	if outPath != nil {
-		var j int
-		for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
-		}
-
-		// no bound check necessary here as we know we at least have '/' character
-		n := copy(outPath, b[i:j])
-		return true, outPath[:n]
+	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
 	}
 
-	return true, nil
-}
-
-// Path returns the URL from the request fragment captured in eBPF with
-// GET variables excluded. The transaction must be validated with `IsValid`
-// before making this call.
-// Example:
-// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *httpTX) Path(buffer []byte) []byte {
-	if ok, match := tx.validateFragment(false, buffer); ok {
-		return match
-	}
-	return nil
-}
-
-// IsValid returns true if the transaction looks like a valid transaction
-func (tx *httpTX) IsValid() bool {
-	ok, _ := tx.validateFragment(true, nil)
-	return ok
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, b[i:j])
+	return buffer[:n]
 }
 
 // StatusClass returns an integer representing the status code class
