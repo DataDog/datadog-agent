@@ -272,18 +272,21 @@ void CustomActionData::ensureDomainHasCorrectFormat()
             // in order to determine if its prefix starts with NT AUTHORITY.
             auto tempFquname = _user.Domain + L"\\" + _user.Name;
             auto sidResult = GetSidForUser(nullptr, tempFquname.c_str());
-            const auto ntAuthoritySid = WellKnownSID::NTAuthority();
-            if (!ntAuthoritySid.has_value())
+            if (sidResult.Result != ERROR_NONE_MAPPED)
             {
-                WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
-            }
-            else if (!EqualPrefixSid(
-                         sidResult.Sid.get(),
-                         ntAuthoritySid.value().get())) // NT Authority should never be considered a "domain".
-            {
-                WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")",
-                       _user.Domain.c_str(), _targetMachine->DnsDomainName().c_str());
-                _domainUser = true;
+                const auto ntAuthoritySid = WellKnownSID::NTAuthority();
+                if (!ntAuthoritySid.has_value())
+                {
+                    WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
+                }
+                else if (!EqualPrefixSid(
+                             sidResult.Sid.get(),
+                             ntAuthoritySid.value().get())) // NT Authority should never be considered a "domain".
+                {
+                    WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")",
+                           _user.Domain.c_str(), _targetMachine->DnsDomainName().c_str());
+                    _domainUser = true;
+                }
             }
         }
     }

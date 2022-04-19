@@ -15,6 +15,15 @@ TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserExists_WithPasswo
 DDAGENTUSER_NAME=different_domain\test
 DDAGENTUSER_PASSWORD=1234
 )");
+
+    // Since "different_domain\test" is a bogus domain\user,
+    // we allocate a LOCAL_SID that is guaranteed to not match NT_AUTHORITY
+    SID_IDENTIFIER_AUTHORITY sidIdAuthority = SECURITY_LOCAL_SID_AUTHORITY;
+    PSID sid = nullptr;
+    EXPECT_TRUE(AllocateAndInitializeSid(&sidIdAuthority, 1, 0, 0, 0, 0, 0, 0, 0, 0, &sid));
+    sid_ptr sid_ptr(static_cast<SID *>(sid));
+    // and set it on the CustomActionData so that the test has a valid SID to use.
+    customActionCtx.Sid(sid_ptr);
     bool shouldResetPass;
 
     bool result = canInstall(
@@ -101,6 +110,24 @@ DDAGENTUSER_PASSWORD=pass
         false    /*ddServiceExists*/,
         customActionCtx,
         shouldResetPass);
+
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(shouldResetPass);
+}
+
+TEST_F(CustomActionDataTest, When_User_Is_NTAUTHORITY_Dont_Reset_Password)
+{
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+    customActionCtx.init(LR"(
+DDAGENTUSER_NAME=NT AUTHORITY\SYSTEM
+)");
+
+    bool shouldResetPass;
+
+    bool result =
+        canInstall(true /*isDC*/, true /*ddUserExists*/, false /*ddServiceExists*/, customActionCtx, shouldResetPass);
 
     EXPECT_TRUE(result);
     EXPECT_FALSE(shouldResetPass);

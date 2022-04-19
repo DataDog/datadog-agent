@@ -21,6 +21,5 @@ inline sid_ptr make_sid(size_t sidLength)
 
 namespace WellKnownSID
 {
-std::optional<sid_ptr> LocalSystem();
 std::optional<sid_ptr> NTAuthority();
 } // namespace WellKnownSID
