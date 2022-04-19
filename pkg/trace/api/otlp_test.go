@@ -21,12 +21,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 var otlpTestSpanConfig = &testutil.OTLPSpan{
 	TraceState: "state",
 	Name:       "/path",
-	Kind:       pdata.SpanKindServer,
+	Kind:       ptrace.SpanKindServer,
 	Attributes: map[string]interface{}{
 		"name":   "john",
 		"approx": 1.2,
@@ -54,7 +56,7 @@ var otlpTestSpanConfig = &testutil.OTLPSpan{
 		},
 	},
 	StatusMsg:  "Error",
-	StatusCode: pdata.StatusCodeError,
+	StatusCode: ptrace.StatusCodeError,
 }
 
 var otlpTestSpan = testutil.NewOTLPSpan(otlpTestSpanConfig)
@@ -178,14 +180,14 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
-		for in, out := range map[pdata.SpanKind]string{
-			pdata.SpanKindUnspecified: "unspecified",
-			pdata.SpanKindInternal:    "internal",
-			pdata.SpanKindServer:      "server",
-			pdata.SpanKindClient:      "client",
-			pdata.SpanKindProducer:    "producer",
-			pdata.SpanKindConsumer:    "consumer",
-			99:                        "unknown",
+		for in, out := range map[ptrace.SpanKind]string{
+			ptrace.SpanKindUnspecified: "unspecified",
+			ptrace.SpanKindInternal:    "internal",
+			ptrace.SpanKindServer:      "server",
+			ptrace.SpanKindClient:      "client",
+			ptrace.SpanKindProducer:    "producer",
+			ptrace.SpanKindConsumer:    "consumer",
+			99:                         "unknown",
 		} {
 			assert.Equal(t, out, spanKindName(in))
 		}
@@ -193,13 +195,13 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("status2Error", func(t *testing.T) {
 		for _, tt := range []struct {
-			status pdata.StatusCode
+			status ptrace.StatusCode
 			msg    string
-			events pdata.SpanEventSlice
+			events ptrace.SpanEventSlice
 			out    pb.Span
 		}{
 			{
-				status: pdata.StatusCodeError,
+				status: ptrace.StatusCodeError,
 				events: makeEventsSlice("exception", map[string]string{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
@@ -215,7 +217,7 @@ func TestOTLPHelpers(t *testing.T) {
 				},
 			},
 			{
-				status: pdata.StatusCodeError,
+				status: ptrace.StatusCodeError,
 				events: makeEventsSlice("exception", map[string]string{
 					"exception.message": "Out of memory",
 				}, 0, 0),
@@ -225,7 +227,7 @@ func TestOTLPHelpers(t *testing.T) {
 				},
 			},
 			{
-				status: pdata.StatusCodeError,
+				status: ptrace.StatusCodeError,
 				events: makeEventsSlice("EXCEPTION", map[string]string{
 					"exception.message": "Out of memory",
 				}, 0, 0),
@@ -235,30 +237,30 @@ func TestOTLPHelpers(t *testing.T) {
 				},
 			},
 			{
-				status: pdata.StatusCodeError,
+				status: ptrace.StatusCodeError,
 				events: makeEventsSlice("OTher", map[string]string{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{Error: 1},
 			},
 			{
-				status: pdata.StatusCodeError,
-				events: pdata.NewSpanEventSlice(),
+				status: ptrace.StatusCodeError,
+				events: ptrace.NewSpanEventSlice(),
 				out:    pb.Span{Error: 1},
 			},
 			{
-				status: pdata.StatusCodeError,
+				status: ptrace.StatusCodeError,
 				msg:    "Error number #24",
-				events: pdata.NewSpanEventSlice(),
+				events: ptrace.NewSpanEventSlice(),
 				out:    pb.Span{Error: 1, Meta: map[string]string{"error.msg": "Error number #24"}},
 			},
 			{
-				status: pdata.StatusCodeOk,
-				events: pdata.NewSpanEventSlice(),
+				status: ptrace.StatusCodeOk,
+				events: ptrace.NewSpanEventSlice(),
 				out:    pb.Span{Error: 0},
 			},
 			{
-				status: pdata.StatusCodeOk,
+				status: ptrace.StatusCodeOk,
 				events: makeEventsSlice("exception", map[string]string{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
@@ -269,7 +271,7 @@ func TestOTLPHelpers(t *testing.T) {
 		} {
 			assert := assert.New(t)
 			span := pb.Span{Meta: make(map[string]string)}
-			status := pdata.NewSpanStatus()
+			status := ptrace.NewSpanStatus()
 			status.SetCode(tt.status)
 			status.SetMessage(tt.msg)
 			status2Error(status, tt.events, &span)
@@ -321,47 +323,47 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("spanKind2Type", func(t *testing.T) {
 		for _, tt := range []struct {
-			kind pdata.SpanKind
+			kind ptrace.SpanKind
 			meta map[string]string
 			out  string
 		}{
 			{
-				kind: pdata.SpanKindServer,
+				kind: ptrace.SpanKindServer,
 				out:  "web",
 			},
 			{
-				kind: pdata.SpanKindClient,
+				kind: ptrace.SpanKindClient,
 				out:  "http",
 			},
 			{
-				kind: pdata.SpanKindClient,
+				kind: ptrace.SpanKindClient,
 				meta: map[string]string{"db.system": "redis"},
 				out:  "cache",
 			},
 			{
-				kind: pdata.SpanKindClient,
+				kind: ptrace.SpanKindClient,
 				meta: map[string]string{"db.system": "memcached"},
 				out:  "cache",
 			},
 			{
-				kind: pdata.SpanKindClient,
+				kind: ptrace.SpanKindClient,
 				meta: map[string]string{"db.system": "other"},
 				out:  "db",
 			},
 			{
-				kind: pdata.SpanKindProducer,
+				kind: ptrace.SpanKindProducer,
 				out:  "custom",
 			},
 			{
-				kind: pdata.SpanKindConsumer,
+				kind: ptrace.SpanKindConsumer,
 				out:  "custom",
 			},
 			{
-				kind: pdata.SpanKindInternal,
+				kind: ptrace.SpanKindInternal,
 				out:  "custom",
 			},
 			{
-				kind: pdata.SpanKindUnspecified,
+				kind: ptrace.SpanKindUnspecified,
 				out:  "custom",
 			},
 		} {
@@ -386,7 +388,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 		rattr   map[string]string
 		libname string
 		libver  string
-		in      pdata.Span
+		in      ptrace.Span
 		out     *pb.Span
 	}{
 		{
@@ -440,7 +442,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				SpanID:     otlpTestSpanID.Bytes(),
 				TraceState: "state",
 				Name:       "/path",
-				Kind:       pdata.SpanKindServer,
+				Kind:       ptrace.SpanKindServer,
 				Start:      now,
 				End:        now + 200000000,
 				Attributes: map[string]interface{}{
@@ -474,7 +476,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					},
 				},
 				StatusMsg:  "Error",
-				StatusCode: pdata.StatusCodeError,
+				StatusCode: ptrace.StatusCodeError,
 			}),
 			out: &pb.Span{
 				Service:  "userbase",
@@ -523,7 +525,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				SpanID:     otlpTestSpanID.Bytes(),
 				TraceState: "state",
 				Name:       "/path",
-				Kind:       pdata.SpanKindServer,
+				Kind:       ptrace.SpanKindServer,
 				Start:      now,
 				End:        now + 200000000,
 				Attributes: map[string]interface{}{
@@ -555,7 +557,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					},
 				},
 				StatusMsg:  "Error",
-				StatusCode: pdata.StatusCodeError,
+				StatusCode: ptrace.StatusCodeError,
 			}),
 			out: &pb.Span{
 				Service:  "pylons",
@@ -592,7 +594,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 			},
 		},
 	} {
-		lib := pdata.NewInstrumentationLibrary()
+		lib := pcommon.NewInstrumentationScope()
 		lib.SetName(tt.libname)
 		lib.SetVersion(tt.libver)
 		assert := assert.New(t)
@@ -633,15 +635,15 @@ func TestOTLPConvertSpan(t *testing.T) {
 // passed to convertSpan is not modified by it.
 func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
-	lib := pdata.NewInstrumentationLibrary()
+	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
 	convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
 
-func makeEventsSlice(name string, attrs map[string]string, timestamp int, dropped uint32) pdata.SpanEventSlice {
-	s := pdata.NewSpanEventSlice()
+func makeEventsSlice(name string, attrs map[string]string, timestamp int, dropped uint32) ptrace.SpanEventSlice {
+	s := ptrace.NewSpanEventSlice()
 	e := s.AppendEmpty()
 	e.SetName(name)
 	keys := make([]string, 0, len(attrs))
@@ -650,16 +652,16 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		e.Attributes().Insert(k, pdata.NewAttributeValueString(attrs[k]))
+		e.Attributes().Insert(k, pcommon.NewValueString(attrs[k]))
 	}
-	e.SetTimestamp(pdata.Timestamp(timestamp))
+	e.SetTimestamp(pcommon.Timestamp(timestamp))
 	e.SetDroppedAttributesCount(dropped)
 	return s
 }
 
 func TestMarshalEvents(t *testing.T) {
 	for _, tt := range []struct {
-		in  pdata.SpanEventSlice
+		in  ptrace.SpanEventSlice
 		out string
 	}{
 		{
@@ -743,7 +745,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: (func() pdata.SpanEventSlice {
+			in: (func() ptrace.SpanEventSlice {
 				e1 := makeEventsSlice("boom", map[string]string{
 					"message":  "OOM",
 					"accuracy": "2.4",
