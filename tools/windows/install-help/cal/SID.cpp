@@ -4,10 +4,10 @@
 std::optional<sid_ptr> WellKnownSID::NTAuthority()
 {
     SID_IDENTIFIER_AUTHORITY sidIdAuthority = SECURITY_NT_AUTHORITY;
-    PSID sid;
-    if (AllocateAndInitializeSid(&sidIdAuthority, 1, 0, 0, 0, 0, 0, 0, 0, 0, &sid))
+    sid_ptr sid = make_sid(GetSidLengthRequired(1));
+    if (InitializeSid(sid.get(), &sidIdAuthority, 1))
     {
-        return std::optional(sid_ptr(static_cast<SID *>(sid)));
+        return sid;
     }
     return std::nullopt;
 }
