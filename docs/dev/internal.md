@@ -4,7 +4,7 @@
 [Since Go 1.4](https://go.dev/doc/go1.4#internalpackages), Go supports the use of [`internal` folders](https://docs.google.com/document/d/1e8kOo3r51b2BWtTs_1uADIA5djfXhPT36s6eHVRIvaU/edit) to control the public API of a Go module: a package A can only be imported from packages whose path shares the prefix up until the last `internal` in A's path. For example, a package with path `a/b/internal/c/d` can only be imported by packages within the `a/b` folder. The compiler will enforce this and fail to build any code that breaks this rule.
 
 This can be used to have some packages be internal to a given folder, which is useful for decoupling different parts of our codebase. 
-Adding new code should consider carefully what API is exported, both by taking care of what symbols are uppercase and by making judicious use of `internal` folders.
+When adding new code, carefully consider what API is exported, both by taking care of what symbols are uppercase and by making judicious use of `internal` folders.
 
 Use the following guidelines in order to decide when and how to use `internal` folders:
 
