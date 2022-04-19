@@ -102,7 +102,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // New mode/rights of the chmod-ed file
+	Mode uint32    `field:"file.destination.mode;file.destination.rights"` // New mode/rights of the chmod-ed file
 }
 
 // ChownEvent represents a chown event
@@ -297,13 +297,13 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-" msg:"envs"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,ResolveProcessArgv0:100" msg:"-"`                                                                                                                                     // First argument of the process
-	Args          string   `field:"args,ResolveProcessArgs:100" msg:"-"`                                                                                                                                       // Arguments of the process (as a string)
-	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags,,cacheless_resolution" field:"args_options,ResolveProcessArgsOptions,,cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated" msg:"-"`                                                                                                                        // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100" msg:"-"`                                                                                                                                       // Environment variable names of the process
-	Envp          []string `field:"envp,ResolveProcessEnvp:100" msg:"-"`                                                                                                                                       // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated" msg:"-"`                                                                                                                        // Indicator of environment variables truncation
+	Argv0         string   `field:"argv0,ResolveProcessArgv0:100" msg:"-"`                                                                                                                     // First argument of the process
+	Args          string   `field:"args,ResolveProcessArgs:100" msg:"-"`                                                                                                                       // Arguments of the process (as a string)
+	Argv          []string `field:"argv,ResolveProcessArgv:100;args_flags,ResolveProcessArgsFlags,,cacheless_resolution;args_options,ResolveProcessArgsOptions,,cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
+	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated" msg:"-"`                                                                                                        // Indicator of arguments truncation
+	Envs          []string `field:"envs,ResolveProcessEnvs:100" msg:"-"`                                                                                                                       // Environment variable names of the process
+	Envp          []string `field:"envp,ResolveProcessEnvp:100" msg:"-"`                                                                                                                       // Environment variables of the process
+	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated" msg:"-"`                                                                                                        // Indicator of environment variables truncation
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
@@ -326,13 +326,13 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid" msg:"uid"`                                                      // UID of the file's owner
-	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                              // User of the file's owner
-	GID   uint32 `field:"gid" msg:"gid"`                                                      // GID of the file's owner
-	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                           // Group of the file's owner
-	Mode  uint16 `field:"mode" field:"rights,ResolveRights,,cacheless_resolution" msg:"mode"` // Mode/rights of the file
-	CTime uint64 `field:"change_time" msg:"ctime"`                                            // Change time of the file
-	MTime uint64 `field:"modification_time" msg:"mtime"`                                      // Modification time of the file
+	UID   uint32 `field:"uid" msg:"uid"`                                              // UID of the file's owner
+	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                      // User of the file's owner
+	GID   uint32 `field:"gid" msg:"gid"`                                              // GID of the file's owner
+	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                   // Group of the file's owner
+	Mode  uint16 `field:"mode;rights,ResolveRights,,cacheless_resolution" msg:"mode"` // Mode/rights of the file
+	CTime uint64 `field:"change_time" msg:"ctime"`                                    // Change time of the file
+	MTime uint64 `field:"modification_time" msg:"mtime"`                              // Modification time of the file
 
 	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                           // Mount ID of the file
 	Inode        uint64 `field:"inode" msg:"inode"`                                                 // Inode of the file
@@ -404,7 +404,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // Mode/rights of the new directory
+	Mode uint32    `field:"file.destination.mode;file.destination.rights"` // Mode/rights of the new directory
 }
 
 // ArgsEnvsEvent defines a args/envs event
