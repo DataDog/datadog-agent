@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,7 +69,7 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 
 	scalarTags := common.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
-	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options)
+	ms.sendMetric(metric.Symbol, value, scalarTags, metric)
 }
 
 func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
@@ -87,14 +88,15 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				rowTagsCache[fullIndex] = tmpTags
 			}
 			rowTags := rowTagsCache[fullIndex]
-			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options)
+			ms.sendMetric(symbol, value, rowTags, metricConfig)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
 }
 
-func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption) {
-	metricFullName := "snmp." + metricName
+func (ms *MetricSender) sendMetric(symbol checkconfig.SymbolConfig, value valuestore.ResultValue, tags []string, metricConfig checkconfig.MetricsConfig) {
+	metricFullName := "snmp." + symbol.Name
+	forcedType := metricConfig.ForcedType
 	if forcedType == "" {
 		if value.SubmissionType != "" {
 			forcedType = value.SubmissionType
@@ -107,6 +109,7 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			return
 		}
+		options := metricConfig.Options
 		floatValue, err := getFlagStreamValue(options.Placement, strValue)
 		if err != nil {
 			log.Debugf("metric `%s`: failed to get flag stream value: %s", metricFullName, err)
@@ -121,6 +124,11 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 	if err != nil {
 		log.Debugf("metric `%s`: failed to convert to float64: %s", metricFullName, err)
 		return
+	}
+
+	scaleFactor := symbol.ScaleFactor
+	if scaleFactor != 0 {
+		floatValue *= scaleFactor
 	}
 
 	switch forcedType {

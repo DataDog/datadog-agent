@@ -22,14 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func mockProfilesDefinitions() profileDefinitionMap {
+func fixtureProfileDefinitionMap() profileDefinitionMap {
 	metrics := []MetricsConfig{
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal"}, ForcedType: "gauge"},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
 			ForcedType: "monotonic_count",
 			Symbols: []SymbolConfig{
-				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
+				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
 			MetricTags: []MetricTagConfig{
@@ -199,7 +199,7 @@ func Test_loadProfiles(t *testing.T) {
 			name:                  "ok case",
 			confdPath:             defaultTestConfdPath,
 			inputProfileConfigMap: defaultProfilesDef,
-			expectedProfileDefMap: mockProfilesDefinitions(),
+			expectedProfileDefMap: fixtureProfileDefinitionMap(),
 			expectedIncludeErrors: []string{},
 		},
 		{
