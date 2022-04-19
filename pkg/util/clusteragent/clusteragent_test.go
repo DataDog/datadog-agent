@@ -424,8 +424,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -477,8 +477,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -522,8 +522,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -592,8 +592,8 @@ func (suite *clusterAgentSuite) TestGetCFAppsMetadataForNode() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -634,8 +634,8 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -706,8 +706,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 

@@ -49,8 +49,8 @@ func TestFileCheck(t *testing.T) {
 			paths = append(paths, filePath)
 
 			f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
-			defer f.Close()
 			assert.NoError(err)
+			defer f.Close()
 		}
 
 		return dir, paths
