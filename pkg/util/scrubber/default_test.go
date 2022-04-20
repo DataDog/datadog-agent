@@ -287,7 +287,7 @@ func TestSNMPConfig(t *testing.T) {
 		`
 network_devices:
   snmp_traps:
-	community_strings:
+    community_strings:
 		- 'password1'
 		- 'password2'
 other_config: 1
