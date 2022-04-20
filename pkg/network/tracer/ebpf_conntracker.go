@@ -27,9 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
+	"github.com/cilium/ebpf"
 	ct "github.com/florianl/go-conntrack"
 	"golang.org/x/sys/unix"
 )
@@ -149,8 +149,8 @@ func (e *ebpfConntracker) processEvent(ev netlink.Event) {
 	for _, c := range conns {
 		if netlink.IsNAT(c) {
 			log.Tracef("initial conntrack %s", c)
-			src := formatKey(uint32(c.NetNS), c.Origin)
-			dst := formatKey(uint32(c.NetNS), c.Reply)
+			src := formatKey(c.NetNS, c.Origin)
+			dst := formatKey(c.NetNS, c.Reply)
 			if src != nil && dst != nil {
 				if err := e.addTranslation(src, dst); err != nil {
 					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
@@ -361,7 +361,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			{Section: string(probes.ConntrackHashInsert)},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackHashInsert), EBPFFuncName: "kprobe___nf_conntrack_hash_insert"}},
 		},
 	}
 

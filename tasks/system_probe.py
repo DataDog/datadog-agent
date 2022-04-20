@@ -566,7 +566,29 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
         promise.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
+def build_security_offset_guesser_ebpf_files(ctx, build_dir):
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
+    security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
+
+    security_flags = get_ebpf_build_flags()
+    security_flags.append(f"-I{security_agent_c_dir}")
+
+    ctx.run(
+        CLANG_CMD.format(
+            flags=" ".join(security_flags),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
+        ),
+    )
+    ctx.run(
+        LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
+    )
+
+
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
@@ -630,6 +652,11 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
             p.join()
 
 
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir)
+
+
 def build_object_files(ctx, parallel_build):
     """build_object_files builds only the eBPF object"""
 
@@ -658,7 +685,7 @@ def generate_runtime_files(ctx):
         "./pkg/network/http/compile.go",
         "./pkg/network/tracer/compile.go",
         "./pkg/network/tracer/connection/kprobe/compile.go",
-        "./pkg/security/probe/compile.go",
+        "./pkg/security/ebpf/compile.go",
     ]
     for f in runtime_compiler_files:
         ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")

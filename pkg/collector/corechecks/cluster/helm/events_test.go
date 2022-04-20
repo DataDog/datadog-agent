@@ -52,7 +52,7 @@ func TestAddEventForNewRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           helmTags(&rel, k8sSecrets, true),
+			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
 		},
 		storedEvent,
 	)
@@ -72,7 +72,7 @@ func TestAddEventForNewRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           helmTags(&rel, k8sSecrets, true),
+			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
 		},
 		storedEvent,
 	)
@@ -111,7 +111,7 @@ func TestAddEventForDeletedRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           helmTags(&rel, k8sSecrets, false),
+			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, false),
 		},
 		storedEvent,
 	)
@@ -182,7 +182,7 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 				SourceTypeName: "helm",
 				EventType:      "helm",
 				AggregationKey: "helm_release:default/my_datadog",
-				Tags:           helmTags(&exampleReleaseWithFailedStatus, k8sSecrets, true),
+				Tags:           tagsForMetricsAndEvents(&exampleReleaseWithFailedStatus, k8sSecrets, true),
 			},
 		},
 		{
@@ -257,7 +257,7 @@ func TestSendEvents(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           helmTags(&rel, k8sSecrets, true),
+			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
 		},
 		10*time.Second,
 	)

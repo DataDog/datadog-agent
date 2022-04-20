@@ -76,8 +76,7 @@ func TestGetFileSourceOnWindows(t *testing.T) {
 }
 
 func TestGetPath(t *testing.T) {
-	l := &Launcher{}
 	require.Equal(t,
 		filepath.Join(basePath, "123abc/123abc-json.log"),
-		l.getContainerLogfilePath("123abc"))
+		getPath("123abc"))
 }

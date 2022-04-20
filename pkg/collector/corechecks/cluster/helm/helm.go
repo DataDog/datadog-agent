@@ -21,17 +21,20 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	checkName               = "helm"
+	serviceCheckName        = "helm.release_state"
 	maximumWaitForAPIServer = 10 * time.Second
 	informerSyncTimeout     = 60 * time.Second
 	labelSelector           = "owner=helm"
@@ -149,13 +152,15 @@ func (hc *HelmCheck) Run() error {
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
-			sender.Gauge("helm.release", 1, "", helmTags(rel, storageDriver, true))
+			sender.Gauge("helm.release", 1, "", tagsForMetricsAndEvents(rel, storageDriver, true))
 		}
 	}
 
 	if hc.instance.CollectEvents {
 		hc.eventsManager.sendEvents(sender)
 	}
+
+	hc.sendServiceCheck(sender)
 
 	return nil
 }
@@ -228,12 +233,8 @@ func (hc *HelmCheck) addExistingReleases(apiClient *apiserver.APIClient) error {
 	return nil
 }
 
-func helmTags(release *release, storageDriver helmStorage, includeRevision bool) []string {
-	tags := []string{
-		fmt.Sprintf("helm_release:%s", release.Name),
-		fmt.Sprintf("helm_namespace:%s", release.Namespace),
-		fmt.Sprintf("helm_storage:%s", storageDriver),
-	}
+func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool) []string {
+	tags := tagsForServiceCheck(release, storageDriver)
 
 	if includeRevision {
 		tags = append(tags, fmt.Sprintf("helm_revision:%d", release.Version))
@@ -244,7 +245,6 @@ func helmTags(release *release, storageDriver helmStorage, includeRevision bool)
 	if release.Chart != nil && release.Chart.Metadata != nil {
 		tags = append(
 			tags,
-			fmt.Sprintf("helm_chart_name:%s", release.Chart.Metadata.Name),
 			fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
 			fmt.Sprintf("helm_app_version:%s", release.Chart.Metadata.AppVersion),
 		)
@@ -252,6 +252,28 @@ func helmTags(release *release, storageDriver helmStorage, includeRevision bool)
 
 	if release.Info != nil {
 		tags = append(tags, fmt.Sprintf("helm_status:%s", release.Info.Status))
+	}
+
+	return tags
+}
+
+// tagsForServiceCheck returns the tags needed for the service check which
+// are the ones that don't change between revisions
+func tagsForServiceCheck(release *release, storageDriver helmStorage) []string {
+	tags := []string{
+		fmt.Sprintf("helm_release:%s", release.Name),
+		fmt.Sprintf("helm_storage:%s", storageDriver),
+		fmt.Sprintf("kube_namespace:%s", release.Namespace),
+
+		// "helm_namespace" is just an alias for "kube_namespace".
+		// "kube_namespace" is a better name and consistent with the rest of
+		// checks, but in the first release of the check we had "helm_namespace"
+		// so we need to keep it for backwards-compatibility.
+		fmt.Sprintf("helm_namespace:%s", release.Namespace),
+	}
+
+	if release.Chart != nil && release.Chart.Metadata != nil {
+		tags = append(tags, fmt.Sprintf("helm_chart_name:%s", release.Chart.Metadata.Name))
 	}
 
 	return tags
@@ -377,4 +399,18 @@ func isLeader() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
+	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
+		for _, rel := range hc.store.getLatestRevisions(storageDriver) {
+			tags := tagsForServiceCheck(rel, storageDriver)
+
+			if rel.Info != nil && rel.Info.Status == "failed" {
+				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
+			} else {
+				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckOK, "", tags, "")
+			}
+		}
+	}
 }

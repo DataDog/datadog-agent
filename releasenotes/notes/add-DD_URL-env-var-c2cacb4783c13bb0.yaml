@@ -8,7 +8,6 @@
 ---
 enhancements:
   - |
-    DD_URL environment variable can now set Datadog server host just like
-    DD_DD_URL.
-    DD_DD_URL is used in priotity if DD_URL and DD_DD_URL variables are set.
+    `DD_URL` environment variable can now be used to set the Datadog intake URL just like `DD_DD_URL`.
+    If both `DD_DD_URL` and `DD_URL` are set, `DD_DD_URL` will be used to avoid breaking change.
    

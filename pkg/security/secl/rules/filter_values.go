@@ -16,12 +16,6 @@ type FilterValue struct {
 	Field eval.Field
 	Value interface{}
 	Type  eval.FieldValueType
-
-	// indicate process.uid == process.gid for example
-	isScalar bool
-	// opposite value of the field Value
-	notValue interface{}
-	not      bool
 }
 
 // Merge merges to FilterValues ensuring there is no duplicate value
@@ -29,7 +23,7 @@ func (fv FilterValues) Merge(n ...FilterValue) FilterValues {
 LOOP:
 	for _, v1 := range n {
 		for _, v2 := range fv {
-			if v1.Field == v2.Field && v1.Value == v2.Value && v1.not == v2.not {
+			if v1.Field == v2.Field && v1.Value == v2.Value {
 				continue LOOP
 			}
 		}

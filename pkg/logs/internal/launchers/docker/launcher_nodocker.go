@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -22,7 +24,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(readTimeout time.Duration, psources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
+func NewLauncher(readTimeout time.Duration, psources *config.LogSources, services *service.Services, cop containersorpods.Chooser, tailFromFile, forceTailingFromFile bool) *Launcher {
 	return &Launcher{}
 }
 
@@ -32,7 +34,8 @@ func IsAvailable() (bool, *retry.Retrier) {
 }
 
 // Start does nothing
-func (l *Launcher) Start() {}
+func (l *Launcher) Start(sourceProider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+}
 
 // Stop does nothing
 func (l *Launcher) Stop() {}

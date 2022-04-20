@@ -321,8 +321,8 @@ api_key:
 ## higher maximum backoff time.
 # forwarder_backoff_max: 64
 
-## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle
+## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle ibm
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -339,6 +339,7 @@ api_key:
 ## "alibaba" Alibaba
 ## "tencent" Tencent
 ## "oracle"  Oracle Cloud
+## "ibm"     IBM Cloud
 #
 # cloud_provider_metadata:
 #   - "aws"
@@ -346,6 +347,7 @@ api_key:
 #   - "azure"
 #   - "alibaba"
 #   - "oracle"
+#   - "ibm"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
@@ -958,21 +960,21 @@ api_key:
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
 
-  ## @param use_http - boolean - optional - default: false
-  ## @env DD_LOGS_CONFIG_USE_HTTP - boolean - optional - default: false
+  ## @param force_use_http - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
   ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
   ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
   ## always send logs with HTTPS (recommended).
   #
-  # use_http: true
+  # force_use_http: true
 
-  ## @param use_tcp - boolean - optional - default: false
-  ## @env DD_USE_TCP - boolean - optional - default: false
+  ## @param force_use_tcp - boolean - optional - default: false
+  ## @env DD_LOGS_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
   ## to `true` to always send logs via TCP. If `use_http` is set to `true`, this parameter
   ## is ignored.
   #
-  # use_tcp: true
+  # force_use_tcp: true
 
   ## @param use_compression - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
@@ -2431,6 +2433,28 @@ api_key:
     ## Admission controller's endpoint responsible for handling tags injection requests.
     #
     # endpoint: /injecttags
+
+  ## @param failure_policy - string - optional - default: Ignore
+  ## @env DD_ADMISSION_CONTROLLER_FAILURE_POLICY - string - optional - default: Ignore
+  ## Set the failure policy for dynamic admission control.
+  ## The default of Ignore means that pods will still be admitted even if the webhook is unavailable to inject them.
+  ## Setting to Fail will require the admission controller to be present and pods to be injected before they are allowed to run.
+  #
+  # failure_policy: Ignore
+
+  ## @param reinvocation_policy - string - optional - default: IfNeeded
+  ## @env DD_ADMISSION_CONTROLLER_REINVOCATION_POLICY - string - optional - default: IfNeeded
+  ## Set the reinvocation policy for dynamic admission control.
+  ## See https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#reinvocation-policy
+  #
+  # reinvocation_policy: IfNeeded
+
+  ## @param add_aks_selectors - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS - boolean - optional - default: false
+  ## Adds in the admission controller webhook the selectors that are required in AKS.
+  ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
+  #
+  # add_aks_selectors: false
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -3144,6 +3168,7 @@ api_key:
 
     ## @param report_quantiles - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
+    ## DEPRECATED: [v7.36 / v6.36] Use `summaries.mode` instead. Will be removed in v7.37 / 6.36.
     ## Whether to report quantile metrics for OTLP Summary points.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
     #
@@ -3151,6 +3176,7 @@ api_key:
 
     ## @param send_monotonic_counter - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_SEND_MONOTONIC_COUNTER - boolean - optional - default: false
+    ## DEPRECATED: [v7.36] Use `sums.cumulative_monotonic_mode` instead. Will be removed in v7.37.
     ## Whether to report monotonic metrics as counters or gauges (raw value).
     ## See https://docs.datadoghq.com/integrations/guide/prometheus-metrics/#counter
     ## for further details.
@@ -3185,6 +3211,30 @@ api_key:
       ## Whether to report sum and count as separate histogram metrics.
       #
       # send_count_sum_metrics: false
+
+    ## @param sums - custom object - optional
+    ## Configuration for OTLP Sums.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=sum for details.
+        ## @param cumulative_monotonic_mode - string - optional - default: to_delta
+        ## @env DD_OTLP_CONFIG_METRICS_SUMS_CUMULATIVE_MONOTONIC_MODE - string - optional - default: to_delta
+        ## How to report cumulative monotonic sums. Valid values are:
+        ##
+        ## - `to_delta` to calculate delta for sum in the client side and report as Datadog counts.
+        ## - `raw_value` to report the raw value as a Datadog gauge.
+        #
+        # cumulative_monotonic_mode: to_delta
+
+    ## @param summaries - custom object - optional
+    ## Configuration for OTLP Summaries.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
+        ## @param mode - string - optional - default: gauges
+        ## @env DD_OTLP_CONFIG_METRICS_SUMMARIES_MODE - string - optional - default: gauges
+        ## How to report summaries. Valid values are:
+        ##
+        ## - `noquantiles` to not report quantile metrics.
+        ## - `gauges` to report one gauge metric per quantile.
+        #
+        # mode: gauges
 
   ## @param traces - custom object - optional
   ## Traces-specific configuration for OTLP ingest in the Datadog Agent.

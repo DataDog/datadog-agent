@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
@@ -394,9 +394,7 @@ type RemoteClient interface {
 
 // SamplingUpdate ...
 type SamplingUpdate struct {
-	ID      string
-	Version uint64
-	Rates   []pb.APMSampling
+	Configs map[string]client.ConfigAPMSamling
 }
 
 // Tag represents a key/value pair.

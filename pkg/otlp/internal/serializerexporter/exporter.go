@@ -42,6 +42,12 @@ func newDefaultConfig() config.Exporter {
 				Mode:         "distributions",
 				SendCountSum: false,
 			},
+			SumConfig: sumConfig{
+				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
+			},
+			SummaryConfig: summaryConfig{
+				Mode: SummaryModeGauges,
+			},
 		},
 	}
 }
@@ -84,7 +90,8 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 		options = append(options, translator.WithCountSumMetrics())
 	}
 
-	if cfg.Metrics.Quantiles {
+	switch cfg.Metrics.SummaryConfig.Mode {
+	case SummaryModeGauges:
 		options = append(options, translator.WithQuantiles())
 	}
 
@@ -97,10 +104,11 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	var numberMode translator.NumberMode
-	if cfg.Metrics.SendMonotonic {
-		numberMode = translator.NumberModeCumulativeToDelta
-	} else {
+	switch cfg.Metrics.SumConfig.CumulativeMonotonicMode {
+	case CumulativeMonotonicSumModeRawValue:
 		numberMode = translator.NumberModeRawValue
+	case CumulativeMonotonicSumModeToDelta:
+		numberMode = translator.NumberModeCumulativeToDelta
 	}
 	options = append(options, translator.WithNumberMode(numberMode))
 
@@ -108,6 +116,10 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 }
 
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+	for _, err := range cfg.warnings {
+		logger.Warn(fmt.Sprintf("Deprecated: %v", err))
+	}
+
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)

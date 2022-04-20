@@ -9,8 +9,8 @@ import (
 	"container/list"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // defaultServiceRateKey specifies the key for the default rate to be used by any service that
@@ -37,7 +37,7 @@ type catalogEntry struct {
 // rm specifies the pair of rate and mechanism.
 type rm struct {
 	r float64
-	m pb.SamplingMechanism
+	m apmsampling.SamplingMechanism
 }
 
 // newServiceLookup returns a new serviceKeyCatalog with maxEntries maximum number of entries.

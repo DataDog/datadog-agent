@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	gopsutilhost "github.com/shirou/gopsutil/host"
+	gopsutilhost "github.com/shirou/gopsutil/v3/host"
 )
 
 func getUUID() string {

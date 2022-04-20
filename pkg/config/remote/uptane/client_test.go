@@ -297,11 +297,11 @@ func newTestRepository(version int, configTargets data.TargetFiles, directorTarg
 	repos.directorTimestampVersion = 20 + version
 	repos.directorTargetsVersion = 200 + version
 	repos.directorSnapshotVersion = 2000 + version
-	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey)
+	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey, nil)
 	repos.configTargets = generateTargets(repos.configTargetsKey, 100+version, configTargets)
 	repos.configSnapshot = generateSnapshot(repos.configSnapshotKey, 1000+version, repos.configTargetsVersion)
 	repos.configTimestamp = generateTimestamp(repos.configTimestampKey, 10+version, repos.configSnapshotVersion, repos.configSnapshot)
-	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey)
+	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey, nil)
 	repos.directorTargets = generateTargets(repos.directorTargetsKey, 200+version, directorTargets)
 	repos.directorSnapshot = generateSnapshot(repos.directorSnapshotKey, 2000+version, repos.directorTargetsVersion)
 	repos.directorTimestamp = generateTimestamp(repos.directorTimestampKey, 20+version, repos.directorSnapshotVersion, repos.directorSnapshot)
@@ -326,7 +326,7 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	}
 }
 
-func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer) []byte {
+func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer, previousRootKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -350,7 +350,13 @@ func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, target
 		KeyIDs:    snapshotKey.PublicData().IDs(),
 		Threshold: 1,
 	}
-	signedRoot, _ := sign.Marshal(&root, key)
+
+	rootSigners := []keys.Signer{key}
+	if previousRootKey != nil {
+		rootSigners = append(rootSigners, previousRootKey)
+	}
+
+	signedRoot, _ := sign.Marshal(&root, rootSigners...)
 	serializedRoot, _ := json.Marshal(signedRoot)
 	return serializedRoot
 }

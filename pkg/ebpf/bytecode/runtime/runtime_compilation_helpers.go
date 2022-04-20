@@ -80,7 +80,7 @@ func (tm *RuntimeCompilationTelemetry) GetTelemetry() map[string]int64 {
 	return stats
 }
 
-func (tm *RuntimeCompilationTelemetry) SendMetrics(client *statsd.Client) error {
+func (tm *RuntimeCompilationTelemetry) SendMetrics(client statsd.ClientInterface) error {
 	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
 	var enabled float64 = 0

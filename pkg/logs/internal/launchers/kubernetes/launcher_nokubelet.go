@@ -9,7 +9,11 @@
 package kubernetes
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -18,7 +22,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
+func NewLauncher(sources *config.LogSources, services *service.Services, cop containersorpods.Chooser, collectAll bool) *Launcher {
 	return &Launcher{}
 }
 
@@ -28,7 +32,8 @@ func IsAvailable() (bool, *retry.Retrier) {
 }
 
 // Start does nothing
-func (l *Launcher) Start() {}
+func (l *Launcher) Start(sourceProider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+}
 
 // Stop does nothing
 func (l *Launcher) Stop() {}

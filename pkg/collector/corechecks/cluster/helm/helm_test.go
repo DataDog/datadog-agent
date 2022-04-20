@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestRun(t *testing.T) {
@@ -104,6 +105,7 @@ func TestRun(t *testing.T) {
 		{
 			"helm_release:my_datadog",
 			"helm_chart_name:datadog",
+			"kube_namespace:default",
 			"helm_namespace:default",
 			"helm_revision:1",
 			"helm_status:deployed",
@@ -113,6 +115,7 @@ func TestRun(t *testing.T) {
 		{
 			"helm_release:my_app",
 			"helm_chart_name:some_app",
+			"kube_namespace:app",
 			"helm_namespace:app",
 			"helm_revision:2",
 			"helm_status:deployed",
@@ -121,6 +124,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			"helm_release:release_without_chart",
+			"kube_namespace:default",
 			"helm_namespace:default",
 			"helm_revision:1",
 			"helm_status:deployed",
@@ -128,6 +132,7 @@ func TestRun(t *testing.T) {
 		{
 			"helm_release:release_without_info",
 			"helm_chart_name:example_app",
+			"kube_namespace:default",
 			"helm_namespace:default",
 			"helm_revision:1",
 			"helm_chart_version:2.0.0",
@@ -292,6 +297,187 @@ func TestRun_withCollectEvents(t *testing.T) {
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
+}
+
+func TestRun_ServiceCheck(t *testing.T) {
+	// Releases used for this test:
+	// - "my_datadog" has 2 revisions without failures.
+	// - "my_app" has 2 revisions but the latest one is not in "failed" state.
+	// - "my_proxy" has 2 revisions and the latest one is in "failed" state.
+	//
+	// Only "my_proxy" should be marked as failed by the service check.
+	releases := []*release{
+		{
+			Name: "my_datadog",
+			Info: &info{
+				Status: "superseded",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "datadog",
+					Version:    "2.30.5",
+					AppVersion: "7",
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
+		{
+			Name: "my_datadog",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "datadog",
+					Version:    "2.30.5",
+					AppVersion: "7",
+				},
+			},
+			Version:   2,
+			Namespace: "default",
+		},
+		{
+			Name: "my_app",
+			Info: &info{
+				Status: "failed", // Notice that it's failed, but it's not the latest release
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "some_app",
+					Version:    "1.0.0",
+					AppVersion: "1",
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
+		{
+			Name: "my_app",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "some_app",
+					Version:    "1.0.0",
+					AppVersion: "1",
+				},
+			},
+			Version:   2,
+			Namespace: "default",
+		},
+		{
+			Name: "my_proxy",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "nginx",
+					Version:    "1.0.0",
+					AppVersion: "1",
+				},
+			},
+			Version:   10,
+			Namespace: "default",
+		},
+		{
+			Name: "my_proxy",
+			Info: &info{
+				Status: "failed", // Notice that this is the latest release, and it's failed
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "nginx",
+					Version:    "1.0.0",
+					AppVersion: "1",
+				},
+			},
+			Version:   12,
+			Namespace: "default",
+		},
+	}
+
+	tests := []struct {
+		name    string
+		storage helmStorage
+	}{
+		{
+			name:    "using secrets storage",
+			storage: k8sSecrets,
+		},
+		{
+			name:    "using configmaps storage",
+			storage: k8sConfigmaps,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			check := factory().(*HelmCheck)
+			check.runLeaderElection = false
+
+			for _, rel := range releases {
+				check.store.add(rel, test.storage)
+			}
+
+			mockedSender := mocksender.NewMockSender(checkName)
+			mockedSender.SetupAcceptAll()
+
+			err := check.Run()
+			assert.NoError(t, err)
+
+			// "my_datadog" release should report OK.
+			mockedSender.AssertServiceCheck(
+				t,
+				"helm.release_state",
+				coreMetrics.ServiceCheckOK,
+				"",
+				[]string{
+					"helm_release:my_datadog",
+					"kube_namespace:default",
+					"helm_namespace:default",
+					fmt.Sprintf("helm_storage:%s", test.storage),
+					"helm_chart_name:datadog",
+				},
+				"",
+			)
+
+			// "my_app" release should report OK.
+			mockedSender.AssertServiceCheck(
+				t,
+				"helm.release_state",
+				coreMetrics.ServiceCheckOK,
+				"",
+				[]string{
+					"helm_release:my_app",
+					"kube_namespace:default",
+					"helm_namespace:default",
+					fmt.Sprintf("helm_storage:%s", test.storage),
+					"helm_chart_name:some_app",
+				},
+				"",
+			)
+
+			// "my_proxy" release should report a failure.
+			mockedSender.AssertServiceCheck(
+				t,
+				"helm.release_state",
+				coreMetrics.ServiceCheckCritical,
+				"",
+				[]string{
+					"helm_release:my_proxy",
+					"kube_namespace:default",
+					"helm_namespace:default",
+					fmt.Sprintf("helm_storage:%s", test.storage),
+					"helm_chart_name:nginx",
+				},
+				"Release in \"failed\" state",
+			)
+		})
+	}
+
 }
 
 // secretForRelease returns a Kubernetes secret that contains the info of the

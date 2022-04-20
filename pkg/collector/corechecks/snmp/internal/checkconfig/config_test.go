@@ -46,6 +46,7 @@ metrics:
 - symbol:
     OID: 1.3.6.1.4.1.318.1.1.1.11.1.1.0
     name: upsBasicStateOutputState
+    scale_factor: 10
   forced_type: flag_stream
   options:
     placement: 5
@@ -58,6 +59,7 @@ metrics:
     name: ifInErrors
   - OID: 1.3.6.1.2.1.2.2.1.20
     name: ifOutErrors
+    scale_factor: 3
   metric_tags:
   - tag: if_index
     index: 1
@@ -131,17 +133,19 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
-	metrics := []MetricsConfig{
+	expectedMetrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: MetricTagConfigList{
 			{symbolTag: "mytag1"},
 			{symbolTag: "mytag2"},
 		}},
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState", ScaleFactor: 10}, ForcedType: "flag_stream", Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
 		{
 			Symbols: []SymbolConfig{
+				// ifInErrors defined in instance config with a different set of metric tags from the one defined
+				// in the imported profile
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
-				{OID: "1.3.6.1.2.1.2.2.1.20", Name: "ifOutErrors"},
+				{OID: "1.3.6.1.2.1.2.2.1.20", Name: "ifOutErrors", ScaleFactor: 3},
 			},
 			MetricTags: []MetricTagConfig{
 				{Tag: "if_index", Index: 1},
@@ -180,10 +184,10 @@ bulk_max_repetitions: 20
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 	}
-	metrics = append(metrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
-	metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
+	expectedMetrics = append(expectedMetrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
+	expectedMetrics = append(expectedMetrics, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics...)
 
-	metricsTags := []MetricTagConfig{
+	expectedMetricTags := []MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 		{
 			OID:     "1.2.3",
@@ -209,8 +213,9 @@ bulk_max_repetitions: 20
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
-	assert.Equal(t, metrics, config.Metrics)
-	assert.Equal(t, metricsTags, config.MetricTags)
+	assert.Equal(t, expectedMetrics, config.Metrics)
+	assert.Equal(t, expectedMetricTags, config.MetricTags)
+	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
 	assert.Equal(t, 1, len(config.Profiles))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
@@ -330,7 +335,7 @@ community_string: abc
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 1, len(config.Profiles))
-	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
+	assert.Equal(t, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -471,7 +476,7 @@ bulk_max_repetitions: -5
 `)
 	// language=yaml
 	rawInitConfig = []byte(``)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "bulk max repetition must be a positive integer. Invalid value: -5")
 }
 
@@ -1147,7 +1152,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
 	coreconfig.Datadog.Set("network_devices.namespace", "")
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
 

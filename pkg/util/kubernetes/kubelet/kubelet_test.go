@@ -192,8 +192,8 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -227,8 +227,8 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -260,8 +260,8 @@ func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 	kubelet, err := newDummyKubelet("./testdata/invalid.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -285,8 +285,8 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -318,8 +318,8 @@ func (suite *KubeletTestSuite) TestGetNodename() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -350,8 +350,8 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -390,8 +390,8 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -429,8 +429,8 @@ func (suite *KubeletTestSuite) TestGetPodFromUID() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -465,8 +465,8 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
 	require.NoError(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.NoError(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -510,8 +510,8 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
 	require.NoError(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.NoError(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -786,8 +786,8 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -820,8 +820,8 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -964,8 +964,8 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_null_pod.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -993,8 +993,8 @@ func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_startup.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
@@ -1017,8 +1017,8 @@ func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_persistent_volume_claim.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)

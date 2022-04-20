@@ -243,13 +243,21 @@ type BufferedAggregator struct {
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
 
-	flushAndSerializeInParallel flushAndSerializeInParallel
+	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
 
-type flushAndSerializeInParallel struct {
-	enabled     bool
-	channelSize int
-	bufferSize  int
+// FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
+type FlushAndSerializeInParallel struct {
+	ChannelSize int
+	BufferSize  int
+}
+
+// NewFlushAndSerializeInParallel creates a new instance of FlushAndSerializeInParallel.
+func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInParallel {
+	return FlushAndSerializeInParallel{
+		BufferSize:  config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
+		ChannelSize: config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
+	}
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -287,25 +295,21 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleStopper: make(chan struct{}),
 
-		tagsStore:               tagsStore,
-		checkSamplers:           make(map[check.ID]*CheckSampler),
-		flushInterval:           flushInterval,
-		serializer:              s,
-		eventPlatformForwarder:  eventPlatformForwarder,
-		hostname:                hostname,
-		hostnameUpdate:          make(chan string),
-		hostnameUpdateDone:      make(chan struct{}),
-		flushChan:               make(chan flushTrigger),
-		stopChan:                make(chan struct{}),
-		health:                  health.RegisterLiveness("aggregator"),
-		agentName:               agentName,
-		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
-		agentTags:               tagger.AgentTags,
-		flushAndSerializeInParallel: flushAndSerializeInParallel{
-			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && s != nil && s.IsIterableSeriesSupported(),
-			bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
-			channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
-		},
+		tagsStore:                   tagsStore,
+		checkSamplers:               make(map[check.ID]*CheckSampler),
+		flushInterval:               flushInterval,
+		serializer:                  s,
+		eventPlatformForwarder:      eventPlatformForwarder,
+		hostname:                    hostname,
+		hostnameUpdate:              make(chan string),
+		hostnameUpdateDone:          make(chan struct{}),
+		flushChan:                   make(chan flushTrigger),
+		stopChan:                    make(chan struct{}),
+		health:                      health.RegisterLiveness("aggregator"),
+		agentName:                   agentName,
+		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
+		agentTags:                   tagger.AgentTags,
+		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
 	}
 
 	return aggregator
@@ -538,24 +542,11 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
-	if !agg.flushAndSerializeInParallel.enabled {
+	sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
+	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 
-		series, sketches := agg.GetSeriesAndSketches(trigger.time)
-		agg.appendDefaultSeries(trigger.time, &series)
-
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
-		agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
-
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
+	if len(sketches) > 0 {
+		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 	}
 }
 

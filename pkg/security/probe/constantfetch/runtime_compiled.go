@@ -33,13 +33,13 @@ type rcSymbolPair struct {
 
 type RuntimeCompilationConstantFetcher struct {
 	config       *ebpf.Config
-	statsdClient *statsd.Client
+	statsdClient statsd.ClientInterface
 	headers      []string
 	symbolPairs  []rcSymbolPair
 	result       map[string]uint64
 }
 
-func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient *statsd.Client) *RuntimeCompilationConstantFetcher {
+func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient statsd.ClientInterface) *RuntimeCompilationConstantFetcher {
 	return &RuntimeCompilationConstantFetcher{
 		config:       config,
 		statsdClient: statsdClient,

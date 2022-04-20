@@ -5,6 +5,7 @@
 package {{.Name}}
 
 import (
+    "net"
 	"reflect"
 	"unsafe"
 
@@ -45,7 +46,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
-			{{- if and $Field.OpOverrides (not $Mock)}}
+			{{- if $Field.OpOverrides}}
 			OpOverrides: {{$Field.OpOverrides}},
 			{{- end}}
 			{{- if $Field.Iterator}}
@@ -77,8 +78,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 						{{$Return := $SubName | printf "element%s"}}
 						{{if and (ne $Field.Handler "") (not $Mock) }}
+							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-							{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element." $Field.Struct ")"}}
+							{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element" $SubName ")"}}
 						{{end}}
 
 						{{if eq $Field.ReturnType "int"}}
@@ -102,6 +104,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					return results
 				},
+			{{- else if eq $Field.ReturnType "net.IP" }}
+                {{- $Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
+                {{- if and (ne $Field.Handler "") (not $Mock)}}
+                    {{- $Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
+                {{end -}}
+			    {{- if $Field.IsArray }}
+                    EvalFnc: func(ctx *eval.Context) *eval.CIDRValues {
+                        return eval.NewCIDRValues({{$Return}}, nil)
+                    },
+                {{- else}}
+                    EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
+                        return eval.NewIPFieldValue({{$Return}}, nil)
+                    },
+                {{end -}}
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
 				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
@@ -184,8 +200,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 				{{$Return := $SubName | printf "element%s"}}
 				{{if and (ne $Field.Handler "") (not $Mock) }}
+					{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 					{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element." $Field.Struct ")"}}
+					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element" $SubName ")"}}
 				{{end}}
 
 				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
@@ -228,6 +245,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{end -}}
 			{{else if eq $Field.ReturnType "bool"}}
 				return {{$Return}}, nil
+            {{else if eq $Field.ReturnType "net.IP"}}
+                return {{$Return}}, nil
 			{{end}}
 		{{end}}
 		{{end}}
@@ -258,6 +277,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 			return reflect.Int, nil
 		{{else if eq $Field.ReturnType "bool"}}
 			return reflect.Bool, nil
+        {{else if eq $Field.ReturnType "net.IP"}}
+            return reflect.Struct, nil
 		{{end}}
 		{{end}}
 		}
@@ -304,6 +325,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			if {{$FieldName}}, ok = value.(bool); !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
+			return nil
+        {{else if eq $Field.BasicType "net.IP"}}
+            v, ok := value.(net.IP)
+            if !ok {
+                return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+            }
+			{{- if $Field.IsArray}}
+                {{$FieldName}} = append({{$FieldName}}, v)
+            {{else}}
+                {{$FieldName}} = v
+            {{end}}
 			return nil
 		{{end}}
 		{{end}}

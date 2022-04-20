@@ -87,7 +87,7 @@ func (c *systemCollector) ID() string {
 	return systemCollectorID
 }
 
-func (c *systemCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (c *systemCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,27 @@ func (c *systemCollector) GetContainerStats(containerID string, cacheValidity ti
 	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
-func (c *systemCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	cg, err := c.getCgroup(containerID, cacheValidity)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get PIDs
+	pids, err := cg.GetPIDs(cacheValidity)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get PIDs for cgroup id: %s. Unable to get count of open files", cg.Identifier())
+	}
+
+	ofCount, allFailed := systemutils.CountProcessesFileDescriptors(c.procPath, pids)
+	if allFailed {
+		return nil, fmt.Errorf("unable to read any PID open FDs for cgroup id: %s. Unable to get count of open files", cg.Identifier())
+	}
+
+	return &ofCount, nil
+}
+
+func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -111,12 +131,12 @@ func (c *systemCollector) GetContainerNetworkStats(containerID string, cacheVali
 }
 
 func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	containerID, _, err := cgroups.ContainerIDFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController)
+	containerID, err := cgroups.IdentiferFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }
 
 func (c *systemCollector) GetSelfContainerID() (string, error) {
-	containerID, _, err := cgroups.ContainerIDFromCgroupReferences("/proc", "self", c.baseController)
+	containerID, err := cgroups.IdentiferFromCgroupReferences("/proc", "self", c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }
 
@@ -160,12 +180,6 @@ func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity
 	cs.PID.PIDs, err = cg.GetPIDs(cacheValidity)
 	if err != nil {
 		log.Debugf("Unable to get PIDs for cgroup id: %s. Metrics will be missing", cg.Identifier())
-	}
-
-	// Get OpenFDs
-	count, allFailed := systemutils.CountProcessesFileDescriptors(c.procPath, cs.PID.PIDs)
-	if !allFailed {
-		convertField(&count, &cs.PID.OpenFiles)
 	}
 
 	return cs, nil

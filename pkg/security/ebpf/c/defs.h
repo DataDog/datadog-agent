@@ -3,7 +3,7 @@
 
 #include "bpf_helpers.h"
 
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
+#include "constants.h"
 
 #if defined(__x86_64__)
   #define SYSCALL64_PREFIX "__x64_"
@@ -223,6 +223,9 @@ enum event_type
     EVENT_SIGNAL,
     EVENT_SPLICE,
     EVENT_CGROUP_TRACING,
+    EVENT_DNS,
+    EVENT_NET_DEVICE,
+    EVENT_VETH_PAIR,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
@@ -246,6 +249,8 @@ struct span_context_t {
 struct process_context_t {
     u32 pid;
     u32 tid;
+    u32 netns;
+    u32 padding;
 };
 
 struct container_context_t {

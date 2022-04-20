@@ -7,6 +7,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -31,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
@@ -258,22 +258,7 @@ func StartAgent() error {
 	}
 
 	// Setup Internal Profiling
-	if v := config.Datadog.GetInt("internal_profiling.block_profile_rate"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v); err != nil {
-			log.Errorf("Error setting block profile rate: %v", err)
-		}
-	}
-	if v := config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v); err != nil {
-			log.Errorf("Error mutex profile fraction: %v", err)
-		}
-	}
-	if config.Datadog.GetBool("internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true)
-		if err != nil {
-			log.Errorf("Error starting profiler: %v", err)
-		}
-	}
+	common.SetupInternalProfiling()
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
@@ -282,9 +267,12 @@ func StartAgent() error {
 		http.Handle("/telemetry", telemetryHandler)
 	}
 	go func() {
-		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%s", expvarPort), http.DefaultServeMux)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", expvarPort, err)
+		common.ExpvarServer = &http.Server{
+			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
+			Handler: http.DefaultServeMux,
+		}
+		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 		}
 	}()
 
@@ -476,6 +464,11 @@ func StopAgent() {
 		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
+	if common.ExpvarServer != nil {
+		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
+			log.Errorf("Error shutting down expvar server: %v", err)
+		}
+	}
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}

@@ -70,11 +70,17 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   fim_enabled: true
+  runtime_compilation:
+    enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
+{{if .EnableNetwork}}
+  network:
+    enabled: true
+{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -141,6 +147,7 @@ type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
+	enableNetwork               bool
 	disableDiscarders           bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
@@ -160,6 +167,7 @@ func (s *stringSlice) Set(value string) error {
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.testDir == opts.testDir &&
 		to.disableApprovers == opts.disableApprovers &&
+		to.enableNetwork == opts.enableNetwork &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -179,6 +187,7 @@ type testModule struct {
 	cmdWrapper            cmdWrapper
 	ruleHandler           testRuleHandler
 	eventDiscarderHandler testEventDiscarderHandler
+	statsdClient          *StatsdClient
 }
 
 var testMod *testModule
@@ -278,7 +287,7 @@ func getInode(t *testing.T, path string) uint64 {
 func which(t *testing.T, name string) string {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		t.Fatalf("")
+		t.Fatalf("couldn't resolve %s: %v", name, err)
 	}
 
 	if dest, err := filepath.EvalSymlinks(executable); err == nil {
@@ -364,48 +373,6 @@ func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field str
 	return false
 }
 
-func setTestConfig(dir string, opts testOpts) (string, error) {
-	tmpl, err := template.New("test-config").Parse(testConfig)
-	if err != nil {
-		return "", err
-	}
-
-	if opts.eventsCountThreshold == 0 {
-		opts.eventsCountThreshold = 100000000
-	}
-
-	erpcDentryResolutionEnabled := true
-	if opts.disableERPCDentryResolution {
-		erpcDentryResolutionEnabled = false
-	}
-
-	mapDentryResolutionEnabled := true
-	if opts.disableMapDentryResolution {
-		mapDentryResolutionEnabled = false
-	}
-
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":             dir,
-		"DisableApprovers":            opts.disableApprovers,
-		"EventsCountThreshold":        opts.eventsCountThreshold,
-		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
-		"LogPatterns":                 logPatterns,
-	}); err != nil {
-		return "", err
-	}
-
-	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
-	if err != nil {
-		return "", err
-	}
-	defer sysprobeConfig.Close()
-
-	_, err = io.Copy(sysprobeConfig, buffer)
-	return sysprobeConfig.Name(), err
-}
-
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.CreateTemp(dir, "secagent-policy.*.policy")
 	if err != nil {
@@ -442,6 +409,66 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
+func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
+	tmpl, err := template.New("test-config").Parse(testConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.eventsCountThreshold == 0 {
+		opts.eventsCountThreshold = 100000000
+	}
+
+	erpcDentryResolutionEnabled := true
+	if opts.disableERPCDentryResolution {
+		erpcDentryResolutionEnabled = false
+	}
+
+	mapDentryResolutionEnabled := true
+	if opts.disableMapDentryResolution {
+		mapDentryResolutionEnabled = false
+	}
+
+	buffer := new(bytes.Buffer)
+	if err := tmpl.Execute(buffer, map[string]interface{}{
+		"TestPoliciesDir":             dir,
+		"DisableApprovers":            opts.disableApprovers,
+		"EnableNetwork":               opts.enableNetwork,
+		"EventsCountThreshold":        opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
+		"LogPatterns":                 logPatterns,
+	}); err != nil {
+		return nil, err
+	}
+
+	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	defer sysprobeConfig.Close()
+
+	_, err = io.Copy(sysprobeConfig, buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load config")
+	}
+	config, err := config.NewConfig(agentConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load config")
+	}
+
+	config.SelfTestEnabled = false
+	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
+	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
+
+	return config, nil
+}
+
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
 	logLevel, found := seelog.LogLevelFromString(logLevelStr)
 	if !found {
@@ -453,7 +480,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	sysprobeConfig, err := setTestConfig(st.root, opts)
+	config, err := genTestConfig(st.root, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -499,22 +526,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create config")
-	}
-	config, err := config.NewConfig(agentConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create config")
-	}
-
-	config.SelfTestEnabled = false
-	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
-	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
-
 	t.Log("Instantiating a new security module")
 
-	mod, err := module.NewModule(config)
+	statsdClient := NewStatsdClient()
+
+	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create module")
 	}
@@ -532,6 +548,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		probe:        mod.(*module.Module).GetProbe(),
 		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
 		cmdWrapper:   cmdWrapper,
+		statsdClient: statsdClient,
 	}
 
 	var loadErr *multierror.Error
@@ -1238,9 +1255,10 @@ func randStringRunes(n int) string {
 
 //nolint:deadcode,unused
 func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
+	t.Helper()
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
-		t.Errorf("failed to get kernel version: %w", err)
+		t.Errorf("failed to get kernel version: %s", err)
 		return
 	}
 

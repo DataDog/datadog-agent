@@ -24,7 +24,9 @@ import (
 
 func TestProcessHTTPTransactions(t *testing.T) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
-	sk := newHTTPStatkeeper(cfg, newTelemetry())
+	tel, err := newTelemetry()
+	require.NoError(t, err)
+	sk := newHTTPStatkeeper(cfg, tel)
 	txs := make([]httpTX, 100)
 
 	sourceIP := util.AddressFromString("1.1.1.1")
@@ -85,7 +87,9 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
-	sk := newHTTPStatkeeper(cfg, newTelemetry())
+	tel, err := newTelemetry()
+	require.NoError(b, err)
+	sk := newHTTPStatkeeper(cfg, tel)
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -120,7 +124,9 @@ func TestPathProcessing(t *testing.T) {
 			HTTPReplaceRules:     rules,
 		}
 
-		return newHTTPStatkeeper(c, newTelemetry())
+		tel, err := newTelemetry()
+		require.NoError(t, err)
+		return newHTTPStatkeeper(c, tel)
 	}
 
 	t.Run("reject rule", func(t *testing.T) {

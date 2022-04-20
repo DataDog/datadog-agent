@@ -6,6 +6,7 @@
 package kubernetes
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -21,7 +22,7 @@ const Digits = "1234567890"
 // ParseDeploymentForReplicaSet gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
 func ParseDeploymentForReplicaSet(name string) string {
-	lastDash := strings.LastIndexAny(name, "-")
+	lastDash := strings.LastIndexByte(name, '-')
 	if lastDash == -1 {
 		// No dash
 		return ""
@@ -43,22 +44,28 @@ func ParseDeploymentForReplicaSet(name string) string {
 // ParseCronJobForJob gets the cronjob name from a job,
 // or returns an empty string if no parent cronjob is found.
 // https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
-func ParseCronJobForJob(name string) string {
-	lastDash := strings.LastIndexAny(name, "-")
+func ParseCronJobForJob(name string) (string, int) {
+	lastDash := strings.LastIndexByte(name, '-')
 	if lastDash == -1 {
 		// No dash
-		return ""
+		return "", 0
 	}
 	suffix := name[lastDash+1:]
 	if len(suffix) < 3 {
 		// Suffix is variable length but we cutoff at 3+ characters
-		return ""
+		return "", 0
 	}
 
 	if !utils.StringInRuneset(suffix, Digits) {
 		// Invalid suffix
-		return ""
+		return "", 0
 	}
 
-	return name[:lastDash]
+	id, err := strconv.Atoi(suffix)
+	if err != nil {
+		// Cannot happen because of the test just above
+		return "", 0
+	}
+
+	return name[:lastDash], id
 }

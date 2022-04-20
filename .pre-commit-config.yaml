@@ -53,7 +53,7 @@ repos:
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
-      entry: 'python tasks/git-hooks/wincpplang.py'
+      entry: './tasks/git-hooks/wincpplang.py'
       language: system
       types_or: [c, c++, c#]
     - id: clang-format

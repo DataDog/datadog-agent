@@ -211,7 +211,7 @@ func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
 }
 
 var (
-	discarderEvent = NewEvent(nil, nil)
+	discarderEvent = NewEvent(nil, nil, nil)
 )
 
 // use a faster version of path.Dir which adds some sanity checks not required here
@@ -287,10 +287,10 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		// check filename
 		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
-				if value.Type == eval.PatternValueType {
-					glob, ok := value.StringMatcher.(*eval.GlobStringMatcher)
-					if !ok {
-						return nil, errors.New("unexpected string matcher")
+				if value.Type == eval.GlobValueType {
+					glob, err := eval.NewGlob(value.Value.(string), false)
+					if err != nil {
+						return nil, fmt.Errorf("unexpected glob `%v`: %w", value.Value, err)
 					}
 
 					valueFnc = func(dirname string) (bool, bool, error) {
@@ -512,14 +512,14 @@ func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.file.path" {
-			seclog.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileFields.Inode, event.ProcessContext.Pid)
+			seclog.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileEvent.Inode, event.ProcessContext.Pid)
 
 			// discard by PID for long running process
 			if err := probe.pidDiscarders.discard(eventType, event.ProcessContext.Pid); err != nil {
 				return err
 			}
 
-			return probe.inodeDiscarders.discardInode(eventType, event.ProcessContext.FileFields.MountID, event.ProcessContext.FileFields.Inode, true)
+			return probe.inodeDiscarders.discardInode(eventType, event.ProcessContext.FileEvent.MountID, event.ProcessContext.FileEvent.Inode, true)
 		}
 
 		if fnc != nil {

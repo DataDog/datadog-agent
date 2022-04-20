@@ -139,3 +139,53 @@ func parseDebianVersion(str string) (Version, error) {
 	}
 	return ParseReleaseString(match[1])
 }
+
+// UbuntuKernelVersion represents a version from an ubuntu kernel
+// Please see: https://ubuntu.com/kernel for the documentation of this scheme
+type UbuntuKernelVersion struct {
+	Major  int
+	Minor  int
+	Patch  int // always 0
+	Abi    int
+	Flavor string
+}
+
+var ubuntuKernelVersionRegex = regexp.MustCompile(`^(\d+)\.(\d+)\.(0)-(\d+)-([[:lower:]-]+)$`)
+
+// NewUbuntuKernelVersion parses the ubuntu release string and returns a structure with each extracted fields
+func NewUbuntuKernelVersion(unameRelease string) (*UbuntuKernelVersion, error) {
+	match := ubuntuKernelVersionRegex.FindStringSubmatch(unameRelease)
+	if len(match) == 0 {
+		return nil, fmt.Errorf("failed to parse ubuntu kernel version")
+	}
+
+	major, err := strconv.ParseInt(match[1], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	minor, err := strconv.ParseInt(match[2], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	patch, err := strconv.ParseInt(match[3], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	abi, err := strconv.ParseInt(match[4], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	flavor := match[5]
+
+	return &UbuntuKernelVersion{
+		Major:  int(major),
+		Minor:  int(minor),
+		Patch:  int(patch),
+		Abi:    int(abi),
+		Flavor: flavor,
+	}, nil
+}
