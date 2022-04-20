@@ -19,7 +19,7 @@ type AssetReader interface {
 	io.Closer
 }
 
-func verifyAssetIsRootWriteable(assetPath string) error {
+func VerifyAssetIsRootWriteable(assetPath string) error {
 	// Enforce that we only load root-writeable object files
 	info, err := os.Stat(assetPath)
 	if err != nil {

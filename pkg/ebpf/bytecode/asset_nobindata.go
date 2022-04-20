@@ -18,7 +18,7 @@ import (
 // GetReader returns a new AssetReader for the specified file asset
 func GetReader(dir, name string) (AssetReader, error) {
 	assetPath := path.Join(dir, path.Base(name))
-	err := verifyAssetIsRootWriteable(assetPath)
+	err := VerifyAssetIsRootWriteable(assetPath)
 	if err != nil {
 		return nil, err
 	}

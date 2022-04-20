@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -177,20 +177,10 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 		rc.telemetry.compilationResult = compiledOutputFound
 	}
 
-	// Enforce that we only load root-writeable object files
-	info, err := os.Stat(outputFile)
+	err = bytecode.VerifyAssetIsRootWriteable(outputFile)
 	if err != nil {
 		rc.telemetry.compilationResult = outputFileErr
-		return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		rc.telemetry.compilationResult = outputFileErr
-		return nil, fmt.Errorf("error getting permissions for output file %s: %w", outputFile, err)
-	}
-	if stat.Uid != 0 || stat.Gid != 0 || info.Mode().Perm() != 0644 {
-		rc.telemetry.compilationResult = outputFileErr
-		return nil, fmt.Errorf("output file has incorrect permissions: user=%i, group=%i, permissions=%i", stat.Uid, stat.Gid, info.Mode().Perm())
+		return nil, err
 	}
 
 	out, err := os.Open(outputFile)
