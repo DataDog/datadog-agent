@@ -65,6 +65,7 @@ func TestMain(m *testing.M) {
 
 func TestGetStats(t *testing.T) {
 	dnsSupported := dnsSupported(t)
+	httpSupported := httpSupported(t)
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
@@ -183,6 +184,9 @@ func TestGetStats(t *testing.T) {
 	for section, entries := range expected {
 		if section == "dns" && !dnsSupported {
 			// DNS stats not supported on some systems
+			continue
+		}
+		if section == "http" && !httpSupported {
 			continue
 		}
 		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
