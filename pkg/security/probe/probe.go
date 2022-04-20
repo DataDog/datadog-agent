@@ -703,8 +703,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
-	case model.NamespaceSwitchEventType:
-		break
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))

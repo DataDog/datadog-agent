@@ -226,7 +226,6 @@ enum event_type
     EVENT_DNS,
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
-    EVENT_NAMESPACE_SWITCH,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
