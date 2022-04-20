@@ -15,6 +15,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
+	uatomic "go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -29,9 +30,9 @@ type RuntimeSecurityAgent struct {
 	hostname      string
 	reporter      event.Reporter
 	client        *RuntimeSecurityClient
-	running       atomic.Value
+	running       uatomic.Bool
 	wg            sync.WaitGroup
-	connected     atomic.Value
+	connected     uatomic.Bool
 	eventReceived uint64
 	telemetry     *telemetry
 	endpoints     *config.Endpoints
@@ -113,7 +114,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			continue
 		}
 
-		if rsa.connected.Load() != true {
+		if !rsa.connected.Load() {
 			rsa.connected.Store(true)
 
 			log.Info("Successfully connected to the runtime security module")
