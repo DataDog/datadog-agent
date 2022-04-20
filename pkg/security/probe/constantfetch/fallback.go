@@ -209,8 +209,6 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 400
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		ttyOffset = 408
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() >= 107:
-		ttyOffset = 400
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		ttyOffset = 408
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_7):
