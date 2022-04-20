@@ -102,11 +102,23 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			} else {
 				log.Debugf("%v provider: no configuration change", pd.provider)
 			}
+
+			// divide removals into templates and non-templates
+			removedTemplateConfigs := []integration.Config{}
+			removedNonTemplateConfigs := []integration.Config{}
+			for _, cfg := range removedConfigs {
+				if cfg.IsTemplate() {
+					removedTemplateConfigs = append(removedTemplateConfigs, cfg)
+				} else {
+					removedNonTemplateConfigs = append(removedNonTemplateConfigs, cfg)
+				}
+			}
+
 			// Process removed configs first to handle the case where a
 			// container churn would result in the same configuration hash.
-			ac.processRemovedConfigs(removedConfigs)
-			// We can also remove any cached template
-			ac.removeConfigTemplates(removedConfigs)
+			ac.processRemovedConfigs(removedNonTemplateConfigs)
+			// We can also remove any cached templates
+			ac.removeConfigTemplates(removedTemplateConfigs)
 
 			for _, config := range newConfigs {
 				config.Provider = pd.provider.String()
