@@ -158,6 +158,14 @@ func TestGetStats(t *testing.T) {
     }`), &linuxExpected)
 	require.NoError(t, err)
 
+	rcExceptions := map[string]interface{}{}
+	err = json.Unmarshal([]byte(`{
+      "conntrack": {
+        "evicts_total": 0,
+        "orphan_size": 0
+      }}`), &rcExceptions)
+	require.NoError(t, err)
+
 	expected := linuxExpected
 	if runtime.GOOS == "windows" {
 		expected = map[string]interface{}{
@@ -179,6 +187,13 @@ func TestGetStats(t *testing.T) {
 		}
 		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
 		for name := range entries.(map[string]interface{}) {
+			if cfg.EnableRuntimeCompiler {
+				if sec, ok := rcExceptions[section]; ok {
+					if _, ok := sec.(map[string]interface{})[name]; ok {
+						continue
+					}
+				}
+			}
 			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 		}
 	}
