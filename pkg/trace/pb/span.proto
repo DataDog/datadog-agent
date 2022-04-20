@@ -29,6 +29,6 @@ message Span {
     map<string, double> metrics = 11 [(gogoproto.jsontag) = "metrics", (gogoproto.moretags) = "msg:\"metrics\""];
     // type is the type of the service with which this span is associated.  Example values: web, db, lambda.
     string type = 12 [(gogoproto.jsontag) = "type", (gogoproto.moretags) = "msg:\"type\""];
-    // meta_struct is no longer used.
+    // meta_struct is a registry of structured "other" data used by, e.g., AppSec.
     map<string, bytes> meta_struct = 13 [(gogoproto.jsontag) = "meta_struct,omitempty", (gogoproto.moretags) = "msg:\"meta_struct\""];
 }
