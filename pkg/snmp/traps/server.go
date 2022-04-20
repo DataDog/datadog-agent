@@ -17,8 +17,9 @@ import (
 
 // SnmpPacket is the type of packets yielded by server listeners.
 type SnmpPacket struct {
-	Content *gosnmp.SnmpPacket
-	Addr    *net.UDPAddr
+	Content   *gosnmp.SnmpPacket
+	Addr      *net.UDPAddr
+	Timestamp int64
 }
 
 // PacketsChannel is the type of channels of trap packets.

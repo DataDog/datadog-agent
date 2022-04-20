@@ -3,6 +3,7 @@ package traps
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
@@ -70,6 +71,7 @@ func (t *TrapListener) Stop() {
 }
 
 func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+	currentTime := time.Now().UnixMilli()
 	if err := validatePacket(p, t.config); err != nil {
 		log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), t.config.Addr())
 		trapsPacketsAuthErrors.Add(1)
@@ -77,5 +79,5 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	}
 	log.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
 	trapsPackets.Add(1)
-	t.packets <- &SnmpPacket{Content: p, Addr: u}
+	t.packets <- &SnmpPacket{Content: p, Addr: u, Timestamp: currentTime}
 }

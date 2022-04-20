@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -52,7 +53,7 @@ func makeSnmpPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 		Variables: trap.Variables,
 		SnmpTrap:  trap,
 	}
-	return &SnmpPacket{gosnmpPacket, simpleUDPAddr}
+	return &SnmpPacket{gosnmpPacket, simpleUDPAddr, time.Now().UnixMilli()}
 }
 
 func TestV1GenericTrapAreForwarder(t *testing.T) {

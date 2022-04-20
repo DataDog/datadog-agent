@@ -62,6 +62,7 @@ func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 	}
 	formattedTrap["ddsource"] = ddsource
 	formattedTrap["ddtags"] = strings.Join(f.getTags(packet), ",")
+	formattedTrap["timestamp"] = packet.Timestamp
 	payload["trap"] = formattedTrap
 	return json.Marshal(payload)
 }
