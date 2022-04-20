@@ -67,7 +67,6 @@ linters-settings:
              "-ST1013", # Use HTTP code enums instead of integers
              # Actual issues that should be fixed eventually
              "-SA2001", # TODO: empty critical section, seems to be used for something?
-             "-SA4004", # TODO: should the loop be removed or the return be removed?
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
             ]
