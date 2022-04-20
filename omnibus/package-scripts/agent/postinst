@@ -223,7 +223,7 @@ install_method:
   tool_version: macos_dmg
   installer_version: macos_dmg
 "
-    echo "$install_info_content" > $CONFIG_DIR/install_info
+    echo "$install_info_content" > $CONF_DIR/install_info
 
     echo "# Setting correct rights on conf"
     chown -vR "${INSTALL_USER}:admin" $CONF_DIR
