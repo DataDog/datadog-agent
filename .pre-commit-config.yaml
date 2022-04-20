@@ -29,27 +29,14 @@ repos:
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
+- repo: https://github.com/tekwizely/pre-commit-golang
+  rev: v1.0.0-beta.5
+  hooks:
+    - id: go-revive-mod
+    - id: go-vet-mod
+    - id: go-fmt
 - repo: local
   hooks:
-    - id: revive
-      name: revive
-      description: revive
-      entry: 'python3 tasks/git-hooks/revive.py'
-      language: system
-      files: \.go$
-    - id: govet
-      name: govet
-      description: go vet
-      entry: 'python3 tasks/git-hooks/govet.py'
-      language: system
-      require_serial: true
-      files: \.go$
-    - id: gofmt
-      name: gofmt
-      description: go fmt
-      entry: 'python3 tasks/git-hooks/gofmt.py'
-      language: system
-      files: \.go$
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
