@@ -6,7 +6,10 @@
 package bytecode
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"syscall"
 )
 
 // AssetReader describes the combination of both io.Reader and io.ReaderAt
@@ -14,4 +17,20 @@ type AssetReader interface {
 	io.Reader
 	io.ReaderAt
 	io.Closer
+}
+
+func verifyAssetIsRootWriteable(assetPath string) error {
+	// Enforce that we only load root-writeable object files
+	info, err := os.Stat(assetPath)
+	if err != nil {
+		return fmt.Errorf("error stat-ing asset file %s: %w", assetPath, err)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("error getting permissions for output file %s: %w", assetPath, err)
+	}
+	if stat.Uid != 0 || stat.Gid != 0 || info.Mode().Perm() != 0644 {
+		return fmt.Errorf("output file has incorrect permissions: user=%v, group=%v, permissions=%v", stat.Uid, stat.Gid, info.Mode().Perm())
+	}
+	return nil
 }
