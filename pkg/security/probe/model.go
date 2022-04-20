@@ -476,6 +476,10 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
 		if ev.processCacheEntry == nil {
 			ev.processCacheEntry = &model.ProcessCacheEntry{}
+
+			// mark context as resolved to avoid resolution with empty inode/mount id
+			ev.processCacheEntry.FileEvent.SetPathnameStr("")
+			ev.processCacheEntry.FileEvent.SetBasenameStr("")
 		}
 	}
 
