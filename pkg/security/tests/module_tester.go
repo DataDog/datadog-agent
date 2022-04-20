@@ -11,6 +11,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -30,7 +31,9 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
+	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -376,6 +379,89 @@ func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field str
 
 	t.Errorf("failed to get field '%s' as an array", field)
 	return false
+}
+
+//nolint:deadcode,unused
+func validateProcessContextLineage(t *testing.T, event *sprobe.Event) bool {
+	var data interface{}
+	if err := json.Unmarshal([]byte(event.String()), &data); err != nil {
+		t.Error(err)
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
+	if err != nil {
+		t.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
+		return false
+	}
+
+	var prevPID, prevPPID float64
+
+	for _, entry := range json.([]interface{}) {
+		pce, ok := entry.(map[string]interface{})
+		if !ok {
+			t.Errorf("invalid process cache entry, %+v", entry)
+			return false
+		}
+
+		pid, ok := pce["pid"].(float64)
+		if !ok || pid == 0 {
+			t.Errorf("invalid pid, %+v", pce)
+			return false
+		}
+
+		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
+		if prevPID != 0 && pid != prevPID && pid != prevPPID {
+			t.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
+			return false
+		}
+		prevPID = pid
+
+		if pid != 1 {
+			ppid, ok := pce["ppid"].(float64)
+			if !ok {
+				t.Errorf("invalid pid, %+v", pce)
+				return false
+			}
+
+			prevPPID = ppid
+		}
+	}
+
+	if prevPID != 1 {
+		t.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
+	}
+
+	return true
+}
+
+//nolint:deadcode,unused
+func validateProcessContextSECL(t *testing.T, event *sprobe.Event) bool {
+	/*fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+		return false
+	}*/
+
+	return true
+}
+
+//nolint:deadcode,unused
+func validateExecEvent(t *testing.T, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if !validateExecSchema(t, event) {
+			t.Error(event.String())
+		}
+
+		if !validateProcessContextLineage(t, event) {
+			t.Error(event.String())
+		}
+
+		if !validateProcessContextSECL(t, event) {
+			t.Error(event.String())
+		}
+	}
 }
 
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {

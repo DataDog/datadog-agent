@@ -50,7 +50,9 @@ func validateSchema(t *testing.T, event *sprobe.Event, path string) bool {
 
 	gojsonschema.FormatCheckers.Add("ValidInode", ValidInodeFormatChecker{})
 
-	documentLoader := gojsonschema.NewStringLoader(event.String())
+	serialized := event.String()
+
+	documentLoader := gojsonschema.NewStringLoader(serialized)
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem(path, fs)
 
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
