@@ -485,13 +485,14 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         if os.path.isfile(os.path.join(ctx.cwd, "main")):
             os.remove(os.path.join(ctx.cwd, "main"))
 
-    if errors_found:
-        message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
-        message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
-        raise Exit(message=message)
-
-    # delete test_folder to avoid FileExistsError while running this task again
-    ctx.run(f"rm -rf ./{test_folder}")
+    try:
+        if errors_found:
+            message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
+            message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
+            raise Exit(message=message)
+    finally:
+        # delete test_folder to avoid FileExistsError while running this task again
+        ctx.run(f"rm -rf ./{test_folder}")
 
 
 @task
