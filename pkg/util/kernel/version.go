@@ -44,6 +44,10 @@ func (v Version) Patch() uint8 {
 	return (uint8)(v & 0xff)
 }
 
+func (v Version) WithZeroPatch() Version {
+	return VersionCode(v.Major(), v.Minor(), 0)
+}
+
 // HostVersion returns the running kernel version of the host
 func HostVersion() (Version, error) {
 	if hostVersion != 0 {

@@ -148,7 +148,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 			continue
 		}
 
-		if dirv != hv {
+		if dirv != hv && dirv.WithZeroPatch() != hv {
 			log.Debugf("error validating %s: header version %s does not match host version %s", d, dirv, hv)
 			continue
 		}
