@@ -493,6 +493,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     # delete test_folder to avoid FileExistsError while running this task again
     ctx.run(f"rm -rf ./{test_folder}")
 
+
 @task
 def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
