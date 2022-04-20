@@ -43,7 +43,7 @@ func NewFooTracker() *FooTracker {
 Use the `atomic.Uint64` methods to perform atomic operations on the value.
 These include some conveniences not available in `sync/atomic`, such as Inc/Dec and `atomic.Bool`.
 
-If the additional pointer allocation poses an undue performance burden, include the value as the *first* element in the struct (to ensure alignment) and include a comment indicating
+If the additional pointer allocation poses an undue performance burden, include the value as the *first* element in the struct (to ensure alignment) and include a comment indicating:
  * that it must remain in that position; and
  * why a pointer was not suitable.
 
