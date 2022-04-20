@@ -44,6 +44,8 @@ func (v Version) Patch() uint8 {
 	return (uint8)(v & 0xff)
 }
 
+// WithZeroPatch returns the same kernel version,
+// but with the patch version set to 0
 func (v Version) WithZeroPatch() Version {
 	return VersionCode(v.Major(), v.Minor(), 0)
 }
