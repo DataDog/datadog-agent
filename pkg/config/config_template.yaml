@@ -1145,6 +1145,13 @@ api_key:
   #
   # log_throttling: true
 
+  ## @param connection_limit - integer - default: 2000
+  ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
+  ## The APM connection limit for the Agent.
+  ## See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
+  #
+  # connection_limit: 2000
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
