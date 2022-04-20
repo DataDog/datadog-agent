@@ -66,7 +66,6 @@ linters-settings:
              "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
              "-ST1013", # Use HTTP code enums instead of integers
              # Actual issues that should be fixed eventually
-             "-SA5001", # TODO: Error not checked on .Close()
              "-SA2001", # TODO: empty critical section, seems to be used for something?
              "-SA4004", # TODO: should the loop be removed or the return be removed?
              "-SA6002", # TODO: Fix sync.Pools

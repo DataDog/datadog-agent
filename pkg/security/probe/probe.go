@@ -1055,14 +1055,13 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
-		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-
+	defer handle.Close()
 	return p.setupNewTCClassifierWithNetNSHandle(device, handle)
 }
 
