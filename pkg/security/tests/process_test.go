@@ -758,11 +758,11 @@ func TestProcessExec(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		cmd := exec.Command("sh", "-c", executable+" /dev/null")
 		return cmd.Run()
-	}, func(event *sprobe.Event, rule *rules.Rule) {
+	}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
 		assertFieldEqual(t, event, "exec.file.path", executable)
 		// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
 		assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
-	})
+	}))
 }
 
 func TestProcessMetadata(t *testing.T) {
@@ -822,7 +822,7 @@ func TestProcessMetadata(t *testing.T) {
 			}
 			_, err := syscall.ForkExec(testFile, []string{}, attr)
 			return err
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
@@ -830,7 +830,7 @@ func TestProcessMetadata(t *testing.T) {
 			assert.Equal(t, 2001, int(event.Exec.Credentials.GID), "wrong gid")
 			assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
 			assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
-		})
+		}))
 	})
 }
 
