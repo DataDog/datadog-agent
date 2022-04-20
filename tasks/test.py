@@ -21,7 +21,7 @@ from .agent import integration_tests as agent_integration_tests
 from .build_tags import compute_build_tags_for_flavor
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
-from .go import fmt, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .go import fmt, golangci_lint, ineffassign, lint, misspell, vet
 from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
@@ -87,7 +87,6 @@ TOOL_LIST = [
     'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
-    'honnef.co/go/tools/cmd/staticcheck',
     'github.com/vektra/mockery/v2',
 ]
 
@@ -153,7 +152,7 @@ def lint_flavor(
     """
     Runs linters for given flavor, build tags, and modules.
     """
-    print(f"--- Flavor {flavor.name}: vet and staticcheck (legacy)")
+    print(f"--- Flavor {flavor.name}: vet (legacy)")
     for module in modules:
         print(f"----- Module '{module.full_path()}'")
         if not module.condition():
@@ -162,7 +161,6 @@ def lint_flavor(
 
         with ctx.cd(module.full_path()):
             vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
-            staticcheck(ctx, targets=module.targets, build_tags=build_tags, arch=arch)
 
     # For now we only run golangci_lint on Unix as the Windows env needs more work
     if sys.platform != 'win32':

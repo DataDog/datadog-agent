@@ -26,5 +26,4 @@ import (
 	_ "golang.org/x/mobile/cmd/gomobile"
 	_ "golang.org/x/perf/cmd/benchstat"
 	_ "gotest.tools/gotestsum"
-	_ "honnef.co/go/tools/cmd/staticcheck"
 )

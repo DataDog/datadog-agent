@@ -2,8 +2,6 @@
 Golang related tasks go here
 """
 
-
-import copy
 import datetime
 import glob
 import os
@@ -224,35 +222,6 @@ def ineffassign(ctx, targets):
     # ineffassign exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("ineffassign found no issues")
-
-
-@task
-def staticcheck(ctx, targets, build_tags=None, arch="x64"):
-    """
-    Run staticcheck on targets.
-
-    Example invokation:
-        inv statickcheck --targets=./pkg/collector/check,./pkg/aggregator
-    """
-    if isinstance(targets, str):
-        # when this function is called from the command line, targets are passed
-        # as comma separated tokens in a string
-        targets = targets.split(',')
-
-    # staticcheck checks recursively only if path is in "path/..." format
-    pkgs = [sub + "/..." for sub in targets]
-
-    tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
-    # these two don't play well with static checking
-    if "python" in tags:
-        tags.remove("python")
-    if "jmx" in tags:
-        tags.remove("jmx")
-
-    ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
-    # staticcheck exits with status 1 when it finds an issue, if we're here
-    # everything went smooth
-    print("staticcheck found no issues")
 
 
 @task
