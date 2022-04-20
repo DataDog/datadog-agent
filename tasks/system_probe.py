@@ -664,8 +664,7 @@ def build_object_files(ctx, parallel_build):
     print("checking for clang executable...")
     ctx.run("which clang")
 
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
 
     ctx.run(f"mkdir -p {build_dir}")
@@ -676,6 +675,14 @@ def build_object_files(ctx, parallel_build):
 
     generate_runtime_files(ctx)
 
+    # We need to copy the bpf files out of the mounted build directory in order to be able to
+    # change their ownership to root
+    src_files = os.path.join(build_dir, "*")
+    bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+    ctx.sudo(f"mkdir -p {bpf_dir}")
+
+    ctx.sudo(f"cp -R {src_files} {bpf_dir}")
+    ctx.sudo(f"chown root:root -R {bpf_dir}")
 
 @task
 def generate_runtime_files(ctx):
