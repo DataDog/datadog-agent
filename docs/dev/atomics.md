@@ -21,23 +21,29 @@ Use `github.com/uber-go/atomic`, rather than the built-in `sync/atomic` package.
 
 ### How
 
-If your atomic is a global variable, you may declare it using its zero value:
+Always declare atomic types using a pointer.
+The ensures proper alignment.
 
 ```golang
-var maxFooCount atomic.Uint64
-```
+//  global variable
+var maxFooCount *atomic.Uint64 = atomic.NewUint64(42)
 
-If your atomic is in a struct, declare it as a pointer, to ensure proper alignment:
-
-```golang
+// in a struct
 type FooTracker struct {
     maxCount *atomic.Uint64
 }
+
+func NewFooTracker() *FooTracker {
+    return &FooTracker {
+        maxCount: atomic.NewUint64(42),
+    }
+}
 ```
 
-In this case, initialize the pointer in the constructor (`atomic.NewUint64(..)`) and use the `atomic.Uint64` methods to perform atomic operations on the value.
+Use the `atomic.Uint64` methods to perform atomic operations on the value.
+These include some conveniences not available in `sync/atomic`, such as Inc/Dec and `atomic.Bool`.
 
-If the additional pointer allocation poses an undue performance burden, include the value as the first element in the struct and include a comment indicating
+If the additional pointer allocation poses an undue performance burden, include the value as the *first* element in the struct (to ensure alignment) and include a comment indicating
  * that it must remain in that position; and
  * why a pointer was not suitable.
 

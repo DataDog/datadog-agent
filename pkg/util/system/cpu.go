@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	hostCPUCount           atomic.Int64
+	hostCPUCount           *atomic.Int64 = atomic.NewInt64(0)
 	hostCPUFailedAttempts  int
 	hostCPUCountUpdateLock sync.Mutex
 	cpuInfoFunc            func(context.Context, bool) (int, error)
