@@ -158,7 +158,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 
 	if checkForCriticalHeaders && len(valid) != 0 {
 		if err := containsCriticalHeaders(valid); err != nil {
-			log.Debugf("error validating %s: missing critical headers: %w", valid, err)
+			log.Debugf("error validating %s: missing critical headers: %v", valid, err)
 			return nil, err
 		}
 	}
