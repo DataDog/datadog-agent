@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    On Windows, if during installation or upgrade a datadog.yaml file is
-    found, the dialogs collecting the API Key and Site are skipped.
+    On Windows, if a datadog.yaml file is found during an installation or
+    upgrade, the dialogs collecting the API Key and Site are skipped.
