@@ -266,7 +266,7 @@ void CustomActionData::ensureDomainHasCorrectFormat()
             WcaLog(LOGMSG_STANDARD, "Supplied domain name \"%S\"", _user.Domain.c_str());
             _domainUser = true;
         }
-        else if (_wcsicmp(_user.Domain.c_str(), L"NT AUTHORITY") != 0) // NT Authority should never be considered a "domain".
+        else
         {
             WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
                    _targetMachine->DnsDomainName().c_str());
