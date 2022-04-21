@@ -1,6 +1,6 @@
 # Atomic Access
 
-tl;dr: use `github.com/uber-go/atomic` for all atomic access.  Use pointers (`*atomic.Uint64`, etc.) in structs to ensure proper alignment.
+tl;dr: use `go.uber.org/atomic` for all atomic access.  Use pointers (`*atomic.Uint64`, etc.) in structs to ensure proper alignment.
 
 ## Prefer Not
 
@@ -17,12 +17,12 @@ Even here, be wary of race conditions, such as assuming that a background gorout
 ## Use uber-go/atomic
 
 OK, so you've decided to use atomics.
-Use `github.com/uber-go/atomic`, rather than the built-in `sync/atomic` package.
+Use `go.uber.org/atomic`, rather than the built-in `sync/atomic` package.
 
 ### How
 
 Always declare atomic types using a pointer.
-The ensures proper alignment.
+This ensures proper alignment.
 
 ```golang
 //  global variable
