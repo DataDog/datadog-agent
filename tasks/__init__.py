@@ -17,7 +17,6 @@ from . import (
     docker,
     dogstatsd,
     github,
-    installcmd,
     package,
     pipeline,
     process_agent,
@@ -29,7 +28,6 @@ from . import (
     system_probe,
     systray,
     trace_agent,
-    uninstallcmd,
 )
 from .build_tags import audit_tag_impact
 from .go import (
@@ -102,7 +100,6 @@ ns.add_collection(android)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(customaction)
-ns.add_collection(installcmd)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
@@ -117,7 +114,6 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
-ns.add_collection(uninstallcmd)
 ns.add_collection(security_agent)
 
 ns.configure(

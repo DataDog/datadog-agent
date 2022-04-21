@@ -148,9 +148,7 @@ package :zip do
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\uninstall-cmd.exe"
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
       ]
     if with_python_runtime? "2"
       additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
