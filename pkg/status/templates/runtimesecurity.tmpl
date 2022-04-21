@@ -12,8 +12,28 @@ Runtime Security
   {{- end }}
   Connected: {{.connected}}
   Events received: {{.eventReceived}}
-  Self tests succeeded: {{.selfTestsNumberOfSuccess}}
-  Self tests failed: {{.selfTestsNumberOfFails}}
+
+  Self Tests
+  ==========
+
+    Last execution: {{ .selfTests.LastTimestamp }}
+    {{ if .selfTests.Success }}
+    Succeeded:
+      {{- range $test := .selfTests.Success }}
+      - {{ $test }}
+      {{- end }}
+    {{- else }}
+    Succeeded: none
+    {{- end }}
+    {{ if .selfTests.Fails }}
+    Failed:
+      {{- range $test := .selfTests.Fails }}
+      - {{ $test }}
+      {{- end }}
+    {{- else }}
+    Failed: none
+    {{- end }}
+
   {{- with .environment }}
 
   Environment
@@ -43,4 +63,3 @@ Runtime Security
   {{- end }}
   {{- end }}
 {{- end }}
-

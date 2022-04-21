@@ -203,6 +203,11 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 				Values:   constants,
 			},
 		},
+		SelfTests: &api.SelfTestsStatus{
+			LastTimestamp: a.module.selfTester.lastTimestamp.Format(time.RFC822),
+			Success:       a.module.selfTester.success,
+			Fails:         a.module.selfTester.fails,
+		},
 	}
 
 	envErrors := a.probe.VerifyEnvironment()
@@ -214,14 +219,6 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 	}
 
 	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
-
-	// retrieve the results of the last self test
-	if a.module.selfTester.success != nil {
-		apiStatus.SelfTestsNumberOfSuccess = int32(len(a.module.selfTester.success))
-	}
-	if a.module.selfTester.fails != nil {
-		apiStatus.SelfTestsNumberOfFails = int32(len(a.module.selfTester.fails))
-	}
 
 	return apiStatus, nil
 }

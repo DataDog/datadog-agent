@@ -48,6 +48,7 @@ type SelfTester struct {
 	targetTempDir   string
 	success         []string
 	fails           []string
+	lastTimestamp   time.Time
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -134,6 +135,8 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 		return nil, nil, errors.Wrap(err, "failed to run self test")
 	}
 	defer t.EndWaitingForEvent()
+
+	t.lastTimestamp = time.Now()
 
 	// launch the self tests
 	var lastErr error

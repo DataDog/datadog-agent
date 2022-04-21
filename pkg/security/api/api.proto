@@ -113,10 +113,15 @@ message ConstantValueAndSource {
     string Source = 3;
 }
 
+message SelfTestsStatus {
+    string LastTimestamp = 1;
+    repeated string Success = 2;
+	repeated string Fails = 3;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
-	int32 SelfTestsNumberOfSuccess = 2;
-	int32 SelfTestsNumberOfFails = 3;
+    SelfTestsStatus SelfTests = 2;
 }
 
 message ConstantFetcherStatus {
