@@ -254,7 +254,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			cfgs = goodConfs
 		}
 		// Store all raw configs in the provider
-		pd.configs = cfgs
+		pd.overwriteConfigs(cfgs)
 
 		// resolve configs if needed
 		for _, config := range cfgs {
@@ -658,7 +658,6 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
-
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
