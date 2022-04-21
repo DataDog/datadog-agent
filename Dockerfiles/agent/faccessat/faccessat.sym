@@ -1,5 +1,0 @@
-{
-global:
-        faccessat;
-local: *;
-};
