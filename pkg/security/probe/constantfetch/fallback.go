@@ -231,6 +231,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		}
 	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
 		ttyOffset = 368
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		ttyOffset = 408
 	case kv.Code >= kernel.Kernel5_16:
 		ttyOffset = 416
 	}
@@ -522,7 +524,7 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 		offset = 120
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		offset = 152
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() > 46:
 		offset = 152
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
 		fallthrough

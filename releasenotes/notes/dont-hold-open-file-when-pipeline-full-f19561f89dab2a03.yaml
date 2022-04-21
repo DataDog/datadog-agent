@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    On Windows, the Agent no longer holds files open when the logs-processing
-    pipeline is full.  This prevents issues with log sources renaming or
-    rotating files in high-volume scenarios.

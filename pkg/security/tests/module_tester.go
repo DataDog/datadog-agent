@@ -98,6 +98,10 @@ runtime_security_config:
   {{range .LogPatterns}}
     - {{.}}
   {{end}}
+  log_tags:
+  {{range .LogTags}}
+    - {{.}}
+  {{end}}
 `
 
 const testPolicy = `---
@@ -135,6 +139,7 @@ var (
 	useReload        bool
 	logLevelStr      string
 	logPatterns      stringSlice
+	logTags          stringSlice
 	logStatusMetrics bool
 )
 
@@ -438,6 +443,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
 		"LogPatterns":                 logPatterns,
+		"LogTags":                     logTags,
 	}); err != nil {
 		return nil, err
 	}
@@ -470,12 +476,11 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	logLevel, found := seelog.LogLevelFromString(logLevelStr)
-	if !found {
-		return nil, fmt.Errorf("invalid log level '%s'", logLevel)
+	if err := initLogger(); err != nil {
+		return nil, err
 	}
 
-	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir, logLevel)
+	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -597,10 +602,6 @@ func (tm *testModule) reloadConfiguration() error {
 
 func (tm *testModule) Root() string {
 	return tm.st.root
-}
-
-func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
-	return tm.st.swapLogLevel(logLevel)
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
@@ -1054,6 +1055,42 @@ func (tm *testModule) Close() {
 	}
 }
 
+var logInitilialized bool
+
+func initLogger() error {
+	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	if !found {
+		return fmt.Errorf("invalid log level '%s'", logLevel)
+	}
+
+	if !logInitilialized {
+		if _, err := swapLogLevel(logLevel); err != nil {
+			return err
+		}
+
+		logInitilialized = true
+	}
+	return nil
+}
+
+func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	if logger == nil {
+		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
+
+		var err error
+
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		if err != nil {
+			return 0, err
+		}
+	}
+	log.SetupLogger(logger, logLevel.String())
+
+	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	logLevelStr = logLevel.String()
+	return prevLevel, nil
+}
+
 type simpleTest struct {
 	root     string
 	toRemove bool
@@ -1115,39 +1152,11 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 	return nil
 }
 
-var logInitilialized bool
-
-func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
-	if logger == nil {
-		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
-
-		var err error
-
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
-		if err != nil {
-			return 0, err
-		}
-	}
-	log.SetupLogger(logger, logLevel.String())
-
-	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
-	logLevelStr = logLevel.String()
-	return prevLevel, nil
-}
-
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string, logLevel seelog.LogLevel) (*simpleTest, error) {
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	var err error
 
 	t := &simpleTest{
 		root: testDir,
-	}
-
-	if !logInitilialized {
-		if _, err := t.swapLogLevel(logLevel); err != nil {
-			return nil, err
-		}
-
-		logInitilialized = true
 	}
 
 	if testDir == "" {
@@ -1236,6 +1245,7 @@ func init() {
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
+	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	rand.Seed(time.Now().UnixNano())
 

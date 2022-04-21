@@ -243,7 +243,7 @@ func (ac *AutoConfig) getAllConfigs() configChanges {
 			cfgs = goodConfs
 		}
 		// Store all raw configs in the provider
-		pd.configs = cfgs
+		pd.overwriteConfigs(cfgs)
 
 		// resolve configs if needed
 		for _, config := range cfgs {

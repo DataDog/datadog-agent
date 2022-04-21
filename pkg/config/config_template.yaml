@@ -3026,10 +3026,11 @@ api_key:
 #
 # snmp_traps_config:
 
-  ## @param port - integer - optional - default: 162
+  ## @param port - integer - optional - default: 9162
   ## The UDP port to use when listening for incoming trap packets.
+  ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
   #
-  # port: 162
+  # port: 9162
 
   ## @param community_strings - list of strings - required
   ## A list of known SNMP community strings that devices can use to send traps to the Agent.
@@ -3065,9 +3066,9 @@ api_key:
 
   ## @param bind_host - string - optional
   ## The hostname to listen on for incoming trap packets.
-  ## Defaults to the global `bind_host` config option value.
+  ## Binds to 0.0.0.0 by default (accepting all packets).
   #
-  # bind_host: <BIND_HOST>
+  # bind_host: 0.0.0.0
 
   ## stop_timeout - float - optional - default: 5.0
   ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
