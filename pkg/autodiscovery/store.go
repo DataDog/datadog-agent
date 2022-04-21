@@ -45,7 +45,7 @@ type store struct {
 	entityToService map[string]listeners.Service
 
 	// templateCache stores templates by their AD identifiers.
-	templateCache *templateCache // MGR
+	templateCache *templateCache
 
 	// m is a Mutex protecting access to all fields in this type except
 	// templateCache.

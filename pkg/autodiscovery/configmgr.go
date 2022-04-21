@@ -58,14 +58,16 @@ type configManager interface {
 	// processNewService handles a new service, with the given AD identifiers
 	processNewService(adIdentifiers []string, svc listeners.Service) configChanges
 
-	// processDelService handles removal of a service.
+	// processDelService handles removal of a service, unscheduling any configs
+	// that had been resolved for it.
 	processDelService(svc listeners.Service) configChanges
 
 	// processNewConfig handles a new config
 	processNewConfig(config integration.Config) configChanges
 
-	// processDelConfigs handles removal of a config.  Note that this
-	// applies to a slice of configs, where the other methods in this
+	// processDelConfigs handles removal of a config, unscheduling the config
+	// itself or, if it is a template, any configs resolved from it.  Note that
+	// this applies to a slice of configs, where the other methods in this
 	// interface apply to only one config.
 	processDelConfigs(configs []integration.Config) configChanges
 
