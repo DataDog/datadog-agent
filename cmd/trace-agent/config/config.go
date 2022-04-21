@@ -595,27 +595,38 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	return nil
 }
 
-// UpdateConfigHandler returns handler for runtime configuration changes.
-func UpdateConfigHandler() http.Handler {
+// SetHandler returns handler for runtime configuration changes.
+func SetHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		_ = req.ParseForm()
-		setting := html.UnescapeString(req.Form.Get("setting"))
-		value := html.UnescapeString(req.Form.Get("value"))
-		switch setting {
-		case "log_level":
-			lvl := strings.ToLower(value)
-			if lvl == "warning" {
-				lvl = "warn"
-			}
-			if err := coreconfig.ChangeLogLevel(lvl); err != nil {
-				httpError(w, http.StatusInternalServerError, err)
-				return
-			}
-			coreconfig.Datadog.Set("log_level", lvl)
-			log.Infof("Switched log level to %s", lvl)
-		default:
-			httpError(w, http.StatusBadRequest, errors.New("unrecognized setting"))
+		if req.Method != http.MethodPost {
+			http.NotFoundHandler()
 			return
+		}
+		for set, values := range req.URL.Query() {
+			value := ""
+			for i := range values {
+				if v := html.UnescapeString(values[i]); v != "" {
+					value = v
+				}
+			}
+			if value == "" {
+				continue
+			}
+			switch set {
+			case "log_level":
+				lvl := strings.ToLower(value)
+				if lvl == "warning" {
+					lvl = "warn"
+				}
+				if err := coreconfig.ChangeLogLevel(lvl); err != nil {
+					httpError(w, http.StatusInternalServerError, err)
+					return
+				}
+				coreconfig.Datadog.Set("log_level", lvl)
+				log.Infof("Switched log level to %s", lvl)
+			default:
+				log.Infof(fmt.Sprintf("unrecognized setting: %s", set))
+			}
 		}
 	})
 }

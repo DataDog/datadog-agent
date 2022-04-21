@@ -199,7 +199,7 @@ func Run(ctx context.Context) {
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
 		Handler: func(r *api.HTTPReceiver) http.Handler {
-			return cmdconfig.UpdateConfigHandler()
+			return cmdconfig.SetHandler()
 		},
 	})
 
