@@ -84,7 +84,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 			if _, ok := rowTagsCache[fullIndex]; !ok {
 				tmpTags := common.CopyStrings(tags)
 				tmpTags = append(tmpTags, metricConfig.StaticTags...)
-				tmpTags = append(tmpTags, metricConfig.MetricTags.GetTags(fullIndex, values)...)
+				tmpTags = append(tmpTags, GetTagsFromMetricTagConfigList(metricConfig.MetricTags, fullIndex, values)...)
 				rowTagsCache[fullIndex] = tmpTags
 			}
 			rowTags := rowTagsCache[fullIndex]
