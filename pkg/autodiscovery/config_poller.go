@@ -8,6 +8,7 @@ package autodiscovery
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -20,7 +21,8 @@ import (
 // `ConfigProvider` and whether it should be polled or not.
 type configPoller struct {
 	provider     providers.ConfigProvider
-	configs      map[uint64]*integration.Config
+	configs      map[uint64]integration.Config
+	configsMu    sync.Mutex
 	canPoll      bool
 	isPolling    bool
 	pollInterval time.Duration
@@ -31,7 +33,7 @@ type configPoller struct {
 func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration) *configPoller {
 	return &configPoller{
 		provider:     provider,
-		configs:      make(map[uint64]*integration.Config),
+		configs:      make(map[uint64]integration.Config),
 		canPoll:      canPoll,
 		pollInterval: interval,
 	}
@@ -107,10 +109,13 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 }
 
 func (pd *configPoller) overwriteConfigs(configs []integration.Config) {
-	fetchedMap := make(map[uint64]*integration.Config, len(configs))
+	pd.configsMu.Lock()
+	defer pd.configsMu.Unlock()
+
+	fetchedMap := make(map[uint64]integration.Config, len(configs))
 	for _, c := range configs {
 		cHash := c.FastDigest()
-		fetchedMap[cHash] = &c
+		fetchedMap[cHash] = c
 	}
 	pd.configs = fetchedMap
 }
@@ -128,14 +133,18 @@ func (pd *configPoller) collect(ctx context.Context) ([]integration.Config, []in
 }
 
 func (pd *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]integration.Config, []integration.Config) {
+	pd.configsMu.Lock()
+	defer pd.configsMu.Unlock()
+
 	var newConf []integration.Config
 	var removedConf []integration.Config
 
 	// We allocate a new map. We could do without it with a bit more processing
 	// but it allows to free some memory if number of collected configs varies a lot
-	fetchedMap := make(map[uint64]*integration.Config, len(configs))
+	fetchedMap := make(map[uint64]integration.Config, len(configs))
 	for _, c := range configs {
 		cHash := c.FastDigest()
+		fetchedMap[cHash] = c
 		if _, found := pd.configs[cHash]; found {
 			delete(pd.configs, cHash)
 		} else {
@@ -144,7 +153,7 @@ func (pd *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]int
 	}
 
 	for _, c := range pd.configs {
-		removedConf = append(removedConf, *c)
+		removedConf = append(removedConf, c)
 	}
 	pd.configs = fetchedMap
 
