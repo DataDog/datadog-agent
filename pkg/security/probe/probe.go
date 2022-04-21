@@ -77,6 +77,7 @@ type Probe struct {
 
 	// Approvers / discarders section
 	erpc               *ERPC
+	discarderReq       *ERPCRequest
 	pidDiscarders      *pidDiscarders
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
@@ -946,10 +947,11 @@ func (p *Probe) FlushDiscarders() error {
 	}
 	defer unfreezeDiscarders()
 
-	// Sleeping a bit to avoid races with executing kprobes and setting discarders
 	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
 		return errors.New("already flushing discarders")
 	}
+	// Sleeping a bit to avoid races with executing kprobes and setting discarders
+	time.Sleep(time.Second)
 
 	var discardedInodes []inodeDiscarder
 	var mapValue [256]byte
@@ -976,8 +978,10 @@ func (p *Probe) FlushDiscarders() error {
 	flushDiscarders := func() {
 		log.Debugf("Flushing discarders")
 
+		req := newDiscarderRequest()
+
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.expireInodeDiscarder(inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -1164,6 +1168,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		ctx:            ctx,
 		cancelFnc:      cancel,
 		erpc:           erpc,
+		discarderReq:   newDiscarderRequest(),
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:   statsdClient,
 	}
