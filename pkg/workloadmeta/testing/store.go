@@ -156,6 +156,11 @@ func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
 	panic("not implemented")
 }
 
+// WaitForCollectors always returns immediately in the testing store.
+func (s *Store) WaitForCollectors(ctx context.Context) error {
+	return nil
+}
+
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {

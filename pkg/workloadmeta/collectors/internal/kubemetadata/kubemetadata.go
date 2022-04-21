@@ -51,7 +51,7 @@ func init() {
 }
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
-func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
@@ -101,6 +101,15 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 	c.expire = util.NewExpire(expireFreq)
 	c.collectNamespaceLabels = len(config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
+
+	err = c.Pull(ctx)
+	if err != nil {
+		return &retry.Error{
+			LogicError:    err,
+			RessourceName: collectorID,
+			RetryStatus:   retry.FailWillRetry,
+		}
+	}
 
 	return err
 }

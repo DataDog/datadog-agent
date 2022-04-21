@@ -19,6 +19,7 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
@@ -45,7 +46,7 @@ func init() {
 	})
 }
 
-func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Podman) {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
@@ -53,6 +54,15 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	c.client = podman.NewDBClient(podman.DefaultDBPath)
 	c.store = store
 	c.expire = util.NewExpire(expireFreq)
+
+	err := c.Pull(ctx)
+	if err != nil {
+		return &retry.Error{
+			LogicError:    err,
+			RessourceName: collectorID,
+			RetryStatus:   retry.FailWillRetry,
+		}
+	}
 
 	return nil
 }

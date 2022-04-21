@@ -315,6 +315,27 @@ func (s *store) Notify(events []CollectorEvent) {
 	}
 }
 
+// WaitForCollectors implements Store#WaitForCollectors
+func (s *store) WaitForCollectors(ctx context.Context) error {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.collectorMut.RLock()
+			l := len(s.candidates)
+			s.collectorMut.RUnlock()
+
+			if l == 0 {
+				return nil
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
 func (s *store) startCandidates(ctx context.Context) bool {
 	s.collectorMut.Lock()
 	defer s.collectorMut.Unlock()
