@@ -5,7 +5,6 @@ driver:
 
 provisioner:
   name: chef_zero
-  chef_license: accept
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
   max_retries: 3

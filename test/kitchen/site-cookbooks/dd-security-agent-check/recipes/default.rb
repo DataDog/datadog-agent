@@ -22,9 +22,9 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
-  archive_file "nikos.tar.gz" do
-    path "#{wrk_dir}/nikos.tar.gz"
-    destination "/opt/datadog-agent/embedded/nikos/embedded"
+  execute "Extract nikos.tar.gz" do
+    command "mkdir -p /opt/datadog-agent/embedded/nikos/embedded/ && tar -xzvf #{wrk_dir}/nikos.tar.gz -C /opt/datadog-agent/embedded/nikos/embedded/"
+    action :run
   end
 
   # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`

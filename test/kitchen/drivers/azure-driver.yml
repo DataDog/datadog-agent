@@ -17,9 +17,13 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  # allow overriding of chef version since we need >= 15 for arm64 testing
+  # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
+  <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
-  chef_license: accept
+  <% end %>
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
