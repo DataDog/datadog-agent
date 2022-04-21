@@ -98,6 +98,10 @@ runtime_security_config:
   {{range .LogPatterns}}
     - {{.}}
   {{end}}
+  log_tags:
+  {{range .LogTags}}
+    - {{.}}
+  {{end}}
 `
 
 const testPolicy = `---
@@ -135,6 +139,7 @@ var (
 	useReload        bool
 	logLevelStr      string
 	logPatterns      stringSlice
+	logTags          stringSlice
 	logStatusMetrics bool
 )
 
@@ -438,6 +443,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
 		"LogPatterns":                 logPatterns,
+		"LogTags":                     logTags,
 	}); err != nil {
 		return nil, err
 	}
@@ -1239,6 +1245,7 @@ func init() {
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
+	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	rand.Seed(time.Now().UnixNano())
 
