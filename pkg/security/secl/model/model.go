@@ -361,11 +361,28 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
+
 	PathnameStr string `field:"path,ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
 	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`                        // File's basename
 	Filesystem  string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
+
+	// used to mark as already resolved, can be used in case of empty path
+	IsPathnameStrResolved bool `field:"-" msg:"-"`
+	IsBasenameStrResolved bool `field:"-" msg:"-"`
+}
+
+// SetPathnameStr set and mark as resolved
+func (e *FileEvent) SetPathnameStr(str string) {
+	e.PathnameStr = str
+	e.IsPathnameStrResolved = true
+}
+
+// SetBasenameStr set and mark as resolved
+func (e *FileEvent) SetBasenameStr(str string) {
+	e.BasenameStr = str
+	e.IsBasenameStrResolved = true
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
