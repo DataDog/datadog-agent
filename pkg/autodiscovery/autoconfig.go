@@ -75,8 +75,18 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 	return l.factory(l.config)
 }
 
-// NewAutoConfig creates an AutoConfig instance.
+// NewAutoConfig creates an AutoConfig instance and starts it.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
+	ac := NewAutoConfigNoStart(scheduler)
+
+	// We need to listen to the service channels before anything is sent to them
+	go ac.serviceListening()
+
+	return ac
+}
+
+// NewAutoConfigNoStart creates an AutoConfig instance.
+func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
 		providers:          make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
@@ -89,8 +99,6 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		scheduler:          scheduler,
 		ranOnce:            atomic.NewBool(false),
 	}
-	// We need to listen to the service channels before anything is sent to them
-	go ac.serviceListening()
 	return ac
 }
 
