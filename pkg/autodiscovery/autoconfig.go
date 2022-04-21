@@ -483,7 +483,10 @@ func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.E
 
 // applyChanges applies a configChanges object. This always unschedules first.
 func (ac *AutoConfig) applyChanges(changes configChanges) {
-	// TODO: only if not empty
-	ac.scheduler.Unschedule(changes.unschedule)
-	ac.scheduler.Schedule(changes.schedule)
+	if len(changes.unschedule) > 0 {
+		ac.scheduler.Unschedule(changes.unschedule)
+	}
+	if len(changes.schedule) > 0 {
+		ac.scheduler.Schedule(changes.schedule)
+	}
 }
