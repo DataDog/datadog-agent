@@ -166,8 +166,7 @@
                 "uid",
                 "gid",
                 "modification_time",
-                "change_time",
-                "argv0"
+                "change_time"
             ]
         },
         "container": {
