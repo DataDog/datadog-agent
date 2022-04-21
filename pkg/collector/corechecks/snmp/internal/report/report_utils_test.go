@@ -261,7 +261,7 @@ func Test_transformIndex(t *testing.T) {
 			"one",
 			[]string{"10", "11", "12", "13"},
 			[]checkconfig.MetricIndexTransform{
-				{2, 3},
+				{Start: 2, End: 3},
 			},
 			[]string{"12", "13"},
 		},
@@ -269,8 +269,8 @@ func Test_transformIndex(t *testing.T) {
 			"multi",
 			[]string{"10", "11", "12", "13"},
 			[]checkconfig.MetricIndexTransform{
-				{2, 2},
-				{0, 1},
+				{Start: 2, End: 2},
+				{Start: 0, End: 1},
 			},
 			[]string{"12", "10", "11"},
 		},
@@ -278,7 +278,7 @@ func Test_transformIndex(t *testing.T) {
 			"out of index end",
 			[]string{"10", "11", "12", "13"},
 			[]checkconfig.MetricIndexTransform{
-				{2, 1000},
+				{Start: 2, End: 1000},
 			},
 			nil,
 		},
@@ -286,7 +286,7 @@ func Test_transformIndex(t *testing.T) {
 			"out of index start and end",
 			[]string{"10", "11", "12", "13"},
 			[]checkconfig.MetricIndexTransform{
-				{1000, 2000},
+				{Start: 1000, End: 2000},
 			},
 			nil,
 		},
