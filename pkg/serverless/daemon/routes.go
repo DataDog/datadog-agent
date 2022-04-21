@@ -100,4 +100,5 @@ func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.TraceContext route.")
 	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
 	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
 }

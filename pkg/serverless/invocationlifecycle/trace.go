@@ -164,3 +164,8 @@ func TraceID() uint64 {
 func SpanID() uint64 {
 	return currentExecutionInfo.spanID
 }
+
+// SamplingPriority returns the current SamplingPriority
+func SamplingPriority() int32 {
+	return currentExecutionInfo.samplingPriority
+}
