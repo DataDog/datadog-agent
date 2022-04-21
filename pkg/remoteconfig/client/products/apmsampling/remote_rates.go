@@ -1,4 +1,4 @@
-package pb
+package apmsampling
 
 // SamplingMechanism is the source of the sampling rates.
 // Possible values

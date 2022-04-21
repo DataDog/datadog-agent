@@ -89,21 +89,21 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 	}
 }
 
-func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
+func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
 	if verbose {
 		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 	}
 
-	switch fieldType.Name {
-	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64":
+	switch fieldType {
+	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IP":
 		if prefix != "" {
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(module, name, alias, fieldType.Name, event, iterator, isArray, opOverride, commentText)
+		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, commentText)
 
 	default:
-		symbol, err := resolveSymbol(pkgName, fieldType.Name)
+		symbol, err := resolveSymbol(pkgName, fieldType)
 		if err != nil {
 			return fmt.Errorf("failed to resolve symbol for %+v in %s: %s", fieldType, pkgName, err)
 		}
@@ -119,26 +119,37 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 			aliasPrefix = alias
 		}
 
-		spec := astFile.Scope.Lookup(fieldType.Name)
+		spec := astFile.Scope.Lookup(fieldType)
 		handleSpec(module, astFile, spec.Decl, prefix, aliasPrefix, event, iterator, dejavu)
 	}
 
 	return nil
 }
 
-func getFieldIdent(field *ast.Field) (ident *ast.Ident, isPointer, isArray bool) {
-	if fieldType, ok := field.Type.(*ast.Ident); ok {
-		return fieldType, false, false
-	} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
-		if ident, ok := fieldType.X.(*ast.Ident); ok {
-			return ident, true, false
-		}
-	} else if ft, ok := field.Type.(*ast.ArrayType); ok {
-		if ident, ok := ft.Elt.(*ast.Ident); ok {
-			return ident, false, true
-		}
+func getFieldName(expr ast.Expr) string {
+	switch expr := expr.(type) {
+	case *ast.Ident:
+		return expr.Name
+	case *ast.StarExpr:
+		return getFieldName(expr.X)
+	case *ast.ArrayType:
+		return getFieldName(expr.Elt)
+	case *ast.SelectorExpr:
+		return getFieldName(expr.X) + "." + getFieldName(expr.Sel)
+	default:
+		return ""
 	}
-	return nil, false, false
+}
+
+func getFieldIdentName(expr ast.Expr) (name string, isPointer bool, isArray bool) {
+	switch expr.(type) {
+	case *ast.StarExpr:
+		isPointer = true
+	case *ast.ArrayType:
+		isArray = true
+	}
+
+	return getFieldName(expr), isPointer, isArray
 }
 
 type seclField struct {
@@ -203,7 +214,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 					var opOverrides string
 					var fields []seclField
-					fieldType, isPointer, isArray := getFieldIdent(field)
+					fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
 					var weight int64
 					if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
@@ -256,7 +267,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								Name:                fmt.Sprintf("%s.%s", prefix, fieldName),
 								ReturnType:          qualifiedType(iterator),
 								Event:               event,
-								OrigType:            qualifiedType(fieldType.Name),
+								OrigType:            qualifiedType(fieldType),
 								IsOrigTypePtr:       isPointer,
 								IsArray:             isArray,
 								Weight:              weight,
@@ -276,12 +287,12 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							module.Fields[fieldAlias] = &common.StructField{
 								Prefix:              prefix,
 								Name:                fmt.Sprintf("%s.%s", prefix, fieldName),
-								BasicType:           origTypeToBasicType(fieldType.Name),
+								BasicType:           origTypeToBasicType(fieldType),
 								Struct:              typeSpec.Name.Name,
 								Handler:             handler,
-								ReturnType:          origTypeToBasicType(fieldType.Name),
+								ReturnType:          origTypeToBasicType(fieldType),
 								Event:               event,
-								OrigType:            fieldType.Name,
+								OrigType:            fieldType,
 								Iterator:            fieldIterator,
 								IsArray:             isArray,
 								Weight:              weight,
@@ -302,7 +313,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 						dejavu[fieldName] = true
 
-						if fieldType != nil {
+						if len(fieldType) != 0 {
 							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
 								log.Print(err)
 							}

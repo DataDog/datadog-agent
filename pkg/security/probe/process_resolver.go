@@ -395,7 +395,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 	p.SetProcessUsersGroups(entry)
 
-	// args
+	// args and envs
 	if len(filledProc.Cmdline) > 0 {
 		entry.ArgsEntry = &model.ArgsEntry{
 			Values: filledProc.Cmdline[1:],
@@ -405,6 +405,12 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
+		}
+	}
+
+	if parent := p.entryCache[entry.PPid]; parent != nil {
+		if parent.Comm == entry.Comm && parent.ArgsEntry.Equals(entry.ArgsEntry) && parent.EnvsEntry.Equals(entry.EnvsEntry) {
+			parent.ShareArgsEnvs(entry)
 		}
 	}
 
@@ -938,6 +944,13 @@ func (p *ProcessResolver) SyncCache(proc *process.Process) bool {
 	return ret
 }
 
+func (p *ProcessResolver) setAncestor(pce *model.ProcessCacheEntry) {
+	parent := p.entryCache[pce.PPid]
+	if parent != nil {
+		pce.SetAncestor(parent)
+	}
+}
+
 // syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
 func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheEntry, bool) {
 	pid := uint32(proc.Pid)
@@ -945,6 +958,8 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 	// Check if an entry is already in cache for the given pid.
 	entry := p.entryCache[pid]
 	if entry != nil {
+		p.setAncestor(entry)
+
 		return nil, false
 	}
 
@@ -956,10 +971,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
-	parent := p.entryCache[entry.PPid]
-	if parent != nil {
-		entry.SetAncestor(parent)
-	}
+	p.setAncestor(entry)
 
 	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
 		return nil, false

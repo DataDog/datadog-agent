@@ -42,7 +42,7 @@ type PrioritySampler struct {
 	localRates *Sampler
 	// remoteRates targetTPS is set remotely and distributed by remote configurations.
 	// One target is defined per combination of tracerEnv, service and it applies only to root spans.
-	// remoteRates can be nil if the remote feature is not enabled in the trace-agent with feature flag "remote_rates"
+	// remoteRates can be nil if remote config is not enabled
 	// or in the core-agent remote client.
 	remoteRates *RemoteRates
 

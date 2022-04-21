@@ -369,10 +369,78 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				return []admiv1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
+		{
+			name: "AKS-specific label selector without namespace selector enabled",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.add_aks_selectors", true)
+				mockConfig.Set("admission_controller.namespace_selector_fallback", false)
+				mockConfig.Set("admission_controller.inject_config.enabled", true)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+			},
+			configFunc: func() Config { return NewConfig(false, false) },
+			want: func() []admiv1.MutatingWebhook {
+				webhook := webhook(
+					"datadog.webhook.config",
+					"/injectconfig",
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "admission.datadoghq.com/enabled",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+						},
+					},
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpDoesNotExist,
+							},
+						},
+					},
+				)
+				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
+		{
+			name: "AKS-specific label selector with namespace selector enabled",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.add_aks_selectors", true)
+				mockConfig.Set("admission_controller.namespace_selector_fallback", true)
+				mockConfig.Set("admission_controller.inject_config.enabled", true)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+			},
+			configFunc: func() Config { return NewConfig(false, true) },
+			want: func() []admiv1.MutatingWebhook {
+				webhook := webhook(
+					"datadog.webhook.config",
+					"/injectconfig",
+					nil,
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "admission.datadoghq.com/enabled",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpDoesNotExist,
+							},
+						},
+					},
+				)
+				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
+			defer mockConfig.Set("admission_controller.add_aks_selectors", false) // Reset to default
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
@@ -392,6 +460,8 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
+	namespaceSelector, _ := buildLabelSelectors(true)
+	_, objectSelector := buildLabelSelectors(false)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1.MutatingWebhook {
 		return admiv1.MutatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -443,7 +513,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: false,
-			want:              webhook(&defaultTimeout, buildLabelSelector(), nil),
+			want:              webhook(&defaultTimeout, objectSelector, nil),
 		},
 		{
 			name: "namespace selector",
@@ -452,7 +522,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: true,
-			want:              webhook(&defaultTimeout, nil, buildLabelSelector()),
+			want:              webhook(&defaultTimeout, nil, namespaceSelector),
 		},
 		{
 			name: "custom timeout",
@@ -462,7 +532,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 			},
 			timeout:           &customTimeout,
 			namespaceSelector: false,
-			want:              webhook(&customTimeout, buildLabelSelector(), nil),
+			want:              webhook(&customTimeout, objectSelector, nil),
 		},
 	}
 	for _, tt := range tests {
