@@ -76,34 +76,20 @@ func TestGetStats(t *testing.T) {
 
 	tr.GetActiveConnections("-1")
 	linuxExpected := map[string]interface{}{}
-	/* fixme... removed evicts_total and orphan_size
-		err = json.Unmarshal([]byte(`{
-	      "conntrack": {
-	        "enobufs": 0,
-	        "evicts_total": 0,
-	        "gets_total": 9,
-	        "msg_errors": 0,
-	        "orphan_size": 0,
-	        "read_errors": 0,
-	        "registers_dropped": 2,
-	        "registers_total": 0,
-	        "sampling_pct": 100,
-	        "state_size": 0,
-	        "throttles": 0,
-	        "unregisters_total": 0
-	      },*/
 	err = json.Unmarshal([]byte(`{
-		"conntrack": {
-		  "enobufs": 0,
-		  "gets_total": 9,
-		  "msg_errors": 0,
-		  "read_errors": 0,
-		  "registers_dropped": 2,
-		  "registers_total": 0,
-		  "sampling_pct": 100,
-		  "state_size": 0,
-		  "throttles": 0,
-		  "unregisters_total": 0
+	  "conntrack": {
+		"enobufs": 0,
+		"evicts_total": 0,
+		"gets_total": 9,
+		"msg_errors": 0,
+		"orphan_size": 0,
+		"read_errors": 0,
+		"registers_dropped": 2,
+		"registers_total": 0,
+		"sampling_pct": 100,
+		"state_size": 0,
+		"throttles": 0,
+		"unregisters_total": 0
 		},
       "dns": {
         "added": 0,
@@ -173,6 +159,14 @@ func TestGetStats(t *testing.T) {
     }`), &linuxExpected)
 	require.NoError(t, err)
 
+	rcExceptions := map[string]interface{}{}
+	err = json.Unmarshal([]byte(`{
+      "conntrack": {
+        "evicts_total": 0,
+        "orphan_size": 0
+      }}`), &rcExceptions)
+	require.NoError(t, err)
+
 	expected := linuxExpected
 	if runtime.GOOS == "windows" {
 		expected = map[string]interface{}{
@@ -198,6 +192,13 @@ func TestGetStats(t *testing.T) {
 		}
 		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
 		for name := range entries.(map[string]interface{}) {
+			if cfg.EnableRuntimeCompiler {
+				if sec, ok := rcExceptions[section]; ok {
+					if _, ok := sec.(map[string]interface{})[name]; ok {
+						continue
+					}
+				}
+			}
 			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 		}
 	}
