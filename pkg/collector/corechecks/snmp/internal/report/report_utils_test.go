@@ -674,7 +674,7 @@ metric_tags:
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
 
 			checkconfig.ValidateEnrichMetrics([]checkconfig.MetricsConfig{m})
-			tags := GetTagsFromMetricTagConfigList(m.MetricTags, tt.fullIndex, tt.values)
+			tags := getTagsFromMetricTagConfigList(m.MetricTags, tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)
 

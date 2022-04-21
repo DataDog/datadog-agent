@@ -73,8 +73,8 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol checkcon
 	return value, nil
 }
 
-// GetTagsFromMetricTagConfigList retrieve tags using the metric config and values
-func GetTagsFromMetricTagConfigList(mtcl checkconfig.MetricTagConfigList, fullIndex string, values *valuestore.ResultValueStore) []string {
+// getTagsFromMetricTagConfigList retrieve tags using the metric config and values
+func getTagsFromMetricTagConfigList(mtcl checkconfig.MetricTagConfigList, fullIndex string, values *valuestore.ResultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
 	for _, metricTag := range mtcl {
