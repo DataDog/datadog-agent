@@ -78,6 +78,9 @@ type Collector struct {
 
 	// Enables running realtime checks
 	runRealTime bool
+
+	// drop connections check payload (used for testing)
+	dropConnectionsCheck bool
 }
 
 // NewCollector creates a new Collector
@@ -125,6 +128,11 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
+	dropConnectionsCheck := ddconfig.Datadog.GetBool("process_config.drop_connections_check")
+	if dropConnectionsCheck {
+		log.Debugf("Dropping connections check data")
+	}
+
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
@@ -142,6 +150,8 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		forwarderRetryQueueMaxBytes: queueBytes,
 
 		runRealTime: runRealTime,
+
+		dropConnectionsCheck: dropConnectionsCheck,
 	}
 }
 
@@ -498,7 +508,9 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.RTContainer.Name():
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.Connections.Name():
-				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
+				if !l.dropConnectionsCheck {
+					responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
+				}
 			case checks.Pod.Name():
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
