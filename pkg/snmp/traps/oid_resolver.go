@@ -170,6 +170,7 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 		or.traps[trapOID] = TrapMetadata{
 			Name:            trapData.Name,
 			Description:     trapData.Description,
+			MIBName:         trapData.MIBName,
 			variableSpecPtr: definedVariables,
 		}
 	}
