@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "precompiled/stdafx.h"
 #include "ReplaceYamlProperties.h"
 
 TEST_F(ReplaceYamlPropertiesTests, Always_Set_apm_dd_url)
