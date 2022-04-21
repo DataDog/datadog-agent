@@ -57,19 +57,18 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.19
 	github.com/DataDog/btf-internals v0.0.0-20220401093927-f65bd0b466d5
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/quantile v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/quantile v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/log v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
-	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
-	github.com/DataDog/ebpf-manager v0.0.0-20220325092125-b2221d88caf3
+	github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde
 	github.com/DataDog/gohai v0.0.0-20220329101230-3b6a804fdd24
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.6
@@ -96,7 +95,7 @@ require (
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.8.1
+	github.com/cilium/ebpf v0.8.2-0.20220404151855-0d439865ca15
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.2
@@ -150,7 +149,7 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.4.1
 	github.com/mholt/archiver/v3 v3.5.1
-	github.com/miekg/dns v1.1.43
+	github.com/miekg/dns v1.1.45
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/sys/mountinfo v0.5.0
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
@@ -168,7 +167,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.22.3
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/skydive-project/go-debouncer v1.0.0
-	github.com/spf13/afero v1.6.0
+	github.com/spf13/afero v1.8.2
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.1
@@ -222,7 +221,7 @@ require (
 
 require (
 	cloud.google.com/go v0.99.0 // indirect
-	cloud.google.com/go/storage v1.12.0 // indirect
+	cloud.google.com/go/storage v1.14.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
 	code.cloudfoundry.org/consuladapter v0.0.0-20200131002136-ac1daf48ba97 // indirect
@@ -273,7 +272,6 @@ require (
 	github.com/emicklei/go-restful-swagger12 v0.0.0-20201014110547-68ccff494617 // indirect
 	github.com/evanphx/json-patch v4.9.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.2 // indirect
-	github.com/florianl/go-tc v0.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-kit/log v0.1.0 // indirect
@@ -389,7 +387,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.4.1 // indirect
 	go.opentelemetry.io/otel/sdk/metric v0.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.4.1 // indirect
-	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/atomic v1.9.0
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect

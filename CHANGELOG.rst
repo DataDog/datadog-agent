@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.35.1:
+
+7.35.1 / 6.35.1
+======
+
+.. _Release Notes_7.35.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-04-12
+
+
+.. _Release Notes_7.35.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The weak dependency of datadog-agent, datadog-iot-agent and dogstatsd deb
+  packages on the datadog-signing-keys package has been fixed to ensure
+  proper upgrade to version 1:1.1.0.
+
+
 .. _Release Notes_7.35.0:
 
 7.35.0 / 6.35.0

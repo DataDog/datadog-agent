@@ -24,6 +24,10 @@ var BTFHubPossiblyMissingConstants = []string{
 }
 
 func TestOctogonConstants(t *testing.T) {
+	if err := initLogger(); err != nil {
+		t.Fatal(err)
+	}
+
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		t.Fatal(err)
