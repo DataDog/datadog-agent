@@ -299,7 +299,7 @@ func Test_transformIndex(t *testing.T) {
 	}
 }
 
-func Test_metricsConfig_getTags(t *testing.T) {
+func Test_metricsConfig_getTagsFromMetricTagConfigList(t *testing.T) {
 	type logCount struct {
 		log   string
 		count int
