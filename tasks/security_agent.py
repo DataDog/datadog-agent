@@ -435,6 +435,7 @@ def docker_functional_tests(
     major_version='7',
     testflags='',
     static=False,
+    bundle_ebpf=True,
     skip_linters=False,
 ):
     build_functional_tests(
@@ -443,7 +444,7 @@ def docker_functional_tests(
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
-        bundle_ebpf=True,
+        bundle_ebpf=bundle_ebpf,
         static=static,
         skip_linters=skip_linters,
     )

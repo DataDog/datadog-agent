@@ -6,8 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
-    `DD_URL` environment variable can now be used to set the Datadog intake URL just like `DD_DD_URL`.
-    If both `DD_DD_URL` and `DD_URL` are set, `DD_DD_URL` will be used to avoid breaking change.
-   
+    The weak dependency of datadog-agent, datadog-iot-agent and dogstatsd deb
+    packages on the datadog-signing-keys package has been fixed to ensure
+    proper upgrade to version 1:1.1.0.
