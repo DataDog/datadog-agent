@@ -9,15 +9,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// NoOpOIDResolver is a dummy OIDResolver implementation that is unable to get any Trap or Variable metadata.
-type NoOpOIDResolver struct{}
+type (
+	// NoOpOIDResolver is a dummy OIDResolver implementation that is unable to get any Trap or Variable metadata.
+	NoOpOIDResolver struct{}
+
+	// ByOID is a wrapper to sort formatted variables by OID
+	byOID []interface{}
+)
 
 // GetTrapMetadata always return an error in this OIDResolver implementation
 func (or NoOpOIDResolver) GetTrapMetadata(trapOID string) (TrapMetadata, error) {
@@ -29,7 +36,70 @@ func (or NoOpOIDResolver) GetVariableMetadata(trapOID string, varOID string) (Va
 	return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
 }
 
-var defaultFormatter, _ = NewJSONFormatter(NoOpOIDResolver{})
+func (b byOID) Len() int {
+	return len(b)
+}
+
+func (b byOID) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+
+func (b byOID) Less(i, j int) bool {
+	// TODO(ken): this is ugly
+	return b[i].(map[string]interface{})["oid"].(string) < b[j].(map[string]interface{})["oid"].(string)
+}
+
+var (
+	defaultFormatter, _ = NewJSONFormatter(NoOpOIDResolver{})
+
+	// LinkUp Example Trap V2+
+	LinkUpExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// ifAdminStatus
+			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 2},
+			// ifOperStatus
+			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+		},
+	}
+
+	// LinkUp Example Trap with bad value V2+
+	BadValueExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// ifAdminStatus
+			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: "test"}, // type is set to integer, but we have a string
+			// ifOperStatus
+			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+		},
+	}
+
+	// LinkUp Example Trap with value not found in enum V2+
+	NoEnumMappingExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// ifAdminStatus
+			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 8}, // 8 does not exist in the ifAdminStatus enum
+			// ifOperStatus
+			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+		},
+	}
+)
 
 func createTestV1GenericPacket() *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: LinkDownv1GenericTrap}
@@ -49,11 +119,11 @@ func createTestV1SpecificPacket() *SnmpPacket {
 	}
 }
 
-func createTestPacket() *SnmpPacket {
+func createTestPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{
 		Version:   gosnmp.Version2c,
 		Community: "public",
-		Variables: NetSNMPExampleHeartbeatNotification.Variables,
+		Variables: trap.Variables,
 	}
 	return &SnmpPacket{
 		Content: examplePacket,
@@ -136,7 +206,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 }
 
 func TestFormatPacketToJSON(t *testing.T) {
-	packet := createTestPacket()
+	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -164,7 +234,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 }
 
 func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
-	packet := createTestPacket()
+	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
 		// No variables at all.
@@ -192,7 +262,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 }
 
 func TestGetTags(t *testing.T) {
-	packet := createTestPacket()
+	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	assert.Equal(t, defaultFormatter.GetTags(packet), []string{
 		"snmp_version:2",
 		"device_namespace:default",
@@ -201,7 +271,7 @@ func TestGetTags(t *testing.T) {
 }
 
 func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
-	packet := createTestPacket()
+	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	packet.Content.Version = 12
 	assert.Equal(t, defaultFormatter.GetTags(packet), []string{
 		"snmp_version:unknown",
@@ -213,7 +283,7 @@ func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
 func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 	var formatter, err = NewJSONFormatter(NoOpOIDResolver{})
 	require.NoError(t, err)
-	packet := createTestPacket()
+	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	_, err = formatter.FormatPacket(packet)
 	require.NoError(t, err)
 	tags := formatter.GetTags(packet)
@@ -225,24 +295,179 @@ func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 }
 
 func TestFormatterWithResolverAndTrapV2(t *testing.T) {
-	formatter, err := NewJSONFormatter(resolverWithData)
-	require.NoError(t, err)
-	packet := createTestPacket()
-	data, err := formatter.FormatPacket(packet)
-	require.NoError(t, err)
-	content := make(map[string]interface{})
-	json.Unmarshal(data, &content)
+	data := []struct {
+		description     string
+		trap            gosnmp.SnmpTrap
+		resolver        *MockedResolver
+		expectedContent map[string]interface{}
+		expectedTags    []string
+	}{
+		{
+			description: "test no enum variable resolution with netSnmpExampleHeartbeatNotification",
+			trap:        NetSNMPExampleHeartbeatNotification,
+			resolver:    resolverWithData,
+			expectedContent: map[string]interface{}{
+				"uptime":                      float64(1000),
+				"snmpTrapName":                "netSnmpExampleHeartbeatNotification",
+				"snmpTrapMIB":                 "NET-SNMP-EXAMPLES-MIB",
+				"snmpTrapOID":                 "1.3.6.1.4.1.8072.2.3.0.1",
+				"netSnmpExampleHeartbeatRate": float64(1024),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.4.1.8072.2.3.2.1",
+						"type":  "integer",
+						"value": float64(1024),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.4.1.8072.2.3.2.2",
+						"type":  "string",
+						"value": "test",
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:default",
+				"snmp_device:127.0.0.1",
+			},
+		},
+		{
+			description: "test enum variable resolution with linkDown",
+			trap:        LinkUpExampleV2Trap,
+			resolver:    resolverWithData,
+			expectedContent: map[string]interface{}{
+				"snmpTrapName":  "linkUp",
+				"snmpTrapMIB":   "IF-MIB",
+				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":       float64(9001),
+				"ifAdminStatus": "down",
+				"ifOperStatus":  "lowerLayerDown",
+				"uptime":        float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.7",
+						"type":  "integer",
+						"value": float64(2),
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:default",
+				"snmp_device:127.0.0.1",
+			},
+		},
+		{
+			description: "test enum variable resolution with bad variable",
+			trap:        BadValueExampleV2Trap,
+			resolver:    resolverWithData,
+			expectedContent: map[string]interface{}{
+				"snmpTrapName":  "linkUp",
+				"snmpTrapMIB":   "IF-MIB",
+				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":       float64(9001),
+				"ifAdminStatus": "test",
+				"ifOperStatus":  "lowerLayerDown",
+				"uptime":        float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.7",
+						"type":  "integer",
+						"value": "test",
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:default",
+				"snmp_device:127.0.0.1",
+			},
+		},
+		{
+			description: "test enum variable resolution when mapping absent",
+			trap:        NoEnumMappingExampleV2Trap,
+			resolver:    resolverWithData,
+			expectedContent: map[string]interface{}{
+				"snmpTrapName":  "linkUp",
+				"snmpTrapMIB":   "IF-MIB",
+				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":       float64(9001),
+				"ifAdminStatus": float64(8),
+				"ifOperStatus":  "lowerLayerDown",
+				"uptime":        float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.7",
+						"type":  "integer",
+						"value": float64(8),
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:default",
+				"snmp_device:127.0.0.1",
+			},
+		},
+	}
 
-	assert.EqualValues(t, "netSnmpExampleHeartbeatNotification", content["snmpTrapName"])
-	assert.EqualValues(t, "NET-SNMP-EXAMPLES-MIB", content["snmpTrapMIB"])
-	assert.EqualValues(t, 1024, content["netSnmpExampleHeartbeatRate"])
+	for _, d := range data {
+		t.Run(d.description, func(t *testing.T) {
+			formatter, err := NewJSONFormatter(d.resolver)
+			require.NoError(t, err)
+			packet := createTestPacket(d.trap)
+			data, err := formatter.FormatPacket(packet)
+			require.NoError(t, err)
+			content := make(map[string]interface{})
+			json.Unmarshal(data, &content)
 
-	tags := formatter.GetTags(packet)
-	assert.Equal(t, tags, []string{
-		"snmp_version:2",
-		"device_namespace:default",
-		"snmp_device:127.0.0.1",
-	})
+			// map comparisons shouldn't be reliant on ordering with this lib
+			// however variables are a slice, they must be sorted
+			sort.Stable(byOID(content["variables"].([]interface{})))
+			sort.Stable(byOID(d.expectedContent["variables"].([]interface{})))
+			if diff := cmp.Diff(content, d.expectedContent); diff != "" {
+				t.Error(diff)
+			}
+
+			// sort strings lexographically as comparison is order sensitive
+			tags := formatter.GetTags(packet)
+			sort.Strings(tags)
+			sort.Strings(d.expectedTags)
+			if diff := cmp.Diff(tags, d.expectedTags); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
 }
 
 func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
@@ -257,8 +482,8 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	assert.EqualValues(t, "ifDown", content["snmpTrapName"])
 	assert.EqualValues(t, "IF-MIB", content["snmpTrapMIB"])
 	assert.EqualValues(t, 2, content["ifIndex"])
-	assert.EqualValues(t, 1, content["ifAdminStatus"])
-	assert.EqualValues(t, 2, content["ifOperStatus"])
+	assert.EqualValues(t, "up", content["ifAdminStatus"])
+	assert.EqualValues(t, "down", content["ifOperStatus"])
 
 	tags := formatter.GetTags(packet)
 	assert.Equal(t, tags, []string{
