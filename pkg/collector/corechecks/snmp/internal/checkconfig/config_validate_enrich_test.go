@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_validateEnrichMetrics(t *testing.T) {
+func Test_ValidateEnrichMetrics(t *testing.T) {
 	tests := []struct {
 		name            string
 		metrics         []MetricsConfig
@@ -355,7 +355,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errors := validateEnrichMetrics(tt.metrics)
+			errors := ValidateEnrichMetrics(tt.metrics)
 			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
 				assert.Contains(t, errors[i], tt.expectedErrors[i])

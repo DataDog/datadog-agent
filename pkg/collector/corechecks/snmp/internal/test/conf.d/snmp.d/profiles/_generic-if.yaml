@@ -61,4 +61,10 @@ metrics:
       name: ifAlias
     table: ifXTable
     tag: interface_alias
+  - column:
+      OID: 1.3.6.1.2.1.2.2.1.6
+      name: ifPhysAddress
+      format: mac_address
+    table: ifTable
+    tag: mac_address
   static_tags: ['table_static_tag:val']
