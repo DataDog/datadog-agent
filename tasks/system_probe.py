@@ -679,10 +679,15 @@ def build_object_files(ctx, parallel_build):
     # change their ownership to root
     src_files = os.path.join(build_dir, "*")
     bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
-    ctx.sudo(f"mkdir -p {bpf_dir}")
 
-    ctx.sudo(f"cp -R {src_files} {bpf_dir}")
-    ctx.sudo(f"chown root:root -R {bpf_dir}")
+    if not is_root():
+        ctx.sudo(f"mkdir -p {bpf_dir}")
+        ctx.sudo(f"cp -R {src_files} {bpf_dir}")
+        ctx.sudo(f"chown root:root -R {bpf_dir}")
+    else:
+        ctx.run(f"mkdir -p {bpf_dir}")
+        ctx.run(f"cp -R {src_files} {bpf_dir}")
+        ctx.run(f"chown root:root -R {bpf_dir}")
 
 
 @task
