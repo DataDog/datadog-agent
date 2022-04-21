@@ -254,7 +254,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			cfgs = goodConfs
 		}
 		// Store all raw configs in the provider
-		pd.configs = cfgs
+		pd.overwriteConfigs(cfgs)
 
 		// resolve configs if needed
 		for _, config := range cfgs {
@@ -465,6 +465,8 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	return conf, nil
 }
 
+// processRemovedConfigs unschedules configs that have previously been loaded,
+// including removing them from the loadeConfigs map.
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
@@ -656,7 +658,6 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
-
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache

@@ -114,7 +114,7 @@ func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
 func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	payloads := forwarder.Payloads{}
-	payload, err := compression.Compress(nil, protobufString)
+	payload, err := compression.Compress(protobufString)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	payloads := forwarder.Payloads{}
 	var err error
 	if compress {
-		payload, err = compression.Compress(nil, payload)
+		payload, err = compression.Compress(payload)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 func createJSONPayloadMatcher(prefix string) interface{} {
 	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(nil, *compressedPayload); err != nil {
+			if payload, err := compression.Decompress(*compressedPayload); err != nil {
 				return false
 			} else {
 				if strings.HasPrefix(string(payload), prefix) {
@@ -193,7 +193,7 @@ func createJSONPayloadMatcher(prefix string) interface{} {
 func createProtoPayloadMatcher(content []byte) interface{} {
 	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(nil, *compressedPayload); err != nil {
+			if payload, err := compression.Decompress(*compressedPayload); err != nil {
 				return false
 			} else {
 				if reflect.DeepEqual(content, payload) {

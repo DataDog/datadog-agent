@@ -60,9 +60,11 @@ type MockListener struct {
 func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
 	l.ListenCount++
 }
+
 func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
+
 func (l *MockListener) fakeFactory(listeners.Config) (listeners.ServiceListener, error) {
 	return l, nil
 }
@@ -175,13 +177,16 @@ func (suite *AutoConfigTestSuite) TestAddListener() {
 	ac.m.Unlock()
 }
 
-func (suite *AutoConfigTestSuite) TestContains() {
+func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 	c1 := integration.Config{Name: "bar"}
 	c2 := integration.Config{Name: "foo"}
+	c3 := integration.Config{Name: "baz"}
 	pd := configPoller{}
-	pd.configs = append(pd.configs, c1)
-	assert.True(suite.T(), pd.contains(&c1))
-	assert.False(suite.T(), pd.contains(&c2))
+
+	pd.overwriteConfigs([]integration.Config{c1, c2})
+	added, removed := pd.storeAndDiffConfigs([]integration.Config{c1, c3})
+	assert.ElementsMatch(suite.T(), added, []integration.Config{c3})
+	assert.ElementsMatch(suite.T(), removed, []integration.Config{c2})
 }
 
 func (suite *AutoConfigTestSuite) TestStop() {

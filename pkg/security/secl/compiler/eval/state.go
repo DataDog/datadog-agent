@@ -5,10 +5,18 @@
 
 package eval
 
+import "regexp"
+
 type registerInfo struct {
 	iterator  Iterator
 	field     Field
 	subFields map[Field]bool
+}
+
+// StateRegexpCache is used to cache regexps used in the rule compilation process
+type StateRegexpCache struct {
+	arraySubscriptFindRE    *regexp.Regexp
+	arraySubscriptReplaceRE *regexp.Regexp
 }
 
 // State defines the current state of the rule compilation
@@ -19,6 +27,7 @@ type State struct {
 	fieldValues   map[Field][]FieldValue
 	macros        map[MacroID]*MacroEvaluator
 	registersInfo map[RegisterID]*registerInfo
+	regexpCache   StateRegexpCache
 }
 
 // UpdateFields updates the fields used in the rule

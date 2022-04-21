@@ -39,6 +39,8 @@ var (
 		[]string{"check_name"}, "Events count")
 	tlmServices = telemetry.NewCounter("checks", "services_checks",
 		[]string{"check_name"}, "Service checks count")
+	tlmHistogramBuckets = telemetry.NewCounter("checks", "histogram_buckets",
+		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
 		[]string{"check_name"}, "Check execution time")
 )
@@ -82,9 +84,11 @@ type Stats struct {
 	MetricSamples            int64
 	Events                   int64
 	ServiceChecks            int64
+	HistogramBuckets         int64
 	TotalMetricSamples       uint64
 	TotalEvents              uint64
 	TotalServiceChecks       uint64
+	TotalHistogramBuckets    uint64
 	EventPlatformEvents      map[string]int64
 	TotalEventPlatformEvents map[string]int64
 	ExecutionTimes           [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
@@ -186,6 +190,13 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.TotalServiceChecks += uint64(metricStats.ServiceChecks)
 		if cs.telemetry {
 			tlmServices.Add(float64(metricStats.ServiceChecks), cs.CheckName)
+		}
+	}
+	if metricStats.HistogramBuckets > 0 {
+		cs.HistogramBuckets = metricStats.HistogramBuckets
+		cs.TotalHistogramBuckets += uint64(metricStats.HistogramBuckets)
+		if cs.telemetry {
+			tlmHistogramBuckets.Add(float64(metricStats.HistogramBuckets), cs.CheckName)
 		}
 	}
 	for k, v := range metricStats.EventPlatformEvents {

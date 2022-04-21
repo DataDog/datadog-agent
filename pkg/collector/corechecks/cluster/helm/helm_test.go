@@ -105,6 +105,7 @@ func TestRun(t *testing.T) {
 		{
 			"helm_release:my_datadog",
 			"helm_chart_name:datadog",
+			"kube_namespace:default",
 			"helm_namespace:default",
 			"helm_revision:1",
 			"helm_status:deployed",
@@ -114,6 +115,7 @@ func TestRun(t *testing.T) {
 		{
 			"helm_release:my_app",
 			"helm_chart_name:some_app",
+			"kube_namespace:app",
 			"helm_namespace:app",
 			"helm_revision:2",
 			"helm_status:deployed",
@@ -122,6 +124,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			"helm_release:release_without_chart",
+			"kube_namespace:default",
 			"helm_namespace:default",
 			"helm_revision:1",
 			"helm_status:deployed",
@@ -129,6 +132,7 @@ func TestRun(t *testing.T) {
 		{
 			"helm_release:release_without_info",
 			"helm_chart_name:example_app",
+			"kube_namespace:default",
 			"helm_namespace:default",
 			"helm_revision:1",
 			"helm_chart_version:2.0.0",
@@ -432,6 +436,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 				"",
 				[]string{
 					"helm_release:my_datadog",
+					"kube_namespace:default",
 					"helm_namespace:default",
 					fmt.Sprintf("helm_storage:%s", test.storage),
 					"helm_chart_name:datadog",
@@ -447,6 +452,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 				"",
 				[]string{
 					"helm_release:my_app",
+					"kube_namespace:default",
 					"helm_namespace:default",
 					fmt.Sprintf("helm_storage:%s", test.storage),
 					"helm_chart_name:some_app",
@@ -462,6 +468,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 				"",
 				[]string{
 					"helm_release:my_proxy",
+					"kube_namespace:default",
 					"helm_namespace:default",
 					fmt.Sprintf("helm_storage:%s", test.storage),
 					"helm_chart_name:nginx",

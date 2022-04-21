@@ -15,6 +15,7 @@ const (
 	statsURL       = "http://localhost:3333/debug/stats"
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/proc/stats"
+	registerURL  = "http://localhost:3333/network_tracer/register"
 	netType      = "tcp"
 )
 

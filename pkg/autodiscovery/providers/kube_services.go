@@ -155,7 +155,7 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		}
 
 		serviceID := apiserver.EntityForService(svc)
-		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
+		svcConf, errors := utils.ExtractTemplatesFromPodAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
