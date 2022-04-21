@@ -19,7 +19,9 @@ type AssetReader interface {
 	io.Closer
 }
 
-func VerifyAssetIsRootWriteable(assetPath string) error {
+// VerifyAssetPermissions checks that the file at the given path is owned by root and has permissions 0644,
+// and returns an error if this isn't the case
+func VerifyAssetPermissions(assetPath string) error {
 	// Enforce that we only load root-writeable object files
 	info, err := os.Stat(assetPath)
 	if err != nil {

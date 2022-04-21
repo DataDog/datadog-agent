@@ -177,7 +177,7 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 		rc.telemetry.compilationResult = compiledOutputFound
 	}
 
-	err = bytecode.VerifyAssetIsRootWriteable(outputFile)
+	err = bytecode.VerifyAssetPermissions(outputFile)
 	if err != nil {
 		rc.telemetry.compilationResult = outputFileErr
 		return nil, err
