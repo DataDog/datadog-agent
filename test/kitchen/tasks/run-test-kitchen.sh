@@ -14,7 +14,7 @@ if [ -f "$(pwd)/ssh-key.pub" ]; then
   rm ssh-key.pub
 fi
 
-ssh-keygen -f "$(pwd)/ssh-key" -P "" -t rsa -b 2048
+ssh-keygen -f "$(pwd)/ssh-key" -P "" -t rsa -b 4096
 KITCHEN_SSH_KEY_PATH="$(pwd)/ssh-key"
 export KITCHEN_SSH_KEY_PATH
 
