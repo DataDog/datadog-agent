@@ -528,7 +528,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] GetTags: index not found for column value: tag=abc, index=1.2.3.4.5.6.7.8", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: index not found for column value: tag=abc, index=1.2.3.4.5.6.7.8", 1},
 			},
 		},
 		{
@@ -560,7 +560,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] GetTags: error converting tagValue", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: error converting tagValue", 1},
 			},
 		},
 		{
@@ -592,7 +592,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] GetTags: error getting column value: value for Column OID `1.2.3.4.8.1.2`", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: error getting column value: value for Column OID `1.2.3.4.8.1.2`", 1},
 			},
 		},
 		{
@@ -628,7 +628,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] GetTags: error getting tags. mapping for `20` does not exist.", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: error getting tags. mapping for `20` does not exist.", 1},
 			},
 		},
 		{
@@ -657,7 +657,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] GetTags: error getting tags. index `100` not found in indexes `[1]`", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: error getting tags. index `100` not found in indexes `[1]`", 1},
 			},
 		},
 	}
