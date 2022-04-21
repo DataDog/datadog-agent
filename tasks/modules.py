@@ -1,9 +1,7 @@
 import os
 import subprocess
 import sys
-
 from contextlib import contextmanager
-from invoke import task
 
 
 class GoModule:

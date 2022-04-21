@@ -468,31 +468,27 @@ def reset(ctx):
 
 @task
 def check_mod_tidy(ctx, test_folder="testmodule"):
-    errors_found = []
-    for mod in DEFAULT_MODULES.values():
-        with ctx.cd(mod.full_path()):
+    with generate_dummy_package(ctx, test_folder) as dummy_folder:
+        errors_found = []
+        for mod in DEFAULT_MODULES.values():
+            with ctx.cd(mod.full_path()):
+                ctx.run("go mod tidy -compat=1.17")
+                res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
+                if res.exited is None or res.exited > 0:
+                    errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
+
+        with ctx.cd(dummy_folder):
             ctx.run("go mod tidy -compat=1.17")
-            res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
+            res = ctx.run("go build main.go", warn=True)
             if res.exited is None or res.exited > 0:
-                errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
+                errors_found.append("could not build test module importing external modules")
+            if os.path.isfile(os.path.join(ctx.cwd, "main")):
+                os.remove(os.path.join(ctx.cwd, "main"))
 
-    generate_dummy_package(ctx, test_folder)
-    with ctx.cd(test_folder):
-        ctx.run("go mod tidy -compat=1.17")
-        res = ctx.run("go build main.go", warn=True)
-        if res.exited is None or res.exited > 0:
-            errors_found.append("could not build test module importing external modules")
-        if os.path.isfile(os.path.join(ctx.cwd, "main")):
-            os.remove(os.path.join(ctx.cwd, "main"))
-
-    try:
         if errors_found:
             message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
             message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
             raise Exit(message=message)
-    finally:
-        # delete test_folder to avoid FileExistsError while running this task again
-        ctx.run(f"rm -rf ./{test_folder}")
 
 
 @task
