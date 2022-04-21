@@ -55,8 +55,9 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
-		TraceID:  r.Header.Get(invocationlifecycle.TraceIDHeader),
-		ParentID: r.Header.Get(invocationlifecycle.ParentIDHeader),
+		TraceID:          r.Header.Get(invocationlifecycle.TraceIDHeader),
+		ParentID:         r.Header.Get(invocationlifecycle.ParentIDHeader),
+		SamplingPriority: r.Header.Get(invocationlifecycle.SamplingPriorityHeader),
 	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,

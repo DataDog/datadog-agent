@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,11 +25,12 @@ const (
 
 // executionStartInfo is saved information from when an execution span was started
 type executionStartInfo struct {
-	startTime      time.Time
-	traceID        uint64
-	spanID         uint64
-	parentID       uint64
-	requestPayload string
+	startTime        time.Time
+	traceID          uint64
+	spanID           uint64
+	parentID         uint64
+	samplingPriority int32
+	requestPayload   string
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -52,14 +52,17 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 	currentExecutionInfo.requestPayload = rawPayload
 
 	var traceID, parentID uint64
-	var e1, e2 error
+	var samplingPriority int32
+	var e1, e2, e3 error
 
 	if payload.Headers != nil {
 		traceID, e1 = convertStrToUnit64(payload.Headers[TraceIDHeader])
 		parentID, e2 = convertStrToUnit64(payload.Headers[ParentIDHeader])
+		samplingPriority, e3 = convertStrToInt32(payload.Headers[SamplingPriorityHeader])
 	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
 		traceID, e1 = convertStrToUnit64(invokeEventHeaders.TraceID)
 		parentID, e2 = convertStrToUnit64(invokeEventHeaders.ParentID)
+		samplingPriority, e3 = convertStrToInt32(invokeEventHeaders.SamplingPriority)
 	}
 
 	if e1 == nil && traceID != 0 {
@@ -68,6 +71,10 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 
 	if e2 == nil && parentID != 0 {
 		currentExecutionInfo.parentID = parentID
+	}
+
+	if e3 == nil && samplingPriority != 0 {
+		currentExecutionInfo.samplingPriority = samplingPriority
 	}
 }
 
@@ -101,7 +108,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Priority: int32(sampler.PriorityNone),
+		Priority: currentExecutionInfo.samplingPriority,
 		Spans:    []*pb.Span{executionSpan},
 	}
 
@@ -137,6 +144,15 @@ func convertStrToUnit64(s string) (uint64, error) {
 	}
 
 	return num, err
+}
+
+func convertStrToInt32(s string) (int32, error) {
+	num, err := strconv.ParseInt(s, 0, 32)
+	if err != nil {
+		log.Debug("Error with string conversion of sampling priority")
+	}
+
+	return int32(num), err
 }
 
 // TraceID returns the current TraceID
