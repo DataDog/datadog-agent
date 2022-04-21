@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -662,6 +663,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
+		if event.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
+			// no need to trigger a dentry resolver, not backed by any file
+			event.MMap.File.IsPathnameStrResolved = true
+			event.MMap.File.IsBasenameStrResolved = true
+		}
 	case model.MProtectEventType:
 		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
@@ -671,6 +678,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err = event.LoadModule.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+
+		if event.LoadModule.LoadedFromMemory {
+			// no need to trigger a dentry resolver, not backed by any file
+			event.MMap.File.IsPathnameStrResolved = true
+			event.MMap.File.IsBasenameStrResolved = true
 		}
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
