@@ -98,6 +98,7 @@ require (
 	github.com/go-ini/ini v1.66.6
 	github.com/go-ole/go-ole v1.2.6
 	github.com/gobwas/glob v0.2.3
+	github.com/goccy/go-json v0.9.7
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da

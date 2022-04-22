@@ -10,7 +10,6 @@ package module
 
 import (
 	"context"
-	json "encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/goccy/go-json"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 

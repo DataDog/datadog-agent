@@ -9,12 +9,13 @@
 package probe
 
 import (
-	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"

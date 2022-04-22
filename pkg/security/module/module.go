@@ -10,7 +10,6 @@ package module
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -22,6 +21,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/goccy/go-json"
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
