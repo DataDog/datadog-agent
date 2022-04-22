@@ -184,10 +184,10 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 			err := h.updateLeaderIP()
 			h.m.Lock()
 			if err != nil {
-				h.errCount += 1
+				h.errCount++
 				if h.errCount == 1 {
 					log.Warnf("Could not refresh leadership status: %s, will only log every %d errors", err, logFrequency)
-				} else if h.errCount % logFrequency == 0 {
+				} else if h.errCount%logFrequency == 0 {
 					log.Warnf("Could not refresh leadership status after %d tries: %s", logFrequency, err)
 				}
 			} else {
