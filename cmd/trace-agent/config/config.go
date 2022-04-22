@@ -599,19 +599,14 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 func SetHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodPost {
-			http.Error(w, "unsupported method", http.StatusMethodNotAllowed)
+			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
 			return
 		}
 		for key, values := range req.URL.Query() {
-			var value string
-			for i := range values {
-				if v := html.UnescapeString(values[i]); v != "" {
-					value = v
-				}
-			}
-			if value == "" {
+			if len(values) == 0 {
 				continue
 			}
+			value := html.UnescapeString(values[len(values)-1])
 			switch key {
 			case "log_level":
 				lvl := strings.ToLower(value)
