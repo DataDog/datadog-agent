@@ -121,8 +121,6 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) *dnsMonitor {
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) *dnsMonitor {
-	skipIfDNSNotSupported(t)
-
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = localDNS
@@ -401,8 +399,6 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	skipIfDNSNotSupported(t)
-
 	cfg := testConfig()
 	cfg.CollectDNSStats = false
 	cfg.CollectLocalDNS = false
