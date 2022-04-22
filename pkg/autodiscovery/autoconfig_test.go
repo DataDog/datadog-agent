@@ -187,6 +187,10 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 	added, removed := pd.storeAndDiffConfigs([]integration.Config{c1, c3})
 	assert.ElementsMatch(suite.T(), added, []integration.Config{c3})
 	assert.ElementsMatch(suite.T(), removed, []integration.Config{c2})
+	assert.Equal(suite.T(), map[uint64]integration.Config{
+		c3.FastDigest(): c3,
+		c1.FastDigest(): c1,
+	}, pd.configs)
 }
 
 func (suite *AutoConfigTestSuite) TestStop() {
