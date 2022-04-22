@@ -119,7 +119,7 @@ type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]string
 	ConnTelemetry               map[ConnTelemetryType]int64
-	KernelHeaderFetchResult     int
+	KernelHeaderFetchResult     int32
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType

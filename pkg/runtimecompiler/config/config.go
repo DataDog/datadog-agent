@@ -44,6 +44,12 @@ type Config struct {
 	EnableRuntimeSecurityCompilation bool
 
 	// EnableConstantFetcherCompilation enables the compilation of the runtime security constant fetcher
+	//
+	// Even though the constant fetcher is runtime security asset, whether or not it should be compiled
+	// is independent of the other runtime security assets. This is because it is possible for
+	// runtime compilation to be disabled in the runtime security probe, while still being enabled
+	// for the constant fetcher. See how RuntimeCompiledConstantsEnabled is determined in the security
+	// config for more details.
 	EnableConstantFetcherCompilation bool
 
 	// EnableTcpQueueLengthCompilation enables the compilation of the tcp queue length check

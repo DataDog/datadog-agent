@@ -59,7 +59,7 @@ func GetNetworkAssetCFlags(config *netconfig.Config) []string {
 	return cflags
 }
 
-// GetSecurityAssetCFlags returns the cflags required for compilation based on the given security config
+// GetSecurityAssetCFlags returns the cflags required for compilation of runtime security assets
 func GetSecurityAssetCFlags(useSyscallWrapper bool) []string {
 	var cflags []string
 	if useSyscallWrapper {

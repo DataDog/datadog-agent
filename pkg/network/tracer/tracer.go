@@ -343,7 +343,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
-	khfr := int(runtimecompiler.RuntimeCompiler.GetHeaderFetchTelemetry())
+	khfr := int32(runtimecompiler.RuntimeCompiler.GetHeaderFetchTelemetry())
 	rctm := t.getRuntimeCompilationTelemetry()
 	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 

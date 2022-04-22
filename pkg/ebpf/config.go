@@ -66,11 +66,12 @@ func NewConfig() *Config {
 	aconfig.InitSystemProbeConfig(cfg)
 
 	return &Config{
-		BPFDebug:                   cfg.GetBool(key(spNS, "bpf_debug")),
-		BPFDir:                     cfg.GetString(key(spNS, "bpf_dir")),
-		ExcludedBPFLinuxVersions:   cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
-		EnableTracepoints:          cfg.GetBool(key(spNS, "enable_tracepoints")),
-		ProcRoot:                   util.GetProcRoot(),
+		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
+		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
+		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
+		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
+		ProcRoot:                 util.GetProcRoot(),
+
 		RuntimeCompilerOutputDir:   cfg.GetString(key(rcNS, "runtime_compiler_output_dir")),
 		EnableKernelHeaderDownload: cfg.GetBool(key(rcNS, "enable_kernel_header_download")),
 		KernelHeadersDirs:          cfg.GetStringSlice(key(rcNS, "kernel_header_dirs")),

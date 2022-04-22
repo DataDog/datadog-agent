@@ -206,6 +206,8 @@ func (rc *runtimeCompiler) compileOomKillProbe(kernelHeaders []string) {
 
 func (rc *runtimeCompiler) sendMetrics() {
 	if rc.statsdClient != nil {
+		log.Infof("sending runtime compilation telemetry to statsd")
+
 		tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
 		rc.statsdClient.Gauge(metricPrefix+".header_fetch_result", float64(rc.headerFetchResult), tags, 1)
