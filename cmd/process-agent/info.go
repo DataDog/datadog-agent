@@ -43,6 +43,7 @@ var (
 	infoRTProcessQueueBytes int
 	infoPodQueueBytes       int
 	infoEnabledChecks       []string
+	infoDropCheckPayloads   []string
 )
 
 const (
@@ -65,6 +66,7 @@ const (
   Process Bytes enqueued: {{.Status.ProcessQueueBytes}}
   RTProcess Bytes enqueued: {{.Status.RTProcessQueueBytes}}
   Pod Bytes enqueued: {{.Status.PodQueueBytes}}
+  Drop Check Payloads: {{.Status.DropCheckPayloads}}
 
   Logs: {{.Status.LogFile}}{{if .Status.ProxyURL}}
   HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
@@ -270,6 +272,21 @@ func publishEndpoints() interface{} {
 	return endpointsInfo
 }
 
+func updateDropCheckPayloads(drops []string) {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+
+	infoDropCheckPayloads = make([]string, len(drops))
+	copy(infoDropCheckPayloads, drops)
+}
+
+func publishDropCheckPayloads() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+
+	return infoDropCheckPayloads
+}
+
 func getProgramBanner(version string) (string, string) {
 	program := fmt.Sprintf("Processes and Containers Agent (v %s)", version)
 	banner := strings.Repeat("=", len(program))
@@ -296,6 +313,7 @@ type StatusInfo struct {
 	ContainerID         string                 `json:"container_id"`
 	ProxyURL            string                 `json:"proxy_url"`
 	LogFile             string                 `json:"log_file"`
+	DropCheckPayloads   []string               `json:"drop_check_payloads"`
 }
 
 func initInfo(_ *config.AgentConfig) error {
@@ -327,6 +345,7 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints))
+		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {

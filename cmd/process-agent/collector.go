@@ -297,6 +297,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}
 	updateEnabledChecks(checkNames)
+	updateDropCheckPayloads(l.dropCheckPayloads)
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
@@ -482,6 +483,16 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 	}
 }
 
+func (l *Collector) shouldDropPayload(check string) bool {
+	for _, d := range l.dropCheckPayloads {
+		if d == check {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
 		// results.Poll() will return ok=false when stopped
@@ -498,15 +509,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				updateRTStatus   = l.runRealTime
 			)
 
-			drop := false
-			for _, d := range l.dropCheckPayloads {
-				if d == result.name {
-					drop = true
-					break
-				}
-			}
-
-			if drop {
+			if l.shouldDropPayload(result.name) {
 				continue
 			}
 
