@@ -370,6 +370,15 @@ core,github.com/gobwas/glob/syntax/ast,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/syntax/lexer,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/runes,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/strings,MIT,Copyright (c) 2016 Sergey Kamardin
+core,github.com/goccy/go-json,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/decoder,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_color,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_color_indent,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_indent,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/errors,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/runtime,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/godbus/dbus,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/godbus/dbus/v5,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/gogo/googleapis/google/rpc,Apache-2.0,"Copyright 2015, Google Inc | Copyright 2018, GoGo Authors"
