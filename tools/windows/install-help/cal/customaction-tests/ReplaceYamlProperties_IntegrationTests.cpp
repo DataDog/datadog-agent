@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "precompiled/stdafx.h"
 #include <yaml-cpp/yaml.h>
 #include <fstream>
 #include <filesystem>
