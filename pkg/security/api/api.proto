@@ -116,7 +116,7 @@ message ConstantValueAndSource {
 message SelfTestsStatus {
     string LastTimestamp = 1;
     repeated string Success = 2;
-	repeated string Fails = 3;
+    repeated string Fails = 3;
 }
 
 message Status {
