@@ -69,8 +69,8 @@ func NewConfig(sysprobeconfig *config.Config) *Config {
 		EnableNetworkCompilation:         cfg.GetBool(key(nwNS, "enabled")) && netConfig.EnableRuntimeCompilation,
 		EnableRuntimeSecurityCompilation: cfg.GetBool(key(rsNS, "enabled")) && secConfig.RuntimeCompilationEnabled,
 		EnableConstantFetcherCompilation: cfg.GetBool(key(rsNS, "enabled")) && secConfig.RuntimeCompiledConstantsEnabled,
-		EnableTcpQueueLengthCompilation:  cfg.GetBool(key(spNS, "enable_oom_kill")),
-		EnableOomKillCompilation:         cfg.GetBool(key(spNS, "enable_tcp_queue_length")),
+		EnableTcpQueueLengthCompilation:  cfg.GetBool(key(spNS, "enable_tcp_queue_length")),
+		EnableOomKillCompilation:         cfg.GetBool(key(spNS, "enable_oom_kill")),
 	}
 }
 
