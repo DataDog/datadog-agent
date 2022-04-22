@@ -217,7 +217,7 @@ var (
 
 func init() {
 	var eventType EventType
-	for i := uint64(0); i != uint64(MaxEventType); i++ {
+	for i := uint64(0); i != uint64(MaxKernelEventType); i++ {
 		eventType = EventType(i)
 		eventTypeStrings[eventType.String()] = eventType
 	}

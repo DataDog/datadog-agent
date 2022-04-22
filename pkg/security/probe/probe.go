@@ -337,8 +337,10 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
 	// send specific event
-	for _, handler := range p.handlers[event.GetEventType()] {
-		handler.HandleCustomEvent(rule, event)
+	if p.config.AgentMonitoringEvents {
+		for _, handler := range p.handlers[event.GetEventType()] {
+			handler.HandleCustomEvent(rule, event)
+		}
 	}
 }
 
