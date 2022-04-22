@@ -599,11 +599,11 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 func SetHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodPost {
-			http.NotFoundHandler()
+			http.Error(w, "unsupported method", http.StatusMethodNotAllowed)
 			return
 		}
-		for set, values := range req.URL.Query() {
-			value := ""
+		for key, values := range req.URL.Query() {
+			var value string
 			for i := range values {
 				if v := html.UnescapeString(values[i]); v != "" {
 					value = v
@@ -612,7 +612,7 @@ func SetHandler() http.Handler {
 			if value == "" {
 				continue
 			}
-			switch set {
+			switch key {
 			case "log_level":
 				lvl := strings.ToLower(value)
 				if lvl == "warning" {
@@ -625,7 +625,7 @@ func SetHandler() http.Handler {
 				coreconfig.Datadog.Set("log_level", lvl)
 				log.Infof("Switched log level to %s", lvl)
 			default:
-				log.Infof(fmt.Sprintf("unrecognized setting: %s", set))
+				log.Infof("Unsupported config change requested (key: %q).", key)
 			}
 		}
 	})
