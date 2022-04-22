@@ -92,7 +92,7 @@
     CHEF_VERSION: 13.9.4
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS:  "win2012r2,win2016,win2019,win20h2"
-    DEFAULT_KITCHEN_OSVERS: "win2022"
+    DEFAULT_KITCHEN_OSVERS: "win2019"
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
