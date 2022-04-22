@@ -221,8 +221,8 @@ func (s *CloudFoundryService) GetPorts(context.Context) ([]ContainerPort, error)
 }
 
 // GetTags returns the list of container tags
-func (s *CloudFoundryService) GetTags() ([]string, string, error) {
-	return s.tags, "", nil
+func (s *CloudFoundryService) GetTags() ([]string, error) {
+	return s.tags, nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF

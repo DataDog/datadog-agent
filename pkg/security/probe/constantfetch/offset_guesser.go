@@ -110,6 +110,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 	if err != nil {
 		return og.res, err
 	}
+	defer bytecodeReader.Close()
 
 	options := manager.Options{
 		ConstantEditors: []manager.ConstantEditor{

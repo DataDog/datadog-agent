@@ -20,10 +20,10 @@ import (
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
 	f, err := openFile(t.osFile.Name())
-	defer f.Close()
 	if err != nil {
 		return false, err
 	}
+	defer f.Close()
 
 	fi1, err := f.Stat()
 	if err != nil {

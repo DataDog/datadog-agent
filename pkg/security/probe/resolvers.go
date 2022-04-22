@@ -10,12 +10,11 @@ package probe
 
 import (
 	"context"
-	"fmt"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 
-	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -205,7 +204,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot() error {
-	if err := retry.Do(r.snapshot, retry.Delay(0), retry.Attempts(5)); err != nil {
+	if err := r.snapshot(); err != nil {
 		return errors.Wrap(err, "unable to snapshot processes")
 	}
 
@@ -216,7 +215,13 @@ func (r *Resolvers) Snapshot() error {
 	if err != nil {
 		return errors.Wrap(err, "unable to snapshot SELinux")
 	}
-	return snapshotSELinux(selinuxStatusMap)
+
+	if err := snapshotSELinux(selinuxStatusMap); err != nil {
+		return err
+	}
+
+	runtime.GC()
+	return nil
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
@@ -249,8 +254,6 @@ func (r *Resolvers) snapshot() error {
 		return createA < createB
 	})
 
-	cacheModified := false
-
 	for _, proc := range processes {
 		ppid, err := proc.Ppid()
 		if err != nil {
@@ -264,26 +267,15 @@ func (r *Resolvers) snapshot() error {
 		// Start with the mount resolver because the process resolver might need it to resolve paths
 		if err = r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(fmt.Errorf("snapshot failed for %d: couldn't sync mount points: %w", proc.Pid, err))
+				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
 		}
 
 		// Sync the process cache
-		if r.ProcessResolver.SyncCache(proc) {
-			cacheModified = true
-		}
+		r.ProcessResolver.SyncCache(proc)
 
 		// Sync the namespace cache
-		if r.NamespaceResolver.SyncCache(proc) {
-			cacheModified = true
-		}
-	}
-
-	// There is a possible race condition when a process starts right after we called process.AllProcesses
-	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
-	// process cache anymore
-	if cacheModified {
-		return fmt.Errorf("cache modified")
+		r.NamespaceResolver.SyncCache(proc)
 	}
 
 	return nil

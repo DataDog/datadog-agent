@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"sync/atomic"
 	"syscall"
 	"testing"
 
@@ -295,20 +294,19 @@ func TestRenameFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var filename atomic.Value
-	filename.Store(fmt.Sprintf("%s/test-rename", testOldFolder))
-	defer os.Remove(filename.Load().(string))
+	filename := fmt.Sprintf("%s/test-rename", testOldFolder)
+	defer os.Remove(filename)
 
 	for i := 0; i != 5; i++ {
 		test.WaitSignal(t, func() error {
-			testFile, err := os.OpenFile(filename.Load().(string), os.O_RDWR|os.O_CREATE, 0755)
+			testFile, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0755)
 			if err != nil {
 				return err
 			}
 			return testFile.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
-			assertFieldEqual(t, event, "open.file.path", filename.Load().(string))
+			assertFieldEqual(t, event, "open.file.path", filename)
 
 			if !validateOpenSchema(t, event) {
 				t.Error(event.String())
@@ -323,7 +321,7 @@ func TestRenameFolder(t *testing.T) {
 			testOldFolder = testNewFolder
 			testNewFolder = old
 
-			filename.Store(fmt.Sprintf("%s/test-rename", testOldFolder))
+			filename = fmt.Sprintf("%s/test-rename", testOldFolder)
 		})
 	}
 }

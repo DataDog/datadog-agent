@@ -631,11 +631,11 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.namespace")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
-	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 9162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
 	// No default as the agent falls back to `network_devices.namespace` if empty.
 	config.BindEnv("snmp_traps_config.namespace")
-	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 	config.SetKnown("snmp_traps_config.users")
 
@@ -1014,6 +1014,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
@@ -1251,6 +1252,11 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		}
 	}
 
+	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
+	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
 	// ignoring the python_version configuration value.
 	if ForceDefaultPython == "true" {
@@ -1305,6 +1311,14 @@ func ResolveSecrets(config Config, origin string) error {
 		}
 	}
 	return nil
+}
+
+// EnvVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
+func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
+	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
+	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
+
+	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
 // SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
@@ -1396,10 +1410,6 @@ func getMainInfraEndpointWithConfig(config Config) string {
 
 // GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
 func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
-	if envVarAreSetAndNotEqual(config, "DD_DD_URL", "DD_URL") {
-		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. URL key is set to 'DD_DD_URL' value")
-	}
-
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
 		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
@@ -1409,14 +1419,6 @@ func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (r
 		resolvedDDURL = prefix + DefaultSite
 	}
 	return
-}
-
-// envVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
-func envVarAreSetAndNotEqual(config Config, lhsName string, rhsName string) bool {
-	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
-	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
-
-	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
 // GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
@@ -1512,7 +1514,7 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	cloudProviderFromConfig := Datadog.GetStringSlice("cloud_provider_metadata")
 
 	for _, cloudName := range cloudProviderFromConfig {
-		if strings.ToLower(cloudName) == strings.ToLower(cloudProviderName) {
+		if strings.EqualFold(cloudName, cloudProviderName) {
 			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
 				cloudProviderFromConfig,
 				cloudProviderName)

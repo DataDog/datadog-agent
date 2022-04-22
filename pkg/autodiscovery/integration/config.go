@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -393,4 +394,27 @@ func (c *Config) Digest() string {
 	h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// FastDigest returns an hash value representing the data stored in this configuration.
+// Difference with Digest is that FastDigest does not consider that difference may appear inside Instances
+// allowing to remove costly YAML Marshal/UnMarshal operations
+// The ClusterCheck field is intentionally left out to keep a stable digest
+// between the cluster-agent and the node-agents
+func (c *Config) FastDigest() uint64 {
+	h := murmur3.New64()
+	_, _ = h.Write([]byte(c.Name))
+	for _, i := range c.Instances {
+		_, _ = h.Write([]byte(i))
+	}
+	_, _ = h.Write([]byte(c.InitConfig))
+	for _, i := range c.ADIdentifiers {
+		_, _ = h.Write([]byte(i))
+	}
+	_, _ = h.Write([]byte(c.NodeName))
+	_, _ = h.Write([]byte(c.LogsConfig))
+	_, _ = h.Write([]byte(c.ServiceID))
+	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+
+	return h.Sum64()
 }

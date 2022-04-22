@@ -11,11 +11,13 @@ package tracer
 import (
 	"context"
 	"net"
+	"sync/atomic"
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,6 +31,15 @@ type gatewayLookup struct {
 	routeCache          network.RouteCache
 	subnetCache         *simplelru.LRU // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
+
+	// stats
+	subnetCacheSize    uint64 `stats:"atomic"`
+	subnetCacheMisses  uint64 `stats:"atomic"`
+	subnetCacheLookups uint64 `stats:"atomic"`
+	subnetLookups      uint64 `stats:"atomic"`
+	subnetLookupErrors uint64 `stats:"atomic"`
+
+	statsReporter stats.Reporter
 }
 
 type cloudProvider interface {
@@ -51,6 +62,15 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		return nil
 	}
 
+	gl := &gatewayLookup{subnetForHwAddrFunc: ec2SubnetForHardwareAddr}
+
+	var err error
+	gl.statsReporter, err = stats.NewReporter(gl)
+	if err != nil {
+		log.Errorf("could not create stats reporter for gateway lookup: %s", err)
+		return nil
+	}
+
 	router, err := network.NewNetlinkRouter(config.ProcRoot)
 	if err != nil {
 		log.Errorf("could not create gateway lookup: %s", err)
@@ -64,12 +84,9 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
 	}
 
-	lru, _ := simplelru.NewLRU(maxSubnetCacheSize, nil)
-	return &gatewayLookup{
-		subnetCache:         lru,
-		routeCache:          network.NewRouteCache(routeCacheSize, router),
-		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
-	}
+	gl.subnetCache, _ = simplelru.NewLRU(maxSubnetCacheSize, nil)
+	gl.routeCache = network.NewRouteCache(routeCacheSize, router)
+	return gl
 }
 
 func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
@@ -91,33 +108,43 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
+	atomic.AddUint64(&g.subnetCacheLookups, 1)
 	v, ok := g.subnetCache.Get(r.IfIndex)
 	if !ok {
+		atomic.AddUint64(&g.subnetCacheMisses, 1)
+
 		ifi, err := net.InterfaceByIndex(r.IfIndex)
 		if err != nil {
 			log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
 			// negative cache for 1 minute
 			g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
+			atomic.AddUint64(&g.subnetCacheSize, 1)
 			return nil
 		}
 
 		if ifi.Flags&net.FlagLoopback != 0 {
 			// negative cache loopback interfaces
 			g.subnetCache.Add(r.IfIndex, nil)
+			atomic.AddUint64(&g.subnetCacheSize, 1)
 			return nil
 		}
 
+		atomic.AddUint64(&g.subnetLookups, 1)
 		var s network.Subnet
 		if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
+			atomic.AddUint64(&g.subnetLookupErrors, 1)
 			log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+
 			// cache an empty result so that we don't keep hitting the
 			// ec2 metadata endpoint for this interface
 			g.subnetCache.Add(r.IfIndex, nil)
+			atomic.AddUint64(&g.subnetCacheSize, 1)
 			return nil
 		}
 
 		via := &network.Via{Subnet: s}
 		g.subnetCache.Add(r.IfIndex, via)
+		atomic.AddUint64(&g.subnetCacheSize, 1)
 		v = via
 	} else if v == nil {
 		return nil
@@ -127,6 +154,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	case time.Time:
 		if time.Now().After(cv) {
 			g.subnetCache.Remove(r.IfIndex)
+			atomic.AddUint64(&g.subnetCacheSize, ^uint64(0))
 		}
 		return nil
 	case *network.Via:
@@ -136,8 +164,15 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	}
 }
 
+func (g *gatewayLookup) GetStats() map[string]interface{} {
+	report := g.statsReporter.Report()
+	report["route_cache"] = g.routeCache.GetStats()
+	return report
+}
+
 func (g *gatewayLookup) purge() {
 	g.subnetCache.Purge()
+	atomic.StoreUint64(&g.subnetCacheSize, 0)
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
