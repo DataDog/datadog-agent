@@ -57,8 +57,6 @@ updates:
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
-      # See https://github.com/DataDog/datadog-agent/pull/10112
-      - dependency-name: github.com/mailru/easyjson
     schedule:
       interval: weekly
   - package-ecosystem: gomod
@@ -72,8 +70,6 @@ updates:
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
-      # See https://github.com/DataDog/datadog-agent/pull/10112
-      - dependency-name: github.com/mailru/easyjson
     schedule:
       interval: weekly
   - package-ecosystem: gomod
