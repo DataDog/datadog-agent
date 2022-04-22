@@ -8,15 +8,15 @@ package status
 import (
 	"expvar"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"go.uber.org/atomic"
 )
 
 // Builder is used to build the status.
 type Builder struct {
-	isRunning   *int32
+	isRunning   *atomic.Bool
 	endpoints   *config.Endpoints
 	sources     *config.LogSources
 	warnings    *config.Messages
@@ -25,7 +25,7 @@ type Builder struct {
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
 		endpoints:   endpoints,
@@ -53,7 +53,7 @@ func (b *Builder) BuildStatus() Status {
 // this needs to be thread safe as it can be accessed
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
-	return atomic.LoadInt32(b.isRunning) != 0
+	return b.isRunning.Load()
 }
 
 func (b *Builder) getUseHTTP() bool {
