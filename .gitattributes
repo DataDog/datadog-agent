@@ -3,6 +3,4 @@ go.sum -diff -merge linguist-generated=true
 *.pb.go linguist-generated=true
 *.pb.gw.go -diff -merge
 *.pb.gw.go linguist-generated=true
-*_easyjson.go -diff -merge
-*_easyjson.go linguist-generated=true
 pkg/security/probe/constantfetch/btfhub/constants.json -diff -merge linguist-generated=true

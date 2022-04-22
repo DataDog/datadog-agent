@@ -12,7 +12,6 @@ package tools
 // This is the currently recommended approach: https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 
 import (
-	_ "github.com/mailru/easyjson/easyjson"
 	_ "github.com/tinylib/msgp"
 	_ "golang.org/x/tools/cmd/stringer"
 )

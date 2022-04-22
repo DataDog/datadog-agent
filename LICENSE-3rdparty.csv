@@ -513,14 +513,9 @@ core,github.com/lufia/plan9stats,BSD-3-Clause,"Copyright (c) 2019, KADOTA, Kyohe
 core,github.com/lxn/walk,BSD-3-Clause,Copyright (c) 2010 The Walk Authors. All rights reserved.
 core,github.com/lxn/win,BSD-3-Clause,Copyright (c) 2010 The win Authors. All rights reserved.
 core,github.com/magiconair/properties,BSD-2-Clause,"Copyright (c) 2013-2020, Frank Schroeder"
-core,github.com/mailru/easyjson,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/bootstrap,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/buffer,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/easyjson,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/gen,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/jlexer,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/jwriter,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/parser,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-runewidth,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
