@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
@@ -17,7 +18,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
-	"github.com/mailru/easyjson/jwriter"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
@@ -440,11 +440,7 @@ func (ev *Event) SetPathResolutionError(err error) {
 // MarshalJSON returns the JSON encoding of the event
 func (ev *Event) MarshalJSON() ([]byte, error) {
 	s := NewEventSerializer(ev)
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-	}
-	s.MarshalEasyJSON(w)
-	return w.BuildBytes()
+	return json.Marshal(s)
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
