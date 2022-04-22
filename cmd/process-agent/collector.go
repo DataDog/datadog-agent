@@ -79,8 +79,8 @@ type Collector struct {
 	// Enables running realtime checks
 	runRealTime bool
 
-	// drop connections check payload (used for testing)
-	dropConnectionsCheck bool
+	// Drop payloads from specified checks
+	dropCheckPayloads []string
 }
 
 // NewCollector creates a new Collector
@@ -128,9 +128,9 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
-	dropConnectionsCheck := ddconfig.Datadog.GetBool("process_config.drop_connections_check")
-	if dropConnectionsCheck {
-		log.Debugf("Dropping connections check data")
+	dropCheckPayloads := ddconfig.Datadog.GetStringSlice("process_config.drop_check_payloads")
+	if len(dropCheckPayloads) > 0 {
+		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
 
 	return Collector{
@@ -151,7 +151,7 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 
 		runRealTime: runRealTime,
 
-		dropConnectionsCheck: dropConnectionsCheck,
+		dropCheckPayloads: dropCheckPayloads,
 	}
 }
 
@@ -498,6 +498,18 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				updateRTStatus   = l.runRealTime
 			)
 
+			drop := false
+			for _, d := range l.dropCheckPayloads {
+				if d == result.name {
+					drop = true
+					break
+				}
+			}
+
+			if drop {
+				continue
+			}
+
 			switch result.name {
 			case checks.Process.Name():
 				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
@@ -508,9 +520,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.RTContainer.Name():
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.Connections.Name():
-				if !l.dropConnectionsCheck {
-					responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-				}
+				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			case checks.Pod.Name():
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false

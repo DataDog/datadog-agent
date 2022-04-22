@@ -151,8 +151,7 @@ func setupProcesses(config Config) {
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 
-	// this is only used for testing purposes
-	procBindEnvAndSetDefault(config, "process_config.drop_connections_check", false)
+	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)
