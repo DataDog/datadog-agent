@@ -26,7 +26,6 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/model/pdata"
 	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -241,8 +240,8 @@ func TestMapDoubleMetrics(t *testing.T) {
 	)
 }
 
-func seconds(i int) pdata.Timestamp {
-	return pdata.NewTimestampFromTime(time.Unix(int64(i), 0))
+func seconds(i int) pcommon.Timestamp {
+	return pcommon.NewTimestampFromTime(time.Unix(int64(i), 0))
 }
 
 var exampleDims = newDims("metric.example")
@@ -530,7 +529,7 @@ func dimsWithBucket(dims *Dimensions, lowerBound string, upperBound string) *Dim
 }
 
 func TestMapDeltaHistogramMetrics(t *testing.T) {
-	ts := pdata.NewTimestampFromTime(time.Now())
+	ts := pcommon.NewTimestampFromTime(time.Now())
 	slice := pmetric.NewHistogramDataPointSlice()
 	point := slice.AppendEmpty()
 	point.SetCount(20)
@@ -865,7 +864,7 @@ func exampleSummaryDataPointSlice(ts pcommon.Timestamp, sum float64, count uint6
 }
 
 func TestMapSummaryMetrics(t *testing.T) {
-	ts := pdata.NewTimestampFromTime(time.Now())
+	ts := pcommon.NewTimestampFromTime(time.Now())
 	slice := exampleSummaryDataPointSlice(ts, 10_001, 101)
 
 	newTranslator := func(tags []string, quantiles bool) *Translator {

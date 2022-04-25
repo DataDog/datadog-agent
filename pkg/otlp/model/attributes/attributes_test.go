@@ -19,25 +19,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/model/pdata"
 	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 func TestTagsFromAttributes(t *testing.T) {
-	attributeMap := map[string]pcommon.Value{
-		conventions.AttributeProcessExecutableName: pcommon.NewValueString("otelcol"),
-		conventions.AttributeProcessExecutablePath: pcommon.NewValueString("/usr/bin/cmd/otelcol"),
-		conventions.AttributeProcessCommand:        pcommon.NewValueString("cmd/otelcol"),
-		conventions.AttributeProcessCommandLine:    pcommon.NewValueString("cmd/otelcol --config=\"/path/to/config.yaml\""),
-		conventions.AttributeProcessPID:            pcommon.NewValueInt(1),
-		conventions.AttributeProcessOwner:          pcommon.NewValueString("root"),
-		conventions.AttributeOSType:                pcommon.NewValueString("linux"),
-		conventions.AttributeK8SDaemonSetName:      pcommon.NewValueString("daemon_set_name"),
-		conventions.AttributeAWSECSClusterARN:      pcommon.NewValueString("cluster_arn"),
-		"tags.datadoghq.com/service":               pcommon.NewValueString("service_name"),
+	attributeMap := map[string]interface{}{
+		conventions.AttributeProcessExecutableName: "otelcol",
+		conventions.AttributeProcessExecutablePath: "/usr/bin/cmd/otelcol",
+		conventions.AttributeProcessCommand:        "cmd/otelcol",
+		conventions.AttributeProcessCommandLine:    "cmd/otelcol --config=\"/path/to/config.yaml\"",
+		conventions.AttributeProcessPID:            1,
+		conventions.AttributeProcessOwner:          "root",
+		conventions.AttributeOSType:                "linux",
+		conventions.AttributeK8SDaemonSetName:      "daemon_set_name",
+		conventions.AttributeAWSECSClusterARN:      "cluster_arn",
+		"tags.datadoghq.com/service":               "service_name",
 	}
-	attrs := pdata.NewAttributeMapFromMap(attributeMap)
+	attrs := pcommon.NewMapFromRaw(attributeMap)
 
 	assert.ElementsMatch(t, []string{
 		fmt.Sprintf("%s:%s", conventions.AttributeProcessExecutableName, "otelcol"),
@@ -91,23 +90,23 @@ func TestOriginIDFromAttributes(t *testing.T) {
 	}{
 		{
 			name: "pod UID and container ID",
-			attrs: pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
-				conventions.AttributeContainerID: pcommon.NewValueString("container_id_goes_here"),
-				conventions.AttributeK8SPodUID:   pcommon.NewValueString("k8s_pod_uid_goes_here"),
+			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
+				conventions.AttributeContainerID: "container_id_goes_here",
+				conventions.AttributeK8SPodUID:   "k8s_pod_uid_goes_here",
 			}),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only container ID",
-			attrs: pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
-				conventions.AttributeContainerID: pcommon.NewValueString("container_id_goes_here"),
+			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
+				conventions.AttributeContainerID: "container_id_goes_here",
 			}),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only pod UID",
-			attrs: pdata.NewAttributeMapFromMap(map[string]pcommon.Value{
-				conventions.AttributeK8SPodUID: pcommon.NewValueString("k8s_pod_uid_goes_here"),
+			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
+				conventions.AttributeK8SPodUID: "k8s_pod_uid_goes_here",
 			}),
 			originID: "kubernetes_pod_uid://k8s_pod_uid_goes_here",
 		},
