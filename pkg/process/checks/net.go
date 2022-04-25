@@ -109,7 +109,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
