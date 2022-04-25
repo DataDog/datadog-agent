@@ -1,6 +1,7 @@
 # Atomic Access
 
 tl;dr: use `go.uber.org/atomic` for all atomic access.  Use pointers (`*atomic.Uint64`, etc.) in structs to ensure proper alignment.
+Expvars are accessed atomically and must also be used via pointers in structs.
 
 ## Prefer Not
 
@@ -56,3 +57,16 @@ There are two main issues with the built-in `sync/atomic` package:
 
 1. It is very easy to access a raw integer variable using a mix of atomic and non-atomic operations.
    This mix may be enough to satisfy the race detector, but not sufficient to actually prevent undefined behavior.
+
+## Expvars Too
+
+Types such as `expvar.Int` are simple wrappers around an integer, and are accessed using `sync/atomic`.
+That makes them susceptible to the [alignment issues](https://pkg.go.dev/sync/atomic#pkg-note-BUG) described above.
+Go will properly align variables (whether global or local) but not struct fields, so any expvar types embedded in a struct must use a pointer:
+
+```go
+type SomeStuff struct {
+    good *expvar.Int{}
+    bad expvar.Int{} // don't do this!
+}
+```
