@@ -55,8 +55,8 @@ type Agent struct {
 	obfuscator     *obfuscate.Obfuscator
 	cardObfuscator *ccObfuscator
 
-	// FilterSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
-	FilterSpan func(*pb.Span) bool
+	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
+	DiscardSpan func(*pb.Span) bool
 
 	// ModifySpan will be called on all spans, if non-nil.
 	ModifySpan func(*pb.Span)
@@ -357,14 +357,13 @@ var _ api.StatsProcessor = (*Agent)(nil)
 
 // filterSpans removes all spans for which the provided FilterSpan function returns true
 func (a *Agent) filterSpans(p *api.Payload) {
-	if a.FilterSpan == nil {
+	if a.DiscardSpan == nil {
 		return
 	}
-	for i := 0; i < len(p.Chunks()); i++ {
-		chunk := p.Chunk(i)
-		filteredSpans := []*pb.Span{}
+	for _, chunk := range p.Chunks() {
+		filteredSpans := make([]*pb.Span, 0, len(chunk.Spans))
 		for _, span := range chunk.Spans {
-			if !a.FilterSpan(span) {
+			if !a.DiscardSpan(span) {
 				filteredSpans = append(filteredSpans, span)
 			}
 		}
