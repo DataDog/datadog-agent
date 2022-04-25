@@ -38,6 +38,7 @@ build_serverless-deb_arm64:
 
 check_serverless_size_x64:
   extends: .check_size_common
+  allow_failure: true
   tags: ["runner:main"]
   variables:
     BINARY_NAME: datadog-agent-x64
