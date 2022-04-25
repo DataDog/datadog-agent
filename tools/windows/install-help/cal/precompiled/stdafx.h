@@ -1,6 +1,6 @@
 #pragma once
 
-#include "targetver.h"
+#include "../targetver.h"
 
 #define NTDDI_VERSION NTDDI_VISTA
 #define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
@@ -33,13 +33,13 @@
 #include <wcautil.h>
 
 // TODO: reference additional headers your program requires here
-#include "Error.h"
-#include "customaction.h"
-#include "customactiondata.h"
-#include "ddreg.h"
-#include "resource.h"
-#include "strings.h"
-#include "winacl.h"
+#include "../Error.h"
+#include "../customaction.h"
+#include "../customactiondata.h"
+#include "../ddreg.h"
+#include "../resource.h"
+#include "../strings.h"
+#include "../winacl.h"
 
 #ifdef _WIN64
 // define __REGISTER_ALL_SERVICES to have the custom action install APM & process

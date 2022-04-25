@@ -1,0 +1,5 @@
+---
+features:
+  - Adds User-level service unit filtering support for Journald log collection via `include_user_units` and `exclude_user_units`.
+  - A wildcard (`*`) can be used in either `exclude_units` or `exclude_user_units`
+    if only a particular type of Journald log is desired.

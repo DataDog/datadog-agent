@@ -40,6 +40,7 @@ Processes and Containers Agent (v 0.99.0)
   Process Bytes enqueued: 0
   RTProcess Bytes enqueued: 0
   Pod Bytes enqueued: 0
+  Drop Check Payloads: []
 
   Logs: /var/log/datadog/process-agent.log
 

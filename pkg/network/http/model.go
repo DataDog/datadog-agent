@@ -54,15 +54,16 @@ func (tx *httpTX) Path(buffer []byte) []byte {
 
 	i++
 
+	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+		return nil
+	}
+
 	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
 	}
 
-	if i < j && j <= bLen {
-		n := copy(buffer, b[i:j])
-		return buffer[:n]
-	}
-
-	return nil
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, b[i:j])
+	return buffer[:n]
 }
 
 // StatusClass returns an integer representing the status code class

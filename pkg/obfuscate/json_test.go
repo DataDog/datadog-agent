@@ -42,10 +42,10 @@ func loadTests() ([]*xmlObfuscateTest, error) {
 		return nil, err
 	}
 	f, err := os.Open(path)
-	defer f.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	var suite xmlObfuscateTests
 	if err := xml.NewDecoder(f).Decode(&suite); err != nil {
 		return nil, err

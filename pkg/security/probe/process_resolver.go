@@ -365,8 +365,9 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 
 	entry.FileEvent.FileFields = *info
-	entry.FileEvent.PathnameStr = pathnameStr
-	entry.FileEvent.BasenameStr = path.Base(pathnameStr)
+	entry.FileEvent.SetPathnameStr(pathnameStr)
+	entry.FileEvent.SetBasenameStr(path.Base(pathnameStr))
+
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
 	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
@@ -408,7 +409,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 
 	if parent := p.entryCache[entry.PPid]; parent != nil {
-		if parent.Comm == entry.Comm && parent.ArgsEntry.Equals(entry.ArgsEntry) && parent.EnvsEntry.Equals(entry.EnvsEntry) {
+		if parent.Equals(entry) {
 			parent.ShareArgsEnvs(entry)
 		}
 	}
@@ -554,15 +555,16 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 // SetProcessPath resolves process file path
 func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
-	var err error
-
 	if entry.FileEvent.Inode != 0 && entry.FileEvent.MountID != 0 {
-		if entry.FileEvent.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields); err == nil {
-			entry.FileEvent.BasenameStr = path.Base(entry.FileEvent.PathnameStr)
+		pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
+		if err != nil {
+			return entry.FileEvent.PathnameStr, err
 		}
+		entry.FileEvent.SetPathnameStr(pathnameStr)
+		entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 	}
 
-	return entry.FileEvent.PathnameStr, err
+	return entry.FileEvent.PathnameStr, nil
 }
 
 // SetProcessFilesystem resolves process file system
@@ -710,9 +712,10 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 
 	parent := p.resolveWithProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
-		entry.SetAncestor(parent)
-		if parent.Comm == entry.Comm && parent.ArgsEntry.Equals(entry.ArgsEntry) && parent.EnvsEntry.Equals(entry.EnvsEntry) {
-			parent.ShareArgsEnvs(entry)
+		if parent.Equals(entry) {
+			entry.SetParent(parent)
+		} else {
+			entry.SetAncestor(parent)
 		}
 	}
 

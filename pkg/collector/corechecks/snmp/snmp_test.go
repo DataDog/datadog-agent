@@ -257,7 +257,7 @@ tags:
 		},
 	}
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch1Packet1, nil)
@@ -349,7 +349,7 @@ metrics:
 		},
 	}
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 
 	err = chk.Run()
@@ -563,7 +563,7 @@ profiles:
 		},
 	}
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{
 		"1.2.3.4.5",
 		"1.3.6.1.2.1.1.1.0",
@@ -596,8 +596,8 @@ profiles:
 		"static_tag:from_profile_root",
 		"static_tag:from_base_profile",
 	}
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -958,7 +958,7 @@ namespace: '%s'
 
 			mocksender.SetSender(sender, chk.ID())
 
-			sess.On("GetNext", []string{"1.3"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
+			sess.On("GetNext", []string{"1.0"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
 			sess.On("Get", []string{"1.2.3.4.5", "1.3.6.1.2.1.1.3.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999"}).Return(&tt.valuesPacket, tt.valuesError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
@@ -1021,7 +1021,7 @@ metrics:
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{},
 	}
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	sender.SetupAcceptAll()
 
@@ -1194,7 +1194,7 @@ tags:
 			},
 		},
 	}
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	var sysObjectIDPacket *gosnmp.SnmpPacket
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
 
@@ -1320,7 +1320,7 @@ tags:
 	sender.On("Commit").Return()
 
 	var nilPacket *gosnmp.SnmpPacket
-	sess.On("GetNext", []string{"1.3"}).Return(nilPacket, fmt.Errorf("no value for GetNext"))
+	sess.On("GetNext", []string{"1.0"}).Return(nilPacket, fmt.Errorf("no value for GetNext"))
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
 
 	sess.On("Get", []string{
@@ -1414,7 +1414,7 @@ metric_tags:
 		},
 	}
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
@@ -1701,7 +1701,7 @@ metric_tags:
 		},
 	}
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
 	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
@@ -1779,7 +1779,7 @@ use_device_id_as_hostname: true
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -1936,7 +1936,7 @@ metrics:
   - symboltag2:2
 `)
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 
 	discoveryPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{

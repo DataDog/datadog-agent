@@ -84,10 +84,14 @@ func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 	}
 }
 
+// SetParent set the parent of a fork child
+func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+	pc.SetAncestor(parent)
+	parent.ShareArgsEnvs(pc)
+}
+
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
-	childEntry.SetAncestor(pc)
-
 	childEntry.PPid = pc.Pid
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
@@ -97,7 +101,12 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
-	pc.ShareArgsEnvs(childEntry)
+	childEntry.SetParent(pc)
+}
+
+// Equals returns whether process cache entries share the same values for comm and args/envs
+func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
+	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
 /*func (pc *ProcessCacheEntry) String() string {
@@ -312,6 +321,10 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 	var i int
 	for _, value := range values {
 		kv := strings.SplitN(value, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
 		p.keys[i] = kv[0]
 		i++
 	}
@@ -333,8 +346,6 @@ func (p *EnvsEntry) toMap() {
 
 		if len(kv) == 2 {
 			p.kv[k] = kv[1]
-		} else {
-			p.kv[k] = ""
 		}
 	}
 }

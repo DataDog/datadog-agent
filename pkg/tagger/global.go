@@ -134,20 +134,14 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
-// TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
-func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
-	tags, err := Tag(entity, cardinality)
-	if err != nil {
-		return tags, "", err
-	}
-	return tags, utils.ComputeTagsHash(tags), nil
-}
-
 // GetEntityHash returns the hash for the tags associated with the given entity
 // Returns an empty string if the tags lookup fails
 func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
-	_, hash, _ := TagWithHash(entity, cardinality)
-	return hash
+	tags, err := Tag(entity, cardinality)
+	if err != nil {
+		return ""
+	}
+	return utils.ComputeTagsHash(tags)
 }
 
 // StandardTags queries the defaultTagger to get entity

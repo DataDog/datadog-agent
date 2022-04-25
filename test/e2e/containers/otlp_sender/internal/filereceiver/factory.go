@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/model/otlp"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.uber.org/zap"
 )
@@ -73,7 +73,7 @@ var _ component.MetricsReceiver = (*receiver)(nil)
 type receiver struct {
 	config       *Config
 	logger       *zap.Logger
-	unmarshaler  pdata.MetricsUnmarshaler
+	unmarshaler  pmetric.Unmarshaler
 	nextConsumer consumer.Metrics
 	stopCh       chan struct{}
 }
