@@ -475,16 +475,19 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	if ev.processCacheEntry == nil {
 		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
 		if ev.processCacheEntry == nil {
-			ev.processCacheEntry = &model.ProcessCacheEntry{}
+			ev.processCacheEntry = &model.ProcessCacheEntry{
+				ProcessContext: ev.ProcessContext,
+			}
+		}
 
-			// mark context as resolved to avoid resolution with empty inode/mount id
-			ev.processCacheEntry.FileEvent.SetPathnameStr("")
-			ev.processCacheEntry.FileEvent.SetBasenameStr("")
-		} else if ev.processCacheEntry.FileEvent.Inode == 0 || ev.processCacheEntry.FileEvent.MountID == 0 {
+		if ev.processCacheEntry.FileEvent.Inode == 0 || ev.processCacheEntry.FileEvent.MountID == 0 {
 			// FIX(safchain) this condition should be removed once the kworker detection will be fixed and
 			// once process context without inode/mountid bug will be fixed
 			ev.processCacheEntry.FileEvent.SetPathnameStr("")
 			ev.processCacheEntry.FileEvent.SetBasenameStr("")
+		} else {
+			ev.ResolveFilePath(&ev.processCacheEntry.FileEvent)
+			ev.ResolveFileBasename(&ev.processCacheEntry.FileEvent)
 		}
 	}
 

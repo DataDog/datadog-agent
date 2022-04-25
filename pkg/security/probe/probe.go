@@ -738,7 +738,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	// resolve event context
 	if eventType != model.ExitEventType {
 		event.ResolveProcessCacheEntry()
-		event.ProcessContext = event.processCacheEntry.ProcessContext
 	} else {
 		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 			return
