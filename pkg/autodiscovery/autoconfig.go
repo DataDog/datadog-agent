@@ -8,7 +8,6 @@ package autodiscovery
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"go.uber.org/atomic"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -43,8 +43,8 @@ type AutoConfig struct {
 	store              *store
 	cfgMgr             configManager
 	m                  sync.RWMutex
-	// ranOnce is an atomic uint32 set to 1 once the AutoConfig has been executed
-	ranOnce uint32
+	// ranOnce is set to 1 once the AutoConfig has been executed
+	ranOnce *atomic.Bool
 }
 
 type listenerCandidate struct {
@@ -56,8 +56,18 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 	return l.factory(l.config)
 }
 
-// NewAutoConfig creates an AutoConfig instance.
+// NewAutoConfig creates an AutoConfig instance and starts it.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
+	ac := NewAutoConfigNoStart(scheduler)
+
+	// We need to listen to the service channels before anything is sent to them
+	go ac.serviceListening()
+
+	return ac
+}
+
+// NewAutoConfigNoStart creates an AutoConfig instance.
+func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
 		providers:          make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
@@ -69,9 +79,8 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		store:              newStore(),
 		cfgMgr:             newSimpleConfigManager(),
 		scheduler:          scheduler,
+		ranOnce:            atomic.NewBool(false),
 	}
-	// We need to listen to the service channels before anything is sent to them
-	go ac.serviceListening()
 	return ac
 }
 
@@ -181,14 +190,14 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 func (ac *AutoConfig) LoadAndRun() {
 	scheduleAll := ac.getAllConfigs()
 	ac.applyChanges(scheduleAll)
-	atomic.StoreUint32(&ac.ranOnce, 1)
+	ac.ranOnce.Store(true)
 	log.Debug("LoadAndRun done.")
 }
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
 // components that depend on this value.
 func (ac *AutoConfig) ForceRanOnceFlag() {
-	atomic.StoreUint32(&ac.ranOnce, 1)
+	ac.ranOnce.Store(true)
 }
 
 // HasRunOnce returns true if the AutoConfig has ran once.
@@ -196,7 +205,7 @@ func (ac *AutoConfig) HasRunOnce() bool {
 	if ac == nil {
 		return false
 	}
-	return atomic.LoadUint32(&ac.ranOnce) == 1
+	return ac.ranOnce.Load()
 }
 
 // GetAllConfigs queries all the providers and returns all the integration
