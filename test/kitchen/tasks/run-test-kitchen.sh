@@ -6,6 +6,26 @@
 IFS=$'\n\t'
 set -euxo pipefail
 
+# Ensure that the ssh key is never reused between tests
+if [ -f "$(pwd)/ssh-key" ]; then
+  rm ssh-key
+fi
+if [ -f "$(pwd)/ssh-key.pub" ]; then
+  rm ssh-key.pub
+fi
+
+ssh-keygen -f "$(pwd)/ssh-key" -P "" -t rsa -b 2048
+KITCHEN_SSH_KEY_PATH="$(pwd)/ssh-key"
+export KITCHEN_SSH_KEY_PATH
+
+# show that the ssh key is there
+echo "$(pwd)/ssh-key"
+echo "$KITCHEN_SSH_KEY_PATH"
+
+# start the ssh-agent and add the key
+eval "$(ssh-agent -s)"
+ssh-add "$KITCHEN_SSH_KEY_PATH"
+
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
