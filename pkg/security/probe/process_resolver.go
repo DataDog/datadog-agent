@@ -338,38 +338,39 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	pid := uint32(proc.Pid)
 	// the provided process is a kernel process if its virtual memory size is null
-	isKernelProcess := filledProc.MemInfo.VMS == 0
-
-	if !isKernelProcess {
-		// Get process filename and pre-fill the cache
-		procExecPath := utils.ProcExePath(proc.Pid)
-		pathnameStr, err := os.Readlink(procExecPath)
-		if err != nil {
-			return errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid)
-		}
-		if pathnameStr == "/ (deleted)" {
-			return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
-		}
-
-		// Get the file fields of the process binary
-		info, err := p.retrieveExecFileFields(procExecPath)
-		if err != nil {
-			return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
-		}
-
-		// Retrieve the container ID of the process from /proc
-		containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
-		if err != nil {
-			return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
-		}
-
-		entry.FileFields = *info
-		entry.Process.PathnameStr = pathnameStr
-		entry.Process.BasenameStr = path.Base(pathnameStr)
-		entry.Process.ContainerID = string(containerID)
-		// resolve container path with the MountResolver
-		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileFields.MountID)
+	if filledProc.MemInfo.VMS == 0 {
+		return fmt.Errorf("cannot snapshot kernel threads")
 	}
+
+	// Get process filename and pre-fill the cache
+	procExecPath := utils.ProcExePath(proc.Pid)
+	pathnameStr, err := os.Readlink(procExecPath)
+	if err != nil {
+		return errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid)
+	}
+	if pathnameStr == "/ (deleted)" {
+		return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
+	}
+
+	// Get the file fields of the process binary
+	info, err := p.retrieveExecFileFields(procExecPath)
+	if err != nil {
+		return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
+	}
+
+	// Retrieve the container ID of the process from /proc
+	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+	if err != nil {
+		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
+	}
+
+	entry.FileEvent.FileFields = *info
+	entry.FileEvent.SetPathnameStr(pathnameStr)
+	entry.FileEvent.SetBasenameStr(path.Base(pathnameStr))
+
+	entry.Process.ContainerID = string(containerID)
+	// resolve container path with the MountResolver
+	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -388,14 +389,13 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
 	}
-	var err error
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(proc.Pid)
 	if err != nil {
 		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
 	}
 	p.SetProcessUsersGroups(entry)
 
-	// args
+	// args and envs
 	if len(filledProc.Cmdline) > 0 {
 		entry.ArgsEntry = &model.ArgsEntry{
 			Values: filledProc.Cmdline[1:],
@@ -405,6 +405,12 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
+		}
+	}
+
+	if parent := p.entryCache[entry.PPid]; parent != nil {
+		if parent.Equals(entry) {
+			parent.ShareArgsEnvs(entry)
 		}
 	}
 
@@ -473,6 +479,10 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	}
 
 	parent := p.entryCache[entry.PPid]
+	if parent == nil && entry.PPid >= 1 {
+		parent = p.resolve(entry.PPid, entry.PPid)
+	}
+
 	if parent != nil {
 		parent.Fork(entry)
 	}
@@ -514,6 +524,10 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
+	return p.resolve(pid, tid)
+}
+
+func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
 		return entry
@@ -541,24 +555,25 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 // SetProcessPath resolves process file path
 func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
-	var err error
-
-	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		if entry.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileFields); err == nil {
-			entry.BasenameStr = path.Base(entry.PathnameStr)
+	if entry.FileEvent.Inode != 0 && entry.FileEvent.MountID != 0 {
+		pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
+		if err != nil {
+			return entry.FileEvent.PathnameStr, err
 		}
+		entry.FileEvent.SetPathnameStr(pathnameStr)
+		entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 	}
 
-	return entry.PathnameStr, err
+	return entry.FileEvent.PathnameStr, nil
 }
 
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
-	if entry.FileFields.MountID != 0 {
-		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileFields.MountID)
+	if entry.FileEvent.MountID != 0 {
+		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID)
 	}
 
-	return entry.Filesystem
+	return entry.FileEvent.Filesystem
 }
 
 // ApplyBootTime realign timestamp from the boot time
@@ -670,25 +685,38 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 		return nil
 	}
 
-	proc, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return nil
+	var ppid uint32
+	inserted := false
+	entry := p.entryCache[pid]
+	if entry == nil {
+		proc, err := process.NewProcess(int32(pid))
+		if err != nil {
+			return nil
+		}
+
+		filledProc := utils.GetFilledProcess(proc)
+		if filledProc == nil {
+			return nil
+		}
+
+		// ignore kthreads
+		if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+			return nil
+		}
+
+		entry, inserted = p.syncCache(proc)
+		ppid = uint32(filledProc.Ppid)
+	} else {
+		ppid = entry.PPid
 	}
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		return nil
-	}
-
-	// ignore kthreads
-	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-		return nil
-	}
-
-	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
-	entry, inserted := p.syncCache(proc)
+	parent := p.resolveWithProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
-		entry.SetAncestor(parent)
+		if parent.Equals(entry) {
+			entry.SetParent(parent)
+		} else {
+			entry.SetAncestor(parent)
+		}
 	}
 
 	return entry
@@ -938,6 +966,13 @@ func (p *ProcessResolver) SyncCache(proc *process.Process) bool {
 	return ret
 }
 
+func (p *ProcessResolver) setAncestor(pce *model.ProcessCacheEntry) {
+	parent := p.entryCache[pce.PPid]
+	if parent != nil {
+		pce.SetAncestor(parent)
+	}
+}
+
 // syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
 func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheEntry, bool) {
 	pid := uint32(proc.Pid)
@@ -945,6 +980,8 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 	// Check if an entry is already in cache for the given pid.
 	entry := p.entryCache[pid]
 	if entry != nil {
+		p.setAncestor(entry)
+
 		return nil, false
 	}
 
@@ -956,10 +993,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
-	parent := p.entryCache[entry.PPid]
-	if parent != nil {
-		entry.SetAncestor(parent)
-	}
+	p.setAncestor(entry)
 
 	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
 		return nil, false
@@ -985,7 +1019,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		}
 	}
 
-	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)
+	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
 	return entry, true
 }

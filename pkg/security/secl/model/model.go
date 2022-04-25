@@ -14,7 +14,6 @@ import (
 	"net"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -61,7 +60,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 				return errAbs
 			}
 
-			if matched, err := regexp.Match(`^~`, []byte(value)); err != nil || matched {
+			if strings.HasPrefix(value, "~") {
 				return errAbs
 			}
 
@@ -103,7 +102,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // New mode/rights of the chmod-ed file
+	Mode uint32    `field:"file.destination.mode;file.destination.rights"` // New mode/rights of the chmod-ed file
 }
 
 // ChownEvent represents a chown event
@@ -131,7 +130,7 @@ type Event struct {
 	ID           string    `field:"-"`
 	Type         uint64    `field:"-"`
 	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"timestamp"` // Timestamp of the event
+	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	SpanContext      SpanContext      `field:"-"`
@@ -254,8 +253,8 @@ type Credentials struct {
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (e *Process) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
+	if e.FileEvent.PathResolutionError != nil {
+		return e.FileEvent.PathResolutionError.Error()
 	}
 	return ""
 }
@@ -263,19 +262,17 @@ func (e *Process) GetPathResolutionError() string {
 // Process represents a process
 type Process struct {
 	// proc_cache_t
-	FileFields FileFields `field:"file" msg:"file"`
+	FileEvent FileEvent `field:"file" msg:"file"`
 
 	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
 	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
 	NetNS uint32 `field:"-" msg:"-"`
 
-	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
-	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem" msg:"filesystem"` // FileSystem of the process executable
-	PathResolutionError error  `field:"-" msg:"-"`
-
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
+
+	SpanID  uint64 `field:"-" msg:"span_id"`
+	TraceID uint64 `field:"-" msg:"trace_id"`
 
 	TTYName string `field:"tty_name" msg:"tty"` // Name of the TTY associated with the process
 	Comm    string `field:"comm" msg:"comm"`    // Comm attribute of the process
@@ -300,13 +297,13 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-" msg:"envs"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,ResolveProcessArgv0:100" msg:"-"`                                                                                                                                     // First argument of the process
-	Args          string   `field:"args,ResolveProcessArgs:100" msg:"-"`                                                                                                                                       // Arguments of the process (as a string)
-	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags,,cacheless_resolution" field:"args_options,ResolveProcessArgsOptions,,cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated" msg:"-"`                                                                                                                        // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100" msg:"-"`                                                                                                                                       // Environment variable names of the process
-	Envp          []string `field:"envp,ResolveProcessEnvp:100" msg:"-"`                                                                                                                                       // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated" msg:"-"`                                                                                                                        // Indicator of environment variables truncation
+	Argv0         string   `field:"argv0,ResolveProcessArgv0:100" msg:"-"`                                                                                                                     // First argument of the process
+	Args          string   `field:"args,ResolveProcessArgs:100" msg:"-"`                                                                                                                       // Arguments of the process (as a string)
+	Argv          []string `field:"argv,ResolveProcessArgv:100;args_flags,ResolveProcessArgsFlags,,cacheless_resolution;args_options,ResolveProcessArgsOptions,,cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
+	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated" msg:"-"`                                                                                                        // Indicator of arguments truncation
+	Envs          []string `field:"envs,ResolveProcessEnvs:100" msg:"-"`                                                                                                                       // Environment variable names of the process
+	Envp          []string `field:"envp,ResolveProcessEnvp:100" msg:"-"`                                                                                                                       // Environment variables of the process
+	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated" msg:"-"`                                                                                                        // Indicator of environment variables truncation
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
@@ -329,13 +326,13 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid" msg:"uid"`                                                      // UID of the file's owner
-	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                              // User of the file's owner
-	GID   uint32 `field:"gid" msg:"gid"`                                                      // GID of the file's owner
-	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                           // Group of the file's owner
-	Mode  uint16 `field:"mode" field:"rights,ResolveRights,,cacheless_resolution" msg:"mode"` // Mode/rights of the file
-	CTime uint64 `field:"change_time" msg:"ctime"`                                            // Change time of the file
-	MTime uint64 `field:"modification_time" msg:"mtime"`                                      // Modification time of the file
+	UID   uint32 `field:"uid" msg:"uid"`                                              // UID of the file's owner
+	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                      // User of the file's owner
+	GID   uint32 `field:"gid" msg:"gid"`                                              // GID of the file's owner
+	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                   // Group of the file's owner
+	Mode  uint16 `field:"mode;rights,ResolveRights,,cacheless_resolution" msg:"mode"` // Mode/rights of the file
+	CTime uint64 `field:"change_time" msg:"ctime"`                                    // Change time of the file
+	MTime uint64 `field:"modification_time" msg:"mtime"`                              // Modification time of the file
 
 	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                           // Mount ID of the file
 	Inode        uint64 `field:"inode" msg:"inode"`                                                 // Inode of the file
@@ -364,11 +361,28 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr string `field:"path,ResolveFilePath" msg:"path"`                   // File's path
-	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`               // File's basename
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"` // File's filesystem
+
+	PathnameStr string `field:"path,ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
+	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`                        // File's basename
+	Filesystem  string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
+
+	// used to mark as already resolved, can be used in case of empty path
+	IsPathnameStrResolved bool `field:"-" msg:"-"`
+	IsBasenameStrResolved bool `field:"-" msg:"-"`
+}
+
+// SetPathnameStr set and mark as resolved
+func (e *FileEvent) SetPathnameStr(str string) {
+	e.PathnameStr = str
+	e.IsPathnameStrResolved = true
+}
+
+// SetBasenameStr set and mark as resolved
+func (e *FileEvent) SetBasenameStr(str string) {
+	e.BasenameStr = str
+	e.IsBasenameStrResolved = true
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -407,7 +421,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // Mode/rights of the new directory
+	Mode uint32    `field:"file.destination.mode;file.destination.rights"` // Mode/rights of the new directory
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -755,7 +769,7 @@ type NetworkDeviceContext struct {
 // IPPortContext is used to hold an IP and Port
 //msgp:ignore IPPortContext
 type IPPortContext struct {
-	IP   net.IP `field:"-"`
+	IP   net.IP `field:"ip"`   // IP address
 	Port uint16 `field:"port"` // Port number
 }
 
@@ -775,11 +789,11 @@ type NetworkContext struct {
 //msgp:ignore DNSEvent
 type DNSEvent struct {
 	ID    uint16 `field:"-"`
-	Name  string `field:"question.name" op_override:"DNSNameCmp"` // the queried domain name
-	Type  uint16 `field:"question.type"`                          // a two octet code which specifies the DNS question type
-	Class uint16 `field:"question.class"`                         // the class looked up by the DNS question
-	Size  uint16 `field:"question.size"`                          // the total DNS request size in bytes
-	Count uint16 `field:"question.count"`                         // the total count of questions in the DNS request
+	Name  string `field:"question.name" op_override:"eval.DNSNameCmp"` // the queried domain name
+	Type  uint16 `field:"question.type"`                               // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class"`                              // the class looked up by the DNS question
+	Size  uint16 `field:"question.size"`                               // the total DNS request size in bytes
+	Count uint16 `field:"question.count"`                              // the total count of questions in the DNS request
 }
 
 // NetDevice represents a network device

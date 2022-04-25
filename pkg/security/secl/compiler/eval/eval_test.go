@@ -8,6 +8,7 @@ package eval
 import (
 	"container/list"
 	"fmt"
+	"net"
 	"os"
 	"runtime"
 	"strings"
@@ -286,7 +287,8 @@ func TestSimpleBitOperations(t *testing.T) {
 func TestStringMatcher(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			name: "/usr/bin/c$t",
+			name:  "/usr/bin/c$t",
+			argv0: "http://example.com",
 		},
 	}
 
@@ -329,6 +331,8 @@ func TestStringMatcher(t *testing.T) {
 		{Expr: `process.name =~ r".*/[abc]+/bin/.*"`, Expected: false},
 		{Expr: `process.name == r".*/bin/.*"`, Expected: true},
 		{Expr: `r".*/bin/.*" == process.name`, Expected: true},
+		{Expr: `process.argv0 =~ "http://*"`, Expected: true},
+		{Expr: `process.argv0 =~ "*example.com"`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -1026,6 +1030,157 @@ func TestDuration(t *testing.T) {
 
 		if result != test.Expected {
 			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
+		}
+	}
+}
+
+func TestIPv4(t *testing.T) {
+	_, cidr, _ := net.ParseCIDR("192.168.0.1/24")
+	var cidrs []*net.IPNet
+	for _, cidrStr := range []string{"192.168.0.1/24", "10.0.0.1/16"} {
+		_, cidrTmp, _ := net.ParseCIDR(cidrStr)
+		cidrs = append(cidrs, cidrTmp)
+	}
+	event := &testEvent{
+		network: testNetwork{
+			ip:    net.ParseIP("192.168.0.1"),
+			ips:   []net.IP{net.ParseIP("192.168.0.1"), net.ParseIP("192.169.0.1")},
+			cidr:  cidr,
+			cidrs: cidrs,
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `192.168.0.1 == 192.168.0.1`, Expected: true},
+		{Expr: `192.168.0.1 == 192.168.0.2`, Expected: false},
+		{Expr: `192.168.0.15 in 192.168.0.1/24`, Expected: true},
+		{Expr: `192.168.0.16 not in 192.168.1.1/24`, Expected: true},
+		{Expr: `192.168.0.16/16 in 192.168.1.1/8`, Expected: true},
+		{Expr: `192.168.0.16/16 intersects 192.168.1.1/8`, Expected: true},
+		{Expr: `193.168.0.16/16 in 192.168.1.1/8`, Expected: false},
+		{Expr: `network.ip == 192.168.0.1`, Expected: true},
+		{Expr: `network.ip == 127.0.0.1`, Expected: false},
+		{Expr: `network.ip == ::ffff:192.168.0.1`, Expected: true},
+		{Expr: `network.ip == ::ffff:127.0.0.1`, Expected: false},
+		{Expr: `network.ip in 192.168.0.1/32`, Expected: true},
+		{Expr: `network.ip in 0.0.0.0/0`, Expected: true},
+		{Expr: `network.ip in ::1/0`, Expected: false},
+		{Expr: `network.ip in 192.168.4.0/16`, Expected: true},
+		{Expr: `network.ip in 192.168.4.0/24`, Expected: false},
+		{Expr: `network.ip not in 192.168.4.0/16`, Expected: false},
+		{Expr: `network.ip not in 192.168.4.0/24`, Expected: true},
+		{Expr: `network.ip in ::ffff:192.168.4.0/112`, Expected: true},
+		{Expr: `network.ip in ::ffff:192.168.4.0/120`, Expected: false},
+		{Expr: `network.ip in [ 127.0.0.1, 192.168.0.1, 10.0.0.1 ]`, Expected: true},
+		{Expr: `network.ip in [ 127.0.0.1, 10.0.0.1 ]`, Expected: false},
+		{Expr: `network.ip in [ 192.168.4.1/16, 10.0.0.1/32 ]`, Expected: true},
+		{Expr: `network.ip in [ 10.0.0.1, 127.0.0.1, 192.169.4.1/16 ]`, Expected: false},
+		{Expr: `network.ip in [ 10.0.0.1, 127.0.0.1, 192.169.4.1/16, ::ffff:192.168.0.1/128 ]`, Expected: true},
+		{Expr: `192.168.0.1 in [ 10.0.0.1, 127.0.0.1, 192.169.4.1/16, ::ffff:192.168.0.1/128 ]`, Expected: true},
+		{Expr: `192.168.0.1/24 in [ 10.0.0.1, 127.0.0.1, 192.169.4.1/16, ::ffff:192.168.0.1/120 ]`, Expected: true},
+		{Expr: `192.168.0.1/24 intersects [ 10.0.0.1, 127.0.0.1, 192.169.4.1/16, ::ffff:192.168.0.1/120 ]`, Expected: false},
+
+		{Expr: `network.ips in 192.168.0.0/16`, Expected: true},
+		{Expr: `network.ips not in 192.168.0.0/16`, Expected: false},
+		{Expr: `network.ips intersects 192.168.0.0/16`, Expected: false},
+		{Expr: `network.ips intersects 192.168.0.0/8`, Expected: true},
+		{Expr: `network.ips in [ 192.168.0.0/32, 193.168.0.0/16, ::ffff:192.168.0.1 ]`, Expected: true},
+		{Expr: `network.ips not in [ 192.168.0.0/32, 193.168.0.0/16 ]`, Expected: true},
+		{Expr: `network.ips intersects [ 192.168.0.0/8, 0.0.0.0/0 ]`, Expected: true},
+		{Expr: `network.ips intersects [ 192.168.0.0/8, 1.0.0.0/8 ]`, Expected: false},
+		{Expr: `network.ips intersects [ 192.168.0.0/8, 1.0.0.0/8 ]`, Expected: false},
+		{Expr: `192.0.0.0/8 intersects network.ips`, Expected: true},
+
+		{Expr: `network.cidr in 192.168.0.0/8`, Expected: true},
+		{Expr: `network.cidr in 193.168.0.0/8`, Expected: false},
+		{Expr: `network.cidrs in 10.0.0.1/8`, Expected: true},
+		{Expr: `network.cidrs intersects 10.0.0.1/8`, Expected: false},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%v` not found, got `%v`, expression: %s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
+func TestIPv6(t *testing.T) {
+	_, cidr, _ := net.ParseCIDR("2001:0:0eab:dead::a0:abcd:4e/112")
+	var cidrs []*net.IPNet
+	for _, cidrStr := range []string{"2001:0:0eab:dead::a0:abcd:4e/112", "2001:0:0eab:c00f::a0:abcd:4e/64"} {
+		_, cidrTmp, _ := net.ParseCIDR(cidrStr)
+		cidrs = append(cidrs, cidrTmp)
+	}
+	event := &testEvent{
+		network: testNetwork{
+			ip:    net.ParseIP("2001:0:0eab:dead::a0:abcd:4e"),
+			ips:   []net.IP{net.ParseIP("2001:0:0eab:dead::a0:abcd:4e"), net.ParseIP("2001:0:0eab:dead::a0:abce:4e")},
+			cidr:  cidr,
+			cidrs: cidrs,
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e == 2001:0:0eab:dead::a0:abcd:4e`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e == 2001:0:0eab:dead::a0:abcd:4f`, Expected: false},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e in 2001:0:0eab:dead::a0:abcd:0/120`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e not in 2001:0:0eab:dead::a0:abcd:ab00/120`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e/64 in 2001:0:0eab:dead::a0:abcd:1b00/32`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e/64 intersects 2001:0:0eab:dead::a0:abcd:1b00/32`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e/64 in [ 2001:0:0eab:dead::a0:abcd:1b00/32 ]`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e/32 in [ 2001:0:0eab:dead::a0:abcd:1b00/64 ]`, Expected: true},
+		{Expr: `network.ip == 2001:0:0eab:dead::a0:abcd:4e`, Expected: true},
+		{Expr: `network.ip == ::1`, Expected: false},
+		{Expr: `network.ip == 127.0.0.1`, Expected: false},
+		{Expr: `network.ip in 0.0.0.0/0`, Expected: false},
+		{Expr: `network.ip in ::1/0`, Expected: true},
+		{Expr: `network.ip in 2001:0:0eab:dead::a0:abcd:4e/128`, Expected: true},
+		{Expr: `network.ip in 2001:0:0eab:dead::a0:abcd:0/112`, Expected: true},
+		{Expr: `network.ip in 2001:0:0eab:dead::a0:0:0/112`, Expected: false},
+		{Expr: `network.ip not in 2001:0:0eab:dead::a0:0:0/112`, Expected: true},
+		{Expr: `network.ip in [ ::1, 2001:0:0eab:dead::a0:abcd:4e, 2001:0:0eab:dead::a0:abcd:4f ]`, Expected: true},
+		{Expr: `network.ip in [ ::1, 2001:0:0eab:dead::a0:abcd:4f ]`, Expected: false},
+		{Expr: `network.ip in [ 2001:0:0eab:dead::a0:abcd:0/112, 2001:0:0eab:dead::a0:abcd:4f/128 ]`, Expected: true},
+		{Expr: `network.ip in [ ::1, 2001:124:0eab:dead::a0:abcd:4f, 2001:0:0eab:dead::a0:abcd:0/112 ]`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e in [ 2001:0:0eab:dead::a0:abcd:4e, ::1, 2002:0:0eab:dead::/64, ::ffff:192.168.0.1/128 ]`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e/64 in [ 10.0.0.1, 127.0.0.1, 2001:0:0eab:dead::a0:abcd:1b00/32, ::ffff:192.168.0.1/120 ]`, Expected: true},
+		{Expr: `2001:0:0eab:dead::a0:abcd:4e/64 intersects [ 10.0.0.1, 127.0.0.1, 2001:0:0eab:dead::a0:abcd:1b00/32, ::ffff:192.168.0.1/120 ]`, Expected: false},
+
+		{Expr: `network.ips in 2001:0:0eab:dead::a0:abcd:0/120`, Expected: true},
+		{Expr: `network.ips not in 2001:0:0eab:dead::a0:abcd:0/120`, Expected: false},
+		{Expr: `network.ips intersects 2001:0:0eab:dead::a0:abcd:0/120`, Expected: false},
+		{Expr: `network.ips intersects 2001:0:0eab:dead::a0:abcd:0/104`, Expected: true},
+		{Expr: `network.ips in [ 2001:0:0eab:dead::a0:abcd:0/128, 2001:0:0eab:dead::a0:abcd:0/120, 2001:0:0eab:dead::a0:abce:4e ]`, Expected: true},
+		{Expr: `network.ips not in [ 2001:0:0eab:dead::a0:abcd:0/128, 2001:0:0eab:dead::a0:abcf:4e/120 ]`, Expected: true},
+		{Expr: `network.ips intersects [ 2001:0:0eab:dead::a0:abcd:0/104, 2001::1/16 ]`, Expected: true},
+		{Expr: `network.ips intersects [ 2001:0:0eab:dead::a0:abcd:0/104, 2002::1/16 ]`, Expected: false},
+		{Expr: `2001:0:0eab:dead::a0:abcd:0/104 intersects network.ips`, Expected: true},
+
+		{Expr: `network.cidr in 2001:0:0eab:dead::a0:abcd:4e/112`, Expected: true},
+		{Expr: `network.cidr in 2002:0:0eab:dead::a0:abcd:4e/72`, Expected: false},
+		{Expr: `network.cidrs in 2001:0:0eab:dead::a0:abcd:4e/64`, Expected: true},
+		{Expr: `network.cidrs intersects 2001:0:0eab:dead::a0:abcd:4e/64`, Expected: false},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%v` not found, got `%v`, expression: %s", test.Expected, result, test.Expr)
 		}
 	}
 }

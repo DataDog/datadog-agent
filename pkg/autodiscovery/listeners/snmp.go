@@ -156,10 +156,9 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	} else {
 		defer params.Conn.Close()
 
-		oids := []string{"1.3.6.1.2.1.1.2.0"}
 		// Since `params<GoSNMP>.ContextEngineID` is empty
-		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
-		value, err := params.Get(oids)
+		// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
+		value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
 		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
 			l.deleteService(entityID, job.subnet)
@@ -348,8 +347,8 @@ func (s *SNMPService) GetPorts(context.Context) ([]ContainerPort, error) {
 }
 
 // GetTags returns the list of container tags - currently always empty
-func (s *SNMPService) GetTags() ([]string, string, error) {
-	return []string{}, "", nil
+func (s *SNMPService) GetTags() ([]string, error) {
+	return []string{}, nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported

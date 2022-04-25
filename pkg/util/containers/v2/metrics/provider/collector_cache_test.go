@@ -46,19 +46,19 @@ func TestCollectorCache(t *testing.T) {
 	collectorCache := NewCollectorCache(actualCollector)
 	assert.Equal(t, collectorCache.ID(), actualCollector.ID())
 
-	cStats, err := collectorCache.GetContainerStats("cID1", time.Minute)
+	cStats, err := collectorCache.GetContainerStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 100.0, *cStats.CPU.Total)
 
-	ncStats, err := collectorCache.GetContainerNetworkStats("cID1", time.Minute)
+	ncStats, err := collectorCache.GetContainerNetworkStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 110.0, *ncStats.BytesSent)
 
-	cStats2, err := collectorCache.GetContainerStats("cID2", time.Minute)
+	cStats2, err := collectorCache.GetContainerStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 200.0, *cStats2.CPU.Total)
 
-	ncStats2, err := collectorCache.GetContainerNetworkStats("cID2", time.Minute)
+	ncStats2, err := collectorCache.GetContainerNetworkStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 210.0, *ncStats2.BytesSent)
 
@@ -86,16 +86,16 @@ func TestCollectorCache(t *testing.T) {
 	}
 	actualCollector.cIDForPID[2] = "cID22"
 
-	cStats, err = collectorCache.GetContainerStats("cID1", time.Minute)
+	cStats, err = collectorCache.GetContainerStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 100.0, *cStats.CPU.Total)
 
-	ncStats, err = collectorCache.GetContainerNetworkStats("cID1", time.Minute)
+	ncStats, err = collectorCache.GetContainerNetworkStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 110.0, *ncStats.BytesSent)
 
 	// Force refresh
-	cStats2, err = collectorCache.GetContainerStats("cID2", 0)
+	cStats2, err = collectorCache.GetContainerStats("", "cID2", 0)
 	assert.NoError(t, err)
 	assert.Equal(t, 250.0, *cStats2.CPU.Total)
 
@@ -104,7 +104,7 @@ func TestCollectorCache(t *testing.T) {
 	assert.Equal(t, "cID22", cID2)
 
 	// Verify networkStats was not refreshed
-	ncStats2, err = collectorCache.GetContainerNetworkStats("cID2", time.Minute)
+	ncStats2, err = collectorCache.GetContainerNetworkStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 210.0, *ncStats2.BytesSent)
 

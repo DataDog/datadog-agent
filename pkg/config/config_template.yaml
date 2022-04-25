@@ -1145,6 +1145,13 @@ api_key:
   #
   # log_throttling: true
 
+  ## @param connection_limit - integer - default: 2000
+  ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
+  ## The APM connection limit for the Agent.
+  ## See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
+  #
+  # connection_limit: 2000
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
@@ -2448,6 +2455,13 @@ api_key:
   ## See https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#reinvocation-policy
   #
   # reinvocation_policy: IfNeeded
+
+  ## @param add_aks_selectors - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS - boolean - optional - default: false
+  ## Adds in the admission controller webhook the selectors that are required in AKS.
+  ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
+  #
+  # add_aks_selectors: false
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -3019,10 +3033,11 @@ api_key:
 #
 # snmp_traps_config:
 
-  ## @param port - integer - optional - default: 162
+  ## @param port - integer - optional - default: 9162
   ## The UDP port to use when listening for incoming trap packets.
+  ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
   #
-  # port: 162
+  # port: 9162
 
   ## @param community_strings - list of strings - required
   ## A list of known SNMP community strings that devices can use to send traps to the Agent.
@@ -3058,9 +3073,9 @@ api_key:
 
   ## @param bind_host - string - optional
   ## The hostname to listen on for incoming trap packets.
-  ## Defaults to the global `bind_host` config option value.
+  ## Binds to 0.0.0.0 by default (accepting all packets).
   #
-  # bind_host: <BIND_HOST>
+  # bind_host: 0.0.0.0
 
   ## stop_timeout - float - optional - default: 5.0
   ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
@@ -3216,7 +3231,7 @@ api_key:
         ## - `raw_value` to report the raw value as a Datadog gauge.
         #
         # cumulative_monotonic_mode: to_delta
-    
+
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.

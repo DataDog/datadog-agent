@@ -17,8 +17,15 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/pkg/errors"
 )
+
+var myPid int
+
+func init() {
+	myPid = manager.Getpid()
+}
 
 type KprobeStats struct {
 	Hits   int64
@@ -26,7 +33,7 @@ type KprobeStats struct {
 }
 
 // event name format is p|r_<funcname>_<uid>_<pid>
-var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)(_[^_]*)(_[^_]*)$`)
+var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
 
 // KprobeProfile is the default path to the kprobe_profile file
 const KprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
@@ -43,6 +50,14 @@ func GetProbeStats() map[string]int64 {
 	for event, st := range m {
 		parts := eventRegexp.FindStringSubmatch(event)
 		if len(parts) > 2 {
+			// only get stats for our pid
+			if len(parts) > 3 {
+				if pid, err := strconv.ParseInt(parts[3], 10, 32); err != nil {
+					if int(pid) != myPid {
+						continue
+					}
+				}
+			}
 			// strip UID and PID from name
 			event = parts[1]
 		}

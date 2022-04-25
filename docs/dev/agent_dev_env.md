@@ -102,9 +102,9 @@ specified in our build images (see e.g. [here](https://github.com/DataDog/datado
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 
-## Installing dependencies
+## Installing tooling
 
-From the root of `datadog-agent`, run `invoke install-tools` to install go tooling, then `invoke deps` to install go dependencies. This uses `go` to install the necessary dependencies.
+From the root of `datadog-agent`, run `invoke install-tools` to install go tooling. This uses `go` to install the necessary dependencies.
 
 ## System or Embedded?
 

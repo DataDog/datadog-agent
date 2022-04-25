@@ -87,10 +87,10 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 // ScrubFile scrubs credentials from file given by pathname
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
-	defer file.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 	return c.scrubReader(file)
 }
 

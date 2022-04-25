@@ -99,8 +99,8 @@ func (s *EnvironmentService) GetPorts(context.Context) ([]ContainerPort, error) 
 }
 
 // GetTags retrieves a container's tags
-func (s *EnvironmentService) GetTags() ([]string, string, error) {
-	return nil, "", nil
+func (s *EnvironmentService) GetTags() ([]string, error) {
+	return nil, nil
 }
 
 // GetPid inspect the container and return its pid

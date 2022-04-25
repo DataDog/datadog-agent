@@ -150,12 +150,14 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ---- | ---------- |
 | `container.id` | string | ID of the container |
 | `container.tags` | string | Tags of the container |
+| `network.destination.ip` | net.IP | IP address |
 | `network.destination.port` | int | Port number |
 | `network.device.ifindex` | int | interface ifindex |
 | `network.device.ifname` | string | interface ifname |
 | `network.l3_protocol` | int | l3 protocol of the network packet |
 | `network.l4_protocol` | int | l4 protocol of the network packet |
 | `network.size` | int | size in bytes of the network packet |
+| `network.source.ip` | net.IP | IP address |
 | `network.source.port` | int | Port number |
 | `process.ancestors.args` | string | Arguments of the process (as a string) |
 | `process.ancestors.args_flags` | string | Arguments of the process (as an array) |
@@ -177,7 +179,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.euid` | int | Effective UID of the process |
 | `process.ancestors.euser` | string | Effective user of the process |
 | `process.ancestors.file.change_time` | int | Change time of the file |
-| `process.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `process.ancestors.file.filesystem` | string | File's filesystem |
 | `process.ancestors.file.gid` | int | GID of the file's owner |
 | `process.ancestors.file.group` | string | Group of the file's owner |
 | `process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -185,8 +187,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.file.mode` | int | Mode/rights of the file |
 | `process.ancestors.file.modification_time` | int | Modification time of the file |
 | `process.ancestors.file.mount_id` | int | Mount ID of the file |
-| `process.ancestors.file.name` | string | Basename of the path of the process executable |
-| `process.ancestors.file.path` | string | Path of the process executable |
+| `process.ancestors.file.name` | string | File's basename |
+| `process.ancestors.file.path` | string | File's path |
 | `process.ancestors.file.rights` | int | Mode/rights of the file |
 | `process.ancestors.file.uid` | int | UID of the file's owner |
 | `process.ancestors.file.user` | string | User of the file's owner |
@@ -222,7 +224,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.euid` | int | Effective UID of the process |
 | `process.euser` | string | Effective user of the process |
 | `process.file.change_time` | int | Change time of the file |
-| `process.file.filesystem` | string | FileSystem of the process executable |
+| `process.file.filesystem` | string | File's filesystem |
 | `process.file.gid` | int | GID of the file's owner |
 | `process.file.group` | string | Group of the file's owner |
 | `process.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -230,8 +232,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.file.mode` | int | Mode/rights of the file |
 | `process.file.modification_time` | int | Modification time of the file |
 | `process.file.mount_id` | int | Mount ID of the file |
-| `process.file.name` | string | Basename of the path of the process executable |
-| `process.file.path` | string | Path of the process executable |
+| `process.file.name` | string | File's basename |
+| `process.file.path` | string | File's path |
 | `process.file.rights` | int | Mode/rights of the file |
 | `process.file.uid` | int | UID of the file's owner |
 | `process.file.user` | string | User of the file's owner |
@@ -361,7 +363,7 @@ A process was executed or forked
 | `exec.euid` | int | Effective UID of the process |
 | `exec.euser` | string | Effective user of the process |
 | `exec.file.change_time` | int | Change time of the file |
-| `exec.file.filesystem` | string | FileSystem of the process executable |
+| `exec.file.filesystem` | string | File's filesystem |
 | `exec.file.gid` | int | GID of the file's owner |
 | `exec.file.group` | string | Group of the file's owner |
 | `exec.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -369,8 +371,8 @@ A process was executed or forked
 | `exec.file.mode` | int | Mode/rights of the file |
 | `exec.file.modification_time` | int | Modification time of the file |
 | `exec.file.mount_id` | int | Mount ID of the file |
-| `exec.file.name` | string | Basename of the path of the process executable |
-| `exec.file.path` | string | Path of the process executable |
+| `exec.file.name` | string | File's basename |
+| `exec.file.path` | string | File's path |
 | `exec.file.rights` | int | Mode/rights of the file |
 | `exec.file.uid` | int | UID of the file's owner |
 | `exec.file.user` | string | User of the file's owner |
@@ -557,7 +559,7 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |
 | `ptrace.tracee.ancestors.euser` | string | Effective user of the process |
 | `ptrace.tracee.ancestors.file.change_time` | int | Change time of the file |
-| `ptrace.tracee.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `ptrace.tracee.ancestors.file.filesystem` | string | File's filesystem |
 | `ptrace.tracee.ancestors.file.gid` | int | GID of the file's owner |
 | `ptrace.tracee.ancestors.file.group` | string | Group of the file's owner |
 | `ptrace.tracee.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -565,8 +567,8 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.file.mode` | int | Mode/rights of the file |
 | `ptrace.tracee.ancestors.file.modification_time` | int | Modification time of the file |
 | `ptrace.tracee.ancestors.file.mount_id` | int | Mount ID of the file |
-| `ptrace.tracee.ancestors.file.name` | string | Basename of the path of the process executable |
-| `ptrace.tracee.ancestors.file.path` | string | Path of the process executable |
+| `ptrace.tracee.ancestors.file.name` | string | File's basename |
+| `ptrace.tracee.ancestors.file.path` | string | File's path |
 | `ptrace.tracee.ancestors.file.rights` | int | Mode/rights of the file |
 | `ptrace.tracee.ancestors.file.uid` | int | UID of the file's owner |
 | `ptrace.tracee.ancestors.file.user` | string | User of the file's owner |
@@ -602,7 +604,7 @@ A ptrace command was executed
 | `ptrace.tracee.euid` | int | Effective UID of the process |
 | `ptrace.tracee.euser` | string | Effective user of the process |
 | `ptrace.tracee.file.change_time` | int | Change time of the file |
-| `ptrace.tracee.file.filesystem` | string | FileSystem of the process executable |
+| `ptrace.tracee.file.filesystem` | string | File's filesystem |
 | `ptrace.tracee.file.gid` | int | GID of the file's owner |
 | `ptrace.tracee.file.group` | string | Group of the file's owner |
 | `ptrace.tracee.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -610,8 +612,8 @@ A ptrace command was executed
 | `ptrace.tracee.file.mode` | int | Mode/rights of the file |
 | `ptrace.tracee.file.modification_time` | int | Modification time of the file |
 | `ptrace.tracee.file.mount_id` | int | Mount ID of the file |
-| `ptrace.tracee.file.name` | string | Basename of the path of the process executable |
-| `ptrace.tracee.file.path` | string | Path of the process executable |
+| `ptrace.tracee.file.name` | string | File's basename |
+| `ptrace.tracee.file.path` | string | File's path |
 | `ptrace.tracee.file.rights` | int | Mode/rights of the file |
 | `ptrace.tracee.file.uid` | int | UID of the file's owner |
 | `ptrace.tracee.file.user` | string | User of the file's owner |
@@ -799,7 +801,7 @@ A signal was sent
 | `signal.target.ancestors.euid` | int | Effective UID of the process |
 | `signal.target.ancestors.euser` | string | Effective user of the process |
 | `signal.target.ancestors.file.change_time` | int | Change time of the file |
-| `signal.target.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `signal.target.ancestors.file.filesystem` | string | File's filesystem |
 | `signal.target.ancestors.file.gid` | int | GID of the file's owner |
 | `signal.target.ancestors.file.group` | string | Group of the file's owner |
 | `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -807,8 +809,8 @@ A signal was sent
 | `signal.target.ancestors.file.mode` | int | Mode/rights of the file |
 | `signal.target.ancestors.file.modification_time` | int | Modification time of the file |
 | `signal.target.ancestors.file.mount_id` | int | Mount ID of the file |
-| `signal.target.ancestors.file.name` | string | Basename of the path of the process executable |
-| `signal.target.ancestors.file.path` | string | Path of the process executable |
+| `signal.target.ancestors.file.name` | string | File's basename |
+| `signal.target.ancestors.file.path` | string | File's path |
 | `signal.target.ancestors.file.rights` | int | Mode/rights of the file |
 | `signal.target.ancestors.file.uid` | int | UID of the file's owner |
 | `signal.target.ancestors.file.user` | string | User of the file's owner |
@@ -844,7 +846,7 @@ A signal was sent
 | `signal.target.euid` | int | Effective UID of the process |
 | `signal.target.euser` | string | Effective user of the process |
 | `signal.target.file.change_time` | int | Change time of the file |
-| `signal.target.file.filesystem` | string | FileSystem of the process executable |
+| `signal.target.file.filesystem` | string | File's filesystem |
 | `signal.target.file.gid` | int | GID of the file's owner |
 | `signal.target.file.group` | string | Group of the file's owner |
 | `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -852,8 +854,8 @@ A signal was sent
 | `signal.target.file.mode` | int | Mode/rights of the file |
 | `signal.target.file.modification_time` | int | Modification time of the file |
 | `signal.target.file.mount_id` | int | Mount ID of the file |
-| `signal.target.file.name` | string | Basename of the path of the process executable |
-| `signal.target.file.path` | string | Path of the process executable |
+| `signal.target.file.name` | string | File's basename |
+| `signal.target.file.path` | string | File's path |
 | `signal.target.file.rights` | int | Mode/rights of the file |
 | `signal.target.file.uid` | int | UID of the file's owner |
 | `signal.target.file.user` | string | User of the file's owner |

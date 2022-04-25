@@ -133,12 +133,19 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
+	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	return &network.Connections{
 		BufferedData:  delta.BufferedData,
 		DNS:           names,
 		DNSStats:      delta.DNSStats,
-		ConnTelemetry: t.getConnTelemetry(),
+		ConnTelemetry: telemetryDelta,
 	}, nil
+}
+
+// RegisterClient registers the client
+func (t *Tracer) RegisterClient(clientID string) error {
+	t.state.RegisterClient(clientID)
+	return nil
 }
 
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {

@@ -32,14 +32,7 @@ core,github.com/DataDog/btf-internals/sys,MIT,"Copyright (c) 2017 Nathan Sweet |
 core,github.com/DataDog/btf-internals/unix,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/DataDog/datadog-go/v5/statsd,MIT,"Copyright (c) 2015 Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/ebpf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium | Copyright (c) 2020 Authors of Datadog"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
-core,github.com/DataDog/ebpf/asm,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium | Copyright (c) 2020 Authors of Datadog"
-core,github.com/DataDog/ebpf/internal,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium | Copyright (c) 2020 Authors of Datadog"
-core,github.com/DataDog/ebpf/internal/btf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium | Copyright (c) 2020 Authors of Datadog"
-core,github.com/DataDog/ebpf/internal/unix,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium | Copyright (c) 2020 Authors of Datadog"
-core,github.com/DataDog/ebpf/manager,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium | Copyright (c) 2020 Authors of Datadog"
-core,github.com/DataDog/ebpf/perf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium | Copyright (c) 2020 Authors of Datadog"
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/gohai/cpu,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/filesystem,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
@@ -340,9 +333,6 @@ core,github.com/fatih/color,MIT,Copyright (c) 2013 Fatih Arslan
 core,github.com/felixge/httpsnoop,MIT,Copyright (c) 2016 Felix Geisendörfer (felix@debuggable.com)
 core,github.com/florianl/go-conntrack,MIT,Copyright (C) 2018  Florian Lehner <dev@der-flo.net>
 core,github.com/florianl/go-conntrack/internal/unix,MIT,Copyright (C) 2018  Florian Lehner <dev@der-flo.net>
-core,github.com/florianl/go-tc,MIT,Copyright (C) 2019-2020  Florian Lehner <dev@der-flo.net>
-core,github.com/florianl/go-tc/core,MIT,Copyright (C) 2019-2020  Florian Lehner <dev@der-flo.net>
-core,github.com/florianl/go-tc/internal/unix,MIT,Copyright (C) 2019-2020  Florian Lehner <dev@der-flo.net>
 core,github.com/freddierice/go-losetup,MIT,Copyright (c) 2017 Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
 core,github.com/ghodss/yaml,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2014 Sam Ghods
@@ -622,6 +612,7 @@ core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@c
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
 core,github.com/prometheus/client_golang/prometheus,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/client_golang/prometheus/collectors,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/prometheus/internal,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/prometheus/promauto,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/prometheus/promhttp,Apache-2.0,Copyright 2012-2015 The Prometheus Authors

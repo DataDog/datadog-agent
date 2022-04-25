@@ -24,9 +24,12 @@ func (ev *Event) ResolveFields() {
 	_ = ev.ResolveProcessEnvp(&ev.ProcessContext.Process)
 	_ = ev.ResolveProcessEnvs(&ev.ProcessContext.Process)
 	_ = ev.ResolveProcessEnvsTruncated(&ev.ProcessContext.Process)
-	_ = ev.ResolveFileFieldsGroup(&ev.ProcessContext.Process.FileFields)
-	_ = ev.ResolveFileFieldsInUpperLayer(&ev.ProcessContext.Process.FileFields)
-	_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Process.FileFields)
+	_ = ev.ResolveFileFilesystem(&ev.ProcessContext.Process.FileEvent)
+	_ = ev.ResolveFileFieldsGroup(&ev.ProcessContext.Process.FileEvent.FileFields)
+	_ = ev.ResolveFileFieldsInUpperLayer(&ev.ProcessContext.Process.FileEvent.FileFields)
+	_ = ev.ResolveFileBasename(&ev.ProcessContext.Process.FileEvent)
+	_ = ev.ResolveFilePath(&ev.ProcessContext.Process.FileEvent)
+	_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Process.FileEvent.FileFields)
 
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
@@ -57,9 +60,12 @@ func (ev *Event) ResolveFields() {
 	case "dns":
 
 	case "exec":
-		_ = ev.ResolveFileFieldsUser(&ev.Exec.Process.FileFields)
-		_ = ev.ResolveFileFieldsGroup(&ev.Exec.Process.FileFields)
-		_ = ev.ResolveFileFieldsInUpperLayer(&ev.Exec.Process.FileFields)
+		_ = ev.ResolveFileFieldsUser(&ev.Exec.Process.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsGroup(&ev.Exec.Process.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.Exec.Process.FileEvent.FileFields)
+		_ = ev.ResolveFilePath(&ev.Exec.Process.FileEvent)
+		_ = ev.ResolveFileBasename(&ev.Exec.Process.FileEvent)
+		_ = ev.ResolveFileFilesystem(&ev.Exec.Process.FileEvent)
 		_ = ev.ResolveProcessCreatedAt(&ev.Exec.Process)
 		_ = ev.ResolveProcessArgv0(&ev.Exec.Process)
 		_ = ev.ResolveProcessArgs(&ev.Exec.Process)
@@ -118,9 +124,12 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveFileFilesystem(&ev.Open.File)
 
 	case "ptrace":
-		_ = ev.ResolveFileFieldsUser(&ev.PTrace.Tracee.Process.FileFields)
-		_ = ev.ResolveFileFieldsGroup(&ev.PTrace.Tracee.Process.FileFields)
-		_ = ev.ResolveFileFieldsInUpperLayer(&ev.PTrace.Tracee.Process.FileFields)
+		_ = ev.ResolveFileFieldsUser(&ev.PTrace.Tracee.Process.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsGroup(&ev.PTrace.Tracee.Process.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.PTrace.Tracee.Process.FileEvent.FileFields)
+		_ = ev.ResolveFilePath(&ev.PTrace.Tracee.Process.FileEvent)
+		_ = ev.ResolveFileBasename(&ev.PTrace.Tracee.Process.FileEvent)
+		_ = ev.ResolveFileFilesystem(&ev.PTrace.Tracee.Process.FileEvent)
 		_ = ev.ResolveProcessCreatedAt(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessArgv0(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessArgs(&ev.PTrace.Tracee.Process)
@@ -186,9 +195,12 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveXAttrName(&ev.SetXAttr)
 
 	case "signal":
-		_ = ev.ResolveFileFieldsUser(&ev.Signal.Target.Process.FileFields)
-		_ = ev.ResolveFileFieldsGroup(&ev.Signal.Target.Process.FileFields)
-		_ = ev.ResolveFileFieldsInUpperLayer(&ev.Signal.Target.Process.FileFields)
+		_ = ev.ResolveFileFieldsUser(&ev.Signal.Target.Process.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsGroup(&ev.Signal.Target.Process.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.Signal.Target.Process.FileEvent.FileFields)
+		_ = ev.ResolveFilePath(&ev.Signal.Target.Process.FileEvent)
+		_ = ev.ResolveFileBasename(&ev.Signal.Target.Process.FileEvent)
+		_ = ev.ResolveFileFilesystem(&ev.Signal.Target.Process.FileEvent)
 		_ = ev.ResolveProcessCreatedAt(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessArgv0(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessArgs(&ev.Signal.Target.Process)

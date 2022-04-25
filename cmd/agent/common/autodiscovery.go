@@ -118,11 +118,12 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			listeners = append(listeners, config.Listeners{Name: name})
 		}
 
-		// The "docker" listener was replaced with the "container" one that
-		// supports Docker, but also other runtimes. We need this conversion to
-		// avoid breaking configs that included "docker".
+		// The "docker" and "ecs" listeners were replaced with the
+		// "container" one that supports several container runtimes. We
+		// need this conversion to avoid breaking older configs that
+		// included the older listeners.
 		for i := range listeners {
-			if listeners[i].Name == "docker" {
+			if listeners[i].Name == "docker" || listeners[i].Name == "ecs" {
 				listeners[i].Name = "container"
 			}
 		}

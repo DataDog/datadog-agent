@@ -9,7 +9,6 @@
 package listeners
 
 import (
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -22,10 +21,6 @@ import (
 )
 
 const (
-	// Label keys of Container Autodiscovery
-	newIdentifierLabel            = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel         = "com.datadoghq.sd.check.id"
-	containerADTemplateCheckNames = "com.datadoghq.ad.check_names"
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -37,49 +32,6 @@ type containerFilters struct {
 	global  *containers.Filter
 	metrics *containers.Filter
 	logs    *containers.Filter
-}
-
-// ComputeContainerServiceIDs takes an entity name, an image (resolved to an actual name) and labels
-// and computes the service IDs for this container service.
-func ComputeContainerServiceIDs(entity string, image string, labels map[string]string) []string {
-	// ID override label
-	if l, found := labels[newIdentifierLabel]; found {
-		return []string{l}
-	}
-	if l, found := labels[legacyIdentifierLabel]; found {
-		log.Warnf("found legacy %s label for %s, please use the new name %s",
-			legacyIdentifierLabel, entity, newIdentifierLabel)
-		return []string{l}
-	}
-
-	ids := []string{entity}
-
-	// Add Image names (long then short if different)
-	long, short, _, err := containers.SplitImageName(image)
-	if err != nil {
-		log.Warnf("error while spliting image name: %s", err)
-	}
-	if len(long) > 0 {
-		ids = append(ids, long)
-	}
-	if len(short) > 0 && short != long {
-		ids = append(ids, short)
-	}
-	return ids
-}
-
-// getCheckNamesFromLabels unmarshals the json string of check names
-// defined in container labels and returns a slice of check names
-func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
-	if checkLabels, found := labels[containerADTemplateCheckNames]; found {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(checkLabels), &checkNames)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %v", err)
-		}
-		return checkNames, nil
-	}
-	return nil, nil
 }
 
 // getStandardTags extract standard tags from labels of kubernetes services

@@ -291,6 +291,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
+	// Remote config products
+	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -422,7 +424,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
-	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel", true)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
 
@@ -630,11 +631,11 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.namespace")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
-	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 9162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
 	// No default as the agent falls back to `network_devices.namespace` if empty.
 	config.BindEnv("snmp_traps_config.namespace")
-	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 	config.SetKnown("snmp_traps_config.users")
 
@@ -857,7 +858,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
 	config.BindEnvAndSetDefault("external_metrics_provider.enabled", false)
-	config.BindEnvAndSetDefault("external_metrics_provider.port", 443)
+	config.BindEnvAndSetDefault("external_metrics_provider.port", 8443)
 	config.BindEnvAndSetDefault("external_metrics_provider.endpoint", "")                 // Override the Datadog API endpoint to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.api_key", "")                  // Override the Datadog API Key for external metrics endpoint
 	config.BindEnvAndSetDefault("external_metrics_provider.app_key", "")                  // Override the Datadog APP Key for external metrics endpoint
@@ -912,6 +913,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.namespace_selector_fallback", false)
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
+	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1012,6 +1014,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
@@ -1249,6 +1252,11 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		}
 	}
 
+	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
+	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
 	// ignoring the python_version configuration value.
 	if ForceDefaultPython == "true" {
@@ -1303,6 +1311,14 @@ func ResolveSecrets(config Config, origin string) error {
 		}
 	}
 	return nil
+}
+
+// EnvVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
+func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
+	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
+	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
+
+	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
 // SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
@@ -1394,10 +1410,6 @@ func getMainInfraEndpointWithConfig(config Config) string {
 
 // GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
 func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
-	if envVarAreSetAndNotEqual(config, "DD_DD_URL", "DD_URL") {
-		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. URL key is set to 'DD_DD_URL' value")
-	}
-
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
 		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
@@ -1407,14 +1419,6 @@ func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (r
 		resolvedDDURL = prefix + DefaultSite
 	}
 	return
-}
-
-// envVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
-func envVarAreSetAndNotEqual(config Config, lhsName string, rhsName string) bool {
-	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
-	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
-
-	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
 // GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
@@ -1510,7 +1514,7 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	cloudProviderFromConfig := Datadog.GetStringSlice("cloud_provider_metadata")
 
 	for _, cloudName := range cloudProviderFromConfig {
-		if strings.ToLower(cloudName) == strings.ToLower(cloudProviderName) {
+		if strings.EqualFold(cloudName, cloudProviderName) {
 			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
 				cloudProviderFromConfig,
 				cloudProviderName)

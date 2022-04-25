@@ -125,6 +125,9 @@ static __always_inline int http_begin_response(http_transaction_t *http, const c
     __u8 space_found = 0;
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
+	    // buffer might contain a null terminator in the middle
+        if (buffer[i] == 0) break;
+
         if (!space_found && buffer[i] == ' ') {
             space_found = 1;
         } else if (space_found && status_code < 100) {
@@ -143,25 +146,25 @@ static __always_inline int http_begin_response(http_transaction_t *http, const c
 static __always_inline void http_parse_data(char *p, http_packet_t *packet_type, http_method_t *method) {
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
         *packet_type = HTTP_RESPONSE;
-    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T')) {
+    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_GET;
-    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T')) {
+    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T') && (p[4]  == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_POST;
-    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T')) {
+    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PUT;
-    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) {
+    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E') && (p[6]  == ' ') && (p[7] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_DELETE;
-    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D')) {
+    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D') && (p[4]  == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_HEAD;
-    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S')) {
+    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S') && (p[7]  == ' ') && ((p[8] == '/') || (p[8] == '*'))) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_OPTIONS;
-    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H')) {
+    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H') && (p[5]  == ' ') && (p[6] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PATCH;
     }

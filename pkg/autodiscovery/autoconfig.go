@@ -254,7 +254,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			cfgs = goodConfs
 		}
 		// Store all raw configs in the provider
-		pd.configs = cfgs
+		pd.overwriteConfigs(cfgs)
 
 		// resolve configs if needed
 		for _, config := range cfgs {
@@ -465,6 +465,8 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	return conf, nil
 }
 
+// processRemovedConfigs unschedules configs that have previously been loaded,
+// including removing them from the loadeConfigs map.
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
@@ -541,7 +543,7 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 // resolveTemplateForService calls the config resolver for the template against the service,
 // decrypts secrets and stores the resolved config and service mapping if successful
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	config, tagsHash, err := configresolver.Resolve(tpl, svc)
+	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
@@ -555,10 +557,6 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	ac.store.setLoadedConfig(resolvedConfig)
 	ac.store.addConfigForService(svc.GetServiceID(), resolvedConfig)
 	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
-	ac.store.setTagsHashForService(
-		svc.GetTaggerEntity(),
-		tagsHash,
-	)
 	errorStats.removeResolveWarnings(tpl.Name)
 	return resolvedConfig, nil
 }
@@ -656,7 +654,6 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
-
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache

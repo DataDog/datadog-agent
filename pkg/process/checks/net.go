@@ -8,8 +8,6 @@ package checks
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -17,7 +15,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
@@ -37,6 +34,9 @@ var (
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
+
+	// ProcessAgentClientID process-agent unique ID
+	ProcessAgentClientID = "process-agent-unique-id"
 )
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
@@ -44,7 +44,6 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          map[string]int64
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID atomic.Value
@@ -55,20 +54,28 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
-	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
+	c.tracerClientID = ProcessAgentClientID
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
 	net.SetSystemProbePath(cfg.SystemProbeAddress)
-	_, _ = net.GetRemoteSystemProbeUtil()
+	tu, err := net.GetRemoteSystemProbeUtil()
+
+	if err != nil {
+		log.Warnf("could not initiate connection with system probe: %s", err)
+	} else {
+		// Register process agent as a system probe's client
+		// This ensures we start recording data from now to the first call to `Run`
+		err = tu.Register(c.tracerClientID)
+		if err != nil {
+			log.Warnf("could not register process-agent to system-probe: %s", err)
+		}
+	}
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
-
-	// Run the check one time on init to register the client on the system probe
-	_, _ = c.Run(cfg, 0)
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -99,12 +106,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	connTel := c.diffAndFormatTelemetry(conns.ConnTelemetryMap)
-
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -129,50 +134,6 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 		conn.PidCreateTime = createTimeForPID[conn.Pid]
 	}
 	return conns
-}
-
-func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[string]int64 {
-	if tel == nil {
-		return nil
-	}
-	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
-	if c.lastTelemetry == nil {
-		c.lastTelemetry = make(map[string]int64)
-		c.saveMonotonicTelemetry(tel)
-		return nil
-	}
-
-	cct := map[string]int64{}
-
-	// The system-probe reports different telemetry on Linux vs on Windows, so we need to make sure to only
-	// report the telemetry which is actually provided by the currently running version of the system-probe
-	for _, telemetryType := range network.ConnTelemetryTypes {
-		telemetryMetricName := string(telemetryType)
-		if _, ok := tel[telemetryMetricName]; ok {
-			cct[telemetryMetricName] = tel[telemetryMetricName]
-		}
-	}
-
-	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
-		telemetryMetricName := string(telemetryType)
-		if _, ok := tel[telemetryMetricName]; ok {
-			cct[telemetryMetricName] = tel[telemetryMetricName] - c.lastTelemetry[telemetryMetricName]
-		}
-	}
-
-	c.saveMonotonicTelemetry(tel)
-	return cct
-}
-
-func (c *ConnectionsCheck) saveMonotonicTelemetry(tel map[string]int64) {
-	if tel == nil || c.lastTelemetry == nil {
-		return
-	}
-
-	for _, telemetryType := range network.MonotonicConnTelemetryTypes {
-		telemetryMetricName := string(telemetryType)
-		c.lastTelemetry[telemetryMetricName] = tel[telemetryMetricName]
-	}
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {

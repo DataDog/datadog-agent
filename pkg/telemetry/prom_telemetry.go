@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -17,8 +18,8 @@ var (
 )
 
 func init() {
-	telemetryRegistry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-	telemetryRegistry.MustRegister(prometheus.NewGoCollector())
+	telemetryRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	telemetryRegistry.MustRegister(collectors.NewGoCollector())
 }
 
 // Handler serves the HTTP route containing the prometheus metrics.
