@@ -171,76 +171,89 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 		return nil, nil
 	}
 
-	var treeIn interface{}
+	var tree interface{}
 
 	// Percent character is not allowed in unquoted yaml strings.
 	data2 := strings.ReplaceAll(string(data), "%%", "‰")
-	if err := yaml.Unmarshal([]byte(data2), &treeIn); err != nil {
+	if err := yaml.Unmarshal([]byte(data2), &tree); err != nil {
 		return data, err
 	}
 
-	treeOut, err := visitInterface(ctx, treeIn, svc)
-	if err != nil {
-		return data, err
+	type treePointer struct {
+		get func() interface{}
+		set func(interface{})
+	}
+
+	stack := []treePointer{
+		{
+			get: func() interface{} {
+				return tree
+			},
+			set: func(x interface{}) {
+				tree = x
+			},
+		},
+	}
+
+	for len(stack) > 0 {
+		n := len(stack) - 1
+		top := stack[n]
+		stack = stack[:n]
+
+		switch elem := top.get().(type) {
+
+		case map[interface{}]interface{}:
+			for k, v := range elem {
+				k2, v2 := k, v
+				stack = append(stack, treePointer{
+					get: func() interface{} {
+						return v2
+					},
+					set: func(x interface{}) {
+						elem[k2] = x
+					},
+				})
+			}
+
+		case []interface{}:
+			for i, v := range elem {
+				i2, v2 := i, v
+				stack = append(stack, treePointer{
+					get: func() interface{} {
+						return v2
+					},
+					set: func(x interface{}) {
+						elem[i2] = x
+					},
+				})
+			}
+
+		case string:
+			s, err := resolveStringWithTemplateVars(ctx, elem, svc)
+			if err != nil {
+				return data, err
+			}
+			top.set(s)
+
+		case int, bool:
+
+		default:
+			return data, fmt.Errorf("Unknown type: %T", elem)
+		}
 	}
 
 	if postProcessor != nil {
-		if err := postProcessor(treeOut); err != nil {
+		if err := postProcessor(tree); err != nil {
 			return data, err
 		}
 	}
 
-	return yaml.Marshal(&treeOut)
-}
-
-func visitInterface(ctx context.Context, in interface{}, svc listeners.Service) (interface{}, error) {
-	switch e := in.(type) {
-	case map[interface{}]interface{}:
-		return visitMap(ctx, e, svc)
-	case []interface{}:
-		return visitList(ctx, e, svc)
-	case string:
-		return visitString(ctx, e, svc)
-	case int:
-		return in, nil
-	default:
-		log.Errorf("I don't know about type %T.\n", e)
-		return in, nil
-	}
-	return nil, nil
-}
-
-func visitMap(ctx context.Context, in map[interface{}]interface{}, svc listeners.Service) (out map[interface{}]interface{}, err error) {
-	out = make(map[interface{}]interface{})
-	for k, v := range in {
-		visitedK, e := visitInterface(ctx, k, svc)
-		if e != nil {
-			err = e
-		}
-		visitedV, e := visitInterface(ctx, v, svc)
-		if e != nil {
-			err = e
-		}
-		out[visitedK] = visitedV
-	}
-	return
-}
-
-func visitList(ctx context.Context, in []interface{}, svc listeners.Service) (out []interface{}, err error) {
-	out = make([]interface{}, len(in))
-	for i, v := range in {
-		visited, e := visitInterface(ctx, v, svc)
-		if e != nil {
-			err = e
-		}
-		out[i] = visited
-	}
-	return
+	return yaml.Marshal(&tree)
 }
 
 var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
 
-func visitString(ctx context.Context, in string, svc listeners.Service) (out interface{}, err error) {
+func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners.Service) (out interface{}, err error) {
 	varIndexes := varPattern.FindAllStringSubmatchIndex(in, -1)
 
 	if len(varIndexes) == 0 {
