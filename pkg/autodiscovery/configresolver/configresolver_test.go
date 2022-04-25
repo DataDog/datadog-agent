@@ -726,3 +726,62 @@ func newFakeContainerPorts() []listeners.ContainerPort {
 		{Port: 3, Name: "baz"},
 	}
 }
+
+func BenchmarkResolve(b *testing.B) {
+	// Prepare envvars for test
+	err := os.Setenv("test_envvar_key", "test_value")
+	require.NoError(b, err)
+	os.Unsetenv("test_envvar_not_set")
+	defer os.Unsetenv("test_envvar_key")
+
+	testCases := []struct {
+		testName    string
+		tpl         integration.Config
+		svc         listeners.Service
+		out         integration.Config
+		errorString string
+	}{
+		{
+			testName: "simple",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\nport: %%port%%\nports:\n- foo: %%port_foo%%\n- bar: %%port_bar%%\n- baz: %%port_baz%%\ntest: %%env_test_envvar_key%%\nurl: http://%%host%%:%%port%%/data")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\nport: 3\nports:\n- foo: 1\n- bar: 2\n- baz: 3\ntags:\n- foo:bar\ntest: test_value\nurl: http://127.0.0.1:3/data\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+	}
+
+	for i, tc := range testCases {
+		b.Run(fmt.Sprintf("case %d: %s", i, tc.testName), func(b *testing.B) {
+			// Make sure we don't modify the template object
+			checksum := tc.tpl.Digest()
+
+			var cfg integration.Config
+			var hash string
+			var err error
+			for i := 0; i < b.N; i++ {
+				cfg, hash, err = Resolve(tc.tpl, tc.svc)
+			}
+			if tc.errorString != "" {
+				assert.EqualError(b, err, tc.errorString)
+			} else {
+				assert.NoError(b, err)
+				assert.Equal(b, tc.out, cfg)
+				assert.Equal(b, checksum, tc.tpl.Digest())
+				assert.Equal(b, "hash", hash) // Resolve must return a non-empty hash if err == nil
+			}
+		})
+	}
+}
