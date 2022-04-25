@@ -49,36 +49,57 @@ func (t *Tailer) readAvailable() (int, error) {
 		return 0, io.EOF
 	}
 
-	f, err := openFile(t.fullpath)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
+	var f *os.File
+	defer func() {
+		if f != nil {
+			f.Close()
+		}
+	}()
 
-	st, err := f.Stat()
-	if err != nil {
-		log.Debugf("Error stat()ing file %v", err)
-		return 0, err
-	}
-
-	sz := st.Size()
-	offset := t.lastReadOffset.Load()
-	if sz < offset {
-		log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
-		return 0, io.EOF
-	}
-
-	f.Seek(offset, io.SeekStart)
 	bytes := 0
-
 	for {
+		if f == nil {
+			f, err := openFile(t.fullpath)
+			if err != nil {
+				return bytes, err
+			}
+			st, err := f.Stat()
+			if err != nil {
+				log.Debugf("Error stat()ing file %v", err)
+				return bytes, err
+			}
+
+			sz := st.Size()
+			offset := t.lastReadOffset.Load()
+			if sz < offset {
+				log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
+				return bytes, io.EOF
+			}
+
+			f.Seek(offset, io.SeekStart)
+		}
+
 		inBuf := make([]byte, 4096)
 		n, err := f.Read(inBuf)
 		bytes += n
 		if n == 0 || err != nil {
 			return bytes, err
 		}
-		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+
+		// Try a non-blocking send to the decoder
+		select {
+		case t.decoder.InputChan <- decoder.NewInput(inBuf[:n]):
+		default:
+			// The non-blocking send failed, and we want to avoid blocking with
+			// the file open. So close the file before performing a blocking
+			// send. The file will be re-opened on the next iteration.
+			f.Close()
+			f = nil
+
+			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+		}
+
+		// record these bytes as having been read
 		t.lastReadOffset.Add(int64(n))
 	}
 }
