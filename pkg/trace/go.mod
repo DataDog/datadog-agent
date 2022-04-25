@@ -21,7 +21,7 @@ require (
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.45.0
-	k8s.io/apimachinery v0.21.5
+	k8s.io/apimachinery v0.23.6
 )
 
 require (
