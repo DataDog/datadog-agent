@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
 
@@ -143,7 +143,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 	}, nil
 }
 
-func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
+func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	consumer := &serializerConsumer{cardinality: e.cardinality}
 	err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
