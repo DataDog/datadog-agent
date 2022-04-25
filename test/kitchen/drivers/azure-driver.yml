@@ -145,11 +145,11 @@ platforms:
   transport:
     <% if windows %>
     name: winrm
-    username: <%= vm_username %>
-    password: <%= vm_password %>
     <% else %>
     connection_retries: 30
     connection_retry_sleep: 2
     <% end %>
+    username: <%= vm_username %>
+    password: <%= vm_password %>
 
 <% end %>
