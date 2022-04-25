@@ -45,7 +45,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 func (t *Tailer) readAvailable() (int, error) {
 	// If the file has already rotated, there is nothing to be done. Unlike on *nix,
 	// there is no open file handle from which remaining data might be read.
-	if t.hasFileRotated() {
+	if t.didFileRotate.Load() {
 		return 0, io.EOF
 	}
 
@@ -79,7 +79,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			return bytes, err
 		}
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-		t.lastReadOffset.Add(n)
+		t.lastReadOffset.Add(int64(n))
 	}
 }
 
