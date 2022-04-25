@@ -139,6 +139,10 @@ func sendDNSQueries(
 	serverIP string,
 	protocol string,
 ) (string, int, []*mdns.Msg) {
+	return sendDNSQueriesOnPort(t, domains, serverIP, "53", protocol)
+}
+
+func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP string, port string, protocol string) (string, int, []*mdns.Msg) {
 	// Create a DNS query message
 	msg := new(mdns.Msg)
 	msg.RecursionDesired = true
@@ -160,7 +164,7 @@ func sendDNSQueries(
 	}
 
 	dnsClient := mdns.Client{Net: protocol, Dialer: localAddrDialer}
-	dnsHost := net.JoinHostPort(serverIP, "53")
+	dnsHost := net.JoinHostPort(serverIP, port)
 	var reps []*mdns.Msg
 
 	if protocol == "tcp" {
@@ -351,6 +355,41 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		require.Equal(t, 1, len(allStats[key2][intern.GetByString(d)][TypeA].CountByRcode))
 		assert.Equal(t, uint32(1), allStats[key2][intern.GetByString(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeServFail)])
 	}
+}
+
+func TestDNSOverNonPort53(t *testing.T) {
+	reverseDNS := initDNSTestsWithDomainCollection(t, true)
+	defer reverseDNS.Close()
+	statKeeper := reverseDNS.statKeeper
+
+	domains := []string{
+		"nonexistent.com.net",
+	}
+	// Set up a local DNS server to return SERVFAIL
+	localServerAddr := &net.UDPAddr{IP: net.ParseIP(localhost), Port: 5353}
+	localServer := &mdns.Server{Addr: localServerAddr.String(), Net: "udp"}
+	localServer.Handler = &handler{}
+	waitLock := sync.Mutex{}
+	waitLock.Lock()
+	localServer.NotifyStartedFunc = waitLock.Unlock
+	defer localServer.Shutdown()
+
+	go func() {
+		if err := localServer.ListenAndServe(); err != nil {
+			t.Fatalf("Failed to set listener %s\n", err.Error())
+		}
+	}()
+	waitLock.Lock()
+	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, localhost, "5353", "udp")
+	require.NotNil(t, reps[0])
+
+	// we only pick up on port 53 traffic, so we shouldn't ever get stats
+	key := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
+	var allStats StatsByKeyByNameByType
+	require.Never(t, func() bool {
+		allStats = statKeeper.Snapshot()
+		return allStats[key] != nil
+	}, 3*time.Second, 10*time.Millisecond, "found DNS data for key %v when it should be missing", key)
 }
 
 func TestDNSOverUDPTimeoutCount(t *testing.T) {
