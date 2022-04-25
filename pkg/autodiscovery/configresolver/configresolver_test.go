@@ -89,8 +89,8 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns extra configuration
-func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte(s.ExtraConfig[string(key)]), nil
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
+	return s.ExtraConfig[key], nil
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -355,7 +355,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
 				ServiceID:     "a5901276aed1",
-				LogsConfig:    integration.Data("host: 127.0.0.1"),
+				LogsConfig:    integration.Data("host: 127.0.0.1\n"),
 			},
 		},
 		{
@@ -439,7 +439,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
-				LogsConfig:    integration.Data("test: test_value"),
+				LogsConfig:    integration.Data("test: test_value\n"),
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -509,7 +509,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("pid: 1337\ntags: [\"foo\"]")},
+				Instances:     []integration.Data{integration.Data("pid: 1337\ntags:\n- foo\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -525,7 +525,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: %%FOO%%")},
 			},
-			errorString: "unable to add tags for service 'a5901276aed1', err: yaml: found character that cannot start any token",
+			errorString: "unable to add tags for service 'a5901276aed1', err: invalid %%FOO%% tag",
 		},
 		//// check overrides
 		{
@@ -677,7 +677,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "ksm",
 				ADIdentifiers: []string{"kube-state-metrics"},
-				Instances:     []integration.Data{integration.Data("host: 10.3.2.1")},
+				Instances:     []integration.Data{integration.Data("host: 10.3.2.1\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -769,10 +769,9 @@ func BenchmarkResolve(b *testing.B) {
 			checksum := tc.tpl.Digest()
 
 			var cfg integration.Config
-			var hash string
 			var err error
 			for i := 0; i < b.N; i++ {
-				cfg, hash, err = Resolve(tc.tpl, tc.svc)
+				cfg, err = Resolve(tc.tpl, tc.svc)
 			}
 			if tc.errorString != "" {
 				assert.EqualError(b, err, tc.errorString)
@@ -780,7 +779,6 @@ func BenchmarkResolve(b *testing.B) {
 				assert.NoError(b, err)
 				assert.Equal(b, tc.out, cfg)
 				assert.Equal(b, checksum, tc.tpl.Digest())
-				assert.Equal(b, "hash", hash) // Resolve must return a non-empty hash if err == nil
 			}
 		})
 	}
