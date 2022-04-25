@@ -148,8 +148,10 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		dictionary["Label"] = c.Label
 		dictionary["Name"] = c.Name
 	case config.JournaldType:
-		dictionary["IncludeUnits"] = strings.Join(c.IncludeUnits, ", ")
-		dictionary["ExcludeUnits"] = strings.Join(c.ExcludeUnits, ", ")
+		dictionary["IncludeSystemUnits"] = strings.Join(c.IncludeSystemUnits, ", ")
+		dictionary["ExcludeSystemUnits"] = strings.Join(c.ExcludeSystemUnits, ", ")
+		dictionary["IncludeUserUnits"] = strings.Join(c.IncludeUserUnits, ", ")
+		dictionary["ExcludeUserUnits"] = strings.Join(c.ExcludeUserUnits, ", ")
 	case config.WindowsEventType:
 		dictionary["ChannelPath"] = c.ChannelPath
 		dictionary["Query"] = c.Query
