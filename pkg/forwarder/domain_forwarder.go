@@ -8,13 +8,13 @@ package forwarder
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
-	isRetrying                *atomic.Bool
+	isRetrying                int32
 	domain                    string
 	numberOfWorkers           int
 	highPrio                  chan transaction.Transaction // use to receive new transactions
@@ -49,7 +49,6 @@ func newDomainForwarder(
 	connectionResetInterval time.Duration,
 	transactionPrioritySorter retry.TransactionPrioritySorter) *domainForwarder {
 	return &domainForwarder{
-		isRetrying:                atomic.NewBool(false),
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
 		retryQueue:                retryQueue,
@@ -63,11 +62,11 @@ func newDomainForwarder(
 func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	// In case it takes more that flushInterval to sort and retry
 	// transactions we skip a retry.
-	if !f.isRetrying.CAS(false, true) {
+	if !atomic.CompareAndSwapInt32(&f.isRetrying, 0, 1) {
 		log.Errorf("The forwarder is still retrying Transaction: this should never happens, you might want to lower the 'forwarder_retry_queue_payloads_max_size'")
 		return
 	}
-	defer f.isRetrying.Store(false)
+	defer atomic.StoreInt32(&f.isRetrying, 0)
 
 	droppedRetryQueueFull := 0
 	droppedWorkerBusy := 0

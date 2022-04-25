@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -199,7 +199,7 @@ type DefaultForwarder struct {
 	domainForwarders map[string]*domainForwarder
 	domainResolvers  map[string]resolver.DomainResolver
 	healthChecker    *forwarderHealth
-	internalState    *atomic.Uint32
+	internalState    uint32     // atomic
 	m                sync.Mutex // To control Start/Stop races
 
 	completionHandler transaction.HTTPCompletionHandler
@@ -216,7 +216,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]resolver.DomainResolver{},
-		internalState:    atomic.NewUint32(Stopped),
+		internalState:    Stopped,
 		healthChecker: &forwarderHealth{
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
@@ -339,7 +339,7 @@ func (f *DefaultForwarder) Start() error {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState.Load() == Started {
+	if atomic.LoadUint32(&f.internalState) == Started {
 		return fmt.Errorf("the forwarder is already started")
 	}
 
@@ -357,7 +357,7 @@ func (f *DefaultForwarder) Start() error {
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
 	f.healthChecker.Start()
-	f.internalState.Store(Started)
+	atomic.StoreUint32(&f.internalState, Started)
 	return nil
 }
 
@@ -368,12 +368,12 @@ func (f *DefaultForwarder) Stop() {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState.Load() == Stopped {
+	if atomic.LoadUint32(&f.internalState) == Stopped {
 		log.Warnf("the forwarder is already stopped")
 		return
 	}
 
-	f.internalState.Store(Stopped)
+	atomic.StoreUint32(&f.internalState, Stopped)
 
 	purgeTimeout := config.Datadog.GetDuration("forwarder_stop_timeout") * time.Second
 	if purgeTimeout > 0 {
@@ -417,7 +417,7 @@ func (f *DefaultForwarder) State() uint32 {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	return f.internalState.Load()
+	return atomic.LoadUint32(&f.internalState)
 }
 func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
 	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, true)
@@ -466,7 +466,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 }
 
 func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
-	if f.internalState.Load() == Stopped {
+	if atomic.LoadUint32(&f.internalState) == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
 	if config.Datadog.GetBool("telemetry.enabled") {
