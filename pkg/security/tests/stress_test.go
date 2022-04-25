@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"sync"
 	"testing"
 	"time"
 
