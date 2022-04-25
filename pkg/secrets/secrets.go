@@ -141,7 +141,7 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 	}
 
 	// First we collect all new handles in the config
-	newHandles := []string{}
+	newHandles := common.NewStringSet()
 	haveSecret := false
 	err = walk(&config, func(str string) (string, error) {
 		if ok, handle := isEnc(str); ok {
@@ -153,7 +153,7 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 				secretOrigin[handle].Add(origin)
 				return secret, nil
 			}
-			newHandles = append(newHandles, handle)
+			newHandles.Add(handle)
 		}
 		return str, nil
 	})
@@ -168,7 +168,7 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 
 	// check if any new secrets need to be fetch
 	if len(newHandles) != 0 {
-		secrets, err := secretFetcher(newHandles, origin)
+		secrets, err := secretFetcher(newHandles.GetAll(), origin)
 		if err != nil {
 			return nil, err
 		}
