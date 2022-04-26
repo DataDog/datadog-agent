@@ -45,21 +45,25 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 func (tx *httpTX) Path(buffer []byte) []byte {
 	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
 
+	// b might contain a null terminator in the middle
+	bLen := strlen(b[:])
+
 	var i, j int
-	for i = 0; i < len(b) && b[i] != ' '; i++ {
+	for i = 0; i < bLen && b[i] != ' '; i++ {
 	}
 
 	i++
 
-	for j = i; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
+	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+		return nil
 	}
 
-	if i < j && j <= len(b) {
-		n := copy(buffer, b[i:j])
-		return buffer[:n]
+	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
 	}
 
-	return nil
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, b[i:j])
+	return buffer[:n]
 }
 
 // StatusClass returns an integer representing the status code class
@@ -104,4 +108,14 @@ func nsTimestampToFloat(ns uint64) float64 {
 		shift++
 	}
 	return float64(ns << shift)
+}
+
+// strlen returns the length of a null-terminated string
+func strlen(str []byte) int {
+	for i := 0; i < len(str); i++ {
+		if str[i] == 0 {
+			return i
+		}
+	}
+	return len(str)
 }

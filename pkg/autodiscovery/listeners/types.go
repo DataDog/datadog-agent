@@ -28,7 +28,7 @@ type Service interface {
 	GetADIdentifiers(context.Context) ([]string, error)  // identifiers on which templates will be matched
 	GetHosts(context.Context) (map[string]string, error) // network --> IP address
 	GetPorts(context.Context) ([]ContainerPort, error)   // network ports
-	GetTags() ([]string, string, error)                  // tags and tags hash
+	GetTags() ([]string, error)                          // tags
 	GetPid(context.Context) (int, error)                 // process identifier
 	GetHostname(context.Context) (string, error)         // hostname.domainname for the entity
 	IsReady(context.Context) bool                        // is the service ready

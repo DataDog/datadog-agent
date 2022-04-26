@@ -7,7 +7,7 @@ import warnings
 
 from lib.config import gen_datadog_agent_config, gen_system_probe_config
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
-from lib.cws.app import App
+from lib.cws.app import App, check_for_ignored_policies
 from lib.cws.policy import PolicyLoader
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
@@ -86,7 +86,7 @@ class TestE2EDocker(unittest.TestCase):
             event = self.App.wait_app_log("rule_id:ruleset_loaded")
             attributes = event["data"][-1]["attributes"]["attributes"]
             start_date = attributes["date"]
-            self.App.check_for_ignored_policies(attributes)
+            check_for_ignored_policies(self, attributes)
 
         with Step(msg="download policies", emoji=":file_folder:"):
             self.policies = self.docker_helper.download_policies().output.decode()
@@ -116,7 +116,7 @@ class TestE2EDocker(unittest.TestCase):
                 time.sleep(1)
             else:
                 self.fail("check ruleset_loaded timeouted")
-            self.App.check_for_ignored_policies(attributes)
+            check_for_ignored_policies(self, attributes)
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)

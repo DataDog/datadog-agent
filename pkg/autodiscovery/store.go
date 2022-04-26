@@ -14,15 +14,42 @@ import (
 
 // store holds useful mappings for the AD
 type store struct {
-	serviceToConfigs  map[string][]integration.Config
+	// serviceToConfigs maps service ID to a slice of resolved templates
+	// for that service.  Configs are never removed from this map, even if the
+	// template for which they were resolved is removed.
+	serviceToConfigs map[string][]integration.Config
+
+	// serviceToTagsHash maps tagger entity ID to a hash of the tags associated
+	// with the service.  Note that this key differs from keys used elsewhere
+	// in this type.
 	serviceToTagsHash map[string]string
+
+	// templateToConfigs maps config digest of a template to the resolved templates
+	// created from it.  Configs are never removed from this map, even if the
+	// service for which they were resolved is removed.
 	templateToConfigs map[string][]integration.Config
-	loadedConfigs     map[string]integration.Config
-	nameToJMXMetrics  map[string]integration.Data
-	adIDToServices    map[string]map[string]bool
-	entityToService   map[string]listeners.Service
-	templateCache     *templateCache
-	m                 sync.RWMutex
+
+	// loadedConfigs contains all scheduled configs (so, non-template configs
+	// and resolved templates), indexed by their hash.
+	loadedConfigs map[string]integration.Config
+
+	// nameToJMXMetrics stores the MetricConfig for checks, keyed by check name.
+	nameToJMXMetrics map[string]integration.Data
+
+	// adIDToServices stores, for each AD identifier, the service IDs for
+	// services with that AD identifier.  The map structure is
+	// adIDTOServices[adID][serviceID] = true
+	adIDToServices map[string]map[string]bool
+
+	// entityToService maps serviceIDs to Service instances.
+	entityToService map[string]listeners.Service
+
+	// templateCache stores templates by their AD identifiers.
+	templateCache *templateCache
+
+	// m is a Mutex protecting access to all fields in this type except
+	// templateCache.
+	m sync.RWMutex
 }
 
 // newStore creates a store
@@ -108,11 +135,16 @@ func (s *store) setLoadedConfig(config integration.Config) {
 	s.loadedConfigs[config.Digest()] = config
 }
 
-// removeLoadedConfig removes a loaded config by its digest
-func (s *store) removeLoadedConfig(config integration.Config) {
+// removeLoadedConfig removes a loaded config by its digest, returning true if it was found.
+func (s *store) removeLoadedConfig(config integration.Config) bool {
 	s.m.Lock()
 	defer s.m.Unlock()
-	delete(s.loadedConfigs, config.Digest())
+	digest := config.Digest()
+	if _, found := s.loadedConfigs[digest]; found {
+		delete(s.loadedConfigs, digest)
+		return true
+	}
+	return false
 }
 
 // mapOverLoadedConfigs calls the given function with the map of all

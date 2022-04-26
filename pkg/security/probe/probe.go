@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -76,6 +77,7 @@ type Probe struct {
 
 	// Approvers / discarders section
 	erpc               *ERPC
+	discarderReq       *ERPCRequest
 	pidDiscarders      *pidDiscarders
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
@@ -292,16 +294,19 @@ func (p *Probe) Init() error {
 	return nil
 }
 
-// Start the runtime security probe
-func (p *Probe) Start() error {
-	p.wg.Add(1)
-	go p.reOrderer.Start(&p.wg)
-
+// Setup the runtime security probe
+func (p *Probe) Setup() error {
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
 
 	return p.monitor.Start(p.ctx, &p.wg)
+}
+
+// Start processing events
+func (p *Probe) Start() {
+	p.wg.Add(1)
+	go p.reOrderer.Start(&p.wg)
 }
 
 // SetEventHandler set the probe event handler
@@ -659,6 +664,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
+		if event.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
+			// no need to trigger a dentry resolver, not backed by any file
+			event.MMap.File.IsPathnameStrResolved = true
+			event.MMap.File.IsBasenameStrResolved = true
+		}
 	case model.MProtectEventType:
 		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
@@ -668,6 +679,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err = event.LoadModule.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+
+		if event.LoadModule.LoadedFromMemory {
+			// no need to trigger a dentry resolver, not backed by any file
+			event.MMap.File.IsPathnameStrResolved = true
+			event.MMap.File.IsBasenameStrResolved = true
 		}
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
@@ -700,8 +717,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
-	case model.NamespaceSwitchEventType:
-		break
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -932,10 +947,11 @@ func (p *Probe) FlushDiscarders() error {
 	}
 	defer unfreezeDiscarders()
 
-	// Sleeping a bit to avoid races with executing kprobes and setting discarders
 	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
 		return errors.New("already flushing discarders")
 	}
+	// Sleeping a bit to avoid races with executing kprobes and setting discarders
+	time.Sleep(time.Second)
 
 	var discardedInodes []inodeDiscarder
 	var mapValue [256]byte
@@ -962,8 +978,10 @@ func (p *Probe) FlushDiscarders() error {
 	flushDiscarders := func() {
 		log.Debugf("Flushing discarders")
 
+		req := newDiscarderRequest()
+
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.expireInodeDiscarder(inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -1054,14 +1072,13 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
-		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-
+	defer handle.Close()
 	return p.setupNewTCClassifierWithNetNSHandle(device, handle)
 }
 
@@ -1151,6 +1168,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		ctx:            ctx,
 		cancelFnc:      cancel,
 		erpc:           erpc,
+		discarderReq:   newDiscarderRequest(),
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:   statsdClient,
 	}

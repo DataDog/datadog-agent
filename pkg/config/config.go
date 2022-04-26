@@ -631,11 +631,11 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.namespace")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
-	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 9162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
 	// No default as the agent falls back to `network_devices.namespace` if empty.
 	config.BindEnv("snmp_traps_config.namespace")
-	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 	config.SetKnown("snmp_traps_config.users")
 
@@ -1014,6 +1014,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
@@ -1513,7 +1514,7 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	cloudProviderFromConfig := Datadog.GetStringSlice("cloud_provider_metadata")
 
 	for _, cloudName := range cloudProviderFromConfig {
-		if strings.ToLower(cloudName) == strings.ToLower(cloudProviderName) {
+		if strings.EqualFold(cloudName, cloudProviderName) {
 			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
 				cloudProviderFromConfig,
 				cloudProviderName)
