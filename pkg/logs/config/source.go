@@ -6,11 +6,11 @@
 package config
 
 import (
-	"expvar"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"go.uber.org/atomic"
 )
 
 // SourceType used for log line parsing logic.
@@ -28,10 +28,6 @@ const (
 // successful operations on it. Both name and configuration are static for now and determined at creation time.
 // Changing the status is designed to be thread safe.
 type LogSource struct {
-	// Put expvar Int first because it's modified with sync/atomic, so it needs to
-	// be 64-bit aligned on 32-bit systems. See https://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	BytesRead expvar.Int
-
 	Name     string
 	Config   *LogsConfig
 	Status   *LogStatus
@@ -48,6 +44,7 @@ type LogSource struct {
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *util.StatsTracker
+	BytesRead        *atomic.Int64
 	hiddenFromStatus bool
 }
 
@@ -60,7 +57,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         NewMessages(),
-		BytesRead:        expvar.Int{},
+		BytesRead:        atomic.NewInt64(0),
 		info:             make(map[string]InfoProvider),
 		LatencyStats:     util.NewStatsTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
