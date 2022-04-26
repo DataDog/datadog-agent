@@ -87,7 +87,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/aws/aws-sdk-go v1.42.20
+	github.com/aws/aws-sdk-go v1.44.0
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
