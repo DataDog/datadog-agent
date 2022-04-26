@@ -78,6 +78,9 @@ type Collector struct {
 
 	// Enables running realtime checks
 	runRealTime bool
+
+	// Drop payloads from specified checks
+	dropCheckPayloads []string
 }
 
 // NewCollector creates a new Collector
@@ -125,6 +128,11 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
+	dropCheckPayloads := ddconfig.Datadog.GetStringSlice("process_config.drop_check_payloads")
+	if len(dropCheckPayloads) > 0 {
+		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
+	}
+
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
@@ -142,6 +150,8 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		forwarderRetryQueueMaxBytes: queueBytes,
 
 		runRealTime: runRealTime,
+
+		dropCheckPayloads: dropCheckPayloads,
 	}
 }
 
@@ -287,6 +297,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}
 	updateEnabledChecks(checkNames)
+	updateDropCheckPayloads(l.dropCheckPayloads)
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
@@ -472,6 +483,16 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 	}
 }
 
+func (l *Collector) shouldDropPayload(check string) bool {
+	for _, d := range l.dropCheckPayloads {
+		if d == check {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
 		// results.Poll() will return ok=false when stopped
@@ -487,6 +508,10 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				err              error
 				updateRTStatus   = l.runRealTime
 			)
+
+			if l.shouldDropPayload(result.name) {
+				continue
+			}
 
 			switch result.name {
 			case checks.Process.Name():

@@ -12,7 +12,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,8 +36,8 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	filePos, _ := f.Seek(offset, whence)
 	f.Close()
 
-	t.setLastReadOffset(filePos)
-	t.setDecodedOffset(filePos)
+	t.lastReadOffset.Store(filePos)
+	t.decodedOffset.Store(filePos)
 
 	return nil
 }
@@ -46,7 +45,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 func (t *Tailer) readAvailable() (int, error) {
 	// If the file has already rotated, there is nothing to be done. Unlike on *nix,
 	// there is no open file handle from which remaining data might be read.
-	if t.hasFileRotated() {
+	if t.didFileRotate.Load() {
 		return 0, io.EOF
 	}
 
@@ -63,7 +62,7 @@ func (t *Tailer) readAvailable() (int, error) {
 	}
 
 	sz := st.Size()
-	offset := t.getLastReadOffset()
+	offset := t.lastReadOffset.Load()
 	if sz < offset {
 		log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
 		return 0, io.EOF
@@ -80,7 +79,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			return bytes, err
 		}
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementLastReadOffset(n)
+		t.lastReadOffset.Add(int64(n))
 	}
 }
 
@@ -96,17 +95,4 @@ func (t *Tailer) read() (int, error) {
 		return n, log.Error("Err: ", err)
 	}
 	return n, nil
-}
-
-// setLastReadOffset sets the value of lastReadOffset, atomically.
-func (t *Tailer) setLastReadOffset(off int64) {
-	atomic.StoreInt64(&t.lastReadOffset, off)
-}
-
-// setDecodedOffset sets decodedOffset, atomically.
-//
-// NOTE: other access to this field is not made atomically, so calling this
-// method may lead to undefined behavior.
-func (t *Tailer) setDecodedOffset(off int64) {
-	atomic.StoreInt64(&t.decodedOffset, off)
 }

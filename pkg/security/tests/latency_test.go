@@ -18,7 +18,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/cihub/seelog"
 )
 
 var (
@@ -35,11 +34,12 @@ var benchLatencyhFS embed.FS
 func CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
 	var macros []*rules.MacroDefinition
 	var rules []*rules.RuleDefinition
-	logLevel, found := seelog.LogLevelFromString("warn")
-	if !found {
-		return "", nil, fmt.Errorf("invalid log level '%s'", logLevel)
+
+	if err := initLogger(); err != nil {
+		return "", nil, err
 	}
-	st, err := newSimpleTest(macros, rules, "", logLevel)
+
+	st, err := newSimpleTest(macros, rules, "")
 	if err != nil {
 		return "", nil, err
 	}
