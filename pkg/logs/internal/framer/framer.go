@@ -9,7 +9,8 @@ package framer
 import (
 	"bytes"
 	"fmt"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 )
 
 // Framing describes the kind of framing applied to the byte stream being broken.
@@ -43,10 +44,6 @@ const (
 // EndLineMatcher to break those into frames, passing the results to its
 // outputFn.
 type Framer struct {
-	// The number of raw frames decoded from the input before they are processed.
-	// Needs to be first to ensure 64 bit alignment
-	frames int64
-
 	// outputFn is called with each complete "line"
 	outputFn func(content []byte, rawDatatLen int)
 
@@ -59,6 +56,9 @@ type Framer struct {
 	// bytesFramed is the length, in bytes, of the prefix of buffer that
 	// has already been output as a frame.
 	bytesFramed int
+
+	// The number of raw frames decoded from the input before they are processed.
+	frames *atomic.Int64
 
 	// contentLenLimit is the longest content value the Framer will produce.
 	// Over this size, the framer will break the bytes into individual frames
@@ -100,7 +100,7 @@ func NewFramer(
 	}
 
 	return &Framer{
-		frames:          0,
+		frames:          atomic.NewInt64(0),
 		outputFn:        outputFn,
 		matcher:         matcher,
 		buffer:          bytes.Buffer{},
@@ -112,7 +112,7 @@ func NewFramer(
 // GetFrameCount gets the number of frames this framer has processed.  This is safe to
 // call from any goroutine.
 func (fr *Framer) GetFrameCount() int64 {
-	return atomic.LoadInt64(&fr.frames)
+	return fr.frames.Load()
 }
 
 // Process handles an incoming chunk of data.  It will call outputFn for any recognized frames.  Partial
@@ -159,7 +159,7 @@ func (fr *Framer) Process(inBuf []byte) {
 		copy(owned, content)
 
 		fr.outputFn(owned, rawDataLen)
-		atomic.AddInt64(&fr.frames, 1)
+		fr.frames.Inc()
 		framed += rawDataLen
 		seen = framed
 	}

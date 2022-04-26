@@ -9,13 +9,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -44,7 +44,7 @@ const (
 
 var (
 	// isRunning indicates whether logs-agent is running or not
-	isRunning int32
+	isRunning *atomic.Bool = atomic.NewBool(false)
 	// logs-agent
 	agent *Agent
 )
@@ -100,7 +100,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, err
 	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
-	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
+	status.Init(isRunning, endpoints, sources, metrics.LogsExpvars)
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()
@@ -127,7 +127,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool) (*Agent, err
 	}
 
 	agent.Start()
-	atomic.StoreInt32(&isRunning, 1)
+	isRunning.Store(true)
 	log.Info("logs-agent started")
 
 	agent.AddScheduler(adScheduler.New())
@@ -147,7 +147,7 @@ func Stop() {
 			agent = nil
 		}
 		status.Clear()
-		atomic.StoreInt32(&isRunning, 0)
+		isRunning.Store(false)
 	}
 	log.Info("logs-agent stopped")
 }
