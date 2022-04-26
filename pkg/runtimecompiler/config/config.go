@@ -61,6 +61,24 @@ type Config struct {
 
 	// StatsdAddr defines the statsd address
 	StatsdAddr string
+
+	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
+	EnableKernelHeaderDownload bool
+
+	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
+	KernelHeadersDirs []string
+
+	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
+	KernelHeadersDownloadDir string
+
+	// AptConfigDir is the path to the apt config directory
+	AptConfigDir string
+
+	// YumReposDir is the path to the yum repository directory
+	YumReposDir string
+
+	// ZypperReposDir is the path to the zypper repository directory
+	ZypperReposDir string
 }
 
 // NewConfig creates a config for the runtime compiler
@@ -82,7 +100,16 @@ func NewConfig(sysprobeconfig *config.Config) *Config {
 		EnableConstantFetcherCompilation: cfg.GetBool(key(rsNS, "enabled")) && secConfig.RuntimeCompiledConstantsEnabled,
 		EnableTcpQueueLengthCompilation:  cfg.GetBool(key(spNS, "enable_tcp_queue_length")),
 		EnableOomKillCompilation:         cfg.GetBool(key(spNS, "enable_oom_kill")),
-		StatsdAddr:                       secConfig.StatsdAddr,
+
+		StatsdAddr: secConfig.StatsdAddr,
+
+		// Kernel header downloading settings
+		EnableKernelHeaderDownload: cfg.GetBool(key(rcNS, "enable_kernel_header_download")),
+		KernelHeadersDirs:          cfg.GetStringSlice(key(rcNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir:   cfg.GetString(key(rcNS, "kernel_header_download_dir")),
+		AptConfigDir:               cfg.GetString(key(rcNS, "apt_config_dir")),
+		YumReposDir:                cfg.GetString(key(rcNS, "yum_repos_dir")),
+		ZypperReposDir:             cfg.GetString(key(rcNS, "zypper_repos_dir")),
 	}
 }
 
