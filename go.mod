@@ -101,10 +101,10 @@ require (
 	github.com/containerd/cgroups v1.0.2
 	github.com/containerd/containerd v1.5.10
 	github.com/containerd/typeurl v1.0.2
-	github.com/containernetworking/cni v0.8.1
+	github.com/containernetworking/cni v1.0.1 // indirect
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f
-	github.com/cri-o/ocicni v0.2.0
+	github.com/cri-o/ocicni v0.3.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200916142827-bd33bbf0497b+incompatible
@@ -416,7 +416,10 @@ require (
 	google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 )
 
-require github.com/Sirupsen/logrus v1.0.6 // indirect
+require (
+	github.com/Sirupsen/logrus v1.0.6 // indirect
+	github.com/containernetworking/plugins v1.1.1 // indirect
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
