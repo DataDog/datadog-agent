@@ -361,13 +361,13 @@ func (a *Agent) filterSpans(p *api.Payload) {
 		return
 	}
 	for _, chunk := range p.Chunks() {
-		filteredSpans := make([]*pb.Span, 0, len(chunk.Spans))
+		out := make([]*pb.Span, 0, len(chunk.Spans))
 		for _, span := range chunk.Spans {
 			if !a.DiscardSpan(span) {
-				filteredSpans = append(filteredSpans, span)
+				out = append(out, span)
 			}
 		}
-		chunk.Spans = filteredSpans
+		chunk.Spans = out
 	}
 }
 
