@@ -1,0 +1,153 @@
+#! /bin/sh
+#
+# This script is RPM-specific
+# It is run at the very end of an install/upgrade of the package
+# It is NOT run on removal of the package
+#
+# .rpm: STEP 6 of 6
+
+INSTALL_DIR=/opt/datadog-agent
+CONFIG_DIR=/etc/datadog-agent
+SERVICE_NAME=datadog-agent
+
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux)"
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
+
+# Create a symlink to the agent's binary
+ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
+
+echo "Enabling service $SERVICE_NAME"
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable $SERVICE_NAME || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with systemctl"
+elif command -v initctl >/dev/null 2>&1; then
+    # start/stop policy is already defined in the upstart job file
+    :
+else
+    echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+fi
+
+# Only install selinux policy on a few known distributions
+INSTALL_SELINUX_POLICY="false"
+if [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "Rocky" ] || [ "$DISTRIBUTION" = "AlmaLinux" ]; then
+    OS_RELEASE_VERSION=$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | tr -d '"')
+    if [ "$OS_RELEASE_VERSION" = "7" ]; then
+        INSTALL_SELINUX_POLICY="true"
+    fi
+fi
+
+if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
+    # Setup SELinux policy and label if SELinux detected on the host
+    if command -v semodule >/dev/null 2>&1 && [ -f "$INSTALL_DIR/embedded/bin/system-probe" ]; then
+        echo "Loading SELinux policy module for datadog-agent."
+        semodule -v -i $CONFIG_DIR/selinux/system_probe_policy.pp >/dev/null 2>&1
+        if [ "$?" != "0" ]; then
+            echo "Couldn’t load system-probe policy."
+            echo "To be able to run system-probe on your host, please install or update the selinux-policy-targeted and"
+            echo "policycoreutils-python (or policycoreutils-python-utils depending on your distribution) packages."
+            echo "Then run the following commands, or reinstall datadog-agent:"
+            echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
+            echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
+            echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+        else
+            echo "Labeling SELinux type for the system-probe binary."
+            if command -v semanage >/dev/null 2>&1 && command -v restorecon >/dev/null 2>&1;then
+                semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe && restorecon -v $INSTALL_DIR/embedded/bin/system-probe
+                if [ "$?" != "0" ]; then
+                    echo "Couldn’t install system-probe policy."
+                    echo "To be able to run system-probe on your host, please install or update the selinux-policy-targeted and"
+                    echo "policycoreutils-python (or policycoreutils-python-utils depending on your distribution) packages."
+                    echo "Then run the following commands, or reinstall datadog-agent:"
+                    echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
+                    echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
+                    echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+                fi
+            else
+                echo "Couldn’t load system-probe policy (missing selinux utilities)."
+                echo "To be able to run system-probe on your host, please install or update the selinux-policy-targeted and"
+                echo "policycoreutils-python (or policycoreutils-python-utils depending on your distribution) packages."
+                echo "Then run the following commands, or reinstall datadog-agent:"
+                echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
+                echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
+                echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+            fi
+        fi
+    fi
+fi
+
+
+# Set the installation information if not already present;
+# This is done in the postinst script for .deb packages
+if [ ! -f "$CONFIG_DIR/install_info" ]; then
+
+    if command -v rpm >/dev/null 2>&1; then
+        tool=rpm
+        tool_version=rpm-$(rpm -q --qf "%{VERSION}" rpm || echo "unknown")
+    else
+        tool=unknown
+        tool_version=unknown
+    fi
+
+    # Distinguish SUSE since it has a different package
+    if [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "openSUSE" ] ; then
+        installer_version="rpm_suse_package"
+    else
+        installer_version="rpm_package"
+    fi
+
+    install_info_content="---
+install_method:
+  tool: $tool
+  tool_version: $tool_version
+  installer_version: $installer_version
+"
+    echo "$install_info_content" > $CONFIG_DIR/install_info
+    chown -R dd-agent:dd-agent ${CONFIG_DIR}
+fi
+
+# Set the installation information if not already present;
+# This is done in the postinst script for .deb packages
+if [ ! -f "$CONFIG_DIR/install_info" ]; then
+
+    if command -v rpm >/dev/null 2>&1; then
+        tool=rpm
+        tool_version=rpm-$(rpm -q --qf "%{VERSION}" rpm || echo "unknown")
+    else
+        tool=unknown
+        tool_version=unknown
+    fi
+
+    # Distinguish SUSE since it has a different package
+    if [ "$DISTRIBUTION_FAMILY" = "SUSE" ]; then
+        installer_version="rpm_suse_package"
+    else
+        installer_version="rpm_package"
+    fi
+
+    install_info_content="---
+install_method:
+  tool: $tool
+  tool_version: $tool_version
+  installer_version: $installer_version
+"
+    echo "$install_info_content" > $CONFIG_DIR/install_info
+    chown -R dd-agent:dd-agent ${CONFIG_DIR}
+fi
+
+# TODO: Use a configcheck command on the agent to determine if it's safe to restart,
+# and avoid restarting when a check conf is invalid
+if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
+    echo "(Re)starting $SERVICE_NAME now..."
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl restart $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl start $SERVICE_NAME || initctl restart $SERVICE_NAME || true
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+    fi
+else
+    # No datadog.yaml file is present. This is probably a clean install made with the
+    # step-by-step instructions/an automation tool, and the config file will be added next.
+    echo "No datadog.yaml file detected, not starting the agent"
+fi
+
+exit 0
