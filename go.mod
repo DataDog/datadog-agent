@@ -72,7 +72,7 @@ require (
 	github.com/DataDog/gohai v0.0.0-20220329101230-3b6a804fdd24
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.6
-	github.com/DataDog/sketches-go v1.3.0
+	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
 	github.com/DataDog/zstd v1.5.0
