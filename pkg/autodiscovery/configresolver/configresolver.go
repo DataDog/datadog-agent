@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -251,9 +252,84 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 	return yaml.Marshal(&tree)
 }
 
-var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
+var ipv6Re = regexp.MustCompile(`^[0-9a-f:]+$`)
 
 func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners.Service) (out interface{}, err error) {
+	isThereAnIPv6Host := false
+
+	adHocTemplateVars := make(map[string]variableGetter)
+	for k, v := range templateVariables {
+		if k == "host" {
+			adHocTemplateVars[k] = func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+				host, err := getHost(ctx, tplVar, svc)
+				if ipv6Re.MatchString(host) {
+					isThereAnIPv6Host = true
+					if tplVar != "" {
+						return fmt.Sprintf("‰host_%s‰", tplVar), nil
+					} else {
+						return "‰host‰", nil
+					}
+				}
+				return host, err
+			}
+		} else {
+			adHocTemplateVars[k] = v
+		}
+	}
+	resolvedString, err := resolveStringWithAdHocTemplateVars(ctx, in, svc, adHocTemplateVars)
+	if err != nil {
+		return resolvedString, err
+	}
+
+	if !isThereAnIPv6Host {
+		return resolvedString, err
+	}
+
+	if _, isString := resolvedString.(string); !isString {
+		return resolvedString, err
+	}
+
+	adHocTemplateVars = map[string]variableGetter{
+		"host": func(_ context.Context, _ string, _ listeners.Service) (string, error) {
+			return "127.0.0.1", nil
+		},
+	}
+	resolvedStringWithFakeIPv4, err := resolveStringWithAdHocTemplateVars(ctx, resolvedString.(string), svc, adHocTemplateVars)
+	if err != nil {
+		return resolvedString, err
+	}
+
+	_, err = url.Parse(resolvedStringWithFakeIPv4.(string))
+	if err != nil {
+		return resolvedString, nil
+	}
+
+	adHocTemplateVars = map[string]variableGetter{
+		"host": func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+			host, err := getHost(ctx, tplVar, svc)
+			var sb strings.Builder
+			sb.WriteByte('[')
+			sb.WriteString(host)
+			sb.WriteByte(']')
+			return sb.String(), err
+		},
+	}
+	resolvedStringWithIPv6, err := resolveStringWithAdHocTemplateVars(ctx, resolvedString.(string), svc, adHocTemplateVars)
+	if err != nil {
+		return resolvedString, err
+	}
+
+	_, err = url.Parse(resolvedStringWithIPv6.(string))
+	if err != nil {
+		return resolveStringWithAdHocTemplateVars(ctx, in, svc, templateVariables)
+	}
+
+	return resolvedStringWithIPv6, err
+}
+
+var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
+
+func resolveStringWithAdHocTemplateVars(ctx context.Context, in string, svc listeners.Service, templateVariables map[string]variableGetter) (out interface{}, err error) {
 	varIndexes := varPattern.FindAllStringSubmatchIndex(in, -1)
 
 	if len(varIndexes) == 0 {

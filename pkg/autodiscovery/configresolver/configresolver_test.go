@@ -700,6 +700,26 @@ func TestResolve(t *testing.T) {
 				ServiceID:     "a5901276aed1",
 			},
 		},
+		{
+			testName: "IPv6 %%host%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"ipv4": "192.168.0.1", "ipv6": "fd::1"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host_ipv4: %%host_ipv4%%\nhost_ipv6: %%host_ipv6%%\nurl_ipv4: http://%%host_ipv4%%:%%port%%/data\nurl_ipv6: http://%%host_ipv6%%:%%port%%/data")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host_ipv4: 192.168.0.1\nhost_ipv6: fd::1\ntags:\n- foo:bar\nurl_ipv4: http://192.168.0.1:3/data\nurl_ipv6: http://[fd::1]:3/data\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
 	}
 
 	for i, tc := range testCases {
