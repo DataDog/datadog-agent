@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -60,6 +61,8 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["JMXStartupError"] = GetJMXStartupError()
 
 	stats["logsStats"] = logs.GetStatus()
+
+	stats["otlpStatus"] = otlp.IsEnabled(config.Datadog)
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {

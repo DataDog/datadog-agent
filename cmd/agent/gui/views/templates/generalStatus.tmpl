@@ -480,4 +480,11 @@
       {{- end -}}
     </span>
   </div>
+
+  <div class="stat">
+    <span class="stat_title">OTLP</span>
+    <span class="stat_data">
+      Status: {{ if not .otlpStatus }}not{{end}} enabled
+    </span>
+  </div>
 {{- end -}}
