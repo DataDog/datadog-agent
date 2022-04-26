@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf
-// +build !linux_bpf
+//go:build windows
+// +build windows
 
 package bytecode
 
@@ -22,5 +22,5 @@ type AssetReader interface {
 
 // VerifyAssetPermissions is for verifying the permissions of bpf programs
 func VerifyAssetPermissions(assetPath string) error {
-	return fmt.Errorf("verification of bpf assets is not supported")
+	return fmt.Errorf("verification of bpf assets is not supported on windows")
 }
