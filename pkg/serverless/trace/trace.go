@@ -66,7 +66,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 			s.ta = agent.NewAgent(context, tc)
 			s.spanModifier = &spanModifier{}
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
-			s.ta.FilterSpan = filterSpanFromLambdaLibraryOrRuntime
+			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel
 			go func() {
 				s.ta.Run()
