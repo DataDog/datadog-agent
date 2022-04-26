@@ -729,6 +729,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.BindEventType:
+		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

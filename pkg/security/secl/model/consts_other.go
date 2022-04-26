@@ -21,4 +21,5 @@ var (
 	mmapFlagConstants         = map[string]int{}
 	mmapFlagArchConstants     = map[string]int{}
 	signalConstants           = map[string]int{}
+	addressFamilyuConstants   = map[string]int{}
 )

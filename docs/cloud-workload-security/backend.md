@@ -53,6 +53,9 @@ CWS logs have the following JSON schema:
         "network": {
             "$ref": "#/definitions/NetworkContext"
         },
+        "bind": {
+            "$ref": "#/definitions/BindEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -90,6 +93,7 @@ CWS logs have the following JSON schema:
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
+| `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -205,6 +209,49 @@ CWS logs have the following JSON schema:
 | `program_type` | Type of the BPF program |
 | `attach_type` | Attach type of the BPF program |
 | `helpers` | List of helpers used by the BPF program |
+
+
+## `BindEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "socket",
+        "addr_family",
+        "addr_port",
+        "addr"
+    ],
+    "properties": {
+        "socket": {
+            "type": "integer",
+            "description": "bound socket"
+        },
+        "addr_family": {
+            "type": "string",
+            "description": "address family"
+        },
+        "addr_port": {
+            "type": "integer",
+            "description": "bound port (if any)"
+        },
+        "addr": {
+            "type": "string",
+            "description": "bound address (if any)"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `socket` | bound socket |
+| `addr_family` | address family |
+| `addr_port` | bound port (if any) |
+| `addr` | bound address (if any) |
 
 
 ## `ContainerContext`

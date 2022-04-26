@@ -32,6 +32,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
+| `bind` | Network | A bind was executed | 7.37 |
 | `bpf` | Kernel | A BPF command was executed | 7.33 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
@@ -266,6 +267,18 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.tty_name` | string | Name of the TTY associated with the process |
 | `process.uid` | int | UID of the process |
 | `process.user` | string | User of the process |
+
+### Event `bind`
+
+A bind was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `bind.addr` | string | address (if any) |
+| `bind.addr_family` | int | address family |
+| `bind.port` | int | port (if any) |
+| `bind.retval` | int | Return value of the syscall |
+| `bind.socket` | int | the socket to be bound |
 
 ### Event `bpf`
 

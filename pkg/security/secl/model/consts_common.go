@@ -659,6 +659,7 @@ var (
 	dnsQClassStrings          = map[uint32]string{}
 	l3ProtocolStrings         = map[L3Protocol]string{}
 	l4ProtocolStrings         = map[L4Protocol]string{}
+	addressFamilyStrings      = map[uint16]string{}
 )
 
 // File flags
@@ -834,6 +835,16 @@ func initL4ProtocolConstants() {
 	}
 }
 
+func initAddressFamilyConstants() {
+	for k, v := range addressFamilyConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+
+	for k, v := range addressFamilyConstants {
+		addressFamilyStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -855,6 +866,7 @@ func initConstants() {
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
+	initAddressFamilyConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1683,6 +1695,13 @@ type PipeBufFlag int
 
 func (pbf PipeBufFlag) String() string {
 	return bitmaskToString(int(pbf), pipeBufFlagStrings)
+}
+
+// AddressFamily represents a family address (AF_INET, AF_INET6, AF_UNIX etc)
+type AddressFamily int
+
+func (af AddressFamily) String() string {
+	return addressFamilyStrings[uint16(af)]
 }
 
 const (

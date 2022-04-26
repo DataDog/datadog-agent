@@ -49,6 +49,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/NetworkContext"
     },
+    "bind": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/BindEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -132,6 +136,34 @@
           },
           "type": "array",
           "description": "List of helpers used by the BPF program"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BindEvent": {
+      "required": [
+        "socket",
+        "addr_family",
+        "addr_port",
+        "addr"
+      ],
+      "properties": {
+        "socket": {
+          "type": "integer",
+          "description": "bound socket"
+        },
+        "addr_family": {
+          "type": "string",
+          "description": "address family"
+        },
+        "addr_port": {
+          "type": "integer",
+          "description": "bound port (if any)"
+        },
+        "addr": {
+          "type": "string",
+          "description": "bound address (if any)"
         }
       },
       "additionalProperties": false,

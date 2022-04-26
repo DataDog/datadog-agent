@@ -8,11 +8,13 @@ package model
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"golang.org/x/sys/unix"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -899,4 +901,36 @@ func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
 	cursor += read
 
 	return cursor, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 24 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Socket = int32(ByteOrder.Uint32(data[read : read+4]))
+	e.AddrFamily = ByteOrder.Uint16(data[read+4 : read+6])
+	e.AddrPort = ByteOrder.Uint16(data[read+6 : read+8])
+
+	if e.AddrFamily == unix.AF_INET {
+		ip32 := ByteOrder.Uint32(data[read+8 : read+12])
+		ip := make(net.IP, 4)
+		binary.BigEndian.PutUint32(ip, ip32)
+		e.Addr = ip.String()
+		// padding 12-24
+	} else if e.AddrFamily == unix.AF_INET6 {
+		ip6Array := data[read+8 : read+24]
+		var ip6 net.IP = ip6Array
+		e.Addr = ip6.String()
+	} else {
+		e.Addr = "none"
+	}
+
+	return read + 24, nil
 }
