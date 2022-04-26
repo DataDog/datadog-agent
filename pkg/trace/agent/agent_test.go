@@ -318,7 +318,7 @@ func TestProcess(t *testing.T) {
 		testFilterFunction := func(span *pb.Span) bool {
 			return span.Meta["irrelevant"] == "true"
 		}
-		agnt.FilterSpan = testFilterFunction
+		agnt.DiscardSpan = testFilterFunction
 
 		span1 := &pb.Span{
 			TraceID: 1,
