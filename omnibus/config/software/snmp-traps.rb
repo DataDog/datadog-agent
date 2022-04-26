@@ -1,8 +1,8 @@
 name "snmp-traps"
-default_version "0.2.0"
+default_version "0.2.1"
 
 source :url => "https://s3.amazonaws.com/dd-agent-omnibus/snmp_traps_db/dd_traps_db-#{version}.json.gz",
-       :sha256 => "dd308ba8ec1453ed73d60e9b8d4c38050371fdceaab4404448e1084d628d3298",
+       :sha256 => "e79274eddd119b59f55ee57106c7cced91facba24db132d4b37194e16defb7f1",
        :target_filename => "dd_traps_db.json.gz"
 
 
