@@ -76,9 +76,9 @@ func (rc *runtimeCompiler) Init(cfg *config.Config, statsdClient statsd.ClientIn
 		cfg.EnableTcpQueueLengthCompilation ||
 		cfg.EnableOomKillCompilation
 
-	RuntimeCompiler.enabled = compilationRequired
-	RuntimeCompiler.config = cfg
-	RuntimeCompiler.statsdClient = statsdClient
+	rc.enabled = compilationRequired
+	rc.config = cfg
+	rc.statsdClient = statsdClient
 }
 
 func (rc *runtimeCompiler) Run() error {
@@ -125,7 +125,7 @@ func (rc *runtimeCompiler) Run() error {
 }
 
 func (rc *runtimeCompiler) compileNetworkAssets(kernelHeaders []string) {
-	cflags := runtime.GetNetworkAssetCFlags(&rc.config.NetworkConfig)
+	cflags := runtime.GetNetworkAssetCFlags(rc.config.CollectIPv6Conns, rc.config.BPFDebug)
 
 	telemetry, err := runtime.Tracer.Compile(rc.config, cflags, kernelHeaders)
 	if err != nil {
@@ -133,7 +133,7 @@ func (rc *runtimeCompiler) compileNetworkAssets(kernelHeaders []string) {
 	}
 	rc.telemetryByAsset["network_tracer"] = telemetry
 
-	if rc.config.NetworkConfig.EnableConntrack {
+	if rc.config.ConntrackEnabled {
 		telemetry, err = runtime.Conntrack.Compile(rc.config, cflags, kernelHeaders)
 		if err != nil {
 			log.Errorf("error compiling ebpf conntracker: %s", err)
@@ -141,7 +141,7 @@ func (rc *runtimeCompiler) compileNetworkAssets(kernelHeaders []string) {
 		rc.telemetryByAsset["conntrack"] = telemetry
 	}
 
-	if rc.config.NetworkConfig.EnableHTTPMonitoring {
+	if rc.config.HTTPMonitoringEnabled {
 		telemetry, err = runtime.Http.Compile(rc.config, cflags, kernelHeaders)
 		if err != nil {
 			log.Errorf("error compiling network http tracer: %s", err)

@@ -60,7 +60,7 @@ type ebpfConntracker struct {
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
-	cflags := runtime.GetNetworkAssetCFlags(cfg)
+	cflags := runtime.GetNetworkAssetCFlags(cfg.CollectIPv6Conns, cfg.BPFDebug)
 	buf, err := runtime.Conntrack.GetCompiledOutput(cflags, cfg.RuntimeCompilerOutputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch compiled ebpf conntracker: %w", err)

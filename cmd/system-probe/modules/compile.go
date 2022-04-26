@@ -68,7 +68,7 @@ func (c *compilerModule) Close() {}
 func getStatsdClient(cfg *compilerconfig.Config) (statsd.ClientInterface, error) {
 	statsdAddr := os.Getenv("STATSD_URL")
 	if statsdAddr == "" {
-		statsdAddr = cfg.SecurityConfig.StatsdAddr
+		statsdAddr = cfg.StatsdAddr
 	}
 
 	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))

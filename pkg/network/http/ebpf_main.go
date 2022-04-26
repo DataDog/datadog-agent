@@ -66,7 +66,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	var bytecode bytecode.AssetReader
 	var err error
 	if c.EnableRuntimeCompilation {
-		cflags := runtime.GetNetworkAssetCFlags(c)
+		cflags := runtime.GetNetworkAssetCFlags(c.CollectIPv6Conns, c.BPFDebug)
 		bytecode, err = runtime.Http.GetCompiledOutput(cflags, c.RuntimeCompilerOutputDir)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {

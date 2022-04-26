@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
-	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"golang.org/x/sys/unix"
 )
@@ -48,12 +47,12 @@ var defaultFlags = []string{
 }
 
 // GetNetworkAssetCFlags returns the cflags required for compilation based on the given network config
-func GetNetworkAssetCFlags(config *netconfig.Config) []string {
+func GetNetworkAssetCFlags(collectIPv6Conns, bpfDebug bool) []string {
 	var cflags []string
-	if config.CollectIPv6Conns {
+	if collectIPv6Conns {
 		cflags = append(cflags, "-DFEATURE_IPV6_ENABLED")
 	}
-	if config.BPFDebug {
+	if bpfDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
 	return cflags

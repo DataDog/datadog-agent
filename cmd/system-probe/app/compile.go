@@ -95,7 +95,7 @@ func runtimeCompile(_ *cobra.Command, _ []string) {
 func getStatsdClient(cfg *config.Config) (statsd.ClientInterface, error) {
 	statsdAddr := os.Getenv("STATSD_URL")
 	if statsdAddr == "" {
-		statsdAddr = cfg.SecurityConfig.StatsdAddr
+		statsdAddr = cfg.StatsdAddr
 	}
 
 	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))

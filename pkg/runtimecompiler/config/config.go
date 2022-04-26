@@ -29,16 +29,17 @@ const (
 type Config struct {
 	ebpf.Config
 
-	// NetworkConfig is the network tracer configuration
-	NetworkConfig netconfig.Config
-
-	// SecurityConfig is the runtime security configuration
-	// This is needed to determine which runtime-compilable security features have been enabled
-	SecurityConfig secconfig.Config
-
 	// EnableNetworkCompilation enables the runtime compilation of network assets
-	// This is needed to determine which runtime-compilable networks features have been enabled
 	EnableNetworkCompilation bool
+
+	// ConntrackEnabled indicates whether the ebpf conntracker (a network asset) has been enabled
+	ConntrackEnabled bool
+
+	// HTTPMonitoringEnabled indicates whether the http tracer (a network asset) has been enabled
+	HTTPMonitoringEnabled bool
+
+	// CollectIPv6Conns is a network setting which we use to determine what cflags to use when compiling network assets
+	CollectIPv6Conns bool
 
 	// EnableRuntimeSecurityCompilation enables the runtime compilation of runtime security assets
 	EnableRuntimeSecurityCompilation bool
@@ -57,6 +58,9 @@ type Config struct {
 
 	// EnableOomKillCompilation enables the compilation of the oom kill check
 	EnableOomKillCompilation bool
+
+	// StatsdAddr defines the statsd address
+	StatsdAddr string
 }
 
 // NewConfig creates a config for the runtime compiler
@@ -68,15 +72,17 @@ func NewConfig(sysprobeconfig *config.Config) *Config {
 	secConfig := *secconfig.NewConfig(sysprobeconfig)
 
 	return &Config{
-		Config:         *ebpf.NewConfig(),
-		NetworkConfig:  netConfig,
-		SecurityConfig: secConfig,
+		Config: *ebpf.NewConfig(),
 
 		EnableNetworkCompilation:         cfg.GetBool(key(nwNS, "enabled")) && netConfig.EnableRuntimeCompilation,
+		ConntrackEnabled:                 netConfig.EnableConntrack,
+		HTTPMonitoringEnabled:            netConfig.EnableHTTPMonitoring,
+		CollectIPv6Conns:                 netConfig.CollectIPv6Conns,
 		EnableRuntimeSecurityCompilation: cfg.GetBool(key(rsNS, "enabled")) && secConfig.RuntimeCompilationEnabled,
 		EnableConstantFetcherCompilation: cfg.GetBool(key(rsNS, "enabled")) && secConfig.RuntimeCompiledConstantsEnabled,
 		EnableTcpQueueLengthCompilation:  cfg.GetBool(key(spNS, "enable_tcp_queue_length")),
 		EnableOomKillCompilation:         cfg.GetBool(key(spNS, "enable_oom_kill")),
+		StatsdAddr:                       secConfig.StatsdAddr,
 	}
 }
 

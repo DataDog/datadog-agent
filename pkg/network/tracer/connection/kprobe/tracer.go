@@ -85,7 +85,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	var buf bytecode.AssetReader
 	var err error
 	if config.EnableRuntimeCompilation {
-		cflags := runtime.GetNetworkAssetCFlags(config)
+		cflags := runtime.GetNetworkAssetCFlags(config.CollectIPv6Conns, config.BPFDebug)
 		buf, err = runtime.Tracer.GetCompiledOutput(cflags, config.RuntimeCompilerOutputDir)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
