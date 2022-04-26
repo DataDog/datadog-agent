@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -86,16 +87,25 @@ func (t *Tailer) readAvailable() (int, error) {
 			return bytes, err
 		}
 
-		// Try a non-blocking send to the decoder
+		// First, try to send the data to the decoder, but only wait for
+		// closeTimeout.  This short-term blocking send allows this component
+		// to hold a file open over any short-term blockages in the logs
+		// pipeline.
+		timer := time.NewTimer(t.closeTimeout)
 		select {
 		case t.decoder.InputChan <- decoder.NewInput(inBuf[:n]):
-		default:
-			// The non-blocking send failed, and we want to avoid blocking with
-			// the file open. So close the file before performing a blocking
-			// send. The file will be re-opened on the next iteration.
+			timer.Stop()
+		case <-timer.C:
+			// The closeTimeout expired, and we want to avoid blocking with the
+			// file open. So close the file before performing a blocking send.
+			// The file will be re-opened on the next iteration, after the send
+			// succeeds.  NOTE: if the open file has been rotated, then the
+			// re-open will access a different file and any remaining data in
+			// the rotated file will not be seen.
 			f.Close()
 			f = nil
 
+			// blocking send to the decoder
 			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
 
