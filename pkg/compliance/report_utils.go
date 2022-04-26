@@ -58,7 +58,8 @@ func BuildReportForUnstructured(passed, aggregated bool, obj *KubeUnstructuredRe
 // BuildReportForError returns a report for the given error
 func BuildReportForError(err error) *Report {
 	return &Report{
-		Passed: false,
-		Error:  err,
+		Passed:        false,
+		Error:         err,
+		CriticalError: true,
 	}
 }
