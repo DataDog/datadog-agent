@@ -40,6 +40,8 @@ type memoryUsage interface {
 
 var memBasedRateLimiterTml = newMemBasedRateLimiterTelemetry()
 
+var ballast []byte
+
 // BuildMemBasedRateLimiter builds a new instance of *MemBasedRateLimiter
 func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 	var memoryUsage memoryUsage
@@ -54,8 +56,7 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 
 	ballastSize := config.Datadog.GetInt("dogstatsd_mem_based_rate_limiter.memory_balast")
 	log.Infof("ballast size %vMB", ballastSize/1024/1024)
-	ballast := make([]byte, 0, ballastSize) // 9G
-	runtime.KeepAlive(ballast)
+	ballast = make([]byte, 0, ballastSize)
 
 	return NewMemBasedRateLimiter(
 		memBasedRateLimiterTml,
