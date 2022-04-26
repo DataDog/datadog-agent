@@ -112,6 +112,11 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 // substituteTemplateVariables replaces %%VARIABLES%% in the config init,
 // instances, and logs config.
 // When there is an error, it stops processing.
+//
+// Inside the `config` parameter, the `Instances` field holds strings representing a yaml document where the %%VARIABLES%% placeholders will be substituted.
+// In order to do that, the string is decoded into a tree representing the yaml document.
+// If not `nil`, the `postProcessor` function is invoked on that tree so that it can alter the yaml document and benefit from the yaml parsing.
+// It can be used, for ex., to inject extra tags.
 func substituteTemplateVariables(ctx context.Context, config *integration.Config, svc listeners.Service, postProcessor func(interface{}) error) error {
 	var err error
 
@@ -254,6 +259,11 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 
 var ipv6Re = regexp.MustCompile(`^[0-9a-f:]+$`)
 
+// resolveStringWithTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
+// It delegates all the work to resolveStringWithAdHocTemplateVars and implements only the following trick:
+// for `‰host‰` patterns, if the value of the variable is an IPv6 *and* it appears in an URL context, then it is surrounded by square brackets.
+// Indeed, IPv6 needs to be surrounded by square brackets inside URL to distinguish the colons of the IPv6 itself from the one separating the IP from the port
+// like in: http://[::1]:80/
 func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners.Service) (out interface{}, err error) {
 	isThereAnIPv6Host := false
 
@@ -266,9 +276,8 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 					isThereAnIPv6Host = true
 					if tplVar != "" {
 						return fmt.Sprintf("‰host_%s‰", tplVar), nil
-					} else {
-						return "‰host‰", nil
 					}
+					return "‰host‰", nil
 				}
 				return host, err
 			}
@@ -329,6 +338,9 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 
 var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
 
+// resolveStringWithAdHocTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
+// The variable getters are passed as last parameter.
+// If the input string is composed of *only* a `‰var_param‰` pattern and the result of the substitution is a boolean or a number, then the function returns a boolean or a number instead of a string.
 func resolveStringWithAdHocTemplateVars(ctx context.Context, in string, svc listeners.Service, templateVariables map[string]variableGetter) (out interface{}, err error) {
 	varIndexes := varPattern.FindAllStringSubmatchIndex(in, -1)
 
