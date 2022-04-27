@@ -84,60 +84,67 @@ type LogsConfig struct {
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
-func (c *LogsConfig) Dump() string {
-	var b strings.Builder
+func (c *LogsConfig) Dump(multiline bool) string {
 	if c == nil {
 		return "&LogsConfig(nil)"
 	}
-	fmt.Fprintf(&b, "&LogsConfig{\n")
-	fmt.Fprintf(&b, "\tType: %#v,\n", c.Type)
+
+	var b strings.Builder
+	ws := func(fmt string) string {
+		if multiline {
+			return "\n\t" + fmt
+		}
+		return " " + fmt
+	}
+
+	fmt.Fprintf(&b, ws("&LogsConfig{"))
+	fmt.Fprintf(&b, ws("Type: %#v,"), c.Type)
 	switch c.Type {
 	case TCPType:
-		fmt.Fprintf(&b, "\tPort: %d,\n", c.Port)
-		fmt.Fprintf(&b, "\tIdleTimeout: %#v,\n", c.IdleTimeout)
+		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
+		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
 	case UDPType:
-		fmt.Fprintf(&b, "\tPort: %d,\n", c.Port)
-		fmt.Fprintf(&b, "\tIdleTimeout: %#v,\n", c.IdleTimeout)
+		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
+		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
 	case FileType:
-		fmt.Fprintf(&b, "\tPath: %#v,\n", c.Path)
-		fmt.Fprintf(&b, "\tEncoding: %#v,\n", c.Encoding)
-		fmt.Fprintf(&b, "\tIdentifier: %#v,\n", c.Identifier)
-		fmt.Fprintf(&b, "\tExcludePaths: %#v,\n", c.ExcludePaths)
-		fmt.Fprintf(&b, "\tTailingMode: %#v,\n", c.TailingMode)
+		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
+		fmt.Fprintf(&b, ws("Encoding: %#v,"), c.Encoding)
+		fmt.Fprintf(&b, ws("Identifier: %#v,"), c.Identifier)
+		fmt.Fprintf(&b, ws("ExcludePaths: %#v,"), c.ExcludePaths)
+		fmt.Fprintf(&b, ws("TailingMode: %#v,"), c.TailingMode)
 	case DockerType:
-		fmt.Fprintf(&b, "\tImage: %#v,\n", c.Image)
-		fmt.Fprintf(&b, "\tLabel: %#v,\n", c.Label)
-		fmt.Fprintf(&b, "\tName: %#v,\n", c.Name)
-		fmt.Fprintf(&b, "\tIdentifier: %#v,\n", c.Identifier)
+		fmt.Fprintf(&b, ws("Image: %#v,"), c.Image)
+		fmt.Fprintf(&b, ws("Label: %#v,"), c.Label)
+		fmt.Fprintf(&b, ws("Name: %#v,"), c.Name)
+		fmt.Fprintf(&b, ws("Identifier: %#v,"), c.Identifier)
 	case JournaldType:
-		fmt.Fprintf(&b, "\tPath: %#v,\n", c.Path)
-		fmt.Fprintf(&b, "\tIncludeSystemUnits: %#v,\n", c.IncludeSystemUnits)
-		fmt.Fprintf(&b, "\tExcludeSystemUnits: %#v,\n", c.ExcludeSystemUnits)
-		fmt.Fprintf(&b, "\tIncludeUserUnits: %#v,\n", c.IncludeUserUnits)
-		fmt.Fprintf(&b, "\tExcludeUserUnits: %#v,\n", c.ExcludeUserUnits)
-		fmt.Fprintf(&b, "\tContainerMode: %t,\n", c.ContainerMode)
+		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
+		fmt.Fprintf(&b, ws("IncludeSystemUnits: %#v,"), c.IncludeSystemUnits)
+		fmt.Fprintf(&b, ws("ExcludeSystemUnits: %#v,"), c.ExcludeSystemUnits)
+		fmt.Fprintf(&b, ws("IncludeUserUnits: %#v,"), c.IncludeUserUnits)
+		fmt.Fprintf(&b, ws("ExcludeUserUnits: %#v,"), c.ExcludeUserUnits)
+		fmt.Fprintf(&b, ws("ContainerMode: %t,"), c.ContainerMode)
 	case WindowsEventType:
-		fmt.Fprintf(&b, "\tChannelPath: %#v,\n", c.ChannelPath)
-		fmt.Fprintf(&b, "\tQuery: %#v,\n", c.Query)
+		fmt.Fprintf(&b, ws("ChannelPath: %#v,"), c.ChannelPath)
+		fmt.Fprintf(&b, ws("Query: %#v,"), c.Query)
 	case StringChannelType:
-		fmt.Fprintf(&b, "\tChannel: %p,\n", c.Channel)
+		fmt.Fprintf(&b, ws("Channel: %p,"), c.Channel)
 		c.ChannelTagsMutex.Lock()
-		fmt.Fprintf(&b, "\tChannelTags: %#v,\n", c.ChannelTags)
+		fmt.Fprintf(&b, ws("ChannelTags: %#v,"), c.ChannelTags)
 		c.ChannelTagsMutex.Unlock()
 	}
-	fmt.Fprintf(&b, "\tService: %#v,\n", c.Service)
-	fmt.Fprintf(&b, "\tSource: %#v,\n", c.Source)
-	fmt.Fprintf(&b, "\tSourceCategory: %#v,\n", c.SourceCategory)
-	fmt.Fprintf(&b, "\tTags: %#v,\n", c.Tags)
-	fmt.Fprintf(&b, "\tProcessingRules: %#v,\n", c.ProcessingRules)
+	fmt.Fprintf(&b, ws("Service: %#v,"), c.Service)
+	fmt.Fprintf(&b, ws("Source: %#v,"), c.Source)
+	fmt.Fprintf(&b, ws("SourceCategory: %#v,"), c.SourceCategory)
+	fmt.Fprintf(&b, ws("Tags: %#v,"), c.Tags)
+	fmt.Fprintf(&b, ws("ProcessingRules: %#v,"), c.ProcessingRules)
 	if c.AutoMultiLine != nil {
-		fmt.Fprintf(&b, "\tAutoMultiLine: %t,\n", *c.AutoMultiLine)
+		fmt.Fprintf(&b, ws("AutoMultiLine: %t,"), *c.AutoMultiLine)
 	} else {
-		fmt.Fprintf(&b, "\tAutoMultiLine: nil,\n")
+		fmt.Fprintf(&b, ws("AutoMultiLine: nil,"))
 	}
-	fmt.Fprintf(&b, "\tAutoMultiLineSampleSize: %d,\n", c.AutoMultiLineSampleSize)
-	fmt.Fprintf(&b, "\tAutoMultiLineMatchThreshold: %f,\n", c.AutoMultiLineMatchThreshold)
-	fmt.Fprintf(&b, "}")
+	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
+	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)
 	return b.String()
 }
 

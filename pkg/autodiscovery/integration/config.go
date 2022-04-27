@@ -420,8 +420,9 @@ func (c *Config) FastDigest() uint64 {
 	return h.Sum64()
 }
 
-// Dump returns a multiline string representing this Config value, for debugging purposes.
-func (c *Config) Dump() string {
+// Dump returns a string representing this Config value, for debugging purposes.  If multiline is true,
+// then it contains newlines; otherwise, it is comma-separated.
+func (c *Config) Dump(multiline bool) string {
 	var b strings.Builder
 	dataField := func(data Data) string {
 		if data == nil {
@@ -429,31 +430,37 @@ func (c *Config) Dump() string {
 		}
 		return fmt.Sprintf("[]byte(%#v)", string(data))
 	}
-	fmt.Fprintf(&b, "integration.Config = {\n")
-	fmt.Fprintf(&b, "\tName: %#v,\n", c.Name)
-	if c.Instances == nil {
-		fmt.Fprintf(&b, "\tInstances: nil,\n")
-	} else {
-		fmt.Fprintf(&b, "\tInstances: {\n")
-		for _, inst := range c.Instances {
-			fmt.Fprintf(&b, "\t\t%s,", dataField(inst))
+	ws := func(fmt string) string {
+		if multiline {
+			return "\n\t" + fmt
 		}
-		fmt.Fprintf(&b, "\t}\n")
+		return " " + fmt
 	}
-	fmt.Fprintf(&b, "\tInitConfig: %s,\n", dataField(c.InitConfig))
-	fmt.Fprintf(&b, "\tMetricConfig: %s,\n", dataField(c.MetricConfig))
-	fmt.Fprintf(&b, "\tLogsConfig: %s,\n", dataField(c.LogsConfig))
-	fmt.Fprintf(&b, "\tADIdentifiers: %#v,\n", c.ADIdentifiers)
-	fmt.Fprintf(&b, "\tAdvancedADIdentifiers: %#v,\n", c.AdvancedADIdentifiers)
-	fmt.Fprintf(&b, "\tProvider: %#v,\n", c.Provider)
-	fmt.Fprintf(&b, "\tServiceID: %#v,\n", c.ServiceID)
-	fmt.Fprintf(&b, "\tTaggerEntity: %#v,\n", c.TaggerEntity)
-	fmt.Fprintf(&b, "\tClusterCheck: %t,\n", c.ClusterCheck)
-	fmt.Fprintf(&b, "\tNodeName: %#v,\n", c.NodeName)
-	fmt.Fprintf(&b, "\tSource: %s,\n", c.Source)
-	fmt.Fprintf(&b, "\tIgnoreAutodiscoveryTags: %t,\n", c.IgnoreAutodiscoveryTags)
-	fmt.Fprintf(&b, "\tMetricsExcluded: %t,\n", c.MetricsExcluded)
-	fmt.Fprintf(&b, "\tLogsExcluded: %t,\n", c.LogsExcluded)
-	fmt.Fprintf(&b, "} (digest %s)", c.Digest())
+
+	fmt.Fprintf(&b, "integration.Config = {")
+	fmt.Fprintf(&b, ws("Name: %#v,"), c.Name)
+	if c.Instances == nil {
+		fmt.Fprintf(&b, ws("Instances: nil,"))
+	} else {
+		fmt.Fprintf(&b, ws("Instances: {"))
+		for _, inst := range c.Instances {
+			fmt.Fprintf(&b, ws("%s,"), dataField(inst))
+		}
+		fmt.Fprintf(&b, ws("}"))
+	}
+	fmt.Fprintf(&b, ws("InitConfig: %s,"), dataField(c.InitConfig))
+	fmt.Fprintf(&b, ws("MetricConfig: %s,"), dataField(c.MetricConfig))
+	fmt.Fprintf(&b, ws("LogsConfig: %s,"), dataField(c.LogsConfig))
+	fmt.Fprintf(&b, ws("ADIdentifiers: %#v,"), c.ADIdentifiers)
+	fmt.Fprintf(&b, ws("AdvancedADIdentifiers: %#v,"), c.AdvancedADIdentifiers)
+	fmt.Fprintf(&b, ws("Provider: %#v,"), c.Provider)
+	fmt.Fprintf(&b, ws("ServiceID: %#v,"), c.ServiceID)
+	fmt.Fprintf(&b, ws("TaggerEntity: %#v,"), c.TaggerEntity)
+	fmt.Fprintf(&b, ws("ClusterCheck: %t,"), c.ClusterCheck)
+	fmt.Fprintf(&b, ws("NodeName: %#v,"), c.NodeName)
+	fmt.Fprintf(&b, ws("Source: %s,"), c.Source)
+	fmt.Fprintf(&b, ws("IgnoreAutodiscoveryTags: %t,"), c.IgnoreAutodiscoveryTags)
+	fmt.Fprintf(&b, ws("MetricsExcluded: %t,"), c.MetricsExcluded)
+	fmt.Fprintf(&b, ws("LogsExcluded: %t} (digest %s)"), c.LogsExcluded, c.Digest())
 	return b.String()
 }
