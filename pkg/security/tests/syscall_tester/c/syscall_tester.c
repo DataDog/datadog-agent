@@ -113,7 +113,7 @@ static void *thread_open(void *data) {
 }
 
 int span_open(int argc, char **argv) {
-    if (argc < 3) {
+    if (argc < 4) {
         fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
         return EXIT_FAILURE;
     }
