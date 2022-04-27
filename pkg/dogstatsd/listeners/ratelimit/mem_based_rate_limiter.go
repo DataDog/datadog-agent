@@ -55,8 +55,10 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 	}
 
 	ballastSize := config.Datadog.GetInt("dogstatsd_mem_based_rate_limiter.memory_balast")
-	log.Infof("ballast size %vMB", ballastSize/1024/1024)
 	ballast = make([]byte, 0, ballastSize)
+	if ballast != nil {
+		log.Infof("ballast size %vMB", ballastSize/1024/1024)
+	}
 
 	return NewMemBasedRateLimiter(
 		memBasedRateLimiterTml,
