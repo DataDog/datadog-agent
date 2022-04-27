@@ -108,7 +108,7 @@ func (a v4Address) IsLoopback() bool {
 
 // Len returns the number of bytes required to represent this IP
 func (a v4Address) Len() int {
-	return 4
+	return net.IPv4len
 }
 
 type v6Address [16]byte
@@ -150,7 +150,7 @@ func (a v6Address) IsLoopback() bool {
 
 // Len returns the number of bytes required to represent this IP
 func (a v6Address) Len() int {
-	return 16
+	return net.IPv6len
 }
 
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`

@@ -211,7 +211,7 @@ func (p *dnsParser) parseAnswerInto(
 	pktInfo.queryType = QueryType(question.Type)
 	alias := p.extractCNAME(question.Name, dns.Answers)
 	p.extractIPsInto(alias, dns.Answers, t)
-	t.dns = string(bytes.ToLower(question.Name))
+	t.dns = intern.GetByString(string(bytes.ToLower(question.Name)))
 
 	pktInfo.pktType = successfulResponse
 	return nil

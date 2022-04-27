@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
+	"go4.org/intern"
 )
 
 const (
@@ -109,7 +110,7 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 }
 
 // Resolve IPs to DNS addresses
-func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]string {
+func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]*intern.Value {
 	return s.cache.Get(ips)
 }
 

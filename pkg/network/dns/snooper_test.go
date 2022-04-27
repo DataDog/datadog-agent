@@ -48,7 +48,7 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	payload := []util.Address{srcAddr, destAddr}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
-	assert.Contains(t, names[destAddr], destName)
+	assert.Contains(t, internStrings(names[destAddr]), destName)
 
 	// Verify telemetry
 	stats := reverseDNS.GetStats()

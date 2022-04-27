@@ -100,11 +100,19 @@ func (f *dnsFormatter) DNS() map[string]*model.DNSEntry {
 	ipToNames := make(map[string]*model.DNSEntry, len(f.conns.DNS))
 	for addr, names := range f.conns.DNS {
 		entry := dnsPool.Get().(*model.DNSEntry)
-		entry.Names = names
+		entry.Names = internStrings(names)
 		ipToNames[f.ipc.Get(addr)] = entry
 	}
 
 	return ipToNames
+}
+
+func internStrings(arr []*intern.Value) []string {
+	strs := make([]string, len(arr))
+	for i, a := range arr {
+		strs[i] = a.Get().(string)
+	}
+	return strs
 }
 
 func (f *dnsFormatter) Domains() []string {
