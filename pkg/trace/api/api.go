@@ -517,7 +517,13 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 	if err != nil {
-		log.Errorf("Failed to count traces: %s", err)
+		e := err.Error()
+		if strings.Contains(e, "not found") || strings.Contains(e, "not set") {
+			log.Debugf("Failed to count traces: %s", err)
+		}
+		if strings.Contains(e, "not be parsed") {
+			log.Errorf("Failed to count traces: %s", err)
+		}
 	}
 
 	start := time.Now()
