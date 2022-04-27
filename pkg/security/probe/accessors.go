@@ -12881,7 +12881,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
 	case "bpf.cmd":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Cmd"}
@@ -12889,7 +12888,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Cmd = uint32(v)
 		return nil
 	case "bpf.map.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Map.Name"}
@@ -12897,7 +12895,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Map.Name = str
 		return nil
 	case "bpf.map.type":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Map.Type"}
@@ -12905,7 +12902,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Map.Type = uint32(v)
 		return nil
 	case "bpf.prog.attach_type":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.AttachType"}
@@ -12913,7 +12909,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Program.AttachType = uint32(v)
 		return nil
 	case "bpf.prog.helpers":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Helpers"}
@@ -12921,7 +12916,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Program.Helpers = append(e.BPF.Program.Helpers, uint32(v))
 		return nil
 	case "bpf.prog.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Name"}
@@ -12929,7 +12923,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Program.Name = str
 		return nil
 	case "bpf.prog.tag":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Tag"}
@@ -12937,7 +12930,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Program.Tag = str
 		return nil
 	case "bpf.prog.type":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Type"}
@@ -12945,7 +12937,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.Program.Type = uint32(v)
 		return nil
 	case "bpf.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.SyscallEvent.Retval"}
@@ -12953,7 +12944,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.BPF.SyscallEvent.Retval = int64(v)
 		return nil
 	case "capset.cap_effective":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Capset.CapEffective"}
@@ -12961,7 +12951,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Capset.CapEffective = uint64(v)
 		return nil
 	case "capset.cap_permitted":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Capset.CapPermitted"}
@@ -12969,7 +12958,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Capset.CapPermitted = uint64(v)
 		return nil
 	case "chmod.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.CTime"}
@@ -12977,7 +12965,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.CTime = uint64(v)
 		return nil
 	case "chmod.file.destination.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.Mode"}
@@ -12985,7 +12972,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.Mode = uint32(v)
 		return nil
 	case "chmod.file.destination.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.Mode"}
@@ -12993,7 +12979,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.Mode = uint32(v)
 		return nil
 	case "chmod.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.Filesystem"}
@@ -13001,7 +12986,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.Filesystem = str
 		return nil
 	case "chmod.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.GID"}
@@ -13009,7 +12993,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.GID = uint32(v)
 		return nil
 	case "chmod.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Group"}
@@ -13023,7 +13006,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "chmod.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Inode"}
@@ -13031,7 +13013,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.Inode = uint64(v)
 		return nil
 	case "chmod.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Mode"}
@@ -13039,7 +13020,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.Mode = uint16(v)
 		return nil
 	case "chmod.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.MTime"}
@@ -13047,7 +13027,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.MTime = uint64(v)
 		return nil
 	case "chmod.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.MountID"}
@@ -13055,7 +13034,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.MountID = uint32(v)
 		return nil
 	case "chmod.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.BasenameStr"}
@@ -13063,7 +13041,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.BasenameStr = str
 		return nil
 	case "chmod.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.PathnameStr"}
@@ -13071,7 +13048,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.PathnameStr = str
 		return nil
 	case "chmod.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Mode"}
@@ -13079,7 +13055,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.Mode = uint16(v)
 		return nil
 	case "chmod.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.UID"}
@@ -13087,7 +13062,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.UID = uint32(v)
 		return nil
 	case "chmod.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.User"}
@@ -13095,7 +13069,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.User = str
 		return nil
 	case "chmod.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallEvent.Retval"}
@@ -13103,7 +13076,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.SyscallEvent.Retval = int64(v)
 		return nil
 	case "chown.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.CTime"}
@@ -13111,7 +13083,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.CTime = uint64(v)
 		return nil
 	case "chown.file.destination.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.GID"}
@@ -13119,7 +13090,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.GID = int64(v)
 		return nil
 	case "chown.file.destination.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.Group"}
@@ -13127,7 +13097,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.Group = str
 		return nil
 	case "chown.file.destination.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.UID"}
@@ -13135,7 +13104,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.UID = int64(v)
 		return nil
 	case "chown.file.destination.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.User"}
@@ -13143,7 +13111,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.User = str
 		return nil
 	case "chown.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.Filesystem"}
@@ -13151,7 +13118,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.Filesystem = str
 		return nil
 	case "chown.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.GID"}
@@ -13159,7 +13125,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.GID = uint32(v)
 		return nil
 	case "chown.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Group"}
@@ -13173,7 +13138,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "chown.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Inode"}
@@ -13181,7 +13145,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.Inode = uint64(v)
 		return nil
 	case "chown.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Mode"}
@@ -13189,7 +13152,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.Mode = uint16(v)
 		return nil
 	case "chown.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.MTime"}
@@ -13197,7 +13159,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.MTime = uint64(v)
 		return nil
 	case "chown.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.MountID"}
@@ -13205,7 +13166,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.MountID = uint32(v)
 		return nil
 	case "chown.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.BasenameStr"}
@@ -13213,7 +13173,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.BasenameStr = str
 		return nil
 	case "chown.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.PathnameStr"}
@@ -13221,7 +13180,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.PathnameStr = str
 		return nil
 	case "chown.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Mode"}
@@ -13229,7 +13187,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.Mode = uint16(v)
 		return nil
 	case "chown.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.UID"}
@@ -13237,7 +13194,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.UID = uint32(v)
 		return nil
 	case "chown.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.User"}
@@ -13245,7 +13201,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.FileFields.User = str
 		return nil
 	case "chown.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallEvent.Retval"}
@@ -13253,7 +13208,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.SyscallEvent.Retval = int64(v)
 		return nil
 	case "container.id":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.ID"}
@@ -13261,7 +13215,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ContainerContext.ID = str
 		return nil
 	case "container.tags":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
@@ -13269,7 +13222,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
 		return nil
 	case "dns.question.class":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Class"}
@@ -13277,7 +13229,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Class = uint16(v)
 		return nil
 	case "dns.question.count":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Count"}
@@ -13285,7 +13236,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Count = uint16(v)
 		return nil
 	case "dns.question.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Name"}
@@ -13293,7 +13243,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Name = str
 		return nil
 	case "dns.question.size":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
@@ -13301,7 +13250,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Size = uint16(v)
 		return nil
 	case "dns.question.type":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Type"}
@@ -13309,7 +13257,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Type = uint16(v)
 		return nil
 	case "exec.args":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Args"}
@@ -13317,7 +13264,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Args = str
 		return nil
 	case "exec.args_flags":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -13325,7 +13271,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.args_options":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -13339,7 +13284,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "exec.argv":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -13347,7 +13291,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.argv0":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv0"}
@@ -13355,7 +13298,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv0 = str
 		return nil
 	case "exec.cap_effective":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.CapEffective"}
@@ -13363,7 +13305,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "exec.cap_permitted":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.CapPermitted"}
@@ -13371,7 +13312,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "exec.comm":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Comm"}
@@ -13379,7 +13319,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Comm = str
 		return nil
 	case "exec.container.id":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
@@ -13387,7 +13326,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.ContainerID = str
 		return nil
 	case "exec.cookie":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Cookie"}
@@ -13395,7 +13333,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Cookie = uint32(v)
 		return nil
 	case "exec.created_at":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CreatedAt"}
@@ -13403,7 +13340,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.CreatedAt = uint64(v)
 		return nil
 	case "exec.egid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGID"}
@@ -13411,7 +13347,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "exec.egroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGroup"}
@@ -13419,7 +13354,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EGroup = str
 		return nil
 	case "exec.envp":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envp"}
@@ -13427,7 +13361,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Envp = append(e.Exec.Process.Envp, str)
 		return nil
 	case "exec.envs":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envs"}
@@ -13441,7 +13374,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "exec.euid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EUID"}
@@ -13449,7 +13381,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "exec.euser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EUser"}
@@ -13457,7 +13388,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EUser = str
 		return nil
 	case "exec.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.CTime"}
@@ -13465,7 +13395,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "exec.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.Filesystem"}
@@ -13473,7 +13402,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.Filesystem = str
 		return nil
 	case "exec.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.GID"}
@@ -13481,7 +13409,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "exec.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Group"}
@@ -13495,7 +13422,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "exec.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Inode"}
@@ -13503,7 +13429,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "exec.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -13511,7 +13436,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "exec.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.MTime"}
@@ -13519,7 +13443,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "exec.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.MountID"}
@@ -13527,7 +13450,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "exec.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.BasenameStr"}
@@ -13535,7 +13457,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.BasenameStr = str
 		return nil
 	case "exec.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PathnameStr"}
@@ -13543,7 +13464,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.PathnameStr = str
 		return nil
 	case "exec.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -13551,7 +13471,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "exec.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.UID"}
@@ -13559,7 +13478,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "exec.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.User"}
@@ -13567,7 +13485,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.User = str
 		return nil
 	case "exec.fsgid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSGID"}
@@ -13575,7 +13492,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "exec.fsgroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSGroup"}
@@ -13583,7 +13499,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSGroup = str
 		return nil
 	case "exec.fsuid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSUID"}
@@ -13591,7 +13506,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "exec.fsuser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSUser"}
@@ -13599,7 +13513,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSUser = str
 		return nil
 	case "exec.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.GID"}
@@ -13607,7 +13520,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.GID = uint32(v)
 		return nil
 	case "exec.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.Group"}
@@ -13615,7 +13527,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.Group = str
 		return nil
 	case "exec.pid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Pid"}
@@ -13623,7 +13534,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Pid = uint32(v)
 		return nil
 	case "exec.ppid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PPid"}
@@ -13631,7 +13541,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.PPid = uint32(v)
 		return nil
 	case "exec.tid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Tid"}
@@ -13639,7 +13548,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Tid = uint32(v)
 		return nil
 	case "exec.tty_name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.TTYName"}
@@ -13647,7 +13555,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.TTYName = str
 		return nil
 	case "exec.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.UID"}
@@ -13655,7 +13562,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.UID = uint32(v)
 		return nil
 	case "exec.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.User"}
@@ -13663,7 +13569,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.User = str
 		return nil
 	case "link.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.CTime"}
@@ -13671,7 +13576,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.CTime = uint64(v)
 		return nil
 	case "link.file.destination.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.CTime"}
@@ -13679,7 +13583,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.CTime = uint64(v)
 		return nil
 	case "link.file.destination.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.Filesystem"}
@@ -13687,7 +13590,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.Filesystem = str
 		return nil
 	case "link.file.destination.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.GID"}
@@ -13695,7 +13597,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.GID = uint32(v)
 		return nil
 	case "link.file.destination.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Group"}
@@ -13709,7 +13610,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "link.file.destination.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Inode"}
@@ -13717,7 +13617,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.Inode = uint64(v)
 		return nil
 	case "link.file.destination.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Mode"}
@@ -13725,7 +13624,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.Mode = uint16(v)
 		return nil
 	case "link.file.destination.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.MTime"}
@@ -13733,7 +13631,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.MTime = uint64(v)
 		return nil
 	case "link.file.destination.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.MountID"}
@@ -13741,7 +13638,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.MountID = uint32(v)
 		return nil
 	case "link.file.destination.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.BasenameStr"}
@@ -13749,7 +13645,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.BasenameStr = str
 		return nil
 	case "link.file.destination.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PathnameStr"}
@@ -13757,7 +13652,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.PathnameStr = str
 		return nil
 	case "link.file.destination.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Mode"}
@@ -13765,7 +13659,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.Mode = uint16(v)
 		return nil
 	case "link.file.destination.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.UID"}
@@ -13773,7 +13666,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.UID = uint32(v)
 		return nil
 	case "link.file.destination.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.User"}
@@ -13781,7 +13673,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.FileFields.User = str
 		return nil
 	case "link.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.Filesystem"}
@@ -13789,7 +13680,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.Filesystem = str
 		return nil
 	case "link.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.GID"}
@@ -13797,7 +13687,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.GID = uint32(v)
 		return nil
 	case "link.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Group"}
@@ -13811,7 +13700,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "link.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Inode"}
@@ -13819,7 +13707,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.Inode = uint64(v)
 		return nil
 	case "link.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Mode"}
@@ -13827,7 +13714,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.Mode = uint16(v)
 		return nil
 	case "link.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.MTime"}
@@ -13835,7 +13721,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.MTime = uint64(v)
 		return nil
 	case "link.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.MountID"}
@@ -13843,7 +13728,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.MountID = uint32(v)
 		return nil
 	case "link.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.BasenameStr"}
@@ -13851,7 +13735,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.BasenameStr = str
 		return nil
 	case "link.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PathnameStr"}
@@ -13859,7 +13742,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.PathnameStr = str
 		return nil
 	case "link.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Mode"}
@@ -13867,7 +13749,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.Mode = uint16(v)
 		return nil
 	case "link.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.UID"}
@@ -13875,7 +13756,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.UID = uint32(v)
 		return nil
 	case "link.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.User"}
@@ -13883,7 +13763,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.User = str
 		return nil
 	case "link.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallEvent.Retval"}
@@ -13891,7 +13770,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.SyscallEvent.Retval = int64(v)
 		return nil
 	case "load_module.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.CTime"}
@@ -13899,7 +13777,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.CTime = uint64(v)
 		return nil
 	case "load_module.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.Filesystem"}
@@ -13907,7 +13784,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.Filesystem = str
 		return nil
 	case "load_module.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.GID"}
@@ -13915,7 +13791,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.GID = uint32(v)
 		return nil
 	case "load_module.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Group"}
@@ -13929,7 +13804,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "load_module.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Inode"}
@@ -13937,7 +13811,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.Inode = uint64(v)
 		return nil
 	case "load_module.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
@@ -13945,7 +13818,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.Mode = uint16(v)
 		return nil
 	case "load_module.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.MTime"}
@@ -13953,7 +13825,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.MTime = uint64(v)
 		return nil
 	case "load_module.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.MountID"}
@@ -13961,7 +13832,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.MountID = uint32(v)
 		return nil
 	case "load_module.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.BasenameStr"}
@@ -13969,7 +13839,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.BasenameStr = str
 		return nil
 	case "load_module.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.PathnameStr"}
@@ -13977,7 +13846,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.PathnameStr = str
 		return nil
 	case "load_module.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
@@ -13985,7 +13853,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.Mode = uint16(v)
 		return nil
 	case "load_module.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.UID"}
@@ -13993,7 +13860,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.FileFields.UID = uint32(v)
 		return nil
 	case "load_module.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.User"}
@@ -14007,7 +13873,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "load_module.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Name"}
@@ -14015,7 +13880,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.Name = str
 		return nil
 	case "load_module.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.SyscallEvent.Retval"}
@@ -14023,7 +13887,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.SyscallEvent.Retval = int64(v)
 		return nil
 	case "mkdir.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.CTime"}
@@ -14031,7 +13894,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.CTime = uint64(v)
 		return nil
 	case "mkdir.file.destination.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.Mode"}
@@ -14039,7 +13901,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.Mode = uint32(v)
 		return nil
 	case "mkdir.file.destination.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.Mode"}
@@ -14047,7 +13908,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.Mode = uint32(v)
 		return nil
 	case "mkdir.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.Filesystem"}
@@ -14055,7 +13915,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.Filesystem = str
 		return nil
 	case "mkdir.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.GID"}
@@ -14063,7 +13922,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.GID = uint32(v)
 		return nil
 	case "mkdir.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Group"}
@@ -14077,7 +13935,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "mkdir.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Inode"}
@@ -14085,7 +13942,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.Inode = uint64(v)
 		return nil
 	case "mkdir.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Mode"}
@@ -14093,7 +13949,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.Mode = uint16(v)
 		return nil
 	case "mkdir.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.MTime"}
@@ -14101,7 +13956,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.MTime = uint64(v)
 		return nil
 	case "mkdir.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.MountID"}
@@ -14109,7 +13963,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.MountID = uint32(v)
 		return nil
 	case "mkdir.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.BasenameStr"}
@@ -14117,7 +13970,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.BasenameStr = str
 		return nil
 	case "mkdir.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.PathnameStr"}
@@ -14125,7 +13977,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.PathnameStr = str
 		return nil
 	case "mkdir.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Mode"}
@@ -14133,7 +13984,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.Mode = uint16(v)
 		return nil
 	case "mkdir.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.UID"}
@@ -14141,7 +13991,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.UID = uint32(v)
 		return nil
 	case "mkdir.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.User"}
@@ -14149,7 +13998,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.User = str
 		return nil
 	case "mkdir.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.SyscallEvent.Retval"}
@@ -14157,7 +14005,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.SyscallEvent.Retval = int64(v)
 		return nil
 	case "mmap.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.CTime"}
@@ -14165,7 +14012,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.CTime = uint64(v)
 		return nil
 	case "mmap.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.Filesystem"}
@@ -14173,7 +14019,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.Filesystem = str
 		return nil
 	case "mmap.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.GID"}
@@ -14181,7 +14026,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.GID = uint32(v)
 		return nil
 	case "mmap.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Group"}
@@ -14195,7 +14039,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "mmap.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Inode"}
@@ -14203,7 +14046,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.Inode = uint64(v)
 		return nil
 	case "mmap.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Mode"}
@@ -14211,7 +14053,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.Mode = uint16(v)
 		return nil
 	case "mmap.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.MTime"}
@@ -14219,7 +14060,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.MTime = uint64(v)
 		return nil
 	case "mmap.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.MountID"}
@@ -14227,7 +14067,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.MountID = uint32(v)
 		return nil
 	case "mmap.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.BasenameStr"}
@@ -14235,7 +14074,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.BasenameStr = str
 		return nil
 	case "mmap.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.PathnameStr"}
@@ -14243,7 +14081,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.PathnameStr = str
 		return nil
 	case "mmap.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Mode"}
@@ -14251,7 +14088,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.Mode = uint16(v)
 		return nil
 	case "mmap.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.UID"}
@@ -14259,7 +14095,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.UID = uint32(v)
 		return nil
 	case "mmap.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.User"}
@@ -14267,7 +14102,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.FileFields.User = str
 		return nil
 	case "mmap.flags":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.Flags"}
@@ -14275,7 +14109,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.Flags = int(v)
 		return nil
 	case "mmap.protection":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.Protection"}
@@ -14283,7 +14116,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.Protection = int(v)
 		return nil
 	case "mmap.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.SyscallEvent.Retval"}
@@ -14291,7 +14123,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.SyscallEvent.Retval = int64(v)
 		return nil
 	case "mprotect.req_protection":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MProtect.ReqProtection"}
@@ -14299,7 +14130,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MProtect.ReqProtection = int(v)
 		return nil
 	case "mprotect.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MProtect.SyscallEvent.Retval"}
@@ -14307,7 +14137,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MProtect.SyscallEvent.Retval = int64(v)
 		return nil
 	case "mprotect.vm_protection":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MProtect.VMProtection"}
@@ -14315,7 +14144,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MProtect.VMProtection = int(v)
 		return nil
 	case "network.destination.ip":
-		var ok bool
 		v, ok := value.(net.IPNet)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IPNet"}
@@ -14323,7 +14151,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Destination.IPNet = v
 		return nil
 	case "network.destination.port":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.Port"}
@@ -14331,7 +14158,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Destination.Port = uint16(v)
 		return nil
 	case "network.device.ifindex":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfIndex"}
@@ -14339,7 +14165,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Device.IfIndex = uint32(v)
 		return nil
 	case "network.device.ifname":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfName"}
@@ -14347,7 +14172,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Device.IfName = str
 		return nil
 	case "network.l3_protocol":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L3Protocol"}
@@ -14355,7 +14179,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.L3Protocol = uint16(v)
 		return nil
 	case "network.l4_protocol":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L4Protocol"}
@@ -14363,7 +14186,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.L4Protocol = uint16(v)
 		return nil
 	case "network.size":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Size"}
@@ -14371,7 +14193,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Size = uint32(v)
 		return nil
 	case "network.source.ip":
-		var ok bool
 		v, ok := value.(net.IPNet)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IPNet"}
@@ -14379,7 +14200,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Source.IPNet = v
 		return nil
 	case "network.source.port":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
@@ -14387,7 +14207,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Source.Port = uint16(v)
 		return nil
 	case "open.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.CTime"}
@@ -14395,7 +14214,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.CTime = uint64(v)
 		return nil
 	case "open.file.destination.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.Mode"}
@@ -14403,7 +14221,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.Mode = uint32(v)
 		return nil
 	case "open.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.Filesystem"}
@@ -14411,7 +14228,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.Filesystem = str
 		return nil
 	case "open.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.GID"}
@@ -14419,7 +14235,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.GID = uint32(v)
 		return nil
 	case "open.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Group"}
@@ -14433,7 +14248,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "open.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Inode"}
@@ -14441,7 +14255,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.Inode = uint64(v)
 		return nil
 	case "open.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Mode"}
@@ -14449,7 +14262,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.Mode = uint16(v)
 		return nil
 	case "open.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.MTime"}
@@ -14457,7 +14269,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.MTime = uint64(v)
 		return nil
 	case "open.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.MountID"}
@@ -14465,7 +14276,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.MountID = uint32(v)
 		return nil
 	case "open.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.BasenameStr"}
@@ -14473,7 +14283,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.BasenameStr = str
 		return nil
 	case "open.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.PathnameStr"}
@@ -14481,7 +14290,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.PathnameStr = str
 		return nil
 	case "open.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Mode"}
@@ -14489,7 +14297,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.Mode = uint16(v)
 		return nil
 	case "open.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.UID"}
@@ -14497,7 +14304,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.UID = uint32(v)
 		return nil
 	case "open.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.User"}
@@ -14505,7 +14311,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.FileFields.User = str
 		return nil
 	case "open.flags":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.Flags"}
@@ -14513,7 +14318,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.Flags = uint32(v)
 		return nil
 	case "open.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallEvent.Retval"}
@@ -14524,7 +14328,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Args"}
@@ -14535,7 +14338,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
@@ -14546,7 +14348,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
@@ -14566,7 +14367,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
@@ -14577,7 +14377,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv0"}
@@ -14588,7 +14387,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
@@ -14599,7 +14397,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
@@ -14610,7 +14407,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Comm"}
@@ -14621,7 +14417,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
@@ -14632,7 +14427,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Cookie"}
@@ -14643,7 +14437,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.CreatedAt"}
@@ -14654,7 +14447,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID"}
@@ -14665,7 +14457,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
@@ -14676,7 +14467,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envp"}
@@ -14687,7 +14477,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envs"}
@@ -14707,7 +14496,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID"}
@@ -14718,7 +14506,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
@@ -14729,7 +14516,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
@@ -14740,7 +14526,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
@@ -14751,7 +14536,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
@@ -14762,7 +14546,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -14782,7 +14565,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode"}
@@ -14793,7 +14575,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -14804,7 +14585,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
@@ -14815,7 +14595,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID"}
@@ -14826,7 +14605,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
@@ -14837,7 +14615,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
@@ -14848,7 +14625,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -14859,7 +14635,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
@@ -14870,7 +14645,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
@@ -14881,7 +14655,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID"}
@@ -14892,7 +14665,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
@@ -14903,7 +14675,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID"}
@@ -14914,7 +14685,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser"}
@@ -14925,7 +14695,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID"}
@@ -14936,7 +14705,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
@@ -14947,7 +14715,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Pid"}
@@ -14958,7 +14725,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PPid"}
@@ -14969,7 +14735,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Tid"}
@@ -14980,7 +14745,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.TTYName"}
@@ -14991,7 +14755,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID"}
@@ -15002,7 +14765,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.User"}
@@ -15010,7 +14772,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "process.args":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Args"}
@@ -15018,7 +14779,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Args = str
 		return nil
 	case "process.args_flags":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
@@ -15026,7 +14786,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Argv = append(e.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.args_options":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
@@ -15040,7 +14799,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.argv":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
@@ -15048,7 +14806,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Argv = append(e.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.argv0":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv0"}
@@ -15056,7 +14813,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Argv0 = str
 		return nil
 	case "process.cap_effective":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapEffective"}
@@ -15064,7 +14820,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "process.cap_permitted":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapPermitted"}
@@ -15072,7 +14827,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "process.comm":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Comm"}
@@ -15080,7 +14834,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Comm = str
 		return nil
 	case "process.container.id":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ContainerID"}
@@ -15088,7 +14841,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.ContainerID = str
 		return nil
 	case "process.cookie":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Cookie"}
@@ -15096,7 +14848,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 	case "process.created_at":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.CreatedAt"}
@@ -15104,7 +14855,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.CreatedAt = uint64(v)
 		return nil
 	case "process.egid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGID"}
@@ -15112,7 +14862,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "process.egroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGroup"}
@@ -15120,7 +14869,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EGroup = str
 		return nil
 	case "process.envp":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envp"}
@@ -15128,7 +14876,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Envp = append(e.ProcessContext.Process.Envp, str)
 		return nil
 	case "process.envs":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envs"}
@@ -15142,7 +14889,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.euid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUID"}
@@ -15150,7 +14896,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "process.euser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUser"}
@@ -15158,7 +14903,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EUser = str
 		return nil
 	case "process.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.CTime"}
@@ -15166,7 +14910,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "process.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.Filesystem"}
@@ -15174,7 +14917,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
 	case "process.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.GID"}
@@ -15182,7 +14924,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "process.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -15196,7 +14937,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Inode"}
@@ -15204,7 +14944,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "process.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -15212,7 +14951,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.MTime"}
@@ -15220,7 +14958,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "process.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.MountID"}
@@ -15228,7 +14965,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "process.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.BasenameStr"}
@@ -15236,7 +14972,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
 	case "process.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.PathnameStr"}
@@ -15244,7 +14979,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
 	case "process.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -15252,7 +14986,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.UID"}
@@ -15260,7 +14993,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "process.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.User"}
@@ -15268,7 +15000,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
 	case "process.fsgid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGID"}
@@ -15276,7 +15007,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "process.fsgroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGroup"}
@@ -15284,7 +15014,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
 	case "process.fsuid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUID"}
@@ -15292,7 +15021,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "process.fsuser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUser"}
@@ -15300,7 +15028,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSUser = str
 		return nil
 	case "process.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.GID"}
@@ -15308,7 +15035,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.GID = uint32(v)
 		return nil
 	case "process.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.Group"}
@@ -15316,7 +15042,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.Group = str
 		return nil
 	case "process.pid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Pid"}
@@ -15324,7 +15049,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Pid = uint32(v)
 		return nil
 	case "process.ppid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PPid"}
@@ -15332,7 +15056,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.PPid = uint32(v)
 		return nil
 	case "process.tid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Tid"}
@@ -15340,7 +15063,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Tid = uint32(v)
 		return nil
 	case "process.tty_name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.TTYName"}
@@ -15348,7 +15070,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.TTYName = str
 		return nil
 	case "process.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.UID"}
@@ -15356,7 +15077,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.UID = uint32(v)
 		return nil
 	case "process.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.User"}
@@ -15364,7 +15084,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "ptrace.request":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Request"}
@@ -15372,7 +15091,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Request = uint32(v)
 		return nil
 	case "ptrace.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.SyscallEvent.Retval"}
@@ -15383,7 +15101,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Args"}
@@ -15394,7 +15111,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv"}
@@ -15405,7 +15121,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv"}
@@ -15425,7 +15140,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv"}
@@ -15436,7 +15150,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0"}
@@ -15447,7 +15160,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
@@ -15458,7 +15170,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
@@ -15469,7 +15180,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Comm"}
@@ -15480,7 +15190,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID"}
@@ -15491,7 +15200,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Cookie"}
@@ -15502,7 +15210,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CreatedAt"}
@@ -15513,7 +15220,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGID"}
@@ -15524,7 +15230,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup"}
@@ -15535,7 +15240,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Envp"}
@@ -15546,7 +15250,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Envs"}
@@ -15566,7 +15269,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUID"}
@@ -15577,7 +15279,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser"}
@@ -15588,7 +15289,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
@@ -15599,7 +15299,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
@@ -15610,7 +15309,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
@@ -15621,7 +15319,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -15641,7 +15338,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode"}
@@ -15652,7 +15348,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -15663,7 +15358,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
@@ -15674,7 +15368,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID"}
@@ -15685,7 +15378,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
@@ -15696,7 +15388,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
@@ -15707,7 +15398,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -15718,7 +15408,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
@@ -15729,7 +15418,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
@@ -15740,7 +15428,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGID"}
@@ -15751,7 +15438,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
@@ -15762,7 +15448,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUID"}
@@ -15773,7 +15458,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser"}
@@ -15784,7 +15468,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.GID"}
@@ -15795,7 +15478,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group"}
@@ -15806,7 +15488,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Pid"}
@@ -15817,7 +15498,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PPid"}
@@ -15828,7 +15508,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Tid"}
@@ -15839,7 +15518,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName"}
@@ -15850,7 +15528,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.UID"}
@@ -15861,7 +15538,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User"}
@@ -15869,7 +15545,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "ptrace.tracee.args":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Args"}
@@ -15877,7 +15552,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Args = str
 		return nil
 	case "ptrace.tracee.args_flags":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv"}
@@ -15885,7 +15559,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Argv = append(e.PTrace.Tracee.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.args_options":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv"}
@@ -15899,7 +15572,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "ptrace.tracee.argv":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv"}
@@ -15907,7 +15579,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Argv = append(e.PTrace.Tracee.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.argv0":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv0"}
@@ -15915,7 +15586,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Argv0 = str
 		return nil
 	case "ptrace.tracee.cap_effective":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.CapEffective"}
@@ -15923,7 +15593,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "ptrace.tracee.cap_permitted":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.CapPermitted"}
@@ -15931,7 +15600,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "ptrace.tracee.comm":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Comm"}
@@ -15939,7 +15607,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Comm = str
 		return nil
 	case "ptrace.tracee.container.id":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.ContainerID"}
@@ -15947,7 +15614,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.ContainerID = str
 		return nil
 	case "ptrace.tracee.cookie":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Cookie"}
@@ -15955,7 +15621,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Cookie = uint32(v)
 		return nil
 	case "ptrace.tracee.created_at":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CreatedAt"}
@@ -15963,7 +15628,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.CreatedAt = uint64(v)
 		return nil
 	case "ptrace.tracee.egid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EGID"}
@@ -15971,7 +15635,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "ptrace.tracee.egroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EGroup"}
@@ -15979,7 +15642,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EGroup = str
 		return nil
 	case "ptrace.tracee.envp":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Envp"}
@@ -15987,7 +15649,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Envp = append(e.PTrace.Tracee.Process.Envp, str)
 		return nil
 	case "ptrace.tracee.envs":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Envs"}
@@ -16001,7 +15662,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "ptrace.tracee.euid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EUID"}
@@ -16009,7 +15669,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "ptrace.tracee.euser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EUser"}
@@ -16017,7 +15676,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EUser = str
 		return nil
 	case "ptrace.tracee.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.CTime"}
@@ -16025,7 +15683,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "ptrace.tracee.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.Filesystem"}
@@ -16033,7 +15690,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.Filesystem = str
 		return nil
 	case "ptrace.tracee.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.GID"}
@@ -16041,7 +15697,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Group"}
@@ -16055,7 +15710,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "ptrace.tracee.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Inode"}
@@ -16063,7 +15717,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "ptrace.tracee.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
@@ -16071,7 +15724,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.MTime"}
@@ -16079,7 +15731,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "ptrace.tracee.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.MountID"}
@@ -16087,7 +15738,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "ptrace.tracee.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.BasenameStr"}
@@ -16095,7 +15745,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.BasenameStr = str
 		return nil
 	case "ptrace.tracee.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PathnameStr"}
@@ -16103,7 +15752,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.PathnameStr = str
 		return nil
 	case "ptrace.tracee.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
@@ -16111,7 +15759,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.UID"}
@@ -16119,7 +15766,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.User"}
@@ -16127,7 +15773,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.User = str
 		return nil
 	case "ptrace.tracee.fsgid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSGID"}
@@ -16135,7 +15780,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "ptrace.tracee.fsgroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSGroup"}
@@ -16143,7 +15787,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSGroup = str
 		return nil
 	case "ptrace.tracee.fsuid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSUID"}
@@ -16151,7 +15794,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "ptrace.tracee.fsuser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSUser"}
@@ -16159,7 +15801,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSUser = str
 		return nil
 	case "ptrace.tracee.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.GID"}
@@ -16167,7 +15808,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.Group"}
@@ -16175,7 +15815,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.Group = str
 		return nil
 	case "ptrace.tracee.pid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Pid"}
@@ -16183,7 +15822,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Pid = uint32(v)
 		return nil
 	case "ptrace.tracee.ppid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.PPid"}
@@ -16191,7 +15829,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.PPid = uint32(v)
 		return nil
 	case "ptrace.tracee.tid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Tid"}
@@ -16199,7 +15836,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Tid = uint32(v)
 		return nil
 	case "ptrace.tracee.tty_name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.TTYName"}
@@ -16207,7 +15843,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.TTYName = str
 		return nil
 	case "ptrace.tracee.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.UID"}
@@ -16215,7 +15850,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.User"}
@@ -16223,7 +15857,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.User = str
 		return nil
 	case "removexattr.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.CTime"}
@@ -16231,7 +15864,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.CTime = uint64(v)
 		return nil
 	case "removexattr.file.destination.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Name"}
@@ -16239,7 +15871,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.Name = str
 		return nil
 	case "removexattr.file.destination.namespace":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Namespace"}
@@ -16247,7 +15878,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.Namespace = str
 		return nil
 	case "removexattr.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.Filesystem"}
@@ -16255,7 +15885,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.Filesystem = str
 		return nil
 	case "removexattr.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.GID"}
@@ -16263,7 +15892,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.GID = uint32(v)
 		return nil
 	case "removexattr.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Group"}
@@ -16277,7 +15905,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "removexattr.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Inode"}
@@ -16285,7 +15912,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.Inode = uint64(v)
 		return nil
 	case "removexattr.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Mode"}
@@ -16293,7 +15919,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.Mode = uint16(v)
 		return nil
 	case "removexattr.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.MTime"}
@@ -16301,7 +15926,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.MTime = uint64(v)
 		return nil
 	case "removexattr.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.MountID"}
@@ -16309,7 +15933,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.MountID = uint32(v)
 		return nil
 	case "removexattr.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.BasenameStr"}
@@ -16317,7 +15940,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.BasenameStr = str
 		return nil
 	case "removexattr.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.PathnameStr"}
@@ -16325,7 +15947,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.PathnameStr = str
 		return nil
 	case "removexattr.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Mode"}
@@ -16333,7 +15954,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.Mode = uint16(v)
 		return nil
 	case "removexattr.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.UID"}
@@ -16341,7 +15961,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.UID = uint32(v)
 		return nil
 	case "removexattr.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.User"}
@@ -16349,7 +15968,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.User = str
 		return nil
 	case "removexattr.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.SyscallEvent.Retval"}
@@ -16357,7 +15975,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 	case "rename.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.CTime"}
@@ -16365,7 +15982,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.CTime = uint64(v)
 		return nil
 	case "rename.file.destination.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.CTime"}
@@ -16373,7 +15989,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.CTime = uint64(v)
 		return nil
 	case "rename.file.destination.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.Filesystem"}
@@ -16381,7 +15996,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.Filesystem = str
 		return nil
 	case "rename.file.destination.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.GID"}
@@ -16389,7 +16003,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.GID = uint32(v)
 		return nil
 	case "rename.file.destination.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Group"}
@@ -16403,7 +16016,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "rename.file.destination.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Inode"}
@@ -16411,7 +16023,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.Inode = uint64(v)
 		return nil
 	case "rename.file.destination.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Mode"}
@@ -16419,7 +16030,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.Mode = uint16(v)
 		return nil
 	case "rename.file.destination.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.MTime"}
@@ -16427,7 +16037,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.MTime = uint64(v)
 		return nil
 	case "rename.file.destination.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.MountID"}
@@ -16435,7 +16044,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.MountID = uint32(v)
 		return nil
 	case "rename.file.destination.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.BasenameStr"}
@@ -16443,7 +16051,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.BasenameStr = str
 		return nil
 	case "rename.file.destination.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PathnameStr"}
@@ -16451,7 +16058,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.PathnameStr = str
 		return nil
 	case "rename.file.destination.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Mode"}
@@ -16459,7 +16065,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.Mode = uint16(v)
 		return nil
 	case "rename.file.destination.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.UID"}
@@ -16467,7 +16072,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.UID = uint32(v)
 		return nil
 	case "rename.file.destination.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.User"}
@@ -16475,7 +16079,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.User = str
 		return nil
 	case "rename.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.Filesystem"}
@@ -16483,7 +16086,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.Filesystem = str
 		return nil
 	case "rename.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.GID"}
@@ -16491,7 +16093,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.GID = uint32(v)
 		return nil
 	case "rename.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Group"}
@@ -16505,7 +16106,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "rename.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Inode"}
@@ -16513,7 +16113,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.Inode = uint64(v)
 		return nil
 	case "rename.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Mode"}
@@ -16521,7 +16120,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.Mode = uint16(v)
 		return nil
 	case "rename.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.MTime"}
@@ -16529,7 +16127,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.MTime = uint64(v)
 		return nil
 	case "rename.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.MountID"}
@@ -16537,7 +16134,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.MountID = uint32(v)
 		return nil
 	case "rename.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.BasenameStr"}
@@ -16545,7 +16141,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.BasenameStr = str
 		return nil
 	case "rename.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PathnameStr"}
@@ -16553,7 +16148,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.PathnameStr = str
 		return nil
 	case "rename.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Mode"}
@@ -16561,7 +16155,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.Mode = uint16(v)
 		return nil
 	case "rename.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.UID"}
@@ -16569,7 +16162,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.UID = uint32(v)
 		return nil
 	case "rename.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.User"}
@@ -16577,7 +16169,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.User = str
 		return nil
 	case "rename.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.SyscallEvent.Retval"}
@@ -16585,7 +16176,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.SyscallEvent.Retval = int64(v)
 		return nil
 	case "rmdir.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.CTime"}
@@ -16593,7 +16183,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.CTime = uint64(v)
 		return nil
 	case "rmdir.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.Filesystem"}
@@ -16601,7 +16190,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.Filesystem = str
 		return nil
 	case "rmdir.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.GID"}
@@ -16609,7 +16197,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.GID = uint32(v)
 		return nil
 	case "rmdir.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Group"}
@@ -16623,7 +16210,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "rmdir.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Inode"}
@@ -16631,7 +16217,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.Inode = uint64(v)
 		return nil
 	case "rmdir.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Mode"}
@@ -16639,7 +16224,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.Mode = uint16(v)
 		return nil
 	case "rmdir.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.MTime"}
@@ -16647,7 +16231,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.MTime = uint64(v)
 		return nil
 	case "rmdir.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.MountID"}
@@ -16655,7 +16238,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.MountID = uint32(v)
 		return nil
 	case "rmdir.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.BasenameStr"}
@@ -16663,7 +16245,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.BasenameStr = str
 		return nil
 	case "rmdir.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.PathnameStr"}
@@ -16671,7 +16252,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.PathnameStr = str
 		return nil
 	case "rmdir.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Mode"}
@@ -16679,7 +16259,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.Mode = uint16(v)
 		return nil
 	case "rmdir.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.UID"}
@@ -16687,7 +16266,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.UID = uint32(v)
 		return nil
 	case "rmdir.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.User"}
@@ -16695,7 +16273,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.FileFields.User = str
 		return nil
 	case "rmdir.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Retval"}
@@ -16703,7 +16280,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.SyscallEvent.Retval = int64(v)
 		return nil
 	case "selinux.bool.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolName"}
@@ -16711,7 +16287,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SELinux.BoolName = str
 		return nil
 	case "selinux.bool.state":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolChangeValue"}
@@ -16725,7 +16300,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "selinux.enforce.status":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SELinux.EnforceStatus"}
@@ -16733,7 +16307,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SELinux.EnforceStatus = str
 		return nil
 	case "setgid.egid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.EGID"}
@@ -16741,7 +16314,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetGID.EGID = uint32(v)
 		return nil
 	case "setgid.egroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.EGroup"}
@@ -16749,7 +16321,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetGID.EGroup = str
 		return nil
 	case "setgid.fsgid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.FSGID"}
@@ -16757,7 +16328,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetGID.FSGID = uint32(v)
 		return nil
 	case "setgid.fsgroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.FSGroup"}
@@ -16765,7 +16335,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetGID.FSGroup = str
 		return nil
 	case "setgid.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.GID"}
@@ -16773,7 +16342,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetGID.GID = uint32(v)
 		return nil
 	case "setgid.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.Group"}
@@ -16781,7 +16349,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetGID.Group = str
 		return nil
 	case "setuid.euid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.EUID"}
@@ -16789,7 +16356,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetUID.EUID = uint32(v)
 		return nil
 	case "setuid.euser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.EUser"}
@@ -16797,7 +16363,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetUID.EUser = str
 		return nil
 	case "setuid.fsuid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.FSUID"}
@@ -16805,7 +16370,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetUID.FSUID = uint32(v)
 		return nil
 	case "setuid.fsuser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.FSUser"}
@@ -16813,7 +16377,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetUID.FSUser = str
 		return nil
 	case "setuid.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.UID"}
@@ -16821,7 +16384,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetUID.UID = uint32(v)
 		return nil
 	case "setuid.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.User"}
@@ -16829,7 +16391,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetUID.User = str
 		return nil
 	case "setxattr.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.CTime"}
@@ -16837,7 +16398,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.CTime = uint64(v)
 		return nil
 	case "setxattr.file.destination.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Name"}
@@ -16845,7 +16405,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.Name = str
 		return nil
 	case "setxattr.file.destination.namespace":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Namespace"}
@@ -16853,7 +16412,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.Namespace = str
 		return nil
 	case "setxattr.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.Filesystem"}
@@ -16861,7 +16419,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.Filesystem = str
 		return nil
 	case "setxattr.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.GID"}
@@ -16869,7 +16426,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.GID = uint32(v)
 		return nil
 	case "setxattr.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Group"}
@@ -16883,7 +16439,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "setxattr.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Inode"}
@@ -16891,7 +16446,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.Inode = uint64(v)
 		return nil
 	case "setxattr.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Mode"}
@@ -16899,7 +16453,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.Mode = uint16(v)
 		return nil
 	case "setxattr.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.MTime"}
@@ -16907,7 +16460,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.MTime = uint64(v)
 		return nil
 	case "setxattr.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.MountID"}
@@ -16915,7 +16467,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.MountID = uint32(v)
 		return nil
 	case "setxattr.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.BasenameStr"}
@@ -16923,7 +16474,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.BasenameStr = str
 		return nil
 	case "setxattr.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.PathnameStr"}
@@ -16931,7 +16481,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.PathnameStr = str
 		return nil
 	case "setxattr.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Mode"}
@@ -16939,7 +16488,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.Mode = uint16(v)
 		return nil
 	case "setxattr.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.UID"}
@@ -16947,7 +16495,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.UID = uint32(v)
 		return nil
 	case "setxattr.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.User"}
@@ -16955,7 +16502,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.User = str
 		return nil
 	case "setxattr.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.SyscallEvent.Retval"}
@@ -16963,7 +16509,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 	case "signal.pid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.PID"}
@@ -16971,7 +16516,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.PID = uint32(v)
 		return nil
 	case "signal.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.SyscallEvent.Retval"}
@@ -16982,7 +16526,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Args"}
@@ -16993,7 +16536,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
@@ -17004,7 +16546,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
@@ -17024,7 +16565,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
@@ -17035,7 +16575,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv0"}
@@ -17046,7 +16585,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
@@ -17057,7 +16595,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
@@ -17068,7 +16605,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Comm"}
@@ -17079,7 +16615,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID"}
@@ -17090,7 +16625,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Cookie"}
@@ -17101,7 +16635,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CreatedAt"}
@@ -17112,7 +16645,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGID"}
@@ -17123,7 +16655,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup"}
@@ -17134,7 +16665,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Envp"}
@@ -17145,7 +16675,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Envs"}
@@ -17165,7 +16694,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUID"}
@@ -17176,7 +16704,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser"}
@@ -17187,7 +16714,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
@@ -17198,7 +16724,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
@@ -17209,7 +16734,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
@@ -17220,7 +16744,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -17240,7 +16763,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode"}
@@ -17251,7 +16773,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -17262,7 +16783,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
@@ -17273,7 +16793,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID"}
@@ -17284,7 +16803,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
@@ -17295,7 +16813,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
@@ -17306,7 +16823,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -17317,7 +16833,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
@@ -17328,7 +16843,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
@@ -17339,7 +16853,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGID"}
@@ -17350,7 +16863,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
@@ -17361,7 +16873,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUID"}
@@ -17372,7 +16883,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser"}
@@ -17383,7 +16893,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.GID"}
@@ -17394,7 +16903,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group"}
@@ -17405,7 +16913,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Pid"}
@@ -17416,7 +16923,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PPid"}
@@ -17427,7 +16933,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Tid"}
@@ -17438,7 +16943,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.TTYName"}
@@ -17449,7 +16953,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.UID"}
@@ -17460,7 +16963,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.User"}
@@ -17468,7 +16970,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "signal.target.args":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Args"}
@@ -17476,7 +16977,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Args = str
 		return nil
 	case "signal.target.args_flags":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
@@ -17484,7 +16984,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
 		return nil
 	case "signal.target.args_options":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
@@ -17498,7 +16997,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "signal.target.argv":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
@@ -17506,7 +17004,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
 		return nil
 	case "signal.target.argv0":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv0"}
@@ -17514,7 +17011,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Argv0 = str
 		return nil
 	case "signal.target.cap_effective":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.CapEffective"}
@@ -17522,7 +17018,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "signal.target.cap_permitted":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.CapPermitted"}
@@ -17530,7 +17025,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "signal.target.comm":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Comm"}
@@ -17538,7 +17032,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Comm = str
 		return nil
 	case "signal.target.container.id":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ContainerID"}
@@ -17546,7 +17039,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.ContainerID = str
 		return nil
 	case "signal.target.cookie":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Cookie"}
@@ -17554,7 +17046,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Cookie = uint32(v)
 		return nil
 	case "signal.target.created_at":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CreatedAt"}
@@ -17562,7 +17053,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.CreatedAt = uint64(v)
 		return nil
 	case "signal.target.egid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGID"}
@@ -17570,7 +17060,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "signal.target.egroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGroup"}
@@ -17578,7 +17067,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EGroup = str
 		return nil
 	case "signal.target.envp":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Envp"}
@@ -17586,7 +17074,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Envp = append(e.Signal.Target.Process.Envp, str)
 		return nil
 	case "signal.target.envs":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Envs"}
@@ -17600,7 +17087,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "signal.target.euid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EUID"}
@@ -17608,7 +17094,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "signal.target.euser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EUser"}
@@ -17616,7 +17101,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EUser = str
 		return nil
 	case "signal.target.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.CTime"}
@@ -17624,7 +17108,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "signal.target.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.Filesystem"}
@@ -17632,7 +17115,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.Filesystem = str
 		return nil
 	case "signal.target.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.GID"}
@@ -17640,7 +17122,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "signal.target.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Group"}
@@ -17654,7 +17135,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "signal.target.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Inode"}
@@ -17662,7 +17142,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "signal.target.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
@@ -17670,7 +17149,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.MTime"}
@@ -17678,7 +17156,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "signal.target.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.MountID"}
@@ -17686,7 +17163,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "signal.target.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.BasenameStr"}
@@ -17694,7 +17170,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.BasenameStr = str
 		return nil
 	case "signal.target.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PathnameStr"}
@@ -17702,7 +17177,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.PathnameStr = str
 		return nil
 	case "signal.target.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
@@ -17710,7 +17184,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.UID"}
@@ -17718,7 +17191,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "signal.target.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.User"}
@@ -17726,7 +17198,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.User = str
 		return nil
 	case "signal.target.fsgid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSGID"}
@@ -17734,7 +17205,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "signal.target.fsgroup":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSGroup"}
@@ -17742,7 +17212,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSGroup = str
 		return nil
 	case "signal.target.fsuid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSUID"}
@@ -17750,7 +17219,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "signal.target.fsuser":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSUser"}
@@ -17758,7 +17226,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSUser = str
 		return nil
 	case "signal.target.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.GID"}
@@ -17766,7 +17233,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.GID = uint32(v)
 		return nil
 	case "signal.target.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.Group"}
@@ -17774,7 +17240,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.Group = str
 		return nil
 	case "signal.target.pid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Pid"}
@@ -17782,7 +17247,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Pid = uint32(v)
 		return nil
 	case "signal.target.ppid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.PPid"}
@@ -17790,7 +17254,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.PPid = uint32(v)
 		return nil
 	case "signal.target.tid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Tid"}
@@ -17798,7 +17261,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Tid = uint32(v)
 		return nil
 	case "signal.target.tty_name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.TTYName"}
@@ -17806,7 +17268,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.TTYName = str
 		return nil
 	case "signal.target.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.UID"}
@@ -17814,7 +17275,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.UID = uint32(v)
 		return nil
 	case "signal.target.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.User"}
@@ -17822,7 +17282,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.User = str
 		return nil
 	case "signal.type":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Type"}
@@ -17830,7 +17289,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Type = uint32(v)
 		return nil
 	case "splice.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.CTime"}
@@ -17838,7 +17296,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.CTime = uint64(v)
 		return nil
 	case "splice.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.Filesystem"}
@@ -17846,7 +17303,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.Filesystem = str
 		return nil
 	case "splice.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.GID"}
@@ -17854,7 +17310,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.GID = uint32(v)
 		return nil
 	case "splice.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Group"}
@@ -17868,7 +17323,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "splice.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Inode"}
@@ -17876,7 +17330,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.Inode = uint64(v)
 		return nil
 	case "splice.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
@@ -17884,7 +17337,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.Mode = uint16(v)
 		return nil
 	case "splice.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MTime"}
@@ -17892,7 +17344,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.MTime = uint64(v)
 		return nil
 	case "splice.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.MountID"}
@@ -17900,7 +17351,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.MountID = uint32(v)
 		return nil
 	case "splice.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.BasenameStr"}
@@ -17908,7 +17358,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.BasenameStr = str
 		return nil
 	case "splice.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PathnameStr"}
@@ -17916,7 +17365,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.PathnameStr = str
 		return nil
 	case "splice.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
@@ -17924,7 +17372,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.Mode = uint16(v)
 		return nil
 	case "splice.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.UID"}
@@ -17932,7 +17379,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.UID = uint32(v)
 		return nil
 	case "splice.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.User"}
@@ -17940,7 +17386,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.FileFields.User = str
 		return nil
 	case "splice.pipe_entry_flag":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeEntryFlag"}
@@ -17948,7 +17393,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.PipeEntryFlag = uint32(v)
 		return nil
 	case "splice.pipe_exit_flag":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.PipeExitFlag"}
@@ -17956,7 +17400,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.PipeExitFlag = uint32(v)
 		return nil
 	case "splice.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.SyscallEvent.Retval"}
@@ -17964,7 +17407,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.SyscallEvent.Retval = int64(v)
 		return nil
 	case "unlink.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.CTime"}
@@ -17972,7 +17414,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.CTime = uint64(v)
 		return nil
 	case "unlink.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.Filesystem"}
@@ -17980,7 +17421,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.Filesystem = str
 		return nil
 	case "unlink.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.GID"}
@@ -17988,7 +17428,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.GID = uint32(v)
 		return nil
 	case "unlink.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Group"}
@@ -18002,7 +17441,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "unlink.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Inode"}
@@ -18010,7 +17448,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.Inode = uint64(v)
 		return nil
 	case "unlink.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Mode"}
@@ -18018,7 +17455,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.Mode = uint16(v)
 		return nil
 	case "unlink.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.MTime"}
@@ -18026,7 +17462,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.MTime = uint64(v)
 		return nil
 	case "unlink.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.MountID"}
@@ -18034,7 +17469,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.MountID = uint32(v)
 		return nil
 	case "unlink.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.BasenameStr"}
@@ -18042,7 +17476,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.BasenameStr = str
 		return nil
 	case "unlink.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.PathnameStr"}
@@ -18050,7 +17483,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.PathnameStr = str
 		return nil
 	case "unlink.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Mode"}
@@ -18058,7 +17490,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.Mode = uint16(v)
 		return nil
 	case "unlink.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.UID"}
@@ -18066,7 +17497,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.UID = uint32(v)
 		return nil
 	case "unlink.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.User"}
@@ -18074,7 +17504,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.FileFields.User = str
 		return nil
 	case "unlink.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.SyscallEvent.Retval"}
@@ -18082,7 +17511,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.SyscallEvent.Retval = int64(v)
 		return nil
 	case "unload_module.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.Name"}
@@ -18090,7 +17518,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.UnloadModule.Name = str
 		return nil
 	case "unload_module.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.SyscallEvent.Retval"}
@@ -18098,7 +17525,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.UnloadModule.SyscallEvent.Retval = int64(v)
 		return nil
 	case "utimes.file.change_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.CTime"}
@@ -18106,7 +17532,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.CTime = uint64(v)
 		return nil
 	case "utimes.file.filesystem":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.Filesystem"}
@@ -18114,7 +17539,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.Filesystem = str
 		return nil
 	case "utimes.file.gid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.GID"}
@@ -18122,7 +17546,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.GID = uint32(v)
 		return nil
 	case "utimes.file.group":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Group"}
@@ -18136,7 +17559,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "utimes.file.inode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Inode"}
@@ -18144,7 +17566,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.Inode = uint64(v)
 		return nil
 	case "utimes.file.mode":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Mode"}
@@ -18152,7 +17573,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.Mode = uint16(v)
 		return nil
 	case "utimes.file.modification_time":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.MTime"}
@@ -18160,7 +17580,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.MTime = uint64(v)
 		return nil
 	case "utimes.file.mount_id":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.MountID"}
@@ -18168,7 +17587,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.MountID = uint32(v)
 		return nil
 	case "utimes.file.name":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.BasenameStr"}
@@ -18176,7 +17594,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.BasenameStr = str
 		return nil
 	case "utimes.file.path":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.PathnameStr"}
@@ -18184,7 +17601,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.PathnameStr = str
 		return nil
 	case "utimes.file.rights":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Mode"}
@@ -18192,7 +17608,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.Mode = uint16(v)
 		return nil
 	case "utimes.file.uid":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.UID"}
@@ -18200,7 +17615,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.UID = uint32(v)
 		return nil
 	case "utimes.file.user":
-		var ok bool
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.User"}
@@ -18208,7 +17622,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.FileFields.User = str
 		return nil
 	case "utimes.retval":
-		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallEvent.Retval"}
