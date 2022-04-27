@@ -23,8 +23,8 @@ type Report struct {
 	Evaluator string
 	// Error of th check evaluation
 	Error error
-	// Describes if the error is critical
-	CriticalError bool
+	// Describes if the error is soft (non-critical)
+	SoftError bool
 }
 
 // ReportResource holds the id and type of the resource associated with a report

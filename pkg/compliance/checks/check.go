@@ -113,7 +113,7 @@ func (c *complianceCheck) Run() error {
 	for _, report := range reports {
 		if report.Error != nil {
 			log.Debugf("%s: check run failed: %v", c.ruleID, report.Error)
-			if report.CriticalError {
+			if !report.SoftError {
 				err = report.Error
 			}
 		}

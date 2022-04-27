@@ -333,6 +333,7 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 				Resource:  reportResource,
 				Passed:    false,
 				Error:     err,
+				SoftError: true,
 				Evaluator: regoEvaluator,
 			}
 		case "passed":

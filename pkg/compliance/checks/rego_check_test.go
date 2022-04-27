@@ -234,6 +234,7 @@ func TestRegoCheck(t *testing.T) {
 					},
 					Evaluator: "rego",
 					Error:     errors.New("error message"),
+					SoftError: true,
 				},
 			},
 		},
