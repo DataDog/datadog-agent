@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -136,6 +137,8 @@ func CompleteInferredSpan(
 	if inferredSpan.SamplingPriority != nil {
 		priority := *inferredSpan.SamplingPriority
 		traceChunk.Priority = int32(priority)
+	} else {
+		traceChunk.Priority = int32(sampler.PriorityNone)
 	}
 
 	tracerPayload := &pb.TracerPayload{
@@ -162,7 +165,7 @@ func GenerateInferredSpan(startTime time.Time) InferredSpan {
 	return inferredSpan
 }
 
-// IsInferreSpansEnabled is used to determine if we need to
+// IsInferredSpansEnabled is used to determine if we need to
 // generate and enrich inferred spans for a particular invocation
 func IsInferredSpansEnabled() bool {
 	traceEnabled, e1 := strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
