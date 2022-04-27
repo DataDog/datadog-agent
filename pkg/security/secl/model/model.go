@@ -132,8 +132,7 @@ type Event struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
-	ProcessContext   ProcessContext   `field:"process" event:"*"`
-	SpanContext      SpanContext      `field:"-"`
+	ProcessContext   *ProcessContext  `field:"process" event:"*"`
 	ContainerContext ContainerContext `field:"container"`
 	NetworkContext   NetworkContext   `field:"network"`
 
@@ -165,14 +164,18 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.36] [Network] A DNS request was sent
 
-	Mount            MountEvent            `field:"-"`
-	Umount           UmountEvent           `field:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
-	MountReleased    MountReleasedEvent    `field:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-"`
-	NetDevice        NetDeviceEvent        `field:"-"`
-	VethPair         VethPairEvent         `field:"-"`
+	// internal usage
+	PIDContext        PIDContext            `field:"-"`
+	ProcessCacheEntry *ProcessCacheEntry    `field:"-"`
+	SpanContext       SpanContext           `field:"-"`
+	Mount             MountEvent            `field:"-"`
+	Umount            UmountEvent           `field:"-"`
+	InvalidateDentry  InvalidateDentryEvent `field:"-"`
+	ArgsEnvs          ArgsEnvsEvent         `field:"-"`
+	MountReleased     MountReleasedEvent    `field:"-"`
+	CgroupTracing     CgroupTracingEvent    `field:"-"`
+	NetDevice         NetDeviceEvent        `field:"-"`
+	VethPair          VethPairEvent         `field:"-"`
 }
 
 // GetType returns the event type
@@ -261,12 +264,9 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	// proc_cache_t
-	FileEvent FileEvent `field:"file" msg:"file"`
+	PIDContext
 
-	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
-	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
-	NetNS uint32 `field:"-" msg:"-"`
+	FileEvent FileEvent `field:"file" msg:"file"`
 
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
@@ -589,6 +589,13 @@ type ProcessContext struct {
 	Process
 
 	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator" msg:"ancestor"`
+}
+
+// PIDContext holds the process context of an kernel event
+type PIDContext struct {
+	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
+	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	NetNS uint32 `field:"-" msg:"-"`
 }
 
 // RenameEvent represents a rename event

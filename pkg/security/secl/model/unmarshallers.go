@@ -395,7 +395,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
+func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}

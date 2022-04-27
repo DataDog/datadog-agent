@@ -314,19 +314,19 @@ func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntry) {
+func (p *ProcessResolver) AddForkEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(pid, entry)
+	p.insertForkEntry(entry)
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *ProcessResolver) AddExecEntry(pid uint32, entry *model.ProcessCacheEntry) {
+func (p *ProcessResolver) AddExecEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(pid, entry)
+	p.insertExecEntry(entry)
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -452,8 +452,8 @@ func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.Fi
 	return &fileFields, nil
 }
 
-func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCacheEntry) {
-	p.entryCache[pid] = entry
+func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
+	p.entryCache[entry.Pid] = entry
 	entry.Retain()
 
 	if prev != nil {
@@ -464,8 +464,8 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCach
 	atomic.AddInt64(&p.cacheSize, 1)
 }
 
-func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) {
-	prev := p.entryCache[pid]
+func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
+	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
 		prev.Exit(entry.ForkTime)
@@ -480,7 +480,7 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 		parent.Fork(entry)
 	}
 
-	p.insertEntry(pid, entry, prev)
+	p.insertEntry(entry, prev)
 }
 
 func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) {
@@ -489,7 +489,7 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheE
 		prev.Exec(entry)
 	}
 
-	p.insertEntry(pid, entry, prev)
+	p.insertEntry(entry, prev)
 }
 
 func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -662,11 +662,11 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 
 	if entry.ExecTime.IsZero() {
-		p.insertForkEntry(pid, entry)
+		p.insertForkEntry(entry)
 		return entry
 	}
 
-	p.insertExecEntry(pid, entry)
+	p.insertExecEntry(entry)
 	return entry
 }
 
@@ -998,7 +998,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 
 	p.setAncestor(entry)
 
-	p.insertEntry(pid, entry, p.entryCache[pid])
+	p.insertEntry(entry, p.entryCache[pid])
 
 	// insert new entry in kernel maps
 	procCacheEntryB := make([]byte, 224)
@@ -1114,7 +1114,7 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 // NewProcessVariables returns a provider for variables attached to a process cache entry
 func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
 	scoper := func(ctx *eval.Context) unsafe.Pointer {
-		return unsafe.Pointer((*Event)(ctx.Object).processCacheEntry)
+		return unsafe.Pointer((*Event)(ctx.Object).ProcessCacheEntry)
 	}
 
 	var variables *eval.ScopedVariables

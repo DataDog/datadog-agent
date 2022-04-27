@@ -75,7 +75,6 @@ type Event struct {
 	model.Event
 
 	resolvers           *Resolvers
-	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
 	scrubber            *pconfig.DataScrubber
 	probe               *Probe
@@ -83,16 +82,16 @@ type Event struct {
 
 // Retain the event
 func (ev *Event) Retain() Event {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Retain()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Retain()
 	}
 	return *ev
 }
 
 // Release the event
 func (ev *Event) Release() {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Release()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Release()
 	}
 }
 
@@ -209,12 +208,11 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 	return e.Tags
 }
 
-// UnmarshalProcess unmarshal a Process
-func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
+// UnmarshalProcessCacheEntry unmarshal a Process
+func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry()
-	entry.Pid = ev.ProcessContext.Pid
-	entry.Tid = ev.ProcessContext.Tid
+	entry.PIDContext = ev.PIDContext
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
@@ -222,7 +220,7 @@ func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
 
-	ev.processCacheEntry = entry
+	ev.ProcessCacheEntry = entry
 
 	return n, nil
 }
@@ -470,28 +468,41 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
-// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
-	if ev.processCacheEntry == nil {
-		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
-		if ev.processCacheEntry == nil {
-			ev.processCacheEntry = &model.ProcessCacheEntry{
-				ProcessContext: ev.ProcessContext,
-			}
-		}
-
-		if ev.processCacheEntry.FileEvent.Inode == 0 || ev.processCacheEntry.FileEvent.MountID == 0 {
-			// FIX(safchain) this condition should be removed once the kworker detection will be fixed and
-			// once process context without inode/mountid bug will be fixed
-			ev.processCacheEntry.FileEvent.SetPathnameStr("")
-			ev.processCacheEntry.FileEvent.SetBasenameStr("")
-		} else {
-			ev.ResolveFilePath(&ev.processCacheEntry.FileEvent)
-			ev.ResolveFileBasename(&ev.processCacheEntry.FileEvent)
-		}
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
 
-	return ev.processCacheEntry
+	if ev.ProcessCacheEntry == nil {
+		// keep the original PIDContext
+		ev.ProcessCacheEntry = &model.ProcessCacheEntry{
+			ProcessContext: model.ProcessContext{
+				Process: model.Process{
+					PIDContext: ev.PIDContext,
+				},
+			},
+		}
+
+		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+
+		return ev.ProcessCacheEntry
+	}
+
+	if ev.ProcessCacheEntry.FileEvent.Inode == 0 || ev.ProcessCacheEntry.FileEvent.MountID == 0 {
+		// FIX(safchain) this condition should be removed once the kworker detection will be fixed and
+		// once process context without inode/mountid bug will be fixed
+		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+
+		return ev.ProcessCacheEntry
+	}
+
+	ev.ResolveFilePath(&ev.ProcessCacheEntry.FileEvent)
+	ev.ResolveFileBasename(&ev.ProcessCacheEntry.FileEvent)
+
+	return ev.ProcessCacheEntry
 }
 
 // GetProcessServiceTag returns the service tag based on the process context

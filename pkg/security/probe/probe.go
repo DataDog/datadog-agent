@@ -375,7 +375,7 @@ func (p *Probe) zeroEvent() *Event {
 }
 
 func (p *Probe) unmarshalContexts(data []byte, event *Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.SpanContext, &event.ContainerContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -467,8 +467,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	nsPath := utils.NetNSPathFromPid(event.ProcessContext.Pid)
-	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, nsPath)
+	nsPath := utils.NetNSPathFromPid(event.PIDContext.Pid)
+	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.PIDContext.NetNS, nsPath)
 
 	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
@@ -598,55 +598,56 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 	case model.ForkEventType:
-		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		if IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
+		if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 			return
 		}
 
-		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
-		event.processCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+		p.resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
+		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
-		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
+		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.processCacheEntry); err != nil {
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.ProcessCacheEntry); err != nil {
 			log.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
 
-		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
+		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 
 		// copy some of the field from the entry
-		event.Exec.Process = event.processCacheEntry.Process
-		event.Exec.FileEvent = event.processCacheEntry.Process.FileEvent
+		// TODO(safchain) avoid this copy
+		event.Exec.Process = event.ProcessCacheEntry.Process
+		event.Exec.FileEvent = event.ProcessCacheEntry.Process.FileEvent
 	case model.ExitEventType:
-		// do nothing
+		// nothing to do here
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateUID(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
 		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateGID(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
 		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
@@ -735,15 +736,18 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		return
 	}
 
-	// resolve event context
-	if eventType != model.ExitEventType {
-		event.ResolveProcessCacheEntry()
-	} else {
-		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-			return
-		}
+	// resolve the process cache entry
+	event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
 
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
+	// use ProcessCacheEntry process context as process context
+	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+
+	if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+		return
+	}
+
+	if eventType == model.ExitEventType {
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, event.ResolveEventTimestamp())
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)

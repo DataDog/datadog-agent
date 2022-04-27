@@ -499,7 +499,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 	if e == nil {
 		// custom events create an empty event
 		e = NewEvent(r, nil, nil)
-		e.ProcessContext = *pc
+		e.ProcessContext = pc
 	}
 
 	ps = ProcessContextSerializer{
@@ -890,7 +890,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.processCacheEntry.Process.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.SELinuxEventType:
