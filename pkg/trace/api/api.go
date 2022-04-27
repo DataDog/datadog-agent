@@ -516,6 +516,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
+	if err != nil {
+		log.Errorf("Failed to count traces: %s", err)
+	}
 
 	start := time.Now()
 	defer func(err error) {
