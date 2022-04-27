@@ -525,8 +525,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
 	}()
-	var tp *pb.TracerPayload
-	var ranHook bool
+	var (
+		tp      *pb.TracerPayload
+		ranHook bool
+	)
 	tp, ranHook, err = decodeTracerPayload(v, req, ts)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
