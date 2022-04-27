@@ -40,7 +40,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			inferredspan.DispatchInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
 		}
 
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders)
 	}
 }
 
@@ -53,7 +53,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError)
+		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
 
 		if InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")

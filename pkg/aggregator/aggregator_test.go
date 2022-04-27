@@ -75,7 +75,7 @@ func getAggregator() *BufferedAggregator {
 	if demultiplexerInstance == nil {
 		initF()
 	}
-	return demultiplexerInstance.Aggregator()
+	return demultiplexerInstance.(*AgentDemultiplexer).Aggregator()
 }
 
 func TestRegisterCheckSampler(t *testing.T) {
@@ -225,13 +225,17 @@ func TestDefaultData(t *testing.T) {
 	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
-	s.On("SendServiceChecks", metrics.ServiceChecks{{
-		CheckName: "datadog.agent.up",
-		Status:    metrics.ServiceCheckOK,
-		Tags:      []string{},
-		Ts:        start.Unix(),
-		Host:      agg.hostname,
-	}}).Return(nil).Times(1)
+	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
+	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+		require.Equal(t, 1, len(m))
+		require.Equal(t, "datadog.agent.up", m[0].CheckName)
+		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, []string{}, m[0].Tags)
+		require.Equal(t, agg.hostname, m[0].Host)
+
+		return true
+	})
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 
 	series := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),

@@ -96,7 +96,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 			}
 			for _, fullIndex := range indexes {
 				// TODO: Support extract value see II-635
-				idTags := metadataConfig.IDTags.GetTags(fullIndex, values)
+				idTags := getTagsFromMetricTagConfigList(metadataConfig.IDTags, fullIndex, values)
 				metadataStore.AddIDTags(resourceName, fullIndex, idTags)
 			}
 		}

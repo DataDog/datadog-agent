@@ -22,20 +22,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func mockProfilesDefinitions() profileDefinitionMap {
+func fixtureProfileDefinitionMap() profileDefinitionMap {
 	metrics := []MetricsConfig{
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal"}, ForcedType: "gauge"},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
 			ForcedType: "monotonic_count",
 			Symbols: []SymbolConfig{
-				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
+				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
 			MetricTags: []MetricTagConfig{
 				{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 				{Tag: "interface_alias", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Column: SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
+			StaticTags: []string{"table_static_tag:val"},
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
@@ -44,6 +46,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 		Device:       DeviceMeta{Vendor: "f5"},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+		StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 		MetricTags: []MetricTagConfig{
 			{
 				OID:     "1.3.6.1.2.1.1.5.0",
@@ -115,8 +118,9 @@ func mockProfilesDefinitions() profileDefinitionMap {
 					},
 					"mac_address": {
 						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.2.1.2.2.1.6",
-							Name: "ifPhysAddress",
+							OID:    "1.3.6.1.2.1.2.2.1.6",
+							Name:   "ifPhysAddress",
+							Format: "mac_address",
 						},
 					},
 					"name": {
@@ -196,7 +200,7 @@ func Test_loadProfiles(t *testing.T) {
 			name:                  "ok case",
 			confdPath:             defaultTestConfdPath,
 			inputProfileConfigMap: defaultProfilesDef,
-			expectedProfileDefMap: mockProfilesDefinitions(),
+			expectedProfileDefMap: fixtureProfileDefinitionMap(),
 			expectedIncludeErrors: []string{},
 		},
 		{

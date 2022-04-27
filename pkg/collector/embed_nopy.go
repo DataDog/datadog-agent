@@ -15,5 +15,3 @@ func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 func pyPrepareEnv() error {
 	return nil
 }
-
-func pyTeardown() {}

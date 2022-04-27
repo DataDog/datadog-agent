@@ -30,12 +30,12 @@ namespace AwsDotnetCsharp
         return new Response(200, "ok");
       }
 
-      public Response Trace()
+      public Response Trace(Request request)
       {
-        WebRequest request = WebRequest.Create("https://example.com");
-        request.Credentials = CredentialCache.DefaultCredentials;
+        WebRequest r = WebRequest.Create("https://example.com");
+        r.Credentials = CredentialCache.DefaultCredentials;
 
-        HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+        HttpWebResponse response = (HttpWebResponse)r.GetResponse();
         using (Stream dataStream = response.GetResponseStream())
         {
             StreamReader reader = new StreamReader(dataStream);
@@ -70,4 +70,8 @@ namespace AwsDotnetCsharp
       }
     }
 
+    public class Request
+    {
+      public string body {get; set;}
+    }
 }

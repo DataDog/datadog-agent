@@ -5,6 +5,9 @@ metric_tags:
     symbol: sysName
     tag: snmp_host
 
+static_tags:
+  - 'static_tag:from_base_profile'
+
 metadata:
   device:
     fields:

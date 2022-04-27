@@ -9,12 +9,12 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
 	"os/exec"
 	"path"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
@@ -107,7 +109,15 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_envp",
-			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"]`,
+			Expression: `exec.file.name == "ls" && exec.envp in ["ENVP=test"] && exec.args =~ "*example.com"`,
+		},
+		{
+			ID:         "test_rule_args_envs_dedup",
+			Expression: `exec.file.name == "ls" && exec.argv == "test123456"`,
+		},
+		{
+			ID:         "test_rule_ancestors_glob",
+			Expression: `exec.file.name == "ls" && exec.argv == "glob" && process.ancestors.file.path =~ "/usr/**"`,
 		},
 	}
 
@@ -182,7 +192,7 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileFields.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -258,12 +268,11 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"-al"}
+		args := []string{"-al", "http://example.com"}
 		envs := []string{"ENVP=test"}
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
-			// we need to ignore the error because "--password" is not a valid option for ls
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -433,8 +442,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileFields.Inode, inode, event)
+			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileEvent.Inode, inode, event)
 			}
 
 			str := event.String()
@@ -552,6 +561,56 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Error(event.String())
 			}
+		})
+	})
+
+	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456; echo"}, []string{"DEDUP=dedup123"}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(shell, args, envs)
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_rule_args_envs_dedup", rule.ID, "wrong rule triggered")
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
+
+			var data interface{}
+			serialized := event.String()
+			if err := json.Unmarshal([]byte(serialized), &data); err != nil {
+				t.Error(err)
+			}
+
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
+				t.Errorf("shouldn't have args, got %+v (%s)", json, spew.Sdump(data))
+			}
+
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
+				t.Errorf("shouldn't have envs, got %+v (%s)", json, spew.Sdump(data))
+			}
+
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
+				t.Errorf("should have args, got %+v (%s)", json, spew.Sdump(data))
+			}
+
+			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
+				t.Errorf("should have envs, got %+v (%s)", json, spew.Sdump(data))
+			}
+		})
+	})
+
+	t.Run("ancestors-glob", func(t *testing.T) {
+		lsExecutable := which(t, "ls")
+
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command(lsExecutable, "glob")
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_ancestors_glob")
 		})
 	})
 }
@@ -785,9 +844,9 @@ func TestProcessMetadata(t *testing.T) {
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
-			assertRights(t, event.Exec.FileFields.Mode, uint16(expectedMode))
-			assertNearTime(t, event.Exec.FileFields.MTime)
-			assertNearTime(t, event.Exec.FileFields.CTime)
+			assertRights(t, event.Exec.FileEvent.Mode, uint16(expectedMode))
+			assertNearTime(t, event.Exec.FileEvent.MTime)
+			assertNearTime(t, event.Exec.FileEvent.CTime)
 		})
 	})
 
@@ -915,31 +974,31 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_setuid",
-			Expression: `setuid.uid == 1001 && process.file.name == "testsuite"`,
+			Expression: `setuid.uid == 1001 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setreuid",
-			Expression: `setuid.uid == 1002 && setuid.euid == 1003 && process.file.name == "testsuite"`,
+			Expression: `setuid.uid == 1002 && setuid.euid == 1003 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setfsuid",
-			Expression: `setuid.fsuid == 1004 && process.file.name == "testsuite"`,
+			Expression: `setuid.fsuid == 1004 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setgid",
-			Expression: `setgid.gid == 1005 && process.file.name == "testsuite"`,
+			Expression: `setgid.gid == 1005 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setregid",
-			Expression: `setgid.gid == 1006 && setgid.egid == 1007 && process.file.name == "testsuite"`,
+			Expression: `setgid.gid == 1006 && setgid.egid == 1007 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setfsgid",
-			Expression: `setgid.fsgid == 1008 && process.file.name == "testsuite"`,
+			Expression: `setgid.fsgid == 1008 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_capset",
-			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "testsuite"`,
+			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "syscall_go_tester"`,
 		},
 	}
 
@@ -949,31 +1008,19 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	}
 	defer test.Close()
 
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("setuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETUID, 1001, 0, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setuid", "1001", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setuid")
 			assert.Equal(t, uint32(1001), event.SetUID.UID, "wrong uid")
@@ -982,27 +1029,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setreuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1002, 1003, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1012,28 +1039,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETRESUID, 1002, 1003, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1043,27 +1049,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETFSUID, 1004, 0, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsuid")
 			assert.Equal(t, uint32(1004), event.SetUID.FSUID, "wrong fsuid")
@@ -1072,27 +1058,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETGID, 1005, 0, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setgid", "1005", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setgid")
 			assert.Equal(t, uint32(1005), event.SetGID.GID, "wrong gid")
@@ -1101,27 +1067,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setregid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1006, 1007, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setregid", "1006", "1007")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1131,27 +1077,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETRESGID, 1006, 1007, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1161,27 +1087,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETFSGID, 1008, 0, 0); errno != 0 {
-					errChan <- error(errno)
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsgid")
 			assert.Equal(t, uint32(1008), event.SetGID.FSGID, "wrong gid")
@@ -1197,37 +1103,12 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err := threadCapabilities.Load(); err != nil {
 			t.Fatal(err)
 		}
-
-		var threadCapabilitiesLock sync.Mutex
+		// remove capabilities that are removed by syscall_go_tester
+		threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
+		threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
 
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				threadCapabilitiesLock.Lock()
-				defer threadCapabilitiesLock.Unlock()
-
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				// remove capabilities that we do not need
-				threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
-				threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
-				if err := threadCapabilities.Apply(capability.CAPS); err != nil {
-					errChan <- err
-				}
-			}()
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
+			return runSyscallTesterFunc(t, goSyscallTester, "-process-credentials-capset")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_capset")
 
@@ -1239,9 +1120,6 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
 			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)
 			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet, t)
-
-			threadCapabilitiesLock.Lock()
-			defer threadCapabilitiesLock.Unlock()
 
 			for _, c := range capability.List() {
 				if expectedValue := threadCapabilities.Get(capability.EFFECTIVE, c); expectedValue != newSet.Get(capability.EFFECTIVE, c) {

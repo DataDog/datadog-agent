@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/fsuid.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -113,7 +114,7 @@ static void *thread_open(void *data) {
 }
 
 int span_open(int argc, char **argv) {
-    if (argc < 3) {
+    if (argc < 4) {
         fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
         return EXIT_FAILURE;
     }
@@ -214,6 +215,71 @@ int test_splice() {
     return EXIT_SUCCESS;
 }
 
+int test_mkdirat_error(int argc, char** argv) {
+    if (argc != 2) {
+        fprintf(stderr, "%s: Please pass a path to mkdirat.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    if (setregid(1, 1) != 0) {
+        fprintf(stderr, "setregid failed");
+        return EXIT_FAILURE;
+    }
+
+    if (setreuid(1, 1) != 0) {
+        fprintf(stderr, "setreuid failed");
+        return EXIT_FAILURE;
+    }
+
+    if (mkdirat(0, argv[1], 0777) == 0) {
+        fprintf(stderr, "mkdirat succeeded even though we expected it to fail");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_process_set(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: Please pass a syscall name, real and effective id.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int real_id = atoi(argv[2]);
+    int effective_id = atoi(argv[3]);
+
+    char *subcmd = argv[1];
+
+    int res;
+    if (strcmp(subcmd, "setuid") == 0) {
+        res = setuid(real_id);
+    } else if (strcmp(subcmd, "setreuid") == 0) {
+        res = setreuid(real_id, effective_id);
+    } else if (strcmp(subcmd, "setresuid") == 0) {
+        res = setresuid(real_id, effective_id, 0);
+    } else if (strcmp(subcmd, "setfsuid") == 0) {
+        res = setfsuid(real_id);
+    } else if (strcmp(subcmd, "setgid") == 0) {
+        res = setgid(real_id);
+    } else if (strcmp(subcmd, "setregid") == 0) {
+        res = setregid(real_id, effective_id);
+    } else if (strcmp(subcmd, "setresgid") == 0) {
+        res = setresgid(real_id, effective_id, 0);
+    } else if (strcmp(subcmd, "setfsgid") == 0) {
+        res = setfsgid(real_id);
+    } else {
+        fprintf(stderr, "Unknown subcommand `%s`\n", subcmd);
+        return EXIT_FAILURE;
+    }
+
+    if (res != 0) {
+        fprintf(stderr, "%s failed", subcmd);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -234,6 +300,10 @@ int main(int argc, char **argv) {
         return test_signal(argc - 1, argv + 1);
     } else if (strcmp(cmd, "splice") == 0) {
         return test_splice();
+    } else if (strcmp(cmd, "mkdirat-error") == 0) {
+        return test_mkdirat_error(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "process-credentials") == 0) {
+        return test_process_set(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

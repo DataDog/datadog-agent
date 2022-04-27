@@ -62,7 +62,7 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	}
 	if c.BindHost == "" {
 		// Default to global bind_host option.
-		c.BindHost = config.GetBindHost()
+		c.BindHost = "0.0.0.0"
 	}
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout

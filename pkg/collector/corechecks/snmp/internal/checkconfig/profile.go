@@ -34,6 +34,7 @@ type profileDefinition struct {
 	Metrics      []MetricsConfig   `yaml:"metrics"`
 	Metadata     MetadataConfig    `yaml:"metadata"`
 	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
+	StaticTags   []string          `yaml:"static_tags"`
 	Extends      []string          `yaml:"extends"`
 	Device       DeviceMeta        `yaml:"device"`
 	SysObjectIds StringArray       `yaml:"sysobjectid"`
@@ -137,7 +138,7 @@ func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
 	}
 	normalizeMetrics(profileDefinition.Metrics)
 	errors := validateEnrichMetadata(profileDefinition.Metadata)
-	errors = append(errors, validateEnrichMetrics(profileDefinition.Metrics)...)
+	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
@@ -183,6 +184,7 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition *profileDefinition) {
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
+	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
 	for baseResName, baseResource := range baseDefinition.Metadata {
 		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
 			targetDefinition.Metadata[baseResName] = newMetadataResourceConfig()

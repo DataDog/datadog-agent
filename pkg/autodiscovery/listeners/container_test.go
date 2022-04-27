@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateContainerService(t *testing.T) {
@@ -173,6 +174,61 @@ func TestCreateContainerService(t *testing.T) {
 			listener.createContainerService(tt.container)
 
 			wlm.assertServices(tt.expectedServices)
+		})
+	}
+}
+
+func TestComputeContainerServiceIDs(t *testing.T) {
+	type args struct {
+		entity string
+		image  string
+		labels map[string]string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "no labels",
+			args: args{
+				entity: "docker://id",
+				image:  "foo/bar:latest",
+				labels: map[string]string{"foo": "bar"},
+			},
+			want: []string{"docker://id", "foo/bar", "bar"},
+		},
+		{
+			name: "new label",
+			args: args{
+				entity: "docker://id",
+				image:  "foo/bar:latest",
+				labels: map[string]string{"foo": "bar", "com.datadoghq.ad.check.id": "custom"},
+			},
+			want: []string{"custom"},
+		},
+		{
+			name: "legacy label",
+			args: args{
+				entity: "docker://id",
+				image:  "foo/bar:latest",
+				labels: map[string]string{"foo": "bar", "com.datadoghq.sd.check.id": "custom"},
+			},
+			want: []string{"custom"},
+		},
+		{
+			name: "new and legacy labels",
+			args: args{
+				entity: "docker://id",
+				image:  "foo/bar:latest",
+				labels: map[string]string{"foo": "bar", "com.datadoghq.ad.check.id": "new", "com.datadoghq.sd.check.id": "legacy"},
+			},
+			want: []string{"new"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, computeContainerServiceIDs(tt.args.entity, tt.args.image, tt.args.labels))
 		})
 	}
 }

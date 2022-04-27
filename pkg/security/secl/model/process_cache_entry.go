@@ -13,8 +13,22 @@ import (
 	"time"
 )
 
-// SetAncestor set the ancestor
+// SetSpan sets the span
+func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
+	pc.SpanID = spanID
+	pc.TraceID = traceID
+}
+
+// SetAncestor sets the ancestor
 func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
+	if pc.Ancestor == parent {
+		return
+	}
+
+	if pc.Ancestor != nil {
+		pc.Ancestor.Release()
+	}
+
 	pc.Ancestor = parent
 	parent.Retain()
 }
@@ -66,22 +80,8 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
-// Fork returns a copy of the current ProcessCacheEntry
-func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
-	childEntry.SetAncestor(pc)
-
-	childEntry.PPid = pc.Pid
-	childEntry.TTYName = pc.TTYName
-	childEntry.Comm = pc.Comm
-	childEntry.FileFields = pc.FileFields
-	childEntry.PathnameStr = pc.PathnameStr
-	childEntry.BasenameStr = pc.BasenameStr
-	childEntry.Filesystem = pc.Filesystem
-	childEntry.ContainerID = pc.ContainerID
-	childEntry.ExecTime = pc.ExecTime
-	childEntry.Credentials = pc.Credentials
-	childEntry.Cookie = pc.Cookie
-
+// ShareArgsEnvs share args and envs between the current entry and the given child entry
+func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 	childEntry.ArgsEntry = pc.ArgsEntry
 	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
 		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
@@ -90,6 +90,31 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
 		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
 	}
+}
+
+// SetParent set the parent of a fork child
+func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+	pc.SetAncestor(parent)
+	parent.ShareArgsEnvs(pc)
+}
+
+// Fork returns a copy of the current ProcessCacheEntry
+func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
+	childEntry.PPid = pc.Pid
+	childEntry.TTYName = pc.TTYName
+	childEntry.Comm = pc.Comm
+	childEntry.FileEvent = pc.FileEvent
+	childEntry.ContainerID = pc.ContainerID
+	childEntry.ExecTime = pc.ExecTime
+	childEntry.Credentials = pc.Credentials
+	childEntry.Cookie = pc.Cookie
+
+	childEntry.SetParent(pc)
+}
+
+// Equals returns whether process cache entries share the same values for comm and args/envs
+func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
+	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
 /*func (pc *ProcessCacheEntry) String() string {
@@ -205,6 +230,18 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	return values, truncated
 }
 
+func stringArraysEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
 	*ArgsEnvsCacheEntry `msg:"-"`
@@ -230,6 +267,20 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 	}
 
 	return p.Values, p.Truncated
+}
+
+// Equals compares two ArgsEntry
+func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
+	if p == o {
+		return true
+	} else if p == nil || o == nil {
+		return false
+	}
+
+	pa, _ := p.ToArray()
+	oa, _ := o.ToArray()
+
+	return stringArraysEqual(pa, oa)
 }
 
 // EnvsEntry defines a args cache entry
@@ -278,6 +329,10 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 	var i int
 	for _, value := range values {
 		kv := strings.SplitN(value, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
 		p.keys[i] = kv[0]
 		i++
 	}
@@ -299,8 +354,6 @@ func (p *EnvsEntry) toMap() {
 
 		if len(kv) == 2 {
 			p.kv[k] = kv[1]
-		} else {
-			p.kv[k] = ""
 		}
 	}
 }
@@ -309,4 +362,18 @@ func (p *EnvsEntry) toMap() {
 func (p *EnvsEntry) Get(key string) string {
 	p.toMap()
 	return p.kv[key]
+}
+
+// Equals compares two EnvsEntry
+func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
+	if p == o {
+		return true
+	} else if o == nil {
+		return false
+	}
+
+	pa, _ := p.ToArray()
+	oa, _ := o.ToArray()
+
+	return stringArraysEqual(pa, oa)
 }

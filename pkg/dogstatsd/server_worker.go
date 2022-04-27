@@ -6,6 +6,7 @@
 package dogstatsd
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -31,9 +32,16 @@ type worker struct {
 }
 
 func newWorker(s *Server) *worker {
+	var batcher *batcher
+	if s.ServerlessMode {
+		batcher = newServerlessBatcher(s.demultiplexer)
+	} else {
+		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator))
+	}
+
 	return &worker{
 		server:  s,
-		batcher: newBatcher(s.demultiplexer),
+		batcher: batcher,
 		parser:  newParser(s.sharedFloat64List),
 		samples: make([]metrics.MetricSample, 0, defaultSampleSize),
 	}

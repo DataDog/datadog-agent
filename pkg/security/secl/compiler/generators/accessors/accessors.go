@@ -221,23 +221,27 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						for _, tag := range tags.Tags() {
 							switch tag.Key {
 							case "field":
-								splitted := strings.SplitN(tag.Value(), ",", 4)
-								alias := splitted[0]
-								if alias == "-" {
-									continue FIELD
-								}
-								field := seclField{name: alias}
-								if len(splitted) > 1 {
-									field.handler, weight = parseHandler(splitted[1])
-								}
-								if len(splitted) > 2 {
-									field.iterator, weight = parseHandler(splitted[2])
-								}
-								if len(splitted) > 3 {
-									field.cachelessResolution = splitted[3] == "cacheless_resolution"
+								fieldGroups := strings.Split(tag.Value(), ";")
+								for _, fieldGroup := range fieldGroups {
+									splitted := strings.SplitN(fieldGroup, ",", 4)
+									alias := splitted[0]
+									if alias == "-" {
+										continue FIELD
+									}
+									field := seclField{name: alias}
+									if len(splitted) > 1 {
+										field.handler, weight = parseHandler(splitted[1])
+									}
+									if len(splitted) > 2 {
+										field.iterator, weight = parseHandler(splitted[2])
+									}
+									if len(splitted) > 3 {
+										field.cachelessResolution = splitted[3] == "cacheless_resolution"
+									}
+
+									fields = append(fields, field)
 								}
 
-								fields = append(fields, field)
 							case "op_override":
 								opOverrides = tag.Value()
 							}

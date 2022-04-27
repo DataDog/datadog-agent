@@ -28,7 +28,3 @@ func pyPrepareEnv() error {
 	}
 	return nil
 }
-
-func pyTeardown() {
-	python.Destroy()
-}
