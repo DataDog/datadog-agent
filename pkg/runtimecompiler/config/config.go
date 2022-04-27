@@ -62,12 +62,6 @@ type Config struct {
 	// StatsdAddr defines the statsd address
 	StatsdAddr string
 
-	// BPFDir is the directory to load the eBPF program from
-	BPFDir string
-
-	// BPFDebugEnabled indicates if bpf debug logs have been enabled. We use this to determine what cflags to use during compilation
-	BPFDebugEnabled bool
-
 	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
 	EnableKernelHeaderDownload bool
 
