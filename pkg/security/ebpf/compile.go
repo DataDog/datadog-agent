@@ -16,7 +16,7 @@ import (
 
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (bytecode.AssetReader, error) {
 	cflags := runtime.GetSecurityAssetCFlags(useSyscallWrapper)
-	compiledOutput, err := runtime.RuntimeSecurity.GetCompiledOutput(cflags, config.RuntimeCompilerOutputDir)
+	compiledOutput, err := runtime.RuntimeSecurity.GetCompiledOutput(cflags, config.RuntimeCompiledAssetDir)
 	if err != nil {
 		return nil, err
 	}

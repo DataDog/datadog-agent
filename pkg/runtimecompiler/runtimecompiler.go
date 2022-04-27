@@ -125,16 +125,18 @@ func (rc *runtimeCompiler) Run() error {
 }
 
 func (rc *runtimeCompiler) compileNetworkAssets(kernelHeaders []string) {
-	cflags := runtime.GetNetworkAssetCFlags(rc.config.CollectIPv6Conns, rc.config.BPFDebug)
+	cflags := runtime.GetNetworkAssetCFlags(rc.config.CollectIPv6Conns, rc.config.BPFDebugEnabled)
+	bpfDir := rc.config.BPFDir
+	outputDir := rc.config.RuntimeCompiledAssetDir
 
-	telemetry, err := runtime.Tracer.Compile(rc.config, cflags, kernelHeaders)
+	telemetry, err := runtime.Tracer.Compile(bpfDir, outputDir, cflags, kernelHeaders)
 	if err != nil {
 		log.Errorf("error compiling network tracer: %s", err)
 	}
 	rc.telemetryByAsset["network_tracer"] = telemetry
 
 	if rc.config.ConntrackEnabled {
-		telemetry, err = runtime.Conntrack.Compile(rc.config, cflags, kernelHeaders)
+		telemetry, err = runtime.Conntrack.Compile(bpfDir, outputDir, cflags, kernelHeaders)
 		if err != nil {
 			log.Errorf("error compiling ebpf conntracker: %s", err)
 		}
@@ -142,7 +144,7 @@ func (rc *runtimeCompiler) compileNetworkAssets(kernelHeaders []string) {
 	}
 
 	if rc.config.HTTPMonitoringEnabled {
-		telemetry, err = runtime.Http.Compile(rc.config, cflags, kernelHeaders)
+		telemetry, err = runtime.Http.Compile(bpfDir, outputDir, cflags, kernelHeaders)
 		if err != nil {
 			log.Errorf("error compiling network http tracer: %s", err)
 		}
@@ -158,8 +160,10 @@ func (rc *runtimeCompiler) compileRuntimeSecurityAssets(kernelHeaders []string) 
 	}
 
 	cflags := runtime.GetSecurityAssetCFlags(useSyscallWrapper)
+	bpfDir := rc.config.BPFDir
+	outputDir := rc.config.RuntimeCompiledAssetDir
 
-	telemetry, err := runtime.RuntimeSecurity.Compile(rc.config, cflags, kernelHeaders)
+	telemetry, err := runtime.RuntimeSecurity.Compile(bpfDir, outputDir, cflags, kernelHeaders)
 	if err != nil {
 		log.Errorf("error compiling runtime-security probe: %s", err)
 	}
@@ -181,7 +185,7 @@ func (rc *runtimeCompiler) compileConstantFetcher(kernelHeaders []string) {
 		return
 	}
 
-	telemetry, err := runtime.ConstantFetcher.Compile(rc.config, cCode, nil, kernelHeaders)
+	telemetry, err := runtime.ConstantFetcher.Compile(rc.config.RuntimeCompiledAssetDir, cCode, nil, kernelHeaders)
 	if err != nil {
 		log.Errorf("unable to compile constant fetcher: %s", err)
 	}
@@ -189,7 +193,7 @@ func (rc *runtimeCompiler) compileConstantFetcher(kernelHeaders []string) {
 }
 
 func (rc *runtimeCompiler) compileTcpQueueLengthProbe(kernelHeaders []string) {
-	telemetry, err := runtime.TcpQueueLength.Compile(rc.config, nil, kernelHeaders)
+	telemetry, err := runtime.TcpQueueLength.Compile(rc.config.BPFDir, rc.config.RuntimeCompiledAssetDir, nil, kernelHeaders)
 	if err != nil {
 		log.Errorf("error compiling tcp queue length probe: %s", err)
 	}
@@ -197,7 +201,7 @@ func (rc *runtimeCompiler) compileTcpQueueLengthProbe(kernelHeaders []string) {
 }
 
 func (rc *runtimeCompiler) compileOomKillProbe(kernelHeaders []string) {
-	telemetry, err := runtime.OomKill.Compile(rc.config, nil, kernelHeaders)
+	telemetry, err := runtime.OomKill.Compile(rc.config.BPFDir, rc.config.RuntimeCompiledAssetDir, nil, kernelHeaders)
 	if err != nil {
 		log.Errorf("error compiling oom kill probe: %s", err)
 	}

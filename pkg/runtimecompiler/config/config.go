@@ -62,6 +62,12 @@ type Config struct {
 	// StatsdAddr defines the statsd address
 	StatsdAddr string
 
+	// BPFDir is the directory to load the eBPF program from
+	BPFDir string
+
+	// BPFDebugEnabled indicates if bpf debug logs have been enabled. We use this to determine what cflags to use during compilation
+	BPFDebugEnabled bool
+
 	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
 	EnableKernelHeaderDownload bool
 
@@ -86,8 +92,8 @@ func NewConfig(sysprobeconfig *config.Config) *Config {
 	cfg := ddconfig.Datadog
 	ddconfig.InitSystemProbeConfig(cfg)
 
-	netConfig := *netconfig.New()
-	secConfig := *secconfig.NewConfig(sysprobeconfig)
+	netConfig := netconfig.New()
+	secConfig := secconfig.NewConfig(sysprobeconfig)
 
 	return &Config{
 		Config: *ebpf.NewConfig(),
@@ -100,8 +106,6 @@ func NewConfig(sysprobeconfig *config.Config) *Config {
 		EnableConstantFetcherCompilation: cfg.GetBool(key(rsNS, "enabled")) && secConfig.RuntimeCompiledConstantsEnabled,
 		EnableTcpQueueLengthCompilation:  cfg.GetBool(key(spNS, "enable_tcp_queue_length")),
 		EnableOomKillCompilation:         cfg.GetBool(key(spNS, "enable_oom_kill")),
-
-		StatsdAddr: secConfig.StatsdAddr,
 
 		// Kernel header downloading settings
 		EnableKernelHeaderDownload: cfg.GetBool(key(rcNS, "enable_kernel_header_download")),

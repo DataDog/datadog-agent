@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/runtimecompiler/config"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
@@ -35,7 +34,7 @@ func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 }
 
 // Compile compiles the runtime asset to an object file and writes it to the configured output directory
-func (a *RuntimeAsset) Compile(config *config.Config, additionalFlags, kernelHeaders []string) (tm RuntimeCompilationTelemetry, err error) {
+func (a *RuntimeAsset) Compile(bpfDir, outputDir string, additionalFlags, kernelHeaders []string) (tm RuntimeCompilationTelemetry, err error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	tm = newRuntimeCompilationTelemetry()
@@ -46,14 +45,14 @@ func (a *RuntimeAsset) Compile(config *config.Config, additionalFlags, kernelHea
 		tm.compilationDuration = time.Since(start)
 	}()
 
-	inputReader, err := a.verify(config.BPFDir)
+	inputReader, err := a.verify(bpfDir)
 	if err != nil {
 		tm.compilationResult = verificationError
 		err = fmt.Errorf("error reading input file: %s", err)
 		return
 	}
 
-	err = compileToObjectFile(inputReader, config.RuntimeCompilerOutputDir, a.filename, a.hash, additionalFlags, kernelHeaders, &tm)
+	err = compileToObjectFile(inputReader, outputDir, a.filename, a.hash, additionalFlags, kernelHeaders, &tm)
 	return
 }
 

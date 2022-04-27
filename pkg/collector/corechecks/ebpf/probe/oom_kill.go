@@ -37,7 +37,7 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	compiledOutput, err := runtime.OomKill.GetCompiledOutput(nil, cfg.RuntimeCompilerOutputDir)
+	compiledOutput, err := runtime.OomKill.GetCompiledOutput(nil, cfg.RuntimeCompiledAssetDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch compiled oom kill probe: %s", err)
 	}

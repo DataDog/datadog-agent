@@ -67,7 +67,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	var err error
 	if c.EnableRuntimeCompilation {
 		cflags := runtime.GetNetworkAssetCFlags(c.CollectIPv6Conns, c.BPFDebug)
-		bytecode, err = runtime.Http.GetCompiledOutput(cflags, c.RuntimeCompilerOutputDir)
+		bytecode, err = runtime.Http.GetCompiledOutput(cflags, c.RuntimeCompiledAssetDir)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
 				return nil, fmt.Errorf("failed to fetch compiled network http tracer: %s", err)

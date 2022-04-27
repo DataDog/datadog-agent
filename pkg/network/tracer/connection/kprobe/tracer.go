@@ -86,7 +86,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	var err error
 	if config.EnableRuntimeCompilation {
 		cflags := runtime.GetNetworkAssetCFlags(config.CollectIPv6Conns, config.BPFDebug)
-		buf, err = runtime.Tracer.GetCompiledOutput(cflags, config.RuntimeCompilerOutputDir)
+		buf, err = runtime.Tracer.GetCompiledOutput(cflags, config.RuntimeCompiledAssetDir)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
 				return nil, fmt.Errorf("failed to fetch compiled network tracer: %s", err)

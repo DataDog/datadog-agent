@@ -34,8 +34,8 @@ type Config struct {
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
 
-	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
-	RuntimeCompilerOutputDir string
+	// RuntimeCompiledAssetDir is the directory where runtime compiled eBPF programs can be found
+	RuntimeCompiledAssetDir string
 }
 
 func key(pieces ...string) string {
@@ -54,6 +54,6 @@ func NewConfig() *Config {
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
 		ProcRoot:                 util.GetProcRoot(),
 
-		RuntimeCompilerOutputDir: cfg.GetString(key(rcNS, "runtime_compiler_output_dir")),
+		RuntimeCompiledAssetDir: cfg.GetString(key(rcNS, "runtime_compiler_output_dir")),
 	}
 }

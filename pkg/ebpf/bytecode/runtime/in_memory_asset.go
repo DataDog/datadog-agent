@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/runtimecompiler/config"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
@@ -31,7 +30,7 @@ func newInMemoryAsset(filename string) *inMemoryAsset {
 }
 
 // Compile compiles the provided c code to an object file and writes it to the configured output directory
-func (a *inMemoryAsset) Compile(config *config.Config, inputCode string, additionalFlags, kernelHeaders []string) (tm RuntimeCompilationTelemetry, err error) {
+func (a *inMemoryAsset) Compile(outputDir, inputCode string, additionalFlags, kernelHeaders []string) (tm RuntimeCompilationTelemetry, err error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	tm = newRuntimeCompilationTelemetry()
@@ -51,7 +50,7 @@ func (a *inMemoryAsset) Compile(config *config.Config, inputCode string, additio
 		return
 	}
 
-	err = compileToObjectFile(inputReader, config.RuntimeCompilerOutputDir, a.filename, inputHash, additionalFlags, kernelHeaders, &tm)
+	err = compileToObjectFile(inputReader, outputDir, a.filename, inputHash, additionalFlags, kernelHeaders, &tm)
 	return
 }
 

@@ -106,7 +106,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		return nil, err
 	}
 
-	elfFile, err := runtime.ConstantFetcher.GetCompiledOutput(nil, cf.config.RuntimeCompilerOutputDir, cCode)
+	elfFile, err := runtime.ConstantFetcher.GetCompiledOutput(nil, cf.config.RuntimeCompiledAssetDir, cCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch compiled constant fetcher: %s", err)
 	}

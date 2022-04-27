@@ -40,7 +40,7 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.GetCompiledOutput(nil, cfg.RuntimeCompilerOutputDir)
+	compiledOutput, err := runtime.TcpQueueLength.GetCompiledOutput(nil, cfg.RuntimeCompiledAssetDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch compiled tcp queue length probe: %s", err)
 	}
