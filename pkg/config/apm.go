@@ -110,10 +110,26 @@ func setupAPM(config Config) {
 	})
 
 	config.SetEnvKeyTransformer("apm_config.filter_tags.require", func(in string) interface{} {
+		if len(in) > 0 && in[0] == '[' {
+			var values []string
+			if err := json.Unmarshal([]byte(in), &values); err != nil {
+				log.Warnf(`"apm_config.filter_tags.require" can not be parsed: %v`, err)
+				return []string{}
+			}
+			return values
+		}
 		return strings.Split(in, " ")
 	})
 
 	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", func(in string) interface{} {
+		if len(in) > 0 && in[0] == '[' {
+			var values []string
+			if err := json.Unmarshal([]byte(in), &values); err != nil {
+				log.Warnf(`"apm_config.filter_tags.reject" can not be parsed: %v`, err)
+				return []string{}
+			}
+			return values
+		}
 		return strings.Split(in, " ")
 	})
 
