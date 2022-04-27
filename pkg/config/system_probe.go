@@ -168,7 +168,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(rcNS, "apt_config_dir"), suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
 	cfg.BindEnvAndSetDefault(join(rcNS, "yum_repos_dir"), suffixHostEtc(defaultYumReposDirSuffix), "DD_YUM_REPOS_DIR")
 	cfg.BindEnvAndSetDefault(join(rcNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
-	cfg.BindEnvAndSetDefault(join(rcNS, "skip_runtime_compilation"), false, "DD_SKIP_RUNTIME_COMPILATION")
+	cfg.BindEnvAndSetDefault(join(rcNS, "skip_compilation"), false, "DD_SKIP_RUNTIME_COMPILATION")
 }
 
 func join(pieces ...string) string {

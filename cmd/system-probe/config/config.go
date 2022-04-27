@@ -230,8 +230,8 @@ func load(configPath string) (*Config, error) {
 		cfg.Set(key(spNS, "enabled"), c.Enabled)
 	}
 
-	if cfg.GetBool("runtime_compiler_config.skip_runtime_compilation") {
-		log.Infof("runtime_compiler_config.skip_runtime_compilation detected, skipping runtime compilation module")
+	if cfg.GetBool("runtime_compiler_config.skip_compilation") {
+		log.Infof("runtime_compiler_config.skip_compilation detected, skipping runtime compilation module")
 	} else {
 		// At this point we can't tell for sure whether or not runtime compilation is going to be
 		// required, so we'll enable the module by default
