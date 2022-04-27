@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,6 +29,8 @@ type executionStartInfo struct {
 	traceID   uint64
 	spanID    uint64
 	parentID  uint64
+	// set as uint64 pointer so we can nil check
+	samplingPriority *uint64
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -56,6 +57,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 	if payload.Headers != nil {
 		traceID, e1 := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
 		parentID, e2 := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
+		samplingPriority, e3 := strconv.ParseUint(payload.Headers[SamplingPriorityHeader], 0, 64)
 
 		if e1 == nil {
 			currentExecutionInfo.traceID = traceID
@@ -69,6 +71,13 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 				inferredSpan.Span.ParentID = parentID
 			} else {
 				currentExecutionInfo.parentID = parentID
+			}
+		}
+
+		if e3 == nil {
+			currentExecutionInfo.samplingPriority = &samplingPriority
+			if InferredSpansEnabled {
+				inferredSpan.SamplingPriority = &samplingPriority
 			}
 		}
 	}
@@ -99,8 +108,12 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Priority: int32(sampler.PriorityNone),
-		Spans:    []*pb.Span{executionSpan},
+		Spans: []*pb.Span{executionSpan},
+	}
+
+	if currentExecutionInfo.samplingPriority != nil {
+		priority := *currentExecutionInfo.samplingPriority
+		traceChunk.Priority = int32(priority)
 	}
 
 	tracerPayload := &pb.TracerPayload{
@@ -136,11 +149,4 @@ func TraceID() uint64 {
 // SpanID returns the current SpanID
 func SpanID() uint64 {
 	return currentExecutionInfo.spanID
-}
-
-// SetVarForTest is used for setting the
-// InferredSpansEnable var when testing. This
-// allows us to avoid setting some env vars in tests
-func SetVarForTest() {
-	InferredSpansEnabled = true
 }

@@ -21,4 +21,8 @@ const (
 	// ParentIDHeader is the header containing the parentID
 	// used in  /trace.go
 	ParentIDHeader = "x-datadog-parent-id"
+
+	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
+	// used in /trace.go
+	SamplingPriorityHeader = "x-datadog-sampling-priority"
 )

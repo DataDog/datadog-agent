@@ -32,6 +32,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
+	assert.Equal(t, uint64(1), *currentExecutionInfo.samplingPriority)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
 }
 
@@ -47,7 +48,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 }
 
 func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
-	SetVarForTest()
+	InferredSpansEnabled = true
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
 	startTime := time.Now()
 	inferredSpan.Span = &pb.Span{}
@@ -61,7 +62,7 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 }
 
 func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
-	SetVarForTest()
+	InferredSpansEnabled = true
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	inferredSpan.Span = &pb.Span{}
@@ -70,8 +71,11 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
+	assert.Equal(t, uint64(1), *currentExecutionInfo.samplingPriority)
 	assert.Equal(t, uint64(5736943178450432258), inferredSpan.Span.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), inferredSpan.Span.ParentID)
+	assert.Equal(t, uint64(1), *inferredSpan.SamplingPriority)
+
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
 }
 func TestEndExecutionSpanWithNoError(t *testing.T) {

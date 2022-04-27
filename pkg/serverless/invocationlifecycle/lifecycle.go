@@ -6,9 +6,6 @@
 package invocationlifecycle
 
 import (
-	"os"
-	"strconv"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -25,13 +22,9 @@ type LifecycleProcessor struct {
 	DetectLambdaLibrary func() bool
 }
 
-var traceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
-var managedServiceEnabled, _ = strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
-
 // InferredSpansEnabled tells us if the Env Vars are enabled
 // for inferred spans to be created
-var InferredSpansEnabled = traceEnabled && managedServiceEnabled
-var inferredSpan inferredspan.InferredSpan
+var InferredSpansEnabled, inferredSpan = initializeInferredSpan()
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
@@ -44,7 +37,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		if InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to create inferred span")
 			inferredSpan = inferredspan.GenerateInferredSpan(startDetails.StartTime)
-			inferredspan.RouteInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
+			inferredspan.DispatchInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
 		}
 
 		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
@@ -75,4 +68,12 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
+}
+
+func initializeInferredSpan() (bool, inferredspan.InferredSpan) {
+	// This function checks if inferred spans is enabled and returns
+	// an uninitialized span.
+	inferredSpanEnabled := inferredspan.IsInferredSpansEnabled()
+	var span inferredspan.InferredSpan
+	return inferredSpanEnabled, span
 }

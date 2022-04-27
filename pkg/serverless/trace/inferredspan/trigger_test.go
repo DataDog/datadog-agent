@@ -11,23 +11,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseEventSourceUnknown(t *testing.T) {
+func TestExtractEventSourceUnknown(t *testing.T) {
 	testString := `{"resource":"/users/create", "httpMethod":"GET","requestContext":{"httpMethod":"GET"}}`
-	str, _ := ParseEventSource(testString)
+	attributes := parseEvent(testString)
+	str := attributes.extractEventSource()
 	assert.Equal(t, str, UNKNOWN)
 }
-func TestParseEventSourceREST(t *testing.T) {
+func TestExtractEventSourceREST(t *testing.T) {
 	testString := `{"resource":"/users/create", "httpMethod":"GET","requestContext":{"httpMethod":"GET", "stage":"dev"}}`
-	str, _ := ParseEventSource(testString)
+	attributes := parseEvent(testString)
+	str := attributes.extractEventSource()
 	assert.Equal(t, str, APIGATEWAY)
 }
-func TestParseEventSourceHTTP(t *testing.T) {
+func TestExtractEventSourceHTTP(t *testing.T) {
 	testString := `{"resource":"/users/create", "httpMethod":"GET","requestContext":{"routeKey":"GET /httpapi/get", "stage":"dev"}}`
-	str, _ := ParseEventSource(testString)
+	attributes := parseEvent(testString)
+	str := attributes.extractEventSource()
 	assert.Equal(t, str, HTTPAPI)
 }
-func TestParseEventSourceWebsocket(t *testing.T) {
+func TestExtractEventSourceWebsocket(t *testing.T) {
 	testString := `{"resource":"/users/create", "httpMethod":"GET","requestContext":{"messageDirection":"IN", "stage":"dev"}}`
-	str, _ := ParseEventSource(testString)
+	attributes := parseEvent(testString)
+	str := attributes.extractEventSource()
 	assert.Equal(t, str, WEBSOCKET)
 }

@@ -11,15 +11,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ParseEventSource parses the event payload, and based on
-// specific keys in the payload, determines and sets the event source.
-func ParseEventSource(event string) (string, EventKeys) {
+// parseEvent parses the event payload.
+func parseEvent(event string) EventKeys {
 	var eventKeys EventKeys
 	log.Debug("Attempting to parse the event for inferred spans")
 	err := json.Unmarshal([]byte(event), &eventKeys)
 	if err != nil {
 		log.Debug("Unable to unmarshall event payload")
 	}
+	return eventKeys
+}
+
+// extractEventSource determines the event source from the
+// unmarshalled event payload
+func (eventKeys *EventKeys) extractEventSource() string {
 	eventSource := UNKNOWN
 	if eventKeys.RequestContext.Stage != "" {
 		if eventKeys.HTTPMethod != "" {
@@ -32,5 +37,5 @@ func ParseEventSource(event string) (string, EventKeys) {
 			eventSource = WEBSOCKET
 		}
 	}
-	return eventSource, eventKeys
+	return eventSource
 }
