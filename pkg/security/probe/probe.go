@@ -338,6 +338,12 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 
 	// send specific event
 	if p.config.AgentMonitoringEvents {
+		// send wildcard first
+		for _, handler := range p.handlers[model.UnknownEventType] {
+			handler.HandleCustomEvent(rule, event)
+		}
+
+		// send specific event
 		for _, handler := range p.handlers[event.GetEventType()] {
 			handler.HandleCustomEvent(rule, event)
 		}
