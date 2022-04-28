@@ -10,12 +10,14 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/fsuid.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -291,6 +293,94 @@ int self_exec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_bind_af_inet(int argc, char** argv) {
+    int s = socket(PF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        perror("socker");
+        return EXIT_FAILURE;
+    }
+
+    if (argc != 2) {
+        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    } else if (!strcmp(ip, "custom_ip")) {
+        int ip32 = 0;
+        if (inet_pton(AF_INET, "127.0.0.1", &ip32) != 1) {
+            perror("inet_pton");
+            return EXIT_FAILURE;
+        }
+        addr.sin_addr.s_addr = htonl(ip32);
+    } else {
+        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin_port = htons(4242);
+    bind(s, (struct sockaddr*)&addr, sizeof(addr));
+
+    close (s);
+    return EXIT_SUCCESS;
+}
+
+int test_bind_af_inet6(int argc, char** argv) {
+    int s = socket(AF_INET6, SOCK_STREAM, 0);
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    if (argc != 2) {
+        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        inet_pton(AF_INET6, "::", &addr.sin6_addr);
+    } else if (!strcmp(ip, "custom_ip")) {
+        inet_pton(AF_INET6, "1234:5678:90ab:cdef:0000:0000:1a1a:1337", &addr.sin6_addr);
+    } else {
+        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin6_port = htons(4242);
+    bind(s, (struct sockaddr*)&addr, sizeof(addr));
+
+    close(s);
+    return EXIT_SUCCESS;
+}
+
+int test_bind(int argc, char** argv) {
+    if (argc <= 1) {
+        fprintf(stderr, "Please speficy an addr_type\n");
+        return EXIT_FAILURE;
+    }
+
+    char* addr_family = argv[1];
+    if (!strcmp(addr_family, "AF_INET")) {
+        return test_bind_af_inet(argc - 1, argv + 1);
+    } else if  (!strcmp(addr_family, "AF_INET6")) {
+        return test_bind_af_inet6(argc - 1, argv + 1);
+    }
+
+    fprintf(stderr, "Spefied %s addr_type is not a valid one\n", addr_family);
+    return EXIT_FAILURE;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -317,6 +407,8 @@ int main(int argc, char **argv) {
         return test_process_set(argc - 1, argv + 1);
     } else if (strcmp(cmd, "self-exec") == 0) {
         return self_exec(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "bind") == 0) {
+        return test_bind(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;
