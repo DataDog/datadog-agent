@@ -14,7 +14,7 @@ typedef enum
     CONN_DIRECTION_OUTGOING = 0b10,
 } conn_direction_t;
 
-typedef enum 
+typedef enum
 {
     PACKET_COUNT_NONE = 0,
     PACKET_COUNT_ABSOLUTE = 1,

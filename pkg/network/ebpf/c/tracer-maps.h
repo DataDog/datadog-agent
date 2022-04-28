@@ -54,6 +54,15 @@ struct bpf_map_def SEC("maps/conn_close_batch") conn_close_batch = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/tcp_sendmsg_args") tcp_sendmsg_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(struct sock*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t

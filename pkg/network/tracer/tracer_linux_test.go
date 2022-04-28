@@ -257,13 +257,13 @@ func TestTCPRTT(t *testing.T) {
 	// Wait for a second so RTT can stabilize
 	time.Sleep(1 * time.Second)
 
-	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := tcpGetInfo(c)
-	require.NoError(t, err)
-
 	// Write something to socket to ensure connection is tracked
 	// This will trigger the collection of TCP stats including RTT
 	_, err = c.Write([]byte("foo"))
+	require.NoError(t, err)
+
+	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
+	tcpInfo, err := tcpGetInfo(c)
 	require.NoError(t, err)
 
 	// Fetch connection matching source and target address
