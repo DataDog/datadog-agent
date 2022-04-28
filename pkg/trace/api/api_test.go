@@ -461,19 +461,19 @@ func TestTraceCount(t *testing.T) {
 			delete(req.Header, k)
 		}
 		_, err := traceCount(req)
-		assert.Contains(t, err.Error(), "not found")
+		assert.Equal(t, err, errHeaderTraceCountNotFound)
 	})
 
 	t.Run("value-empty", func(t *testing.T) {
 		req.Header.Set(headerTraceCount, "")
 		_, err := traceCount(req)
-		assert.Contains(t, err.Error(), "value not set")
+		assert.Equal(t, err, errHeaderTraceCountNotSet)
 	})
 
 	t.Run("value-bad", func(t *testing.T) {
 		req.Header.Set(headerTraceCount, "qwe")
 		_, err := traceCount(req)
-		assert.Contains(t, err.Error(), "can not be parsed")
+		assert.Equal(t, err, errInvalidHeaderTraceCount)
 	})
 
 	t.Run("ok", func(t *testing.T) {
