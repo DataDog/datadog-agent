@@ -25,6 +25,7 @@ func setup() (scheduler *Scheduler, spy *schedulers.MockSourceManager) {
 
 func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	scheduler, spy := setup()
+	defer scheduler.Stop()
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
@@ -50,6 +51,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 
 func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 	scheduler, spy := setup()
+	defer scheduler.Stop()
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar"}]`),
@@ -76,6 +78,7 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 
 func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	scheduler, spy := setup()
+	defer scheduler.Stop()
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar","service":"baz"}]`),
@@ -102,6 +105,7 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 
 func TestScheduleConfigCreatesNewService(t *testing.T) {
 	scheduler, spy := setup()
+	defer scheduler.Stop()
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
@@ -130,6 +134,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	scheduler, spy := setup()
+	defer scheduler.Stop()
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
@@ -159,6 +164,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 
 func TestUnscheduleConfigRemovesService(t *testing.T) {
 	scheduler, spy := setup()
+	defer scheduler.Stop()
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
@@ -186,6 +192,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	scheduler, spy := setup()
+	defer scheduler.Stop()
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
 		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
