@@ -3257,14 +3257,14 @@ api_key:
     # enabled: true
 
     ## @param span_name_as_resource_name - boolean - optional - default: false
-    ## @env DD_OTLP_CONFIG_SPAN_NAME_AS_RESOURCE_NAME - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME - boolean - optional - default: false
     ## If set to true the OpenTelemetry span name will used in the Datadog resource name.
     ## If set to false the resource name will be filled with the instrumentation library name + span kind.
     #
     # span_name_as_resource_name: false
 
     ## @param span_name_remappings - map - optional
-    ## @env DD_OTLP_CONFIG_SPAN_NAME_REMAPPINGS - boolean - optional
+    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS - boolean - optional
     ## Defines a map of span names and preferred names to map to. This can be used to automatically map Datadog Span
     ## Operation Names to an updated value.
     ## span_name_remappings:

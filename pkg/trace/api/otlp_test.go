@@ -276,14 +276,20 @@ func TestOTLPHostname(t *testing.T) {
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
 		rcv := NewOTLPReceiver(out, cfg)
+		rattr := map[string]interface{}{}
+		if tt.resource != "" {
+			rattr["datadog.host.name"] = tt.resource
+		}
+		sattr := map[string]interface{}{}
+		if tt.span != "" {
+			rattr["_dd.hostname"] = tt.span
+		}
 		rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "a",
 				LibVersion: "1.2",
-				Attributes: map[string]interface{}{"datadog.host.name": tt.resource},
-				Spans: []*testutil.OTLPSpan{
-					{Attributes: map[string]interface{}{"_dd.hostname": tt.span}},
-				},
+				Attributes: rattr,
+				Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 			},
 		}).Traces().ResourceSpans().At(0), http.Header{}, "")
 		timeout := time.After(500 * time.Millisecond)

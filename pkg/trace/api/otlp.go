@@ -226,9 +226,16 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		rattr[k] = v.AsString()
 		return true
 	})
-	hostname, _ := attributes.HostnameFromAttributes(attr)
-	if hostname == "" {
-		hostname = rattr["_dd.hostname"]
+	hostname, hostok := attributes.HostnameFromAttributes(attr)
+	hostFromMap := func(m map[string]string, key string) {
+		// hostFromMap sets the hostname to m[key] if it is set.
+		if v, ok := m[key]; ok {
+			hostname = v
+			hostok = true
+		}
+	}
+	if !hostok {
+		hostFromMap(rattr, "_dd.hostname")
 	}
 	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
 	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
@@ -264,12 +271,10 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 				tracesByID[traceID] = pb.Trace{}
 			}
 			ddspan := o.convertSpan(rattr, lib, span)
-			if hostname == "" {
+			if !hostok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
-				if v := ddspan.Meta["_dd.hostname"]; v != "" {
-					hostname = v
-				}
+				hostFromMap(ddspan.Meta, "_dd.hostname")
 			}
 			if env == "" {
 				// no env at resource level, try the first span
@@ -307,7 +312,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	if env == "" {
 		env = o.conf.DefaultEnv
 	}
-	if hostname == "" {
+	if !hostok {
 		hostname = o.conf.Hostname
 	}
 	p.TracerPayload = &pb.TracerPayload{
