@@ -30,6 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+var (
+	pipelineError error
+)
+
 func getComponents(s serializer.MetricSerializer) (
 	component.Factories,
 	error,
@@ -153,20 +157,32 @@ func (p *Pipeline) Stop() {
 func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(config.Datadog)
 	if err != nil {
-		return nil, fmt.Errorf("config error: %w", err)
+		pipelineError = fmt.Errorf("config error: %w", err)
+		return nil, pipelineError
 	}
 
 	p, err := NewPipeline(pcfg, s)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build pipeline: %w", err)
+		pipelineError = fmt.Errorf("failed to build pipeline: %w", err)
+		return nil, pipelineError
 	}
 
 	go func() {
 		err = p.Run(ctx)
 		if err != nil {
-			log.Errorf("Error running the OTLP pipeline: %s", err)
+			pipelineError = fmt.Errorf("Error running the OTLP pipeline: %w", err)
+			log.Errorf(pipelineError.Error())
 		}
 	}()
 
 	return p, nil
+}
+
+// GetCollectorStatus get the collector status and error message (if there is one)
+func GetCollectorStatus(p *Pipeline) (string, string) {
+	if p != nil {
+		return p.col.GetState().String(), ""
+	}
+	// If the pipeline is nil then it failed to start so we return the error.
+	return "Failed to start", pipelineError.Error()
 }
