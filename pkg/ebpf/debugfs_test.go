@@ -24,7 +24,7 @@ func TestReadKprobeProfile(t *testing.T) {
 	expected := map[string]KprobeStats{
 		"r_tcp_sendmsg__7178":      {Hits: 1111389857, Misses: 0},
 		"r_tcp_sendmsg__4256":      {Hits: 549926224, Misses: 0},
-		"p_tcp_sendmsg__4256":      {Hits: 549925022, Misses: 28},
+		"p_tcp_sendmsg__4256":      {Hits: 549925022, Misses: 0},
 		"p_tcp_cleanup_rbuf__4256": {Hits: 0, Misses: 0},
 		"p_tcp_close__4256":        {Hits: 540361567, Misses: 0},
 		"r_tcp_close__4256":        {Hits: 540361465, Misses: 0},
