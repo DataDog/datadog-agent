@@ -34,7 +34,7 @@ type Service interface {
 	IsReady(context.Context) bool                        // is the service ready
 	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or container labels
 	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config
-	GetExtraConfig([]byte) ([]byte, error)               // Extra configuration values
+	GetExtraConfig(string) (string, error)               // Extra configuration values
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

@@ -340,6 +340,6 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
 }

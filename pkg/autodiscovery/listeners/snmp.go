@@ -377,48 +377,48 @@ func (s *SNMPService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns data from configuration
-func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
-	switch string(key) {
+func (s *SNMPService) GetExtraConfig(key string) (string, error) {
+	switch key {
 	case "version":
-		return []byte(s.config.Version), nil
+		return s.config.Version, nil
 	case "timeout":
-		return []byte(fmt.Sprintf("%d", s.config.Timeout)), nil
+		return fmt.Sprintf("%d", s.config.Timeout), nil
 	case "retries":
-		return []byte(fmt.Sprintf("%d", s.config.Retries)), nil
+		return fmt.Sprintf("%d", s.config.Retries), nil
 	case "oid_batch_size":
-		return []byte(fmt.Sprintf("%d", s.config.OidBatchSize)), nil
+		return fmt.Sprintf("%d", s.config.OidBatchSize), nil
 	case "community":
-		return []byte(s.config.Community), nil
+		return s.config.Community, nil
 	case "user":
-		return []byte(s.config.User), nil
+		return s.config.User, nil
 	case "auth_key":
-		return []byte(s.config.AuthKey), nil
+		return s.config.AuthKey, nil
 	case "auth_protocol":
-		return []byte(s.config.AuthProtocol), nil
+		return s.config.AuthProtocol, nil
 	case "priv_key":
-		return []byte(s.config.PrivKey), nil
+		return s.config.PrivKey, nil
 	case "priv_protocol":
-		return []byte(s.config.PrivProtocol), nil
+		return s.config.PrivProtocol, nil
 	case "context_engine_id":
-		return []byte(s.config.ContextEngineID), nil
+		return s.config.ContextEngineID, nil
 	case "context_name":
-		return []byte(s.config.ContextName), nil
+		return s.config.ContextName, nil
 	case "autodiscovery_subnet":
-		return []byte(s.config.Network), nil
+		return s.config.Network, nil
 	case "loader":
-		return []byte(s.config.Loader), nil
+		return s.config.Loader, nil
 	case "namespace":
-		return []byte(s.config.Namespace), nil
+		return s.config.Namespace, nil
 	case "collect_device_metadata":
-		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
+		return strconv.FormatBool(s.config.CollectDeviceMetadata), nil
 	case "use_device_id_as_hostname":
-		return []byte(strconv.FormatBool(s.config.UseDeviceIDAsHostname)), nil
+		return strconv.FormatBool(s.config.UseDeviceIDAsHostname), nil
 	case "tags":
-		return []byte(convertToCommaSepTags(s.config.Tags)), nil
+		return convertToCommaSepTags(s.config.Tags), nil
 	case "min_collection_interval":
-		return []byte(fmt.Sprintf("%d", s.config.MinCollectionInterval)), nil
+		return fmt.Sprintf("%d", s.config.MinCollectionInterval), nil
 	}
-	return []byte{}, ErrNotSupported
+	return "", ErrNotSupported
 }
 
 func convertToCommaSepTags(tags []string) string {
