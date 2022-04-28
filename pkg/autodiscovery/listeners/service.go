@@ -117,13 +117,13 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns extra configuration associated with the service.
-func (s *service) GetExtraConfig(key []byte) ([]byte, error) {
-	result, found := s.extraConfig[string(key)]
+func (s *service) GetExtraConfig(key string) (string, error) {
+	result, found := s.extraConfig[key]
 	if !found {
-		return []byte{}, fmt.Errorf("extra config %q is not supported", key)
+		return "", fmt.Errorf("extra config %q is not supported", key)
 	}
 
-	return []byte(result), nil
+	return result, nil
 }
 
 // svcEqual checks that two Services are equal to each other by doing a deep

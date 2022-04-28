@@ -148,6 +148,10 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
 
+	// Traces settingds
+	config.BindEnv("otlp_config.traces.span_name_remappings")
+	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
+
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.max_request_body_size")

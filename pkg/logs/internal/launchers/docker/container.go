@@ -10,21 +10,29 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// configPath refers to the configuration that can be passed over a docker label,
-// this feature is commonly named 'ad' or 'autodiscovery'.
-const configPath = "com.datadoghq.ad.logs"
+const (
+	// configPath refers to the configuration that can be passed over a
+	// docker label or a pod annotation, this feature is commonly named
+	// 'ad' or 'autodicovery'.
+	configPath = "com.datadoghq.ad.logs"
+
+	annotationConfigPathPrefix = "ad.datadoghq.com"
+	annotationConfigPathSuffix = "logs"
+)
 
 // Container represents a container to tail logs from.
 type Container struct {
@@ -185,7 +193,36 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 	return false
 }
 
-// ContainsADIdentifier returns true if the container contains an autodiscovery identifier.
+// ContainsADIdentifier returns true if the container contains an autodiscovery identifier,
+// searching first in the docker labels, then in the pod specs.
 func (c *Container) ContainsADIdentifier() bool {
-	return ContainsADIdentifier(c)
+	var exists bool
+	_, exists = c.container.Config.Labels[configPath]
+	if exists {
+		return true
+	}
+
+	pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(c.service.Identifier)
+	if err != nil {
+		return false
+	}
+
+	for _, container := range pod.Containers {
+		if container.ID == c.service.Identifier {
+			// looks for the container name specified in the pod
+			// manifest as it's different from the name of the
+			// container returns by a docker inspect which is a
+			// concatenation of the container name specified in the
+			// pod manifest and a hash
+			_, exists = pod.Annotations[annotationConfigPath(container.Name)]
+			return exists
+		}
+	}
+
+	return false
+}
+
+// annotationConfigPath returns the path of a logs-config passed in a pod annotation.
+func annotationConfigPath(containerName string) string {
+	return fmt.Sprintf("%s/%s.%s", annotationConfigPathPrefix, containerName, annotationConfigPathSuffix)
 }

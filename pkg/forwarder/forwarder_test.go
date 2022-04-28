@@ -12,12 +12,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -54,8 +54,8 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.Equal(t, resolver.NewSingleDomainResolvers(validKeysPerDomain), forwarder.domainResolvers)
 	assert.Len(t, forwarder.domainForwarders, 1) // datadog.bar should have been dropped
 
-	assert.Equal(t, forwarder.internalState, Stopped)
-	assert.Equal(t, forwarder.State(), forwarder.internalState)
+	assert.Equal(t, forwarder.internalState.Load(), Stopped)
+	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
 }
 
 func TestFeature(t *testing.T) {
@@ -340,10 +340,10 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	// reseting DroppedOnInput
 	highPriorityQueueFull.Set(0)
 
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("%#v\n", r.URL)
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
 	mockConfig := config.Mock()
@@ -397,13 +397,13 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	// We should receive the following requests:
 	// - 9 transactions * 2 payloads per transactions * 2 api_keys
 	ts.Close()
-	assert.Equal(t, numReqs, requests)
+	assert.Equal(t, numReqs, requests.Load())
 }
 
 func TestTransactionEventHandlers(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
@@ -427,7 +427,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	attempts := int64(0)
+	attempts := atomic.NewInt64(0)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -436,7 +436,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 		wg.Done()
 	}
 	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
-		atomic.AddInt64(&attempts, 1)
+		attempts.Inc()
 	}
 
 	err := f.sendHTTPTransactions(transactions)
@@ -444,18 +444,18 @@ func TestTransactionEventHandlers(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(1), atomic.LoadInt64(&attempts))
+	assert.Equal(t, int64(1), attempts.Load())
 }
 
 func TestTransactionEventHandlersOnRetry(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
-		if v := atomic.AddInt64(&requests, 1); v == 1 {
+		if v := requests.Inc(); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			w.WriteHeader(http.StatusOK)
@@ -485,7 +485,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	attempts := int64(0)
+	attempts := atomic.NewInt64(0)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -494,7 +494,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 		wg.Done()
 	}
 	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
-		atomic.AddInt64(&attempts, 1)
+		attempts.Inc()
 	}
 
 	err := f.sendHTTPTransactions(transactions)
@@ -502,18 +502,18 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(2), atomic.LoadInt64(&attempts))
+	assert.Equal(t, int64(2), attempts.Load())
 }
 
 func TestTransactionEventHandlersNotRetryable(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 	ts := httptest.NewServer(mux)
@@ -539,7 +539,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	attempts := int64(0)
+	attempts := atomic.NewInt64(0)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -548,7 +548,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 		wg.Done()
 	}
 	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
-		atomic.AddInt64(&attempts, 1)
+		attempts.Inc()
 	}
 
 	transactions[0].Retryable = false
@@ -558,14 +558,14 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(1), atomic.LoadInt64(&requests))
-	assert.Equal(t, int64(1), atomic.LoadInt64(&attempts))
+	assert.Equal(t, int64(1), requests.Load())
+	assert.Equal(t, int64(1), attempts.Load())
 }
 
 func TestProcessLikePayloadResponseTimeout(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()

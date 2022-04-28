@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -184,6 +185,12 @@ func TestRenameInvalidate(t *testing.T) {
 }
 
 func TestRenameReuseInode(t *testing.T) {
+	// xfs has changed the inode reuse feature in 5.15
+	// https://lkml.iu.edu/hypermail/linux/kernel/2108.3/07604.html
+	checkKernelCompatibility(t, ">= 5.15 kernels", func(kv *kernel.Version) bool {
+		return kv.Code >= kernel.Kernel5_15
+	})
+
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/test-rename-reuse-inode"`,

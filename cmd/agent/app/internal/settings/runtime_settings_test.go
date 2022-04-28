@@ -23,7 +23,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	opts := aggregator.DefaultDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
-	common.DSD, err = dogstatsd.NewServer(demux)
+	common.DSD, err = dogstatsd.NewServer(demux, false)
 	require.Nil(t, err)
 
 	s := DsdStatsRuntimeSetting("dogstatsd_stats")
