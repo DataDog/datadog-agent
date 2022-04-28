@@ -114,7 +114,7 @@ static void *thread_open(void *data) {
 }
 
 int span_open(int argc, char **argv) {
-    if (argc < 3) {
+    if (argc < 4) {
         fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
         return EXIT_FAILURE;
     }
@@ -179,7 +179,7 @@ int test_signal_eperm(void) {
     return EXIT_SUCCESS;
 }
 
-int test_signal(int argc, char** argv) {
+int test_signal(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "%s: Please pass a test case in: sigusr, eperm.\n", __FUNCTION__);
         return EXIT_FAILURE;
@@ -194,17 +194,17 @@ int test_signal(int argc, char** argv) {
 }
 
 int test_splice() {
-	const int fd = open("/tmp/splice_test", O_RDONLY | O_CREAT, 0700);
-	if (fd < 0) {
-		fprintf(stderr, "open failed");
-		return EXIT_FAILURE;
-	}
+    const int fd = open("/tmp/splice_test", O_RDONLY | O_CREAT, 0700);
+    if (fd < 0) {
+        fprintf(stderr, "open failed");
+        return EXIT_FAILURE;
+    }
 
-	int p[2];
-	if (pipe(p)) {
+    int p[2];
+    if (pipe(p)) {
         fprintf(stderr, "pipe failed");
         return EXIT_FAILURE;
-	}
+    }
 
     loff_t offset = 1;
     splice(fd, 0, p[1], NULL, 1, 0);
@@ -215,7 +215,7 @@ int test_splice() {
     return EXIT_SUCCESS;
 }
 
-int test_mkdirat_error(int argc, char** argv) {
+int test_mkdirat_error(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "%s: Please pass a path to mkdirat.\n", __FUNCTION__);
         return EXIT_FAILURE;
@@ -280,6 +280,17 @@ int test_process_set(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int self_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please pass a command name\n");
+        return EXIT_FAILURE;
+    }
+
+    execv("/proc/self/exe", argv + 1);
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -304,6 +315,8 @@ int main(int argc, char **argv) {
         return test_mkdirat_error(argc - 1, argv + 1);
     } else if (strcmp(cmd, "process-credentials") == 0) {
         return test_process_set(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "self-exec") == 0) {
+        return self_exec(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

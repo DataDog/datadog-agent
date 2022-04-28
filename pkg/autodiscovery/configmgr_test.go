@@ -139,12 +139,12 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ConfigRemovedFirst
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processNewService(myService.ADIdentifiers, myService)
-	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processDelConfigs([]integration.Config{templateConfig})
 	assertConfigsMatch(suite.T(), changes.schedule)
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
 	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
@@ -160,12 +160,12 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ServiceRemovedFirs
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processNewService(myService.ADIdentifiers, myService)
-	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
 	changes = suite.cm.processDelConfigs([]integration.Config{templateConfig})
 	assertConfigsMatch(suite.T(), changes.schedule)
@@ -181,12 +181,12 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ConfigRemovedFirst
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processNewConfig(templateConfig)
-	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processDelConfigs([]integration.Config{templateConfig})
 	assertConfigsMatch(suite.T(), changes.schedule)
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
 	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
@@ -202,12 +202,12 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ServiceRemovedFirs
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processNewConfig(templateConfig)
-	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
 	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
-	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost")))
+	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
 	changes = suite.cm.processDelConfigs([]integration.Config{templateConfig})
 	assertConfigsMatch(suite.T(), changes.schedule)

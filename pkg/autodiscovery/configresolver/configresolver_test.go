@@ -89,8 +89,8 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns extra configuration
-func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte(s.ExtraConfig[string(key)]), nil
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
+	return s.ExtraConfig[key], nil
 }
 
 // FilterConfigs does nothing.
@@ -359,7 +359,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
 				ServiceID:     "a5901276aed1",
-				LogsConfig:    integration.Data("host: 127.0.0.1"),
+				LogsConfig:    integration.Data("host: 127.0.0.1\n"),
 			},
 		},
 		{
@@ -443,7 +443,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
-				LogsConfig:    integration.Data("test: test_value"),
+				LogsConfig:    integration.Data("test: test_value\n"),
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -513,7 +513,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("pid: 1337\ntags: [\"foo\"]")},
+				Instances:     []integration.Data{integration.Data("pid: 1337\ntags:\n- foo\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -529,7 +529,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: %%FOO%%")},
 			},
-			errorString: "unable to add tags for service 'a5901276aed1', err: yaml: found character that cannot start any token",
+			errorString: "unable to add tags for service 'a5901276aed1', err: invalid %%FOO%% tag",
 		},
 		//// check overrides
 		{
@@ -681,7 +681,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "ksm",
 				ADIdentifiers: []string{"kube-state-metrics"},
-				Instances:     []integration.Data{integration.Data("host: 10.3.2.1")},
+				Instances:     []integration.Data{integration.Data("host: 10.3.2.1\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -701,6 +701,26 @@ func TestResolve(t *testing.T) {
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n- foo:bar\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "IPv6 %%host%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"ipv4": "192.168.0.1", "ipv6": "fd::1"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host_ipv4: %%host_ipv4%%\nhost_ipv6: %%host_ipv6%%\nurl_ipv4: http://%%host_ipv4%%:%%port%%/data\nurl_ipv6: http://%%host_ipv6%%:%%port%%/data")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host_ipv4: 192.168.0.1\nhost_ipv6: fd::1\ntags:\n- foo:bar\nurl_ipv4: http://192.168.0.1:3/data\nurl_ipv6: http://[fd::1]:3/data\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -728,5 +748,62 @@ func newFakeContainerPorts() []listeners.ContainerPort {
 		{Port: 1, Name: "foo"},
 		{Port: 2, Name: "bar"},
 		{Port: 3, Name: "baz"},
+	}
+}
+
+func BenchmarkResolve(b *testing.B) {
+	// Prepare envvars for test
+	err := os.Setenv("test_envvar_key", "test_value")
+	require.NoError(b, err)
+	os.Unsetenv("test_envvar_not_set")
+	defer os.Unsetenv("test_envvar_key")
+
+	testCases := []struct {
+		testName    string
+		tpl         integration.Config
+		svc         listeners.Service
+		out         integration.Config
+		errorString string
+	}{
+		{
+			testName: "simple",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\nport: %%port%%\nports:\n- foo: %%port_foo%%\n- bar: %%port_bar%%\n- baz: %%port_baz%%\ntest: %%env_test_envvar_key%%\nurl: http://%%host%%:%%port%%/data")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\nport: 3\nports:\n- foo: 1\n- bar: 2\n- baz: 3\ntags:\n- foo:bar\ntest: test_value\nurl: http://127.0.0.1:3/data\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+	}
+
+	for i, tc := range testCases {
+		b.Run(fmt.Sprintf("case %d: %s", i, tc.testName), func(b *testing.B) {
+			// Make sure we don't modify the template object
+			checksum := tc.tpl.Digest()
+
+			var cfg integration.Config
+			var err error
+			for i := 0; i < b.N; i++ {
+				cfg, err = Resolve(tc.tpl, tc.svc)
+			}
+			if tc.errorString != "" {
+				assert.EqualError(b, err, tc.errorString)
+			} else {
+				assert.NoError(b, err)
+				assert.Equal(b, tc.out, cfg)
+				assert.Equal(b, checksum, tc.tpl.Digest())
+			}
+		})
 	}
 }

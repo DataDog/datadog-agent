@@ -25,6 +25,7 @@ provider:
     DD_SERVICE: integration-tests-service
     DD_TAGS: tagA:valueA tagB:valueB
     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+    DD_CAPTURE_LAMBDA_PAYLOAD: true
   timeout: 15
   deploymentBucket:
     name: integration-tests-deployment-bucket-lambda-extension

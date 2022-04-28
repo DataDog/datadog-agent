@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ import (
 
 var (
 	kubeletExpVar = expvar.NewInt("kubeletQueries")
+	ipv6Re        = regexp.MustCompile(`^[0-9a-f:]+$`)
 )
 
 type kubeletClientConfig struct {
@@ -256,7 +258,12 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 	clientConfig.scheme = scheme
 
 	for _, ip := range hosts.ips {
-		clientConfig.baseURL = fmt.Sprintf("%s:%d", ip, port)
+		// If `ip` is an IPv6, it must be enclosed in square brackets
+		if ipv6Re.MatchString(ip) {
+			clientConfig.baseURL = fmt.Sprintf("[%s]:%d", ip, port)
+		} else {
+			clientConfig.baseURL = fmt.Sprintf("%s:%d", ip, port)
+		}
 
 		log.Debugf("Trying to reach Kubelet at: %s", clientConfig.baseURL)
 		kubeClient, err = newForConfig(*clientConfig, time.Second)
