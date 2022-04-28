@@ -103,6 +103,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{})
+
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
 	isError := false
