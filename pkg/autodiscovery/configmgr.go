@@ -344,9 +344,11 @@ func (cm *reconcilingConfigManager) mapOverLoadedConfigs(f func(map[string]integ
 func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges {
 	var changes configChanges
 
+	// note that this method can be called in a case where svcID is not in the
+	// activeServices: this occurs when the service is removed.
 	serviceAndADIDs := cm.activeServices[svcID]
 	adIDs := serviceAndADIDs.adIDs // nil slice if service is not defined
-	svc := serviceAndADIDs.svc
+	svc := serviceAndADIDs.svc     // nil if the service is not defined
 
 	// get the existing resolutions for this service
 	existingResolutions, found := cm.serviceResolutions[svcID]
@@ -354,7 +356,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 		existingResolutions = map[string]string{}
 	}
 
-	// determine the matching templates by template digest
+	// determine the matching templates by template digest.  If the service
+	// has been removed, then this slice is empty.
 	expectedResolutions := map[string]integration.Config{}
 	for _, adID := range adIDs {
 		digests := cm.templatesByADID.get(adID)
@@ -364,7 +367,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 		}
 	}
 
-	// allow the service to filter those templates
+	// allow the service to filter those templates, unless we are removing
+	// the service, in which case no resolutions are expected.
 	if svc != nil {
 		svc.FilterTemplates(expectedResolutions)
 	}
@@ -380,6 +384,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 
 	for digest, config := range expectedResolutions {
 		if _, found := existingResolutions[digest]; !found {
+			// at this point, there was at least one expected resolution, so
+			// svc must not be nil.
 			resolved, ok := cm.resolveTemplateForService(config, svc)
 			if !ok {
 				continue
