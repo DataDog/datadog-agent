@@ -377,7 +377,7 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(names[0].Get().(string))
+	b.WriteString(dns.ToString(names[0]))
 	for _, s := range names[1:] {
 		b.WriteString(",")
 		b.WriteString(dns.ToString(s))
