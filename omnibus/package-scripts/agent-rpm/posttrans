@@ -87,7 +87,7 @@ if [ ! -f "$CONFIG_DIR/install_info" ]; then
     fi
 
     # Distinguish SUSE since it has a different package
-    if [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "openSUSE" ] ; then
+    if [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "SUSE" ]; then
         installer_version="rpm_suse_package"
     else
         installer_version="rpm_package"
