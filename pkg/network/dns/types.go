@@ -7,22 +7,28 @@ package dns
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/google/gopacket/layers"
-	"go4.org/intern"
 )
 
-type Hostname = *intern.Value
+var si = intern.NewString()
 
+// Hostname represents a DNS hostname (aka domain name)
+type Hostname = *intern.StringValue
+
+// ToString converts a dns.Hostname to a string
 func ToString(h Hostname) string {
-	return string(h.Get().([]byte))
+	return h.Get()
 }
 
+// HostnameFromBytes converts a byte slice representing a hostname to a dns.Hostname
 func HostnameFromBytes(b []byte) Hostname {
-	return intern.Get(b)
+	return si.Get(b)
 }
 
+// ToHostname converts from a string to a dns.Hostname
 func ToHostname(s string) Hostname {
-	return intern.Get([]byte(s))
+	return si.GetString(s)
 }
 
 // QueryType is the DNS record type

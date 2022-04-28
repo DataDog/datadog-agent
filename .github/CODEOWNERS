@@ -191,6 +191,7 @@
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
+/pkg/util/intern/                       @DataDog/agent-network
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/internal/launchers/traps/     @DataDog/infrastructure-integrations @DataDog/agent-core
 /pkg/logs/internal/tailers/traps/       @DataDog/infrastructure-integrations @DataDog/agent-core
