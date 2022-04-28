@@ -186,5 +186,14 @@ end
 # version manifest file
 dependency 'version-manifest'
 
+# package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+  end
+end
+
 exclude '\.git*'
 exclude 'bundler\/git'

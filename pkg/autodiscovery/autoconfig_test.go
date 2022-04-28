@@ -426,9 +426,9 @@ func TestDecryptConfig(t *testing.T) {
 			returnedError:  nil,
 		},
 		{
-			expectedData:   []byte("param1: ENC[foo]"),
+			expectedData:   []byte("param1: ENC[foo]\n"),
 			expectedOrigin: "cpu",
-			returnedData:   []byte("param1: foo"),
+			returnedData:   []byte("param1: foo\n"),
 			returnedError:  nil,
 		},
 	}}
@@ -449,7 +449,7 @@ func TestDecryptConfig(t *testing.T) {
 	resolved := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
-		InitConfig:    []byte("param1: foo"),
+		InitConfig:    []byte("param1: foo\n"),
 		Instances:     []integration.Data{},
 		MetricConfig:  integration.Data{},
 		LogsConfig:    integration.Data{},

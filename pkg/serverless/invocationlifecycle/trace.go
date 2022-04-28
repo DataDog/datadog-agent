@@ -41,7 +41,7 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string) {
+func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = random.Uint64()
 	currentExecutionInfo.spanID = random.Uint64()
@@ -51,17 +51,23 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 	currentExecutionInfo.requestPayload = rawPayload
 
+	var traceID, parentID uint64
+	var e1, e2 error
+
 	if payload.Headers != nil {
-		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
-		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
+		traceID, e1 = convertStrToUnit64(payload.Headers[TraceIDHeader])
+		parentID, e2 = convertStrToUnit64(payload.Headers[ParentIDHeader])
+	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
+		traceID, e1 = convertStrToUnit64(invokeEventHeaders.TraceID)
+		parentID, e2 = convertStrToUnit64(invokeEventHeaders.ParentID)
+	}
 
-		if e1 == nil {
-			currentExecutionInfo.traceID = traceID
-		}
+	if e1 == nil && traceID != 0 {
+		currentExecutionInfo.traceID = traceID
+	}
 
-		if e2 == nil {
-			currentExecutionInfo.parentID = parentID
-		}
+	if e2 == nil && parentID != 0 {
+		currentExecutionInfo.parentID = parentID
 	}
 }
 
