@@ -8,7 +8,6 @@ package config
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -367,7 +366,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		return err
 	}
 
-	if coreconfig.Datadog.GetString("log_level") == "debug" && !coreconfig.Datadog.IsSet("apm_config.log_throttling") {
+	if strings.ToLower(coreconfig.Datadog.GetString("log_level")) == "debug" && !coreconfig.Datadog.IsSet("apm_config.log_throttling") {
 		// if we are in "debug mode" and log throttling behavior was not
 		// set by the user, disable it
 		c.LogThrottling = false
@@ -627,6 +626,5 @@ func SetHandler() http.Handler {
 }
 
 func httpError(w http.ResponseWriter, status int, err error) {
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), status)
+	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
 }
