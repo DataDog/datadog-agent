@@ -11,19 +11,29 @@ import (
 )
 
 var (
-	// There is only one ADListener instance, and this is it.  This is a short-
-	// term fix for 7.36.0.
-	instance *ADListener
+	// There is at most one ADListener adListener, and this is it.
+	adListener *ADListener
+
+	// This tracks the MetaScheduler, if one exists.
+	metascheduler *scheduler.MetaScheduler
 )
 
 // SetADMetaScheduler supplies this package with a reference to the AD MetaScheduler,
-// once it has been started.  This occurs after the ADListener has been created.
+// once it has been started.
 func SetADMetaScheduler(sch *scheduler.MetaScheduler) {
-	if instance == nil {
-		panic("AD listener has not been created yet")
+	metascheduler = sch
+	maybeStart()
+}
+
+// maybeStart might start the ADListener, if there is both an ADListener and
+// a MetaScheduler.
+//
+// This is a short-term fix for 7.36.0.
+func maybeStart() {
+	if adListener != nil && metascheduler != nil {
+		adListener.adMetaScheduler = metascheduler
+		metascheduler.Register(adListener.name, adListener)
 	}
-	instance.adMetaScheduler = sch
-	sch.Register(instance.name, instance)
 }
 
 // ADListener implements pkg/autodiscovery/scheduler/Scheduler.
@@ -56,17 +66,19 @@ func NewADListener(name string, schedule, unschedule func([]integration.Config))
 		schedule:   schedule,
 		unschedule: unschedule,
 	}
-	if instance != nil {
-		panic("only one instance of ADListener can exist")
-	}
-	instance = l
 	return l
 }
 
 // StartListener starts the ADListener.  It will subscribe to the MetaScheduler as soon
 // as it is available
 func (l *ADListener) StartListener() {
-	// nothing to do; listener is started by SetADMetaScheduler
+	if adListener != nil {
+		panic("only one instance of ADListener can exist")
+	}
+	adListener = l
+
+	// either start now, or wait until there is a MetaScheduler available.
+	maybeStart()
 }
 
 // StopListener stops the ADListener
@@ -74,7 +86,7 @@ func (l *ADListener) StopListener() {
 	if l.adMetaScheduler != nil {
 		l.adMetaScheduler.Deregister("logs")
 	}
-	instance = nil
+	adListener = nil
 }
 
 // Stop implements pkg/autodiscovery/scheduler.Scheduler#Stop.

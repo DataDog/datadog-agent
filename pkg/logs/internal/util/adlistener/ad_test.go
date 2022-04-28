@@ -14,7 +14,7 @@ import (
 )
 
 func reset() {
-	instance = nil
+	adListener = nil
 }
 
 func emptyChan(ch chan struct{}) bool {
