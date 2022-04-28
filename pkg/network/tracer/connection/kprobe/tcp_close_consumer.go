@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -46,7 +46,7 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 		return nil, err
 	}
 
-	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
+	numCPUs := int(connCloseEventMap.MaxEntries())
 	batchManager, err := newPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, err
@@ -73,8 +73,8 @@ func (c *tcpCloseConsumer) FlushPending() {
 
 func (c *tcpCloseConsumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		perfReceivedStat: atomic.SwapInt64(&c.perfReceived, 0),
-		perfLostStat:     atomic.SwapInt64(&c.perfLost, 0),
+		perfReceivedStat: atomic.LoadInt64(&c.perfReceived),
+		perfLostStat:     atomic.LoadInt64(&c.perfLost),
 	}
 }
 

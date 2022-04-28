@@ -39,3 +39,40 @@ func TestToFloat64FromInvalidType(t *testing.T) {
 	_, err := snmpValue.ToFloat64()
 	assert.NotNil(t, err)
 }
+
+func TestResultValue_ToString(t *testing.T) {
+	tests := []struct {
+		name          string
+		resultValue   ResultValue
+		expectedStr   string
+		expectedError string
+	}{
+		{
+			name: "hexify",
+			resultValue: ResultValue{
+				Value: []byte{0xff, 0xaa, 0x00},
+			},
+			expectedStr:   "0xffaa00",
+			expectedError: "",
+		},
+		{
+			name: "do not hexify newline and tabs",
+			resultValue: ResultValue{
+				Value: []byte(`m\ny\rV\ta\n\r\tl`),
+			},
+			expectedStr:   "m\\ny\\rV\\ta\\n\\r\\tl",
+			expectedError: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			strValue, err := tt.resultValue.ToString()
+			if tt.expectedError == "" {
+				assert.Nil(t, err)
+			} else {
+				assert.Contains(t, err.Error(), tt.expectedError)
+			}
+			assert.Equal(t, tt.expectedStr, strValue)
+		})
+	}
+}

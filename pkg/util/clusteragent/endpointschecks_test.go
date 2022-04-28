@@ -33,8 +33,8 @@ func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
 	dca.rawResponses["/api/v1/endpointschecks/configs/mynode"] = dummyEndpointsConfigs
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.NoError(suite.T(), err)
+	defer ts.Close()
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()

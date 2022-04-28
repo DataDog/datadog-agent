@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -33,8 +34,6 @@ const (
 	snmpLoaderTag        = "loader:core"
 	serviceCheckName     = "snmp.can_check"
 	deviceHostnamePrefix = "device:"
-	// 1.3 (iso.org) is the OID used for getNext call to check if the device is reachable
-	deviceReachableGetNextOid = "1.3"
 )
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -154,7 +153,7 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 	}()
 
 	// Check if the device is reachable
-	getNextValue, err := d.session.GetNext([]string{deviceReachableGetNextOid})
+	getNextValue, err := d.session.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
 	if err != nil {
 		deviceReachable = false
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))

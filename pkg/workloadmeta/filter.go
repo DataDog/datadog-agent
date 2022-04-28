@@ -66,12 +66,3 @@ func (f *Filter) Source() Source {
 
 	return f.source
 }
-
-// Match returns true if the filter matches an event.
-func (f *Filter) Match(ev CollectorEvent) bool {
-	if f == nil {
-		return true
-	}
-
-	return f.MatchKind(ev.Entity.GetID().Kind) && f.MatchSource(ev.Source)
-}

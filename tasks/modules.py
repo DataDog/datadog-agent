@@ -1,8 +1,7 @@
 import os
 import subprocess
 import sys
-
-from invoke import task
+from contextlib import contextmanager
 
 
 class GoModule:
@@ -131,24 +130,37 @@ func main() {{}}
 PACKAGE_TEMPLATE = '	_ "{}"'
 
 
-@task
+@contextmanager
 def generate_dummy_package(ctx, folder):
-    import_paths = []
-    for mod in DEFAULT_MODULES.values():
-        if mod.path != "." and mod.condition():
-            import_paths.append(mod.import_path)
-
-    os.mkdir(folder)
-    with ctx.cd(folder):
-        print("Creating dummy 'main.go' file... ", end="")
-        with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
-            main_file.write(
-                MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
-            )
-        print("Done")
-
-        ctx.run("go mod init example.com/testmodule")
+    """
+    Return a generator-iterator when called.
+    Allows us to wrap this function with a "with" statement to delete the created dummy pacakage afterwards.
+    """
+    try:
+        import_paths = []
         for mod in DEFAULT_MODULES.values():
-            if mod.path != ".":
-                ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
-                ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+            if mod.path != "." and mod.condition():
+                import_paths.append(mod.import_path)
+
+        os.mkdir(folder)
+        with ctx.cd(folder):
+            print("Creating dummy 'main.go' file... ", end="")
+            with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
+                main_file.write(
+                    MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
+                )
+            print("Done")
+
+            ctx.run("go mod init example.com/testmodule")
+            for mod in DEFAULT_MODULES.values():
+                if mod.path != ".":
+                    ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
+                    ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+
+        # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
+        yield folder
+
+    # the generator is then resumed here after the "with" block is exited
+    finally:
+        # delete test_folder to avoid FileExistsError while running this task again
+        ctx.run(f"rm -rf ./{folder}")

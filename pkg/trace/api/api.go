@@ -132,6 +132,11 @@ func replyWithVersion(hash string, h http.Handler) http.Handler {
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
+	if r.conf.ReceiverPort == 0 {
+		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
+		return
+	}
+
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
@@ -274,6 +279,9 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
+	if r.conf.ReceiverPort == 0 {
+		return nil
+	}
 	r.exit <- struct{}{}
 	<-r.exit
 

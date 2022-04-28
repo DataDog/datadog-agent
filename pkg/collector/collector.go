@@ -71,8 +71,7 @@ func NewCollector(paths ...string) *Collector {
 	return c
 }
 
-// Stop halts any component involved in running a Check and shuts down
-// the Python Environment
+// Stop halts any component involved in running a Check
 func (c *Collector) Stop() {
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -85,7 +84,6 @@ func (c *Collector) Stop() {
 	c.scheduler = nil
 	c.runner.Stop()
 	c.runner = nil
-	pyTeardown()
 	c.state = stopped
 }
 

@@ -76,7 +76,7 @@ func (e *Process) MarshalProcCache(data []byte) (int, error) {
 	copy(data[0:ContainerIDLen], e.ContainerID)
 	written := ContainerIDLen
 
-	toAdd, err := MarshalBinary(data[written:], &e.FileFields)
+	toAdd, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {
 		return 0, err
 	}

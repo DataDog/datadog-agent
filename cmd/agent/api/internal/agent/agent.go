@@ -247,7 +247,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	for {
 		// Handlers for detecting a closed connection (from either the server or client)
 		select {
-		case <-w.(http.CloseNotifier).CloseNotify():
+		case <-w.(http.CloseNotifier).CloseNotify(): //nolint
 			return
 		case <-r.Context().Done():
 			return

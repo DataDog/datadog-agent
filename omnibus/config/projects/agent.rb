@@ -148,9 +148,7 @@ package :zip do
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\uninstall-cmd.exe"
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
       ]
     if with_python_runtime? "2"
       additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
@@ -325,9 +323,17 @@ if linux?
   extra_package_file '/var/log/datadog/'
 end
 
-# default package_scripts_path and resource_path are based on project name,
-# but we change the name based on flavor, so let's hardcode it to "agent"
-package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent"
+# all flavors use the same package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+  end
+elsif osx?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-dmg"
+end
+
 resources_path "#{Omnibus::Config.project_root}/resources/agent"
 
 exclude '\.git*'

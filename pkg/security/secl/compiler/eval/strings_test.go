@@ -77,63 +77,125 @@ func TestScalar(t *testing.T) {
 	})
 }
 
-func TestGlob(t *testing.T) {
+func TestPattern(t *testing.T) {
 	t.Run("sensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(PatternValueType, "test*", DefaultStringCmpOpts)
+		matcher, err := NewStringMatcher(PatternValueType, "http://test*", DefaultStringCmpOpts)
 		if err != nil {
 			t.Error(err)
 		}
 
-		if !matcher.Matches("test123") {
+		if !matcher.Matches("http://test123") {
 			t.Error("should match")
 		}
 
-		if matcher.Matches("TEST123") {
+		if matcher.Matches("http://TEST123") {
 			t.Error("shouldn't match")
 		}
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(PatternValueType, "TEst*", StringCmpOpts{GlobCaseInsensitive: true})
+		matcher, err := NewStringMatcher(PatternValueType, "http://TEst*", StringCmpOpts{PatternCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
 
-		if !matcher.Matches("test123") {
+		if !matcher.Matches("http://test123") {
 			t.Error("should match")
 		}
 
-		if !matcher.Matches("TEST123") {
+		if !matcher.Matches("http://TEST123") {
 			t.Error("should match")
 		}
 	})
 
 	t.Run("sensitive-case-scalar", func(t *testing.T) {
-		matcher, err := NewStringMatcher(PatternValueType, "test123", DefaultStringCmpOpts)
+		matcher, err := NewStringMatcher(PatternValueType, "http://test123", DefaultStringCmpOpts)
 		if err != nil {
 			t.Error(err)
 		}
 
-		if !matcher.Matches("test123") {
+		if !matcher.Matches("http://test123") {
 			t.Error("should match")
 		}
 
-		if matcher.Matches("TEST123") {
+		if matcher.Matches("http://TEST123") {
 			t.Error("shouldn't match")
 		}
 	})
 
 	t.Run("insensitive-case-scalar", func(t *testing.T) {
-		matcher, err := NewStringMatcher(PatternValueType, "test123", StringCmpOpts{GlobCaseInsensitive: true})
+		matcher, err := NewStringMatcher(PatternValueType, "http://test123", StringCmpOpts{PatternCaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
 
-		if !matcher.Matches("test123") {
+		if !matcher.Matches("http://test123") {
 			t.Error("should match")
 		}
 
-		if !matcher.Matches("TEST123") {
+		if !matcher.Matches("http://TEST123") {
+			t.Error("should match")
+		}
+	})
+}
+
+func TestGlob(t *testing.T) {
+	t.Run("sensitive-case", func(t *testing.T) {
+		matcher, err := NewStringMatcher(GlobValueType, "/etc/test*", DefaultStringCmpOpts)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if !matcher.Matches("/etc/test123") {
+			t.Error("should match")
+		}
+
+		if matcher.Matches("/etc/TEST123") {
+			t.Error("shouldn't match")
+		}
+	})
+
+	t.Run("insensitive-case", func(t *testing.T) {
+		matcher, err := NewStringMatcher(GlobValueType, "/etc/TEst*", StringCmpOpts{GlobCaseInsensitive: true})
+		if err != nil {
+			t.Error(err)
+		}
+
+		if !matcher.Matches("/etc/test123") {
+			t.Error("should match")
+		}
+
+		if !matcher.Matches("/etc/TEST123") {
+			t.Error("should match")
+		}
+	})
+
+	t.Run("sensitive-case-scalar", func(t *testing.T) {
+		matcher, err := NewStringMatcher(GlobValueType, "/etc/test123", DefaultStringCmpOpts)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if !matcher.Matches("/etc/test123") {
+			t.Error("should match")
+		}
+
+		if matcher.Matches("/etc/TEST123") {
+			t.Error("shouldn't match")
+		}
+	})
+
+	t.Run("insensitive-case-scalar", func(t *testing.T) {
+		matcher, err := NewStringMatcher(GlobValueType, "/etc/test123", StringCmpOpts{GlobCaseInsensitive: true})
+		if err != nil {
+			t.Error(err)
+		}
+
+		if !matcher.Matches("/etc/test123") {
+			t.Error("should match")
+		}
+
+		if !matcher.Matches("/etc/TEST123") {
 			t.Error("should match")
 		}
 	})

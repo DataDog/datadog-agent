@@ -135,7 +135,7 @@ func TestSortFiles(t *testing.T) {
 func TestResolverWithNonStandardOIDs(t *testing.T) {
 	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
 	trapData := trapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeat"}},
+		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeat", MIBName: "NET-SNMP-EXAMPLES-MIB"}},
 		Variables: variableSpec{
 			"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{
 				Name: "netSnmpExampleHeartbeatRate",
@@ -147,28 +147,33 @@ func TestResolverWithNonStandardOIDs(t *testing.T) {
 	data, err := resolver.GetTrapMetadata(".1.3.6.1.4.1.8072.2.3.0.1")
 	require.NoError(t, err)
 	require.Equal(t, "netSnmpExampleHeartbeat", data.Name)
+	require.Equal(t, "NET-SNMP-EXAMPLES-MIB", data.MIBName)
 
 	data, err = resolver.GetTrapMetadata("1.3.6.1.4.1.8072.2.3.0.1.0")
 	require.NoError(t, err)
 	require.Equal(t, "netSnmpExampleHeartbeat", data.Name)
+	require.Equal(t, "NET-SNMP-EXAMPLES-MIB", data.MIBName)
 
 	data, err = resolver.GetTrapMetadata(".1.3.6.1.4.1.8072.2.3.0.1.0")
 	require.NoError(t, err)
 	require.Equal(t, "netSnmpExampleHeartbeat", data.Name)
+	require.Equal(t, "NET-SNMP-EXAMPLES-MIB", data.MIBName)
+
 }
 func TestResolverWithConflictingTrapOID(t *testing.T) {
 	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
 	trapDataA := trapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "foo"}},
+		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "foo", MIBName: "FOO-MIB"}},
 	}
 	trapDataB := trapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "bar"}},
+		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "bar", MIBName: "BAR-MIB"}},
 	}
 	updateResolverWithIntermediateJSONReader(t, resolver, trapDataA)
 	updateResolverWithIntermediateYAMLReader(t, resolver, trapDataB)
 	data, err := resolver.GetTrapMetadata("1.3.6.1.4.1.8072.2.3.0.1")
 	require.NoError(t, err)
 	require.Equal(t, "bar", data.Name)
+	require.Equal(t, "BAR-MIB", data.MIBName)
 }
 
 func TestResolverWithConflictingVariables(t *testing.T) {

@@ -91,12 +91,12 @@ func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
 
 // probe is a service that fetches process related info on current host
 type probe struct {
+	bootTime     uint64
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
 	uid          uint32 // UID
 	euid         uint32 // Effective UID
 	clockTicks   float64
-	bootTime     uint64
 	exit         chan struct{}
 
 	// configurations

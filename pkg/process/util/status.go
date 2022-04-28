@@ -81,6 +81,7 @@ type ProcessExpvars struct {
 	LogFile             string              `json:"log_file"`
 	EnabledChecks       []string            `json:"enabled_checks"`
 	Endpoints           map[string][]string `json:"endpoints"`
+	DropCheckPayloads   []string            `json:"drop_check_payloads"`
 }
 
 // Status holds runtime information from process-agent
