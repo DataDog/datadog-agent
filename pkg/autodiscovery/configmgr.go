@@ -84,56 +84,6 @@ type serviceAndADIDs struct {
 	adIDs []string
 }
 
-// a multimap is a string/string map that can contain multiple values for a
-// single key.  Duplicate values are allowed (but not used in this package).
-type multimap struct {
-	data map[string][]string
-}
-
-// newMultimap creates a new multimap
-func newMultimap() multimap {
-	return multimap{data: map[string][]string{}}
-}
-
-// insert adds an item into a multimap
-func (m *multimap) insert(k, v string) {
-	var slice []string
-	if existing, found := m.data[k]; found {
-		slice = existing
-	} else {
-		slice = []string{}
-	}
-	m.data[k] = append(slice, v)
-}
-
-// remove removes an item from a multimap
-func (m *multimap) remove(k, v string) {
-	if values, found := m.data[k]; found {
-		for i, u := range values {
-			if u == v {
-				// remove index i from the slice
-				values[i] = values[len(values)-1]
-				values = values[:len(values)-1]
-				break
-			}
-		}
-		if len(values) > 0 {
-			m.data[k] = values
-		} else {
-			delete(m.data, k)
-		}
-	}
-}
-
-// get gets the set of items with the given key.  The returned slice must not
-// be modified, and is only valid until the next multimap operation.
-func (m *multimap) get(k string) []string {
-	if values, found := m.data[k]; found {
-		return values
-	}
-	return []string{}
-}
-
 // reconcilingConfigManager implements the a config manager that reconciles
 // services and templates to generate the scheduled configs.
 type reconcilingConfigManager struct {
