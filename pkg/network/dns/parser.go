@@ -210,7 +210,8 @@ func (p *dnsParser) parseAnswerInto(
 	pktInfo.queryType = QueryType(question.Type)
 	alias := p.extractCNAME(question.Name, dns.Answers)
 	p.extractIPsInto(alias, dns.Answers, t)
-	t.dns = HostnameFromBytes(bytes.ToLower(question.Name))
+	inplaceASCIILower(question.Name)
+	t.dns = HostnameFromBytes(question.Name)
 
 	pktInfo.pktType = successfulResponse
 	return nil
@@ -271,4 +272,16 @@ func getRecordedQueryTypes(cfg *config.Config) map[layers.DNSType]struct{} {
 		return defaultRecordedQueryTypes
 	}
 	return queryTypes
+}
+
+// inplaceASCIILower is an optimized, replace inplace version of bytes.ToLower
+// for byte slices knowing they only contain ASCII characters.
+func inplaceASCIILower(s []byte) {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		s[i] = c
+	}
 }
