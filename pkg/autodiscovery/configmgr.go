@@ -139,8 +139,8 @@ func (m *multimap) get(k string) []string {
 type reconcilingConfigManager struct {
 	// updates to this data structure work from the top down:
 	//
-	//  1. update activeConfigs / activeServices
-	//  2. update templatesByADID / servicesByADID to match
+	//  1. update orctiveConfigs / activeServices
+	//  2. update templatesByADID or servicesByADID to match
 	//  3. update serviceResolutions, generating changes (see reconcileService)
 	//  4. update scheduledConfigs
 	//
@@ -204,13 +204,15 @@ func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, sv
 		return configChanges{}
 	}
 
-	//  1. update activeConfigs / activeServices
+	// Execute the steps outlined in the comment on reconcilingConfigManager:
+	//
+	//  1. update orctiveConfigs / activeServices
 	cm.activeServices[svcID] = serviceAndADIDs{
 		svc:   svc,
 		adIDs: adIdentifiers,
 	}
 
-	//  2. update templatesByADID / servicesByADID to match
+	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range adIdentifiers {
 		cm.servicesByADID.insert(adID, svcID)
 	}
@@ -234,10 +236,12 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) con
 		return configChanges{}
 	}
 
-	//  1. update activeConfigs / activeServices
+	// Execute the steps outlined in the comment on reconcilingConfigManager:
+	//
+	//  1. update activeConfigs or activeServices
 	delete(cm.activeServices, svcID)
 
-	//  2. update templatesByADID / servicesByADID to match
+	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range svcAndADIDs.adIDs {
 		cm.servicesByADID.remove(adID, svcID)
 	}
@@ -260,12 +264,14 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		return configChanges{}
 	}
 
-	//  1. update activeConfigs / activeServices
+	// Execute the steps outlined in the comment on reconcilingConfigManager:
+	//
+	//  1. update orctiveConfigs / activeServices
 	cm.activeConfigs[digest] = config
 
 	var changes configChanges
 	if config.IsTemplate() {
-		//  2. update templatesByADID / servicesByADID to match
+		//  2. update templatesByADID or servicesByADID to match
 		matchingServices := map[string]struct{}{}
 		for _, adID := range config.ADIdentifiers {
 			cm.templatesByADID.insert(adID, digest)
@@ -299,12 +305,14 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 			continue
 		}
 
-		//  1. update activeConfigs / activeServices
+		// Execute the steps outlined in the comment on reconcilingConfigManager:
+		//
+		//  1. update orctiveConfigs / activeServices
 		delete(cm.activeConfigs, digest)
 
 		var changes configChanges
 		if config.IsTemplate() {
-			//  2. update templatesByADID / servicesByADID to match
+			//  2. update templatesByADID or servicesByADID to match
 			matchingServices := map[string]struct{}{}
 			for _, adID := range config.ADIdentifiers {
 				cm.templatesByADID.remove(adID, digest)
