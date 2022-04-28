@@ -55,8 +55,9 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
-		TraceID:  r.Header.Get(invocationlifecycle.TraceIDHeader),
-		ParentID: r.Header.Get(invocationlifecycle.ParentIDHeader),
+		TraceID:          r.Header.Get(invocationlifecycle.TraceIDHeader),
+		ParentID:         r.Header.Get(invocationlifecycle.ParentIDHeader),
+		SamplingPriority: r.Header.Get(invocationlifecycle.SamplingPriorityHeader),
 	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
@@ -64,6 +65,10 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		InvokeEventHeaders:    lambdaInvokeContext,
 	}
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
+
+	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable
@@ -99,4 +104,5 @@ func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.TraceContext route.")
 	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
 	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
 }

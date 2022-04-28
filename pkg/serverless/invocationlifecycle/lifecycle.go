@@ -20,6 +20,7 @@ type LifecycleProcessor struct {
 	ProcessTrace        func(p *api.Payload)
 	Demux               aggregator.Demultiplexer
 	DetectLambdaLibrary func() bool
+	SamplingRate        float64
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -30,7 +31,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders, lp.SamplingRate)
 	}
 }
 

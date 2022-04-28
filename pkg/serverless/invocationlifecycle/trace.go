@@ -26,11 +26,12 @@ const (
 
 // executionStartInfo is saved information from when an execution span was started
 type executionStartInfo struct {
-	startTime      time.Time
-	traceID        uint64
-	spanID         uint64
-	parentID       uint64
-	requestPayload string
+	startTime        time.Time
+	traceID          uint64
+	spanID           uint64
+	parentID         uint64
+	requestPayload   string
+	samplingPriority sampler.SamplingPriority
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -41,7 +42,7 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders) {
+func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, samplingRate float64) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = random.Uint64()
 	currentExecutionInfo.spanID = random.Uint64()
@@ -69,6 +70,8 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 	if e2 == nil && parentID != 0 {
 		currentExecutionInfo.parentID = parentID
 	}
+
+	currentExecutionInfo.samplingPriority = computeSamplingPriority(currentExecutionInfo.traceID, samplingRate, payload.Headers[SamplingPriorityHeader], invokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
@@ -101,7 +104,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Priority: int32(sampler.PriorityNone),
+		Priority: int32(currentExecutionInfo.samplingPriority),
 		Spans:    []*pb.Span{executionSpan},
 	}
 
@@ -139,6 +142,31 @@ func convertStrToUnit64(s string) (uint64, error) {
 	return num, err
 }
 
+func computeSamplingPriority(traceID uint64, samplingRate float64, header string, directInvokeHeader string) sampler.SamplingPriority {
+	samplingPriority := sampler.PriorityUserKeep
+	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
+		// if the current lambda invocation is not the head of the trace, we need to propagate the sampling decision
+		samplingPriority = sampler.SamplingPriority(v)
+	} else {
+		// try to look for direction invocation headers
+		if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
+			samplingPriority = sampler.SamplingPriority(v)
+		} else {
+			// could no find sampling priority, computing a new one
+			samplingPriority = generateSamplingPriority(traceID, samplingRate)
+		}
+	}
+	return samplingPriority
+}
+
+func generateSamplingPriority(traceID uint64, samplingRate float64) sampler.SamplingPriority {
+	samplingPriority := sampler.PriorityUserKeep
+	if !sampler.SampleByRate(traceID, samplingRate) {
+		samplingPriority = sampler.PriorityUserDrop
+	}
+	return samplingPriority
+}
+
 // TraceID returns the current TraceID
 func TraceID() uint64 {
 	return currentExecutionInfo.traceID
@@ -147,4 +175,9 @@ func TraceID() uint64 {
 // SpanID returns the current SpanID
 func SpanID() uint64 {
 	return currentExecutionInfo.spanID
+}
+
+// SamplingPriority returns the current samplingPriority
+func SamplingPriority() sampler.SamplingPriority {
+	return currentExecutionInfo.samplingPriority
 }

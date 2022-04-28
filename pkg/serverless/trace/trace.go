@@ -7,6 +7,8 @@ package trace
 
 import (
 	"context"
+	"os"
+	"strconv"
 
 	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -20,6 +22,7 @@ type ServerlessTraceAgent struct {
 	ta           *agent.Agent
 	spanModifier *spanModifier
 	cancel       context.CancelFunc
+	samplingRate float64
 }
 
 // Load abstracts the file configuration loading
@@ -31,6 +34,8 @@ type Load interface {
 type LoadConfig struct {
 	Path string
 }
+
+const traceSampleRateEnv = "DD_TRACE_SAMPLE_RATE"
 
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
@@ -44,6 +49,12 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 		// in the serverless mode, we don't start the GRPC server so this call will fail and cause a 2 seconds delay
 		// by setting cmd_port to -1, this will cause the GRPC client to fail instantly
 		ddConfig.Datadog.Set("cmd_port", "-1")
+
+		if samplingRate, err := strconv.ParseFloat(os.Getenv(traceSampleRateEnv), 64); err == nil {
+			s.samplingRate = samplingRate
+		} else {
+			s.samplingRate = 1
+		}
 
 		// make sure we blocklist /hello and /flush calls
 		userProvidedBlocklist := []string{}
@@ -93,4 +104,9 @@ func buildTraceBlocklist(userProvidedList []string) []string {
 	list := append(userProvidedList, "GET /lambda/hello")
 	list = append(list, "POST /lambda/flush")
 	return list
+}
+
+// SamplingRate returns the sampling rate
+func (s *ServerlessTraceAgent) SamplingRate() float64 {
+	return s.samplingRate
 }
