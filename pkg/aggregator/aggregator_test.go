@@ -75,7 +75,7 @@ func getAggregator() *BufferedAggregator {
 	if demultiplexerInstance == nil {
 		initF()
 	}
-	return demultiplexerInstance.Aggregator()
+	return demultiplexerInstance.(*AgentDemultiplexer).Aggregator()
 }
 
 func TestRegisterCheckSampler(t *testing.T) {

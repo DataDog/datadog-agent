@@ -21,6 +21,14 @@ func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
 
 // SetAncestor sets the ancestor
 func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
+	if pc.Ancestor == parent {
+		return
+	}
+
+	if pc.Ancestor != nil {
+		pc.Ancestor.Release()
+	}
+
 	pc.Ancestor = parent
 	parent.Retain()
 }

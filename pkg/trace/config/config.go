@@ -49,6 +49,13 @@ type OTLP struct {
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`
 
+	// SpanNameRemappings is the map of datadog span names and preferred name to map to. This can be used to
+	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
+	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
+
+	// SpanNameAsResourceName uses the OTLP span name as the Datadog resource name.
+	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
+
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
