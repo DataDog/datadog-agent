@@ -361,19 +361,19 @@ func (a *Agent) discardSpans(p *api.Payload) {
 		return
 	}
 	for _, chunk := range p.Chunks() {
-		outputIndex := 0
+		n := 0
 		for _, span := range chunk.Spans {
 			if !a.DiscardSpan(span) {
-				chunk.Spans[outputIndex] = span
-				outputIndex++
+				chunk.Spans[n] = span
+				n++
 			}
 		}
 		// set everything at the back of the array to nil to avoid memory leaking
 		// since we're going to have garbage elements at the back of the slice.
-		for i := outputIndex; i < len(chunk.Spans); i++ {
+		for i := n; i < len(chunk.Spans); i++ {
 			chunk.Spans[i] = nil
 		}
-		chunk.Spans = chunk.Spans[:outputIndex]
+		chunk.Spans = chunk.Spans[:n]
 	}
 }
 
