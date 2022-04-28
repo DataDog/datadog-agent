@@ -35,3 +35,10 @@ func TestExtractEventSourceWebsocket(t *testing.T) {
 	str := attributes.extractEventSource()
 	assert.Equal(t, str, WEBSOCKET)
 }
+
+func TestExtractEventSourceNoRequeestContext(t *testing.T) {
+	testString := `{"resource":"/users/create", "httpMethod":"GET"}`
+	attributes := parseEvent(testString)
+	str := attributes.extractEventSource()
+	assert.Equal(t, str, UNKNOWN)
+}
