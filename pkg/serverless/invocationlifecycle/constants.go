@@ -18,7 +18,7 @@ const (
 	// used in /lambda/start-invocation
 	SpanIDHeader = "x-datadog-span-id"
 
-	// SamplingPriorityHeader is the header containg the sampling priority
+	// SamplingPriorityHeader is the header contains the sampling priority
 	// used in /lambda/start-invocation
 	SamplingPriorityHeader = "x-datadog-sampling-priority"
 

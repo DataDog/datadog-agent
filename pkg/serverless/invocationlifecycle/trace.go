@@ -143,7 +143,7 @@ func convertStrToUnit64(s string) (uint64, error) {
 }
 
 func computeSamplingPriority(traceID uint64, samplingRate float64, header string, directInvokeHeader string) sampler.SamplingPriority {
-	samplingPriority := sampler.PriorityUserKeep
+	samplingPriority := sampler.PriorityAutoKeep
 	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
 		// if the current lambda invocation is not the head of the trace, we need to propagate the sampling decision
 		samplingPriority = sampler.SamplingPriority(v)
@@ -160,7 +160,7 @@ func computeSamplingPriority(traceID uint64, samplingRate float64, header string
 }
 
 func generateSamplingPriority(traceID uint64, samplingRate float64) sampler.SamplingPriority {
-	samplingPriority := sampler.PriorityUserKeep
+	samplingPriority := sampler.PriorityAutoKeep
 	if !sampler.SampleByRate(traceID, samplingRate) {
 		samplingPriority = sampler.PriorityUserDrop
 	}

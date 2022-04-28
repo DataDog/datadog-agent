@@ -17,11 +17,10 @@ import (
 )
 
 func TestComputeSamplingPriority(t *testing.T) {
-	assert.Equal(t, sampler.PriorityUserKeep, computeSamplingPriority(1234, 1, "xxx", "yyy"))
+	assert.Equal(t, sampler.PriorityAutoKeep, computeSamplingPriority(1234, 1, "xxx", "yyy"))
 	assert.Equal(t, sampler.PriorityUserDrop, computeSamplingPriority(1234, 1, "-1", "yyy"))
 	assert.Equal(t, sampler.PriorityAutoKeep, computeSamplingPriority(1234, 1, "1", "yyy"))
 	assert.Equal(t, sampler.PriorityUserKeep, computeSamplingPriority(1234, 1, "2", "yyy"))
-	assert.Equal(t, sampler.PriorityUserKeep, computeSamplingPriority(1234, 1, "xxx", "yyy"))
 	assert.Equal(t, sampler.PriorityUserDrop, computeSamplingPriority(1234, 1, "-1", "1"))
 	assert.Equal(t, sampler.PriorityAutoKeep, computeSamplingPriority(1234, 1, "1", "-1"))
 	assert.Equal(t, sampler.PriorityUserKeep, computeSamplingPriority(1234, 1, "2", "1"))
@@ -32,7 +31,7 @@ func TestComputeSamplingPriority(t *testing.T) {
 
 func TestGenerateSamplingPriority(t *testing.T) {
 	assert.Equal(t, sampler.PriorityUserDrop, generateSamplingPriority(1234, 0))
-	assert.Equal(t, sampler.PriorityUserKeep, generateSamplingPriority(1234, 1))
+	assert.Equal(t, sampler.PriorityAutoKeep, generateSamplingPriority(1234, 1))
 }
 
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
@@ -42,7 +41,7 @@ func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 0, currentExecutionInfo.traceID)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
-	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.PriorityAutoKeep, currentExecutionInfo.samplingPriority)
 }
 
 func TestStartExecutionSpanWithPayload(t *testing.T) {
@@ -69,7 +68,7 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.PriorityAutoKeep, currentExecutionInfo.samplingPriority)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
 }
 
