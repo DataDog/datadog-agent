@@ -446,16 +446,19 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+	var rare bool
+	if a.conf.DisableRareSampler {
+		rare = false
+	} else {
+		rare = a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
+	}
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 		return true
 	}
 	if traceContainsError(pt.TraceChunk.Spans) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
-	if a.conf.DisableRareSampler {
-		return false
-	}
-	return a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
+	return rare
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
