@@ -68,6 +68,15 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
+func qualifiedType(module *common.Module, kind string) string {
+	switch kind {
+	case "int", "string", "bool":
+		return kind
+	default:
+		return module.SourcePkgPrefix + kind
+	}
+}
+
 func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
 	if verbose {
 		fmt.Printf("handleBasic %s %s\n", name, kind)
@@ -259,21 +268,26 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							alias = aliasPrefix + "." + fieldAlias
 						}
 
-						if iterator := seclField.iterator; iterator != "" {
-							qualifiedType := func(t string) string {
-								switch t {
-								case "int", "string", "bool":
-									return t
-								default:
-									return module.SourcePkgPrefix + t
-								}
-							}
+						name := fmt.Sprintf("%s.%s", prefix, fieldName)
+						if len(prefix) == 0 {
+							name = fieldName
+						}
 
+						// maintain a list of all the fields
+						module.AllFields[alias] = &common.StructField{
+							Name:          name,
+							Event:         event,
+							OrigType:      qualifiedType(module, fieldType),
+							IsOrigTypePtr: isPointer,
+							IsArray:       isArray,
+						}
+
+						if iterator := seclField.iterator; iterator != "" {
 							module.Iterators[alias] = &common.StructField{
 								Name:                fmt.Sprintf("%s.%s", prefix, fieldName),
-								ReturnType:          qualifiedType(iterator),
+								ReturnType:          qualifiedType(module, iterator),
 								Event:               event,
-								OrigType:            qualifiedType(fieldType),
+								OrigType:            qualifiedType(module, fieldType),
 								IsOrigTypePtr:       isPointer,
 								IsArray:             isArray,
 								Weight:              weight,
@@ -408,6 +422,7 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		TargetPkg:  pkgName,
 		BuildTags:  buildTags,
 		Fields:     make(map[string]*common.StructField),
+		AllFields:  make(map[string]*common.StructField),
 		Iterators:  make(map[string]*common.StructField),
 		EventTypes: make(map[string]*common.EventTypeMetadata),
 		Mock:       mock,
@@ -446,8 +461,28 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	return module, nil
 }
 
+func newField(allFields map[string]*common.StructField, name string, field *common.StructField) string {
+	var path, result string
+	for _, node := range strings.Split(name, ".") {
+		if path != "" {
+			path += "." + node
+		} else {
+			path = node
+		}
+
+		if field, ok := allFields[path]; ok {
+			if field.IsOrigTypePtr {
+				result += fmt.Sprintf("e.%s = &%s{}\n", field.Name, field.OrigType)
+			}
+		}
+	}
+
+	return result
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
+	"NewField":   newField,
 }
 
 //go:embed accessors.tmpl

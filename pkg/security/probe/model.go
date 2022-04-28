@@ -486,21 +486,7 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 
 		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
-
-		return ev.ProcessCacheEntry
 	}
-
-	if ev.ProcessCacheEntry.FileEvent.Inode == 0 || ev.ProcessCacheEntry.FileEvent.MountID == 0 {
-		// FIX(safchain) this condition should be removed once the kworker detection will be fixed and
-		// once process context without inode/mountid bug will be fixed
-		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
-
-		return ev.ProcessCacheEntry
-	}
-
-	ev.ResolveFilePath(&ev.ProcessCacheEntry.FileEvent)
-	ev.ResolveFileBasename(&ev.ProcessCacheEntry.FileEvent)
 
 	return ev.ProcessCacheEntry
 }

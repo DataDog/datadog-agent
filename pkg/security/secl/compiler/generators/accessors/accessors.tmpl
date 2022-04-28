@@ -275,13 +275,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{range $Name, $Field := .Fields}}
 		{{$FieldName := $Field.Name | printf "e.%s"}}
 		case "{{$Name}}":
-		{{if $Field.Iterator}}
-			{{if $Field.Iterator.IsOrigTypePtr}}
-				if e.{{$Field.Iterator.Name}} == nil {
-					e.{{$Field.Iterator.Name}} = &{{$Field.Iterator.OrigType}}{}
-				}
-			{{end}}
-		{{end}}
+			{{- $Field | NewField $.AllFields $Name}}
 		{{- if eq $Field.OrigType "string"}}
 			str, ok := value.(string)
 			if !ok {
