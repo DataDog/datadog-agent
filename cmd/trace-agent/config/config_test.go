@@ -841,6 +841,7 @@ func TestLoadEnv(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal(cfg.RequireTags, []*config.Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
 	})
+
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
@@ -863,6 +864,7 @@ func TestLoadEnv(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
 	})
+
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
