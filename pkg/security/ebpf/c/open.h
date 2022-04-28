@@ -15,6 +15,15 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/io_uring_req_pid") io_uring_req_pid = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(void*),
+    .value_size = sizeof(u64),
+    .max_entries = 2048,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -196,8 +205,14 @@ struct io_open {
 
 SEC("kprobe/io_openat2")
 int kprobe_io_openat2(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *raw_req = (void*) PT_REGS_PARM1(ctx);
+
+    bpf_map_update_elem(&io_uring_req_pid, &raw_req, &pid_tgid, BPF_ANY);
+
+    bpf_printk("# HELLO ENTRY WTF; tgid = %d; req = %p\n", pid_tgid >> 32);
     struct io_open req;
-    if (bpf_probe_read(&req, sizeof(req), (void*) PT_REGS_PARM1(ctx))) {
+    if (bpf_probe_read(&req, sizeof(req), raw_req)) {
         return 0;
     }
 
@@ -307,12 +322,9 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 
 SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
-    struct file *f = (struct file *) PT_REGS_RC(ctx);
-    if (IS_ERR(f)) {
-        return 0;
-    }
-
-    return sys_open_ret(ctx, 0, DR_KPROBE);
+    int retval = PT_REGS_RC(ctx);
+    bpf_printk("# HELLO EXIT WTF\n");
+    return sys_open_resys_open_rett(ctx, retval, DR_KPROBE);
 }
 
 SEC("kprobe/filp_close")
@@ -353,7 +365,12 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     };
 
     fill_file_metadata(syscall->open.dentry, &event.file.metadata);
-    struct proc_cache_t *entry = fill_process_context(&event.process);
+    struct proc_cache_t *entry;
+    if syscall->open.pid_tgid != 0 {
+        entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);
+    } else {
+        entry = fill_process_context(&event.process);
+    }
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 

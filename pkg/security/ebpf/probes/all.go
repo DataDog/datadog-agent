@@ -104,6 +104,7 @@ func AllMaps() []*manager.Map {
 		{Name: "exec_file_cache"},
 		// Open tables
 		{Name: "open_flags_approvers"},
+		{Name: "io_uring_req_pid"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
