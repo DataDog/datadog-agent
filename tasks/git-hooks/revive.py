@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 # List of files to ignore when running lint
-FILE_ALLOWLIST = [
+FILE_IGNORE_LIST = [
     "pkg/collector/corechecks/containers/generic/adapters.go",
 ]
 
@@ -24,7 +24,7 @@ try:
         skipped_files = set()
         for line in (out for out in result.stdout.split('\n') if out):
             fullname = line.split(":")[0]
-            if fullname in FILE_ALLOWLIST:
+            if fullname in FILE_IGNORE_LIST:
                 skipped_files.add(fullname)
                 continue
             print(line)
