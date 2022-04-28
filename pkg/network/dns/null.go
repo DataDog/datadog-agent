@@ -10,7 +10,6 @@ package dns
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"go4.org/intern"
 )
 
 // NewNullReverseDNS returns a dummy implementation of ReverseDNS
@@ -20,7 +19,7 @@ func NewNullReverseDNS() ReverseDNS {
 
 type nullReverseDNS struct{}
 
-func (nullReverseDNS) Resolve(_ []util.Address) map[util.Address][]*intern.Value {
+func (nullReverseDNS) Resolve(_ []util.Address) map[util.Address][]Hostname {
 	return nil
 }
 

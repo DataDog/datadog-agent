@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
-	"go4.org/intern"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -118,7 +117,7 @@ type BufferedData struct {
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	BufferedData
-	DNS                         map[util.Address][]*intern.Value
+	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
@@ -333,7 +332,7 @@ func BeautifyKey(key string) string {
 }
 
 // ConnectionSummary returns a string summarizing a connection
-func ConnectionSummary(c *ConnectionStats, names map[util.Address][]*intern.Value) string {
+func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
 	str := fmt.Sprintf(
 		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
@@ -372,7 +371,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]*intern.Valu
 	return str
 }
 
-func printAddress(address util.Address, names []*intern.Value) string {
+func printAddress(address util.Address, names []dns.Hostname) string {
 	if len(names) == 0 {
 		return address.String()
 	}
@@ -381,7 +380,7 @@ func printAddress(address util.Address, names []*intern.Value) string {
 	b.WriteString(names[0].Get().(string))
 	for _, s := range names[1:] {
 		b.WriteString(",")
-		b.WriteString(s.Get().(string))
+		b.WriteString(dns.ToString(s))
 	}
 	return b.String()
 }

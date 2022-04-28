@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"go4.org/intern"
 )
 
 var dnsPool = sync.Pool{
@@ -107,10 +106,10 @@ func (f *dnsFormatter) DNS() map[string]*model.DNSEntry {
 	return ipToNames
 }
 
-func internStrings(arr []*intern.Value) []string {
+func internStrings(arr []dns.Hostname) []string {
 	strs := make([]string, len(arr))
 	for i, a := range arr {
-		strs[i] = a.Get().(string)
+		strs[i] = dns.ToString(a)
 	}
 	return strs
 }
@@ -123,7 +122,7 @@ func (f *dnsFormatter) Domains() []string {
 	return domains
 }
 
-func formatDNSStatsByDomainByQueryType(stats map[*intern.Value]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+func formatDNSStatsByDomainByQueryType(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
 	m := make(map[int32]*model.DNSStatsByQueryType)
 	for d, bytype := range stats {
 
@@ -147,7 +146,7 @@ func formatDNSStatsByDomainByQueryType(stats map[*intern.Value]map[dns.QueryType
 	return m
 }
 
-func formatDNSStatsByDomain(stats map[*intern.Value]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
+func formatDNSStatsByDomain(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
 		pos, ok := domainSet[d.Get().(string)]

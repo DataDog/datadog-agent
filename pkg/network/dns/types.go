@@ -11,6 +11,20 @@ import (
 	"go4.org/intern"
 )
 
+type Hostname = *intern.Value
+
+func ToString(h Hostname) string {
+	return string(h.Get().([]byte))
+}
+
+func HostnameFromBytes(b []byte) Hostname {
+	return intern.Get(b)
+}
+
+func ToHostname(s string) Hostname {
+	return intern.Get([]byte(s))
+}
+
 // QueryType is the DNS record type
 type QueryType layers.DNSType
 
@@ -40,11 +54,11 @@ const (
 
 // StatsByKeyByNameByType provides a type name for the map of
 // DNS stats based on the host key->the lookup name->querytype
-type StatsByKeyByNameByType map[Key]map[*intern.Value]map[QueryType]Stats
+type StatsByKeyByNameByType map[Key]map[Hostname]map[QueryType]Stats
 
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
-	Resolve([]util.Address) map[util.Address][]*intern.Value
+	Resolve([]util.Address) map[util.Address][]Hostname
 	GetDNSStats() StatsByKeyByNameByType
 	GetStats() map[string]int64
 	Start() error

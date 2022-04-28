@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
-	"go4.org/intern"
 )
 
 func TestFormatConnectionDNS(t *testing.T) {
@@ -40,8 +39,8 @@ func TestFormatConnectionDNS(t *testing.T) {
 				ServerIP:   util.AddressFromString("8.8.8.8"),
 				ClientPort: uint16(1000),
 				Protocol:   syscall.IPPROTO_UDP,
-			}: map[*intern.Value]map[dns.QueryType]dns.Stats{
-				intern.GetByString("foo.com"): {
+			}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+				dns.ToHostname("foo.com"): {
 					dns.TypeA: {
 						Timeouts:          0,
 						SuccessLatencySum: 0,
@@ -144,8 +143,8 @@ func TestDNSPIDCollision(t *testing.T) {
 				ServerIP:   util.AddressFromString("8.8.8.8"),
 				ClientPort: uint16(1000),
 				Protocol:   syscall.IPPROTO_UDP,
-			}: map[*intern.Value]map[dns.QueryType]dns.Stats{
-				intern.GetByString("foo.com"): {
+			}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+				dns.ToHostname("foo.com"): {
 					dns.TypeA: {
 						Timeouts:          0,
 						SuccessLatencySum: 0,

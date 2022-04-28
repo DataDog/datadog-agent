@@ -18,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"go4.org/intern"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1234,13 +1232,13 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	dKey := dns.Key{ClientIP: c.Source, ClientPort: c.SPort, ServerIP: c.Dest, Protocol: getIPProtocol(c.Type)}
 
 	getStats := func() dns.StatsByKeyByNameByType {
-		var d = intern.GetByString("foo.com")
+		var d = dns.ToHostname("foo.com")
 		statsByDomain := make(dns.StatsByKeyByNameByType)
 		stats := make(map[dns.QueryType]dns.Stats)
 		countByRcode := make(map[uint32]uint32)
 		countByRcode[uint32(DNSResponseCodeNoError)] = 1
 		stats[dns.TypeA] = dns.Stats{CountByRcode: countByRcode}
-		statsByDomain[dKey] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
+		statsByDomain[dKey] = make(map[dns.Hostname]map[dns.QueryType]dns.Stats)
 		statsByDomain[dKey][d] = stats
 		return statsByDomain
 	}
@@ -1255,7 +1253,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 		stats, ok := delta.DNSStats[key]
 		require.Truef(t, ok, "couldn't find DNSStats for connection: %+v", c)
 
-		domainStats, ok := stats[intern.GetByString(domain)]
+		domainStats, ok := stats[dns.ToHostname(domain)]
 		require.Truef(t, ok, "couldn't find DNSStats for domain: %s", domain)
 
 		queryTypeStats, ok := domainStats[qtype]

@@ -19,7 +19,6 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
-	"go4.org/intern"
 )
 
 const maxIPBufferSize = 200
@@ -195,9 +194,9 @@ func (p *dnsParser) parseAnswerInto(
 		pktInfo.pktType = query
 		pktInfo.queryType = QueryType(question.Type)
 		if p.collectDNSDomains {
-			pktInfo.question = intern.GetByString(string(question.Name))
+			pktInfo.question = ToHostname(string(question.Name))
 		} else {
-			pktInfo.question = intern.GetByString("")
+			pktInfo.question = ToHostname("")
 		}
 		return nil
 	}
@@ -211,7 +210,7 @@ func (p *dnsParser) parseAnswerInto(
 	pktInfo.queryType = QueryType(question.Type)
 	alias := p.extractCNAME(question.Name, dns.Answers)
 	p.extractIPsInto(alias, dns.Answers, t)
-	t.dns = intern.GetByString(string(bytes.ToLower(question.Name)))
+	t.dns = HostnameFromBytes(bytes.ToLower(question.Name))
 
 	pktInfo.pktType = successfulResponse
 	return nil

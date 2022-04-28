@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go4.org/intern"
 )
 
 type reverseDNSCache struct {
@@ -85,7 +84,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 		} else {
 			atomic.AddInt64(&c.added, 1)
 			// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
-			c.data[addr] = &dnsCacheVal{names: map[*intern.Value]time.Time{translation.dns: deadline}, inUse: true}
+			c.data[addr] = &dnsCacheVal{names: map[Hostname]time.Time{translation.dns: deadline}, inUse: true}
 		}
 	}
 
@@ -95,7 +94,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	return true
 }
 
-func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]*intern.Value {
+func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -108,7 +107,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]*intern.Val
 	}
 
 	var (
-		resolved   = make(map[util.Address][]*intern.Value)
+		resolved   = make(map[util.Address][]Hostname)
 		unresolved = make(map[util.Address]struct{})
 		oversized  = make(map[util.Address]struct{})
 	)
@@ -207,7 +206,7 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	)
 }
 
-func (c *reverseDNSCache) getNamesForIP(ip util.Address) []*intern.Value {
+func (c *reverseDNSCache) getNamesForIP(ip util.Address) []Hostname {
 	val, ok := c.data[ip]
 	if !ok {
 		return nil
@@ -217,7 +216,7 @@ func (c *reverseDNSCache) getNamesForIP(ip util.Address) []*intern.Value {
 }
 
 type dnsCacheVal struct {
-	names map[*intern.Value]time.Time
+	names map[Hostname]time.Time
 	// inUse keeps track of whether this dns cache record is currently in use by a connection.
 	// This flag is reset to false every time reverseDnsCache.Get is called.
 	// This flag is only set to true if reverseDNSCache.getNamesForIP returns this struct.
@@ -225,7 +224,7 @@ type dnsCacheVal struct {
 	inUse bool
 }
 
-func (v *dnsCacheVal) merge(name *intern.Value, deadline time.Time, maxSize int) (rejected bool) {
+func (v *dnsCacheVal) merge(name Hostname, deadline time.Time, maxSize int) (rejected bool) {
 	if exp, ok := v.names[name]; ok {
 		if deadline.After(exp) {
 			v.names[name] = deadline
@@ -242,8 +241,8 @@ func (v *dnsCacheVal) merge(name *intern.Value, deadline time.Time, maxSize int)
 	return false
 }
 
-func (v *dnsCacheVal) copy() []*intern.Value {
-	cpy := make([]*intern.Value, 0, len(v.names))
+func (v *dnsCacheVal) copy() []Hostname {
+	cpy := make([]Hostname, 0, len(v.names))
 	for n := range v.names {
 		cpy = append(cpy, n)
 	}
@@ -251,7 +250,7 @@ func (v *dnsCacheVal) copy() []*intern.Value {
 }
 
 type translation struct {
-	dns *intern.Value
+	dns Hostname
 	ips map[util.Address]time.Time
 }
 
