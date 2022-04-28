@@ -206,7 +206,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
 
-	a.filterSpans(p)
+	a.discardSpans(p)
 
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
@@ -355,8 +355,8 @@ func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
-// filterSpans removes all spans for which the provided FilterSpan function returns true
-func (a *Agent) filterSpans(p *api.Payload) {
+// discardSpans removes all spans for which the provided DiscardFunction function returns true
+func (a *Agent) discardSpans(p *api.Payload) {
 	if a.DiscardSpan == nil {
 		return
 	}

@@ -308,17 +308,17 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
-	t.Run("FilterSpans", func(t *testing.T) {
+	t.Run("DiscardSpans", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
-		testFilterFunction := func(span *pb.Span) bool {
+		testDiscardFunction := func(span *pb.Span) bool {
 			return span.Meta["irrelevant"] == "true"
 		}
-		agnt.DiscardSpan = testFilterFunction
+		agnt.DiscardSpan = testDiscardFunction
 
 		span1 := &pb.Span{
 			TraceID: 1,
