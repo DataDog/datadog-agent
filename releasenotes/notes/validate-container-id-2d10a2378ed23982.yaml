@@ -8,8 +8,5 @@
 ---
 enhancements:
   - |
-    Kubernetes pod with short-lived containers won't have a few logs of lines
-    duplicated with both container tag (the stopped one and the running one) anymore
-    while logs are being collected.
-    This feature is enabled by default, set ``logs_config.validate_pod_container_id``
-    to ``false`` to disable it.
+    Kubernetes pod with short-lived containers do not have log lines duplicated with both container tags (the stopped one and the running one) when logs are collected.
+    This feature is enabled by default, set ``logs_config.validate_pod_container_id`` to ``false`` to disable it.
