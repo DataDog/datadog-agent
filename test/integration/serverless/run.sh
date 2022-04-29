@@ -22,7 +22,7 @@
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
-DEFAULT_DOTNET_TRACE_LAYER_VERSION=2
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=3
 DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
@@ -243,11 +243,12 @@ for function_name in "${all_functions[@]}"; do
                 # remove configuration log line from dd-trace-go
                 grep -v "DATADOG TRACER CONFIGURATION" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/.{9}-.{4}-.{4}-.{4}-.{12}/REQUEST_ID/g" |
                 perl -p -e "s/(TIMESTAMP:)\d{3}/\1XXX/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |

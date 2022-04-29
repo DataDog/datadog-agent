@@ -25,13 +25,22 @@ COPYRIGHT_REGEX = [
 # These path patterns are excluded from checks
 PATH_EXCLUSION_REGEX = [
     # These are auto-generated files but without headers to indicate it
+    '/pkg/remoteconfig/client/products/apmsampling/.*_gen(_test){,1}.go',
+    '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
     '/pkg/security/probe/accessors.go',
+    '/pkg/security/probe/activity_dump_gen_linux.go',
     '/pkg/security/probe/custom_events_easyjson.go',
+    '/pkg/security/probe/fields_resolver.go',
     '/pkg/security/probe/serializers_easyjson.go',
+    '/pkg/security/secl/model/.*_gen(_test){,1}.go',
     '/pkg/security/secl/model/accessors.go',
+    '/pkg/trace/pb/.*_gen(_test){,1}.go',
     # These are files that we should not add our copyright to
-    '/third_party/golang/',
-    '/third_party/kubernetes/',
+    '/internal/patch/grpc-go-insecure/',
+    '/internal/patch/logr/funcr/funcr(_test){,1}.go',
+    '/internal/patch/logr/funcr/internal/logr/',
+    '/internal/third_party/golang/',
+    '/internal/third_party/kubernetes/',
 ]
 
 # These header matchers skip enforcement of the rules if found in the first
