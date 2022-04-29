@@ -67,7 +67,7 @@ func GetStatus() (map[string]interface{}, error) {
 	if otlpIsEnabled {
 		otlpCollectorStatus, otlpCollectorStatusErr = otlp.GetCollectorStatus(common.OTLP)
 	} else {
-		otlpCollectorStatus, otlpCollectorStatusErr = "N/A", ""
+		otlpCollectorStatus, otlpCollectorStatusErr = "Not running", ""
 	}
 
 	stats["otlpStatus"] = otlpIsEnabled
