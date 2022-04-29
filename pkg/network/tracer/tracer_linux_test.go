@@ -29,6 +29,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -1399,4 +1400,91 @@ func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (i
 		return 0, err
 	}
 	return n, serr
+}
+
+func TestPartialSend(t *testing.T) {
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	read := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		// set recv buffer to 0 and don't read
+		// to fill up tcp window
+		err := c.(*net.TCPConn).SetReadBuffer(0)
+		require.NoError(t, err)
+		<-read
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		close(read)
+		close(doneChan)
+	})
+
+	s, err := unix.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, 0)
+	require.NoError(t, err)
+	defer syscall.Close(s)
+
+	err = unix.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 5000)
+	require.NoError(t, err)
+
+	sndBufSize, err := unix.GetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
+	require.GreaterOrEqual(t, sndBufSize, 5000)
+
+	var sa unix.SockaddrInet4
+	host, portStr, err := net.SplitHostPort(server.address)
+	require.NoError(t, err)
+	copy(sa.Addr[:], net.ParseIP(host).To4())
+	port, err := strconv.ParseInt(portStr, 10, 32)
+	sa.Port = int(port)
+
+	err = unix.Connect(s, &sa)
+	if syscall.EINPROGRESS != err {
+		require.NoError(t, err)
+	}
+
+	var wfd unix.FdSet
+	wfd.Zero()
+	wfd.Set(s)
+	tv := unix.NsecToTimeval(int64((5 * time.Second).Nanoseconds()))
+	nfds, err := unix.Select(s+1, nil, &wfd, nil, &tv)
+	require.NoError(t, err)
+	require.Equal(t, 1, nfds)
+
+	var written int
+	done := false
+	var sent uint64
+	toSend := sndBufSize / 2
+	for i := 0; i < 100; i++ {
+		written, err = unix.Write(s, genPayload(toSend))
+		require.Greater(t, written, 0)
+		require.NoError(t, err)
+		sent += uint64(written)
+		t.Logf("sent: %v", sent)
+		if written < toSend {
+			done = true
+			break
+		}
+	}
+
+	require.True(t, done)
+
+	f := os.NewFile(uintptr(s), "")
+	require.NoError(t, err)
+	defer f.Close()
+	c, err := net.FileConn(f)
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
+
+	assert.Equal(t, sent, conn.MonotonicSentBytes)
 }
