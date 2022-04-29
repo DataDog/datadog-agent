@@ -506,29 +506,25 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(v, req.Header)
-	tracen, err := traceCount(req)
-	if err == nil && r.rateLimited(tracen) {
+	var tracen int64
+	if n, err := traceCount(req); err == nil && r.rateLimited(n) {
+		tracen = n
 		// this payload can not be accepted
 		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
-	}
-	if err == errInvalidHeaderTraceCountValue {
+	} else if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
 	}
 
 	start := time.Now()
-	defer func() {
+	tp, ranHook, err := decodeTracerPayload(v, req, ts)
+	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
-	}()
-	var (
-		tp      *pb.TracerPayload
-		ranHook bool
-	)
-	tp, ranHook, err = decodeTracerPayload(v, req, ts)
+	}(err)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
