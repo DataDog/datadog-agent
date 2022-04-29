@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -33,6 +34,7 @@ type executionStartInfo struct {
 	requestPayload   string
 	samplingPriority sampler.SamplingPriority
 }
+
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
 }
@@ -44,12 +46,7 @@ var currentExecutionInfo executionStartInfo
 // It should be called at the start of the invocation.
 func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, samplingRate float64) {
 	currentExecutionInfo.startTime = startTime
-	currentExecutionInfo.traceID = random.Uint64()
-	currentExecutionInfo.spanID = random.Uint64()
-	currentExecutionInfo.parentID = 0
-
 	payload := convertRawPayload(rawPayload)
-
 	currentExecutionInfo.requestPayload = rawPayload
 
 	var traceID, parentID uint64
@@ -70,8 +67,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 	if e2 == nil && parentID != 0 {
 		currentExecutionInfo.parentID = parentID
 	}
-
-	currentExecutionInfo.samplingPriority = computeSamplingPriority(currentExecutionInfo.traceID, samplingRate, payload.Headers[SamplingPriorityHeader], invokeEventHeaders.SamplingPriority)
+	currentExecutionInfo.samplingPriority = getSamplingPriority(currentExecutionInfo.traceID, samplingRate, payload.Headers[SamplingPriorityHeader], invokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
@@ -142,8 +138,9 @@ func convertStrToUnit64(s string) (uint64, error) {
 	return num, err
 }
 
-func computeSamplingPriority(traceID uint64, samplingRate float64, header string, directInvokeHeader string) sampler.SamplingPriority {
-	var samplingPriority sampler.SamplingPriority
+func getSamplingPriority(traceID uint64, samplingRate float64, header string, directInvokeHeader string) sampler.SamplingPriority {
+	// default priority if nothing is found from headers or direct invocation payload
+	samplingPriority := sampler.PriorityNone
 	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
 		// if the current lambda invocation is not the head of the trace, we need to propagate the sampling decision
 		samplingPriority = sampler.SamplingPriority(v)
@@ -151,18 +148,7 @@ func computeSamplingPriority(traceID uint64, samplingRate float64, header string
 		// try to look for direction invocation headers
 		if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
 			samplingPriority = sampler.SamplingPriority(v)
-		} else {
-			// could no find sampling priority, computing a new one
-			samplingPriority = generateSamplingPriority(traceID, samplingRate)
 		}
-	}
-	return samplingPriority
-}
-
-func generateSamplingPriority(traceID uint64, samplingRate float64) sampler.SamplingPriority {
-	samplingPriority := sampler.PriorityAutoKeep
-	if !sampler.SampleByRate(traceID, samplingRate) {
-		samplingPriority = sampler.PriorityUserDrop
 	}
 	return samplingPriority
 }
@@ -180,4 +166,28 @@ func SpanID() uint64 {
 // SamplingPriority returns the current samplingPriority
 func SamplingPriority() sampler.SamplingPriority {
 	return currentExecutionInfo.samplingPriority
+}
+
+// InjectContext injects the context
+func InjectContext(headers http.Header) {
+	if value, err := convertStrToUnit64(headers.Get(TraceIDHeader)); err == nil {
+		log.Debug("injecting traceID = %v", value)
+		currentExecutionInfo.traceID = value
+	}
+	if value, err := convertStrToUnit64(headers.Get(ParentIDHeader)); err == nil {
+		log.Debug("injecting parentId = %v", value)
+		currentExecutionInfo.parentID = value
+	}
+	if value, err := strconv.ParseInt(headers.Get(SamplingPriorityHeader), 10, 8); err == nil {
+		log.Debug("injecting samplingPriority = %v", value)
+		currentExecutionInfo.samplingPriority = sampler.SamplingPriority(value)
+	}
+}
+
+// InjectSpanId injects the spanId
+func InjectSpanId(headers http.Header) {
+	if value, err := convertStrToUnit64(headers.Get(SpanIDHeader)); err == nil {
+		log.Debug("injecting spanID = %v", value)
+		currentExecutionInfo.spanID = value
+	}
 }

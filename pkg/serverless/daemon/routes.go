@@ -65,10 +65,13 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		InvokeEventHeaders:    lambdaInvokeContext,
 	}
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
-
-	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
-	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
+	if invocationlifecycle.TraceID() == 0 {
+		log.Debug("no context has been found, the tracer will be responsible for initializing the context")
+	} else {
+		log.Debug("a context has been found, sending the context to the tracer")
+		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
+	}
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable
@@ -79,6 +82,7 @@ type EndInvocation struct {
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
+
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
 	responseBody, err := ioutil.ReadAll(r.Body)
@@ -93,6 +97,11 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RequestID:          ecs.LastRequestID,
 		ResponseRawPayload: responseBody,
 	}
+	if invocationlifecycle.TraceID() == 0 {
+		log.Debug("no context has been found yet, injecting it now via headers from the tracer")
+		invocationlifecycle.InjectContext(r.Header)
+	}
+	invocationlifecycle.InjectSpanId(r.Header)
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }
 
