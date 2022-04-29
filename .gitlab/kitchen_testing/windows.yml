@@ -176,7 +176,9 @@
 # ----------------------------------------------
 
 ##
-## temporarily remove; being run on EC2 instead until Azure issue ironed out
+## temporarily remove; being run on EC2 instead until Azure issue (driver hangs on startup
+## only in azure).  Will be set back to Azure eventually as, among other things, EC2 spin-up 
+## is quite slow.
 ##
 #kitchen_windows_installer_npm_install_scenarios-a7:
 #  extends:
