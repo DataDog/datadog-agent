@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Ensure that, when ``kubernetes_namespace_labels_as_tags`` is set, the namespace labels are always attached to metrics and logs, even when the pod is not ready yet.
+    Ensures that when ``kubernetes_namespace_labels_as_tags`` is set, the namespace labels are always attached to metrics and logs, even when the pod is not ready yet.
