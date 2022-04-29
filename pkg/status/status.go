@@ -63,16 +63,16 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["logsStats"] = logs.GetStatus()
 
 	otlpIsEnabled := otlp.IsEnabled(config.Datadog)
-	var otlpCollectorStatus, otlpCollectorStatusErr string
+	var otlpCollectorStatus otlp.OTLPCollectorStatus
 	if otlpIsEnabled {
-		otlpCollectorStatus, otlpCollectorStatusErr = otlp.GetCollectorStatus(common.OTLP)
+		otlpCollectorStatus = otlp.GetCollectorStatus(common.OTLP)
 	} else {
-		otlpCollectorStatus, otlpCollectorStatusErr = "Not running", ""
+		otlpCollectorStatus = otlp.OTLPCollectorStatus{"Not running", ""}
 	}
 
 	stats["otlpStatus"] = otlpIsEnabled
-	stats["otlpCollectorStatus"] = otlpCollectorStatus
-	stats["otlpCollectorStatusErr"] = otlpCollectorStatusErr
+	stats["otlpCollectorStatus"] = otlpCollectorStatus.Status
+	stats["otlpCollectorStatusErr"] = otlpCollectorStatus.ErrorMessage
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {

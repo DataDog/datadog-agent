@@ -105,6 +105,12 @@ type Pipeline struct {
 	col *service.Collector
 }
 
+// OTLPCollectorStatus is the status struct for an OTLP pipeline's collector
+type OTLPCollectorStatus struct {
+	Status       string
+	ErrorMessage string
+}
+
 // NewPipeline defines a new OTLP pipeline.
 func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
@@ -179,10 +185,10 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 }
 
 // GetCollectorStatus get the collector status and error message (if there is one)
-func GetCollectorStatus(p *Pipeline) (string, string) {
+func GetCollectorStatus(p *Pipeline) OTLPCollectorStatus {
 	if p != nil {
-		return p.col.GetState().String(), ""
+		return OTLPCollectorStatus{Status: p.col.GetState().String(), ErrorMessage: ""}
 	}
 	// If the pipeline is nil then it failed to start so we return the error.
-	return "Failed to start", pipelineError.Error()
+	return OTLPCollectorStatus{Status: "Failed to start", ErrorMessage: pipelineError.Error()}
 }
