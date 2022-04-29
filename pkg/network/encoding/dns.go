@@ -136,10 +136,10 @@ func formatDNSStatsByDomainByQueryType(stats map[dns.Hostname]map[dns.QueryType]
 			ms.DnsTimeouts = stat.Timeouts
 			byqtype.DnsStatsByQueryType[int32(t)] = &ms
 		}
-		pos, ok := domainSet[d.Get().(string)]
+		pos, ok := domainSet[dns.ToString(d)]
 		if !ok {
 			pos = len(domainSet)
-			domainSet[d.Get().(string)] = pos
+			domainSet[dns.ToString(d)] = pos
 		}
 		m[int32(pos)] = byqtype
 	}
@@ -149,10 +149,10 @@ func formatDNSStatsByDomainByQueryType(stats map[dns.Hostname]map[dns.QueryType]
 func formatDNSStatsByDomain(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
-		pos, ok := domainSet[d.Get().(string)]
+		pos, ok := domainSet[dns.ToString(d)]
 		if !ok {
 			pos = len(domainSet)
-			domainSet[d.Get().(string)] = pos
+			domainSet[dns.ToString(d)] = pos
 		}
 
 		for _, stat := range bytype {
