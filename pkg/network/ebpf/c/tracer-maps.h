@@ -54,6 +54,10 @@ struct bpf_map_def SEC("maps/conn_close_batch") conn_close_batch = {
     .namespace = "",
 };
 
+/*
+ * Map to hold struct sock parameter for tcp_sendmsg calls
+ * to be used in kretprobe/tcp_sendmsg
+ */
 struct bpf_map_def SEC("maps/tcp_sendmsg_args") tcp_sendmsg_args = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
