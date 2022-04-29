@@ -253,7 +253,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0722); err != nil {
+	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return NewMeasuredListener(ln, "uds_connections"), err
@@ -827,7 +827,7 @@ func getContainerTags(fn func(string) ([]string, error), containerID string) str
 		log.Warn("ContainerTags not configured")
 		return ""
 	}
-	list, err := fn("container_id://" + containerID)
+	list, err := fn(containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return ""
