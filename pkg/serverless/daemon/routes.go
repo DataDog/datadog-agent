@@ -87,7 +87,6 @@ type EndInvocation struct {
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
-
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
 	responseBody, err := ioutil.ReadAll(r.Body)
