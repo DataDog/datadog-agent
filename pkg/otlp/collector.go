@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service"
+	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -31,7 +32,7 @@ import (
 )
 
 var (
-	pipelineError error
+	pipelineError = atomic.NewError(nil)
 )
 
 func getComponents(s serializer.MetricSerializer) (
@@ -163,21 +164,21 @@ func (p *Pipeline) Stop() {
 func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(config.Datadog)
 	if err != nil {
-		pipelineError = fmt.Errorf("config error: %w", err)
-		return nil, pipelineError
+		pipelineError.Store(fmt.Errorf("config error: %w", err))
+		return nil, pipelineError.Load()
 	}
 
 	p, err := NewPipeline(pcfg, s)
 	if err != nil {
-		pipelineError = fmt.Errorf("failed to build pipeline: %w", err)
-		return nil, pipelineError
+		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
+		return nil, pipelineError.Load()
 	}
 
 	go func() {
 		err = p.Run(ctx)
 		if err != nil {
-			pipelineError = fmt.Errorf("Error running the OTLP pipeline: %w", err)
-			log.Errorf(pipelineError.Error())
+			pipelineError.Store(fmt.Errorf("Error running the OTLP pipeline: %w", err))
+			log.Errorf(pipelineError.Load().Error())
 		}
 	}()
 
@@ -190,5 +191,5 @@ func GetCollectorStatus(p *Pipeline) OTLPCollectorStatus {
 		return OTLPCollectorStatus{Status: p.col.GetState().String(), ErrorMessage: ""}
 	}
 	// If the pipeline is nil then it failed to start so we return the error.
-	return OTLPCollectorStatus{Status: "Failed to start", ErrorMessage: pipelineError.Error()}
+	return OTLPCollectorStatus{Status: "Failed to start", ErrorMessage: pipelineError.Load().Error()}
 }
