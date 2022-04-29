@@ -41,7 +41,8 @@ type InferredSpan struct {
 	// current invocation not he inferred span. It is used
 	// for async function calls to calculate the duration.
 	CurrentInvocationStartTime time.Time
-	SamplingPriority           *uint64
+	// reference for nil check in invocationlifecycle/trace.go
+	SamplingPriority *sampler.SamplingPriority
 }
 
 var functionTagsToIgnore = []string{

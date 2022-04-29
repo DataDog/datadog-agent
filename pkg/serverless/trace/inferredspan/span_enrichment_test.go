@@ -23,7 +23,7 @@ func TestSetSynchronicityFalse(t *testing.T) {
 	var attributes EventKeys
 	attributes.Headers.InvocationType = ""
 	span := GenerateInferredSpan(time.Now())
-	setSynchronicity(&span, attributes)
+	span.IsAsync = setSynchronicity(attributes)
 
 	assert.False(t, span.IsAsync)
 }
@@ -32,7 +32,7 @@ func TestSetSynchronicityTrue(t *testing.T) {
 	var attributes EventKeys
 	attributes.Headers.InvocationType = "Event"
 	span := GenerateInferredSpan(time.Now())
-	setSynchronicity(&span, attributes)
+	span.IsAsync = setSynchronicity(attributes)
 
 	assert.True(t, span.IsAsync)
 }
@@ -41,11 +41,10 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	var eventKeys EventKeys
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
-	span := inferredSpan.Span
-
-	setSynchronicity(&inferredSpan, eventKeys)
-
+	inferredSpan.IsAsync = setSynchronicity(eventKeys)
 	EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys, inferredSpan)
+
+	span := inferredSpan.Span
 
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
@@ -69,11 +68,10 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	var eventKeys EventKeys
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
-	span := inferredSpan.Span
-
-	setSynchronicity(&inferredSpan, eventKeys)
-
+	inferredSpan.IsAsync = setSynchronicity(eventKeys)
 	EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys, inferredSpan)
+
+	span := inferredSpan.Span
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
 	assert.Equal(t, span.Start, int64(1631210915000000000))
@@ -96,10 +94,9 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	var eventKeys EventKeys
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
-	span := inferredSpan.Span
-
 	EnrichInferredSpanWithAPIGatewayHTTPEvent(eventKeys, inferredSpan)
 
+	span := inferredSpan.Span
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
 	assert.Equal(t, span.Start, int64(1631212283000000000))

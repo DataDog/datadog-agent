@@ -16,15 +16,14 @@ import (
 
 // LifecycleProcessor is a InvocationProcessor implementation
 type LifecycleProcessor struct {
-	ExtraTags           *serverlessLog.Tags
-	ProcessTrace        func(p *api.Payload)
-	Demux               aggregator.Demultiplexer
-	DetectLambdaLibrary func() bool
+	ExtraTags            *serverlessLog.Tags
+	ProcessTrace         func(p *api.Payload)
+	Demux                aggregator.Demultiplexer
+	DetectLambdaLibrary  func() bool
+	InferredSpansEnabled bool
 }
 
-// InferredSpansEnabled tells us if the Env Vars are enabled
-// for inferred spans to be created
-var InferredSpansEnabled, inferredSpan = initializeInferredSpan()
+var inferredSpan inferredspan.InferredSpan
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
@@ -34,13 +33,13 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
-		if InferredSpansEnabled {
+		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to create inferred span")
 			inferredSpan = inferredspan.GenerateInferredSpan(startDetails.StartTime)
 			inferredspan.DispatchInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
 		}
 
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
 }
 
@@ -55,7 +54,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		log.Debug("Creating and sending function execution span for invocation")
 		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
 
-		if InferredSpansEnabled {
+		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
 			inferredspan.CompleteInferredSpan(
 				lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, inferredSpan,
@@ -68,12 +67,4 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
-}
-
-func initializeInferredSpan() (bool, inferredspan.InferredSpan) {
-	// This function checks if inferred spans is enabled and returns
-	// an uninitialized span.
-	inferredSpanEnabled := inferredspan.IsInferredSpansEnabled()
-	var span inferredspan.InferredSpan
-	return inferredSpanEnabled, span
 }

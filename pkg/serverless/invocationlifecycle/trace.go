@@ -31,8 +31,8 @@ type executionStartInfo struct {
 	traceID   uint64
 	spanID    uint64
 	parentID  uint64
-	// set as uint64 pointer so we can nil check
-	samplingPriority *uint64
+	// reference for nil checking
+	samplingPriority *sampler.SamplingPriority
 	requestPayload   string
 }
 type invocationPayload struct {
@@ -44,7 +44,7 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders) {
+func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, inferredSpansEnabled bool) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = rand.Random.Uint64()
 	currentExecutionInfo.spanID = rand.Random.Uint64()
@@ -54,7 +54,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 
 	currentExecutionInfo.requestPayload = rawPayload
 
-	if InferredSpansEnabled {
+	if inferredSpansEnabled {
 		currentExecutionInfo.traceID = inferredSpan.Span.TraceID
 		currentExecutionInfo.parentID = inferredSpan.Span.SpanID
 	}
@@ -63,46 +63,47 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 
 		traceID, err := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
 		if err != nil {
-			logError("traceID", "payloadHeaders")
+			makeDebugLog("traceID", "payloadHeaders")
 		} else {
 			currentExecutionInfo.traceID = traceID
-			if InferredSpansEnabled {
+			if inferredSpansEnabled {
 				inferredSpan.Span.TraceID = traceID
 			}
 		}
 
 		parentID, err := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
 		if err != nil {
-			logError("parentID", "payloadHeaders")
+			makeDebugLog("parentID", "payloadHeaders")
 		} else {
-			if InferredSpansEnabled {
+			if inferredSpansEnabled {
 				inferredSpan.Span.ParentID = parentID
 			} else {
 				currentExecutionInfo.parentID = parentID
 			}
 		}
 
-		samplingPriority, err := strconv.ParseUint(payload.Headers[SamplingPriorityHeader], 0, 64)
+		samplingPriority, err := strconv.ParseInt(payload.Headers[SamplingPriorityHeader], 0, 8)
+		priority := sampler.SamplingPriority(int8(samplingPriority))
 		if err != nil {
-			logError("sampling priority", "payloadHeaders")
+			makeDebugLog("sampling priority", "payloadHeaders")
 		} else {
-			currentExecutionInfo.samplingPriority = &samplingPriority
-			if InferredSpansEnabled {
-				inferredSpan.SamplingPriority = &samplingPriority
+			currentExecutionInfo.samplingPriority = &priority
+			if inferredSpansEnabled {
+				inferredSpan.SamplingPriority = &priority
 			}
 		}
 
 	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
 		traceID, err := strconv.ParseUint(invokeEventHeaders.TraceID, 0, 64)
 		if err != nil {
-			logError("traceID", "invokeEventHeaders")
+			makeDebugLog("traceID", "invokeEventHeaders")
 		} else {
 			currentExecutionInfo.traceID = traceID
 		}
 
 		parentID, err := strconv.ParseUint(invokeEventHeaders.ParentID, 0, 64)
 		if err != nil {
-			logError("parentID", "invokeEventHeaders")
+			makeDebugLog("parentID", "invokeEventHeaders")
 		} else {
 			currentExecutionInfo.parentID = parentID
 		}
@@ -174,7 +175,7 @@ func convertRawPayload(rawPayload string) invocationPayload {
 	return payload
 }
 
-func logError(attribute string, source string) {
+func makeDebugLog(attribute string, source string) {
 	log.Debug("Unable to parse %s from %s", attribute, source)
 }
 

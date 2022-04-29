@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -72,7 +73,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.NotEqual(t, uint64(0), currentExecutionInfo.spanID)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, uint64(1), *currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.SamplingPriority(1), *currentExecutionInfo.samplingPriority)
 	assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -120,7 +121,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
-	samplingPriority := uint64(1)
+	samplingPriority := sampler.SamplingPriority(1)
 	currentExecutionInfo = executionStartInfo{
 		startTime:        startInvocationTime,
 		traceID:          123,
