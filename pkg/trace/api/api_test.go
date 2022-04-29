@@ -461,19 +461,19 @@ func TestTraceCount(t *testing.T) {
 			delete(req.Header, k)
 		}
 		_, err := traceCount(req)
-		assert.Equal(t, err, errHeaderTraceCountNotFound)
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
 	})
 
 	t.Run("value-empty", func(t *testing.T) {
 		req.Header.Set(headerTraceCount, "")
 		_, err := traceCount(req)
-		assert.Equal(t, err, errHeaderTraceCountNotSet)
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
 	})
 
 	t.Run("value-bad", func(t *testing.T) {
 		req.Header.Set(headerTraceCount, "qwe")
 		_, err := traceCount(req)
-		assert.Equal(t, err, errInvalidHeaderTraceCount)
+		assert.Equal(t, err, errInvalidHeaderTraceCountValue)
 	})
 
 	t.Run("ok", func(t *testing.T) {

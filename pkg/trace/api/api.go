@@ -309,23 +309,16 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 	}
 }
 
-var (
-	errHeaderTraceCountNotFound = fmt.Errorf("%q header is not found", headerTraceCount)
-	errHeaderTraceCountNotSet   = fmt.Errorf("%q header value must be set", headerTraceCount)
-	errInvalidHeaderTraceCount  = fmt.Errorf("%q header value must be an integer", headerTraceCount)
-)
+var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", headerTraceCount)
 
 func traceCount(req *http.Request) (int64, error) {
-	if _, ok := req.Header[headerTraceCount]; !ok {
-		return 0, errHeaderTraceCountNotFound
-	}
 	str := req.Header.Get(headerTraceCount)
 	if str == "" {
-		return 0, errHeaderTraceCountNotSet
+		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
 	}
 	n, err := strconv.Atoi(str)
 	if err != nil {
-		return 0, errInvalidHeaderTraceCount
+		return 0, errInvalidHeaderTraceCountValue
 	}
 	return int64(n), nil
 }
@@ -522,10 +515,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
-	if err == errHeaderTraceCountNotFound {
-		log.Debugf("Failed to count traces: %s", err)
-	}
-	if err == errHeaderTraceCountNotFound || err == errInvalidHeaderTraceCount {
+	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
 	}
 
