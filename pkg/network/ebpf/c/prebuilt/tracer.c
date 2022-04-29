@@ -29,10 +29,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
     bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
     bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
 
-    tcp_stats_t stats;
-    __builtin_memset(&stats, 0, sizeof(stats));
-    stats.rtt = rtt;
-    stats.rtt_var = rtt_var;
+    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
 }
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
@@ -48,8 +45,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
     struct sock* parm1 = (struct sock*)PT_REGS_PARM1(ctx);
-    struct sock* skp = NULL;
-    bpf_probe_read(&skp, sizeof(skp), &parm1);
+    struct sock* skp = parm1;
     bpf_map_update_elem(&tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
@@ -59,8 +55,7 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
     struct sock* parm1 = (struct sock*)PT_REGS_PARM2(ctx);
-    struct sock* skp = NULL;
-    bpf_probe_read(&skp, sizeof(skp), &parm1);
+    struct sock* skp = parm1;
     bpf_map_update_elem(&tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
@@ -82,21 +77,22 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    if (!*skpp) {
+    struct sock *skp = *skpp;
+    if (!skp) {
         return 0;
     }
 
-    log_debug("kretprobe/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, *skpp);
+    log_debug("kretprobe/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, *skpp, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    handle_tcp_stats(&t, *skpp);
+    handle_tcp_stats(&t, skp);
 
     __u32 packets_in = 0;
     __u32 packets_out = 0;
-    get_tcp_segment_counts(*skpp, &packets_in, &packets_out);
+    get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 }

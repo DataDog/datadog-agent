@@ -73,8 +73,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
 #else
     struct sock* parm1 = (struct sock*)PT_REGS_PARM1(ctx);
 #endif
-    struct sock* skp = NULL;
-    bpf_probe_read(&skp, sizeof(skp), &parm1);
+    struct sock* skp = parm1;
     bpf_map_update_elem(&tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
@@ -95,21 +94,22 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    if (!*skpp) {
+    struct sock *skp = *skpp;
+    if (!skp) {
         return 0;
     }
 
-    log_debug("kretprobe/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, *skpp);
+    log_debug("kretprobe/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, *skpp, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    handle_tcp_stats(&t, *skpp);
+    handle_tcp_stats(&t, skp);
 
     __u32 packets_in = 0;
     __u32 packets_out = 0;
-    get_tcp_segment_counts(*skpp, &packets_in, &packets_out);
+    get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 }

@@ -55,7 +55,7 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	logLevel := os.Getenv("LOG_LEVEL")
+	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "warn"
 	}

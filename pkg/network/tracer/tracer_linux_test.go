@@ -1402,7 +1402,7 @@ func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (i
 	return n, serr
 }
 
-func TestPartialSend(t *testing.T) {
+func TestShortWrite(t *testing.T) {
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
@@ -1473,7 +1473,6 @@ func TestPartialSend(t *testing.T) {
 	require.True(t, done)
 
 	f := os.NewFile(uintptr(s), "")
-	require.NoError(t, err)
 	defer f.Close()
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
