@@ -18,6 +18,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <linux/un.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -364,6 +365,29 @@ int test_bind_af_inet6(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 
+#define TEST_BIND_AF_UNIX_SERVER_PATH "/tmp/test_bind_af_unix"
+int test_bind_af_unix(void) {
+    int s = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    unlink(TEST_BIND_AF_UNIX_SERVER_PATH);
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, TEST_BIND_AF_UNIX_SERVER_PATH, strlen(TEST_BIND_AF_UNIX_SERVER_PATH));
+    int ret = bind(s, (struct sockaddr*)&addr, sizeof(addr));
+    printf("bind retval: %i\n", ret);
+    if (ret)
+        perror("bind");
+
+    close(s);
+    unlink(TEST_BIND_AF_UNIX_SERVER_PATH);
+    return EXIT_SUCCESS;
+}
+
 int test_bind(int argc, char** argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please speficy an addr_type\n");
@@ -375,9 +399,11 @@ int test_bind(int argc, char** argv) {
         return test_bind_af_inet(argc - 1, argv + 1);
     } else if  (!strcmp(addr_family, "AF_INET6")) {
         return test_bind_af_inet6(argc - 1, argv + 1);
+    } else if  (!strcmp(addr_family, "AF_UNIX")) {
+        return test_bind_af_unix();
     }
 
-    fprintf(stderr, "Spefied %s addr_type is not a valid one\n", addr_family);
+    fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET, AF_INET6 or AF_UNIX\n", addr_family);
     return EXIT_FAILURE;
 }
 
