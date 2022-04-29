@@ -136,6 +136,7 @@ type CheckConfig struct {
 	PrivKey               string
 	ContextName           string
 	OidConfig             OidConfig
+	MetricNameToOidMap    map[string]string
 	Metrics               []MetricsConfig
 	Metadata              MetadataConfig
 	MetricTags            []MetricTagConfig
@@ -482,6 +483,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.UpdateDeviceIDAndTags()
 
 	c.ResolvedSubnetName = c.getResolvedSubnetName()
+	c.MetricNameToOidMap = c.MetricNameToOidMap
 	return c, nil
 }
 
@@ -554,6 +556,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ContextName = c.ContextName
 	newConfig.ContextName = c.ContextName
 	newConfig.OidConfig = c.OidConfig
+	newConfig.MetricNameToOidMap = c.MetricNameToOidMap
 	newConfig.Metrics = make([]MetricsConfig, 0, len(c.Metrics))
 	for _, metric := range c.Metrics {
 		newConfig.Metrics = append(newConfig.Metrics, metric)

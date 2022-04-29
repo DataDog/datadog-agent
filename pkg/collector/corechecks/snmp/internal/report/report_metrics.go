@@ -19,14 +19,15 @@ import (
 
 // MetricSender is a wrapper around aggregator.Sender
 type MetricSender struct {
-	sender           aggregator.Sender
-	hostname         string
-	submittedMetrics int
+	sender             aggregator.Sender
+	hostname           string
+	submittedMetrics   int
+	metricNameToOidMap map[string]string
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
-	return &MetricSender{sender: sender, hostname: hostname}
+func NewMetricSender(sender aggregator.Sender, hostname string, metricToOidMap map[string]string) *MetricSender {
+	return &MetricSender{sender: sender, hostname: hostname, metricNameToOidMap: metricToOidMap}
 }
 
 // ReportMetrics reports metrics using Sender
@@ -90,6 +91,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 			rowTags := rowTagsCache[fullIndex]
 			ms.sendMetric(symbol, value, rowTags, metricConfig)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
+			ms.trySendMemoryUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
 }

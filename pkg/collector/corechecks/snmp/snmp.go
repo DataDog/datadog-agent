@@ -62,7 +62,7 @@ func (c *Check) Run() error {
 				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
 				continue
 			}
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.MetricNameToOidMap))
 			jobs <- deviceCk
 		}
 		close(jobs)

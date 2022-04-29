@@ -56,7 +56,7 @@ profiles:
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -319,12 +319,12 @@ community_string: public
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	// without hostname
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
 
 	// with hostname
-	deviceCk.SetSender(report.NewMetricSender(sender, "device:123"))
+	deviceCk.SetSender(report.NewMetricSender(sender, "device:123", nil))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
 }
