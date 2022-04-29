@@ -194,8 +194,8 @@ func InjectContext(headers http.Header) {
 	}
 }
 
-// InjectSpanId injects the spanId
-func InjectSpanId(headers http.Header) {
+// InjectSpanID injects the spanId
+func InjectSpanID(headers http.Header) {
 	if value, err := strconv.ParseUint(headers.Get(SpanIDHeader), 10, 64); err == nil {
 		log.Debug("injecting spanID = %v", value)
 		currentExecutionInfo.spanID = value

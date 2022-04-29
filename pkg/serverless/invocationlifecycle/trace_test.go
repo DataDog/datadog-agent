@@ -56,17 +56,17 @@ func TestInjectContextWithContext(t *testing.T) {
 	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.samplingPriority)
 }
 
-func TestInjectSpanIdNoContext(t *testing.T) {
+func TestInjectSpanIDNoContext(t *testing.T) {
 	currentExecutionInfo.reset(time.Now())
-	InjectSpanId(nil)
+	InjectSpanID(nil)
 	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
 }
 
-func TestInjectSpanIdWithContext(t *testing.T) {
+func TestInjectSpanIDWithContext(t *testing.T) {
 	currentExecutionInfo.reset(time.Now())
 	httpHeaders := http.Header{}
 	httpHeaders.Set("x-datadog-span-id", "1234")
-	InjectSpanId(httpHeaders)
+	InjectSpanID(httpHeaders)
 	assert.Equal(t, uint64(1234), currentExecutionInfo.spanID)
 }
 

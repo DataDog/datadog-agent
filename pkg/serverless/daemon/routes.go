@@ -105,7 +105,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Debug("no context has been found yet, injecting it now via headers from the tracer")
 		invocationlifecycle.InjectContext(r.Header)
 	}
-	invocationlifecycle.InjectSpanId(r.Header)
+	invocationlifecycle.InjectSpanID(r.Header)
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }
 
