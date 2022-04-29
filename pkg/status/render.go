@@ -94,7 +94,7 @@ func FormatStatus(data []byte) (string, error) {
 	}
 
 	otlpFunc := func() {
-		if otlp.IsEnabled(config.Datadog) {
+		if otlp.IsDisplayed() {
 			renderStatusTemplate(b, "/otlp.tmpl", stats)
 		}
 	}
