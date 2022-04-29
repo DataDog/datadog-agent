@@ -2,6 +2,43 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.18.0_dca-1.18.X:
+
+dca-1.18.0
+==========
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-03-01
+Pinned to datadog-agent v7.34.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7340--6340>`_.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_New Features:
+
+New Features
+------------
+
+- Add an ``external_metrics_provider.endpoints`` parameter that allows to specify a list of external metrics provider endpoints. 
+If the first one fails, the DCA will query the next ones.
+- Support file-based endpoint checks.
+- Enable collection of PV/PVCs by default in the orchestrator check
+- File-based cluster checks support Autodiscovery.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the ``Admission Controller``/``Webhooks info`` section of the cluster agent ``agent status`` output on Kubernetes 1.22+. 
+Although the cluster agent was able to register its webhook with both the ``v1beta1`` and the ``v1`` version of the Administrationregistration API, the ``agent status`` command was always using the ``v1beta1``, which has been removed in Kubernetes 1.22.
+- Improve error handling of deleted HPA objects.
+- Fix an issue where scrubbing custom sensitive words would not work as intended for the orchestrator check.
+- Fixed a bug that could prevent the Admission Controller from starting when the External Metrics Provider is enabled.
+- Fix the caculation of orchestrator cache hits.
+
+
 .. _Release Notes_dca-1.17.0_dca-1.17.X:
 
 dca-1.17.0
