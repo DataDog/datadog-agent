@@ -1,0 +1,49 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "bind.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "/schemas/event.json"
+        },
+        {
+            "$ref": "/schemas/usr.json"
+        },
+        {
+            "$ref": "/schemas/process_context.json"
+        },
+        {
+            "date": {
+                "$ref": "/schemas/datetime.json"
+            }
+        },
+        {
+            "bind": {
+                "type": "object",
+                "required": [
+                    "request"
+                ],
+                "properties": {
+                    "request": {
+                        "type": "string"
+                    },
+                    "socket": {
+                        "type": "integer"
+                    },
+                    "addr_family": {
+                        "type": "integer"
+                    },
+                    "addr_port": {
+                        "type": "integer"
+                    },
+                    "addr": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "bind"
+            ]
+        }
+    ]
+}
