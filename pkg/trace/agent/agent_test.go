@@ -308,6 +308,47 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
+	t.Run("DiscardSpans", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		testDiscardFunction := func(span *pb.Span) bool {
+			return span.Meta["irrelevant"] == "true"
+		}
+		agnt.DiscardSpan = testDiscardFunction
+
+		span1 := &pb.Span{
+			TraceID: 1,
+			SpanID:  1,
+			Service: "a",
+			Meta: map[string]string{
+				"irrelevant": "true",
+			},
+		}
+		span2 := &pb.Span{TraceID: 1, SpanID: 2, Service: "a"}
+		span3 := &pb.Span{TraceID: 1, SpanID: 3, Service: "a"}
+
+		tp := testutil.TracerPayloadWithChunk(spansToChunk(span1, span2, span3))
+
+		go agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		timeout := time.After(2 * time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			assert.Equal(t, 2, int(ss.SpanCount))
+			assert.NotContains(t, ss.TracerPayload.Chunks[0].Spans[0].Meta, "irrelevant")
+			assert.NotContains(t, ss.TracerPayload.Chunks[0].Spans[1].Meta, "irrelevant")
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+	})
+
 	t.Run("chunking", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"

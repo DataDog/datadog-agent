@@ -18,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -396,62 +394,6 @@ func TestSerialization(t *testing.T) {
 	})
 }
 
-func TestFormatHTTPStatsByPath(t *testing.T) {
-	var httpReqStats http.RequestStats
-	httpReqStats.AddRequest(100, 12.5)
-	httpReqStats.AddRequest(100, 12.5)
-	httpReqStats.AddRequest(405, 3.5)
-	httpReqStats.AddRequest(405, 3.5)
-
-	// Verify the latency data is correct prior to serialization
-	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
-	assert.Equal(t, 2.0, latencies.GetCount())
-	verifyQuantile(t, latencies, 0.5, 12.5)
-
-	latencies = httpReqStats[model.HTTPResponseStatus_ClientErr].Latencies
-	assert.Equal(t, 2.0, latencies.GetCount())
-	verifyQuantile(t, latencies, 0.5, 3.5)
-
-	key := http.NewKey(
-		util.AddressFromString("10.1.1.1"),
-		util.AddressFromString("10.2.2.2"),
-		1000,
-		9000,
-		"/testpath",
-		http.MethodGet,
-	)
-	statsByKey := map[http.Key]http.RequestStats{
-		key: httpReqStats,
-	}
-	formattedStats := FormatHTTPStats(statsByKey)
-
-	// Now path will be nested in the map
-	key.Path = ""
-	key.Method = http.MethodUnknown
-
-	endpointAggregations := formattedStats[key].EndpointAggregations
-	require.Len(t, endpointAggregations, 1)
-	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
-	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
-
-	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus
-	assert.Len(t, statsByResponseStatus, 5)
-
-	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
-	sketch := unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 2.0, sketch.GetCount())
-	verifyQuantile(t, sketch, 0.5, 12.5)
-
-	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_ClientErr].Latencies
-	sketch = unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 2.0, sketch.GetCount())
-	verifyQuantile(t, sketch, 0.5, 3.5)
-
-	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
-	assert.Nil(t, serializedLatencies)
-}
-
 func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	var (
 		clientPort = uint16(52800)
@@ -602,24 +544,4 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
 	}
-}
-
-func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
-	var sketchPb sketchpb.DDSketch
-	err := proto.Unmarshal(bytes, &sketchPb)
-	assert.Nil(t, err)
-
-	ret, err := ddsketch.FromProto(&sketchPb)
-	assert.Nil(t, err)
-
-	return ret
-}
-
-func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expectedValue float64) {
-	val, err := sketch.GetValueAtQuantile(q)
-	assert.Nil(t, err)
-
-	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
-	assert.True(t, val >= expectedValue-acceptableError)
-	assert.True(t, val <= expectedValue+acceptableError)
 }
