@@ -63,12 +63,12 @@ SECL operators are used to combine event attributes together into a full express
 | `\|`                  | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
 | `\|\|`                | File             | Logical or                               | 7.27          |
-| `in CIDR`             | Network          | Element is in the IP range               | 7.36          |
-| `not in CIDR`         | Network          | Element is not in the IP range           | 7.36          |
-| `allin CIDR`          | Network          | All the elements are in the IP range     | 7.36          |
-| `in [CIDR1, ...]`     | Network          | Element is in the IP ranges              | 7.36          |
-| `not in [CIDR1, ...]` | Network          | Element is not in the IP ranges          | 7.36          |
-| `allin [CIDR1, ...]`  | Network          | All the elements are in the IP ranges    | 7.36          |
+| `in CIDR`             | Network          | Element is in the IP range               | 7.37          |
+| `not in CIDR`         | Network          | Element is not in the IP range           | 7.37          |
+| `allin CIDR`          | Network          | All the elements are in the IP range     | 7.37          |
+| `in [CIDR1, ...]`     | Network          | Element is in the IP ranges              | 7.37          |
+| `not in [CIDR1, ...]` | Network          | Element is not in the IP ranges          | 7.37          |
+| `allin [CIDR1, ...]`  | Network          | All the elements are in the IP ranges    | 7.37          |
 
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.

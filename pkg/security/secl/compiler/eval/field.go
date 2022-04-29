@@ -19,8 +19,7 @@ const (
 	RegexpValueType   FieldValueType = 1 << 3
 	BitmaskValueType  FieldValueType = 1 << 4
 	VariableValueType FieldValueType = 1 << 5
-	IPValueType       FieldValueType = 1 << 6
-	CIDRValueType     FieldValueType = 1 << 7
+	IPNetValueType    FieldValueType = 1 << 6
 )
 
 // FieldValue describes a field value with its type
