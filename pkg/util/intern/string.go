@@ -73,12 +73,12 @@ func NewString() *StringInterner {
 	}
 }
 
-//go:nocheckptr
 // GetString returns a pointer representing the string k
 //
 // The returned pointer will be the same for GetString(v) and GetString(v2)
 // if and only if v == v2. The returned pointer will also be the same
 // for a byte slice with same contents as the string.
+//go:nocheckptr
 func (s *StringInterner) GetString(k string) *StringValue {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -97,12 +97,12 @@ func (s *StringInterner) GetString(k string) *StringValue {
 	return v
 }
 
-//go:nocheckptr
 // Get returns a pointer representing the []byte k
 //
 // The returned pointer will be the same for Get(v) and Get(v2)
 // if and only if v == v2. The returned pointer will also be the same
 // for a string with same contents as the byte slice.
+//go:nocheckptr
 func (s *StringInterner) Get(k []byte) *StringValue {
 	s.mu.Lock()
 	defer s.mu.Unlock()
