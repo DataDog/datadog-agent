@@ -506,16 +506,16 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(v, req.Header)
-	var tracen int64
-	if n, err := traceCount(req); err == nil && r.rateLimited(n) {
-		tracen = n
+	tracen, err := traceCount(req)
+	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
 		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
-	} else if err == errInvalidHeaderTraceCountValue {
+	}
+	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
 	}
 
