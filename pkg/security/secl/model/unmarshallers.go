@@ -916,20 +916,23 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Socket = int32(ByteOrder.Uint32(data[read : read+4]))
 	e.AddrFamily = ByteOrder.Uint16(data[read+4 : read+6])
-	e.AddrPort = ByteOrder.Uint16(data[read+6 : read+8])
 
 	if e.AddrFamily == unix.AF_INET {
+		e.AddrPort = ByteOrder.Uint16(data[read+6 : read+8])
 		ip32 := ByteOrder.Uint32(data[read+8 : read+12])
 		ip := make(net.IP, 4)
 		binary.BigEndian.PutUint32(ip, ip32)
 		e.Addr = ip.String()
 		// padding 12-24
 	} else if e.AddrFamily == unix.AF_INET6 {
+		e.AddrPort = ByteOrder.Uint16(data[read+6 : read+8])
 		ip6Array := data[read+8 : read+24]
 		var ip6 net.IP = ip6Array
 		e.Addr = ip6.String()
 	} else {
-		e.Addr = "none"
+		e.AddrPort = 0
+		e.Addr = ""
+		// padding 6-24
 	}
 
 	return read + 24, nil

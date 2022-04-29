@@ -94,9 +94,7 @@ SYSCALL_KRETPROBE(bind) {
         }
         break;
 
-   /* TODO: handle other addr family */
-    default:
-        return 0;
+    /* TODO: handle other addr family */
     }
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
