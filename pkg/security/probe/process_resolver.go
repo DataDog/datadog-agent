@@ -365,8 +365,9 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 
 	entry.FileEvent.FileFields = *info
-	entry.FileEvent.PathnameStr = pathnameStr
-	entry.FileEvent.BasenameStr = path.Base(pathnameStr)
+	entry.FileEvent.SetPathnameStr(pathnameStr)
+	entry.FileEvent.SetBasenameStr(path.Base(pathnameStr))
+
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
 	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
@@ -408,7 +409,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 
 	if parent := p.entryCache[entry.PPid]; parent != nil {
-		if parent.Comm == entry.Comm && parent.ArgsEntry.Equals(entry.ArgsEntry) && parent.EnvsEntry.Equals(entry.EnvsEntry) {
+		if parent.Equals(entry) {
 			parent.ShareArgsEnvs(entry)
 		}
 	}
@@ -478,6 +479,10 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	}
 
 	parent := p.entryCache[entry.PPid]
+	if parent == nil && entry.PPid >= 1 {
+		parent = p.resolve(entry.PPid, entry.PPid)
+	}
+
 	if parent != nil {
 		parent.Fork(entry)
 	}
@@ -519,6 +524,10 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
+	return p.resolve(pid, tid)
+}
+
+func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
 		return entry
@@ -546,15 +555,16 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 // SetProcessPath resolves process file path
 func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
-	var err error
-
 	if entry.FileEvent.Inode != 0 && entry.FileEvent.MountID != 0 {
-		if entry.FileEvent.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields); err == nil {
-			entry.FileEvent.BasenameStr = path.Base(entry.FileEvent.PathnameStr)
+		pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
+		if err != nil {
+			return entry.FileEvent.PathnameStr, err
 		}
+		entry.FileEvent.SetPathnameStr(pathnameStr)
+		entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 	}
 
-	return entry.FileEvent.PathnameStr, err
+	return entry.FileEvent.PathnameStr, nil
 }
 
 // SetProcessFilesystem resolves process file system
@@ -675,25 +685,38 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 		return nil
 	}
 
-	proc, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return nil
+	var ppid uint32
+	inserted := false
+	entry := p.entryCache[pid]
+	if entry == nil {
+		proc, err := process.NewProcess(int32(pid))
+		if err != nil {
+			return nil
+		}
+
+		filledProc := utils.GetFilledProcess(proc)
+		if filledProc == nil {
+			return nil
+		}
+
+		// ignore kthreads
+		if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+			return nil
+		}
+
+		entry, inserted = p.syncCache(proc)
+		ppid = uint32(filledProc.Ppid)
+	} else {
+		ppid = entry.PPid
 	}
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		return nil
-	}
-
-	// ignore kthreads
-	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-		return nil
-	}
-
-	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
-	entry, inserted := p.syncCache(proc)
+	parent := p.resolveWithProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
-		entry.SetAncestor(parent)
+		if parent.Equals(entry) {
+			entry.SetParent(parent)
+		} else {
+			entry.SetAncestor(parent)
+		}
 	}
 
 	return entry

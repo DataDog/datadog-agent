@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -292,16 +293,19 @@ func (p *Probe) Init() error {
 	return nil
 }
 
-// Start the runtime security probe
-func (p *Probe) Start() error {
-	p.wg.Add(1)
-	go p.reOrderer.Start(&p.wg)
-
+// Setup the runtime security probe
+func (p *Probe) Setup() error {
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
 
 	return p.monitor.Start(p.ctx, &p.wg)
+}
+
+// Start processing events
+func (p *Probe) Start() {
+	p.wg.Add(1)
+	go p.reOrderer.Start(&p.wg)
 }
 
 // SetEventHandler set the probe event handler
@@ -659,6 +663,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
+		if event.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
+			// no need to trigger a dentry resolver, not backed by any file
+			event.MMap.File.IsPathnameStrResolved = true
+			event.MMap.File.IsBasenameStrResolved = true
+		}
 	case model.MProtectEventType:
 		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
@@ -668,6 +678,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err = event.LoadModule.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+
+		if event.LoadModule.LoadedFromMemory {
+			// no need to trigger a dentry resolver, not backed by any file
+			event.MMap.File.IsPathnameStrResolved = true
+			event.MMap.File.IsBasenameStrResolved = true
 		}
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
@@ -700,8 +716,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
-	case model.NamespaceSwitchEventType:
-		break
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))

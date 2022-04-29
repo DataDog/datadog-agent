@@ -57,15 +57,15 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.19
 	github.com/DataDog/btf-internals v0.0.0-20220401093927-f65bd0b466d5
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/quantile v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/quantile v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/log v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.0-rc.6
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
@@ -189,7 +189,7 @@ require (
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
 	go4.org/intern v0.0.0-20220301175310-a089fc204883
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
+	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
