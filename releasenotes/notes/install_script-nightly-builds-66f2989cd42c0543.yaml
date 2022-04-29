@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Allow nightly builds install on non prod repos
+    Allow nightly builds install on non-prod repos
