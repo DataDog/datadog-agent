@@ -6,6 +6,7 @@
 package invocationlifecycle
 
 import (
+	"net/http"
 	"os"
 	"strconv"
 	"testing"
@@ -29,13 +30,53 @@ func TestGetSamplingPriority(t *testing.T) {
 	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("xxx", "2"))
 }
 
+func TestSamplingPriority(t *testing.T) {
+	currentExecutionInfo.reset(time.Now())
+	currentExecutionInfo.samplingPriority = sampler.PriorityUserDrop
+	assert.Equal(t, sampler.PriorityUserDrop, SamplingPriority())
+}
+
+func TestInjectContextNoContext(t *testing.T) {
+	currentExecutionInfo.reset(time.Now())
+	InjectContext(nil)
+	assert.Equal(t, uint64(0), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
+	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.samplingPriority)
+}
+
+func TestInjectContextWithContext(t *testing.T) {
+	currentExecutionInfo.reset(time.Now())
+	httpHeaders := http.Header{}
+	httpHeaders.Set("x-datadog-trace-id", "1234")
+	httpHeaders.Set("x-datadog-parent-id", "5678")
+	httpHeaders.Set("x-datadog-sampling-priority", "2")
+	InjectContext(httpHeaders)
+	assert.Equal(t, uint64(1234), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(5678), currentExecutionInfo.parentID)
+	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.samplingPriority)
+}
+
+func TestInjectSpanIdNoContext(t *testing.T) {
+	currentExecutionInfo.reset(time.Now())
+	InjectSpanId(nil)
+	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
+}
+
+func TestInjectSpanIdWithContext(t *testing.T) {
+	currentExecutionInfo.reset(time.Now())
+	httpHeaders := http.Header{}
+	httpHeaders.Set("x-datadog-span-id", "1234")
+	InjectSpanId(httpHeaders)
+	assert.Equal(t, uint64(1234), currentExecutionInfo.spanID)
+}
+
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	defer reset()
 	startTime := time.Now()
 	startExecutionSpan(startTime, "", LambdaInvokeEventHeaders{})
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.NotEqual(t, 0, currentExecutionInfo.traceID)
-	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
 	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.samplingPriority)
 }
 

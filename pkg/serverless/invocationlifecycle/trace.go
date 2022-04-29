@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"regexp"
@@ -195,8 +196,12 @@ func InjectContext(headers http.Header) {
 
 // InjectSpanId injects the spanId
 func InjectSpanId(headers http.Header) {
-	if value, err := convertStrToUnit64(headers.Get(SpanIDHeader)); err == nil {
+	if value, err := strconv.ParseUint(headers.Get(SpanIDHeader), 10, 64); err == nil {
 		log.Debug("injecting spanID = %v", value)
 		currentExecutionInfo.spanID = value
+		fmt.Println(value)
+	} else {
+		fmt.Println(err)
 	}
+
 }
