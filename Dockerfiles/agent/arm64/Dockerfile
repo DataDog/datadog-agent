@@ -36,6 +36,8 @@ WORKDIR /output
 
 # Get s6-overlay
 ENV S6_VERSION v1.22.1.0
+# To calculate S6_SHA256SUM for a specific version, run:
+# curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz | sha256sum
 ENV S6_SHA256SUM=4eac8bfebdb004eaa0b5ff6a09eb0b24e308cc0d7f37912ab19d3d063be3279c
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
