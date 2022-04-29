@@ -66,8 +66,8 @@ type StringInterner struct {
 	valMap map[string]uintptr
 }
 
-// NewString creates a new StringInterner
-func NewString() *StringInterner {
+// NewStringInterner creates a new StringInterner
+func NewStringInterner() *StringInterner {
 	return &StringInterner{
 		valMap: make(map[string]uintptr),
 	}

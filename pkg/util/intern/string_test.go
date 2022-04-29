@@ -41,7 +41,7 @@ import (
 )
 
 func TestBasics(t *testing.T) {
-	si := NewString()
+	si := NewStringInterner()
 	foo := si.GetString("foo")
 	empty := si.GetString("")
 	fooBytes := si.Get([]byte{'f', 'o', 'o'})
@@ -75,7 +75,7 @@ var (
 )
 
 func TestGetAllocs(t *testing.T) {
-	si := NewString()
+	si := NewStringInterner()
 	allocs := int(testing.AllocsPerRun(100, func() {
 		si.Get(globalBytes)
 	}))
@@ -85,7 +85,7 @@ func TestGetAllocs(t *testing.T) {
 }
 
 func TestGetStringAllocs(t *testing.T) {
-	si := NewString()
+	si := NewStringInterner()
 	allocs := int(testing.AllocsPerRun(100, func() {
 		si.GetString(globalString)
 	}))

@@ -11,7 +11,7 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
-var si = intern.NewString()
+var si = intern.NewStringInterner()
 
 // Hostname represents a DNS hostname (aka domain name)
 type Hostname = *intern.StringValue
