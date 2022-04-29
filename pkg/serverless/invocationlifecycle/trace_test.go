@@ -16,39 +16,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestComputeSamplingPriority(t *testing.T) {
-	assert.Equal(t, sampler.PriorityAutoKeep, computeSamplingPriority(1234, 1, "xxx", "yyy"))
-	assert.Equal(t, sampler.PriorityUserDrop, computeSamplingPriority(1234, 1, "-1", "yyy"))
-	assert.Equal(t, sampler.PriorityAutoKeep, computeSamplingPriority(1234, 1, "1", "yyy"))
-	assert.Equal(t, sampler.PriorityUserKeep, computeSamplingPriority(1234, 1, "2", "yyy"))
-	assert.Equal(t, sampler.PriorityUserDrop, computeSamplingPriority(1234, 1, "-1", "1"))
-	assert.Equal(t, sampler.PriorityAutoKeep, computeSamplingPriority(1234, 1, "1", "-1"))
-	assert.Equal(t, sampler.PriorityUserKeep, computeSamplingPriority(1234, 1, "2", "1"))
-	assert.Equal(t, sampler.PriorityUserDrop, computeSamplingPriority(1234, 1, "xxx", "-1"))
-	assert.Equal(t, sampler.PriorityAutoKeep, computeSamplingPriority(1234, 1, "xxx", "1"))
-	assert.Equal(t, sampler.PriorityUserKeep, computeSamplingPriority(1234, 1, "xxx", "2"))
-}
-
-func TestGenerateSamplingPriority(t *testing.T) {
-	assert.Equal(t, sampler.PriorityUserDrop, generateSamplingPriority(1234, 0))
-	assert.Equal(t, sampler.PriorityAutoKeep, generateSamplingPriority(1234, 1))
+func TestGetSamplingPriority(t *testing.T) {
+	assert.Equal(t, sampler.PriorityNone, getSamplingPriority("xxx", "yyy"))
+	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("-1", "yyy"))
+	assert.Equal(t, sampler.PriorityAutoKeep, getSamplingPriority("1", "yyy"))
+	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("2", "yyy"))
+	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("-1", "1"))
+	assert.Equal(t, sampler.PriorityAutoKeep, getSamplingPriority("1", "-1"))
+	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("2", "1"))
+	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("xxx", "-1"))
+	assert.Equal(t, sampler.PriorityAutoKeep, getSamplingPriority("xxx", "1"))
+	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("xxx", "2"))
 }
 
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	defer reset()
 	startTime := time.Now()
-	startExecutionSpan(startTime, "", LambdaInvokeEventHeaders{}, 1)
+	startExecutionSpan(startTime, "", LambdaInvokeEventHeaders{})
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 0, currentExecutionInfo.traceID)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
-	assert.Equal(t, sampler.PriorityAutoKeep, currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.samplingPriority)
 }
 
 func TestStartExecutionSpanWithPayload(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, 1)
+	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{})
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -60,11 +55,12 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
 	lambdaInvokeContext := LambdaInvokeEventHeaders{
-		TraceID:  "5736943178450432258",
-		ParentID: "1480558859903409531",
+		TraceID:          "5736943178450432258",
+		ParentID:         "1480558859903409531",
+		SamplingPriority: "1",
 	}
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, lambdaInvokeContext, 1)
+	startExecutionSpan(startTime, testString, lambdaInvokeContext)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -76,7 +72,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	defer reset()
 	invalidTestString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, invalidTestString, LambdaInvokeEventHeaders{}, 1)
+	startExecutionSpan(startTime, invalidTestString, LambdaInvokeEventHeaders{})
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 9, currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
@@ -92,7 +88,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, 1)
+	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{})
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -125,7 +121,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, 1)
+	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{})
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -156,7 +152,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, 1)
+	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{})
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
