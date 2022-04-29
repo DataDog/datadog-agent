@@ -20,6 +20,16 @@ if node['dd-agent-install']['enable_testsigning']
   end
 end
 
+##
+## temporarily disable recv segment coalescing.  This appears to be
+## the root cause of the azure bug causing things to hang.
+## remove this once bug is fixed
+execute 'disable RSC' do
+  command "netsh.exe int tcp set global rsc=disable"
+  #command "disable-netadapterrsc *"
+  ignore_failure true
+end
+
 include_recipe 'dd-agent-install::_install_windows_base'
 
 agent_config_file = ::File.join(node['dd-agent-install']['config_dir'], 'datadog.conf')

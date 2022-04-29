@@ -83,6 +83,5 @@ kitchen_test_system_probe_windows_x64:
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
-  # FIXME: temporarily allow this job to fail until we fix it
-  allow_failure: true
+  allow_failure: false
   retry: 0
