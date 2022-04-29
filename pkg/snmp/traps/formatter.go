@@ -168,13 +168,13 @@ func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{}
 		if f, ok := variable.Value.(int); !ok {
 			// TODO(ken): should we do more here? Should we even handle this scenario?
 			log.Debugf("unable to parse value of type \"integer\": %+v", variable.Value)
-		} else if len(varMetadata.Mapping) > 0 {
+		} else if len(varMetadata.Enumeration) > 0 {
 			// if we find a mapping set it and return
-			mapping := varMetadata.Mapping[f]
-			if mapping == "" {
+			value := varMetadata.Enumeration[f]
+			if value == "" {
 				log.Debugf("unable to find enum mapping for value %f variable %q", f, varMetadata.Name)
 			} else {
-				return mapping
+				return value
 			}
 		}
 	}
