@@ -39,13 +39,22 @@ type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
 }
 
+func (esi *executionStartInfo) reset(startTime time.Time) {
+	esi.startTime = startTime
+	esi.traceID = 0
+	esi.spanID = 0
+	esi.parentID = 0
+	esi.requestPayload = ""
+	esi.samplingPriority = sampler.PriorityNone
+}
+
 // currentExecutionInfo represents information from the start of the current execution span
 var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, samplingRate float64) {
-	currentExecutionInfo.startTime = startTime
+func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders) {
+	currentExecutionInfo.reset(startTime)
 	payload := convertRawPayload(rawPayload)
 	currentExecutionInfo.requestPayload = rawPayload
 
@@ -67,7 +76,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 	if e2 == nil && parentID != 0 {
 		currentExecutionInfo.parentID = parentID
 	}
-	currentExecutionInfo.samplingPriority = getSamplingPriority(currentExecutionInfo.traceID, samplingRate, payload.Headers[SamplingPriorityHeader], invokeEventHeaders.SamplingPriority)
+	currentExecutionInfo.samplingPriority = getSamplingPriority(payload.Headers[SamplingPriorityHeader], invokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
@@ -138,7 +147,7 @@ func convertStrToUnit64(s string) (uint64, error) {
 	return num, err
 }
 
-func getSamplingPriority(traceID uint64, samplingRate float64, header string, directInvokeHeader string) sampler.SamplingPriority {
+func getSamplingPriority(header string, directInvokeHeader string) sampler.SamplingPriority {
 	// default priority if nothing is found from headers or direct invocation payload
 	samplingPriority := sampler.PriorityNone
 	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
