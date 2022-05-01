@@ -7,7 +7,7 @@ require (
 	github.com/go-enry/go-license-detector/v4 v4.3.0
 	github.com/golangci/golangci-lint v1.45.2
 	github.com/goware/modvendor v0.5.0
-	github.com/mgechev/revive v1.1.4
+	github.com/mgechev/revive v1.2.1
 	github.com/stormcat24/protodep v0.0.0-20210106175019-c95189bc461b
 	github.com/vektra/mockery/v2 v2.10.2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
@@ -19,7 +19,7 @@ require (
 	4d63.com/gochecknoglobals v0.1.0 // indirect
 	github.com/Antonboom/errname v0.1.5 // indirect
 	github.com/Antonboom/nilnil v0.1.0 // indirect
-	github.com/BurntSushi/toml v1.0.0 // indirect
+	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/OpenPeeDeeP/depguard v1.1.0 // indirect
@@ -36,7 +36,7 @@ require (
 	github.com/butuzov/ireturn v0.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charithe/durationcheck v0.0.9 // indirect
-	github.com/chavacava/garif v0.0.0-20210405164556-e8a0a408d6af // indirect
+	github.com/chavacava/garif v0.0.0-20220316182200-5cad0b5181d4 // indirect
 	github.com/daixiang0/gci v0.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/denis-tingaikin/go-header v0.4.3 // indirect
