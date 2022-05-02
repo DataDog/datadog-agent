@@ -72,7 +72,6 @@ type HTTPReceiver struct {
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
 
-	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
@@ -99,7 +98,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
 
-		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
@@ -138,7 +136,6 @@ func (r *HTTPReceiver) Start() {
 		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
 		return
 	}
-	mux := r.buildMux()
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -149,7 +146,7 @@ func (r *HTTPReceiver) Start() {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      mux,
+		Handler:      r.buildMux(),
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
