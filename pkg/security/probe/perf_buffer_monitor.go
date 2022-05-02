@@ -349,14 +349,12 @@ func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp ui
 func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
 	var count int64
 	var err error
-	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
 
 	for m := range pbm.stats {
-		tags[1] = fmt.Sprintf("map:%s", m)
 		for cpu := range pbm.stats[m] {
 			for eventType := range pbm.stats[m][cpu] {
 				evtType := model.EventType(eventType)
-				tags[2] = fmt.Sprintf("event_type:%s", evtType)
+				tags := pbm.buildTags(fmt.Sprintf("map:%s", m), fmt.Sprintf("event_type:%s", evtType))
 
 				if count = int64(pbm.getAndResetEventCount(evtType, m, cpu)); count > 0 {
 					if err = client.Count(metrics.MetricPerfBufferEventsRead, count, tags, 1.0); err != nil {
@@ -382,11 +380,10 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientIn
 }
 
 func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterface) error {
-	tags := []string{pbm.probe.config.StatsTagsCardinality, ""}
 
 	for m := range pbm.readLostEvents {
 		var total float64
-		tags[1] = fmt.Sprintf("map:%s", m)
+		tags := pbm.buildTags(fmt.Sprintf("map:%s", m))
 
 		for cpu := range pbm.readLostEvents[m] {
 			if count := float64(pbm.getAndResetReadLostCount(m, cpu)); count > 0 {
@@ -414,14 +411,12 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		tmpCount uint64
 	)
 	cpuStats := make([]PerfMapStats, pbm.numCPU)
-	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
 
 	// loop through the statistics buffers of each perf map
 	for perfMapName, statsMap := range pbm.perfBufferStatsMaps {
 		// total and perEvent are used for alerting
 		var total uint64
 		perEvent := map[string]uint64{}
-		tags[1] = fmt.Sprintf("map:%s", perfMapName)
 
 		// loop through all the values of the active buffer
 		iterator = statsMap.Iterate()
@@ -433,7 +428,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 
 			// retrieve event type from key
 			evtType := model.EventType(id % uint32(model.MaxEventType))
-			tags[2] = fmt.Sprintf("event_type:%s", evtType)
+			tags := pbm.buildTags(fmt.Sprintf("map:%s", perfMapName), fmt.Sprintf("event_type:%s", evtType))
 
 			// loop over each cpu entry
 			for cpu, stats := range cpuStats {
@@ -531,4 +526,8 @@ func (pbm *PerfBufferMonitor) SendStats() error {
 	}
 
 	return pbm.sendLostEventsReadStats(pbm.probe.statsdClient)
+}
+
+func (pbm *PerfBufferMonitor) buildTags(tags ...string) []string {
+	return append([]string{pbm.probe.config.StatsTagsCardinality}, tags...)
 }
