@@ -58,7 +58,7 @@ message LatestConfigsResponse {
   repeated File target_files = 3;
 }
 
-// Client defintions
+// Client definitions
 
 message Client {
   ClientState state = 1;
