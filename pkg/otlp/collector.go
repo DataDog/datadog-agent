@@ -106,8 +106,8 @@ type Pipeline struct {
 	col *service.Collector
 }
 
-// OTLPCollectorStatus is the status struct for an OTLP pipeline's collector
-type OTLPCollectorStatus struct {
+// CollectorStatus is the status struct for an OTLP pipeline's collector
+type CollectorStatus struct {
 	Status       string
 	ErrorMessage string
 }
@@ -186,10 +186,10 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 }
 
 // GetCollectorStatus get the collector status and error message (if there is one)
-func GetCollectorStatus(p *Pipeline) OTLPCollectorStatus {
+func GetCollectorStatus(p *Pipeline) CollectorStatus {
 	if p != nil {
-		return OTLPCollectorStatus{Status: p.col.GetState().String(), ErrorMessage: ""}
+		return CollectorStatus{Status: p.col.GetState().String(), ErrorMessage: ""}
 	}
 	// If the pipeline is nil then it failed to start so we return the error.
-	return OTLPCollectorStatus{Status: "Failed to start", ErrorMessage: pipelineError.Load().Error()}
+	return CollectorStatus{Status: "Failed to start", ErrorMessage: pipelineError.Load().Error()}
 }

@@ -63,11 +63,11 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["logsStats"] = logs.GetStatus()
 
 	otlpIsEnabled := otlp.IsEnabled(config.Datadog)
-	var otlpCollectorStatus otlp.OTLPCollectorStatus
+	var otlpCollectorStatus otlp.CollectorStatus
 	if otlpIsEnabled {
 		otlpCollectorStatus = otlp.GetCollectorStatus(common.OTLP)
 	} else {
-		otlpCollectorStatus = otlp.OTLPCollectorStatus{Status: "Not running", ErrorMessage: ""}
+		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running", ErrorMessage: ""}
 	}
 
 	stats["otlpStatus"] = otlpIsEnabled
