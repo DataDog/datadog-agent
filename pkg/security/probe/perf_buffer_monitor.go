@@ -351,10 +351,11 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientIn
 	var err error
 
 	for m := range pbm.stats {
+		mapTag := fmt.Sprintf("map:%s", m)
 		for cpu := range pbm.stats[m] {
 			for eventType := range pbm.stats[m][cpu] {
 				evtType := model.EventType(eventType)
-				tags := pbm.buildTags(fmt.Sprintf("map:%s", m), fmt.Sprintf("event_type:%s", evtType))
+				tags := pbm.buildTags(mapTag, fmt.Sprintf("event_type:%s", evtType))
 
 				if count = int64(pbm.getAndResetEventCount(evtType, m, cpu)); count > 0 {
 					if err = client.Count(metrics.MetricPerfBufferEventsRead, count, tags, 1.0); err != nil {
@@ -420,6 +421,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 
 		// loop through all the values of the active buffer
 		iterator = statsMap.Iterate()
+		mapTag := fmt.Sprintf("map:%s", perfMapName)
 		for iterator.Next(&id, &cpuStats) {
 			if id == 0 {
 				// first event type is 1
@@ -428,7 +430,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 
 			// retrieve event type from key
 			evtType := model.EventType(id % uint32(model.MaxEventType))
-			tags := pbm.buildTags(fmt.Sprintf("map:%s", perfMapName), fmt.Sprintf("event_type:%s", evtType))
+			tags := pbm.buildTags(mapTag, fmt.Sprintf("event_type:%s", evtType))
 
 			// loop over each cpu entry
 			for cpu, stats := range cpuStats {
