@@ -424,6 +424,8 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(123.4, c.MaxMemory)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
 	assert.True(c.LogThrottling)
+	assert.True(c.OTLPReceiver.SpanNameAsResourceName)
+	assert.Equal(map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, c.OTLPReceiver.SpanNameRemappings)
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
@@ -476,10 +478,10 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(o.HTTP.RemoveQueryString)
 	assert.True(o.HTTP.RemovePathDigits)
 	assert.True(o.RemoveStackTraces)
-	assert.True(c.Obfuscation.Redis.Enabled)
-	assert.True(c.Obfuscation.Memcached.Enabled)
-	assert.True(c.Obfuscation.CreditCards.Enabled)
-	assert.True(c.Obfuscation.CreditCards.Luhn)
+	assert.True(o.Redis.Enabled)
+	assert.True(o.Memcached.Enabled)
+	assert.True(o.CreditCards.Enabled)
+	assert.True(o.CreditCards.Luhn)
 }
 
 func TestUndocumentedYamlConfig(t *testing.T) {

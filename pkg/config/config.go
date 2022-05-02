@@ -125,19 +125,20 @@ type MetadataProviders struct {
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
-	Name             string `mapstructure:"name"`
-	Polling          bool   `mapstructure:"polling"`
-	PollInterval     string `mapstructure:"poll_interval"`
-	TemplateURL      string `mapstructure:"template_url"`
-	TemplateDir      string `mapstructure:"template_dir"`
-	Username         string `mapstructure:"username"`
-	Password         string `mapstructure:"password"`
-	CAFile           string `mapstructure:"ca_file"`
-	CAPath           string `mapstructure:"ca_path"`
-	CertFile         string `mapstructure:"cert_file"`
-	KeyFile          string `mapstructure:"key_file"`
-	Token            string `mapstructure:"token"`
-	GraceTimeSeconds int    `mapstructure:"grace_time_seconds"`
+	Name                    string `mapstructure:"name"`
+	Polling                 bool   `mapstructure:"polling"`
+	PollInterval            string `mapstructure:"poll_interval"`
+	TemplateURL             string `mapstructure:"template_url"`
+	TemplateDir             string `mapstructure:"template_dir"`
+	Username                string `mapstructure:"username"`
+	Password                string `mapstructure:"password"`
+	CAFile                  string `mapstructure:"ca_file"`
+	CAPath                  string `mapstructure:"ca_path"`
+	CertFile                string `mapstructure:"cert_file"`
+	KeyFile                 string `mapstructure:"key_file"`
+	Token                   string `mapstructure:"token"`
+	GraceTimeSeconds        int    `mapstructure:"grace_time_seconds"`
+	DegradedDeadlineMinutes int    `mapstructure:"degraded_deadline_minutes"`
 }
 
 // Listeners helps unmarshalling `listeners` config param
@@ -573,6 +574,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
@@ -789,7 +791,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
 	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
 	// the pod container ID is matching.
-	config.BindEnvAndSetDefault("logs_config.validate_pod_container_id", false)
+	config.BindEnvAndSetDefault("logs_config.validate_pod_container_id", true)
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
@@ -1034,6 +1036,7 @@ func InitConfig(config Config) {
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1182,6 +1185,10 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
+		// these variables are used by serverless, but not via the Config struct
+		"DD_SERVICE":            {},
+		"DD_DOTNET_TRACER_HOME": {},
+		"DD_TRACE_ENABLED":      {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

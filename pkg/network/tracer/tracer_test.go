@@ -64,7 +64,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetStats(t *testing.T) {
-	dnsSupported := dnsSupported(t)
 	httpSupported := httpSupported(t)
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -182,10 +181,6 @@ func TestGetStats(t *testing.T) {
 	actual, _ := tr.GetStats()
 
 	for section, entries := range expected {
-		if section == "dns" && !dnsSupported {
-			// DNS stats not supported on some systems
-			continue
-		}
 		if section == "http" && !httpSupported {
 			continue
 		}
@@ -1086,11 +1081,6 @@ const (
 )
 
 func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
-	if !dnsSupported(t) {
-		t.Skip("DNS feature not available on pre 4.1.0 kernels")
-		return
-	}
-
 	config := testConfig()
 	config.CollectDNSStats = true
 	config.DNSTimeout = 1 * time.Second

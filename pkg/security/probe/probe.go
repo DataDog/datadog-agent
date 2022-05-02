@@ -135,13 +135,6 @@ func (p *Probe) sanityChecks() error {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
-	isWriteUserNotSupported := p.kernelVersion.Code >= kernel.Kernel5_13 && utilkernel.GetLockdownMode() == utilkernel.Integrity
-
-	if p.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
-		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		p.config.ERPCDentryResolutionEnabled = false
-	}
-
 	if p.config.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
 		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
 		p.config.NetworkEnabled = false
@@ -1192,11 +1185,13 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	p.ensureConfigDefaults()
 
+	supportMmapableMaps := haveMmapableMaps() == nil
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
 	}
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupWaitListSize)
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupWaitListSize, supportMmapableMaps)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -1303,11 +1298,12 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled)
-	if !p.config.ERPCDentryResolutionEnabled {
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled, supportMmapableMaps)
+	if !p.config.ERPCDentryResolutionEnabled || supportMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
+
 	if !p.config.NetworkEnabled {
 		// prevent all TC classifiers from loading
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)

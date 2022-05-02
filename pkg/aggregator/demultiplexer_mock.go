@@ -28,6 +28,11 @@ func (a *TestAgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples
 	a.Unlock()
 }
 
+// GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
+func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+	return a.aggregator.GetBufferedChannels()
+}
+
 // AddTimeSample implements a noop timesampler, appending the sample in an internal slice.
 func (a *TestAgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	a.Lock()

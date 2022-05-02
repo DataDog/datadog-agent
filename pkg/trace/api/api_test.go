@@ -65,8 +65,10 @@ func newTestReceiverConfig() *config.AgentConfig {
 
 func TestMain(m *testing.M) {
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
-	killProcess = func(_ string, _ ...interface{}) {}
-
+	killProcess = func(format string, args ...interface{}) {
+		fmt.Printf(format, args...)
+		fmt.Println()
+	}
 	os.Exit(m.Run())
 }
 
