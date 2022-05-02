@@ -621,7 +621,10 @@ func InitConfig(config Config) {
 	config.SetEnvKeyTransformer("prometheus_scrape.checks", prometheusScrapeChecksTransformer)
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
-	// SNMP
+	// Network Devices Monitoring
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	config.BindEnvAndSetDefault("network_devices.namespace", "default")
+
 	config.SetKnown("snmp_listener.discovery_interval")
 	config.SetKnown("snmp_listener.allowed_failures")
 	config.SetKnown("snmp_listener.discovery_allowed_failures")
@@ -632,14 +635,12 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.min_collection_interval")
 	config.SetKnown("snmp_listener.namespace")
 
-	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
-	config.BindEnvAndSetDefault("snmp_traps_config.port", 9162)
-	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
-	// No default as the agent falls back to `network_devices.namespace` if empty.
-	config.BindEnv("snmp_traps_config.namespace")
-	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "0.0.0.0")
-	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
-	config.SetKnown("snmp_traps_config.users")
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.bind_host", "0.0.0.0")
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
+	config.SetKnown("network_devices.snmp_traps.users")
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -814,8 +815,6 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
-	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
