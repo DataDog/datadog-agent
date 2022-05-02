@@ -99,7 +99,7 @@ func (t *tagsetTelemetry) updateHugeSerieTelemetry(serie *metrics.Serie) {
 	tagsetSize := uint64(serie.Tags.Len())
 	for i, thresh := range t.sizeThresholds {
 		if tagsetSize > thresh {
-			t.hugeSeriesCount[i].Add(1)
+			t.hugeSeriesCount[i].Inc()
 			t.tlmHugeSeries[i].Add(1)
 		}
 	}
