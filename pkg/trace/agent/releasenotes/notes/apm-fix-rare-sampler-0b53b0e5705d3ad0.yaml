@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    The rare samplers now processes every span and no longer operates on only
-    unsampled spans, which was causing some spans to be sampled unnecessarily.
-
-
