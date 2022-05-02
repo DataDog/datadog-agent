@@ -143,16 +143,11 @@
     },
     "BindEvent": {
       "required": [
-        "socket",
         "addr_family",
         "addr_port",
         "addr"
       ],
       "properties": {
-        "socket": {
-          "type": "integer",
-          "description": "Bound socket"
-        },
         "addr_family": {
           "type": "string",
           "description": "Address family"

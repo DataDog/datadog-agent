@@ -27,9 +27,6 @@
                     "request": {
                         "type": "string"
                     },
-                    "socket": {
-                        "type": "integer"
-                    },
                     "addr_family": {
                         "type": "integer"
                     },

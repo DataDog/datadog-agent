@@ -321,7 +321,6 @@ type SpliceEventSerializer struct {
 // BindEventSerializer serializes a bind event to JSON
 // easyjson:json
 type BindEventSerializer struct {
-	Socket     int32  `json:"socket" jsonschema_description:"bound socket"`
 	AddrFamily string `json:"addr_family" jsonschema_description:"Address family"`
 	AddrPort   uint16 `json:"addr_port" jsonschema_description:"Bound port (if any)"`
 	Addr       string `json:"addr" jsonschema_description:"Bound address (if any)"`
@@ -712,7 +711,6 @@ func newNetworkContextSerializer(e *Event) *NetworkContextSerializer {
 
 func newBindEventSerializer(e *Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
-		Socket:     e.Bind.Socket,
 		AddrFamily: model.AddressFamily(e.Bind.AddrFamily).String(),
 		Addr:       e.Bind.Addr,
 		AddrPort:   e.Bind.AddrPort,
