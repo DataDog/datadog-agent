@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 
@@ -24,6 +25,11 @@ func TestConfigSetHandler(t *testing.T) {
 	if err := r.RunAgent([]byte("log_level: info")); err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := r.Shutdown(time.Second); err != nil {
+			t.Log("shutdown: ", err)
+		}
+	}()
 
 	defer r.KillAgent()
 	logstr := r.AgentLog()
