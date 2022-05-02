@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -62,17 +61,7 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
-	otlpIsEnabled := otlp.IsEnabled(config.Datadog)
-	var otlpCollectorStatus otlp.CollectorStatus
-	if otlpIsEnabled {
-		otlpCollectorStatus = otlp.GetCollectorStatus(common.OTLP)
-	} else {
-		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running", ErrorMessage: ""}
-	}
-
-	stats["otlpStatus"] = otlpIsEnabled
-	stats["otlpCollectorStatus"] = otlpCollectorStatus.Status
-	stats["otlpCollectorStatusErr"] = otlpCollectorStatus.ErrorMessage
+	stats["otlp"] = GetOTLPStatus()
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
