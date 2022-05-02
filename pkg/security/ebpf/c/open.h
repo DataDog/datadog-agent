@@ -213,12 +213,8 @@ int kprobe___io_openat_prep(struct pt_regs *ctx) {
 
 SEC("kprobe/io_openat2")
 int kprobe_io_openat2(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    void *raw_req = (void*) PT_REGS_PARM1(ctx);
-    bpf_printk("# HELLO ENTRY WTF; tgid = %d; req = %p\n", pid_tgid >> 32, raw_req);
-
     struct io_open req;
-    if (bpf_probe_read(&req, sizeof(req), raw_req)) {
+    if (bpf_probe_read(&req, sizeof(req), (void*) PT_REGS_PARM1(ctx))) {
         return 0;
     }
 
@@ -336,7 +332,6 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
-    bpf_printk("# HELLO EXIT WTF\n");
 
     void *raw_req = (void*) PT_REGS_PARM1(ctx);
     u64 *pid_tgid_ptr = bpf_map_lookup_elem(&io_uring_req_pid, &raw_req);
