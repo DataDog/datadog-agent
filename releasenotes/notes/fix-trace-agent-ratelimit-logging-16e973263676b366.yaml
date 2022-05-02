@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed an issue where "CPU threshold exceeded" logs would show the wrong user cpu usage by a factor of 100
+    Fixed an issue where "CPU threshold exceeded" logs would show the wrong user CPU usage by a factor of 100.
