@@ -6,34 +6,33 @@
 package adlistener
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 )
 
 var (
-	// The AD MetaScheduler is not available until the logs-agent has started,
-	// as part of the delicate balance of agent startup.  So, ADListener blocks
-	// its startup until that occurs.
-	//
-	// The component architecture should remove the need for this workaround.
+	// There is at most one ADListener adListener, and this is it.
+	adListener *ADListener
 
-	// adMetaSchedulerCh carries the current MetaScheduler, once it is known.
-	adMetaSchedulerCh chan *scheduler.MetaScheduler
+	// This tracks the MetaScheduler, if one exists.
+	metascheduler *scheduler.MetaScheduler
 )
-
-func init() {
-	adMetaSchedulerCh = make(chan *scheduler.MetaScheduler, 1)
-}
 
 // SetADMetaScheduler supplies this package with a reference to the AD MetaScheduler,
 // once it has been started.
 func SetADMetaScheduler(sch *scheduler.MetaScheduler) {
-	// perform a non-blocking add to the channel
-	select {
-	case adMetaSchedulerCh <- sch:
-	default:
+	metascheduler = sch
+	maybeStart()
+}
+
+// maybeStart might start the ADListener, if there is both an ADListener and
+// a MetaScheduler.
+//
+// This is a short-term fix for 7.36.0.
+func maybeStart() {
+	if adListener != nil && metascheduler != nil {
+		adListener.adMetaScheduler = metascheduler
+		metascheduler.Register(adListener.name, adListener)
 	}
 }
 
@@ -55,12 +54,6 @@ type ADListener struct {
 	// adMetaScheduler is nil to begin with, and becomes non-nil after
 	// SetADMetaScheduler is called.
 	adMetaScheduler *scheduler.MetaScheduler
-
-	// registered is closed when the scheduler is registered (used for tests)
-	registered chan struct{}
-
-	// cancelRegister cancels efforts to register with the AD MetaScheduler
-	cancelRegister context.CancelFunc
 }
 
 var _ scheduler.Scheduler = &ADListener{}
@@ -68,41 +61,32 @@ var _ scheduler.Scheduler = &ADListener{}
 // NewADListener creates a new ADListener, proxying schedule and unschedule calls to
 // the given functions.
 func NewADListener(name string, schedule, unschedule func([]integration.Config)) *ADListener {
-	return &ADListener{
+	l := &ADListener{
 		name:       name,
 		schedule:   schedule,
 		unschedule: unschedule,
-		registered: make(chan struct{}),
 	}
+	return l
 }
 
 // StartListener starts the ADListener.  It will subscribe to the MetaScheduler as soon
 // as it is available
 func (l *ADListener) StartListener() {
-	ctx, cancelRegister := context.WithCancel(context.Background())
-	go func() {
-		// wait for the scheduler to be set, and register once it is set
-		select {
-		case sch := <-adMetaSchedulerCh:
-			l.adMetaScheduler = sch
-			l.adMetaScheduler.Register(l.name, l)
-			close(l.registered)
-			// put the value back in the channel, in case it is needed again
-			SetADMetaScheduler(sch)
+	if adListener != nil {
+		panic("only one instance of ADListener can exist")
+	}
+	adListener = l
 
-		case <-ctx.Done():
-		}
-	}()
-
-	l.cancelRegister = cancelRegister
+	// either start now, or wait until there is a MetaScheduler available.
+	maybeStart()
 }
 
 // StopListener stops the ADListener
 func (l *ADListener) StopListener() {
-	l.cancelRegister()
 	if l.adMetaScheduler != nil {
 		l.adMetaScheduler.Deregister("logs")
 	}
+	adListener = nil
 }
 
 // Stop implements pkg/autodiscovery/scheduler.Scheduler#Stop.

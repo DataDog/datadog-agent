@@ -14,7 +14,7 @@ import (
 )
 
 func reset() {
-	adMetaSchedulerCh = make(chan *scheduler.MetaScheduler, 1)
+	adListener = nil
 }
 
 func emptyChan(ch chan struct{}) bool {
@@ -33,25 +33,15 @@ func TestListenersWaitToStart(t *testing.T) {
 	l1 := NewADListener("l1", func([]integration.Config) { got1 <- struct{}{} }, nil)
 	l1.StartListener()
 
-	got2 := make(chan struct{}, 1)
-	l2 := NewADListener("l2", func([]integration.Config) { got2 <- struct{}{} }, nil)
-	l2.StartListener()
-
 	adsched := scheduler.NewMetaScheduler()
 	adsched.Schedule([]integration.Config{})
 
 	require.True(t, emptyChan(got1))
-	require.True(t, emptyChan(got2))
 
 	SetADMetaScheduler(adsched)
-
-	// wait for the registration to occur before sending a config
-	<-l1.registered
-	<-l2.registered
 
 	adsched.Schedule([]integration.Config{})
 
 	// wait for each of the two listeners to get notified
 	<-got1
-	<-got2
 }
