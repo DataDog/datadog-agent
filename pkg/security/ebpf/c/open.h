@@ -203,14 +203,20 @@ struct io_open {
     struct openat2_open_how how;
 };
 
+SEC("kprobe/__io_openat_prep")
+int kprobe___io_openat_prep(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *raw_req = (void*) PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&io_uring_req_pid, &raw_req, &pid_tgid, BPF_ANY);
+    return 0;
+}
+
 SEC("kprobe/io_openat2")
 int kprobe_io_openat2(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *raw_req = (void*) PT_REGS_PARM1(ctx);
+    bpf_printk("# HELLO ENTRY WTF; tgid = %d; req = %p\n", pid_tgid >> 32, raw_req);
 
-    bpf_map_update_elem(&io_uring_req_pid, &raw_req, &pid_tgid, BPF_ANY);
-
-    bpf_printk("# HELLO ENTRY WTF; tgid = %d; req = %p\n", pid_tgid >> 32);
     struct io_open req;
     if (bpf_probe_read(&req, sizeof(req), raw_req)) {
         return 0;
@@ -225,7 +231,7 @@ int kprobe_io_openat2(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
+int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int retval, int dr_type, u64 pid_tgid) {
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
@@ -241,6 +247,8 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
         return 0;
     }
 
+    syscall->open.pid_tgid = pid_tgid;
+
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0;
@@ -254,6 +262,11 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_OPEN);
     return 0;
+}
+
+
+int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
+    return sys_open_ret_with_pid_tgid(ctx, retval, dr_type, 0);
 }
 
 int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
@@ -324,7 +337,15 @@ SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     bpf_printk("# HELLO EXIT WTF\n");
-    return sys_open_resys_open_rett(ctx, retval, DR_KPROBE);
+
+    void *raw_req = (void*) PT_REGS_PARM1(ctx);
+    u64 *pid_tgid_ptr = bpf_map_lookup_elem(&io_uring_req_pid, &raw_req);
+    u64 pid_tgid = 0;
+    if (pid_tgid_ptr != NULL) {
+        pid_tgid = *pid_tgid_ptr;
+    }
+
+    return sys_open_ret_with_pid_tgid(ctx, retval, DR_KPROBE, pid_tgid);
 }
 
 SEC("kprobe/filp_close")
@@ -366,7 +387,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
 
     fill_file_metadata(syscall->open.dentry, &event.file.metadata);
     struct proc_cache_t *entry;
-    if syscall->open.pid_tgid != 0 {
+    if (syscall->open.pid_tgid != 0) {
         entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);
     } else {
         entry = fill_process_context(&event.process);
