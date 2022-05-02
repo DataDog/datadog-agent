@@ -21,9 +21,6 @@ import (
 type (
 	// NoOpOIDResolver is a dummy OIDResolver implementation that is unable to get any Trap or Variable metadata.
 	NoOpOIDResolver struct{}
-
-	// ByOID is a wrapper to sort formatted variables by OID
-	byOID []interface{}
 )
 
 // GetTrapMetadata always return an error in this OIDResolver implementation
@@ -34,19 +31,6 @@ func (or NoOpOIDResolver) GetTrapMetadata(trapOID string) (TrapMetadata, error) 
 // GetVariableMetadata always return an error in this OIDResolver implementation
 func (or NoOpOIDResolver) GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error) {
 	return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
-}
-
-func (b byOID) Len() int {
-	return len(b)
-}
-
-func (b byOID) Swap(i, j int) {
-	b[i], b[j] = b[j], b[i]
-}
-
-func (b byOID) Less(i, j int) bool {
-	// TODO(ken): this is ugly
-	return b[i].(map[string]interface{})["oid"].(string) < b[j].(map[string]interface{})["oid"].(string)
 }
 
 var (
@@ -350,14 +334,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"value": float64(9001),
 					},
 					map[string]interface{}{
-						"oid":   "1.3.6.1.2.1.2.2.1.8",
-						"type":  "integer",
-						"value": float64(7),
-					},
-					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(2),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
 					},
 				},
 			},
@@ -386,14 +370,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"value": float64(9001),
 					},
 					map[string]interface{}{
-						"oid":   "1.3.6.1.2.1.2.2.1.8",
-						"type":  "integer",
-						"value": float64(7),
-					},
-					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": "test",
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
 					},
 				},
 			},
@@ -422,14 +406,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"value": float64(9001),
 					},
 					map[string]interface{}{
-						"oid":   "1.3.6.1.2.1.2.2.1.8",
-						"type":  "integer",
-						"value": float64(7),
-					},
-					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(8),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
 					},
 				},
 			},
@@ -453,8 +437,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 
 			// map comparisons shouldn't be reliant on ordering with this lib
 			// however variables are a slice, they must be sorted
-			sort.Stable(byOID(content["variables"].([]interface{})))
-			sort.Stable(byOID(d.expectedContent["variables"].([]interface{})))
 			if diff := cmp.Diff(content, d.expectedContent); diff != "" {
 				t.Error(diff)
 			}

@@ -164,11 +164,10 @@ func NormalizeOID(value string) string {
 // parseValue checks to see if the variable has a mapping in an enum and
 // returns the mapping if it exists, otherwise returns the value unchanged
 func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
-	if variable.VarType == "integer" {
+	if len(varMetadata.Enumeration) > 0 {
 		if i, ok := variable.Value.(int); !ok {
-			// TODO(ken): should we do more here? Should we even handle this scenario?
 			log.Debugf("unable to parse value of type \"integer\": %+v", variable.Value)
-		} else if len(varMetadata.Enumeration) > 0 {
+		} else {
 			// if we find a mapping set it and return
 			value := varMetadata.Enumeration[i]
 			if value == "" {
