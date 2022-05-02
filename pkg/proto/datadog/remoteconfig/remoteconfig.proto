@@ -69,6 +69,7 @@ message Client {
   ClientTracer client_tracer = 7;
   bool is_agent = 8;
   ClientAgent client_agent = 9;
+  uint64 last_seen = 10;
 }
 
 message ClientTracer {
