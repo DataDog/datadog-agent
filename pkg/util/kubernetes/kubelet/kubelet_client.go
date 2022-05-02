@@ -49,7 +49,6 @@ type kubeletClientConfig struct {
 type kubeletClient struct {
 	client     http.Client
 	kubeletURL string
-	headers    http.Header
 	config     kubeletClientConfig
 }
 
@@ -115,7 +114,7 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 	}
 
 	if statusCode == http.StatusUnauthorized {
-		return fmt.Errorf("unauthorized to request test kubelet endpoint (/spec) - token used: %t", kc.headers.Get("Authorization") != "")
+		return fmt.Errorf("unauthorized to request test kubelet endpoint (/spec) - token used: %t", kc.config.token != "")
 	}
 
 	return nil
@@ -127,7 +126,6 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 	if err != nil {
 		return nil, 0, fmt.Errorf("Failed to create new request: %w", err)
 	}
-	req.Header = kc.headers
 
 	response, err := kc.client.Do(req)
 	kubeletExpVar.Add(1)
