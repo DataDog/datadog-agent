@@ -199,7 +199,7 @@ func enableRuntimeCompilation(c *config.Config) bool {
 		return false
 	}
 
-	// The runtime-compiled version of HTTP monitoring requires Kernel 4.6
+	// The runtime-compiled version of HTTP monitoring requires Kernel 4.5
 	// because we use the `bpf_skb_load_bytes` helper.
 	kversion, err := kernel.HostVersion()
 	if err != nil {
@@ -207,5 +207,5 @@ func enableRuntimeCompilation(c *config.Config) bool {
 		return false
 	}
 
-	return kversion >= kernel.VersionCode(4, 6, 0)
+	return kversion >= kernel.VersionCode(4, 5, 0)
 }

@@ -9,8 +9,8 @@
 #include "http.h"
 #include "https.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
-#error "http runtime compilation is only supported for kernel >= 4.6"
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+#error "http runtime compilation is only supported for kernel >= 4.5"
 #endif
 
 #define HTTPS_PORT 443
