@@ -169,8 +169,7 @@ func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{}
 			log.Debugf("unable to parse value of type \"integer\": %+v", variable.Value)
 		} else {
 			// if we find a mapping set it and return
-			value := varMetadata.Enumeration[i]
-			if value == "" {
+			if value, ok := varMetadata.Enumeration[i]; !ok {
 				log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
 			} else {
 				return value
