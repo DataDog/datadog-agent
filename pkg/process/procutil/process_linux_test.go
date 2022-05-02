@@ -142,6 +142,11 @@ func testGetCmdline(t *testing.T) {
 func TestProcessesByPIDTestFS(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
+switch PageSize { 
+        case 65536:
+                os.Setenv("HOST_PROC", "resources/test_procfs/proc_ppc64/")
+                defer os.Unsetenv("HOST_PROC")
+        }
 
 	testProcessesByPID(t)
 }
@@ -233,6 +238,11 @@ func compareStats(t *testing.T, st1, st2 *Stats) {
 func TestStatsForPIDsTestFS(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
+switch PageSize { 
+        case 65536:
+                os.Setenv("HOST_PROC", "resources/test_procfs/proc_ppc64/")
+                defer os.Unsetenv("HOST_PROC")
+        }
 
 	testStatsForPIDs(t)
 }
@@ -487,6 +497,11 @@ func TestParseStatusLine(t *testing.T) {
 func TestParseStatusTestFS(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
+switch PageSize { 
+        case 65536:
+                os.Setenv("HOST_PROC", "resources/test_procfs/proc_ppc64/")
+                defer os.Unsetenv("HOST_PROC")
+        }
 
 	testParseStatus(t)
 }
@@ -841,6 +856,11 @@ func testParseStatm(t *testing.T) {
 func TestParseStatmStatusMatchTestFS(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
+switch PageSize { 
+        case 65536:
+                os.Setenv("HOST_PROC", "resources/test_procfs/proc_ppc64/")
+                defer os.Unsetenv("HOST_PROC")
+        }
 
 	testParseStatmStatusMatch(t)
 }
