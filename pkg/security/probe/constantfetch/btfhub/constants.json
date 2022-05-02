@@ -2215,6 +2215,13 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.275-207.503.amzn2.aarch64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 3
 		},
@@ -2664,6 +2671,13 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.273-207.502.amzn2.x86_64",
+			"cindex": 5
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.275-207.503.amzn2.x86_64",
 			"cindex": 5
 		},
 		{
@@ -4784,6 +4798,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1127-aws",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-115-generic",
 			"cindex": 48
 		},
@@ -5037,6 +5058,13 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-175-generic",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-176-generic",
 			"cindex": 50
 		},
 		{
@@ -6982,6 +7010,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1121-gcp",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1122-azure",
 			"cindex": 57
 		},
@@ -7038,6 +7073,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1127-aws",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1127-azure",
 			"cindex": 57
 		},
@@ -7081,6 +7123,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1136-azure",
+			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1137-azure",
 			"cindex": 57
 		},
 		{
@@ -7340,6 +7389,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-175-generic",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-176-generic",
 			"cindex": 55
 		},
 		{
