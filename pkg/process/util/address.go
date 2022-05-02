@@ -99,9 +99,7 @@ func V4Address(ip uint32) Address {
 
 // V4AddressFromBytes creates an Address using the byte representation of an v4 IP
 func V4AddressFromBytes(buf []byte) Address {
-	var a [4]byte
-	copy(a[:], buf)
-	return Address{netaddr.IPFrom4(a)}
+	return Address{netaddr.IPFrom4(*(*[4]byte)(buf))}
 }
 
 // V6Address creates an Address using the uint128 representation of an v6 IP
@@ -114,9 +112,7 @@ func V6Address(low, high uint64) Address {
 
 // V6AddressFromBytes creates an Address using the byte representation of an v6 IP
 func V6AddressFromBytes(buf []byte) Address {
-	var a [16]byte
-	copy(a[:], buf)
-	return Address{netaddr.IPFrom16(a)}
+	return Address{netaddr.IPFrom16(*(*[16]byte)(buf))}
 }
 
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
