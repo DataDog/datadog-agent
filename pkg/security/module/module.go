@@ -513,7 +513,7 @@ func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, 
 		statsdAddr = cfg.StatsdAddr
 	}
 
-	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
+	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize), statsd.WithoutClientSideAggregation())
 }
 
 // NewModule instantiates a runtime security system-probe module
