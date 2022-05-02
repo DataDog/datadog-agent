@@ -1,16 +1,23 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testsuite
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestConfigSetHandler(t *testing.T) {
@@ -36,8 +43,8 @@ func TestConfigSetHandler(t *testing.T) {
 		assert.Equal(t, 200, rec.Code)
 	})
 
-	b.Reset()
 	t.Run("debug", func(t *testing.T) {
+		b.Reset()
 		h := config.SetHandler()
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest("POST", fmt.Sprintf("/?log_level=%s", seelog.DebugStr), nil))
