@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,12 +24,13 @@ const defaultGraceDuration = 60 * time.Second
 // ClusterChecksConfigProvider implements the ConfigProvider interface
 // for the cluster check feature.
 type ClusterChecksConfigProvider struct {
-	dcaClient      clusteragent.DCAClientInterface
-	graceDuration  time.Duration
-	heartbeat      time.Time
-	lastChange     int64
-	identifier     string
-	flushedConfigs bool
+	dcaClient        clusteragent.DCAClientInterface
+	graceDuration    time.Duration
+	degradedDuration time.Duration
+	heartbeat        time.Time
+	lastChange       int64
+	identifier       string
+	flushedConfigs   bool
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -40,7 +42,8 @@ func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProvider
 	}
 
 	c := &ClusterChecksConfigProvider{
-		graceDuration: defaultGraceDuration,
+		graceDuration:    defaultGraceDuration,
+		degradedDuration: defaultDegradedDeadline,
 	}
 
 	c.identifier = config.Datadog.GetString("clc_runner_id")
@@ -58,6 +61,10 @@ func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProvider
 
 	if providerConfig.GraceTimeSeconds > 0 {
 		c.graceDuration = time.Duration(providerConfig.GraceTimeSeconds) * time.Second
+	}
+
+	if providerConfig.DegradedDeadlineMinutes > 0 {
+		c.degradedDuration = time.Duration(providerConfig.DegradedDeadlineMinutes) * time.Minute
 	}
 
 	// Register in the cluster agent as soon as possible
@@ -81,6 +88,10 @@ func (c *ClusterChecksConfigProvider) String() string {
 
 func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {
 	return c.heartbeat.Add(c.graceDuration).After(time.Now())
+}
+
+func (c *ClusterChecksConfigProvider) withinDegradedModePeriod() bool {
+	return withinDegradedModePeriod(c.heartbeat, c.degradedDuration)
 }
 
 // IsUpToDate queries the cluster-agent to update its status and
@@ -128,18 +139,29 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 
 	reply, err := c.dcaClient.GetClusterCheckConfigs(ctx, c.identifier)
 	if err != nil {
+		if (errors.IsRemoteService(err) || errors.IsTimeout(err)) && c.withinDegradedModePeriod() {
+			// Degraded mode: return the error to keep the configs scheduled
+			// during a Cluster Agent / network outage
+			return nil, err
+		}
+
 		if !c.flushedConfigs {
 			// On first error after grace period, mask the error once
 			// to delete the configurations and de-schedule the checks
+			// Returning nil, nil here unschedules the checks when the grace period
+			// and the degraded mode deadline are both exceeded.
 			c.flushedConfigs = true
 			return nil, nil
 		}
+
 		return nil, err
 	}
 
 	c.flushedConfigs = false
 	c.lastChange = reply.LastChange
+	c.heartbeat = time.Now()
 	log.Tracef("Storing last change %d", c.lastChange)
+
 	return reply.Configs, nil
 }
 
