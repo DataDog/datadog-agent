@@ -225,19 +225,19 @@ CWS logs have the following JSON schema:
     "properties": {
         "socket": {
             "type": "integer",
-            "description": "bound socket"
+            "description": "Bound socket"
         },
         "addr_family": {
             "type": "string",
-            "description": "address family"
+            "description": "Address family"
         },
         "addr_port": {
             "type": "integer",
-            "description": "bound port (if any)"
+            "description": "Bound port (if any)"
         },
         "addr": {
             "type": "string",
-            "description": "bound address (if any)"
+            "description": "Bound address (if any)"
         }
     },
     "additionalProperties": false,
@@ -248,10 +248,10 @@ CWS logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `socket` | bound socket |
-| `addr_family` | address family |
-| `addr_port` | bound port (if any) |
-| `addr` | bound address (if any) |
+| `socket` | Bound socket |
+| `addr_family` | Address family |
+| `addr_port` | Bound port (if any) |
+| `addr` | Bound address (if any) |
 
 
 ## `ContainerContext`

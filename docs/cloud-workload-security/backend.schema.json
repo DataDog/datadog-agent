@@ -151,19 +151,19 @@
       "properties": {
         "socket": {
           "type": "integer",
-          "description": "bound socket"
+          "description": "Bound socket"
         },
         "addr_family": {
           "type": "string",
-          "description": "address family"
+          "description": "Address family"
         },
         "addr_port": {
           "type": "integer",
-          "description": "bound port (if any)"
+          "description": "Bound port (if any)"
         },
         "addr": {
           "type": "string",
-          "description": "bound address (if any)"
+          "description": "Bound address (if any)"
         }
       },
       "additionalProperties": false,

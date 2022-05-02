@@ -274,11 +274,11 @@ A bind was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `bind.addr` | string | address (if any) |
-| `bind.addr_family` | int | address family |
-| `bind.port` | int | port (if any) |
+| `bind.addr` | string | Address (if any) |
+| `bind.addr_family` | int | Address family |
+| `bind.port` | int | Port (if any) |
 | `bind.retval` | int | Return value of the syscall |
-| `bind.socket` | int | the socket to be bound |
+| `bind.socket` | int | The socket to be bound |
 
 ### Event `bpf`
 

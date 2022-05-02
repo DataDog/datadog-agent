@@ -524,17 +524,17 @@
         {
           "name": "bind.addr",
           "type": "string",
-          "definition": "address (if any)"
+          "definition": "Address (if any)"
         },
         {
           "name": "bind.addr_family",
           "type": "int",
-          "definition": "address family"
+          "definition": "Address family"
         },
         {
           "name": "bind.port",
           "type": "int",
-          "definition": "port (if any)"
+          "definition": "Port (if any)"
         },
         {
           "name": "bind.retval",
@@ -544,7 +544,7 @@
         {
           "name": "bind.socket",
           "type": "int",
-          "definition": "the socket to be bound"
+          "definition": "The socket to be bound"
         }
       ]
     },
