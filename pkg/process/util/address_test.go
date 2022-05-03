@@ -169,3 +169,32 @@ func BenchmarkV6Address(b *testing.B) {
 	}
 	runtime.KeepAlive(addr)
 }
+
+func BenchmarkBytes(b *testing.B) {
+	var (
+		addr  = AddressFromString("8.8.8.8")
+		bytes []byte
+	)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// this allocates a slice descriptor that escapes to the heap
+		bytes = addr.Bytes()
+	}
+	runtime.KeepAlive(bytes)
+}
+
+func BenchmarkWriteTo(b *testing.B) {
+	addr := AddressFromString("8.8.8.8")
+	bytes := make([]byte, 4)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// this method shouldn't allocate
+		_ = addr.WriteTo(bytes)
+		bytes = bytes[:0]
+	}
+	runtime.KeepAlive(bytes)
+}
