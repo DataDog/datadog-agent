@@ -25,6 +25,7 @@ const (
 
 var mainProbes = map[probes.ProbeName]string{
 	probes.TCPSendMsg:           "kprobe__tcp_sendmsg",
+	probes.TCPSendMsgReturn:     "kretprobe__tcp_sendmsg",
 	probes.TCPCleanupRBuf:       "kprobe__tcp_cleanup_rbuf",
 	probes.TCPClose:             "kprobe__tcp_close",
 	probes.TCPCloseReturn:       "kretprobe__tcp_close",
@@ -74,6 +75,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.PidFDBySockMap)},
 			{Name: string(probes.SockFDLookupArgsMap)},
 			{Name: string(probes.DoSendfileArgsMap)},
+			{Name: string(probes.TcpSendMsgArgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
