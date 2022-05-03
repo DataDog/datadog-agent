@@ -65,8 +65,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value := iterator.Front(ctx)
 					for value != nil {
-						var result {{$Field.GetArrayPrefix}}{{$Field.ReturnType}}
-
 						{{if $Field.Iterator.IsOrigTypePtr}}
 							element := (*{{$Field.Iterator.OrigType}})(value)
 						{{else}}
@@ -84,9 +82,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{end}}
 
 						{{if eq $Field.ReturnType "int"}}
-							result = int({{$Return}})
+							result := int({{$Return}})
 						{{else}}
-							result = {{$Return}}
+							result := {{$Return}}
 						{{end}}
 
 						{{if eq $Field.GetArrayPrefix ""}}
@@ -284,7 +282,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				}
 			{{end}}
 		{{end}}
-			var ok bool
 		{{- if eq $Field.OrigType "string"}}
 			str, ok := value.(string)
 			if !ok {
@@ -308,6 +305,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{end}}
 			return nil
 		{{else if eq $Field.BasicType "bool"}}
+			var ok bool
 			if {{$FieldName}}, ok = value.(bool); !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
