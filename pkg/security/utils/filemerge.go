@@ -15,6 +15,7 @@ import (
 // this pair represents a glob with a star between the prefix and the suffix
 type StringPair struct {
 	left, right string
+	isPattern   bool
 }
 
 // NewStringPair returns a new StringPair from a string
@@ -22,8 +23,9 @@ func NewStringPair(s string) StringPair {
 	i := strings.Index(s, "*")
 	if i != -1 {
 		return StringPair{
-			left:  s[:i],
-			right: s[i+1:],
+			left:      s[:i],
+			right:     s[i+1:],
+			isPattern: true,
 		}
 	}
 
@@ -35,10 +37,10 @@ func NewStringPair(s string) StringPair {
 
 // ToGlob returns a glob from the StringPair
 func (sp *StringPair) ToGlob() string {
-	if sp.right == "" {
-		return sp.left
+	if sp.isPattern {
+		return fmt.Sprintf("%s*%s", sp.left, sp.right)
 	}
-	return fmt.Sprintf("%s*%s", sp.left, sp.right)
+	return sp.left
 }
 
 func commonPrefix(ap, bp StringPair) string {
@@ -54,11 +56,11 @@ func commonPrefix(ap, bp StringPair) string {
 
 func commonSuffix(ap, bp StringPair) string {
 	a := ap.right
-	if a == "" {
+	if !bp.isPattern {
 		a = ap.left
 	}
 	b := bp.right
-	if b == "" {
+	if !bp.isPattern {
 		b = bp.left
 	}
 
@@ -91,5 +93,5 @@ func BuildGlob(ap, bp StringPair, minLenMatch int) (StringPair, bool) {
 		return StringPair{}, false
 	}
 
-	return StringPair{left: p, right: s}, true
+	return StringPair{left: p, right: s, isPattern: true}, true
 }
