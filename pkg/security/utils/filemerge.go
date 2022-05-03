@@ -42,16 +42,14 @@ func (sp *StringPair) ToGlob() string {
 }
 
 func commonPrefix(ap, bp StringPair) string {
-	prefix := make([]byte, 0)
-
 	a := ap.left
 	b := bp.left
 
-	for i := 0; i < len(a) && i < len(b) && a[i] < utf8.RuneSelf && a[i] == b[i]; i++ {
-		prefix = append(prefix, a[i])
+	i := 0
+	for ; i < len(a) && i < len(b) && a[i] < utf8.RuneSelf && a[i] == b[i]; i++ {
 	}
 
-	return string(prefix)
+	return string(a[:i])
 }
 
 func commonSuffix(ap, bp StringPair) string {
