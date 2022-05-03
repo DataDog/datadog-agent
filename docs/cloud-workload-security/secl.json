@@ -522,19 +522,19 @@
       "experimental": false,
       "properties": [
         {
-          "name": "bind.addr",
-          "type": "string",
-          "definition": "Address (if any)"
+          "name": "bind.addr.ip",
+          "type": "IP/CIDR",
+          "definition": "IP address"
+        },
+        {
+          "name": "bind.addr.port",
+          "type": "int",
+          "definition": "Port number"
         },
         {
           "name": "bind.addr_family",
           "type": "int",
           "definition": "Address family"
-        },
-        {
-          "name": "bind.port",
-          "type": "int",
-          "definition": "Port (if any)"
         },
         {
           "name": "bind.retval",

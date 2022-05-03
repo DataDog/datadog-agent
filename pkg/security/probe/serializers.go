@@ -321,9 +321,8 @@ type SpliceEventSerializer struct {
 // BindEventSerializer serializes a bind event to JSON
 // easyjson:json
 type BindEventSerializer struct {
-	AddrFamily string `json:"addr_family" jsonschema_description:"Address family"`
-	AddrPort   uint16 `json:"addr_port" jsonschema_description:"Bound port (if any)"`
-	Addr       string `json:"addr" jsonschema_description:"Bound address (if any)"`
+	AddrFamily string            `json:"addr_family" jsonschema_description:"Address family"`
+	Addr       *IPPortSerializer `json:"addr" jsonschema_description:"Bound address (if any)"`
 }
 
 // EventSerializer serializes an event to JSON
@@ -712,8 +711,7 @@ func newNetworkContextSerializer(e *Event) *NetworkContextSerializer {
 func newBindEventSerializer(e *Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
 		AddrFamily: model.AddressFamily(e.Bind.AddrFamily).String(),
-		Addr:       e.Bind.Addr,
-		AddrPort:   e.Bind.AddrPort,
+		Addr:       newIPPortSerializer(&e.Bind.Addr),
 	}
 	return bes
 }

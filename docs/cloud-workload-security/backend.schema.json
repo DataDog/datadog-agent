@@ -144,7 +144,6 @@
     "BindEvent": {
       "required": [
         "addr_family",
-        "addr_port",
         "addr"
       ],
       "properties": {
@@ -152,12 +151,8 @@
           "type": "string",
           "description": "Address family"
         },
-        "addr_port": {
-          "type": "integer",
-          "description": "Bound port (if any)"
-        },
         "addr": {
-          "type": "string",
+          "$ref": "#/definitions/IPPort",
           "description": "Bound address (if any)"
         }
       },

@@ -72,7 +72,6 @@ SYSCALL_KRETPROBE(bind) {
         if (bpf_probe_read(&event.addr_port, sizeof(event.addr_port), &(sockin->sin_port))) {
             return 0;
         }
-        event.addr_port = ntohs(event.addr_port);
 
         /* get ip */
         if (bpf_probe_read(&event.addr_ip, sizeof(event.addr_ip), &(sockin->sin_addr))) {
@@ -86,7 +85,6 @@ SYSCALL_KRETPROBE(bind) {
         if (bpf_probe_read(&event.addr_port, sizeof(event.addr_port), &(sockin6->sin6_port))) {
             return 0;
         }
-        event.addr_port = ntohs(event.addr_port);
 
         /* get addr ip */
         if (bpf_probe_read(&event.addr_ip6, sizeof(event.addr_ip6), &(sockin6->sin6_addr))) {

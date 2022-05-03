@@ -10,6 +10,7 @@ package tests
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 	"syscall"
 	"testing"
@@ -62,8 +63,8 @@ func TestBindEvent(t *testing.T) {
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
-			assert.Equal(t, uint16(4242), event.Bind.AddrPort, "wrong address port")
-			assert.Equal(t, string("0.0.0.0"), event.Bind.Addr, "wrong address")
+			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
 			if !validateBindSchema(t, event) {
@@ -86,8 +87,8 @@ func TestBindEvent(t *testing.T) {
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
-			assert.Equal(t, uint16(4242), event.Bind.AddrPort, "wrong address port")
-			assert.Equal(t, string("127.0.0.1"), event.Bind.Addr, "wrong address")
+			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, string("127.0.0.1/32"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, -int64(syscall.EADDRNOTAVAIL), event.Bind.Retval, "wrong retval")
 
 			if !validateBindSchema(t, event) {
@@ -110,8 +111,8 @@ func TestBindEvent(t *testing.T) {
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Bind.AddrFamily, "wrong address family")
-			assert.Equal(t, uint16(4242), event.Bind.AddrPort, "wrong address port")
-			assert.Equal(t, string("1234:5678:90ab:cdef::1a1a:1337"), event.Bind.Addr, "wrong address")
+			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, string("1234:5678:90ab:cdef::1a1a:1337/128"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, -int64(syscall.EADDRNOTAVAIL), event.Bind.Retval, "wrong retval")
 
 			if !validateBindSchema(t, event) {
@@ -134,8 +135,8 @@ func TestBindEvent(t *testing.T) {
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Bind.AddrFamily, "wrong address family")
-			assert.Equal(t, uint16(4242), event.Bind.AddrPort, "wrong address port")
-			assert.Equal(t, string("::"), event.Bind.Addr, "wrong address")
+			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, string("::/128"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
 			if !validateBindSchema(t, event) {
@@ -158,8 +159,9 @@ func TestBindEvent(t *testing.T) {
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_UNIX), event.Bind.AddrFamily, "wrong address family")
-			assert.Equal(t, uint16(0), event.Bind.AddrPort, "wrong address port")
-			assert.Equal(t, string(""), event.Bind.Addr, "wrong address")
+			assert.Equal(t, uint16(0), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, net.IPNet{IP: net.IP(nil), Mask: net.IPMask(nil)},
+				event.Bind.Addr.IPNet, "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
 			if !validateBindSchema(t, event) {

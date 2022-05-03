@@ -8,7 +8,6 @@ package model
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 	"unsafe"
@@ -918,22 +917,15 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.AddrFamily = ByteOrder.Uint16(data[read+4 : read+6])
 
 	if e.AddrFamily == unix.AF_INET {
-		e.AddrPort = ByteOrder.Uint16(data[read+6 : read+8])
-		ip32 := ByteOrder.Uint32(data[read+8 : read+12])
-		ip := make(net.IP, 4)
-		binary.BigEndian.PutUint32(ip, ip32)
-		e.Addr = ip.String()
+		e.Addr.Port = binary.BigEndian.Uint16(data[read+6 : read+8])
+		// have to convert it first to network endianess to be correctly loaded by IPPortContext
+		ip32 := binary.BigEndian.Uint32(data[read+8 : read+12])
+		e.Addr.IPNet = *eval.IPNetFromIP((*[4]byte)(unsafe.Pointer(&ip32))[:])
 		// padding 12-24
 	} else if e.AddrFamily == unix.AF_INET6 {
-		e.AddrPort = ByteOrder.Uint16(data[read+6 : read+8])
-		ip6Array := data[read+8 : read+24]
-		var ip6 net.IP = ip6Array
-		e.Addr = ip6.String()
-	} else {
-		e.AddrPort = 0
-		e.Addr = ""
-		// padding 6-24
-	}
+		e.Addr.Port = binary.BigEndian.Uint16(data[read+6 : read+8])
+		e.Addr.IPNet = *eval.IPNetFromIP(data[read+8 : read+24])
+	} // else, padding 6-24
 
 	return read + 24, nil
 }

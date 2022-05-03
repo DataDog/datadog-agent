@@ -816,10 +816,9 @@ type DNSEvent struct {
 type BindEvent struct {
 	SyscallEvent
 
-	Socket     int32  `field:"socket"`      // The socket to be bound
-	AddrFamily uint16 `field:"addr_family"` // Address family
-	AddrPort   uint16 `field:"port"`        // Port (if any)
-	Addr       string `field:"addr"`        // Address (if any)
+	Socket     int32         `field:"socket"`      // The socket to be bound
+	AddrFamily uint16        `field:"addr_family"` // Address family
+	Addr       IPPortContext `field:"addr"`        // Bound address
 }
 
 // NetDevice represents a network device
