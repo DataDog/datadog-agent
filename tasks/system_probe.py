@@ -131,6 +131,7 @@ def test(
     run=None,
     windows=is_windows,
     parallel_build=True,
+    failfast=False,
 ):
     """
     Run tests on eBPF parts
@@ -163,6 +164,7 @@ def test(
         "output_params": "-c -o " + output_path if output_path else "",
         "pkgs": packages,
         "run": "-run " + run if run else "",
+        "failfast": "-failfast" if failfast else "",
     }
 
     _, _, env = get_build_flags(ctx)
@@ -170,7 +172,7 @@ def test(
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    cmd = 'go test -mod=mod -v -tags "{build_tags}" {output_params} {pkgs} {run}'
+    cmd = 'go test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
     if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
