@@ -11,6 +11,7 @@ import (
 	"expvar"
 	"path"
 	"path/filepath"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var status = expvar.NewMap("compliance")
@@ -109,6 +111,8 @@ func (a *Agent) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
 
+	a.startWorkloadMeta(ctx)
+
 	go a.telemetry.run(ctx)
 
 	a.scheduler.Run()
@@ -135,6 +139,15 @@ func (a *Agent) Run() error {
 		return true
 	}
 	return a.buildChecks(onCheck)
+}
+
+var startWMOnce sync.Once
+
+func (a *Agent) startWorkloadMeta(ctx context.Context) {
+	startWMOnce.Do(func() {
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
+	})
 }
 
 func runCheck(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
