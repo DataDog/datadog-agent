@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -55,6 +56,15 @@ type SelfTester struct {
 func NewSelfTester() *SelfTester {
 	return &SelfTester{
 		eventChan: make(chan selfTestEvent, 10),
+	}
+}
+
+// GetStatus returns the result of the last performed self tests
+func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
+	return &api.SelfTestsStatus{
+		LastTimestamp: t.lastTimestamp.Format(time.RFC822),
+		Success:       t.success,
+		Fails:         t.fails,
 	}
 }
 

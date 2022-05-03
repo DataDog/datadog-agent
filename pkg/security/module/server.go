@@ -203,11 +203,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 				Values:   constants,
 			},
 		},
-		SelfTests: &api.SelfTestsStatus{
-			LastTimestamp: a.module.selfTester.lastTimestamp.Format(time.RFC822),
-			Success:       a.module.selfTester.success,
-			Fails:         a.module.selfTester.fails,
-		},
+		SelfTests: a.module.selfTester.GetStatus(),
 	}
 
 	envErrors := a.probe.VerifyEnvironment()
