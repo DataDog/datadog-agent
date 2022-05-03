@@ -79,6 +79,7 @@ message ClientTracer {
   string service = 4;
   string env = 5;
   string app_version = 6;
+  repeated string tags = 7;
 }
 
 message ClientAgent {
