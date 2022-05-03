@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    APM: The agent is now performing rare span detection on all spans,
+    APM: The Agent is now performing rare span detection on all spans,
     as opposed to only dropped spans. This change will slightly reduce
-    the amount of rare spans kept unnecessarily.
+    the number of rare spans kept unnecessarily.

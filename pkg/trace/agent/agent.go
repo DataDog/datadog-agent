@@ -450,6 +450,7 @@ func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) 
 	if a.conf.DisableRareSampler {
 		rare = false
 	} else {
+		// run this early to make sure the signature gets counted by the RareSampler.
 		rare = a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
 	}
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
