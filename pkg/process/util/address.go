@@ -33,7 +33,8 @@ func (a Address) WriteTo(b []byte) int {
 // Bytes returns a byte slice representing the Address.
 // You may want to consider using `WriteTo` instead to avoid allocations
 func (a Address) Bytes() []byte {
-	if a.Is4() {
+	// Note: this implicitly converts IPv4-in-6 to IPv4
+	if a.Is4() || a.Is4in6() {
 		v := a.As4()
 		return v[:]
 	}
