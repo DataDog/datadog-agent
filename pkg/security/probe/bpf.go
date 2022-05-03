@@ -9,6 +9,11 @@
 package probe
 
 import (
+	internal "github.com/DataDog/btf-internals"
+	"github.com/DataDog/btf-internals/sys"
+	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
@@ -21,4 +26,20 @@ func getCheckHelperCallInputType(probe *Probe) uint64 {
 	}
 
 	return input
+}
+
+func haveMmapableMaps() error {
+	// This checks BPF_F_MMAPABLE, which appeared in 5.5 for array maps.
+	m, err := sys.MapCreate(&sys.MapCreateAttr{
+		MapType:    sys.MapType(ebpf.Array),
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 1,
+		MapFlags:   unix.BPF_F_MMAPABLE,
+	})
+	if err != nil {
+		return internal.ErrNotSupported
+	}
+	_ = m.Close()
+	return nil
 }

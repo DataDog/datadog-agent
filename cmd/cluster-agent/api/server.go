@@ -85,10 +85,11 @@ func StartServer() error {
 
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
+		MinVersion:   tls.VersionTLS13,
 	}
 
-	if config.Datadog.GetBool("force_tls_12") {
-		tlsConfig.MinVersion = tls.VersionTLS12
+	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+		tlsConfig.MinVersion = tls.VersionTLS10
 	}
 
 	srv := &http.Server{

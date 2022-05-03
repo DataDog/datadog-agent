@@ -3,10 +3,33 @@ rem
 @set WD=%CD%
 cd %~dp0
 
+REM Copy few resource files locally, source.wxs AS IS and
+REM localization-en-us.wxl.erb replace template value currently via "Agent",
+REM unless localization-en-us.wxl already exhists (e.g. from previous copy)
 copy ..\source.wxs.erb source.wxs
+if not exist localization-en-us.wxl (
+    REM Note "complicated" %% escape BATCH characters
+    PowerShell -Command "Get-Content ..\localization-en-us.wxl.erb | %%{$_ -replace '<%%= friendly_name %%>', 'Agent'} | Out-File -Encoding utf8 'localization-en-us.wxl'"
+)
+
 xcopy /y/e/s/i ..\assets\*.* resources\assets
+
+REM first create zip file if it's not already there (of the embedded directory)
+REM this assumes always A7 for now
+
 REM run HEAT on c:\opt\datadog-agent
 REM
+if not exist c:\opt\datadog-agent\embedded3.7z (
+    @echo Zip file not present, creating
+    if not exist c:\opt\datadog-agent\embedded3 (
+        @echo no embedded3 directory, can't make zip
+        exit /b 5
+    )
+    7z a -mx=5 -ms=on c:\opt\datadog-agent\embedded3.7z c:\opt\datadog-agent\embedded3
+    rd /s/q c:\opt\datadog-agent\embedded3
+) else (
+    @echo zip file present, using existing zip
+)
 heat.exe dir "c:\opt\datadog-agent" -nologo -srd -sreg -gg -cg ProjectDir -dr PROJECTLOCATION -var "var.ProjectSourceDir" -out "project-files.wxs"
 
 REM 

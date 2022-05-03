@@ -15,6 +15,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
+	uatomic "go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -29,9 +30,9 @@ type RuntimeSecurityAgent struct {
 	hostname      string
 	reporter      event.Reporter
 	client        *RuntimeSecurityClient
-	running       atomic.Value
+	running       uatomic.Bool
 	wg            sync.WaitGroup
-	connected     atomic.Value
+	connected     uatomic.Bool
 	eventReceived uint64
 	telemetry     *telemetry
 	endpoints     *config.Endpoints
@@ -113,7 +114,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			continue
 		}
 
-		if rsa.connected.Load() != true {
+		if !rsa.connected.Load() {
 			rsa.connected.Store(true)
 
 			log.Info("Successfully connected to the runtime security module")
@@ -143,11 +144,29 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 
 // GetStatus returns the current status on the agent
 func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
-	return map[string]interface{}{
+	base := map[string]interface{}{
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
 		"endpoints":     rsa.endpoints.GetStatus(),
 	}
+
+	if rsa.client != nil {
+		cfStatus, err := rsa.client.GetStatus()
+		if err == nil {
+			if cfStatus.Environment != nil {
+				environment := map[string]interface{}{
+					"warnings":       cfStatus.Environment.Warnings,
+					"kernelLockdown": cfStatus.Environment.KernelLockdown,
+				}
+				if cfStatus.Environment.Constants != nil {
+					environment["constantFetchers"] = cfStatus.Environment.Constants
+				}
+				base["environment"] = environment
+			}
+		}
+	}
+
+	return base
 }
 
 // newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs

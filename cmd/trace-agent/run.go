@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -87,7 +86,7 @@ func Run(ctx context.Context) {
 
 	if err := coreconfig.SetupLogger(
 		coreconfig.LoggerName("TRACE"),
-		cfg.LogLevel,
+		coreconfig.Datadog.GetString("log_level"),
 		cfg.LogFilePath,
 		coreconfig.GetSyslogURI(),
 		coreconfig.Datadog.GetBool("syslog_rfc"),
@@ -181,7 +180,7 @@ func Run(ctx context.Context) {
 		}
 	}()
 
-	if features.Has("config_endpoint") {
+	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
 		client, err := grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
@@ -195,6 +194,13 @@ func Run(ctx context.Context) {
 			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token) },
 		})
 	}
+
+	api.AttachEndpoint(api.Endpoint{
+		Pattern: "/config/set",
+		Handler: func(r *api.HTTPReceiver) http.Handler {
+			return cmdconfig.SetHandler()
+		},
+	})
 
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)

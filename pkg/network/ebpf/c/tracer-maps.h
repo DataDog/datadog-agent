@@ -67,6 +67,19 @@ struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
     .namespace = "",
 };
 
+/* This map is used to match the kprobe & kretprobe of udpv6_recvmsg */
+/* This is a key/value store with the keys being a pid
+ * and the values being a udp_recv_sock_t
+ */
+struct bpf_map_def SEC("maps/udpv6_recv_sock") udpv6_recv_sock = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(udp_recv_sock_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This maps tracks listening TCP ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
  * key in the map is the network namespace inode together with the port and the value is a flag that
  * indicates if the port is listening or not. When the socket is destroyed (via tcp_v4_destroy_sock), we set the

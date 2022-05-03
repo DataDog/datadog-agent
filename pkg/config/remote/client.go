@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package remote
 
 import (
@@ -8,10 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -19,32 +26,26 @@ import (
 
 // Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
-	m               sync.Mutex
-	ctx             context.Context
-	close           func()
-	facts           Facts
-	enabledProducts map[data.Product]struct{}
-	pollInterval    time.Duration
+	m     sync.Mutex
+	ctx   context.Context
+	close func()
 
-	grpc          pbgo.AgentSecureClient
-	partialClient *uptane.PartialClient
-	configs       *configs
+	agentName    string
+	products     []string
+	pollInterval time.Duration
+
+	grpc           pbgo.AgentSecureClient
+	stateClient    *client.Client
+	currentConfigs client.Configs
 
 	lastPollErr error
 
-	apmSamplingUpdates chan APMSamplingUpdate
-}
-
-// Facts are facts used to identify the client
-type Facts struct {
-	ID      string
-	Name    string
-	Version string
+	apmSamplingUpdates chan []client.ConfigAPMSamling
 }
 
 // NewClient creates a new client
-func NewClient(facts Facts, products []data.Product) (*Client, error) {
-	client, err := newClient(facts, products)
+func NewClient(agentName string, products []data.Product) (*Client, error) {
+	client, err := newClient(agentName, products)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func NewClient(facts Facts, products []data.Product) (*Client, error) {
 	return client, nil
 }
 
-func newClient(facts Facts, products []data.Product, dialOpts ...grpc.DialOption) (*Client, error) {
+func newClient(agentName string, products []data.Product, dialOpts ...grpc.DialOption) (*Client, error) {
 	token, err := security.FetchAuthToken()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not acquire agent auth token")
@@ -67,25 +68,16 @@ func newClient(facts Facts, products []data.Product, dialOpts ...grpc.DialOption
 		close()
 		return nil, err
 	}
-	partialClient, err := uptane.NewPartialClient()
-	if err != nil {
-		close()
-		return nil, err
-	}
-	enabledProducts := make(map[data.Product]struct{})
-	for _, product := range products {
-		enabledProducts[product] = struct{}{}
-	}
+	stateClient := client.NewClient(meta.RootsDirector().Last(), data.ProductListToString(products))
 	return &Client{
 		ctx:                ctx,
-		facts:              facts,
-		enabledProducts:    enabledProducts,
+		agentName:          agentName,
+		products:           data.ProductListToString(products),
 		grpc:               grpcClient,
 		close:              close,
 		pollInterval:       1 * time.Second,
-		partialClient:      partialClient,
-		apmSamplingUpdates: make(chan APMSamplingUpdate, 8),
-		configs:            newConfigs(),
+		stateClient:        stateClient,
+		apmSamplingUpdates: make(chan []client.ConfigAPMSamling, 8),
 	}, nil
 }
 
@@ -105,98 +97,74 @@ func (c *Client) pollLoop() {
 			if c.lastPollErr != nil {
 				log.Errorf("could not poll remote-config agent service: %v", c.lastPollErr)
 			}
+			c.updateConfigs()
 		}
 	}
-}
-
-func (c *Client) products() []data.Product {
-	var products []data.Product
-	for product := range c.enabledProducts {
-		products = append(products, product)
-	}
-	return products
 }
 
 func (c *Client) poll() error {
 	c.m.Lock()
 	defer c.m.Unlock()
-	state := c.partialClient.State()
+	state := c.stateClient.State()
 	lastPollErr := ""
 	if c.lastPollErr != nil {
 		lastPollErr = c.lastPollErr.Error()
 	}
 	response, err := c.grpc.ClientGetConfigs(c.ctx, &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
-			Id:      c.facts.ID,
-			Name:    c.facts.Name,
-			Version: c.facts.Version,
+			Id:      c.stateClient.ID(),
+			IsAgent: true,
+			ClientAgent: &pbgo.ClientAgent{
+				Name:    c.agentName,
+				Version: version.AgentVersion,
+			},
 			State: &pbgo.ClientState{
-				RootVersion:    state.RootVersion,
-				TargetsVersion: state.TargetsVersion,
-				Configs:        c.configs.state(),
+				RootVersion:    uint64(state.RootVersion),
+				TargetsVersion: uint64(state.TargetsVersion),
+				ConfigStates:   c.configStates(),
 				HasError:       c.lastPollErr != nil,
 				Error:          lastPollErr,
 			},
-			Products: data.ProductListToString(c.products()),
+			Products: c.products,
 		},
 	})
 	if err != nil {
 		return err
 	}
-	err = c.partialClient.Update(response)
-	if err != nil {
-		return err
+	targetFiles := make(map[string][]byte, len(response.TargetFiles))
+	for _, targetFile := range response.TargetFiles {
+		targetFiles[targetFile.Path] = targetFile.Raw
 	}
-	configFiles, err := c.buildConfigFiles()
-	if err != nil {
-		return err
-	}
-	updates := c.configs.update(c.products(), configFiles)
-	c.publishUpdates(updates)
-	return nil
+	return c.stateClient.Update(client.Update{
+		Roots:       response.Roots,
+		Targets:     response.Targets,
+		TargetFiles: targetFiles,
+	})
 }
 
-func (c *Client) buildConfigFiles() (configFiles, error) {
-	targets, err := c.partialClient.Targets()
-	if err != nil {
-		return nil, err
+func (c *Client) updateConfigs() {
+	newConfigs := c.stateClient.GetConfigs(time.Now().Unix())
+	updatedProducts := newConfigs.Diff(c.currentConfigs)
+	c.currentConfigs = newConfigs
+	if updatedProducts.APMSampling {
+		c.apmSamplingUpdates <- newConfigs.APMSamplingConfigs
 	}
-	var configFiles configFiles
-	for targetPath, target := range targets {
-		targetPathMeta, err := data.ParseFilePathMeta(targetPath)
-		if err != nil {
-			return nil, err
-		}
-		if _, productEnabled := c.enabledProducts[targetPathMeta.Product]; productEnabled {
-			targetContent, err := c.partialClient.TargetFile(targetPath)
-			if err != nil {
-				return nil, err
-			}
-			targetVersion, err := targetVersion(target.Custom)
-			if err != nil {
-				return nil, err
-			}
-			configFiles = append(configFiles, configFile{
-				pathMeta: targetPathMeta,
-				version:  targetVersion,
-				raw:      targetContent,
-			})
-		}
-	}
-	return configFiles, nil
 }
 
-func (c *Client) publishUpdates(update update) {
-	if update.apmSamplingUpdate != nil {
-		select {
-		case c.apmSamplingUpdates <- *update.apmSamplingUpdate:
-		default:
-			log.Warnf("apm sampling update queue is full, dropping configuration")
-		}
+func (c *Client) configStates() []*pbgo.ConfigState {
+	var configStates []*pbgo.ConfigState
+	configs := c.currentConfigs
+	for _, config := range configs.APMSamplingConfigs {
+		configStates = append(configStates, &pbgo.ConfigState{
+			Product: string(data.ProductAPMSampling),
+			Id:      config.ID,
+			Version: config.Version,
+		})
 	}
+	return configStates
 }
 
 // APMSamplingUpdates returns a chan to consume apm sampling updates
-func (c *Client) APMSamplingUpdates() <-chan APMSamplingUpdate {
+func (c *Client) APMSamplingUpdates() <-chan []client.ConfigAPMSamling {
 	return c.apmSamplingUpdates
 }

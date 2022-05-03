@@ -100,10 +100,21 @@ func (c *collector) Pull(ctx context.Context) error {
 			delete(c.resourceTags, expired.ID)
 		}
 
+		var entity workloadmeta.Entity
+		switch expired.Kind {
+		case workloadmeta.KindECSTask:
+			entity = &workloadmeta.ECSTask{EntityID: expired}
+		case workloadmeta.KindContainer:
+			entity = &workloadmeta.Container{EntityID: expired}
+		default:
+			log.Errorf("cannot handle expired entity of kind %q, skipping", expired.Kind)
+			continue
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceNodeOrchestrator,
-			Entity: expired,
+			Entity: entity,
 		})
 	}
 

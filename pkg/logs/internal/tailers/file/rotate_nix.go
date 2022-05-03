@@ -20,10 +20,10 @@ import (
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
 	f, err := openFile(t.osFile.Name())
-	defer f.Close()
 	if err != nil {
 		return false, err
 	}
+	defer f.Close()
 
 	fi1, err := f.Stat()
 	if err != nil {
@@ -36,7 +36,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 	}
 
 	recreated := !os.SameFile(fi1, fi2)
-	truncated := fi1.Size() < t.getLastReadOffset()
+	truncated := fi1.Size() < t.lastReadOffset.Load()
 
 	return recreated || truncated, nil
 }

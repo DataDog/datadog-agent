@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -59,7 +58,7 @@ func (t *Tagger) Init(ctx context.Context) error {
 	)
 
 	go t.tagStore.Run(t.ctx)
-	go t.collector.Stream(t.ctx)
+	go t.collector.Run(t.ctx)
 
 	return nil
 }
@@ -106,21 +105,7 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	tags, err := t.tagStore.LookupStandard(entity)
-	if err == tagstore.ErrNotFound {
-		// entity not found yet in the tagger
-		// trigger tagger fetch operations
-		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)
-		_, _ = t.Tag(entity, collectors.LowCardinality)
-
-		return t.tagStore.LookupStandard(entity)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("Entity %q not found: %w", entity, err)
-	}
-
-	return tags, nil
+	return t.tagStore.LookupStandard(entity)
 }
 
 // GetEntity returns the entity corresponding to the specified id and an error

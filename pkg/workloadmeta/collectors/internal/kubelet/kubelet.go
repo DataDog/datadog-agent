@@ -131,6 +131,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
+			QOSClass:                   pod.Status.QOSClass,
 		}
 
 		events = append(events, containerEvents...)
@@ -274,20 +275,28 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEv
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
 
-		var kind workloadmeta.Kind
+		var entity workloadmeta.Entity
+
 		if prefix == kubelet.KubePodEntityName {
-			kind = workloadmeta.KindKubernetesPod
+			entity = &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   id,
+				},
+			}
 		} else {
-			kind = workloadmeta.KindContainer
+			entity = &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   id,
+				},
+			}
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeUnset,
-			Entity: workloadmeta.EntityID{
-				Kind: kind,
-				ID:   id,
-			},
+			Entity: entity,
 		})
 	}
 

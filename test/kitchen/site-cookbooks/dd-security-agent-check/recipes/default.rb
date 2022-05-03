@@ -36,6 +36,10 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  kernel_module 'veth' do
+    action :load
+  end
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
@@ -77,8 +81,9 @@ if node['platform_family'] != 'windows'
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
       FROM centos:7
+      ENV DOCKER_DD_AGENT=yes
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
-      RUN yum -y install xfsprogs e2fsprogs
+      RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
       EOF
       action :create
@@ -95,17 +100,23 @@ if node['platform_family'] != 'windows'
       tag 'latest'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       volumes [
+        # security-agent misc
         '/tmp/security-agent:/tmp/security-agent',
+        # HOST_* paths
         '/proc:/host/proc',
+        '/etc:/host/etc',
+        '/sys:/host/sys',
+        # os-release
         '/etc/os-release:/host/etc/os-release',
-        '/:/host/root',
-        '/etc:/host/etc'
+        '/usr/lib/os-release:/host/usr/lib/os-release',
+        # passwd and groups
+        '/etc/passwd:/etc/passwd',
+        '/etc/group:/etc/group',
       ]
       env [
         'HOST_PROC=/host/proc',
-        'HOST_ROOT=/host/root',
         'HOST_ETC=/host/etc',
-        'DOCKER_DD_AGENT=yes'
+        'HOST_SYS=/host/sys',
       ]
       privileged true
     end
@@ -126,6 +137,13 @@ if node['platform_family'] != 'windows'
   if platform_family?('centos', 'fedora', 'rhel')
     selinux_state "SELinux Permissive" do
       action :permissive
+    end
+  end
+
+  if File.exists?('/sys/kernel/security/lockdown')
+    file '/sys/kernel/security/lockdown' do
+      action :create_if_missing
+      content "integrity"
     end
   end
 end

@@ -68,7 +68,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
-	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle"}, config.GetStringSlice("cloud_provider_metadata"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{

@@ -16,17 +16,18 @@ package app
 import (
 	"errors"
 
+	"github.com/spf13/cobra"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
-	"github.com/spf13/cobra"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var runtimeCmd *cobra.Command
 
-func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
+func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")

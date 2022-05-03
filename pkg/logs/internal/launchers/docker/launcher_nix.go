@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"golang.org/x/sys/unix"
 )
@@ -22,17 +22,11 @@ const (
 	podmanBasePath = "/var/lib/containers/storage/overlay-containers"
 )
 
-func (l *Launcher) checkContainerLogfileAccess() error {
-	var path string
-
-	// determine the base path that getContainerLogfilePath will use
-	switch l.runtime {
-	case config.Podman:
+func checkReadAccess() error {
+	path := basePath
+	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
 		path = podmanBasePath
-	default: // ..default to config.Docker
-		path = basePath
 	}
-
 	err := unix.Access(path, unix.X_OK)
 	if err != nil {
 		return fmt.Errorf("Error accessing %s: %w", path, err)
@@ -40,12 +34,10 @@ func (l *Launcher) checkContainerLogfileAccess() error {
 	return nil
 }
 
-// getContainerLogfilePath returns the file path of the container log to tail.
-func (l *Launcher) getContainerLogfilePath(id string) string {
-	switch l.runtime {
-	case config.Podman:
+// getPath returns the file path of the container log to tail.
+func getPath(id string) string {
+	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
 		return filepath.Join(podmanBasePath, fmt.Sprintf("%s/userdata/ctr.log", id))
-	default: // ..default to config.Docker
-		return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 	}
+	return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 }

@@ -10,6 +10,7 @@ import "sync"
 // StatsTelemetrySender contains methods needed for sending stats metrics
 type StatsTelemetrySender interface {
 	Count(metric string, value float64, hostname string, tags []string)
+	Gauge(metric string, value float64, hostname string, tags []string)
 }
 
 // StatsTelemetryProvider handles stats telemetry and passes it on to a sender
@@ -43,4 +44,15 @@ func (s *StatsTelemetryProvider) Count(metric string, value float64, tags []stri
 	}
 
 	s.sender.Count(metric, value, "", tags)
+}
+
+// Gauge reports a gauge metric to the sender
+func (s *StatsTelemetryProvider) Gauge(metric string, value float64, tags []string) {
+	s.m.RLock()
+	defer s.m.RUnlock()
+	if s.sender == nil {
+		return
+	}
+
+	s.sender.Gauge(metric, value, "", tags)
 }

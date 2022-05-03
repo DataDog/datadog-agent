@@ -47,9 +47,9 @@ func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, err
 	return s.Ports, nil
 }
 
-// GetTags returns mil
-func (s *dummyService) GetTags() ([]string, string, error) {
-	return nil, "", nil
+// GetTags returns the tags for this service
+func (s *dummyService) GetTags() ([]string, error) {
+	return nil, nil
 }
 
 // GetPid return a dummy pid
@@ -78,6 +78,6 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, nil
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
+	return "", nil
 }

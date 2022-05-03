@@ -18,7 +18,7 @@
 /*.md                                   @DataDog/agent-platform @DataDog/documentation
 /NOTICE                                 @DataDog/agent-platform @DataDog/documentation
 
-/LICENSE*                               @DataDog/do-not-notify
+/LICENSE*                               # do not notify anyone
 
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
@@ -30,7 +30,7 @@
 
 /.circleci/                             @DataDog/agent-platform
 
-/.github/CODEOWNERS                                 @DataDog/do-not-notify
+/.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
@@ -43,6 +43,7 @@
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-platform
 /.gitlab/binary_build/system_probe.yml               @DataDog/agent-network @DataDog/agent-platform
 
 /.gitlab/deploy_6/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
@@ -59,6 +60,7 @@
 /.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
+/.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
 /.gitlab/functional_test/system_probe.yml            @DataDog/agent-network @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/agent-network @DataDog/agent-platform
 
@@ -93,7 +95,7 @@
 /cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/cluster-agent/                     @DataDog/container-integrations
-/cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integration-tools-and-libraries
+/cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
@@ -119,8 +121,8 @@
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
 # that should be fine since rarely we make PRs that only change those files alone.
-/go.mod                                 @DataDog/do-not-notify
-/go.sum                                 @DataDog/do-not-notify
+/go.mod                                 # do not notify anyone
+/go.sum                                 # do not notify anyone
 
 /Makefile.trace                         @DataDog/agent-apm
 
@@ -128,6 +130,7 @@
 /omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
+/omnibus/config/software/snmp-traps.rb                    @DataDog/infrastructure-integrations
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -175,6 +178,7 @@
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/otlp/                              @DataDog/agent-platform
+/pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/integrations-tools-and-libraries
 /pkg/util/clusteragent/                 @DataDog/container-integrations
@@ -199,7 +203,7 @@
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
-/pkg/proto/pbgo/                        @DataDog/do-not-notify
+/pkg/proto/pbgo/                        # do not notify anyone
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/agent-network
 /pkg/ebpf/                              @DataDog/agent-network

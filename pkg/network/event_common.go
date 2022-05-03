@@ -131,18 +131,20 @@ type ConnTelemetryType string
 //revive:disable:exported
 const (
 	MonotonicKprobesTriggered          ConnTelemetryType = "kprobes_triggered"
-	MonotonicKprobesMissed                               = "kprobes_missed"
-	MonotonicConnsClosed                                 = "conns_closed"
-	MonotonicConntrackRegisters                          = "conntrack_registers"
-	MonotonicConntrackRegistersDropped                   = "conntrack_registers_dropped"
-	MonotonicDNSPacketsProcessed                         = "dns_packets_processed"
-	MonotonicUDPSendsProcessed                           = "udp_sends_processed"
-	MonotonicUDPSendsMissed                              = "udp_sends_missed"
-	DNSStatsDropped                                      = "dns_stats_dropped"
-	ConnsBpfMapSize                                      = "conns_bpf_map_size"
-	ConntrackSamplingPercent                             = "conntrack_sampling_percent"
-	NPMDriverFlowsMissedMaxExceeded                      = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped                           = "dns_packets_dropped"
+	MonotonicKprobesMissed             ConnTelemetryType = "kprobes_missed"
+	MonotonicConnsClosed               ConnTelemetryType = "conns_closed"
+	MonotonicConntrackRegisters        ConnTelemetryType = "conntrack_registers"
+	MonotonicConntrackRegistersDropped ConnTelemetryType = "conntrack_registers_dropped"
+	MonotonicDNSPacketsProcessed       ConnTelemetryType = "dns_packets_processed"
+	MonotonicUDPSendsProcessed         ConnTelemetryType = "udp_sends_processed"
+	MonotonicUDPSendsMissed            ConnTelemetryType = "udp_sends_missed"
+	DNSStatsDropped                    ConnTelemetryType = "dns_stats_dropped"
+	ConnsBpfMapSize                    ConnTelemetryType = "conns_bpf_map_size"
+	ConntrackSamplingPercent           ConnTelemetryType = "conntrack_sampling_percent"
+	NPMDriverFlowsMissedMaxExceeded    ConnTelemetryType = "driver_flows_missed_max_exceeded"
+	MonotonicDNSPacketsDropped         ConnTelemetryType = "dns_packets_dropped"
+	HTTPRequestsDropped                ConnTelemetryType = "http_requests_dropped"
+	HTTPRequestsMissed                 ConnTelemetryType = "http_requests_missed"
 )
 
 //revive:enable
@@ -155,6 +157,8 @@ var (
 		ConntrackSamplingPercent,
 		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
+		HTTPRequestsDropped,
+		HTTPRequestsMissed,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled

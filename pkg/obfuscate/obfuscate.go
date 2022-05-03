@@ -14,9 +14,9 @@ package obfuscate
 
 import (
 	"bytes"
-	"sync/atomic"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
@@ -28,10 +28,8 @@ type Obfuscator struct {
 	sqlExecPlan          *jsonObfuscator // nil if disabled
 	sqlExecPlanNormalize *jsonObfuscator // nil if disabled
 	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
-	// A non-zero value means 'yes'. Different SQL engines behave in different ways and the tokenizer needs
-	// to be generic.
-	// Not safe for concurrent use.
-	sqlLiteralEscapes int32
+	// Different SQL engines behave in different ways and the tokenizer needs to be generic.
+	sqlLiteralEscapes *atomic.Bool
 	// queryCache keeps a cache of already obfuscated queries.
 	queryCache *measuredCache
 	log        Logger
@@ -50,9 +48,9 @@ func (noopLogger) Debugf(_ string, _ ...interface{}) {}
 // setSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) setSQLLiteralEscapes(ok bool) {
 	if ok {
-		atomic.StoreInt32(&o.sqlLiteralEscapes, 1)
+		o.sqlLiteralEscapes.Store(true)
 	} else {
-		atomic.StoreInt32(&o.sqlLiteralEscapes, 0)
+		o.sqlLiteralEscapes.Store(false)
 	}
 }
 
@@ -60,7 +58,7 @@ func (o *Obfuscator) setSQLLiteralEscapes(ok bool) {
 // Some SQL engines require it and others don't. It will be detected as SQL queries are being obfuscated
 // through calls to ObfuscateSQLString and automatically set for future.
 func (o *Obfuscator) useSQLLiteralEscapes() bool {
-	return atomic.LoadInt32(&o.sqlLiteralEscapes) == 1
+	return o.sqlLiteralEscapes.Load()
 }
 
 // Config holds the configuration for obfuscating sensitive data for various span types.
@@ -175,8 +173,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 		cfg.Logger = noopLogger{}
 	}
 	o := Obfuscator{
-		opts:       &cfg,
-		queryCache: newMeasuredCache(cacheOptions{On: cfg.SQL.Cache, Statsd: cfg.Statsd}),
+		opts:              &cfg,
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.SQL.Cache, Statsd: cfg.Statsd}),
+		sqlLiteralEscapes: atomic.NewBool(false),
 	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)

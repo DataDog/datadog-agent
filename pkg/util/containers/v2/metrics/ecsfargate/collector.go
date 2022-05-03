@@ -69,7 +69,7 @@ func newEcsFargateCollector() (*ecsFargateCollector, error) {
 func (e *ecsFargateCollector) ID() string { return ecsFargateCollectorID }
 
 // GetContainerStats returns stats by container ID.
-func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (e *ecsFargateCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := e.stats(containerID)
 	if err != nil {
 		return nil, err
@@ -86,8 +86,20 @@ func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidit
 	return containerStats, nil
 }
 
+// GetContainerPIDStats returns pid stats by container ID.
+func (e *ecsFargateCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerPIDStats, error) {
+	// Not available
+	return nil, nil
+}
+
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (e *ecsFargateCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
+}
+
 // GetContainerNetworkStats returns network stats by container ID.
-func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (e *ecsFargateCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := e.stats(containerID)
 	if err != nil {
 		return nil, err

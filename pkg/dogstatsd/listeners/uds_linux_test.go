@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
@@ -46,8 +47,8 @@ func TestUDSPassCred(t *testing.T) {
 
 	// Test socket has PASSCRED option set to 1
 	f, err := s.conn.File()
+	require.Nil(t, err)
 	defer f.Close()
-	assert.Nil(t, err)
 
 	enabled, err := unix.GetsockoptInt(int(f.Fd()), unix.SOL_SOCKET, unix.SO_PASSCRED)
 	assert.Nil(t, err)

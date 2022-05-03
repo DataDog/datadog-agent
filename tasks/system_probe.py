@@ -2,6 +2,7 @@ import contextlib
 import glob
 import json
 import os
+import platform
 import re
 import shutil
 import sys
@@ -35,17 +36,28 @@ TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 
 is_windows = sys.platform == "win32"
 
+arch_mapping = {
+    "amd64": "x64",
+    "x86_64": "x64",
+    "x64": "x64",
+    "i386": "x86",
+    "i686": "x86",
+    "aarch64": "arm64",  # linux
+    "arm64": "arm64",  # darwin
+}
+CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
+
 
 @task
 def build(
     ctx,
     race=False,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
     windows=is_windows,
-    arch="x64",
+    arch=CURRENT_ARCH,
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
     nikos_embedded_path=None,
@@ -222,20 +234,29 @@ def kitchen_prepare(ctx, windows=is_windows):
 
 
 @task
-def kitchen_test(ctx, target=None, arch="x86_64"):
+def kitchen_test(ctx, target=None, provider="virtualbox"):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
 
+    vagrant_arch = ""
+    if CURRENT_ARCH == "x64":
+        vagrant_arch = "x86_64"
+    elif CURRENT_ARCH == "arm64":
+        vagrant_arch = "arm64"
+    else:
+        raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
+
     # Retrieve a list of all available vagrant images
     images = {}
-    with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
-        for platform, by_provider in json.load(f).items():
-            if "vagrant" in by_provider:
-                for image in by_provider["vagrant"][arch]:
-                    images[image] = platform
+    platform_file = os.path.join(KITCHEN_DIR, "platforms.json")
+    with open(platform_file, 'r') as f:
+        for kplatform, by_provider in json.load(f).items():
+            if "vagrant" in by_provider and vagrant_arch in by_provider["vagrant"]:
+                for image in by_provider["vagrant"][vagrant_arch]:
+                    images[image] = kplatform
 
     if not (target in images):
         print(
@@ -245,8 +266,8 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test",
-            env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"},
+            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test --platformfile {platform_file} --arch {vagrant_arch}",
+            env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
 
@@ -478,16 +499,18 @@ def get_ebpf_build_flags(target=None):
     return flags
 
 
-def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags):
+def build_network_ebpf_compile_file(
+    ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags, extension=".bc"
+):
     src_file = os.path.join(network_prebuilt_dir, f"{p}.c")
     if not debug:
-        bc_file = os.path.join(build_dir, f"{p}.bc")
+        bc_file = os.path.join(build_dir, f"{p}{extension}")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file),
             asynchronous=parallel_build,
         )
     else:
-        debug_bc_file = os.path.join(build_dir, f"{p}-debug.bc")
+        debug_bc_file = os.path.join(build_dir, f"{p}-debug{extension}")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file),
             asynchronous=parallel_build,
@@ -511,12 +534,32 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
         )
 
 
+def build_http_ebpf_files(ctx, build_dir):
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
+    network_flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    network_flags.append(f"-I{network_c_dir}")
+    network_flags.append(f"-D__{uname_m}__")
+
+    network_flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
+
+    build_network_ebpf_compile_file(
+        ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
+    )
+    build_network_ebpf_compile_file(
+        ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags, extension=".o"
+    )
+
+
 def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    compiled_programs = ["dns", "http", "offset-guess", "tracer"]
+    compiled_programs = ["dns", "offset-guess", "tracer"]
 
     network_flags = get_ebpf_build_flags()
     network_flags.append(f"-I{network_c_dir}")
@@ -549,7 +592,29 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
         promise.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
+def build_security_offset_guesser_ebpf_files(ctx, build_dir):
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
+    security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
+
+    security_flags = get_ebpf_build_flags()
+    security_flags.append(f"-I{security_agent_c_dir}")
+
+    ctx.run(
+        CLANG_CMD.format(
+            flags=" ".join(security_flags),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
+        ),
+    )
+    ctx.run(
+        LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
+    )
+
+
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
@@ -613,6 +678,11 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
             p.join()
 
 
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir)
+
+
 def build_object_files(ctx, parallel_build):
     """build_object_files builds only the eBPF object"""
 
@@ -628,6 +698,7 @@ def build_object_files(ctx, parallel_build):
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    build_http_ebpf_files(ctx, build_dir=build_dir)
     build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
 
     generate_runtime_files(ctx)
@@ -641,7 +712,7 @@ def generate_runtime_files(ctx):
         "./pkg/network/http/compile.go",
         "./pkg/network/tracer/compile.go",
         "./pkg/network/tracer/connection/kprobe/compile.go",
-        "./pkg/security/probe/compile.go",
+        "./pkg/security/ebpf/compile.go",
     ]
     for f in runtime_compiler_files:
         ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")

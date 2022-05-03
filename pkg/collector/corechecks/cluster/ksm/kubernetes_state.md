@@ -364,6 +364,9 @@ The Kubernetes State Metrics Core check does not include any events.
 
 ### Service Checks
 
+`kubernetes_state.cronjob.complete`
+: Whether the last job of the cronjob is failed or not. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
+
 `kubernetes_state.cronjob.on_schedule_check`
 : Alert if the cronjob's next schedule is in the past. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 

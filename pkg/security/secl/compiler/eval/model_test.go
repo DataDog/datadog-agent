@@ -7,6 +7,7 @@ package eval
 
 import (
 	"container/list"
+	"net"
 	"reflect"
 	"syscall"
 	"unsafe"
@@ -26,6 +27,7 @@ type testItem struct {
 
 type testProcess struct {
 	name      string
+	argv0     string
 	uid       int
 	gid       int
 	pid       int
@@ -100,11 +102,19 @@ type testMkdir struct {
 	mode     int
 }
 
+type testNetwork struct {
+	ip    net.IPNet
+	ips   []net.IPNet
+	cidr  net.IPNet
+	cidrs []net.IPNet
+}
+
 type testEvent struct {
 	id   string
 	kind string
 
 	process testProcess
+	network testNetwork
 	open    testOpen
 	mkdir   testMkdir
 
@@ -165,10 +175,57 @@ func (m *testModel) GetIterator(field Field) (Iterator, error) {
 func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, error) {
 	switch field {
 
+	case "network.ip":
+
+		return &CIDREvaluator{
+			EvalFnc: func(ctx *Context) net.IPNet {
+				return (*testEvent)(ctx.Object).network.ip
+			},
+			Field: field,
+		}, nil
+
+	case "network.cidr":
+
+		return &CIDREvaluator{
+			EvalFnc: func(ctx *Context) net.IPNet {
+				return (*testEvent)(ctx.Object).network.cidr
+			},
+			Field: field,
+		}, nil
+
+	case "network.ips":
+
+		return &CIDRArrayEvaluator{
+			EvalFnc: func(ctx *Context) []net.IPNet {
+				var ipnets []net.IPNet
+				for _, ip := range (*testEvent)(ctx.Object).network.ips {
+					ipnets = append(ipnets, ip)
+				}
+				return ipnets
+			},
+		}, nil
+
+	case "network.cidrs":
+
+		return &CIDRArrayEvaluator{
+			EvalFnc: func(ctx *Context) []net.IPNet {
+				return (*testEvent)(ctx.Object).network.cidrs
+			},
+			Field: field,
+		}, nil
+
 	case "process.name":
 
 		return &StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
+			EvalFnc:     func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
+			Field:       field,
+			OpOverrides: GlobCmp,
+		}, nil
+
+	case "process.argv0":
+
+		return &StringEvaluator{
+			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).process.argv0 },
 			Field:   field,
 		}, nil
 
@@ -441,9 +498,25 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	switch field {
 
+	case "network.ip":
+		return e.network.ip, nil
+
+	case "network.ips":
+		return e.network.ips, nil
+
+	case "network.cidr":
+		return e.network.cidr, nil
+
+	case "network.cidrs":
+		return e.network.cidrs, nil
+
 	case "process.name":
 
 		return e.process.name, nil
+
+	case "process.argv0":
+
+		return e.process.argv0, nil
 
 	case "process.uid":
 
@@ -493,7 +566,27 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 	switch field {
 
+	case "network.ip":
+
+		return "network", nil
+
+	case "network.ips":
+
+		return "network", nil
+
+	case "network.cidr":
+
+		return "network", nil
+
+	case "network.cidrs":
+
+		return "network", nil
+
 	case "process.name":
+
+		return "*", nil
+
+	case "process.argv0":
 
 		return "*", nil
 
@@ -577,9 +670,33 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	switch field {
 
+	case "network.ip":
+
+		e.network.ip = value.(net.IPNet)
+		return nil
+
+	case "network.ips":
+
+		e.network.ips = value.([]net.IPNet)
+
+	case "network.cidr":
+
+		e.network.cidr = value.(net.IPNet)
+		return nil
+
+	case "network.cidrs":
+
+		e.network.cidrs = value.([]net.IPNet)
+		return nil
+
 	case "process.name":
 
 		e.process.name = value.(string)
+		return nil
+
+	case "process.argv0":
+
+		e.process.argv0 = value.(string)
 		return nil
 
 	case "process.uid":
@@ -640,7 +757,27 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 	switch field {
 
+	case "network.ip":
+
+		return reflect.Struct, nil
+
+	case "network.ips":
+
+		return reflect.Array, nil
+
+	case "network.cidr":
+
+		return reflect.Struct, nil
+
+	case "network.cidrs":
+
+		return reflect.Array, nil
+
 	case "process.name":
+
+		return reflect.String, nil
+
+	case "process.argv0":
 
 		return reflect.String, nil
 

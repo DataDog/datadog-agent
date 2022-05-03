@@ -31,7 +31,7 @@ func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFu
 
 func (cext *containerdCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
-	containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
+	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
 		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return

@@ -18,12 +18,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // RuntimeMonitor is used to export runtime.MemStats metrics for debugging purposes
 type RuntimeMonitor struct {
-	client *statsd.Client
+	client statsd.ClientInterface
 }
 
 // SendStats sends the metric of the runtime monitor
@@ -241,7 +241,7 @@ func (m *RuntimeMonitor) sendGoRuntimeMetrics() error {
 }
 
 // NewRuntimeMonitor returns a new instance of RuntimeMonitor
-func NewRuntimeMonitor(client *statsd.Client) *RuntimeMonitor {
+func NewRuntimeMonitor(client statsd.ClientInterface) *RuntimeMonitor {
 	return &RuntimeMonitor{
 		client: client,
 	}

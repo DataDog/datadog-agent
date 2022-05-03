@@ -12,12 +12,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"go.uber.org/atomic"
 )
 
 // Entry is used to keep track of tag slices shared by the contexts.
 type Entry struct {
+	// refs is the refcount of this entity.  If this value is zero, then the
+	// entity may be reclaimed in Shrink().
+	//
+	// This value must be first in the struct to ensure proper alignment.  It
+	// is not used as a pointer to avoid doubling the number of allocations
+	// required per Entry.
+	refs atomic.Uint64
+
+	// tags contains the cached tags in this entry.
 	tags []string
-	refs uint64
 }
 
 // Tags returns the strings stored in the Entry. The slice may be
@@ -30,12 +39,17 @@ func (e *Entry) Tags() []string {
 
 // Release decrements internal reference counter, potentially marking
 // the entry as unused.
+//
+// Can be called concurrently with other store operations.
 func (e *Entry) Release() {
-	e.refs--
+	e.refs.Dec()
 }
 
 // Store is a reference counted container of tags slices, to be shared
 // between contexts.
+//
+// Store is generally not thread-safe, except Release may be called
+// concurrently with other methods.
 type Store struct {
 	tagsByKey map[ckey.TagsKey]*Entry
 	cap       int
@@ -57,23 +71,26 @@ func NewStore(enabled bool, name string) *Store {
 // retrieved from the tagsBuffer. Insert increments reference count
 // for the returned entry; callers should call Entry.Release() when
 // the returned pointer is no longer in use.
+//
+// Store is generally not thread-safe, except Release may be called
+// concurrently with other methods.
 func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
 		return &Entry{
 			tags: tagsBuffer.Copy(),
-			refs: 1,
 		}
 	}
 
 	entry := tc.tagsByKey[key]
 	if entry != nil {
-		entry.refs++
+		// Can happen concurrently with Release().
+		entry.refs.Inc()
 		tc.telemetry.hits.Inc()
 	} else {
 		entry = &Entry{
 			tags: tagsBuffer.Copy(),
-			refs: 1,
 		}
+		entry.refs.Inc()
 		tc.tagsByKey[key] = entry
 		tc.cap++
 		tc.telemetry.miss.Inc()
@@ -83,13 +100,16 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 }
 
 // Shrink will try to release memory if cache usage drops low enough.
+//
+// Store is generally not thread-safe, except Release may be called
+// concurrently with other methods.
 func (tc *Store) Shrink() {
 	stats := entryStats{}
 	for key, entry := range tc.tagsByKey {
-		if entry.refs == 0 {
-			delete(tc.tagsByKey, key)
+		if refs := entry.refs.Load(); refs > 0 {
+			stats.visit(entry, refs)
 		} else {
-			stats.visit(entry)
+			delete(tc.tagsByKey, key)
 		}
 	}
 
@@ -166,8 +186,7 @@ type entryStats struct {
 	count    int
 }
 
-func (s *entryStats) visit(e *Entry) {
-	r := e.refs
+func (s *entryStats) visit(e *Entry, r uint64) {
 	if r < 4 {
 		s.refsFreq[r-1]++
 	} else if r < 64 {

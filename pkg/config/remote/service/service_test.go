@@ -1,9 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package service
 
 import (
 	"context"
 	"encoding/base32"
-	"encoding/json"
 	"errors"
 	"os"
 	"testing"
@@ -233,9 +237,7 @@ func TestService(t *testing.T) {
 	root3 := []byte(`testroot3`)
 	root4 := []byte(`testroot4`)
 	targets := []byte(`testtargets`)
-	testTargetsCustom, _ := json.Marshal(&targetsCustom{
-		ClientState: []byte("test_state"),
-	})
+	testTargetsCustom := []byte(`{"client_state":"test_state"}`)
 	client := &pbgo.Client{
 		State: &pbgo.ClientState{
 			RootVersion: 2,
@@ -277,15 +279,15 @@ func TestService(t *testing.T) {
 		NewProducts: []string{
 			string(rdata.ProductAPMSampling),
 		},
-		ActiveClients: []*pbgo.Client{client},
-		ClientState:   []byte("test_state"),
+		ActiveClients:      []*pbgo.Client{client},
+		BackendClientState: []byte(`"test_state"`),
 	}).Return(lastConfigResponse, nil)
 
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, []*pbgo.TopMeta{{Version: 3, Raw: root3}, {Version: 4, Raw: root4}}, configResponse.Roots)
+	assert.ElementsMatch(t, [][]byte{root3, root4}, configResponse.Roots)
 	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles)
-	assert.Equal(t, &pbgo.TopMeta{Version: 5, Raw: targets}, configResponse.Targets)
+	assert.Equal(t, targets, configResponse.Targets)
 	err = service.refresh()
 	assert.NoError(t, err)
 

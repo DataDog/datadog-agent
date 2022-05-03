@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configmapprovider"
 	"go.opentelemetry.io/collector/config/configunmarshaler"
 	"go.opentelemetry.io/collector/service"
 	"gopkg.in/yaml.v2"
@@ -40,21 +39,23 @@ const (
 	mapLocation   = "map:hardcoded"
 )
 
-var _ configmapprovider.Provider = (*mapProvider)(nil)
+var _ config.MapProvider = (*mapProvider)(nil)
 
 type mapProvider struct {
 	cfg *config.Map
 }
 
-func (m *mapProvider) Retrieve(_ context.Context, location string, _ configmapprovider.WatcherFunc) (configmapprovider.Retrieved, error) {
+func (m *mapProvider) Retrieve(_ context.Context, uri string, _ config.WatcherFunc) (config.Retrieved, error) {
 	// We only support the constant location 'map:hardcoded'
-	if location != mapLocation {
-		return nil, fmt.Errorf("%v location is not supported by %v provider", location, mapSchemeName)
+	if uri != mapLocation {
+		return config.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", uri, mapSchemeName)
 	}
 
-	return configmapprovider.NewRetrieved(func(context.Context) (*config.Map, error) {
-		return m.cfg, nil
-	})
+	return config.Retrieved{Map: m.cfg}, nil
+}
+
+func (m *mapProvider) Scheme() string {
+	return mapSchemeName
 }
 
 func (m *mapProvider) Shutdown(context.Context) error {
@@ -64,12 +65,17 @@ func (m *mapProvider) Shutdown(context.Context) error {
 // NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *config.Map.
 func NewConfigProviderFromMap(cfg *config.Map) service.ConfigProvider {
 	provider := &mapProvider{cfg}
-	return service.MustNewConfigProvider(
-		[]string{mapLocation},
-		map[string]configmapprovider.Provider{
+	settings := service.ConfigProviderSettings{
+		Locations: []string{mapLocation},
+		MapProviders: map[string]config.MapProvider{
 			"map": provider,
 		},
-		[]config.MapConverterFunc{},
-		configunmarshaler.NewDefault(),
-	)
+		MapConverters: []config.MapConverterFunc{},
+		Unmarshaler:   configunmarshaler.NewDefault(),
+	}
+	cp, err := service.NewConfigProvider(settings)
+	if err != nil {
+		panic(err)
+	}
+	return cp
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
 
@@ -27,7 +27,7 @@ func newDefaultConfig() config.Exporter {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueSettings: exporterhelper.DefaultQueueSettings(),
+		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
 		Metrics: metricsConfig{
 			SendMonotonic: true,
@@ -41,6 +41,12 @@ func newDefaultConfig() config.Exporter {
 			HistConfig: histogramConfig{
 				Mode:         "distributions",
 				SendCountSum: false,
+			},
+			SumConfig: sumConfig{
+				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
+			},
+			SummaryConfig: summaryConfig{
+				Mode: SummaryModeGauges,
 			},
 		},
 	}
@@ -84,7 +90,8 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 		options = append(options, translator.WithCountSumMetrics())
 	}
 
-	if cfg.Metrics.Quantiles {
+	switch cfg.Metrics.SummaryConfig.Mode {
+	case SummaryModeGauges:
 		options = append(options, translator.WithQuantiles())
 	}
 
@@ -97,10 +104,11 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	var numberMode translator.NumberMode
-	if cfg.Metrics.SendMonotonic {
-		numberMode = translator.NumberModeCumulativeToDelta
-	} else {
+	switch cfg.Metrics.SumConfig.CumulativeMonotonicMode {
+	case CumulativeMonotonicSumModeRawValue:
 		numberMode = translator.NumberModeRawValue
+	case CumulativeMonotonicSumModeToDelta:
+		numberMode = translator.NumberModeCumulativeToDelta
 	}
 	options = append(options, translator.WithNumberMode(numberMode))
 
@@ -108,6 +116,10 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 }
 
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+	for _, err := range cfg.warnings {
+		logger.Warn(fmt.Sprintf("Deprecated: %v", err))
+	}
+
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
@@ -131,7 +143,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 	}, nil
 }
 
-func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
+func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	consumer := &serializerConsumer{cardinality: e.cardinality}
 	err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {

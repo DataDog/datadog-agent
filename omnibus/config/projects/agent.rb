@@ -53,7 +53,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
   end
 
   if osx?
@@ -113,6 +113,9 @@ package :rpm do
   priority 'extra'
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
+    end
   end
 end
 
@@ -145,9 +148,7 @@ package :zip do
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\uninstall-cmd.exe"
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
       ]
     if with_python_runtime? "2"
       additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
@@ -279,6 +280,9 @@ if linux?
   dependency 'datadog-security-agent-policies'
 end
 
+# Include traps db file in snmp.d/traps_db/
+dependency 'snmp-traps'
+
 # External agents
 dependency 'jmxfetch'
 
@@ -319,9 +323,17 @@ if linux?
   extra_package_file '/var/log/datadog/'
 end
 
-# default package_scripts_path and resource_path are based on project name,
-# but we change the name based on flavor, so let's hardcode it to "agent"
-package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent"
+# all flavors use the same package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+  end
+elsif osx?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-dmg"
+end
+
 resources_path "#{Omnibus::Config.project_root}/resources/agent"
 
 exclude '\.git*'

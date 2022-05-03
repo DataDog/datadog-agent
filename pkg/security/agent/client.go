@@ -22,7 +22,7 @@ type RuntimeSecurityClient struct {
 	conn      *grpc.ClientConn
 }
 
-// DumpProcessCache send a dump request
+// DumpProcessCache sends a process cache dump request
 func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
 	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})
 	if err != nil {
@@ -75,6 +75,11 @@ func (c *RuntimeSecurityClient) GenerateGraph(file string) (*api.SecurityGraphGe
 	})
 }
 
+// DumpNetworkNamespace sends a network namespace cache dump request
+func (c *RuntimeSecurityClient) DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error) {
+	return c.apiClient.DumpNetworkNamespace(context.Background(), &api.DumpNetworkNamespaceParams{SnapshotInterfaces: snapshotInterfaces})
+}
+
 // GetConfig retrieves the config of the runtime security module
 func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) {
 	response, err := c.apiClient.GetConfig(context.Background(), &api.GetConfigParams{})
@@ -82,6 +87,12 @@ func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) 
 		return nil, err
 	}
 	return response, nil
+}
+
+// GetStatus returns the status of the module
+func (c *RuntimeSecurityClient) GetStatus() (*api.Status, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{})
 }
 
 // RunSelfTest instructs the system probe to run a self test

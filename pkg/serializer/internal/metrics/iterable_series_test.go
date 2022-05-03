@@ -12,10 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	_ "github.com/DataDog/datadog-agent/pkg/tagset"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,34 +63,6 @@ func TestIterableSeriesReceiverStopped(t *testing.T) {
 	iterableSeries.Append(&metrics.Serie{Name: "serie3"})
 }
 
-func TestIterableStreamJSONMarshalerAdapter(t *testing.T) {
-	var series Series
-	series = append(series, &metrics.Serie{Name: "serie1"})
-	series = append(series, &metrics.Serie{Name: "serie2"})
-	series = append(series, &metrics.Serie{Name: "serie3"})
-
-	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 4, 2)}
-	for _, serie := range series {
-		iterableSeries.Append(serie)
-	}
-	iterableSeries.SenderStopped()
-
-	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(series)
-	expected := dumpIterableStream(adapter)
-	assert.EqualValues(t, expected, dumpIterableStream(iterableSeries))
-}
-
-func dumpIterableStream(marshaler marshaler.IterableStreamJSONMarshaler) []byte {
-	jsonStream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
-	defer marshaler.IterationStopped()
-	marshaler.WriteHeader(jsonStream)
-	for marshaler.MoveNext() {
-		marshaler.WriteCurrentItem(jsonStream)
-	}
-	marshaler.WriteFooter(jsonStream)
-	return jsonStream.Buffer()
-}
-
 func BenchmarkIterableSeries(b *testing.B) {
 	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
 		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
@@ -139,4 +108,13 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 	for i, v := range expected {
 		r.Equal(v, series[i].Name)
 	}
+}
+
+func TestIterableSeriesEmptyMarshalJSON(t *testing.T) {
+	r := require.New(t)
+	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 10, 2)}
+	iterableSeries.SenderStopped()
+	bytes, err := iterableSeries.MarshalJSON()
+	r.NoError(err)
+	r.Equal(`{"series":[]}`, strings.TrimSpace(string(bytes)))
 }

@@ -82,7 +82,7 @@ func TestServerV3(t *testing.T) {
 
 	sendTestV3Trap(t, config, &gosnmp.UsmSecurityParameters{
 		UserName:                 "user",
-		AuthoritativeEngineID:    "foo",
+		AuthoritativeEngineID:    "foobarbaz",
 		AuthenticationPassphrase: "password",
 		AuthenticationProtocol:   gosnmp.SHA,
 		PrivacyPassphrase:        "password",
@@ -105,7 +105,7 @@ func TestServerV3BadCredentials(t *testing.T) {
 
 	sendTestV3Trap(t, config, &gosnmp.UsmSecurityParameters{
 		UserName:                 "user",
-		AuthoritativeEngineID:    "foo",
+		AuthoritativeEngineID:    "foobarbaz",
 		AuthenticationPassphrase: "password",
 		AuthenticationProtocol:   gosnmp.SHA,
 		PrivacyPassphrase:        "wrong_password",

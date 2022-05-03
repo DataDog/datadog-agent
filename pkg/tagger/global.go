@@ -134,20 +134,14 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
-// TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
-func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
-	tags, err := Tag(entity, cardinality)
-	if err != nil {
-		return tags, "", err
-	}
-	return tags, utils.ComputeTagsHash(tags), nil
-}
-
 // GetEntityHash returns the hash for the tags associated with the given entity
 // Returns an empty string if the tags lookup fails
 func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
-	_, hash, _ := TagWithHash(entity, cardinality)
-	return hash
+	tags, err := Tag(entity, cardinality)
+	if err != nil {
+		return ""
+	}
+	return utils.ComputeTagsHash(tags)
 }
 
 // StandardTags queries the defaultTagger to get entity
@@ -182,11 +176,12 @@ func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 	return Tag(entityID, cardinality)
 }
 
-// OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
-func OrchestratorScopeTag() ([]string, error) {
+// GlobalTags queries global tags that should apply to all data coming from the
+// agent.
+func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 	mux.RLock()
 	if captureTagger != nil {
-		tags, err := captureTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+		tags, err := captureTagger.Tag(collectors.GlobalEntityID, cardinality)
 		if err == nil && len(tags) > 0 {
 			mux.RUnlock()
 			return tags, nil
@@ -194,15 +189,15 @@ func OrchestratorScopeTag() ([]string, error) {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+	return defaultTagger.Tag(collectors.GlobalEntityID, cardinality)
 }
 
-// OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
-// task_arn in ECS Fargate) and appends them to the TagAccumulator
-func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
+// globalTagBuilder queries global tags that should apply to all data coming
+// from the agent and appends them to the TagAccumulator
+func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+		err := captureTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 
 		if err == nil {
 			mux.RUnlock()
@@ -211,7 +206,7 @@ func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+	return defaultTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -270,11 +265,8 @@ func EnrichTags(tb tagset.TagAccumulator, udsOrigin string, clientOrigin string,
 		}
 	}
 
-	// Include orchestrator scope tags if the cardinality is set to orchestrator
-	if cardinality == collectors.OrchestratorCardinality {
-		if err := OrchestratorScopeTagBuilder(tb); err != nil {
-			log.Error(err.Error())
-		}
+	if err := globalTagBuilder(cardinality, tb); err != nil {
+		log.Error(err.Error())
 	}
 
 	if clientOrigin != "" {

@@ -81,7 +81,6 @@ func TestInfoHandler(t *testing.T) {
 		},
 		StatsdHost:                  "stastd.localhost",
 		StatsdPort:                  123,
-		LogLevel:                    "WARN",
 		LogFilePath:                 "/path/to/logfile",
 		LogThrottling:               false,
 		MaxMemory:                   1000000,
@@ -136,6 +135,7 @@ func TestInfoHandler(t *testing.T) {
 	],
 	"client_drop_p0s": true,
 	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
@@ -194,6 +194,7 @@ func TestInfoHandler(t *testing.T) {
 	],
 	"client_drop_p0s": true,
 	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,

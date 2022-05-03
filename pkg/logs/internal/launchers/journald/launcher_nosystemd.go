@@ -10,7 +10,7 @@ package journald
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -18,12 +18,13 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
+func NewLauncher() *Launcher {
 	return &Launcher{}
 }
 
 // Start does nothing
-func (l *Launcher) Start() {}
+func (l *Launcher) Start(sources launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+}
 
 // Stop does nothing
 func (l *Launcher) Stop() {}

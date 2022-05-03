@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
@@ -32,7 +33,7 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	container = NewContainer(types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{},
 		Config:            &types_container.Config{Image: "myapp"}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[0])
@@ -42,7 +43,7 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 		Config: &types_container.Config{
 			Image:  "wrongapp",
 			Labels: map[string]string{"mylabel": "anything"}}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[1])
@@ -52,7 +53,7 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 		Config: &types_container.Config{
 			Image:  "myapp",
 			Labels: map[string]string{"mylabel": "anything"}}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[2])
@@ -60,7 +61,7 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	container = NewContainer(types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{ID: "1234567890"},
 		Config:            &types_container.Config{Labels: map[string]string{"com.datadoghq.ad.logs": "[{}]"}}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[3])
@@ -68,14 +69,14 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	container = NewContainer(types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{ID: "0987654321"},
 		Config:            &types_container.Config{Labels: map[string]string{"com.datadoghq.ad.logs": "[{}]"}}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.Nil(t, source)
 
 	container = NewContainer(types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{},
 		Config:            &types_container.Config{Image: "wrongapp"}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.Nil(t, source)
 }
@@ -94,7 +95,7 @@ func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 		Config: &types_container.Config{
 			Image:  "myapp",
 			Labels: map[string]string{"mylabel": "anything"}}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[1])
@@ -102,7 +103,7 @@ func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 	container = NewContainer(types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{},
 		Config:            &types_container.Config{Image: "wrongapp"}},
-		nil)
+		&service.Service{})
 	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[0])

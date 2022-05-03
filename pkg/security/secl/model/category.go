@@ -18,6 +18,8 @@ const (
 	ProcessCategory EventCategory = "Process Activity"
 	// KernelCategory Kernel events
 	KernelCategory EventCategory = "Kernel Activity"
+	// NetworkCategory network events
+	NetworkCategory EventCategory = "Network Activity"
 )
 
 // GetAllCategories returns all categories
@@ -26,16 +28,19 @@ func GetAllCategories() []EventCategory {
 		FIMCategory,
 		ProcessCategory,
 		KernelCategory,
+		NetworkCategory,
 	}
 }
 
 // GetEventTypeCategory returns the category for the given event type
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
-	case "exec", "signal":
+	case "exec", "signal", "exit", "fork":
 		return ProcessCategory
 	case "bpf", "selinux", "mmap", "mprotect", "ptrace", "load_module", "unload_module":
 		return KernelCategory
+	case "dns":
+		return NetworkCategory
 	}
 
 	return FIMCategory
