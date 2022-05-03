@@ -217,26 +217,16 @@ CWS logs have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
-        "socket",
         "addr_family",
-        "addr_port",
         "addr"
     ],
     "properties": {
-        "socket": {
-            "type": "integer",
-            "description": "Bound socket"
-        },
         "addr_family": {
             "type": "string",
             "description": "Address family"
         },
-        "addr_port": {
-            "type": "integer",
-            "description": "Bound port (if any)"
-        },
         "addr": {
-            "type": "string",
+            "$ref": "#/definitions/IPPort",
             "description": "Bound address (if any)"
         }
     },
@@ -248,11 +238,12 @@ CWS logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `socket` | Bound socket |
 | `addr_family` | Address family |
-| `addr_port` | Bound port (if any) |
 | `addr` | Bound address (if any) |
 
+| References |
+| ---------- |
+| [IPPort](#ipport) |
 
 ## `ContainerContext`
 
