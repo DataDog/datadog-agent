@@ -576,6 +576,9 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 // RunSelfTestAndReport runs the self tests, and send a result report
 func (m *Module) RunSelfTestAndReport() error {
 	success, fails, err := m.selfTester.RunSelfTest()
+	if err != nil {
+		return err
+	}
 
 	// send the report
 	monitor := m.probe.GetMonitor()

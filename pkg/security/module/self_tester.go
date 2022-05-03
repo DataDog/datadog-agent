@@ -54,10 +54,7 @@ type SelfTester struct {
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester() *SelfTester {
 	return &SelfTester{
-		waitingForEvent: 0,
-		eventChan:       make(chan selfTestEvent, 10),
-		success:         nil,
-		fails:           nil,
+		eventChan: make(chan selfTestEvent, 10),
 	}
 }
 
