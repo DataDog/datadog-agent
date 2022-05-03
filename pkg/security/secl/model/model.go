@@ -690,10 +690,10 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request uint32         `field:"request"` //  ptrace request
-	PID     uint32         `field:"-"`
-	Address uint64         `field:"-"`
-	Tracee  ProcessContext `field:"tracee"` // process context of the tracee
+	Request uint32          `field:"request"` //  ptrace request
+	PID     uint32          `field:"-"`
+	Address uint64          `field:"-"`
+	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }
 
 // MMapEvent represents a mmap event
@@ -743,9 +743,9 @@ type UnloadModuleEvent struct {
 type SignalEvent struct {
 	SyscallEvent
 
-	Type   uint32         `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID    uint32         `field:"pid"`    // Target PID
-	Target ProcessContext `field:"target"` // Target process context
+	Type   uint32          `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID    uint32          `field:"pid"`    // Target PID
+	Target *ProcessContext `field:"target"` // Target process context
 }
 
 // SpliceEvent represents a splice event

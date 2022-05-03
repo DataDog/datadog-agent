@@ -666,7 +666,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve tracee process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
 		if cacheEntry != nil {
-			event.PTrace.Tracee = cacheEntry.ProcessContext
+			event.PTrace.Tracee = &cacheEntry.ProcessContext
 		}
 	case model.MMapEventType:
 		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
@@ -676,8 +676,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		if event.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
 			// no need to trigger a dentry resolver, not backed by any file
-			event.MMap.File.IsPathnameStrResolved = true
-			event.MMap.File.IsBasenameStrResolved = true
+			event.MMap.File.SetPathnameStr("")
+			event.MMap.File.SetBasenameStr("")
 		}
 	case model.MProtectEventType:
 		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
@@ -692,8 +692,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		if event.LoadModule.LoadedFromMemory {
 			// no need to trigger a dentry resolver, not backed by any file
-			event.MMap.File.IsPathnameStrResolved = true
-			event.MMap.File.IsBasenameStrResolved = true
+			event.LoadModule.File.SetPathnameStr("")
+			event.LoadModule.File.SetBasenameStr("")
 		}
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
@@ -707,7 +707,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve target process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
 		if cacheEntry != nil {
-			event.Signal.Target = cacheEntry.ProcessContext
+			event.Signal.Target = &cacheEntry.ProcessContext
 		}
 	case model.SpliceEventType:
 		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {

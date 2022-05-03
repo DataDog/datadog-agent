@@ -622,7 +622,7 @@ func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(&e.PTrace.Tracee, e, e.resolvers),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e, e.resolvers),
 	}
 }
 
@@ -644,7 +644,7 @@ func newSignalEventSerializer(e *Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(&e.Signal.Target, e, e.resolvers),
+		Target: newProcessContextSerializer(e.Signal.Target, e, e.resolvers),
 	}
 	return ses
 }
