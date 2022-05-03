@@ -40,6 +40,8 @@ func (t *telemetry) run(ctx context.Context) {
 	log.Info("Start collecting Compliance telemetry")
 	defer log.Info("Stopping Compliance telemetry")
 
+	t.metadataStore.Start(ctx)
+
 	metricsTicker := time.NewTicker(1 * time.Minute)
 	defer metricsTicker.Stop()
 
