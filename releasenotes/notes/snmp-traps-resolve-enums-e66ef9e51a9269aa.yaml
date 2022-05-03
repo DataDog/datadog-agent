@@ -9,6 +9,3 @@
 enhancements:
   - |
     Resolve SNMP trap variables with integer enumerations to their string representation.
-issues:
-  - |
-    Enumerations for the BITS type are not yet supported.
