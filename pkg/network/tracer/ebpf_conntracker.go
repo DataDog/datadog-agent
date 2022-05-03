@@ -365,7 +365,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.ConntrackHashInsert),
 					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
-					UID:          "network_conntracker",
+					UID:          "conntracker",
 				},
 			},
 		},
