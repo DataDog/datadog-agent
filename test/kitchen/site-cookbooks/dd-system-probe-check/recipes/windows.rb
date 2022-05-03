@@ -23,7 +23,7 @@ end
 ## the root cause of the azure bug causing things to hang.
 ## remove this once bug is fixed
 execute 'disable RSC' do
-  command "powershell /c disable-netadapterrsc *"
+  command "netsh.exe int tcp set global rsc=disable"
 end
 
 execute 'wix-extract' do

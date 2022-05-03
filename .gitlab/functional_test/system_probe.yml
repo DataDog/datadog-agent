@@ -83,5 +83,3 @@ kitchen_test_system_probe_windows_x64:
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
-  allow_failure: false
-  retry: 0

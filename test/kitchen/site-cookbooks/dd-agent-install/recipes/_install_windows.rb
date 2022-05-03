@@ -26,7 +26,8 @@ end
 ## remove this once bug is fixed
 execute 'disable RSC' do
   command "netsh.exe int tcp set global rsc=disable"
-  #command "disable-netadapterrsc *"
+  # ignore failure b/c this will fail on win2008r2 (setting doesn't exist)
+  # however, we don't need it on 2008r2 b/c NPM isn't supported on 2008r2
   ignore_failure true
 end
 
