@@ -32,6 +32,8 @@ import (
 
 const (
 	defaultClosedChannelSize = 500
+
+	probeUid = "net"
 )
 
 type kprobeTracer struct {
@@ -131,6 +133,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
+					UID:          probeUID,
 				},
 			})
 	}

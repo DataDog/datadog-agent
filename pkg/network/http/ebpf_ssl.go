@@ -102,10 +102,12 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  doSysOpen,
 				EBPFFuncName: "kprobe__do_sys_open",
+				UID: probeUID,
 			}, KProbeMaxActive: maxActive},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  doSysOpenRet,
 				EBPFFuncName: "kretprobe__do_sys_open",
+				UID: probeUID,
 			}, KProbeMaxActive: maxActive},
 		)
 	}
@@ -128,12 +130,14 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  doSysOpen,
 					EBPFFuncName: "kprobe__do_sys_open",
+					UID: probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  doSysOpenRet,
 					EBPFFuncName: "kretprobe__do_sys_open",
+					UID: probeUID,
 				},
 			},
 		)
