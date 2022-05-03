@@ -42,7 +42,12 @@ func TestSetFieldValue(t *testing.T) {
 		case reflect.Struct:
 			switch field {
 			case "network.destination.ip", "network.source.ip":
-				if err = event.SetFieldValue(field, net.ParseIP("127.0.0.1")); err != nil {
+				_, ipnet, err := net.ParseCIDR("127.0.0.1/24")
+				if err != nil {
+					t.Error(err)
+				}
+
+				if err = event.SetFieldValue(field, *ipnet); err != nil {
 					t.Error(err)
 				}
 			}

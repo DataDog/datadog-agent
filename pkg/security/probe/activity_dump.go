@@ -105,7 +105,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) (*Acti
 	}
 
 	// generate counters
-	for i := model.EventType(0); i < model.MaxEventType; i++ {
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		processed := uint64(0)
 		ad.processedCount[i] = &processed
 		runtime := uint64(0)

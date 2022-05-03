@@ -6,6 +6,7 @@
 package debugging
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -36,7 +37,7 @@ type Stats struct {
 }
 
 // HTTP returns a debug-friendly representation of map[http.Key]http.RequestStats
-func HTTP(stats map[http.Key]http.RequestStats, dns map[util.Address][]string) []RequestSummary {
+func HTTP(stats map[http.Key]http.RequestStats, dns map[util.Address][]dns.Hostname) []RequestSummary {
 	all := make([]RequestSummary, 0, len(stats))
 	for k, v := range stats {
 		clientAddr := formatIP(k.SrcIPLow, k.SrcIPHigh)
@@ -87,9 +88,9 @@ func formatIP(low, high uint64) util.Address {
 	return util.V4Address(uint32(low))
 }
 
-func getDNS(dns map[util.Address][]string, addr util.Address) string {
-	if names := dns[addr]; len(names) > 0 {
-		return names[0]
+func getDNS(dnsData map[util.Address][]dns.Hostname, addr util.Address) string {
+	if names := dnsData[addr]; len(names) > 0 {
+		return dns.ToString(names[0])
 	}
 
 	return ""

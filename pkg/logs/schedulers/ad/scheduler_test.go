@@ -17,7 +17,7 @@ import (
 )
 
 func setup() (scheduler *Scheduler, spy *schedulers.MockSourceManager) {
-	scheduler = New().(*Scheduler)
+	scheduler = New(nil).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	scheduler.mgr = spy
 	return scheduler, spy

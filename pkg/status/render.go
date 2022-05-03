@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -92,6 +93,12 @@ func FormatStatus(data []byte) (string, error) {
 		}
 	}
 
+	otlpFunc := func() {
+		if otlp.IsDisplayed() {
+			renderStatusTemplate(b, "/otlp.tmpl", stats)
+		}
+	}
+
 	var renderFuncs []func()
 
 	if config.IsCLCRunner() {
@@ -100,7 +107,7 @@ func FormatStatus(data []byte) (string, error) {
 	} else {
 		renderFuncs = []func(){headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc,
 			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc,
-			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc}
+			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc, otlpFunc}
 	}
 
 	renderAgentSections(renderFuncs)

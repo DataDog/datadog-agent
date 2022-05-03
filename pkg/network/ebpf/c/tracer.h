@@ -97,8 +97,8 @@ typedef struct {
 // This struct is populated by calling `read_conn_tuple_skb` from a program type
 // that manipulates a `__sk_buff` object.
 typedef struct {
-    conn_tuple_t tup;
     __u32 data_off;
+    __u32 tcp_seq;
     __u8 tcp_flags;
 } skb_info_t;
 

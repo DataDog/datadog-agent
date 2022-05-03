@@ -86,7 +86,7 @@ func Run(ctx context.Context) {
 
 	if err := coreconfig.SetupLogger(
 		coreconfig.LoggerName("TRACE"),
-		cfg.LogLevel,
+		coreconfig.Datadog.GetString("log_level"),
 		cfg.LogFilePath,
 		coreconfig.GetSyslogURI(),
 		coreconfig.Datadog.GetBool("syslog_rfc"),
@@ -194,6 +194,13 @@ func Run(ctx context.Context) {
 			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token) },
 		})
 	}
+
+	api.AttachEndpoint(api.Endpoint{
+		Pattern: "/config/set",
+		Handler: func(r *api.HTTPReceiver) http.Handler {
+			return cmdconfig.SetHandler()
+		},
+	})
 
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
