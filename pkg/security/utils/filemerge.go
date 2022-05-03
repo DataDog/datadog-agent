@@ -51,7 +51,7 @@ func commonPrefix(ap, bp StringPair) string {
 	for ; i < len(a) && i < len(b) && a[i] < utf8.RuneSelf && a[i] == b[i]; i++ {
 	}
 
-	return string(a[:i])
+	return a[:i]
 }
 
 func commonSuffix(ap, bp StringPair) string {
@@ -74,7 +74,7 @@ func commonSuffix(ap, bp StringPair) string {
 
 	}
 
-	return string(a[i+1:])
+	return a[i+1:]
 }
 
 // BuildGlob builds a common glob from two string pairs if sufficiently similar
