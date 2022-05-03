@@ -198,3 +198,18 @@ func BenchmarkWriteTo(b *testing.B) {
 	}
 	runtime.KeepAlive(bytes)
 }
+
+func BenchmarkToLowHigh(b *testing.B) {
+	addr := AddressFromString("8.8.8.8")
+	var l, h uint64
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// this method shouldn't allocate
+		l, h = ToLowHigh(addr)
+	}
+
+	runtime.KeepAlive(l)
+	runtime.KeepAlive(h)
+}

@@ -70,21 +70,7 @@ func NetIPFromAddress(addr Address, buf []byte) net.IP {
 
 // ToLowHigh converts an address into a pair of uint64 numbers
 func ToLowHigh(addr Address) (l, h uint64) {
-	bptr := IPBufferPool.Get().(*[]byte)
-	defer IPBufferPool.Put(bptr)
-
-	b := *bptr
-	n := addr.WriteTo(b)
-	b = b[:n]
-
-	switch len(b) {
-	case 4:
-		return uint64(binary.LittleEndian.Uint32(b[:4])), uint64(0)
-	case 16:
-		return binary.LittleEndian.Uint64(b[8:]), binary.LittleEndian.Uint64(b[:8])
-	}
-
-	return
+	return ToLowHighIP(addr.IP)
 }
 
 // ToLowHighIP converts a netaddr.IP into a pair of uint64 numbers
