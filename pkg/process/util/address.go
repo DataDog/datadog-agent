@@ -54,9 +54,10 @@ func AddressFromNetIP(ip net.IP) Address {
 	return Address{addr}
 }
 
-// AddressFromString creates an Address using the string representation of an v4 IP
-func AddressFromString(ip string) Address {
-	return AddressFromNetIP(net.ParseIP(ip))
+// AddressFromString creates an Address using the string representation of an IP
+func AddressFromString(s string) Address {
+	ip, _ := netaddr.ParseIP(s)
+	return Address{ip}
 }
 
 // NetIPFromAddress returns a net.IP from an Address
