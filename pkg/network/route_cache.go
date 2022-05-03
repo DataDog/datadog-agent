@@ -293,5 +293,6 @@ func (n *netlinkRouter) getInterfaceName(srcAddress util.Address, srcIP net.IP, 
 
 	ifname := ifr.Name()
 	n.ifcache.Add(key, ifname)
+	atomic.AddUint64(&n.ifCacheSize, 1)
 	return ifname
 }
