@@ -1929,8 +1929,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "network.destination.ip":
 		return &eval.CIDREvaluator{
-			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
-				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Destination.IP, nil)
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+
+				return (*Event)(ctx.Object).NetworkContext.Destination.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1998,8 +1999,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "network.source.ip":
 		return &eval.CIDREvaluator{
-			EvalFnc: func(ctx *eval.Context) *eval.FieldValue {
-				return eval.NewIPFieldValue((*Event)(ctx.Object).NetworkContext.Source.IP, nil)
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+
+				return (*Event)(ctx.Object).NetworkContext.Source.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -11214,7 +11216,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "network.destination.ip":
 
-		return e.NetworkContext.Destination.IP, nil
+		return e.NetworkContext.Destination.IPNet, nil
 
 	case "network.destination.port":
 
@@ -11242,7 +11244,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "network.source.ip":
 
-		return e.NetworkContext.Source.IP, nil
+		return e.NetworkContext.Source.IPNet, nil
 
 	case "network.source.port":
 
@@ -21796,11 +21798,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "network.destination.ip":
 
 		var ok bool
-		v, ok := value.(net.IP)
+		v, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IP"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IPNet"}
 		}
-		e.NetworkContext.Destination.IP = v
+		e.NetworkContext.Destination.IPNet = v
 
 		return nil
 
@@ -21873,11 +21875,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "network.source.ip":
 
 		var ok bool
-		v, ok := value.(net.IP)
+		v, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IP"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IPNet"}
 		}
-		e.NetworkContext.Source.IP = v
+		e.NetworkContext.Source.IPNet = v
 
 		return nil
 
