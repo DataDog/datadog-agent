@@ -87,6 +87,20 @@ func ToLowHigh(addr Address) (l, h uint64) {
 	return
 }
 
+// ToLowHighIP converts a netaddr.IP into a pair of uint64 numbers
+func ToLowHighIP(a netaddr.IP) (l, h uint64) {
+	if a.Is6() {
+		return toLowHigh16(a.As16())
+	}
+	return toLowHigh4(a.As4())
+}
+func toLowHigh4(b [4]byte) (l, h uint64) {
+	return uint64(binary.LittleEndian.Uint32(b[:4])), uint64(0)
+}
+func toLowHigh16(b [16]byte) (l, h uint64) {
+	return binary.LittleEndian.Uint64(b[8:]), binary.LittleEndian.Uint64(b[:8])
+}
+
 // V4Address creates an Address using the uint32 representation of an v4 IP
 func V4Address(ip uint32) Address {
 	return Address{

@@ -597,15 +597,12 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	<-k.Requests // Throwing away first GET
 
 	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
-	assert.Equal(suite.T(), "bearer fakeBearerToken", ku.kubeletClient.headers.Get("Authorization"))
-	assert.True(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	r := <-k.Requests
-	assert.Equal(suite.T(), "bearer fakeBearerToken", r.Header.Get(authorizationHeaderKey))
-	assert.Equal(suite.T(), 0, len(ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.Certificates))
+	assert.Equal(suite.T(), "Bearer fakeBearerToken", r.Header.Get(authorizationHeaderKey))
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -687,7 +684,6 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
-	assert.Equal(suite.T(), "", ku.kubeletClient.headers.Get(authorizationHeaderKey))
 	assert.True(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
@@ -724,7 +720,6 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
-	assert.Equal(suite.T(), "", ku.kubeletClient.headers.Get("Authorization"))
 	assert.True(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)

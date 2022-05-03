@@ -159,6 +159,24 @@ func (s *Runner) Post(traceList pb.Traces) error {
 	return s.doRequest(req)
 }
 
+// DoReq posts the given payload to the trace agent and posts it to the given path.
+// Before posting, agent must be started. You can start an agent using RunAgent.
+func (s *Runner) DoReq(url, method string, payload []byte) (*http.Response, error) {
+	if s.agent == nil {
+		return nil, ErrNotStarted
+	}
+	if s.agent.PID() == 0 {
+		return nil, errors.New("post: trace-agent not running")
+	}
+	addr := fmt.Sprintf("http://%s/%s", s.agent.Addr(), url)
+	req, err := http.NewRequest(method, addr, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Length", strconv.Itoa(len(payload)))
+	return http.DefaultClient.Do(req)
+}
+
 func (s *Runner) doRequest(req *http.Request) error {
 	resp, err := http.DefaultClient.Do(req)
 	if resp.StatusCode != 200 {

@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go4.org/intern"
 )
 
 var (
@@ -372,7 +371,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 							ns.telemetry.dnsStatsDropped++
 							continue
 						}
-						client.dnsStats[key] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
+						client.dnsStats[key] = make(map[dns.Hostname]map[dns.QueryType]dns.Stats)
 					}
 					if _, ok := client.dnsStats[key][domain]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {

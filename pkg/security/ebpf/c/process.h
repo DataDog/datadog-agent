@@ -119,9 +119,7 @@ struct bpf_map_def SEC("maps/netns_cache") netns_cache = {
     .namespace = "",
 };
 
-static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
-    // Pid & Tid
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+static struct proc_cache_t * __attribute__((always_inline)) fill_process_context_with_pid_tgid(struct process_context_t *data, u64 pid_tgid) {
     u32 tgid = pid_tgid >> 32;
 
     // https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md#4-bpf_get_current_pid_tgid
@@ -134,6 +132,11 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     }
 
     return get_proc_cache(tgid);
+}
+
+static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
 
 struct bpf_map_def SEC("maps/root_nr_namespace_nr") root_nr_namespace_nr = {

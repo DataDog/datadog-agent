@@ -241,14 +241,8 @@ func (h *testProbeHandler) HandleEvent(event *sprobe.Event) {
 	h.RLock()
 	defer h.RUnlock()
 
-	if h.module == nil {
-		return
-	}
-
 	h.reloading.Lock()
 	defer h.reloading.Unlock()
-
-	h.module.HandleEvent(event)
 
 	if h.eventHandler != nil && h.eventHandler.callback != nil {
 		h.eventHandler.callback(event)
@@ -687,7 +681,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to init module")
 	}
 
-	testMod.probe.SetEventHandler(testMod.probeHandler)
+	testMod.probe.AddEventHandler(model.UnknownEventType, testMod.probeHandler)
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, errors.Wrap(err, "failed to start module")
@@ -815,7 +809,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	var status strings.Builder
 	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
-	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
+	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
 		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
 			continue
