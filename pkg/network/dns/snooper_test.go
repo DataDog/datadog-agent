@@ -24,7 +24,6 @@ import (
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
 )
 
 func skipIfDNSNotSupported(t *testing.T) {
@@ -48,7 +47,7 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	payload := []util.Address{srcAddr, destAddr}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
-	assert.Contains(t, names[destAddr], destName)
+	assert.Contains(t, names[destAddr], ToHostname(destName))
 
 	// Verify telemetry
 	stats := reverseDNS.GetStats()
@@ -199,9 +198,9 @@ func getKey(
 	}
 }
 
-func hasDomains(stats map[*intern.Value]map[QueryType]Stats, domains ...string) bool {
+func hasDomains(stats map[Hostname]map[QueryType]Stats, domains ...string) bool {
 	for _, domain := range domains {
-		if _, ok := stats[intern.GetByString(domain)]; !ok {
+		if _, ok := stats[ToHostname(domain)]; !ok {
 			return false
 		}
 	}
@@ -249,7 +248,7 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "not enough DNS responses")
 
 	// Exactly one rcode (0, success) is expected
-	stats := allStats[key][intern.GetByString("")][TypeA]
+	stats := allStats[key][ToHostname("")][TypeA]
 	require.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(3), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 	assert.True(t, stats.SuccessLatencySum >= uint64(1))
@@ -283,7 +282,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 
 	// Exactly one rcode (0, success) is expected
 	for _, d := range domains {
-		stats := allStats[key][intern.GetByString(d)][TypeA]
+		stats := allStats[key][ToHostname(d)][TypeA]
 		require.Equal(t, 1, len(stats.CountByRcode))
 		assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 		assert.True(t, stats.SuccessLatencySum >= uint64(1))
@@ -341,8 +340,8 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		return hasDomains(allStats[key1], domains...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for TCP requests")
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key1][intern.GetByString(d)][TypeA].CountByRcode))
-		assert.Equal(t, uint32(1), allStats[key1][intern.GetByString(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][intern.GetByString(d)])
+		require.Equal(t, 1, len(allStats[key1][ToHostname(d)][TypeA].CountByRcode))
+		assert.Equal(t, uint32(1), allStats[key1][ToHostname(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][ToHostname(d)])
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
@@ -352,8 +351,8 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		return hasDomains(allStats[key2], domains...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for UDP requests")
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key2][intern.GetByString(d)][TypeA].CountByRcode))
-		assert.Equal(t, uint32(1), allStats[key2][intern.GetByString(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeServFail)])
+		require.Equal(t, 1, len(allStats[key2][ToHostname(d)][TypeA].CountByRcode))
+		assert.Equal(t, uint32(1), allStats[key2][ToHostname(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeServFail)])
 	}
 }
 
@@ -408,10 +407,10 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
-	assert.Equal(t, 0, len(allStats[key][intern.GetByString(domainQueried)][TypeA].CountByRcode))
-	assert.Equal(t, uint32(1), allStats[key][intern.GetByString(domainQueried)][TypeA].Timeouts)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString(domainQueried)][TypeA].SuccessLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString(domainQueried)][TypeA].FailureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][ToHostname(domainQueried)][TypeA].CountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][ToHostname(domainQueried)][TypeA].Timeouts)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname(domainQueried)][TypeA].SuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname(domainQueried)][TypeA].FailureLatencySum)
 }
 
 func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
@@ -431,10 +430,10 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	assert.Equal(t, 0, len(allStats[key][intern.GetByString("")][TypeA].CountByRcode))
-	assert.Equal(t, uint32(1), allStats[key][intern.GetByString("")][TypeA].Timeouts)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString("")][TypeA].SuccessLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString("")][TypeA].FailureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][ToHostname("")][TypeA].CountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][ToHostname("")][TypeA].Timeouts)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname("")][TypeA].SuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname("")][TypeA].FailureLatencySum)
 }
 
 func TestParsingError(t *testing.T) {
@@ -476,7 +475,7 @@ func TestDNSOverIPv6(t *testing.T) {
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key][intern.GetByString("nxdomain-123.com")][TypeA]
+	stats := allStats[key][ToHostname("nxdomain-123.com")][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
 }
@@ -519,7 +518,7 @@ func TestDNSNestedCNAME(t *testing.T) {
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key][intern.GetByString("example.com")][TypeA]
+	stats := allStats[key][ToHostname("example.com")][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 

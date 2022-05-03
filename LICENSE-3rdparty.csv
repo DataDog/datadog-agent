@@ -897,8 +897,6 @@ core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2017 Uber Technologi
 core,go.uber.org/zap/internal/exit,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
-core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,golang.org/x/crypto/cast5,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
