@@ -6,6 +6,7 @@
 package log
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"runtime"
@@ -13,7 +14,9 @@ import (
 	"sync"
 
 	"github.com/cihub/seelog"
+	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -268,4 +271,21 @@ func SetPatterns(patterns ...string) []string {
 
 func init() {
 	DefaultLogger = &PatternLogger{}
+}
+
+func LogRuleLoadingErrors(msg string, m *multierror.Error) {
+	var errorLevel bool
+	for _, err := range m.Errors {
+		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
+				errorLevel = true
+			}
+		}
+	}
+
+	if errorLevel {
+		Errorf(msg, m.Error())
+	} else {
+		Warnf(msg, m.Error())
+	}
 }

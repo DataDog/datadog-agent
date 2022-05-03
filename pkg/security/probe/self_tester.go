@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package module
+package probe
 
 import (
 	"fmt"
@@ -16,8 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -122,16 +123,16 @@ func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.
 
 	_, rules, merr := selfTestPolicy.GetValidMacroAndRules()
 	if merr.ErrorOrNil() != nil {
-		logMultiErrors("error while loading additional policies", merr)
+		seclog.LogRuleLoadingErrors("error while loading additional policies", merr)
 	}
 
 	if len(rules) != 0 {
 		if merr := ruleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-			logMultiErrors("error while loading additional policies", merr)
+			seclog.LogRuleLoadingErrors("error while loading additional policies", merr)
 		}
 
 		if merr := approverRuleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-			logMultiErrors("error while loading additional policies", merr)
+			seclog.LogRuleLoadingErrors("error while loading additional policies", merr)
 		}
 	}
 }
@@ -192,14 +193,14 @@ type selfTestEvent struct {
 }
 
 // isExpectedEvent sends an event to the tester
-func (t *SelfTester) isExpectedEvent(rule *rules.Rule, event eval.Event) bool {
+func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event) bool {
 	if atomic.LoadUint32(&t.waitingForEvent) != 0 && rule.Definition.Policy.Name == selfTestPolicyName {
-		ev, ok := event.(*probe.Event)
+		ev, ok := event.(*Event)
 		if !ok {
 			return true
 		}
 
-		s := probe.NewEventSerializer(ev)
+		s := NewEventSerializer(ev)
 		if s == nil || s.FileEventSerializer == nil {
 			return true
 		}
