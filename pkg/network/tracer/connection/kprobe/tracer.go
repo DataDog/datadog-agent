@@ -33,7 +33,7 @@ import (
 const (
 	defaultClosedChannelSize = 500
 
-	probeUid = "net"
+	probeUID = "net"
 )
 
 type kprobeTracer struct {
