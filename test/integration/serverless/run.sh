@@ -15,10 +15,15 @@
 # NODE_LAYER_VERSION [number] - A specific layer version of datadog-lambda-js to use.
 # PYTHON_LAYER_VERSION [number] - A specific layer version of datadog-lambda-py to use.
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
+# DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
+# ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
+# ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=3
+DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -41,6 +46,10 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     exit 0
 fi
 
+if [ -z "$ARCHITECTURE" ]; then
+    export ARCHITECTURE=$DEFAULT_ARCHITECTURE
+fi
+
 # Move into the root directory, so this script can be called from any directory
 SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
@@ -49,10 +58,14 @@ LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
 if [ "$BUILD_EXTENSION" != "false" ]; then
     echo "Building extension"
 
+    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
+        ENABLE_RACE_DETECTION=false
+    fi
+
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
     echo "Skipping extension build, reusing previously built extension"
 fi
@@ -76,9 +89,16 @@ if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
     export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
 fi
 
-echo "Using Node layer version: $NODE_LAYER_VERSION"
-echo "Using Python layer version: $PYTHON_LAYER_VERSION"
-echo "Using Java tracer layer version: $JAVA_TRACE_LAYER_VERSION"
+if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
+    export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
+fi
+
+echo "Testing for $ARCHITECTURE architecture"
+
+echo "Using dd-lambda-js layer version: $NODE_LAYER_VERSION"
+echo "Using dd-lambda-python version: $PYTHON_LAYER_VERSION"
+echo "Using dd-trace-java layer version: $JAVA_TRACE_LAYER_VERSION"
+echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
@@ -92,9 +112,7 @@ function remove_stack() {
 trap remove_stack EXIT
 
 # deploy the stack
-NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
-    PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} \
-    serverless deploy --stage "${stage}"
+serverless deploy --stage "${stage}"
 
 metric_functions=(
     "metric-node"
@@ -102,13 +120,18 @@ metric_functions=(
     "metric-java"
     "metric-go"
     "metric-csharp"
+    "metric-proxy"
     "timeout-node"
     "timeout-python"
     "timeout-java"
     "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
     "error-node"
     "error-python"
     "error-java"
+    "error-csharp"
+    "error-proxy"
 )
 log_functions=(
     "log-node"
@@ -116,12 +139,15 @@ log_functions=(
     "log-java"
     "log-go"
     "log-csharp"
+    "log-proxy"
 )
 trace_functions=(
     "trace-node"
     "trace-python"
     "trace-java"
     "trace-go"
+    "trace-csharp"
+    "trace-proxy"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
@@ -129,13 +155,19 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
 functions_to_skip=(
-    # Not currently skipping any functions
+    # Tagging behavior after a timeout is currently known to be flaky
+    "timeout-node"
+    "timeout-python"
+    "timeout-java"
+    "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
 )
 
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" >/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
 done
 wait
 
@@ -147,7 +179,7 @@ sleep $SECONDS_BETWEEN_INVOCATIONS
 # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
 echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" >/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
 done
 wait
 
@@ -163,7 +195,7 @@ for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name}..."
     retry_counter=1
     while [ $retry_counter -lt 11 ]; do
-        raw_logs=$(NODE_LAYER_VERSION=${NODE_LAYER_VERSION} PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
+        raw_logs=$(serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
         fetch_logs_exit_code=$?
         if [ $fetch_logs_exit_code -eq 1 ]; then
             printf "\e[A\e[K" # erase previous log line
@@ -196,6 +228,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/dd_lambda_layer:datadog-go[0-9.]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
                 perl -p -e "s/(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
                 perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
+                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
@@ -204,15 +237,28 @@ for function_name in "${all_functions[@]}"; do
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[trace\]" |
                 grep -v "\[sketch\]" |
                 grep "\[log\]" |
+                # remove configuration log line from dd-trace-go
+                grep -v "DATADOG TRACER CONFIGURATION" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/.{9}-.{4}-.{4}-.{4}-.{12}/REQUEST_ID/g" |
+                perl -p -e "s/(TIMESTAMP:)\d{3}/\1XXX/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g"
+                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
+                perl -p -e "s/[ ]$//g" |
+                # ignore a Lambda error that occurs sporadically for log-csharp
+                # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
+                perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
+                 /An error occurred while attempting to execute your code.: LambdaException/ or \
+                 /terminate called after throwing an instance of 'std::logic_error'/ or \
+                 /basic_string::_M_construct null not valid/"
         )
     else
         # Normalize traces
@@ -227,6 +273,9 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
+                perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
+                perl -p -e "s/(\"architecture\":)\"(x86_64|arm64)\"/\1\"XXX\"/g" |
+                perl -p -e "s/(\"process_id\":)[0-9]+/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
@@ -237,13 +286,18 @@ for function_name in "${all_functions[@]}"; do
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
         echo "$logs" >"$function_snapshot_path"
     else
         if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
+            continue
+        fi
+        # Skip all csharp tests when on arm64, .NET is not supported at all for arm architecture
+        if [[ $ARCHITECTURE == "arm64" && $function_name =~ "csharp" ]]; then
+            printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
             continue
         fi
         diff_output=$(echo "$logs" | diff - "$function_snapshot_path")

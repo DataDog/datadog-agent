@@ -9,9 +9,11 @@
 package http
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,23 +21,43 @@ type telemetry struct {
 	then    int64
 	elapsed int64
 
-	hits         [5]int64
-	misses       int64 // this happens when we can't cope with the rate of events
-	dropped      int64 // this happens when httpStatKeeper reaches capacity
-	rejected     int64 // this happens when an user-defined reject-filter matches a request
-	aggregations int64
+	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX int64 `stats:"atomic"`
+	misses                                      int64 `stats:"atomic"` // this happens when we can't cope with the rate of events
+	dropped                                     int64 `stats:"atomic"` // this happens when httpStatKeeper reaches capacity
+	rejected                                    int64 `stats:"atomic"` // this happens when an user-defined reject-filter matches a request
+	malformed                                   int64 `stats:"atomic"` // this happens when the request doesn't have the expected format
+	aggregations                                int64 `stats:"atomic"`
+
+	reporter stats.Reporter
 }
 
-func newTelemetry() *telemetry {
-	return &telemetry{
+func newTelemetry() (*telemetry, error) {
+	t := &telemetry{
 		then: time.Now().Unix(),
 	}
+
+	var err error
+	t.reporter, err = stats.NewReporter(t)
+	if err != nil {
+		return nil, fmt.Errorf("error creating stats reporter: %w", err)
+	}
+
+	return t, nil
 }
 
 func (t *telemetry) aggregate(txs []httpTX, err error) {
 	for _, tx := range txs {
-		if i := tx.StatusClass()/100 - 1; i >= 0 && i < len(t.hits) {
-			atomic.AddInt64(&t.hits[i], 1)
+		switch tx.StatusClass() {
+		case 100:
+			atomic.AddInt64(&t.hits1XX, 1)
+		case 200:
+			atomic.AddInt64(&t.hits2XX, 1)
+		case 300:
+			atomic.AddInt64(&t.hits3XX, 1)
+		case 400:
+			atomic.AddInt64(&t.hits4XX, 1)
+		case 500:
+			atomic.AddInt64(&t.hits5XX, 1)
 		}
 	}
 
@@ -45,40 +67,48 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 }
 
 func (t *telemetry) reset() telemetry {
-	now := time.Now()
-	then := atomic.SwapInt64(&t.then, now.Unix())
+	now := time.Now().Unix()
+	then := atomic.SwapInt64(&t.then, now)
 
-	delta := telemetry{
-		misses:       atomic.SwapInt64(&t.misses, 0),
-		dropped:      atomic.SwapInt64(&t.dropped, 0),
-		rejected:     atomic.SwapInt64(&t.rejected, 0),
-		aggregations: atomic.SwapInt64(&t.aggregations, 0),
-		elapsed:      now.Unix() - then,
-	}
+	delta, _ := newTelemetry()
+	delta.hits1XX = atomic.SwapInt64(&t.hits1XX, 0)
+	delta.hits2XX = atomic.SwapInt64(&t.hits2XX, 0)
+	delta.hits3XX = atomic.SwapInt64(&t.hits3XX, 0)
+	delta.hits4XX = atomic.SwapInt64(&t.hits4XX, 0)
+	delta.hits5XX = atomic.SwapInt64(&t.hits5XX, 0)
+	delta.misses = atomic.SwapInt64(&t.misses, 0)
+	delta.dropped = atomic.SwapInt64(&t.dropped, 0)
+	delta.rejected = atomic.SwapInt64(&t.rejected, 0)
+	delta.malformed = atomic.SwapInt64(&t.malformed, 0)
+	delta.aggregations = atomic.SwapInt64(&t.aggregations, 0)
+	delta.elapsed = now - then
 
-	for i := range t.hits {
-		delta.hits[i] = atomic.SwapInt64(&t.hits[i], 0)
-	}
-
-	return delta
+	return *delta
 }
 
-func (t *telemetry) report() {
-	var totalRequests int64
-	for _, n := range t.hits {
-		totalRequests += n
-	}
+func (t *telemetry) report() map[string]interface{} {
+	stats := t.reporter.Report()
+
+	misses := stats["misses"].(int64)
+	dropped := stats["dropped"].(int64)
+	rejected := stats["rejected"].(int64)
+	aggregations := stats["aggregations"].(int64)
+	totalRequests := stats["hits1_xx"].(int64) + stats["hits2_xx"].(int64) + stats["hits3_xx"].(int64) + stats["hits4_xx"].(int64) + stats["hits5_xx"].(int64)
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) aggregations=%d",
+		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
 		totalRequests,
 		float64(totalRequests)/float64(t.elapsed),
-		t.misses,
-		float64(t.misses)/float64(t.elapsed),
-		t.dropped,
-		float64(t.rejected)/float64(t.elapsed),
-		t.rejected,
-		float64(t.dropped)/float64(t.elapsed),
-		t.aggregations,
+		misses,
+		float64(misses)/float64(t.elapsed),
+		dropped,
+		float64(dropped)/float64(t.elapsed),
+		rejected,
+		float64(rejected)/float64(t.elapsed),
+		t.malformed,
+		float64(t.malformed)/float64(t.elapsed),
+		aggregations,
 	)
+
+	return stats
 }

@@ -22,31 +22,31 @@ const (
 // Supported container states
 const (
 	ContainerUnknownState    string = "unknown"
-	ContainerCreatedState           = "created"
-	ContainerRunningState           = "running"
-	ContainerRestartingState        = "restarting"
-	ContainerPausedState            = "paused"
-	ContainerExitedState            = "exited"
-	ContainerDeadState              = "dead"
-	ContainerActiveState            = "active"
+	ContainerCreatedState    string = "created"
+	ContainerRunningState    string = "running"
+	ContainerRestartingState string = "restarting"
+	ContainerPausedState     string = "paused"
+	ContainerExitedState     string = "exited"
+	ContainerDeadState       string = "dead"
+	ContainerActiveState     string = "active"
 )
 
 // Supported container health
 const (
 	ContainerUnknownHealth  string = "unknown"
-	ContainerStartingHealth        = "starting"
-	ContainerHealthy               = "healthy"
-	ContainerUnhealthy             = "unhealthy"
+	ContainerStartingHealth string = "starting"
+	ContainerHealthy        string = "healthy"
+	ContainerUnhealthy      string = "unhealthy"
 )
 
 // Container network modes
 const (
 	DefaultNetworkMode string = "default" // bridge
-	HostNetworkMode           = "host"
-	BridgeNetworkMode         = "bridge"
-	NoneNetworkMode           = "none"
-	AwsvpcNetworkMode         = "awsvpc"
-	UnknownNetworkMode        = "unknown"
+	HostNetworkMode    string = "host"
+	BridgeNetworkMode  string = "bridge"
+	NoneNetworkMode    string = "none"
+	AwsvpcNetworkMode  string = "awsvpc"
+	UnknownNetworkMode string = "unknown"
 )
 
 // UTSMode is container UTS modes
@@ -55,8 +55,8 @@ type UTSMode string
 // UTSMode is container UTS modes
 const (
 	DefaultUTSMode UTSMode = ""
-	HostUTSMode            = "host"
-	UnknownUTSMode         = "unknown"
+	HostUTSMode    UTSMode = "host"
+	UnknownUTSMode UTSMode = "unknown"
 )
 
 // Container represents a single container on a machine

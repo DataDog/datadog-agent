@@ -7,8 +7,6 @@ package watchdog
 
 import (
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"testing"
 	"time"
@@ -131,24 +129,6 @@ func TestMemHigh(t *testing.T) {
 		return
 	}
 	doTestMemHigh(t, 1e7)
-}
-
-type testNetHandler struct {
-	t *testing.T
-}
-
-func (h *testNetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	r.Body.Close()
-	h.t.Logf("request")
-}
-
-func newTestNetServer(t *testing.T) *httptest.Server {
-	assert := assert.New(t)
-	server := httptest.NewServer(&testNetHandler{t: t})
-	assert.NotNil(server)
-	t.Logf("server on %v", server.URL)
-	return server
 }
 
 func BenchmarkCPU(b *testing.B) {

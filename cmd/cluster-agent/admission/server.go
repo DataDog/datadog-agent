@@ -57,12 +57,12 @@ func (s *Server) initDecoder() {
 	scheme := runtime.NewScheme()
 	err := admiv1.AddToScheme(scheme)
 	if err != nil {
-		log.Warnf("Couldn't register the admission/v1 scheme: %w", err)
+		log.Warnf("Couldn't register the admission/v1 scheme: %v", err)
 	}
 
 	err = admiv1beta1.AddToScheme(scheme)
 	if err != nil {
-		log.Warnf("Couldn't register the admission/v1beta1 scheme: %w", err)
+		log.Warnf("Couldn't register the admission/v1beta1 scheme: %v", err)
 	}
 
 	s.decoder = serializer.NewCodecFactory(scheme).UniversalDeserializer()

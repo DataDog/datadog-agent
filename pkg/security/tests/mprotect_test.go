@@ -25,7 +25,7 @@ func TestMProtectEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mprotect",
-			Expression: `(mprotect.vm_protection & VM_WRITE > 0) && (mprotect.req_protection & VM_EXEC > 0)`,
+			Expression: `(mprotect.vm_protection & VM_WRITE > 0) && (mprotect.req_protection & VM_EXEC > 0) && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -51,6 +51,12 @@ func TestMProtectEvent(t *testing.T) {
 			assert.Equal(t, "mprotect", event.GetType(), "wrong event type")
 			assert.NotEqual(t, 0, event.MProtect.VMProtection&(unix.PROT_READ|unix.PROT_WRITE), fmt.Sprintf("wrong initial protection: %s", model.Protection(event.MProtect.VMProtection)))
 			assert.NotEqual(t, 0, event.MProtect.ReqProtection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong requested protection: %s", model.Protection(event.MProtect.ReqProtection)))
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 
 			if !validateMProtectSchema(t, event) {
 				t.Error(event.String())

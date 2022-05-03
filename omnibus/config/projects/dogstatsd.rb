@@ -44,7 +44,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
   end
 end
 
@@ -93,6 +93,9 @@ package :rpm do
   priority 'extra'
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
+    end
   end
 end
 
@@ -160,6 +163,15 @@ dependency 'datadog-dogstatsd'
 # This must be the last dependency in the project.
 
 dependency 'datadog-dogstatsd-finalize'
+
+# package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
+  end
+end
 
 if linux?
   extra_package_file '/etc/init/datadog-dogstatsd.conf'

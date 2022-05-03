@@ -30,6 +30,11 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// RegisterClient registers the client
+func (t *Tracer) RegisterClient(clientID string) error {
+	return ebpf.ErrNotImplemented
+}
+
 // GetStats is not implemented on this OS for Tracer
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	return nil, ebpf.ErrNotImplemented

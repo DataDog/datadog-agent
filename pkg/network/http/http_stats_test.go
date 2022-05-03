@@ -17,9 +17,9 @@ import (
 
 func TestAddRequest(t *testing.T) {
 	var stats RequestStats
-	stats.AddRequest(400, 10.0, 1)
-	stats.AddRequest(404, 15.0, 2)
-	stats.AddRequest(405, 20.0, 3)
+	stats.AddRequest(400, 10.0)
+	stats.AddRequest(404, 15.0)
+	stats.AddRequest(405, 20.0)
 
 	for i := 0; i < 5; i++ {
 		if i == 3 {
@@ -44,9 +44,9 @@ func TestCombineWith(t *testing.T) {
 	}
 
 	var stats2, stats3, stats4 RequestStats
-	stats2.AddRequest(400, 10.0, 2)
-	stats3.AddRequest(404, 15.0, 3)
-	stats4.AddRequest(405, 20.0, 4)
+	stats2.AddRequest(400, 10.0)
+	stats3.AddRequest(404, 15.0)
+	stats4.AddRequest(405, 20.0)
 
 	stats.CombineWith(stats2)
 	stats.CombineWith(stats3)

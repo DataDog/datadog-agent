@@ -21,6 +21,7 @@ def genconfig(
     platlist=None,
     fips=False,
     arch="x86_64",
+    imagesize=None,
 ):
     """
     Create a kitchen config
@@ -148,6 +149,8 @@ def genconfig(
         env = load_user_env(ctx, provider, uservars)
     env['TEST_PLATFORMS'] = testplatforms
 
+    env['TEST_IMAGE_SIZE'] = imagesize if imagesize else ""
+
     if fips:
         env['FIPS'] = 'true'
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
@@ -194,7 +197,7 @@ def load_user_env(_, provider, varsfile):
     env = {}
     commentpattern = re.compile("^comment")
     if os.path.exists(varsfile):
-        with open("uservars.json", "r") as f:
+        with open(varsfile, "r") as f:
             vars = json.load(f)
             for key, val in vars['global'].items():
                 if commentpattern.match(key):

@@ -11,6 +11,8 @@ from distutils.dir_util import copy_tree
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.flavor import AgentFlavor
+
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .go import deps
 from .utils import (
@@ -46,7 +48,7 @@ def build(
     Build Dogstatsd
     """
     build_include = (
-        get_default_build_tags(build="dogstatsd", arch=arch)
+        get_default_build_tags(build="dogstatsd", arch=arch, flavor=AgentFlavor.dogstatsd)
         if build_include is None
         else filter_incompatible_tags(build_include.split(","), arch=arch)
     )
@@ -158,7 +160,7 @@ def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
     cmd = "go test -mod={go_mod} -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
         "go_mod": go_mod,
-        "build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "build_tags": " ".join(get_default_build_tags(build="system-tests", arch=arch, flavor=AgentFlavor.dogstatsd)),
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)

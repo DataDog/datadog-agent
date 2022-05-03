@@ -38,7 +38,8 @@ const inactivityRestartDuration = 20 * time.Minute
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = module.Factory{
-	Name: config.NetworkTracerModule,
+	Name:             config.NetworkTracerModule,
+	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
@@ -88,6 +89,18 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
+	}))
+
+	httpMux.HandleFunc("/network_tracer/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		err := nt.tracer.RegisterClient(id)
+		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
+		if err != nil {
+			log.Errorf("unable to register client: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
 	}))
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {

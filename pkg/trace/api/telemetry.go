@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package api
 
 import (
@@ -13,9 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
@@ -61,7 +65,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		Transport: r.conf.NewHTTPTransport(),
 		Endpoints: endpoints,
 	}
-	limitedLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	limitedLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
@@ -104,7 +108,7 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
 		if resp, err := m.roundTrip(newreq, endpoint); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body)
+			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

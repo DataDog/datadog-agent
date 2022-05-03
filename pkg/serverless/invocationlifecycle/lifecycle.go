@@ -6,7 +6,7 @@
 package invocationlifecycle
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -18,7 +18,7 @@ import (
 type LifecycleProcessor struct {
 	ExtraTags           *serverlessLog.Tags
 	ProcessTrace        func(p *api.Payload)
-	MetricChannel       chan []metrics.MetricSample
+	Demux               aggregator.Demultiplexer
 	DetectLambdaLibrary func() bool
 }
 
@@ -30,7 +30,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders)
 	}
 }
 
@@ -43,12 +43,12 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError)
+		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
 	}
 
 	if endDetails.IsError {
 		serverlessMetrics.SendErrorsEnhancedMetric(
-			lp.ExtraTags.Tags, endDetails.EndTime, lp.MetricChannel,
+			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
 }

@@ -5,7 +5,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.28.13"
+    chart: "datadog-2.30.16"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -102,6 +102,16 @@ rules:
       - get
       - update
   - apiGroups:
+      - ""
+    resources:
+      - persistentvolumes
+      - persistentvolumeclaims
+      - serviceaccounts
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
       - "apps"
     resources:
       - deployments
@@ -117,6 +127,25 @@ rules:
     resources:
       - cronjobs
       - jobs
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "rbac.authorization.k8s.io"
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
     verbs:
       - list
       - get

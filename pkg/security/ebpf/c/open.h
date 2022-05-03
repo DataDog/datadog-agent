@@ -15,6 +15,15 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/io_uring_req_pid") io_uring_req_pid = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(void*),
+    .value_size = sizeof(u64),
+    .max_entries = 2048,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -130,8 +139,9 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
 SEC("kprobe/vfs_truncate")
 int kprobe_vfs_truncate(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     if (syscall->open.dentry) {
         return 0;
@@ -155,8 +165,9 @@ int kprobe_vfs_truncate(struct pt_regs *ctx) {
 SEC("kprobe/vfs_open")
 int kprobe_vfs_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct path *path = (struct path *)PT_REGS_PARM1(ctx);
     struct file *file = (struct file *)PT_REGS_PARM2(ctx);
@@ -169,8 +180,9 @@ int kprobe_vfs_open(struct pt_regs *ctx) {
 SEC("kprobe/do_dentry_open")
 int kprobe_do_dentry_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
@@ -191,6 +203,14 @@ struct io_open {
     struct openat2_open_how how;
 };
 
+SEC("kprobe/__io_openat_prep")
+int kprobe___io_openat_prep(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *raw_req = (void*) PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&io_uring_req_pid, &raw_req, &pid_tgid, BPF_ANY);
+    return 0;
+}
+
 SEC("kprobe/io_openat2")
 int kprobe_io_openat2(struct pt_regs *ctx) {
     struct io_open req;
@@ -207,18 +227,23 @@ int kprobe_io_openat2(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
-    if (IS_UNHANDLED_ERROR(retval))
+int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int retval, int dr_type, u64 pid_tgid) {
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     // increase mount ref
     inc_mount_ref(syscall->open.file.path_key.mount_id);
-    if (syscall->discarded)
+    if (syscall->discarded) {
         return 0;
+    }
+
+    syscall->open.pid_tgid = pid_tgid;
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
@@ -233,6 +258,11 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_OPEN);
     return 0;
+}
+
+
+int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
+    return sys_open_ret_with_pid_tgid(ctx, retval, dr_type, 0);
 }
 
 int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
@@ -301,11 +331,16 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 
 SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
-    struct file *f = (struct file *) PT_REGS_RC(ctx);
-    if (IS_ERR(f))
-        return 0;
+    int retval = PT_REGS_RC(ctx);
 
-    return sys_open_ret(ctx, 0, DR_KPROBE);
+    void *raw_req = (void*) PT_REGS_PARM1(ctx);
+    u64 *pid_tgid_ptr = bpf_map_lookup_elem(&io_uring_req_pid, &raw_req);
+    u64 pid_tgid = 0;
+    if (pid_tgid_ptr != NULL) {
+        pid_tgid = *pid_tgid_ptr;
+    }
+
+    return sys_open_ret_with_pid_tgid(ctx, retval, DR_KPROBE, pid_tgid);
 }
 
 SEC("kprobe/filp_close")
@@ -321,14 +356,21 @@ int kprobe_filp_close(struct pt_regs *ctx) {
 
 int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID) {
-       return 0;
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_OPEN);
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_INVALID) {
+        return 0;
     }
 
     struct open_event_t event = {
@@ -339,7 +381,12 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     };
 
     fill_file_metadata(syscall->open.dentry, &event.file.metadata);
-    struct proc_cache_t *entry = fill_process_context(&event.process);
+    struct proc_cache_t *entry;
+    if (syscall->open.pid_tgid != 0) {
+        entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);
+    } else {
+        entry = fill_process_context(&event.process);
+    }
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 

@@ -283,7 +283,7 @@ func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints) []inte
 		for j := range ep.Subsets[i].Addresses {
 			entity := apiserver.EntityForEndpoints(ep.Namespace, ep.Name, ep.Subsets[i].Addresses[j].IP)
 			config := &integration.Config{
-				Entity:                  entity,
+				ServiceID:               entity,
 				Name:                    tpl.Name,
 				Instances:               tpl.Instances,
 				InitConfig:              tpl.InitConfig,

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "precompiled/stdafx.h"
 #include <yaml-cpp/yaml.h>
 #include <fstream>
 #include <filesystem>
@@ -91,6 +91,8 @@ TEST_F(ReplaceYamlPropertiesIntegrationTests, dd_agent_no_subservices)
 
     // 'an Agent with process disabled'
     EXPECT_TRUE(node["process_config"].IsDefined());
-    EXPECT_TRUE(node["process_config"]["enabled"].IsDefined());
-    EXPECT_EQ(node["process_config"]["enabled"].as<std::string>(), "disabled");
+    EXPECT_FALSE(node["process_config"]["enabled"].IsDefined());
+    EXPECT_TRUE(node["process_config"]["process_collection"].IsDefined());
+    EXPECT_TRUE(node["process_config"]["process_collection"]["enabled"].IsDefined());
+    EXPECT_EQ(node["process_config"]["process_collection"]["enabled"].as<std::string>(), "false");
 }

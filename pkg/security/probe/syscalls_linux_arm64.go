@@ -4,6 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -425,4 +426,7 @@ const (
 	SysLandlockCreateRuleset    Syscall = 444
 	SysLandlockAddRule          Syscall = 445
 	SysLandlockRestrictSelf     Syscall = 446
+	SysProcessMrelease          Syscall = 448
+	SysFutexWaitv               Syscall = 449
+	SysSetMempolicyHomeNode     Syscall = 450
 )

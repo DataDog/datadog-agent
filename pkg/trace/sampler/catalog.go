@@ -9,9 +9,8 @@ import (
 	"container/list"
 	"sync"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // defaultServiceRateKey specifies the key for the default rate to be used by any service that
@@ -38,14 +37,15 @@ type catalogEntry struct {
 // rm specifies the pair of rate and mechanism.
 type rm struct {
 	r float64
-	m pb.SamplingMechanism
+	m apmsampling.SamplingMechanism
 }
 
-// newServiceLookup returns a new serviceKeyCatalog.
-func newServiceLookup() *serviceKeyCatalog {
+// newServiceLookup returns a new serviceKeyCatalog with maxEntries maximum number of entries.
+// If maxEntries is 0, a default of 5000 (maxCatalogEntries) will be used.
+func newServiceLookup(maxEntries int) *serviceKeyCatalog {
 	entries := maxCatalogEntries
-	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
-		entries = v
+	if maxEntries > 0 {
+		entries = maxEntries
 	}
 	return &serviceKeyCatalog{
 		items:      make(map[ServiceSignature]*list.Element),

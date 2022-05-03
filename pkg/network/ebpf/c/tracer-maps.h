@@ -137,7 +137,7 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
 
 // This map is used to to temporarily store function arguments (the struct sock*
 // mapped to the given fd_out) for do_sendfile function calls, so they can be
-// acessed by the corresponding kretprobe.
+// accessed by the corresponding kretprobe.
 // * Key is pid_tgid (u64)
 // * Value is (struct sock*)
 struct bpf_map_def SEC("maps/do_sendfile_args") do_sendfile_args = {

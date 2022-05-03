@@ -34,13 +34,20 @@ SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
 
 int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
+
+    // try to resolve namespaced nr
+    u32 namespace_nr = get_root_nr(syscall->ptrace.pid);
+    if (namespace_nr == 0) {
+        namespace_nr = syscall->ptrace.pid;
+    }
 
     struct ptrace_event_t event = {
         .syscall.retval = retval,
         .request = syscall->ptrace.request,
-        .pid = syscall->ptrace.pid,
+        .pid = namespace_nr,
         .addr = syscall->ptrace.addr,
     };
 

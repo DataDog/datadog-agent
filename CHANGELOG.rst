@@ -2,6 +2,574 @@
 Release Notes
 =============
 
+.. _Release Notes_7.35.1:
+
+7.35.1 / 6.35.1
+======
+
+.. _Release Notes_7.35.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-04-12
+
+
+.. _Release Notes_7.35.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The weak dependency of datadog-agent, datadog-iot-agent and dogstatsd deb
+  packages on the datadog-signing-keys package has been fixed to ensure
+  proper upgrade to version 1:1.1.0.
+
+
+.. _Release Notes_7.35.0:
+
+7.35.0 / 6.35.0
+======
+
+.. _Release Notes_7.35.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-04-07
+
+- Please refer to the `7.35.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7350>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.35.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Agent, Dogstatsd and IOT Agent RPMs now have proper preinstall dependencies.
+  On AlmaLinux, Amazon Linux, CentOS, Fedora, RHEL and Rocky Linux, these are:
+  
+  - ``coreutils`` (provided by package ``coreutils-single`` on certain platforms)
+  - ``grep``
+  - ``glibc-common``
+  - ``shadow-utils``
+  
+  On OpenSUSE and SUSE, these are:
+  
+  - ``coreutils``
+  - ``grep``
+  - ``glibc``
+  - ``shadow``
+
+- APM Breaking change: The `default head based sampling mechanism <https://docs.datadoghq.com/tracing/trace_ingestion/mechanisms?tab=environmentvariables#head-based-default-mechanism>`_
+  settings `apm_config.max_traces_per_second` or `DD_APM_MAX_TPS`, when set to 0, will be sending 
+  0% of traces to Datadog, instead of 100% in previous Agent versions. 
+
+- The OTLP ingest endpoint is now considered stable for traces.
+  Its configuration is located in the top-level `otlp_config section <https://github.com/DataDog/datadog-agent/blob/7.35.0/pkg/config/config_template.yaml#L2915-L2918>`_.
+  
+  Support for the deprecated ``experimental.otlp`` section and the ``DD_OTLP_GRPC_PORT`` and ``DD_OTLP_HTTP_PORT``
+  environment variables will be removed in Agent 7.37. Use the ``otlp_config`` section or the
+  ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT`` and ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``
+  environment variables instead.
+
+
+.. _Release Notes_7.35.0_New Features:
+
+New Features
+------------
+
+- The Cloud Workload Security agent can now monitor and evaluate rules on signals (kill syscall).
+
+- CWS allows to write SECL rule on environment variable values. 
+
+- The security Agent now offers a command to directly download the policy file from the API.
+
+- CWS: Policy can now define macros with items specified as a YAML list
+  instead of a SECL expression, as:::
+  
+    - my_macro:
+      values:
+        - value1
+        - value2
+  
+  In addition, macros and rules can now be updated in later loaded policies
+  (``default.policy`` is loaded first, the other policies in the folder are loaded
+  in alphabetical order).
+  
+  The previous macro can be modified with:::
+  
+    - my_macro:
+      combine: merge
+      values:
+        - value3
+  
+  It can also be overriden with:::
+  
+    - my_macro:
+      combine: override
+      values:
+        - my-single-value
+  
+  Rules can now also be disabled with:::
+  
+    - my_rule:
+      disabled: true
+
+- Cloud Workload Security now works on Google's Container Optimized OS LTS versions, starting
+  from v81.
+
+- CWS: Allow setting variables to store states through rule actions.
+  Action rules can now be defined as follows:::
+  
+    - id: my_rule
+      expression: ...
+      actions:
+        - set:
+            name: my_boolean_variable
+            value: true
+        - set:
+            name: my_string_variable
+            value: a string
+        - set:
+            name: my_other_variable
+            field: process.file.name
+  
+  These actions will be executed when the rule is triggered by an event.
+  Right now, only ``set`` actions can be defined.
+  ``name`` is the name of the variable that will be set by the actions.
+  The value for the variable can be specified by using:
+
+  - ``value`` for a predefined value
+    (strings, integers, booleans, array of strings and array of integers are currently supported).
+  - ``field`` for the value of an event field.
+  
+  Variable arrays can be modified by specifying ``append: true``.
+  
+  Variables can be reused in rule expressions like a regular variable:::
+
+    - id: my_other_rule
+      expression: |-
+        open.file.path == ${my_other_variable}
+
+  By default, variables are global. They can be bounded to a specific process by using the ``process``
+  scope as follows:::
+
+    - set:
+        name: my_scoped_variable
+        scope: process
+        value: true
+  
+  The variable can be referenced in other expressions as ``${process.my_scoped_variable}``. When the process dies, the
+  variable with be automatically freed.
+
+- Configuration ``process_config.enabled`` is now split into two settings: ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled``. This will allow better control over the process Agent.
+  ``process_config.enabled`` now translates to these new settings:
+
+  * ``process_config.enabled=true``: ``process_config.process_collection.enabled=true``
+  * ``process_config.enabled=false``: ``process_config.container_collection.enabled=true`` and ``process_config.process_collection.enabled=false``
+  * ``process_config.enabled=disabled``: ``process_config.container_collection.enabled=false`` and ``process_config.process_collection.enabled=false``
+
+- Expose additional CloudFoundry metadata in the DCA API that the
+  PCF firehose nozzles can use to reduce the load on the CC API.
+
+- Added new "Helm" cluster check that collects information about the Helm releases deployed in the cluster.
+
+- Add the ``process_agent_runtime_config_dump.yaml`` file to the core Agent flare with ``process-agent`` runtime settings.
+
+- Add ``process-agent status`` output to the core Agent status command.
+
+- Added new ``process-agent status`` command to help with troubleshooting and for better consistency with the core Agent. This command is intended to eventually replace `process-agent --info`.
+
+- CWS rules can now be written on kernel module loading and deletion events.
+
+- The splice event type was added to CWS. It can be used to detect the Dirty Pipe vulnerability.
+
+- Add two options under a new config prefix to send logs
+  to Vector instead of Datadog. ``vector.logs.enabled``
+  must be set to true, along with ``vector.logs.url`` that
+  should be set to point to a Vector configured accordingly.
+  This overrides the main endpoints, additional endpoints
+  remains fully functional.
+
+- Adds new Windows system check, winkmem.  This check reports the top users
+  of paged and non-paged memory in the windows kernel.
+
+
+.. _Release Notes_7.35.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add support for the device_namespace tag in SNMP Traps.
+
+- SNMP Trap Listener now also supports protocol versions 1 and 3 on top of the existing v2 support.
+
+- The cluster agent has an external metrics provider feature to allow using Datadog queries in Kubernetes HorizontalPodAutoscalers.
+  It sometimes faces issues like:
+  
+    2022-01-01 01:01:01 UTC | CLUSTER | ERROR | (pkg/util/kubernetes/autoscalers/datadogexternal.go:79 in queryDatadogExternal) | Error while executing metric query ... truncated... API returned error: Query timed out
+  
+  To mitigate this problem, use the new ``external_metrics_provider.chunk_size`` parameter to reduce the number of queries that are batched by the Agent and sent together to Datadog.
+
+- Added a new implementation of the `containerd` check based on the `container` check. Several metrics are not emitted anymore: `containerd.mem.current.max`, `containerd.mem.kernel.limit`, `containerd.mem.kernel.max`, `containerd.mem.kernel.failcnt`, `containerd.mem.swap.limit`, `containerd.mem.swap.max`, `containerd.mem.swap.failcnt`, `containerd.hugetlb.max`, `containerd.hugetlb.failcount`, `containerd.hugetlb.usage`, `containerd.mem.rsshuge`, `containerd.mem.dirty`, `containerd.blkio.merged_recursive`, `containerd.blkio.queued_recursive`, `containerd.blkio.sectors_recursive`, `containerd.blkio.service_recursive_bytes`, `containerd.blkio.time_recursive`, `containerd.blkio.serviced_recursive`, `containerd.blkio.wait_time_recursive`, `containerd.blkio.service_time_recursive`.
+  The `containerd.image.size` now reports all images present on the host, container tags are removed.
+
+- Migrate the cri check to generic check infrastructure. No changes expected in metrics.
+
+- Tags configured with `DD_TAGS` or `DD_EXTRA_TAGS` in an ECS Fargate or EKS Fargate environment are now attached to Dogstatsd metrics.
+
+- Added a new implementation of the `docker` check based on the `container` check. Metrics produced do not change. Added the capability to run the `docker` check on Linux without access to `/sys` or `/proc`, although with a limited number of metrics.
+
+- The DogstatsD protocol now supports a new field that contains the client's container ID.
+  This allows enriching DogstatsD metrics with container tags.
+
+- When ``ec2_collect_tags`` is enabled, the Agent now attempts to fetch data
+  from the instance metadata service, falling back to the existing
+  EC2-API-based method of fetching tags.  Support for tags in the instance
+  metadata service is an opt-in EC2 feature, so this functionality will
+  not work automatically.
+
+- Add support for ECS metadata v4 API
+  https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4.html
+
+- Agents are now built with Go 1.17.6.
+
+- On ECS Fargate and EKS Fargate, Agent-configured tags (``DD_TAGS``/``DD_EXTRA_TAGS``)
+  are now applied to all integration-collected metrics.
+
+- Logs from JMXFetch will now be included in the Agent logfile, regardless
+  of the ``log_level`` setting of the Agent.
+
+- Addition of two knobs to configure JMXFetch statsd client:
+  
+  * ``jmx_statsd_client_queue_size`` to set the client queue size.
+  * ``jmx_statsd_telemetry_enabled`` to enable the client telemetry.
+
+- KSMCore `node.ready` service check now reports `warning`
+  instead of `unknown` when a node enters an unknown state.
+
+- Added `DD_PROCESS_CONFIG_PROCESS_DD_URL` and `DD_PROCESS_AGENT_PROCESS_DD_URL` environment variables
+
+- Added `DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS` and `DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS` environment variables
+
+- Automatically extract the ``org.opencontainers.image.source`` container label into the ``git.repository_url`` tag.
+
+- The experimental OTLP ingest endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.43.1.
+
+- The OTLP ingest endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.44.0.
+
+- The OTLP ingest endpoint can now be configured through environment variables.
+
+- The OTLP ingest endpoint now always maps conventional metric resource-level attributes to metric tags.
+
+- OTLP ingest: the ``k8s.pod.uid`` and ``container.id`` semantic conventions
+  are now used for enriching tags in OTLP metrics.
+
+- Add the ``DD_PROCESS_CONFIG_MAX_PER_MESSAGE`` env variable to set the ``process_config.max_per_message``.
+  Add the ``DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE`` env variable to set the ``process_config.max_ctr_procs_per_message``.
+
+- Add the ``DD_PROCESS_CONFIG_EXPVAR_PORT`` and ``DD_PROCESS_AGENT_EXPVAR_PORT`` env variables to set the ``process_config.expvar_port``.
+  Add the ``DD_PROCESS_CONFIG_CMD_PORT`` env variable to set the ``process_config.cmd_port``.
+
+- Add the ``DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED`` env variable to set the ``process_config.internal_profiling.enabled``.
+
+- Add the `DD_PROCESS_CONFIG_SCRUB_ARGS` and `DD_PROCESS_AGENT_SCRUB_ARGS` env variables to set the `process_config.scrub_args`.
+  Add the `DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS` and `DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS` env variables to set the `process_config.custom_sensitive_words`.
+  Add the `DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS` and `DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS` env variables to set the `process_config.strip_proc_arguments`.
+
+- Added `DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS` and `DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS` environment variables
+
+- Add the ``DD_PROCESS_CONFIG_QUEUE_SIZE`` and ``DD_PROCESS_AGENT_QUEUE_SIZE`` env variables to set the ``process_config.queue_size``.
+  Add the ``DD_PROCESS_CONFIG_RT_QUEUE_SIZE`` and ``DD_PROCESS_AGENT_RT_QUEUE_SIZE`` env variables to set the ``process_config.rt_queue_size``.
+  Add the ``DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES`` and ``DD_PROCESS_AGENT_PROCESS_QUEUE_BYTES`` env variables to set the ``process_config.process_queue_bytes``.
+
+- Changes process payload chunking in the process Agent to take into account
+  the size of process details such as CLI and user name.
+  Adds the process_config.max_message_bytes setting for the target max (uncompressed) payload size.
+
+- When ``ec2_collect_tags`` is configured, the Agent retries API calls to gather EC2 tags before giving up.
+
+- Retry HTTP transaction when the HTTP status code is 404 (Not found).
+
+- Validate SNMP namespace to ensure it respects length and illegal character rules.
+
+- Include `/etc/chrony.conf` for `use_local_defined_servers`.
+
+
+.. _Release Notes_7.35.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The security Agent commands ``check-policies`` and ``reload`` are deprecated.
+  Use ``runtime policy check`` and ``runtime policy reload`` respectively instead.
+
+- Configuration ``process_config.enabled`` is now deprecated.  Use ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled`` settings instead to control container and process collection in the process Agent.
+
+- Removed ``API_KEY`` environment variable from the process agent. Use ``DD_API_KEY`` instead
+
+- Removes the ``DD_PROCESS_AGENT_CONTAINER_SOURCE`` environment variable from the Process Agent. The list of container sources now entirely depends on the activated features.
+
+- Removed unused ``process_config.windows.args_refresh_interval`` config setting
+
+- Removed unused ``process_config.windows.add_new_args`` config setting
+
+- Removes the ``process_config.max_ctr_procs_per_message`` setting.
+
+
+.. _Release Notes_7.35.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: OTLP: Fixes an issue where attributes from different spans were merged leading to spans containing incorrect attributes.
+
+- APM: Fixed an issue which caused a panic when receiving OTLP traces with invalid data (specifically duplicate SpanIDs).
+
+- Silence the misleading error message
+  ``No valid api key found, reporting the forwarder as unhealthy``
+  from the output of the ``agent check`` command.
+
+- Fixed a deadlock in the Logs Agent.
+
+- Exclude filters no longer apply to empty container names, images, or namespaces.
+
+- Fix CPU limit calculation for Windows containers.
+
+- Fix a rare panic in Gohai when collecting the system's Python version.
+
+- For Windows, includes NPM driver 1.3.2, which has a fix for a BSOD on system probe shutdown.
+
+- OTLP ingest now uses the exact sum and count values from OTLP Histograms when generating Datadog distributions.
+
+
+.. _Release Notes_7.35.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to `0.46.0` https://github.com/DataDog/jmxfetch/releases/0.46.0
+
+
+.. _Release Notes_7.34.0:
+
+7.34.0 / 6.34.0
+======
+
+.. _Release Notes_7.34.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-03-02
+
+- Please refer to the `7.34.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7340>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.34.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- CWS uses `**` for subfolder matching instead of `*`.
+  Previously, `*` was used to match files and subfolders. With this
+  release, `*` will match only files and folders at the same level. Use`**`
+  at the end of a path to match files and subfolders. `**` must be
+  used at the end of the path. For example, the rule `open.file.path == "/etc/*"`
+  has to be converted to `open.file.path == "/etc/**"`.
+
+- `additional_endpoints` in the `logs_config` now uses the same compression
+  configuration as the main endpoint when sending to HTTP destinations. Agents 
+  that relied on using different compression settings for `additional_endpoints`
+  may need to be reconfigured. 
+
+
+.. _Release Notes_7.34.0_New Features:
+
+New Features
+------------
+
+- Autodiscovery of integrations now works with Podman containers. The minimum
+  Podman version supported is 3.0.0.
+
+- Cloud provider detection now support Oracle Cloud. This includes cloud provider detection, host aliases and NTP
+  servers.
+
+- APM: Add proxy endpoint to allow Instrumentation Libraries to submit telemetry data.
+
+- CWS now allows to write SECL rule based on process ancestor args.
+
+- CWS now exposes the first argument of exec event. Usually the
+  name of the executed program.
+
+- Add a new `runtime reload` command to the `security-agent`
+  to dynamically reload CWS policies.
+
+- Enables process discovery check to run by default in the process agent.
+  Process discovery is a lightweight process metadata collection check enabling
+  users to see recommendations for integrations running in their environments.
+
+- APM: Adds a new endpoint to the Datadog Agent to forward pipeline stats to the Datadog backend.
+
+- The Cloud Workload Security agent can now monitor and evaluate rules on mmap, mprotect and ptrace.
+
+- Add support for Shift JIS (Japanese) encoding.
+  It should be manually enabled in a log configuration using
+  ``encoding: shift-jis``.
+
+- Extend SNMP profile syntax to support metadata definitions
+
+- When running inside a container with the host `/etc` folder mounted to `/host/etc`, the agent will now report the
+  distro informations of the host instead of the one from the container.
+
+- Added telemetry for the workloadmeta store.
+
+
+.. _Release Notes_7.34.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add Autodiscovery telemetry.
+
+- APM: Add the option to collect SQL comments and commands during obfuscation.
+
+- Adds the process_config.disable_realtime_checks config setting in the process
+  Agent allowing users to disable realtime process and container checks. Note:
+  This prevents refresh of stats in the Live Processes and Live Containers pages
+  for processes and containers reported by the Agent.
+
+- [corechecks/snmp] Add additional metadata fields
+
+- Reduce the memory usage when flushing series.
+
+- Specifying ``auto_multi_line_detection: false`` in an integration's
+  ``logs_config`` will now disable detection for that integration, even if
+  detection is enabled globally.
+
+- Make ``agent checkconfig`` an alias of ``agent configcheck``
+
+- Added possibility to watch all the namespaces when running on containerd
+  outside Kubernetes. By default, the agent will report events and metrics
+  from all the namespaces. In order to select a specific one, please set the
+  `containerd_namespace` option.
+
+- The container check now works for containers managed by runtimes that
+  implement the CRI interface such as CRI-O.
+
+- ``cri.*`` and ``container.*`` metrics can now be collected from the CRI API
+  on Windows.
+
+- When using ``site: ddog-gov.com``, the agent now uses Agent-version-based
+  URLs and ``api.ddog-gov.com`` as it has previously done for other Datadog
+  domains.
+
+- Add telemetry for ECS queries.
+
+- Agents are now built with Go 1.16.12.
+
+- Add Kubelet queries telemetry.
+
+- Add the ``kubernetes_node_annotations_as_host_aliases`` parameter to specify a list
+  of Kubernetes node annotations that should be used as host aliases.
+  If not set, it defaults to ``cluster.k8s.io/machine``.
+
+- The experimental OTLP endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.41.0.
+
+- OTLP metrics tags are enriched when ``experimental.otlp.metrics.tag_cardinality`` is set to ``orchestrator``.
+  This can also be controlled via the ``DD_OTLP_TAG_CARDINALITY`` environment variable.
+
+- Make the Prometheus auto-discovery be able to schedule OpenMetrics V2 checks instead of legacy V1 ones.
+  
+  By default, the Prometheus annotations based auto-discovery will keep on scheduling openmetrics v1 check.
+  But the agent now has a `prometheus_scrape.version` parameter that can be set to ``2`` to schedule the v2.
+  
+  The changes between the two versions of the check are described in
+  https://datadoghq.dev/integrations-core/legacy/prometheus/#config-changes-between-versions
+
+- Raised the max batch size of logs and events from `100` to `1000` elements. Improves
+  performance in high volume scenarios. 
+
+- Add saturation metrics for network and memory.
+
+- The Agent no longer logs spurious warnings regarding proxy-related environment variables
+  ``DD_PROXY_NO_PROXY``, ``DD_PROXY_HTTP``, and ``DD_PROXY_HTTPS``.
+
+- [corechecks/snmp] Add agent host as tag when ``use_device_id_as_hostname`` is enabled.
+
+- [corechecks/snmp] Add profile metadata match syntax
+
+- [corechecks/snmp] Support multiple symbols for profile metadata
+
+- On Windows, the installer now uses a zipped Python integration folder, which
+  should result in faster install times.
+
+- Add support for Windows 2022 in published Docker images
+
+
+.. _Release Notes_7.34.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix SQL obfuscation error on statements using bind variables starting with digits
+
+- Adds Windows NPM driver 1.3.1, which contains a fix for the system crash on system-probe shutdown under heavy load.
+
+- ``DD_CLUSTER_NAME`` can be used to define the ``kube_cluster_name`` on EKS Fargate.
+
+- On Windows the Agent now correctly detects Windows 11.
+
+- Fixes an issue where the Docker check would undercount the number of
+  stopped containers in the `docker.containers.stopped` and
+  `docker.containers.stopped.total` metrics, accompanied by a "Cannot split
+  the image name" error in the logs.
+
+- Fixed a bug that caused a panic when running the docker check in cases
+  where there are containers stuck in the "Removal in Progress" state.
+
+- On EKS Fargate, the `container` check is scheduled while no suitable metrics collector is available, leading to excessive logging. Also fixes an issue with Liveness/Readiness probes failing regularly.
+
+- Allow Prometheus scrape `tls_verify` to be set to `false` and 
+  change `label_to_hostname` type to `string`.
+
+- Fixes truncated queries using temp tables in SQL Server.
+
+- Fixes an NPM issue on Windows where if the first packet on a UDP flow
+  is inbound, it is not counted correctly.
+
+- On macOS, fix a bug where the Agent would not gracefully stop when sent a SIGTERM signal.
+
+- Fix missing tags with eBPF checks (OOM Kill/TCP Queue Length) with some container runtimes (for instance, containerd 1.5).
+
+- The experimental OTLP endpoint now ignores hostname attributes with localhost-like names for hostname resolution.
+
+- Fixes an issue where cumulative-to-delta OTLP metrics conversion did not take the hostname into account.
+
+
+.. _Release Notes_7.33.1:
+
+7.33.1 / 6.33.1
+======
+
+.. _Release Notes_7.33.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-02-10
+
+
+.. _Release Notes_7.33.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a panic that happens occasionally when handling tags for deleted
+  containers or pods.
+
+- Fixes security module failing to start on kernels 4.14 and 4.15.
+
 .. _Release Notes_7.33.0:
 
 7.33.0 / 6.33.0

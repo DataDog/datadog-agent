@@ -61,6 +61,8 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	stats["otlp"] = GetOTLPStatus()
+
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos
@@ -75,6 +77,8 @@ func GetStatus() (map[string]interface{}, error) {
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	}
+
+	stats["processAgentStatus"] = GetProcessAgentStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		httputils.NoProxyMapMutex.Lock()

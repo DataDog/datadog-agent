@@ -62,6 +62,13 @@ func fakePodWithEnv(name, env string) *corev1.Pod {
 	return fakePodWithContainer(name, corev1.Container{Name: name + "-container", Env: []corev1.EnvVar{fakeEnv(env)}})
 }
 
+func fakePodWithVolume(podName, volumeName string) *corev1.Pod {
+	pod := fakePod(podName)
+	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: volumeName})
+	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{Name: volumeName})
+	return pod
+}
+
 func fakePod(name string) *corev1.Pod {
 	return fakePodWithContainer(name, corev1.Container{Name: name + "-container"})
 }

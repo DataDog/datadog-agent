@@ -73,8 +73,8 @@ func (c *tcpCloseConsumer) FlushPending() {
 
 func (c *tcpCloseConsumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		perfReceivedStat: atomic.SwapInt64(&c.perfReceived, 0),
-		perfLostStat:     atomic.SwapInt64(&c.perfLost, 0),
+		perfReceivedStat: atomic.LoadInt64(&c.perfReceived),
+		perfLostStat:     atomic.LoadInt64(&c.perfLost),
 	}
 }
 

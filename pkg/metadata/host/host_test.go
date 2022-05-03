@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 // +build !windows
 
@@ -21,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -114,15 +115,22 @@ func TestGetLogsMeta(t *testing.T) {
 	// No transport
 	status.CurrentTransport = ""
 	meta := getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: ""}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: false}, meta)
 	// TCP transport
 	status.CurrentTransport = status.TransportTCP
 	meta = getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: "TCP"}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
 	// HTTP transport
 	status.CurrentTransport = status.TransportHTTP
 	meta = getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: "HTTP"}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "HTTP", AutoMultilineEnabled: false}, meta)
+
+	// auto multiline enabled
+	config.Datadog.Set("logs_config.auto_multi_line_detection", true)
+	meta = getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: "HTTP", AutoMultilineEnabled: true}, meta)
+
+	config.Datadog.Set("logs_config.auto_multi_line_detection", false)
 }
 
 func TestGetInstallMethod(t *testing.T) {
@@ -186,14 +194,4 @@ func TestGetProxyMeta(t *testing.T) {
 	httputils.NoProxyIgnoredWarningMap["http://someUrl.com"] = true
 	meta = getProxyMeta()
 	assert.Equal(t, meta.ProxyBehaviorChanged, true)
-}
-
-func TestGetOtlpMeta(t *testing.T) {
-	config.Datadog.Set("experimental.otlp.receiver.protocols.grpc.endpoint", "localhost:9999")
-	meta := getOtlpMeta()
-	assert.Equal(t, meta.Enabled, true)
-
-	config.Datadog.Set("experimental", nil)
-	meta = getOtlpMeta()
-	assert.Equal(t, meta.Enabled, false)
 }

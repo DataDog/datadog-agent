@@ -54,15 +54,16 @@ func (tx *httpTX) Path(buffer []byte) []byte {
 
 	i++
 
+	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+		return nil
+	}
+
 	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
 	}
 
-	if i < j && j <= bLen {
-		n := copy(buffer, b[i:j])
-		return buffer[:n]
-	}
-
-	return nil
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, b[i:j])
+	return buffer[:n]
 }
 
 // StatusClass returns an integer representing the status code class
@@ -80,12 +81,6 @@ func (tx *httpTX) RequestLatency() float64 {
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *httpTX) Incomplete() bool {
 	return tx.request_started == 0 || tx.response_status_code == 0
-}
-
-// Tags returns an uint64 representing the tags bitfields
-// Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *httpTX) Tags() uint64 {
-	return uint64(tx.tags)
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still

@@ -5,13 +5,12 @@
 #include "ipv6.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
-#include "tags-types.h"
 #include "port_range.h"
 #include "http.h"
 #include "https.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
-#error "http runtime compilation is only supported for kernel >= 4.6"
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+#error "http runtime compilation is only supported for kernel >= 4.5"
 #endif
 
 #define HTTPS_PORT 443
@@ -142,7 +141,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     }
 
     u32 len = (u32)PT_REGS_RC(ctx);
-    https_process(t, args->buf, len, LIBSSL);
+    https_process(t, args->buf, len);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -159,7 +158,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
 
     void *ssl_buffer = (void *)PT_REGS_PARM2(ctx);
     size_t len = (size_t)PT_REGS_PARM3(ctx);
-    https_process(t, ssl_buffer, len, LIBSSL);
+    https_process(t, ssl_buffer, len);
     return 0;
 }
 
@@ -253,7 +252,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    https_process(t, args->buf, read_len, LIBGNUTLS);
+    https_process(t, args->buf, read_len);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -272,7 +271,7 @@ int uprobe__gnutls_record_send(struct pt_regs* ctx) {
         return 0;
     }
 
-    https_process(t, data, data_size, LIBGNUTLS);
+    https_process(t, data, data_size);
     return 0;
 }
 

@@ -25,7 +25,7 @@ func TestMMapEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mmap",
-			Expression: `mmap.protection & (VM_WRITE | VM_EXEC) > 0`,
+			Expression: `mmap.protection & (VM_WRITE | VM_EXEC) > 0 && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -49,6 +49,12 @@ func TestMMapEvent(t *testing.T) {
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
 			assert.NotEqual(t, 0, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 
 			if !validateMMapSchema(t, event) {
 				t.Error(event.String())

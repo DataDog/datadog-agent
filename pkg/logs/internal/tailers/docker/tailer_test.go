@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 
 	"github.com/docker/docker/api/types"
 
@@ -96,7 +96,7 @@ func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelF
 		done:               make(chan struct{}, 1),
 		erroredContainerID: make(chan string, 1),
 		reader:             newSafeReader(),
-		cancelFunc:         cancelFunc,
+		readerCancelFunc:   cancelFunc,
 	}
 	tailer.reader.setUnsafeReader(reader)
 

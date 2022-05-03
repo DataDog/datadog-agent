@@ -40,7 +40,7 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Has optional fields, which is a space separated list of values.
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
-		for _, field := range strings.Split(mnt.Optional, ",") {
+		for _, field := range strings.Split(mnt.Optional, " ") {
 			optionSplit := strings.SplitN(field, ":", 2)
 			if len(optionSplit) == 2 {
 				target, value := optionSplit[0], optionSplit[1]
@@ -145,6 +145,7 @@ func (mr *MountResolver) deleteDevice(mount *model.MountEvent) {
 }
 
 func (mr *MountResolver) delete(mount *model.MountEvent) {
+	mr.clearCacheForMountID(mount.MountID)
 	delete(mr.mounts, mount.MountID)
 
 	mounts, exists := mr.devices[mount.Device]
@@ -160,6 +161,8 @@ func (mr *MountResolver) delete(mount *model.MountEvent) {
 func (mr *MountResolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
+
+	mr.clearCacheForMountID(mountID)
 
 	mount, exists := mr.mounts[mountID]
 	if !exists {
@@ -195,6 +198,14 @@ func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 	}
 
 	return mount.IsOverlayFS()
+}
+
+// Get returns a mount event from the mount id
+func (mr *MountResolver) Get(mountID uint32) *model.MountEvent {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	return mr.mounts[mountID]
 }
 
 // Insert a new mount point in the cache
@@ -338,8 +349,7 @@ func (mr *MountResolver) dequeue(now time.Time) {
 		}
 
 		// clear cache anyway
-		mr.parentPathCache.Remove(req.mount.MountID)
-		mr.overlayPathCache.Remove(req.mount.MountID)
+		mr.clearCacheForMountID(req.mount.MountID)
 
 		i++
 	}
@@ -351,6 +361,11 @@ func (mr *MountResolver) dequeue(now time.Time) {
 	}
 
 	mr.lock.Unlock()
+}
+
+func (mr *MountResolver) clearCacheForMountID(mountID uint32) {
+	mr.parentPathCache.Remove(mountID)
+	mr.overlayPathCache.Remove(mountID)
 }
 
 // Start starts the resolver

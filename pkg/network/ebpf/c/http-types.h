@@ -59,8 +59,6 @@ typedef struct {
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
     __u32 tcp_seq;
-
-    __u64 tags;
 } http_transaction_t;
 
 typedef struct {

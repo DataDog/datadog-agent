@@ -68,7 +68,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
-	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle"}, config.GetStringSlice("cloud_provider_metadata"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
@@ -154,6 +154,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
 	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
 	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
 }
 
 func TestSiteEnvVar(t *testing.T) {
@@ -189,6 +190,30 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 
 func TestDDURLEnvVar(t *testing.T) {
 	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetURL := setEnvForTest("DD_URL", "https://app.datadoghq.eu")
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.eu")
 	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	defer resetAPIKey()
@@ -202,6 +227,35 @@ func TestDDURLEnvVar(t *testing.T) {
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+
+	// If DD_DD_URL and DD_URL are set, the value of DD_DD_URL is used
+	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+	resetURLWeaker := setEnvForTest("DD_URL", "https://app.datadoghq.dd_url.eu")
+
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetURLWeaker()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.dd_dd_url.eu": {
 			"fakeapikey",
 		},
 	}
@@ -851,6 +905,32 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
+}
+
+func TestExperimentalOTLP(t *testing.T) {
+	checkConf := func(t *testing.T, conf Config) {
+		assert.Equal(t, 789, conf.GetInt(OTLPTracePort))
+		assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": map[string]interface{}{"d": interface{}(nil)}}, conf.GetStringMap(OTLPReceiverSection))
+		assert.Equal(t, map[string]interface{}{"c": 3, "d": 4, "enabled": false, "tag_cardinality": "medium"}, conf.GetStringMap(OTLPMetrics))
+		assert.False(t, conf.GetBool(OTLPMetricsEnabled))
+		assert.Equal(t, "medium", conf.GetString(OTLPTagCardinalityKey))
+	}
+
+	t.Run("main", func(t *testing.T) {
+		conf := setupConf()
+		conf.SetConfigFile("./tests/otlp_main.yaml")
+		_, err := load(conf, "otlp_main.yaml", true)
+		assert.NoError(t, err)
+		checkConf(t, conf)
+	})
+
+	t.Run("experimental", func(t *testing.T) {
+		conf := setupConf()
+		conf.SetConfigFile("./tests/otlp_experimental.yaml")
+		_, err := load(conf, "otlp_experimental.yaml", true)
+		assert.NoError(t, err)
+		checkConf(t, conf)
+	})
 }
 
 func TestNumWorkers(t *testing.T) {

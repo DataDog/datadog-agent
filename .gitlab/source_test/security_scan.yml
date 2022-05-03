@@ -4,7 +4,7 @@ security_scan_test:
   rules:
     !reference [.on_main_or_release_branch]
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v5817527-cb0e69f-next
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v6779027-23d6b05-next
   tags: ["runner:main"]
   needs: ["go_deps"]
   before_script:
@@ -14,9 +14,7 @@ security_scan_test:
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
     - python3 -m pip install -r requirements.txt
   script:
-    - set +x     # don't print the api key to the logs
-    # send the list of the dependencies to snyk
-    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --command=python3 --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
-    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --project-name=datadog-agent-go.sum --file=go.mod
+    - set +x # don't print the api key to the logs
+    - export SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    - find . -name go.mod -not -path './test/*' -not -path './internal/tools/modparser/testdata/*' -exec snyk test --severity-threshold=medium --file={} \;

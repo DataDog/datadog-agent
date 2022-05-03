@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -83,8 +82,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						creationTime: integration.After,
-						ready:        true,
+						ready: true,
 					},
 				},
 			},
@@ -95,7 +93,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newKubeletListener(t)
 
-			listener.createPodService(tt.pod, tt.containers, integration.After)
+			listener.createPodService(tt.pod, tt.containers)
 
 			wlm.assertServices(tt.expectedServices)
 		})
@@ -241,8 +239,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:        []ContainerPort{},
-						creationTime: integration.After,
+						ports: []ContainerPort{},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -274,7 +271,6 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod": "127.0.0.1",
 						},
 						ports:           []ContainerPort{},
-						creationTime:    integration.After,
 						metricsExcluded: true,
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -329,8 +325,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:        []ContainerPort{},
-						creationTime: integration.After,
+						ports: []ContainerPort{},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -371,7 +366,6 @@ func TestKubeletCreateContainerService(t *testing.T) {
 								Name: "http",
 							},
 						},
-						creationTime: integration.After,
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -403,9 +397,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:        []ContainerPort{},
-						creationTime: integration.After,
-						checkNames:   []string{"customcheck"},
+						ports:      []ContainerPort{},
+						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -421,7 +414,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newKubeletListener(t)
 
-			listener.createContainerService(tt.pod, tt.podContainer, tt.container, integration.After)
+			listener.createContainerService(tt.pod, tt.podContainer, tt.container)
 
 			wlm.assertServices(tt.expectedServices)
 		})

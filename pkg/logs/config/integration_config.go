@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -44,9 +45,11 @@ type LogsConfig struct {
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
 	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
-	IncludeUnits  []string `mapstructure:"include_units" json:"include_units"`   // Journald
-	ExcludeUnits  []string `mapstructure:"exclude_units" json:"exclude_units"`   // Journald
-	ContainerMode bool     `mapstructure:"container_mode" json:"container_mode"` // Journald
+	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units"`           // Journald
+	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units"`           // Journald
+	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units"` // Journald
+	ExcludeUserUnits   []string `mapstructure:"exclude_user_units" json:"exclude_user_units"` // Journald
+	ContainerMode      bool     `mapstructure:"container_mode" json:"container_mode"`         // Journald
 
 	Image string // Docker
 	Label string // Docker
@@ -61,6 +64,13 @@ type LogsConfig struct {
 	// used as input only by the Channel tailer.
 	// could have been unidirectional but the tailer could not close it in this case.
 	Channel chan *ChannelMessage
+
+	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
+	// modified at runtime (as long as ChannelTagsMutex is held).
+	ChannelTags []string
+
+	// ChannelTagsMutex guards ChannelTags.
+	ChannelTagsMutex sync.Mutex
 
 	Service         string
 	Source          string

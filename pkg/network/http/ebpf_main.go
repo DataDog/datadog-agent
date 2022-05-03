@@ -43,6 +43,8 @@ const (
 
 	// size of the channel containing completed http_notification_objects
 	batchNotificationsChanSize = 100
+
+	probeUID = "http"
 )
 
 type ebpfProgram struct {
@@ -105,8 +107,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 		},
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg"}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID}},
 		},
 	}
 
@@ -148,12 +150,14 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
+					UID: probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.TCPSendMsgReturn),
 					EBPFFuncName: "kretprobe__tcp_sendmsg",
+					UID: probeUID,
 				},
 			},
 		},
@@ -199,7 +203,7 @@ func enableRuntimeCompilation(c *config.Config) bool {
 		return false
 	}
 
-	// The runtime-compiled version of HTTP monitoring requires Kernel 4.6
+	// The runtime-compiled version of HTTP monitoring requires Kernel 4.5
 	// because we use the `bpf_skb_load_bytes` helper.
 	kversion, err := kernel.HostVersion()
 	if err != nil {
@@ -207,5 +211,5 @@ func enableRuntimeCompilation(c *config.Config) bool {
 		return false
 	}
 
-	return kversion >= kernel.VersionCode(4, 6, 0)
+	return kversion >= kernel.VersionCode(4, 5, 0)
 }

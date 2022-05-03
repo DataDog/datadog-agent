@@ -10,6 +10,7 @@ package constantfetch
 
 import (
 	"crypto/md5"
+	"fmt"
 	"hash"
 	"io"
 
@@ -17,11 +18,13 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-const errorSentinel uint64 = ^uint64(0)
+// ErrorSentinel is the value of an unavailable offset or size
+const ErrorSentinel uint64 = ^uint64(0)
 
 // ConstantFetcher represents a source of constants that can be used to fill up
 // eBPF relocations
 type ConstantFetcher interface {
+	fmt.Stringer
 	AppendSizeofRequest(id, typeName, headerName string)
 	AppendOffsetofRequest(id, typeName, fieldName, headerName string)
 	FinishAndGetResults() (map[string]uint64, error)
@@ -44,6 +47,10 @@ func ComposeConstantFetchers(fetchers []ConstantFetcher) *ComposeConstantFetcher
 	}
 }
 
+func (f *ComposeConstantFetcher) String() string {
+	return fmt.Sprintf("composition of %s", f.fetchers)
+}
+
 func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
 	f.requests = append(f.requests, req)
 	_, _ = io.WriteString(f.hasher, req.id)
@@ -60,7 +67,7 @@ func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName, headerName st
 		typeName:   typeName,
 		fieldName:  "",
 		headerName: headerName,
-		value:      errorSentinel,
+		value:      ErrorSentinel,
 	})
 }
 
@@ -72,7 +79,7 @@ func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, 
 		typeName:   typeName,
 		fieldName:  fieldName,
 		headerName: headerName,
-		value:      errorSentinel,
+		value:      ErrorSentinel,
 	})
 }
 
@@ -80,16 +87,15 @@ func (f *ComposeConstantFetcher) getHash() []byte {
 	return f.hasher.Sum(nil)
 }
 
-// FinishAndGetResults does the actual fetching and returns the results
-func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
+func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 	currentHash := f.getHash()
 	if constantsCache.isMatching(currentHash) {
-		return constantsCache.constants, nil
+		return
 	}
 
 	for _, fetcher := range f.fetchers {
 		for _, req := range f.requests {
-			if req.value == errorSentinel {
+			if req.value == ErrorSentinel {
 				if req.sizeof {
 					fetcher.AppendSizeofRequest(req.id, req.typeName, req.headerName)
 				} else {
@@ -104,24 +110,55 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 		}
 
 		for _, req := range f.requests {
-			if req.value == errorSentinel {
+			if req.value == ErrorSentinel {
 				if newValue, present := res[req.id]; present {
 					req.value = newValue
+					req.fetcherName = fetcher.String()
 				}
 			}
 		}
 	}
 
-	finalRes := make(map[string]uint64)
+	finalRes := make(map[string]ValueAndSource)
 	for _, req := range f.requests {
-		finalRes[req.id] = req.value
+		finalRes[req.id] = ValueAndSource{
+			ID:          req.id,
+			Value:       req.value,
+			FetcherName: req.fetcherName,
+		}
 	}
 
 	constantsCache = &cachedConstants{
 		constants: finalRes,
 		hash:      currentHash,
 	}
-	return finalRes, nil
+}
+
+// FinishAndGetResults does the actual fetching and returns the results
+func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
+	f.fillConstantCacheIfNeeded()
+	return constantsCache.getConstants(), nil
+}
+
+// FinishAndGetStatus does the actual fetching and returns the status
+func (f *ComposeConstantFetcher) FinishAndGetStatus() (*ConstantFetcherStatus, error) {
+	f.fillConstantCacheIfNeeded()
+
+	fetcherNames := make([]string, 0, len(f.fetchers))
+	for _, fetcher := range f.fetchers {
+		fetcherNames = append(fetcherNames, fetcher.String())
+	}
+
+	return &ConstantFetcherStatus{
+		Fetchers: fetcherNames,
+		Values:   constantsCache.constants,
+	}, nil
+}
+
+// ConstantFetcherStatus represents the status of the constant fetcher sub-system
+type ConstantFetcherStatus struct {
+	Fetchers []string
+	Values   map[string]ValueAndSource
 }
 
 type composeRequest struct {
@@ -130,13 +167,14 @@ type composeRequest struct {
 	typeName, fieldName string
 	headerName          string
 	value               uint64
+	fetcherName         string
 }
 
 // CreateConstantEditors creates constant editors based on the constants fetched
 func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor {
 	res := make([]manager.ConstantEditor, 0, len(constants))
 	for name, value := range constants {
-		if value == errorSentinel {
+		if value == ErrorSentinel {
 			log.Errorf("failed to fetch constant for %s", name)
 			value = 0
 		}
@@ -156,8 +194,15 @@ func ClearConstantsCache() {
 	constantsCache = nil
 }
 
+// ValueAndSource represents the required information about a constant, its id, its value and its source
+type ValueAndSource struct {
+	ID          string
+	Value       uint64
+	FetcherName string
+}
+
 type cachedConstants struct {
-	constants map[string]uint64
+	constants map[string]ValueAndSource
 	hash      []byte
 }
 
@@ -176,4 +221,12 @@ func (cc *cachedConstants) isMatching(hash []byte) bool {
 		}
 	}
 	return true
+}
+
+func (cc *cachedConstants) getConstants() map[string]uint64 {
+	res := make(map[string]uint64)
+	for k, v := range cc.constants {
+		res[k] = v.Value
+	}
+	return res
 }

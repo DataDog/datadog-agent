@@ -29,6 +29,8 @@ type dogstatsdServiceCheck struct {
 	hostname  string
 	message   string
 	tags      []string
+	// containerID represents the container ID of the sender (optional).
+	containerID []byte
 }
 
 var (
@@ -95,6 +97,8 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
+	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
+		newServiceCheck.containerID = p.extractContainerID(optionalField)
 	}
 	if err != nil {
 		return serviceCheck, err

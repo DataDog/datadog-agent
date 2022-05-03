@@ -41,16 +41,16 @@ import (
 	vnetns "github.com/vishvananda/netns"
 )
 
-func dnsSupported(t *testing.T) bool {
+func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
 }
 
-func httpSupported(t *testing.T) bool {
-	currKernelVersion, err := kernel.HostVersion()
+func httpsSupported(t *testing.T) bool {
+	kv, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
+	return kv < kernel.VersionCode(5, 5, 0)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {

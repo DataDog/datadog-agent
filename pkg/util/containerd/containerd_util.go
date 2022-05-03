@@ -45,6 +45,7 @@ type ContainerdItf interface {
 	Info(ctn containerd.Container) (containers.Container, error)
 	Labels(ctn containerd.Container) (map[string]string, error)
 	LabelsWithContext(ctx context.Context, ctn containerd.Container) (map[string]string, error)
+	ListImages() ([]containerd.Image, error)
 	Image(ctn containerd.Container) (containerd.Image, error)
 	ImageSize(ctn containerd.Container) (int64, error)
 	Spec(ctn containerd.Container) (*oci.Spec, error)
@@ -56,6 +57,7 @@ type ContainerdItf interface {
 	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
 	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	Status(ctn containerd.Container) (containerd.ProcessStatus, error)
+	CallWithClientContext(f func(context.Context) error) error
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -78,7 +80,6 @@ func NewContainerdUtil() (ContainerdItf, error) {
 		queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
 		connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
 		socketPath:        config.Datadog.GetString("cri_socket_path"),
-		namespace:         config.Datadog.GetString("containerd_namespace"),
 	}
 	if containerdUtil.socketPath == "" {
 		log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
@@ -114,7 +115,17 @@ func (c *ContainerdUtil) SetCurrentNamespace(namespace string) {
 }
 
 func (c *ContainerdUtil) Namespaces(ctx context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.queryTimeout)
+	defer cancel()
 	return c.cl.NamespaceService().List(ctx)
+}
+
+func (c *ContainerdUtil) CallWithClientContext(f func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	return f(ctxNamespace)
 }
 
 // Metadata is used to collect the version and revision of the Containerd API
@@ -207,6 +218,15 @@ func (c *ContainerdUtil) EnvVars(ctn containerd.Container) (map[string]string, e
 	}
 
 	return envs, nil
+}
+
+// ListImages interfaces with the containerd api to list image
+func (c *ContainerdUtil) ListImages() ([]containerd.Image, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	return c.cl.ListImages(ctxNamespace)
 }
 
 // Image interfaces with the containerd api to get an image

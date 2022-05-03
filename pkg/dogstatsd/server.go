@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -22,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/internal/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -129,6 +128,7 @@ type Server struct {
 	workers []*worker
 
 	packetsIn                 chan packets.Packets
+	serverlessFlushChan       chan bool
 	sharedPacketPool          *packets.Pool
 	sharedPacketPoolManager   *packets.PoolManager
 	sharedFloat64List         *float64ListPool
@@ -198,8 +198,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-// If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
-func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -284,9 +283,14 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 
-	if extraTags == nil {
-		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
+	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
+
+	// if the server is running in a context where static tags are required, add those
+	// to extraTags.
+	if staticTags := util.GetStaticTagsSlice(context.TODO()); staticTags != nil {
+		extraTags = append(extraTags, staticTags...)
 	}
+	util.SortUniqInPlace(extraTags)
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
@@ -317,6 +321,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		demultiplexer:             demultiplexer,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
+		serverlessFlushChan:       make(chan bool),
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
@@ -342,6 +347,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
 		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
+		ServerlessMode:     serverless,
 	}
 
 	// packets forwarding
@@ -363,7 +369,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
-	s.handleMessages()
+	s.handleMessages(serverless)
 
 	// start the debug loop
 	// ----------------------
@@ -391,7 +397,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	return s, nil
 }
 
-func (s *Server) handleMessages() {
+func (s *Server) handleMessages(serverless bool) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
@@ -401,12 +407,16 @@ func (s *Server) handleMessages() {
 		go l.Listen()
 	}
 
-	// Run min(2, GoMaxProcs-2) workers, we dedicate a core to the
-	// listener goroutine and another to aggregator + forwarder
-	workersCount := runtime.GOMAXPROCS(-1) - 2
-	if workersCount < 2 {
-		workersCount = 2
+	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
+
+	// undocumented configuration field to force the amount of dogstatsd workers
+	// mainly used for benchmarks or some very specific use-case.
+	if configWC := config.Datadog.GetInt("dogstatsd_workers_count"); configWC != 0 {
+		log.Debug("Forcing the amount of DogStatsD workers to:", configWC)
+		workersCount = configWC
 	}
+
+	log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s)
@@ -442,14 +452,14 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 // ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
-	// make all workers flush their aggregated data (in the batcher) to the aggregator.
-	for _, w := range s.workers {
-		w.flush()
-	}
+
+	// make all workers flush their aggregated data (in the batchers) into the time samplers
+	s.serverlessFlushChan <- true
+
+	start := time.Now()
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	agg := s.demultiplexer.Aggregator()
-	agg.ServerlessFlush <- true
-	<-agg.ServerlessFlushDone
+	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
+	s.demultiplexer.ForceFlushToSerializer(start.Add(time.Second*10), true)
 }
 
 // dropCR drops a terminal \r from the data.
@@ -509,6 +519,7 @@ func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
 	return false
 }
 
+// workers are running this function in their goroutine
 func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)

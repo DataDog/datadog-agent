@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"net"
 	"reflect"
 	"sort"
 	"testing"
@@ -38,8 +39,20 @@ func TestSetFieldValue(t *testing.T) {
 			if err = event.SetFieldValue(field, true); err != nil {
 				t.Error(err)
 			}
+		case reflect.Struct:
+			switch field {
+			case "network.destination.ip", "network.source.ip":
+				_, ipnet, err := net.ParseCIDR("127.0.0.1/24")
+				if err != nil {
+					t.Error(err)
+				}
+
+				if err = event.SetFieldValue(field, *ipnet); err != nil {
+					t.Error(err)
+				}
+			}
 		default:
-			t.Errorf("type unknown: %v", kind)
+			t.Errorf("type of field %s unknown: %v", field, kind)
 		}
 	}
 }
@@ -61,7 +74,7 @@ func TestProcessArgsFlags(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&Probe{}, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
@@ -120,7 +133,7 @@ func TestProcessArgsOptions(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&Probe{}, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package daemon
 
 import (
@@ -54,9 +59,14 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read StartInvocation request body", 400)
 		return
 	}
+	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
+		TraceID:  r.Header.Get(invocationlifecycle.TraceIDHeader),
+		ParentID: r.Header.Get(invocationlifecycle.ParentIDHeader),
+	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
 		InvokeEventRawPayload: string(reqBody),
+		InvokeEventHeaders:    lambdaInvokeContext,
 	}
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
 }
@@ -70,10 +80,18 @@ type EndInvocation struct {
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
 	endTime := time.Now()
+	ecs := e.daemon.ExecutionContext.GetCurrentState()
+	responseBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		err := log.Error("Could not read EndInvocation request body")
+		http.Error(w, err.Error(), 400)
+		return
+	}
 	var endDetails = invocationlifecycle.InvocationEndDetails{
-		EndTime:   endTime,
-		IsError:   r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
-		RequestID: e.daemon.ExecutionContext.LastRequestID,
+		EndTime:            endTime,
+		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
+		RequestID:          ecs.LastRequestID,
+		ResponseRawPayload: responseBody,
 	}
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }

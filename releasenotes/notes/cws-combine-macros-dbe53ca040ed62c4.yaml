@@ -1,0 +1,39 @@
+features:
+  - |
+    Policy can now define macros with items specified as a YAML list
+    instead of a SECL expression, as
+
+      ```
+      - my_macro:
+        values:
+          - value1
+          - value2
+      ```
+
+    In addition, macros and rules can now be updated in later loaded policies
+    (`default.policy` is loaded first, the other policies in the folder are loaded
+    in alphabetical order).
+
+    The previous macro can be modified with:
+
+      ```
+      - my_macro:
+        combine: merge
+        values:
+          - value3
+      ```
+
+    It can also be overriden with:
+
+      ```
+      - my_macro:
+        combine: override
+        values:
+          - my-single-value
+      ```
+
+    Rules can now also be disabled with:
+      ```
+      - my_rule:
+        disabled: true
+      ````

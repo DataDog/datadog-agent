@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -25,10 +26,11 @@ const (
 
 // executionStartInfo is saved information from when an execution span was started
 type executionStartInfo struct {
-	startTime time.Time
-	traceID   uint64
-	spanID    uint64
-	parentID  uint64
+	startTime      time.Time
+	traceID        uint64
+	spanID         uint64
+	parentID       uint64
+	requestPayload string
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -39,7 +41,7 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string) {
+func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = random.Uint64()
 	currentExecutionInfo.spanID = random.Uint64()
@@ -47,23 +49,31 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 	payload := convertRawPayload(rawPayload)
 
+	currentExecutionInfo.requestPayload = rawPayload
+
+	var traceID, parentID uint64
+	var e1, e2 error
+
 	if payload.Headers != nil {
-		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
-		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
+		traceID, e1 = convertStrToUnit64(payload.Headers[TraceIDHeader])
+		parentID, e2 = convertStrToUnit64(payload.Headers[ParentIDHeader])
+	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
+		traceID, e1 = convertStrToUnit64(invokeEventHeaders.TraceID)
+		parentID, e2 = convertStrToUnit64(invokeEventHeaders.ParentID)
+	}
 
-		if e1 == nil {
-			currentExecutionInfo.traceID = traceID
-		}
+	if e1 == nil && traceID != 0 {
+		currentExecutionInfo.traceID = traceID
+	}
 
-		if e2 == nil {
-			currentExecutionInfo.parentID = parentID
-		}
+	if e2 == nil && parentID != 0 {
+		currentExecutionInfo.parentID = parentID
 	}
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
+func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload []byte) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -79,6 +89,11 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 		Meta: map[string]string{
 			"request_id": requestID,
 		},
+	}
+	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
+	if captureLambdaPayloadEnabled {
+		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
+		executionSpan.Meta["function.response"] = string(responsePayload)
 	}
 
 	if isError {

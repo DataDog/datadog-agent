@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -27,7 +26,6 @@ type service struct {
 	ports           []ContainerPort
 	pid             int
 	hostname        string
-	creationTime    integration.CreationTime
 	ready           bool
 	checkNames      []string
 	extraConfig     map[string]string
@@ -37,8 +35,8 @@ type service struct {
 
 var _ Service = &service{}
 
-// GetEntity returns the AD entity ID of the service.
-func (s *service) GetEntity() string {
+// GetServiceID returns the AD entity ID of the service.
+func (s *service) GetServiceID() string {
 	switch e := s.entity.(type) {
 	case *workloadmeta.Container:
 		return containers.BuildEntityName(string(e.Runtime), e.ID)
@@ -81,8 +79,8 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 }
 
 // GetTags returns the tags associated with the service.
-func (s *service) GetTags() ([]string, string, error) {
-	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
+func (s *service) GetTags() ([]string, error) {
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetPid returns the process ID of the service.
@@ -93,12 +91,6 @@ func (s *service) GetPid(_ context.Context) (int, error) {
 // GetHostname returns the service's hostname.
 func (s *service) GetHostname(_ context.Context) (string, error) {
 	return s.hostname, nil
-}
-
-// GetCreationTime returns whether the service was created before or after the
-// first run of the collector that created it.
-func (s *service) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady returns whether the service is ready.
@@ -125,13 +117,13 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns extra configuration associated with the service.
-func (s *service) GetExtraConfig(key []byte) ([]byte, error) {
-	result, found := s.extraConfig[string(key)]
+func (s *service) GetExtraConfig(key string) (string, error) {
+	result, found := s.extraConfig[key]
 	if !found {
-		return []byte{}, fmt.Errorf("extra config %q is not supported", key)
+		return "", fmt.Errorf("extra config %q is not supported", key)
 	}
 
-	return []byte(result), nil
+	return result, nil
 }
 
 // svcEqual checks that two Services are equal to each other by doing a deep
@@ -145,8 +137,8 @@ func svcEqual(a, b Service) bool {
 		errB error
 	)
 
-	entityA := a.GetEntity()
-	entityB := b.GetEntity()
+	entityA := a.GetServiceID()
+	entityB := b.GetServiceID()
 	if entityA != entityB {
 		return false
 	}
@@ -185,6 +177,5 @@ func svcEqual(a, b Service) bool {
 		return false
 	}
 
-	return a.GetCreationTime() == b.GetCreationTime() &&
-		a.IsReady(ctx) == b.IsReady(ctx)
+	return a.IsReady(ctx) == b.IsReady(ctx)
 }
