@@ -820,7 +820,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	// maximum time that the unix tailer will hold a log file open after it has been rotated
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
+	// maximum time that the windows tailer will hold a log file open, while waiting for
+	// the downstream logs pipeline to be ready to accept more data
+	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	// The following auto_multi_line settings are experimental and may change
