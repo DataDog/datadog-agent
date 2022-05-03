@@ -348,7 +348,13 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackHashInsert), EBPFFuncName: "kprobe___nf_conntrack_hash_insert"}},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.ConntrackHashInsert),
+					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
+					UID:          "conntracker",
+				},
+			},
 		},
 	}
 
