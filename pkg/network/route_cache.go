@@ -13,7 +13,6 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	netstats "github.com/DataDog/datadog-agent/pkg/network/stats"
@@ -257,7 +256,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 }
 
 func (n *netlinkRouter) Close() {
-	syscall.Close(n.ioctlFD)
+	unix.Close(n.ioctlFD)
 }
 
 func (n *netlinkRouter) getInterfaceName(srcAddress util.Address, srcIP net.IP, netns uint32) string {
