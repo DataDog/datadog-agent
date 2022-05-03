@@ -34,6 +34,7 @@ type UserV3 struct {
 // Config contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type Config struct {
+	Enabled               bool     `mapstructure:"enabled" yaml:"enabled"`
 	Port                  uint16   `mapstructure:"port" yaml:"port"`
 	Users                 []UserV3 `mapstructure:"users" yaml:"users"`
 	CommunityStrings      []string `mapstructure:"community_strings" yaml:"community_strings"`
@@ -46,14 +47,18 @@ type Config struct {
 // ReadConfig builds and returns configuration from Agent configuration.
 func ReadConfig(agentHostname string) (*Config, error) {
 	var c Config
-	err := config.Datadog.UnmarshalKey("snmp_traps_config", &c)
+	err := config.Datadog.UnmarshalKey("network_devices.snmp_traps", &c)
 	if err != nil {
 		return nil, err
 	}
 
+	if !c.Enabled {
+		return nil, errors.New("traps listener is disabled")
+	}
+
 	// gosnmp only supports one v3 user at the moment.
 	if len(c.Users) > 1 {
-		return nil, errors.New("only one user is currently supported in snmp_traps_config")
+		return nil, errors.New("only one user is currently supported in SNMP Traps Listener configuration")
 	}
 
 	// Set defaults.
@@ -62,7 +67,7 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	}
 	if c.BindHost == "" {
 		// Default to global bind_host option.
-		c.BindHost = config.GetBindHost()
+		c.BindHost = "0.0.0.0"
 	}
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout
@@ -86,7 +91,7 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	}
 	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf("invalid snmp_traps_config: %w", err)
+		return nil, fmt.Errorf("unable to load config: %w", err)
 	}
 
 	return &c, nil

@@ -374,7 +374,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal("localhost", c.StatsdHost)
 	assert.Equal(8125, c.StatsdPort)
 
-	assert.Equal("INFO", c.LogLevel)
 	assert.Equal(true, c.Enabled)
 }
 
@@ -390,7 +389,6 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal("apikey_12", c.Endpoints[0].APIKey)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
 	assert.Equal(28125, c.StatsdPort)
-	assert.Equal("DEBUG", c.LogLevel)
 }
 
 func TestFullYamlConfig(t *testing.T) {
@@ -410,7 +408,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal("mymachine", c.Hostname)
 	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())
 	assert.True(c.SkipSSLValidation)
-	assert.Equal("info", c.LogLevel)
 	assert.Equal(18125, c.StatsdPort)
 	assert.False(c.Enabled)
 	assert.Equal("abc", c.LogFilePath)
@@ -424,6 +421,8 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(123.4, c.MaxMemory)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
 	assert.True(c.LogThrottling)
+	assert.True(c.OTLPReceiver.SpanNameAsResourceName)
+	assert.Equal(map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, c.OTLPReceiver.SpanNameRemappings)
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
@@ -476,10 +475,10 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(o.HTTP.RemoveQueryString)
 	assert.True(o.HTTP.RemovePathDigits)
 	assert.True(o.RemoveStackTraces)
-	assert.True(c.Obfuscation.Redis.Enabled)
-	assert.True(c.Obfuscation.Memcached.Enabled)
-	assert.True(c.Obfuscation.CreditCards.Enabled)
-	assert.True(c.Obfuscation.CreditCards.Luhn)
+	assert.True(o.Redis.Enabled)
+	assert.True(o.Memcached.Enabled)
+	assert.True(o.CreditCards.Enabled)
+	assert.True(o.CreditCards.Luhn)
 }
 
 func TestUndocumentedYamlConfig(t *testing.T) {
@@ -778,18 +777,6 @@ func TestLoadEnv(t *testing.T) {
 			assert.Equal([]string{"1", "2", "3"}, cfg.Ignore["resource"])
 		})
 	}
-
-	env = "DD_LOG_LEVEL"
-	t.Run(env, func(t *testing.T) {
-		defer cleanConfig()()
-		assert := assert.New(t)
-		err := os.Setenv(env, "warn")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		cfg, err := LoadConfigFile("./testdata/full.yaml")
-		assert.NoError(err)
-		assert.Equal("warn", cfg.LogLevel)
-	})
 
 	env = "DD_APM_ANALYZED_SPANS"
 	t.Run(env, func(t *testing.T) {

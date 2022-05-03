@@ -53,7 +53,7 @@ func (m *MetricConfig) GetMultipleEndpoints() (map[string][]string, error) {
 
 // NewServer returns a running DogStatsD server
 func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
-	return dogstatsd.NewServer(demux)
+	return dogstatsd.NewServer(demux, true)
 }
 
 // Start starts the DogStatsD agent
@@ -79,7 +79,6 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 		if err != nil {
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
 		} else {
-			statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
 			c.dogStatsDServer = statsd
 			c.Demux = demux
 		}

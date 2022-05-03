@@ -129,6 +129,15 @@ def build(
         python_runtimes=python_runtimes,
     )
 
+    if sys.platform == 'darwin' and platform.machine() == 'arm64':
+        print("It seems that you're running a Mac M1. Cross-compiling for amd64 then.")
+        # Compiling the Agent for arm64 isn't possible yet until gopsutil is updated :
+        # https://github.com/kubernetes/minikube/pull/10115
+        # Let's use amd64 for now then.
+        env["GOARCH"] = "amd64"
+        # Important for x-compiling
+        env["CGO_ENABLED"] = "1"
+
     if sys.platform == 'win32':
         py_runtime_var = get_win_py_runtime_var(python_runtimes)
 

@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -27,10 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
-	"go.opentelemetry.io/collector/model/otlpgrpc"
-	"go.opentelemetry.io/collector/model/pdata"
 	semconv "go.opentelemetry.io/collector/model/semconv/v1.6.1"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -82,7 +85,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer()
-			otlpgrpc.RegisterTracesServer(o.grpcsrv, o)
+			ptraceotlp.RegisterServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
@@ -112,13 +115,13 @@ func (o *OTLPReceiver) Stop() {
 	o.wg.Wait()
 }
 
-// Export implements otlpgrpc.TracesServer
-func (o *OTLPReceiver) Export(ctx context.Context, in otlpgrpc.TracesRequest) (otlpgrpc.TracesResponse, error) {
+// Export implements ptraceotlp.Server
+func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.Request) (ptraceotlp.Response, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
 	o.processRequest(otlpProtocolGRPC, http.Header(md), in)
-	return otlpgrpc.NewTracesResponse(), nil
+	return ptraceotlp.NewResponse(), nil
 }
 
 // ServeHTTP implements http.Handler
@@ -145,11 +148,10 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	var in otlpgrpc.TracesRequest
+	in := ptraceotlp.NewRequest()
 	switch getMediaType(req) {
 	case "application/x-protobuf":
-		in, err = otlpgrpc.UnmarshalTracesRequest(slurp)
-		if err != nil {
+		if err := in.UnmarshalProto(slurp); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_proto"), 1)
 			return
@@ -157,8 +159,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case "application/json":
 		fallthrough
 	default:
-		in, err = otlpgrpc.UnmarshalJSONTracesRequest(slurp)
-		if err != nil {
+		if err := in.UnmarshalJSON(slurp); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_json"), 1)
 			return
@@ -199,78 +200,149 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
-func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in otlpgrpc.TracesRequest) {
+func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in ptraceotlp.Request) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		// each rspans is coming from a different resource and should be considered
-		// a separate payload; typically there is only one item in this slice
-		attr := rspans.Resource().Attributes()
-		rattr := make(map[string]string, attr.Len())
-		attr.Range(func(k string, v pdata.AttributeValue) bool {
-			rattr[k] = v.AsString()
-			return true
-		})
-		lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
-		if lang == "" {
-			lang = fastHeaderGet(header, headerLang)
+		o.ReceiveResourceSpans(rspans, header, protocol)
+	}
+}
+
+// OTLPIngestSummary returns a summary of the received resource spans.
+type OTLPIngestSummary struct {
+	// Hostname indicates the hostname of the passed resource spans.
+	Hostname string
+	// Tags returns a set of Datadog-specific tags which are relevant for identifying
+	// the source of the passed resource spans.
+	Tags []string
+}
+
+// ReceiveResourceSpans processes the given rspans and sends them to writer.
+func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header http.Header, protocol string) OTLPIngestSummary {
+	// each rspans is coming from a different resource and should be considered
+	// a separate payload; typically there is only one item in this slice
+	attr := rspans.Resource().Attributes()
+	rattr := make(map[string]string, attr.Len())
+	attr.Range(func(k string, v pcommon.Value) bool {
+		rattr[k] = v.AsString()
+		return true
+	})
+	hostname, hostok := attributes.HostnameFromAttributes(attr)
+	hostFromMap := func(m map[string]string, key string) {
+		// hostFromMap sets the hostname to m[key] if it is set.
+		if v, ok := m[key]; ok {
+			hostname = v
+			hostok = true
 		}
-		tagstats := &info.TagStats{
-			Tags: info.Tags{
-				Lang:            lang,
-				LangVersion:     fastHeaderGet(header, headerLangVersion),
-				Interpreter:     fastHeaderGet(header, headerLangInterpreter),
-				LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
-				TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
-				EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
-			},
-			Stats: info.NewStats(),
-		}
-		tracesByID := make(map[uint64]pb.Trace)
-		for i := 0; i < rspans.InstrumentationLibrarySpans().Len(); i++ {
-			libspans := rspans.InstrumentationLibrarySpans().At(i)
-			lib := libspans.InstrumentationLibrary()
-			for i := 0; i < libspans.Spans().Len(); i++ {
-				span := libspans.Spans().At(i)
-				traceID := traceIDToUint64(span.TraceID().Bytes())
-				if tracesByID[traceID] == nil {
-					tracesByID[traceID] = pb.Trace{}
+	}
+	if !hostok {
+		hostFromMap(rattr, "_dd.hostname")
+	}
+	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
+	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
+	if lang == "" {
+		lang = fastHeaderGet(header, headerLang)
+	}
+	containerID := rattr[string(semconv.AttributeContainerID)]
+	if containerID == "" {
+		containerID = rattr[string(semconv.AttributeK8SPodUID)]
+	}
+	if containerID == "" {
+		containerID = fastHeaderGet(header, headerContainerID)
+	}
+	tagstats := &info.TagStats{
+		Tags: info.Tags{
+			Lang:            lang,
+			LangVersion:     fastHeaderGet(header, headerLangVersion),
+			Interpreter:     fastHeaderGet(header, headerLangInterpreter),
+			LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
+			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
+			EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
+		},
+		Stats: info.NewStats(),
+	}
+	tracesByID := make(map[uint64]pb.Trace)
+	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
+		libspans := rspans.ScopeSpans().At(i)
+		lib := libspans.Scope()
+		for i := 0; i < libspans.Spans().Len(); i++ {
+			span := libspans.Spans().At(i)
+			traceID := traceIDToUint64(span.TraceID().Bytes())
+			if tracesByID[traceID] == nil {
+				tracesByID[traceID] = pb.Trace{}
+			}
+			ddspan := o.convertSpan(rattr, lib, span)
+			if !hostok {
+				// if we didn't find a hostname at the resource level
+				// try and see if the span has a hostname set
+				hostFromMap(ddspan.Meta, "_dd.hostname")
+			}
+			if env == "" {
+				// no env at resource level, try the first span
+				if v := ddspan.Meta["env"]; v != "" {
+					env = v
 				}
-				tracesByID[traceID] = append(tracesByID[traceID], convertSpan(rattr, lib, span))
 			}
-		}
-		tags := tagstats.AsTags()
-		metrics.Count("datadog.trace_agent.otlp.spans", int64(rspans.InstrumentationLibrarySpans().Len()), tags, 1)
-		metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
-		traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
-		p := Payload{
-			Source: tagstats,
-		}
-		for _, spans := range tracesByID {
-			traceChunks = append(traceChunks, &pb.TraceChunk{
-				// auto-keep all incoming traces; it was already chosen as a keeper on
-				// the client side.
-				Priority: int32(sampler.PriorityAutoKeep),
-				Spans:    spans,
-			})
-		}
-		p.TracerPayload = &pb.TracerPayload{
-			Chunks:          traceChunks,
-			ContainerID:     fastHeaderGet(header, headerContainerID),
-			LanguageName:    tagstats.Lang,
-			LanguageVersion: tagstats.LangVersion,
-			TracerVersion:   tagstats.TracerVersion,
-		}
-		if ctags := getContainerTags(o.conf.ContainerTags, p.TracerPayload.ContainerID); ctags != "" {
-			p.TracerPayload.Tags = map[string]string{
-				tagContainersTags: ctags,
+			if containerID == "" {
+				// no cid at resource level, grab what we can
+				if v := ddspan.Meta[string(semconv.AttributeK8SPodUID)]; v != "" {
+					containerID = v
+				}
+				if v := ddspan.Meta[string(semconv.AttributeContainerID)]; v != "" {
+					containerID = v
+				}
 			}
+			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
 		}
-		o.out <- &p
+	}
+	tags := tagstats.AsTags()
+	metrics.Count("datadog.trace_agent.otlp.spans", int64(rspans.ScopeSpans().Len()), tags, 1)
+	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
+	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
+	p := Payload{
+		Source: tagstats,
+	}
+	for _, spans := range tracesByID {
+		traceChunks = append(traceChunks, &pb.TraceChunk{
+			// auto-keep all incoming traces; it was already chosen as a keeper on
+			// the client side.
+			Priority: int32(sampler.PriorityAutoKeep),
+			Spans:    spans,
+		})
+	}
+	if env == "" {
+		env = o.conf.DefaultEnv
+	}
+	if !hostok {
+		hostname = o.conf.Hostname
+	}
+	p.TracerPayload = &pb.TracerPayload{
+		Hostname:        hostname,
+		Chunks:          traceChunks,
+		Env:             traceutil.NormalizeTag(env),
+		ContainerID:     containerID,
+		LanguageName:    tagstats.Lang,
+		LanguageVersion: tagstats.LangVersion,
+		TracerVersion:   tagstats.TracerVersion,
+	}
+	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
+		p.TracerPayload.Tags = map[string]string{
+			tagContainersTags: ctags,
+		}
+	}
+	select {
+	case o.out <- &p:
+		// 👍
+	default:
+		log.Warn("Payload in channel full. Dropped 1 payload.")
+	}
+	return OTLPIngestSummary{
+		Hostname: hostname,
+		Tags:     attributes.RunningTagsFromAttributes(attr),
 	}
 }
 
 // marshalEvents marshals events into JSON.
-func marshalEvents(events pdata.SpanEventSlice) string {
+func marshalEvents(events ptrace.SpanEventSlice) string {
 	var str strings.Builder
 	str.WriteString("[")
 	for i := 0; i < events.Len(); i++ {
@@ -300,7 +372,7 @@ func marshalEvents(events pdata.SpanEventSlice) string {
 			}
 			str.WriteString(`"attributes":{`)
 			j := 0
-			e.Attributes().Range(func(k string, v pdata.AttributeValue) bool {
+			e.Attributes().Range(func(k string, v pcommon.Value) bool {
 				if j > 0 {
 					str.WriteString(",")
 				}
@@ -330,27 +402,18 @@ func marshalEvents(events pdata.SpanEventSlice) string {
 
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
-func convertSpan(rattr map[string]string, lib pdata.InstrumentationLibrary, in pdata.Span) *pb.Span {
-	name := spanKindName(in.Kind())
-	if lib.Name() != "" {
-		name = lib.Name() + "." + name
-	} else {
-		name = "opentelemetry." + name
-	}
+func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := in.TraceID().Bytes()
 	meta := make(map[string]string, len(rattr))
 	for k, v := range rattr {
 		meta[k] = v
 	}
 	span := &pb.Span{
-		Name:     name,
 		TraceID:  traceIDToUint64(traceID),
 		SpanID:   spanIDToUint64(in.SpanID().Bytes()),
 		ParentID: spanIDToUint64(in.ParentSpanID().Bytes()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
-		Service:  rattr[string(semconv.AttributeServiceName)],
-		Resource: in.Name(),
 		Meta:     meta,
 		Metrics:  map[string]float64{},
 	}
@@ -363,66 +426,127 @@ func convertSpan(rattr map[string]string, lib pdata.InstrumentationLibrary, in p
 	if in.Events().Len() > 0 {
 		span.Meta["events"] = marshalEvents(in.Events())
 	}
-	in.Attributes().Range(func(k string, v pdata.AttributeValue) bool {
+	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
-		case pdata.AttributeValueTypeDouble:
+		case pcommon.ValueTypeDouble:
 			span.Metrics[k] = v.DoubleVal()
-		case pdata.AttributeValueTypeInt:
+		case pcommon.ValueTypeInt:
 			span.Metrics[k] = float64(v.IntVal())
 		default:
-			span.Meta[k] = v.AsString()
+			switch k {
+			case "operation.name":
+				span.Name = v.AsString()
+			case "service.name":
+				span.Service = v.AsString()
+			case "resource.name":
+				span.Resource = v.AsString()
+			case "span.type":
+				span.Type = v.AsString()
+			case "analytics.event":
+				if v, err := strconv.ParseBool(v.AsString()); err == nil {
+					if v {
+						span.Metrics[sampler.KeySamplingRateEventExtraction] = 1
+					} else {
+						span.Metrics[sampler.KeySamplingRateEventExtraction] = 0
+					}
+				}
+			default:
+				span.Meta[k] = v.AsString()
+			}
 		}
 		return true
 	})
+	if ctags := attributes.ContainerTagFromAttributes(span.Meta); ctags != "" {
+		span.Meta[tagContainersTags] = ctags
+	}
 	if _, ok := span.Meta["env"]; !ok {
 		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
-			span.Meta["env"] = env
+			span.Meta["env"] = traceutil.NormalizeTag(env)
 		}
 	}
-	if in.TraceState() != pdata.TraceStateEmpty {
-		span.Meta["trace_state"] = string(in.TraceState())
+	if in.TraceState() != ptrace.TraceStateEmpty {
+		span.Meta["w3c.tracestate"] = string(in.TraceState())
 	}
 	if lib.Name() != "" {
-		span.Meta["instrumentation_library.name"] = lib.Name()
+		span.Meta[semconv.OtelLibraryName] = lib.Name()
 	}
 	if lib.Version() != "" {
-		span.Meta["instrumentation_library.version"] = lib.Version()
+		span.Meta[semconv.OtelLibraryVersion] = lib.Version()
 	}
-	if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
-		span.Service = svc
+	span.Meta[semconv.OtelStatusCode] = in.Status().Code().String()
+	if msg := in.Status().Message(); msg != "" {
+		span.Meta[semconv.OtelStatusDescription] = msg
 	}
-	if r := resourceFromTags(span.Meta); r != "" {
-		span.Resource = r
-	}
-	span.Type = spanKind2Type(in.Kind(), span)
 	status2Error(in.Status(), in.Events(), span)
+	if span.Name == "" {
+		name := in.Name()
+		if !o.conf.OTLPReceiver.SpanNameAsResourceName {
+			name = spanKindName(in.Kind())
+			if lib.Name() != "" {
+				name = lib.Name() + "." + name
+			} else {
+				name = "opentelemetry." + name
+			}
+		}
+		if v, ok := o.conf.OTLPReceiver.SpanNameRemappings[name]; ok {
+			name = v
+		}
+		span.Name = name
+	}
+	if span.Service == "" {
+		if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
+			span.Service = svc
+		} else if svc := rattr[string(semconv.AttributeServiceName)]; svc != "" {
+			span.Service = svc
+		} else {
+			span.Service = "OTLPResourceNoServiceName"
+		}
+	}
+	if span.Resource == "" {
+		if r := resourceFromTags(span.Meta); r != "" {
+			span.Resource = r
+		} else {
+			span.Resource = in.Name()
+		}
+	}
+	if span.Type == "" {
+		span.Type = spanKind2Type(in.Kind(), span)
+	}
 	return span
 }
 
 // resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
 // If this is not possible, it returns an empty string.
 func resourceFromTags(meta map[string]string) string {
-	var r string
 	if m := meta[string(semconv.AttributeHTTPMethod)]; m != "" {
-		r = m
+		// use the HTTP method + route (if available)
 		if route := meta[string(semconv.AttributeHTTPRoute)]; route != "" {
-			r += " " + route
+			return m + " " + route
 		} else if route := meta["grpc.path"]; route != "" {
-			r += " " + route
+			return m + " " + route
 		}
+		return m
 	} else if m := meta[string(semconv.AttributeMessagingOperation)]; m != "" {
-		r = m
+		// use the messaging operation
 		if dest := meta[string(semconv.AttributeMessagingDestination)]; dest != "" {
-			r += " " + dest
+			return m + " " + dest
 		}
+		return m
+	} else if m := meta[string(semconv.AttributeRPCMethod)]; m != "" {
+		// use the RPC method
+		if svc := meta[string(semconv.AttributeRPCService)]; svc != "" {
+			// ...and service if availabl
+			return m + " " + svc
+		}
+		return m
 	}
-	return r
+	return ""
 }
 
 // status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func status2Error(status pdata.SpanStatus, events pdata.SpanEventSlice, span *pb.Span) {
-	if status.Code() != pdata.StatusCodeError {
+func status2Error(status ptrace.SpanStatus, events ptrace.SpanEventSlice, span *pb.Span) {
+	if status.Code() != ptrace.StatusCodeError {
 		return
 	}
 	span.Error = 1
@@ -431,32 +555,40 @@ func status2Error(status pdata.SpanStatus, events pdata.SpanEventSlice, span *pb
 		if strings.ToLower(e.Name()) != "exception" {
 			continue
 		}
-		e.Attributes().Range(func(k string, v pdata.AttributeValue) bool {
-			switch k {
-			case string(semconv.AttributeExceptionMessage):
-				span.Meta["error.msg"] = v.AsString()
-			case string(semconv.AttributeExceptionType):
-				span.Meta["error.type"] = v.AsString()
-			case string(semconv.AttributeExceptionStacktrace):
-				span.Meta["error.stack"] = v.AsString()
-			}
-			return true
-		})
+		attrs := e.Attributes()
+		if v, ok := attrs.Get(semconv.AttributeExceptionMessage); ok {
+			span.Meta["error.msg"] = v.AsString()
+		}
+		if v, ok := attrs.Get(semconv.AttributeExceptionType); ok {
+			span.Meta["error.type"] = v.AsString()
+		}
+		if v, ok := attrs.Get(semconv.AttributeExceptionStacktrace); ok {
+			span.Meta["error.stack"] = v.AsString()
+		}
 	}
 	if _, ok := span.Meta["error.msg"]; !ok {
+		// no error message was extracted, find alternatives
 		if status.Message() != "" {
+			// use the status message
 			span.Meta["error.msg"] = status.Message()
+		} else if httpcode, ok := span.Meta["http.status_code"]; ok {
+			// we have status code that we can use as details
+			if httptext, ok := span.Meta["http.status_text"]; ok {
+				span.Meta["error.msg"] = fmt.Sprintf("%s %s", httpcode, httptext)
+			} else {
+				span.Meta["error.msg"] = httpcode
+			}
 		}
 	}
 }
 
 // spanKind2Type returns a span's type based on the given kind and other present properties.
-func spanKind2Type(kind pdata.SpanKind, span *pb.Span) string {
+func spanKind2Type(kind ptrace.SpanKind, span *pb.Span) string {
 	var typ string
 	switch kind {
-	case pdata.SpanKindServer:
+	case ptrace.SpanKindServer:
 		typ = "web"
-	case pdata.SpanKindClient:
+	case ptrace.SpanKindClient:
 		typ = "http"
 		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
 		if !ok {
@@ -492,7 +624,7 @@ var spanKindNames = map[int32]string{
 }
 
 // spanKindName converts the given SpanKind to a valid Datadog span name.
-func spanKindName(k pdata.SpanKind) string {
+func spanKindName(k ptrace.SpanKind) string {
 	name, ok := spanKindNames[int32(k)]
 	if !ok {
 		return "unknown"

@@ -29,12 +29,15 @@ const (
 
 // Tailer collects logs from a journal.
 type Tailer struct {
-	source     *config.LogSource
-	outputChan chan *message.Message
-	journal    *sdjournal.Journal
-	blacklist  map[string]bool
-	stop       chan struct{}
-	done       chan struct{}
+	source       *config.LogSource
+	outputChan   chan *message.Message
+	journal      *sdjournal.Journal
+	excludeUnits struct {
+		system map[string]bool
+		user   map[string]bool
+	}
+	stop chan struct{}
+	done chan struct{}
 }
 
 // NewTailer returns a new tailer.
@@ -89,9 +92,10 @@ func (t *Tailer) setup() error {
 		return err
 	}
 
-	for _, unit := range config.IncludeUnits {
-		// add filters to collect only the logs of the units defined in the configuration,
-		// if no units are defined, collect all the logs of the journal by default.
+	// add filters to collect only the logs of the units defined in the configuration,
+	// if no units are defined for both System and User, collect all the logs of the journal by default.
+	for _, unit := range config.IncludeSystemUnits {
+		// add filters to collect only the logs of the system-level units defined in the configuration.
 		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT + "=" + unit
 		err := t.journal.AddMatch(match)
 		if err != nil {
@@ -99,10 +103,33 @@ func (t *Tailer) setup() error {
 		}
 	}
 
-	t.blacklist = make(map[string]bool)
-	for _, unit := range config.ExcludeUnits {
-		// add filters to drop all the logs related to units to exclude.
-		t.blacklist[unit] = true
+	if len(config.IncludeSystemUnits) > 0 && len(config.IncludeUserUnits) > 0 {
+		// add Logical OR if both System and User include filters are used.
+		err := t.journal.AddDisjunction()
+		if err != nil {
+			return fmt.Errorf("could not logical OR in the match list: %s", err)
+		}
+	}
+
+	for _, unit := range config.IncludeUserUnits {
+		// add filters to collect only the logs of the user-level units defined in the configuration.
+		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT + "=" + unit
+		err := t.journal.AddMatch(match)
+		if err != nil {
+			return fmt.Errorf("could not add filter %s: %s", match, err)
+		}
+	}
+
+	t.excludeUnits.system = make(map[string]bool)
+	for _, unit := range config.ExcludeSystemUnits {
+		// add filters to drop all the logs related to system units to exclude.
+		t.excludeUnits.system[unit] = true
+	}
+
+	t.excludeUnits.user = make(map[string]bool)
+	for _, unit := range config.ExcludeUserUnits {
+		// add filters to drop all the logs related to user units to exclude.
+		t.excludeUnits.user[unit] = true
 	}
 
 	return nil
@@ -164,13 +191,25 @@ func (t *Tailer) tail() {
 // shouldDrop returns true if the entry should be dropped,
 // returns false otherwise.
 func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
-	unit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
+	sysUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
 	if !exists {
 		return false
 	}
-	if _, blacklisted := t.blacklist[unit]; blacklisted {
-		// drop the entry
-		return true
+	usrUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT]
+	if !exists {
+		// JournalEntry is a System-level unit
+		excludeAllSys := t.excludeUnits.system["*"]
+		if _, excluded := t.excludeUnits.system[sysUnit]; excludeAllSys || excluded {
+			// drop the entry
+			return true
+		}
+	} else {
+		// JournalEntry is a User-level unit
+		excludeAllUsr := t.excludeUnits.user["*"]
+		if _, excluded := t.excludeUnits.user[usrUnit]; excludeAllUsr || excluded {
+			// drop the entry
+			return true
+		}
 	}
 	return false
 }
@@ -236,6 +275,7 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 // applicationKeys represents all the valid attributes used to extract the value of the application name of a journal entry.
 var applicationKeys = []string{
 	sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER, // "SYSLOG_IDENTIFIER"
+	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT, // "_SYSTEMD_USER_UNIT"
 	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT,      // "_SYSTEMD_UNIT"
 	sdjournal.SD_JOURNAL_FIELD_COMM,              // "_COMM"
 }

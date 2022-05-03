@@ -11,7 +11,7 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 // getDentryResolverTailCallRoutes is the list of routes used during the dentry resolution process
-func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	routes := []manager.TailCallRoute{
 		// dentry resolver programs
 		{
@@ -166,29 +166,34 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager
 
 	// add routes for programs with the bpf_probe_write_user only if necessary
 	if ERPCDentryResolutionEnabled {
+		ebpfSuffix := "_mmap"
+		if !supportMmapableMaps {
+			ebpfSuffix = "_write_user"
+		}
+
 		routes = append(routes, []manager.TailCallRoute{
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/dentry_resolver_erpc",
-					EBPFFuncName: "kprobe_dentry_resolver_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_erpc" + ebpfSuffix,
+					EBPFFuncName: "kprobe_dentry_resolver_erpc" + ebpfSuffix,
 				},
 			},
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverParentERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/dentry_resolver_parent_erpc",
-					EBPFFuncName: "kprobe_dentry_resolver_parent_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_parent_erpc" + ebpfSuffix,
+					EBPFFuncName: "kprobe_dentry_resolver_parent_erpc" + ebpfSuffix,
 				},
 			},
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverSegmentERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/dentry_resolver_segment_erpc",
-					EBPFFuncName: "kprobe_dentry_resolver_segment_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_segment_erpc" + ebpfSuffix,
+					EBPFFuncName: "kprobe_dentry_resolver_segment_erpc" + ebpfSuffix,
 				},
 			},
 		}...)

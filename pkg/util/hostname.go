@@ -341,7 +341,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	if hostName == "" {
 		err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 		expErr := new(expvar.String)
-		expErr.Set(fmt.Sprintf(err.Error()))
+		expErr.Set(err.Error())
 		hostnameErrors.Set("all", expErr)
 		return HostnameData{}, err
 	}

@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
@@ -32,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -320,14 +318,15 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
+			printer := aggregator.AgentDemultiplexerPrinter{AgentDemultiplexer: demux}
 			for _, c := range cs {
-				s := runCheck(c, demux)
+				s := runCheck(c, printer)
 
 				// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 				time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
 				if formatJSON {
-					aggregatorData := getMetricsData(demux)
+					aggregatorData := printer.GetMetricsDataForPrint()
 					var collectorData map[string]interface{}
 
 					collectorJSON, _ := status.GetCheckStatusJSON(c, s)
@@ -405,7 +404,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(demux, &checkFileOutput)
+					printer.PrintMetrics(&checkFileOutput, formatTable)
 					checkStatus, _ := status.GetCheckStatus(c, s)
 					statusString := string(checkStatus)
 					fmt.Println(statusString)
@@ -481,103 +480,6 @@ func runCheck(c check.Check, demux aggregator.Demultiplexer) *check.Stats {
 	return s
 }
 
-func printMetrics(demux aggregator.Demultiplexer, checkFileOutput *bytes.Buffer) {
-	agg := demux.Aggregator()
-	series, sketches := agg.GetSeriesAndSketches(time.Now())
-	if len(series) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
-
-		if formatTable {
-			headers, data := series.MarshalStrings()
-			var buffer bytes.Buffer
-
-			// plain table with no borders
-			table := tablewriter.NewWriter(&buffer)
-			table.SetHeader(headers)
-			table.SetAutoWrapText(false)
-			table.SetAutoFormatHeaders(true)
-			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-			table.SetAlignment(tablewriter.ALIGN_LEFT)
-			table.SetCenterSeparator("")
-			table.SetColumnSeparator("")
-			table.SetRowSeparator("")
-			table.SetHeaderLine(false)
-			table.SetBorder(false)
-			table.SetTablePadding("\t")
-
-			table.AppendBulk(data)
-			table.Render()
-			fmt.Println(buffer.String())
-			checkFileOutput.WriteString(buffer.String() + "\n")
-		} else {
-			j, _ := json.MarshalIndent(series, "", "  ")
-			fmt.Println(string(j))
-			checkFileOutput.WriteString(string(j) + "\n")
-		}
-	}
-	if len(sketches) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
-		j, _ := json.MarshalIndent(sketches, "", "  ")
-		fmt.Println(string(j))
-		checkFileOutput.WriteString(string(j) + "\n")
-	}
-
-	serviceChecks := agg.GetServiceChecks()
-	if len(serviceChecks) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
-
-		if formatTable {
-			headers, data := serviceChecks.MarshalStrings()
-			var buffer bytes.Buffer
-
-			// plain table with no borders
-			table := tablewriter.NewWriter(&buffer)
-			table.SetHeader(headers)
-			table.SetAutoWrapText(false)
-			table.SetAutoFormatHeaders(true)
-			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-			table.SetAlignment(tablewriter.ALIGN_LEFT)
-			table.SetCenterSeparator("")
-			table.SetColumnSeparator("")
-			table.SetRowSeparator("")
-			table.SetHeaderLine(false)
-			table.SetBorder(false)
-			table.SetTablePadding("\t")
-
-			table.AppendBulk(data)
-			table.Render()
-			fmt.Println(buffer.String())
-			checkFileOutput.WriteString(buffer.String() + "\n")
-		} else {
-			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-			fmt.Println(string(j))
-			checkFileOutput.WriteString(string(j) + "\n")
-		}
-	}
-
-	events := agg.GetEvents()
-	if len(events) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
-		checkFileOutput.WriteString("=== Events ===\n")
-		j, _ := json.MarshalIndent(events, "", "  ")
-		fmt.Println(string(j))
-		checkFileOutput.WriteString(string(j) + "\n")
-	}
-
-	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
-		if len(v) > 0 {
-			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
-				k = translated
-			}
-			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString(k)))
-			checkFileOutput.WriteString(fmt.Sprintf("=== %s ===\n", k))
-			j, _ := json.MarshalIndent(v, "", "  ")
-			fmt.Println(string(j))
-			checkFileOutput.WriteString(string(j) + "\n")
-		}
-	}
-}
-
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
 
@@ -596,68 +498,6 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	} else {
 		fmt.Println("check written to:", flarePath)
 	}
-}
-
-type eventPlatformDebugEvent struct {
-	RawEvent          string `json:",omitempty"`
-	EventType         string
-	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
-}
-
-// toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
-func toDebugEpEvents(events map[string][]*message.Message) map[string][]eventPlatformDebugEvent {
-	result := make(map[string][]eventPlatformDebugEvent)
-	for eventType, messages := range events {
-		var events []eventPlatformDebugEvent
-		for _, m := range messages {
-			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
-			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
-			if err == nil {
-				e.RawEvent = ""
-			}
-			events = append(events, e)
-		}
-		result[eventType] = events
-	}
-	return result
-}
-
-func getMetricsData(demux aggregator.Demultiplexer) map[string]interface{} {
-	aggData := make(map[string]interface{})
-
-	agg := demux.Aggregator()
-
-	series, sketches := agg.GetSeriesAndSketches(time.Now())
-	if len(series) != 0 {
-		metrics := make([]interface{}, len(series))
-		// Workaround to get the sequence of metrics as plain interface{}
-		for i, serie := range series {
-			serie.PopulateDeviceField()
-			sj, _ := json.Marshal(serie)
-			json.Unmarshal(sj, &metrics[i]) //nolint:errcheck
-		}
-
-		aggData["metrics"] = metrics
-	}
-	if len(sketches) != 0 {
-		aggData["sketches"] = sketches
-	}
-
-	serviceChecks := agg.GetServiceChecks()
-	if len(serviceChecks) != 0 {
-		aggData["service_checks"] = serviceChecks
-	}
-
-	events := agg.GetEvents()
-	if len(events) != 0 {
-		aggData["events"] = events
-	}
-
-	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
-		aggData[k] = v
-	}
-
-	return aggData
 }
 
 func singleCheckRun() bool {

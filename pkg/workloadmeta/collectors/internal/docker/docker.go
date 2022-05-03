@@ -74,7 +74,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx)
+	err = c.generateEventsFromContainerList(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -131,8 +131,8 @@ func (c *collector) stream(ctx context.Context) {
 	}
 }
 
-func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
-	containers, err := c.dockerUtil.RawContainerList(ctx, types.ContainerListOptions{})
+func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
+	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, types.ContainerListOptions{}, filter)
 	if err != nil {
 		return err
 	}

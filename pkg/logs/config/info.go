@@ -8,7 +8,8 @@ package config
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 )
 
 // InfoProvider is a general interface to provide info about a log source.
@@ -35,21 +36,21 @@ type InfoProvider interface {
 
 // CountInfo records a simple count
 type CountInfo struct {
-	count int32
+	count *atomic.Int32
 	key   string
 }
 
 // NewCountInfo creates a new CountInfo instance
 func NewCountInfo(key string) *CountInfo {
 	return &CountInfo{
-		count: 0,
+		count: atomic.NewInt32(0),
 		key:   key,
 	}
 }
 
 // Add a new value to the count
 func (c *CountInfo) Add(v int32) {
-	atomic.AddInt32(&c.count, v)
+	c.count.Add(v)
 }
 
 // InfoKey returns the key
@@ -59,7 +60,7 @@ func (c *CountInfo) InfoKey() string {
 
 // Info returns the info
 func (c *CountInfo) Info() []string {
-	return []string{fmt.Sprintf("%d", atomic.LoadInt32(&c.count))}
+	return []string{fmt.Sprintf("%d", c.count.Load())}
 }
 
 // MappedInfo collects multiple info messages with a unique key

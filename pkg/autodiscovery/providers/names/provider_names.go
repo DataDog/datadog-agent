@@ -11,7 +11,6 @@ const (
 	Container          = "container"
 	CloudFoundryBBS    = "cloudfoundry-bbs"
 	ClusterChecks      = "cluster-checks"
-	ECS                = "ecs"
 	EndpointsChecks    = "endpoints-checks"
 	Etcd               = "etcd"
 	File               = "file"

@@ -373,26 +373,6 @@ func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *Fil
 	}
 }
 
-func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers) *FileSerializer {
-	mode := uint32(process.FileEvent.Mode)
-	return &FileSerializer{
-		Path:                process.FileEvent.PathnameStr,
-		PathResolutionError: process.GetPathResolutionError(),
-		Name:                process.FileEvent.BasenameStr,
-		Inode:               getUint64Pointer(&process.FileEvent.Inode),
-		MountID:             getUint32Pointer(&process.FileEvent.MountID),
-		Filesystem:          process.FileEvent.Filesystem,
-		InUpperLayer:        getInUpperLayer(r, &process.FileEvent.FileFields),
-		Mode:                getUint32Pointer(&mode),
-		UID:                 int64(process.FileEvent.UID),
-		GID:                 int64(process.FileEvent.GID),
-		User:                r.ResolveFileFieldsUser(&process.FileEvent.FileFields),
-		Group:               r.ResolveFileFieldsGroup(&process.FileEvent.FileFields),
-		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileEvent.MTime))),
-		Ctime:               getTimeIfNotZero(time.Unix(0, int64(process.FileEvent.CTime))),
-	}
-}
-
 func getUint64Pointer(i *uint64) *uint64 {
 	if *i == 0 {
 		return nil
@@ -448,7 +428,7 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 		PPid:          ps.PPid,
 		Comm:          ps.Comm,
 		TTY:           ps.TTYName,
-		Executable:    newProcessFileSerializerWithResolvers(ps, e.resolvers),
+		Executable:    newFileSerializer(&ps.FileEvent, e),
 		Argv0:         argv0,
 		Args:          argv,
 		ArgsTruncated: argvTruncated,
@@ -695,7 +675,7 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 
 func newIPPortSerializer(c *model.IPPortContext) *IPPortSerializer {
 	return &IPPortSerializer{
-		IP:   c.IP.String(),
+		IP:   c.IPNet.IP.String(),
 		Port: c.Port,
 	}
 }
@@ -910,7 +890,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newProcessFileSerializerWithResolvers(&event.processCacheEntry.Process, event.resolvers),
+			FileSerializer: *newFileSerializer(&event.processCacheEntry.Process.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.SELinuxEventType:

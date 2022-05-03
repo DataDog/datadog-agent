@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/ebpf"
+	"github.com/cilium/ebpf"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second

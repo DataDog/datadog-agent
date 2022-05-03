@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -44,7 +43,7 @@ func init() {
 	dogstatsdCaptureCmd.Flags().BoolVarP(&dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
 
 	// shut up grpc client!
-	grpclog.SetLogger(log.New(ioutil.Discard, "", 0))
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, ioutil.Discard))
 }
 
 var dogstatsdCaptureCmd = &cobra.Command{

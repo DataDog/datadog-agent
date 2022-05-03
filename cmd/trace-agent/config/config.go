@@ -10,6 +10,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -120,9 +122,6 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if coreconfig.Datadog.IsSet("hostname") {
 		c.Hostname = coreconfig.Datadog.GetString("hostname")
-	}
-	if coreconfig.Datadog.IsSet("log_level") {
-		c.LogLevel = coreconfig.Datadog.GetString("log_level")
 	}
 	if coreconfig.Datadog.IsSet("dogstatsd_port") {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
@@ -255,9 +254,11 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		grpcPort = coreconfig.Datadog.GetInt(coreconfig.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:        c.ReceiverHost,
-		GRPCPort:        grpcPort,
-		MaxRequestBytes: c.MaxRequestBytes,
+		BindHost:               c.ReceiverHost,
+		GRPCPort:               grpcPort,
+		MaxRequestBytes:        c.MaxRequestBytes,
+		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName: coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
@@ -367,7 +368,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		return err
 	}
 
-	if strings.ToLower(c.LogLevel) == "debug" && !coreconfig.Datadog.IsSet("apm_config.log_throttling") {
+	if strings.ToLower(coreconfig.Datadog.GetString("log_level")) == "debug" && !coreconfig.Datadog.IsSet("apm_config.log_throttling") {
 		// if we are in "debug mode" and log throttling behavior was not
 		// set by the user, disable it
 		c.LogThrottling = false
@@ -410,9 +411,6 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
 		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("apm_config.api_key"))
-	}
-	if cfg.IsSet("apm_config.log_level") {
-		c.LogLevel = coreconfig.Datadog.GetString("apm_config.log_level")
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
@@ -596,4 +594,39 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	}
 	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
+}
+
+// SetHandler returns handler for runtime configuration changes.
+func SetHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
+			return
+		}
+		for key, values := range req.URL.Query() {
+			if len(values) == 0 {
+				continue
+			}
+			value := html.UnescapeString(values[len(values)-1])
+			switch key {
+			case "log_level":
+				lvl := strings.ToLower(value)
+				if lvl == "warning" {
+					lvl = "warn"
+				}
+				if err := coreconfig.ChangeLogLevel(lvl); err != nil {
+					httpError(w, http.StatusInternalServerError, err)
+					return
+				}
+				coreconfig.Datadog.Set("log_level", lvl)
+				log.Infof("Switched log level to %s", lvl)
+			default:
+				log.Infof("Unsupported config change requested (key: %q).", key)
+			}
+		}
+	})
+}
+
+func httpError(w http.ResponseWriter, status int, err error) {
+	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
 }

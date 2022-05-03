@@ -8,13 +8,13 @@ package util
 import (
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 const DefaultDelta = 0.001
@@ -22,13 +22,13 @@ const DefaultDelta = 0.001
 var (
 	dummyPollingFuncToggle = true
 
-	pollingFuncInvocationCount     int64
-	statsUpdateFuncInvocationCount int64
+	pollingFuncInvocationCount     *atomic.Int64 = atomic.NewInt64(0)
+	statsUpdateFuncInvocationCount *atomic.Int64 = atomic.NewInt64(0)
 )
 
 // This function on average should return 0.5 value
 func dummyTogglingPollingFunc() float64 {
-	atomic.AddInt64(&pollingFuncInvocationCount, 1)
+	pollingFuncInvocationCount.Add(1)
 
 	dummyPollingFuncToggle = !dummyPollingFuncToggle
 
@@ -40,12 +40,12 @@ func dummyTogglingPollingFunc() float64 {
 }
 
 func dummyStatsUpdateFunc(sw SlidingWindow) {
-	atomic.AddInt64(&statsUpdateFuncInvocationCount, 1)
+	statsUpdateFuncInvocationCount.Add(1)
 }
 
 // This function on average should return about 0.3 value
 func dummyFractionalPollingFunc() float64 {
-	atomic.AddInt64(&pollingFuncInvocationCount, 1)
+	pollingFuncInvocationCount.Add(1)
 	randBusy := 0.3 + ((rand.Float64() - 0.5) * 0.001)
 
 	return randBusy
@@ -118,15 +118,15 @@ func TestSlidingWindowAverage(t *testing.T) {
 }
 
 func TestSlidingWindowCallback(t *testing.T) {
-	atomic.StoreInt64(&statsUpdateFuncInvocationCount, 0)
-	atomic.StoreInt64(&pollingFuncInvocationCount, 0)
+	statsUpdateFuncInvocationCount.Store(0)
+	pollingFuncInvocationCount.Store(0)
 
 	clk := clock.NewMock()
 	sw, err := NewSlidingWindowWithClock(100*time.Millisecond, 10*time.Millisecond, clk)
 	require.Nil(t, err)
 
 	pollingFunc := func() float64 {
-		atomic.StoreInt64(&pollingFuncInvocationCount, 1)
+		pollingFuncInvocationCount.Store(1)
 
 		return 0.0
 	}
@@ -137,10 +137,10 @@ func TestSlidingWindowCallback(t *testing.T) {
 
 		require.True(
 			t,
-			atomic.LoadInt64(&pollingFuncInvocationCount) > atomic.LoadInt64(&statsUpdateFuncInvocationCount),
+			pollingFuncInvocationCount.Load() > statsUpdateFuncInvocationCount.Load(),
 		)
 
-		atomic.StoreInt64(&pollingFuncInvocationCount, 1)
+		pollingFuncInvocationCount.Store(1)
 	}
 
 	err = sw.Start(pollingFunc, statsUpdateFunc)
@@ -151,8 +151,8 @@ func TestSlidingWindowCallback(t *testing.T) {
 }
 
 func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
-	atomic.StoreInt64(&statsUpdateFuncInvocationCount, 0)
-	atomic.StoreInt64(&pollingFuncInvocationCount, 0)
+	statsUpdateFuncInvocationCount.Store(0)
+	pollingFuncInvocationCount.Store(0)
 
 	windowSize := 2000 * time.Millisecond
 	pollingInterval := 100 * time.Millisecond
@@ -168,12 +168,12 @@ func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
 	assert.Equal(t, windowSize, sw.WindowSize())
 
 	clk.Add(windowSize)
-	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 19, 3)
-	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 19, 3)
+	assert.InDelta(t, pollingFuncInvocationCount.Load(), 19, 3)
+	assert.InDelta(t, statsUpdateFuncInvocationCount.Load(), 19, 3)
 
 	clk.Add(200 * time.Millisecond)
-	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 21, 3)
-	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 21, 3)
+	assert.InDelta(t, pollingFuncInvocationCount.Load(), 21, 3)
+	assert.InDelta(t, statsUpdateFuncInvocationCount.Load(), 21, 3)
 }
 
 func TestNewSlidingWindowStop(t *testing.T) {

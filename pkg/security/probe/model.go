@@ -17,7 +17,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/mailru/easyjson/jwriter"
-	"golang.org/x/sys/unix"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
@@ -104,19 +103,7 @@ func (ev *Event) GetPathResolutionError() error {
 
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
-	// do not try to resolve mmap events when they aren't backed by any file
-	switch ev.GetEventType() {
-	case model.MMapEventType:
-		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
-			return ""
-		}
-	case model.LoadModuleEventType:
-		if ev.LoadModule.LoadedFromMemory {
-			return ""
-		}
-	}
-
-	if len(f.PathnameStr) == 0 {
+	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
 			switch err.(type) {
@@ -127,18 +114,18 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 				ev.SetPathResolutionError(err)
 			}
 		}
-		f.PathnameStr = path
+		f.SetPathnameStr(path)
 	}
 	return f.PathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
 func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
-	if len(f.BasenameStr) == 0 {
+	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
-			f.BasenameStr = path.Base(f.PathnameStr)
+			f.SetBasenameStr(path.Base(f.PathnameStr))
 		} else {
-			f.BasenameStr = ev.resolvers.resolveBasename(&f.FileFields)
+			f.SetBasenameStr(ev.resolvers.resolveBasename(&f.FileFields))
 		}
 	}
 	return f.BasenameStr
@@ -489,6 +476,15 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
 		if ev.processCacheEntry == nil {
 			ev.processCacheEntry = &model.ProcessCacheEntry{}
+
+			// mark context as resolved to avoid resolution with empty inode/mount id
+			ev.processCacheEntry.FileEvent.SetPathnameStr("")
+			ev.processCacheEntry.FileEvent.SetBasenameStr("")
+		} else if ev.processCacheEntry.FileEvent.Inode == 0 || ev.processCacheEntry.FileEvent.MountID == 0 {
+			// FIX(safchain) this condition should be removed once the kworker detection will be fixed and
+			// once process context without inode/mountid bug will be fixed
+			ev.processCacheEntry.FileEvent.SetPathnameStr("")
+			ev.processCacheEntry.FileEvent.SetBasenameStr("")
 		}
 	}
 

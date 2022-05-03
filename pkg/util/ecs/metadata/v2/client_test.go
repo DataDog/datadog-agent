@@ -28,8 +28,8 @@ func TestGetTask(t *testing.T) {
 	require.Nil(t, err)
 
 	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	expected := &Task{
 		ClusterName: "default",
@@ -129,8 +129,8 @@ func TestGetTaskWithTags(t *testing.T) {
 	require.Nil(t, err)
 
 	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	expected := &Task{
 		ClusterName: "ecs-cluster",
@@ -452,8 +452,8 @@ func TestGetContainerStats(t *testing.T) {
 			require.Nil(t, err)
 
 			ts, _, err := ecsinterface.Start()
-			defer ts.Close()
 			require.Nil(t, err)
+			defer ts.Close()
 
 			metadata, err := NewClient(ts.URL).GetContainerStats(ctx, test.containerID)
 			assert.Equal(test.expectedStats, metadata)

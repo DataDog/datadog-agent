@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"sort"
 
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -75,7 +74,7 @@ func getAggregator() *BufferedAggregator {
 	if demultiplexerInstance == nil {
 		initF()
 	}
-	return demultiplexerInstance.Aggregator()
+	return demultiplexerInstance.(*AgentDemultiplexer).Aggregator()
 }
 
 func TestRegisterCheckSampler(t *testing.T) {
@@ -225,13 +224,17 @@ func TestDefaultData(t *testing.T) {
 	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
-	s.On("SendServiceChecks", metrics.ServiceChecks{{
-		CheckName: "datadog.agent.up",
-		Status:    metrics.ServiceCheckOK,
-		Tags:      []string{},
-		Ts:        start.Unix(),
-		Host:      agg.hostname,
-	}}).Return(nil).Times(1)
+	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
+	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+		require.Equal(t, 1, len(m))
+		require.Equal(t, "datadog.agent.up", m[0].CheckName)
+		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, []string{}, m[0].Tags)
+		require.Equal(t, agg.hostname, m[0].Host)
+
+		return true
+	})
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 
 	series := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
@@ -256,7 +259,7 @@ func TestDefaultData(t *testing.T) {
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
-	assert.Equal(t, uint64(0), atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[0]))
+	assert.Equal(t, uint64(0), tagsetTlm.hugeSeriesCount[0].Load())
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
@@ -305,7 +308,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSeriesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
@@ -370,7 +373,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSketchesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]

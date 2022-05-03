@@ -409,14 +409,19 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				continue
 			}
 
-			cachedEntity.unset(ev.Source)
+			// keep a copy of cachedEntity before removing sources,
+			// as we may need to merge it later
+			c := cachedEntity
+			cachedEntity = c.copy()
+
+			c.unset(ev.Source)
 
 			telemetry.StoredEntities.Dec(
 				string(entityID.Kind),
 				string(ev.Source),
 			)
 
-			if len(cachedEntity.sources) == 0 {
+			if len(c.sources) == 0 {
 				delete(entitiesOfKind, entityID.ID)
 			}
 		default:
@@ -425,34 +430,37 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		for _, sub := range s.subscribers {
 			filter := sub.filter
-
 			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) {
 				// event should be filtered out because it
 				// doesn't match the filter
 				continue
 			}
 
-			cachedEntity, ok := s.store[entityID.Kind][entityID.ID]
-
-			var entity Entity
-			if ok {
-				entity = cachedEntity.get(filter.Source())
+			var isEventTypeSet bool
+			if ev.Type == EventTypeSet {
+				isEventTypeSet = true
+			} else if filter.Source() == SourceAll {
+				isEventTypeSet = len(cachedEntity.sources) > 1
+			} else {
+				isEventTypeSet = false
 			}
 
-			if entity != nil {
-				// setting an entity (EventTypeSet) or entity
-				// had one source removed, but others remain
+			entity := cachedEntity.get(filter.Source())
+			if isEventTypeSet {
 				filteredEvents[sub] = append(filteredEvents[sub], Event{
 					Type:   EventTypeSet,
 					Entity: entity,
 				})
-
 			} else {
-				// entity has been removed entirely, unsetting
-				// is straight forward too
+				err := entity.Merge(ev.Entity)
+				if err != nil {
+					log.Errorf("cannot merge %+v into %+v: %s", entity, ev.Entity, err)
+					continue
+				}
+
 				filteredEvents[sub] = append(filteredEvents[sub], Event{
 					Type:   EventTypeUnset,
-					Entity: ev.Entity,
+					Entity: entity,
 				})
 			}
 		}

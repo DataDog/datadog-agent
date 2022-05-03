@@ -53,29 +53,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []byte(`myVal`),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: "myVal"},
-			nil,
-		},
-		{
-			"OctetString hexify",
-			gosnmp.SnmpPDU{
-				Name:  ".1.2.3",
-				Type:  gosnmp.OctetString,
-				Value: []uint8{0x0, 0x24, 0x9b, 0x35, 0x3, 0xf6},
-			},
-			"1.2.3",
-			valuestore.ResultValue{Value: "0x00249b3503f6"},
-			nil,
-		},
-		{
-			"OctetString newline dont hexify",
-			gosnmp.SnmpPDU{
-				Name:  ".1.2.3",
-				Type:  gosnmp.OctetString,
-				Value: []byte("m\ny\rV\ta\n\r\tl"),
-			},
-			"1.2.3",
-			valuestore.ResultValue{Value: "m\ny\rV\ta\n\r\tl"},
+			valuestore.ResultValue{Value: []byte(`myVal`)},
 			nil,
 		},
 		{
@@ -86,7 +64,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []byte(`myVal`),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: "myVal"},
+			valuestore.ResultValue{Value: []byte(`myVal`)},
 			nil,
 		},
 		{
@@ -354,10 +332,10 @@ func Test_resultToColumnValues(t *testing.T) {
 				},
 				"1.3.6.1.2.1.2.2.1.2": {
 					"1": valuestore.ResultValue{
-						Value: "desc1",
+						Value: []byte("desc1"),
 					},
 					"2": valuestore.ResultValue{
-						Value: "desc2",
+						Value: []byte("desc2"),
 					},
 				},
 				"1.3.6.1.2.1.2.2.1.20": {
@@ -410,10 +388,10 @@ func Test_resultToColumnValues(t *testing.T) {
 				},
 				"1.3.6.1.2.1.2.2.1.2": {
 					"1": valuestore.ResultValue{
-						Value: "desc1",
+						Value: []byte("desc1"),
 					},
 					"2": valuestore.ResultValue{
-						Value: "desc2",
+						Value: []byte("desc2"),
 					},
 				},
 			},
