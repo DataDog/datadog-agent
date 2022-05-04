@@ -60,7 +60,8 @@ func (t *Tailer) readAvailable() (int, error) {
 	bytes := 0
 	for {
 		if f == nil {
-			f, err := openFile(t.fullpath)
+			var err error
+			f, err = openFile(t.fullpath)
 			if err != nil {
 				return bytes, err
 			}
