@@ -7,6 +7,8 @@ package inferredspan
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -105,6 +107,34 @@ func EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys, inferr
 	setSynchronicity(&inferredSpan, attributes)
 }
 
+func EnrichInferredSpanWithSNSEvent(attributes EventKeys, inferredSpan InferredSpan) {
+	eventRecord := attributes.Records[0]
+	snsMessage := eventRecord.SNS
+	splitArn := strings.Split(snsMessage.TopicArn, ":")
+	topicName := splitArn[len(snsMessage.TopicArn)-1]
+	startTime := formatISOStartTime(snsMessage.TimeStamp)
+
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.Name = "aws.sns"
+	inferredSpan.Span.Service = "sns"
+	inferredSpan.Span.Start = startTime
+	inferredSpan.Span.Resource = topicName
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Meta = map[string]string{
+		OperationName: "aws.sns",
+		ResourceNames: topicName,
+		TopicName:     topicName,
+		TopicARN:      snsMessage.TopicArn,
+		MessageID:     snsMessage.MessageID,
+		Type:          snsMessage.Type,
+	}
+
+	// Subject not available in SNS => SQS scenario
+	if snsMessage.Subject != nil {
+		inferredSpan.Span.Meta[Subject] = *snsMessage.Subject
+	}a
+}
+
 func setSynchronicity(span *InferredSpan, attributes EventKeys) {
 	span.IsAsync = false
 	if attributes.Headers.InvocationType == "Event" {
@@ -115,4 +145,12 @@ func setSynchronicity(span *InferredSpan, attributes EventKeys) {
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
 	return (epoch / 1000) * 1e9
+}
+
+// formatISOStartTime converts ISO timestamps and returns
+// a Unix timestamp in nanoseconds
+func formatISOStartTime(isotime string) int64 {
+	layout := "2006-01-02T15:04:05.000Z"
+	startTime, _ := time.Parse(layout, isotime)
+	return startTime.UnixNano()
 }

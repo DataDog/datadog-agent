@@ -198,6 +198,13 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 	assert.Equal(t, span.Meta[Stage], "dev")
 }
 
+func TestFormatISOStartTime(t *testing.T) {
+	isotime := "2022-01-31T14:13:41.637Z"
+	startTime := formatISOStartTime(isotime)
+	assert.Equal(t, int64(1634662094538), startTime)
+
+}
+
 func getEventFromFile(filename string) []byte {
 	event, _ := os.ReadFile(dataFile + filename)
 	return event

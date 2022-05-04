@@ -109,6 +109,8 @@ func DispatchInferredSpan(event string, inferredSpan InferredSpan) {
 		EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes, inferredSpan)
 	case WEBSOCKET:
 		EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes, inferredSpan)
+	case SNS:
+		EnrichInferredSpanWithSNSEvent(attributes, inferredSpan)
 	}
 }
 
