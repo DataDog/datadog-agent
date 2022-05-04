@@ -1,3 +1,4 @@
+//go:build android
 // +build android
 
 package platform
@@ -15,7 +16,7 @@ func (self *Platform) Collect() (result interface{}, err error) {
 	return
 }
 
-func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
+func getPlatformInfo() (platformInfo map[string]string, err error) {
 
 	return
 }
