@@ -3,7 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-require "./lib/constants.rb"
 
 flavor = ENV['AGENT_FLAVOR']
 
@@ -20,12 +19,20 @@ license_file "../LICENSE"
 homepage 'http://www.datadoghq.com'
 
 if windows?
+  INSTALL_DIR = 'C:/opt/datadog-agent/'
+  PYTHON_2_EMBEDDED_DIR = '#{INSTALL_DIR}/embedded2'
+  PYTHON_3_EMBEDDED_DIR = '#{INSTALL_DIR}/embedded3'
+else
+  INSTALL_DIR = '/opt/datadog-agent'
+end
+
+if windows?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
-  install_dir Constants::Windows::install_dir
-  python_2_embedded Constants::Windows::python_2_embedded_dir
-  python_3_embedded Constants::Windows::python_3_embedded_dir
+  install_dir INSTALL_DIR
+  python_2_embedded PYTHON_2_EMBEDDED_DIR
+  python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
   if redhat? || suse?
@@ -66,7 +73,7 @@ else
     end
   end
 
-  install_dir Constants::Linux::install_dir
+  install_dir INSTALL_DIR
 end
 
 # build_version is computed by an invoke command/function.
@@ -180,18 +187,18 @@ package :msi do
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
-      "#{install_dir}\\bin\\agent\\ddtray.exe",
-      "#{windows_safe_path(project.python_3_embedded)}\\python.exe",
-      "#{windows_safe_path(project.python_3_embedded)}\\python3.dll",
-      "#{windows_safe_path(project.python_3_embedded)}\\python38.dll",
-      "#{windows_safe_path(project.python_3_embedded)}\\pythonw.exe",
+      "#{INSTALL_DIR}\\bin\\agent\\ddtray.exe",
+      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python.exe",
+      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python3.dll",
+      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python38.dll",
+      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\pythonw.exe",
     ]
     if with_python_runtime? "2"
       additional_sign_files_list = [
         "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
-        "#{windows_safe_path(project.python_2_embedded)}\\python.exe",
-        "#{windows_safe_path(project.python_2_embedded)}\\python27.dll",
-        "#{windows_safe_path(project.python_2_embedded)}\\pythonw.exe",
+        "#{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\python.exe",
+        "#{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\python27.dll",
+        "#{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\pythonw.exe",
     ]
     end
   #if ENV['SIGN_WINDOWS']
