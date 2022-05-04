@@ -3,6 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
+require "./lib/constants.rb"
 
 flavor = ENV['AGENT_FLAVOR']
 
@@ -18,13 +19,13 @@ license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
-if ohai['platform'] == "windows"
+if windows?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
-  install_dir "C:/opt/datadog-agent/"
-  python_2_embedded "#{install_dir}/embedded2"
-  python_3_embedded "#{install_dir}/embedded3"
+  install_dir Constants::Windows::install_dir
+  python_2_embedded Constants::Windows::python_2_embedded_dir
+  python_3_embedded Constants::Windows::python_3_embedded_dir
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
   if redhat? || suse?
@@ -65,7 +66,7 @@ else
     end
   end
 
-  install_dir '/opt/datadog-agent'
+  install_dir Constants::Linux::install_dir
 end
 
 # build_version is computed by an invoke command/function.
