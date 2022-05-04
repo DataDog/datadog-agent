@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package invocationlifecycle
+package random
 
 import (
 	cryptorand "crypto/rand"
@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// random holds a thread-safe source of random numbers.
-var random *rand.Rand
+// Random holds a thread-safe source of random numbers.
+var Random *rand.Rand
 
 func init() {
 	var seed int64
@@ -28,7 +28,7 @@ func init() {
 		log.Warnf("cannot generate random seed: %v; using current time", err)
 		seed = time.Now().UnixNano()
 	}
-	random = rand.New(&safeSource{
+	Random = rand.New(&safeSource{
 		source: rand.NewSource(seed),
 	})
 }

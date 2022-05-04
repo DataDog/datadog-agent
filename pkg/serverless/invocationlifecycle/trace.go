@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	rand "github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -26,11 +27,13 @@ const (
 
 // executionStartInfo is saved information from when an execution span was started
 type executionStartInfo struct {
-	startTime      time.Time
-	traceID        uint64
-	spanID         uint64
-	parentID       uint64
-	requestPayload string
+	startTime time.Time
+	traceID   uint64
+	spanID    uint64
+	parentID  uint64
+	// reference for nil checking
+	samplingPriority *sampler.SamplingPriority
+	requestPayload   string
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -41,33 +44,69 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders) {
+func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, inferredSpansEnabled bool) {
 	currentExecutionInfo.startTime = startTime
-	currentExecutionInfo.traceID = random.Uint64()
-	currentExecutionInfo.spanID = random.Uint64()
+	currentExecutionInfo.traceID = rand.Random.Uint64()
+	currentExecutionInfo.spanID = rand.Random.Uint64()
 	currentExecutionInfo.parentID = 0
 
 	payload := convertRawPayload(rawPayload)
 
 	currentExecutionInfo.requestPayload = rawPayload
 
-	var traceID, parentID uint64
-	var e1, e2 error
+	if inferredSpansEnabled {
+		currentExecutionInfo.traceID = inferredSpan.Span.TraceID
+		currentExecutionInfo.parentID = inferredSpan.Span.SpanID
+	}
 
 	if payload.Headers != nil {
-		traceID, e1 = convertStrToUnit64(payload.Headers[TraceIDHeader])
-		parentID, e2 = convertStrToUnit64(payload.Headers[ParentIDHeader])
+
+		traceID, err := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse traceID from payload headers")
+		} else {
+			currentExecutionInfo.traceID = traceID
+			if inferredSpansEnabled {
+				inferredSpan.Span.TraceID = traceID
+			}
+		}
+
+		parentID, err := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse parentID from payload headers")
+		} else {
+			if inferredSpansEnabled {
+				inferredSpan.Span.ParentID = parentID
+			} else {
+				currentExecutionInfo.parentID = parentID
+			}
+		}
+
+		samplingPriority, err := strconv.ParseInt(payload.Headers[SamplingPriorityHeader], 0, 8)
+		priority := sampler.SamplingPriority(int8(samplingPriority))
+		if err != nil {
+			log.Debug("Unable to parse samling priority from invokeEventHeaders")
+		} else {
+			currentExecutionInfo.samplingPriority = &priority
+			if inferredSpansEnabled {
+				inferredSpan.SamplingPriority = &priority
+			}
+		}
+
 	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
-		traceID, e1 = convertStrToUnit64(invokeEventHeaders.TraceID)
-		parentID, e2 = convertStrToUnit64(invokeEventHeaders.ParentID)
-	}
+		traceID, err := strconv.ParseUint(invokeEventHeaders.TraceID, 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse traceID from invokeEventHeaders")
+		} else {
+			currentExecutionInfo.traceID = traceID
+		}
 
-	if e1 == nil && traceID != 0 {
-		currentExecutionInfo.traceID = traceID
-	}
-
-	if e2 == nil && parentID != 0 {
-		currentExecutionInfo.parentID = parentID
+		parentID, err := strconv.ParseUint(invokeEventHeaders.ParentID, 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse parentID from invokeEventHeaders")
+		} else {
+			currentExecutionInfo.parentID = parentID
+		}
 	}
 }
 
@@ -101,8 +140,14 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Priority: int32(sampler.PriorityNone),
-		Spans:    []*pb.Span{executionSpan},
+		Spans: []*pb.Span{executionSpan},
+	}
+
+	if currentExecutionInfo.samplingPriority != nil {
+		priority := *currentExecutionInfo.samplingPriority
+		traceChunk.Priority = int32(priority)
+	} else {
+		traceChunk.Priority = int32(sampler.PriorityNone)
 	}
 
 	tracerPayload := &pb.TracerPayload{
@@ -128,15 +173,6 @@ func convertRawPayload(rawPayload string) invocationPayload {
 	}
 
 	return payload
-}
-
-func convertStrToUnit64(s string) (uint64, error) {
-	num, err := strconv.ParseUint(s, 0, 64)
-	if err != nil {
-		log.Debug("Error with string conversion of trace or parent ID")
-	}
-
-	return num, err
 }
 
 // TraceID returns the current TraceID
