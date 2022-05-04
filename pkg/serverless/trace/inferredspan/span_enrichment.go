@@ -40,7 +40,7 @@ func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpa
 		Stage:         requestContext.Stage,
 	}
 
-	setSynchronicity(&inferredSpan, attributes)
+	inferredSpan.IsAsync = setSynchronicity(attributes)
 }
 
 // EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
@@ -72,7 +72,7 @@ func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpa
 		ResourceNames: resource,
 	}
 
-	setSynchronicity(&inferredSpan, attributes)
+	inferredSpan.IsAsync = setSynchronicity(attributes)
 }
 
 // EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
@@ -104,7 +104,7 @@ func EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys, inferr
 		Stage:            requestContext.Stage,
 	}
 
-	setSynchronicity(&inferredSpan, attributes)
+	inferredSpan.IsAsync = setSynchronicity(attributes)
 }
 
 func EnrichInferredSpanWithSNSEvent(attributes EventKeys, inferredSpan InferredSpan) {
@@ -132,14 +132,11 @@ func EnrichInferredSpanWithSNSEvent(attributes EventKeys, inferredSpan InferredS
 	// Subject not available in SNS => SQS scenario
 	if snsMessage.Subject != nil {
 		inferredSpan.Span.Meta[Subject] = *snsMessage.Subject
-	}a
+	}
 }
 
-func setSynchronicity(span *InferredSpan, attributes EventKeys) {
-	span.IsAsync = false
-	if attributes.Headers.InvocationType == "Event" {
-		span.IsAsync = true
-	}
+func setSynchronicity(attributes EventKeys) bool {
+	return attributes.Headers.InvocationType == "Event"
 }
 
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds

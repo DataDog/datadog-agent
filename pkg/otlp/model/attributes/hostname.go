@@ -54,8 +54,9 @@ func getClusterName(attrs pcommon.Map) (string, bool) {
 //   5. the cloud provider host ID and
 //   6. the host.name attribute.
 //
-//  It returns a boolean value indicated if any name was found
-func HostnameFromAttributes(attrs pcommon.Map) (string, bool) {
+//  It returns a boolean value indicated if any name was found. In some environments (such as Fargate)
+//  it may be possible to return an empty value and true.
+func HostnameFromAttributes(attrs pcommon.Map) (hostname string, ok bool) {
 	// Check if the host is localhost or 0.0.0.0, if so discard it.
 	// We don't do the more strict validation done for metadata,
 	// to avoid breaking users existing invalid-but-accepted hostnames.

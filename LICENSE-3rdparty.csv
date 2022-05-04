@@ -522,6 +522,7 @@ core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowled
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
 core,github.com/nwaples/rardecode,BSD-2-Clause,"Copyright (c) 2015, Nicholas Waples"
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver
 core,github.com/open-policy-agent/opa/ast,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/ast/internal/scanner,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/ast/internal/tokens,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.

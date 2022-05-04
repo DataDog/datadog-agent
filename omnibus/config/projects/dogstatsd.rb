@@ -164,6 +164,15 @@ dependency 'datadog-dogstatsd'
 
 dependency 'datadog-dogstatsd-finalize'
 
+# package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
+  end
+end
+
 if linux?
   extra_package_file '/etc/init/datadog-dogstatsd.conf'
   extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'

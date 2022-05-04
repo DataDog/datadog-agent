@@ -29,20 +29,21 @@ FROM baseimage AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
+ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
 
-# Get s6-overlay and check gpg signature
-# Hack: PGP key store locally as it's currently not available from https://keybase.io/justcontainers/key.asc
-COPY hack/s6-pgp-key /tmp/s6-pgp-key
+# Get s6-overlay
 ENV S6_VERSION v1.22.1.0
-ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
-ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
-RUN apt install --no-install-recommends -y gpg gpg-agent \
- && cat /tmp/s6-pgp-key | gpg --import \
- && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
+# To calculate S6_SHA256SUM for a specific version, run:
+# curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz | sha256sum
+ENV S6_SHA256SUM=73f9779203310ddf9c5132546a1978e1a2b05990263b92ed2c34c1e258e2df6c
+ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
+ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
+ADD ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
+RUN echo "${S6_SHA256SUM} /output/s6.tgz" | sha256sum -c -
 
 # Extract and cleanup:
 #   - unused systemd unit

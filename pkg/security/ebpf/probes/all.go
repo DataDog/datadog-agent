@@ -14,6 +14,11 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+const (
+	minPathnamesEntries = 64000  // ~27 MB
+	maxPathnamesEntries = 128000 // ~54 MB
+)
+
 // allProbes contain the list of all the probes of the runtime security module
 var allProbes []*manager.Probe
 
@@ -121,6 +126,15 @@ const (
 	MaxTracedCgroupsCount = 1000
 )
 
+// max 128 000 | min 64,000 entrie =>
+func getPathnamesMaxEntries(numCPU int) uint32 {
+	maxEntries := math.Min(maxPathnamesEntries, float64(minPathnamesEntries*numCPU)/4)
+	if maxEntries < minPathnamesEntries {
+		maxEntries = minPathnamesEntries
+	}
+	return uint32(maxEntries)
+}
+
 // AllMapSpecEditors returns the list of map editors
 func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
@@ -139,8 +153,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pathnames": {
-			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~27 MB
-			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 96000)),
+			MaxEntries: getPathnamesMaxEntries(numCPU),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"traced_cgroups": {
