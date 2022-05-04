@@ -74,7 +74,7 @@ func TestSubscribeLogsSuccess(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-
+	time.Sleep(100 * time.Millisecond)
 	err := subscribeLogs("myId", ts.URL, registerLogsTimeout, payload)
 	assert.Nil(t, err)
 }
