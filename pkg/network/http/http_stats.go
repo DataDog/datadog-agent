@@ -60,15 +60,22 @@ func (m Method) String() string {
 	}
 }
 
-// Key is an identifier for a group of HTTP transactions
-type Key struct {
+// KeyTuple represents the network tuple for a group of HTTP transactions
+type KeyTuple struct {
 	SrcIPHigh uint64
 	SrcIPLow  uint64
-	SrcPort   uint16
 
 	DstIPHigh uint64
 	DstIPLow  uint64
-	DstPort   uint16
+
+	// ports separated for alignment/size optimization
+	SrcPort uint16
+	DstPort uint16
+}
+
+// Key is an identifier for a group of HTTP transactions
+type Key struct {
+	KeyTuple
 
 	Path   string
 	Method Method
@@ -76,17 +83,24 @@ type Key struct {
 
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, method Method) Key {
+	return Key{
+		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport),
+		Path:     path,
+		Method:   method,
+	}
+}
+
+// NewKeyTuple generates a new KeyTuple
+func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
 	saddrl, saddrh := util.ToLowHigh(saddr)
 	daddrl, daddrh := util.ToLowHigh(daddr)
-	return Key{
+	return KeyTuple{
 		SrcIPHigh: saddrh,
 		SrcIPLow:  saddrl,
 		SrcPort:   sport,
 		DstIPHigh: daddrh,
 		DstIPLow:  daddrl,
 		DstPort:   dport,
-		Path:      path,
-		Method:    method,
 	}
 }
 
@@ -95,7 +109,12 @@ const NumStatusClasses = 5
 
 // RequestStats stores stats for HTTP requests to a particular path, organized by the class
 // of the response code (1XX, 2XX, 3XX, 4XX, 5XX)
-type RequestStats [NumStatusClasses]struct {
+type RequestStats struct {
+	data [NumStatusClasses]*RequestStat
+}
+
+// RequestStat stores stats for HTTP requests to a particular path
+type RequestStat struct {
 	// Note: every time we add a latency value to the DDSketch below, it's possible for the sketch to discard that value
 	// (ie if it is outside the range that is tracked by the sketch). For that reason, in order to keep an accurate count
 	// the number of http transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
@@ -109,83 +128,120 @@ type RequestStats [NumStatusClasses]struct {
 	FirstLatencySample float64
 }
 
+func (r *RequestStats) idx(status int) int {
+	return status/100 - 1
+}
+
+func (r *RequestStats) isValid(status int) bool {
+	i := r.idx(status)
+	return i >= 0 && i < len(r.data)
+}
+
+func (r *RequestStats) init(status int) {
+	r.data[r.idx(status)] = new(RequestStat)
+}
+
+// Stats returns the RequestStat object for the provided status.
+// If no stats exist, or the status code is invalid, it will return nil.
+func (r *RequestStats) Stats(status int) *RequestStat {
+	i := r.idx(status)
+	if i < 0 || i >= len(r.data) {
+		return nil
+	}
+	return r.data[i]
+}
+
+// HasStats returns true if there is data for that status class
+func (r *RequestStats) HasStats(status int) bool {
+	i := r.idx(status)
+	if i < 0 || i >= len(r.data) {
+		return false
+	}
+	return r.data[i] != nil && r.data[i].Count > 0
+}
+
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
-func (r *RequestStats) CombineWith(newStats RequestStats) {
-	for i := 0; i < len(r); i++ {
-		statusClass := 100 * (i + 1)
-
-		if newStats[i].Count == 0 {
+func (r *RequestStats) CombineWith(newStats *RequestStats) {
+	for statusClass := 100; statusClass <= 500; statusClass += 100 {
+		if !newStats.HasStats(statusClass) {
 			// Nothing to do in this case
 			continue
 		}
 
-		if newStats[i].Count == 1 {
+		newStatsData := newStats.Stats(statusClass)
+		if newStatsData.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
-			r.AddRequest(statusClass, newStats[i].FirstLatencySample)
+			r.AddRequest(statusClass, newStatsData.FirstLatencySample)
 			continue
+		}
+
+		stats := r.Stats(statusClass)
+		if stats == nil {
+			r.init(statusClass)
+			stats = r.Stats(statusClass)
 		}
 
 		// The other bucket (newStats) has multiple samples and therefore a DDSketch object
 		// We first ensure that the bucket we're merging to has a DDSketch object
-		if r[i].Latencies == nil {
-			// TODO: Consider calling Copy() on the other sketch instead
-			if err := r.initSketch(i); err != nil {
-				continue
-			}
+		if stats.Latencies == nil {
+			stats.Latencies = newStatsData.Latencies.Copy()
 
 			// If we have a latency sample in this bucket we now add it to the DDSketch
-			if r[i].Count == 1 {
-				err := r[i].Latencies.Add(r[i].FirstLatencySample)
+			if stats.Count == 1 {
+				err := stats.Latencies.Add(stats.FirstLatencySample)
 				if err != nil {
 					log.Debugf("could not add request latency to ddsketch: %v", err)
 				}
 			}
+		} else {
+			err := stats.Latencies.MergeWith(newStatsData.Latencies)
+			if err != nil {
+				log.Debugf("error merging http transactions: %v", err)
+			}
 		}
-
-		// Finally merge both sketches
-		r[i].Count += newStats[i].Count
-		err := r[i].Latencies.MergeWith(newStats[i].Latencies)
-		if err != nil {
-			log.Debugf("error merging http transactions: %v", err)
-		}
+		stats.Count += newStatsData.Count
 	}
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
 func (r *RequestStats) AddRequest(statusClass int, latency float64) {
-	i := statusClass/100 - 1
-	if i < 0 || i >= len(r) {
+	if !r.isValid(statusClass) {
 		return
 	}
+	stats := r.Stats(statusClass)
+	if stats == nil {
+		r.init(statusClass)
+		stats = r.Stats(statusClass)
+	}
 
-	r[i].Count++
-	if r[i].Count == 1 {
+	stats.Count++
+	if stats.Count == 1 {
 		// We postpone the creation of histograms when we have only one latency sample
-		r[i].FirstLatencySample = latency
+		stats.FirstLatencySample = latency
 		return
 	}
 
-	if r[i].Latencies == nil {
-		if err := r.initSketch(i); err != nil {
+	if stats.Latencies == nil {
+		if err := stats.initSketch(); err != nil {
 			return
 		}
 
-		// Add the defered latency sample
-		err := r[i].Latencies.Add(r[i].FirstLatencySample)
+		// Add the deferred latency sample
+		err := stats.Latencies.Add(stats.FirstLatencySample)
 		if err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
 	}
 
-	err := r[i].Latencies.Add(latency)
+	err := stats.Latencies.Add(latency)
 	if err != nil {
 		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
 }
 
-func (r *RequestStats) initSketch(i int) (err error) {
-	r[i].Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+func (r *RequestStat) initSketch() (err error) {
+	r.Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
 	if err != nil {
 		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}

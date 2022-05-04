@@ -1304,9 +1304,9 @@ func TestHTTPStats(t *testing.T) {
 
 	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath", http.MethodGet)
 
-	httpStats := make(map[http.Key]http.RequestStats)
+	httpStats := make(map[http.Key]*http.RequestStats)
 	var rs http.RequestStats
-	httpStats[key] = rs
+	httpStats[key] = &rs
 
 	// Register client & pass in HTTP stats
 	state := newDefaultState()
@@ -1328,11 +1328,11 @@ func TestHTTPStatsWithMultipleClients(t *testing.T) {
 		DPort:  80,
 	}
 
-	getStats := func(path string) map[http.Key]http.RequestStats {
-		httpStats := make(map[http.Key]http.RequestStats)
+	getStats := func(path string) map[http.Key]*http.RequestStats {
+		httpStats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, http.MethodGet)
 		var rs http.RequestStats
-		httpStats[key] = rs
+		httpStats[key] = &rs
 		return httpStats
 	}
 

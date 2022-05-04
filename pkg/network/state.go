@@ -42,7 +42,7 @@ type State interface {
 		latestTime uint64,
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
-		http map[http.Key]http.RequestStats,
+		http map[http.Key]*http.RequestStats,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -70,14 +70,14 @@ type State interface {
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
 
-	// DebugState returns a map with the current network state for a client ID
+	// DumpState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
 }
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
 	BufferedData
-	HTTP     map[http.Key]http.RequestStats
+	HTTP     map[http.Key]*http.RequestStats
 	DNSStats dns.StatsByKeyByNameByType
 }
 
@@ -111,7 +111,7 @@ type client struct {
 	stats                 map[string]*stats
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
-	httpStatsDelta  map[http.Key]http.RequestStats
+	httpStatsDelta  map[http.Key]*http.RequestStats
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
@@ -124,7 +124,7 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 	c.closedConnections = c.closedConnections[:0]
 	c.closedConnectionsKeys = make(map[string]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
-	c.httpStatsDelta = make(map[http.Key]http.RequestStats)
+	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
@@ -206,7 +206,7 @@ func (ns *networkState) GetDelta(
 	latestTime uint64,
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
-	httpStats map[http.Key]http.RequestStats,
+	httpStats map[http.Key]*http.RequestStats,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -405,7 +405,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 }
 
 // storeHTTPStats stores latest HTTP stats for all clients
-func (ns *networkState) storeHTTPStats(allStats map[http.Key]http.RequestStats) {
+func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
 			if len(client.httpStatsDelta) == 0 {
@@ -442,7 +442,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
 		closedConnectionsKeys: make(map[string]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
-		httpStatsDelta:        map[http.Key]http.RequestStats{},
+		httpStatsDelta:        map[http.Key]*http.RequestStats{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c

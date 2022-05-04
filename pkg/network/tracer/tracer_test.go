@@ -1578,7 +1578,7 @@ func TestHTTPStats(t *testing.T) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var httpReqStats http.RequestStats
+	var httpReqStats *http.RequestStats
 	require.Eventuallyf(t, func() bool {
 		payload, err := tr.GetActiveConnections("1")
 		if err != nil {
@@ -1596,11 +1596,12 @@ func TestHTTPStats(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
-	assert.Equal(t, 0, httpReqStats[0].Count, "100s") // number of requests with response status 100
-	assert.Equal(t, 1, httpReqStats[1].Count, "200s") // 200
-	assert.Equal(t, 0, httpReqStats[2].Count, "300s") // 300
-	assert.Equal(t, 0, httpReqStats[3].Count, "400s") // 400
-	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
+	require.NotNil(t, httpReqStats)
+	assert.Nil(t, httpReqStats.Stats(100), "100s")            // number of requests with response status 100
+	assert.Equal(t, 1, httpReqStats.Stats(200).Count, "200s") // 200
+	assert.Nil(t, httpReqStats.Stats(300), "300s")            // 300
+	assert.Nil(t, httpReqStats.Stats(400), "400s")            // 400
+	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
 }
 
 var regexSSL = regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`)

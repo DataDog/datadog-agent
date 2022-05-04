@@ -120,7 +120,7 @@ type Connections struct {
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
-	HTTP                        map[http.Key]http.RequestStats
+	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
