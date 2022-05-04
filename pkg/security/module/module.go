@@ -288,9 +288,9 @@ func (m *Module) Reload() error {
 	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	if loadErr.ErrorOrNil() != nil {
-		seclog.LogRuleLoadingErrors("error while loading policies: %+v", loadErr)
+		seclog.RuleLoadingErrors("error while loading policies: %+v", loadErr)
 	} else if loadApproversErr.ErrorOrNil() != nil {
-		seclog.LogRuleLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErr)
+		seclog.RuleLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErr)
 	}
 
 	monitor := m.probe.GetMonitor()

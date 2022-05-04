@@ -273,7 +273,7 @@ func init() {
 	DefaultLogger = &PatternLogger{}
 }
 
-func LogRuleLoadingErrors(msg string, m *multierror.Error) {
+func RuleLoadingErrors(msg string, m *multierror.Error) {
 	var errorLevel bool
 	for _, err := range m.Errors {
 		if rErr, ok := err.(*rules.ErrRuleLoad); ok {

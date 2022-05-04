@@ -123,16 +123,16 @@ func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.
 
 	_, rules, merr := selfTestPolicy.GetValidMacroAndRules()
 	if merr.ErrorOrNil() != nil {
-		seclog.LogRuleLoadingErrors("error while loading additional policies", merr)
+		seclog.RuleLoadingErrors("error while loading additional policies", merr)
 	}
 
 	if len(rules) != 0 {
 		if merr := ruleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-			seclog.LogRuleLoadingErrors("error while loading additional policies", merr)
+			seclog.RuleLoadingErrors("error while loading additional policies", merr)
 		}
 
 		if merr := approverRuleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-			seclog.LogRuleLoadingErrors("error while loading additional policies", merr)
+			seclog.RuleLoadingErrors("error while loading additional policies", merr)
 		}
 	}
 }
