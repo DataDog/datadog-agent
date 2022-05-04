@@ -60,6 +60,7 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 	)
 
 	resourceList := p.nodeHandlers.ResourceList(ctx, list)
+	nodeCount := int32(len(resourceList))
 
 	for _, resource := range resourceList {
 		r := resource.(*corev1.Node)
@@ -86,6 +87,7 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 		KubeletVersions:   kubeletVersions,
 		MemoryAllocatable: memoryAllocatable,
 		MemoryCapacity:    memoryCapacity,
+		NodeCount:         nodeCount,
 		PodAllocatable:    podAllocatable,
 		PodCapacity:       podCapacity,
 	}

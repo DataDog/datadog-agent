@@ -67,26 +67,52 @@ static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* pack
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-    struct sock* skp = (struct sock*)PT_REGS_PARM2(ctx);
-    size_t size = (size_t)PT_REGS_PARM4(ctx);
-#else
-    struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM3(ctx);
-#endif
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_sendmsg: size: %d\n", size);
+    log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+    struct sock* parm1 = (struct sock*)PT_REGS_PARM2(ctx);
+#else
+    struct sock* parm1 = (struct sock*)PT_REGS_PARM1(ctx);
+#endif
+    struct sock* skp = parm1;
+    bpf_map_update_elem(&tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
+    return 0;
+}
 
+SEC("kretprobe/tcp_sendmsg")
+int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock** skpp = (struct sock**) bpf_map_lookup_elem(&tcp_sendmsg_args, &pid_tgid);
+    if (!skpp) {
+        log_debug("kretprobe/tcp_sendmsg: sock not found\n");
+        return 0;
+    }
+
+    bpf_map_delete_elem(&tcp_sendmsg_args, &pid_tgid);
+
+    int sent = PT_REGS_RC(ctx);
+    if (sent < 0) {
+        return 0;
+    }
+
+    struct sock *skp = *skpp;
+    if (!skp) {
+        return 0;
+    }
+
+    log_debug("kretprobe/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
     handle_tcp_stats(&t, skp);
+
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
-    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
+
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")

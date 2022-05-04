@@ -130,6 +130,6 @@ func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig is not supported
-func (s *EnvironmentService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *EnvironmentService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
 }

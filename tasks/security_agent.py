@@ -9,7 +9,7 @@ from subprocess import check_output
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint, staticcheck, vet
+from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
 from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
 from .utils import (
@@ -321,9 +321,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        vet(ctx, targets=targets, build_tags=build_tags, arch=arch)
         golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
-        staticcheck(ctx, targets=targets, build_tags=build_tags, arch=arch)
 
     # linters have a hard time with dnf, so we add the build tag after running them
     if nikos_embedded_path:

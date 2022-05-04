@@ -480,4 +480,17 @@
       {{- end -}}
     </span>
   </div>
+
+  <div class="stat">
+    <span class="stat_title">OTLP</span>
+    <span class="stat_data">
+      {{ with .otlp }}
+        Status: {{ if .otlpStatus }}Enabled{{else}}Not enabled{{end}}
+        <br>Collector status: {{ .otlpCollectorStatus }}
+        {{ if .otlpCollectorStatusErr }}
+          <br><span class="error">Error</span>: <b>{{ .otlpCollectorStatusErr }}</b>
+        {{ end }}
+      {{ end }}
+    </span>
+  </div>
 {{- end -}}

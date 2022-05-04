@@ -267,7 +267,7 @@ func (s *Socket) recvmsg(b []byte, oob []byte, flags int) (int, int, error) {
 	)
 
 	ctrlErr := s.conn.Read(func(fd uintptr) bool {
-		n, oobn, _, _, err = unix.Recvmsg(int(fd), b, oob, flags)
+		n, oobn, _, err = noallocRecvmsg(int(fd), b, oob, flags)
 		return ready(err)
 	})
 

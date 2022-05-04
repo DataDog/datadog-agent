@@ -101,6 +101,11 @@ func IsEnabled(cfg config.Config) bool {
 	return ok
 }
 
+// IsDisplayed checks if the OTLP section should be rendered in the Agent
+func IsDisplayed() bool {
+	return true
+}
+
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
 func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	// TODO (AP-1267): Check stable config too

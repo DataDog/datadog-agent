@@ -72,7 +72,6 @@ type HTTPReceiver struct {
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
 
-	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
@@ -99,7 +98,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
 
-		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
@@ -134,7 +132,10 @@ func replyWithVersion(hash string, h http.Handler) http.Handler {
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
-	mux := r.buildMux()
+	if r.conf.ReceiverPort == 0 {
+		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
+		return
+	}
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -145,7 +146,7 @@ func (r *HTTPReceiver) Start() {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      mux,
+		Handler:      r.buildMux(),
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
@@ -253,7 +254,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0722); err != nil {
+	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return NewMeasuredListener(ln, "uds_connections"), err
@@ -278,6 +279,9 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
+	if r.conf.ReceiverPort == 0 {
+		return nil
+	}
 	r.exit <- struct{}{}
 	<-r.exit
 
@@ -717,7 +721,7 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	if r.conf.MaxCPU > 0 {
 		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
 		if rateCPU < 1 {
-			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg*100)
 		}
 	}
 
@@ -827,7 +831,7 @@ func getContainerTags(fn func(string) ([]string, error), containerID string) str
 		log.Warn("ContainerTags not configured")
 		return ""
 	}
-	list, err := fn("container_id://" + containerID)
+	list, err := fn(containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return ""

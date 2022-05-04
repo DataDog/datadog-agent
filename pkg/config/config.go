@@ -125,19 +125,20 @@ type MetadataProviders struct {
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
-	Name             string `mapstructure:"name"`
-	Polling          bool   `mapstructure:"polling"`
-	PollInterval     string `mapstructure:"poll_interval"`
-	TemplateURL      string `mapstructure:"template_url"`
-	TemplateDir      string `mapstructure:"template_dir"`
-	Username         string `mapstructure:"username"`
-	Password         string `mapstructure:"password"`
-	CAFile           string `mapstructure:"ca_file"`
-	CAPath           string `mapstructure:"ca_path"`
-	CertFile         string `mapstructure:"cert_file"`
-	KeyFile          string `mapstructure:"key_file"`
-	Token            string `mapstructure:"token"`
-	GraceTimeSeconds int    `mapstructure:"grace_time_seconds"`
+	Name                    string `mapstructure:"name"`
+	Polling                 bool   `mapstructure:"polling"`
+	PollInterval            string `mapstructure:"poll_interval"`
+	TemplateURL             string `mapstructure:"template_url"`
+	TemplateDir             string `mapstructure:"template_dir"`
+	Username                string `mapstructure:"username"`
+	Password                string `mapstructure:"password"`
+	CAFile                  string `mapstructure:"ca_file"`
+	CAPath                  string `mapstructure:"ca_path"`
+	CertFile                string `mapstructure:"cert_file"`
+	KeyFile                 string `mapstructure:"key_file"`
+	Token                   string `mapstructure:"token"`
+	GraceTimeSeconds        int    `mapstructure:"grace_time_seconds"`
+	DegradedDeadlineMinutes int    `mapstructure:"degraded_deadline_minutes"`
 }
 
 // Listeners helps unmarshalling `listeners` config param
@@ -573,6 +574,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
@@ -619,7 +621,10 @@ func InitConfig(config Config) {
 	config.SetEnvKeyTransformer("prometheus_scrape.checks", prometheusScrapeChecksTransformer)
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
-	// SNMP
+	// Network Devices Monitoring
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	config.BindEnvAndSetDefault("network_devices.namespace", "default")
+
 	config.SetKnown("snmp_listener.discovery_interval")
 	config.SetKnown("snmp_listener.allowed_failures")
 	config.SetKnown("snmp_listener.discovery_allowed_failures")
@@ -630,14 +635,12 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.min_collection_interval")
 	config.SetKnown("snmp_listener.namespace")
 
-	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
-	config.BindEnvAndSetDefault("snmp_traps_config.port", 9162)
-	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
-	// No default as the agent falls back to `network_devices.namespace` if empty.
-	config.BindEnv("snmp_traps_config.namespace")
-	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "0.0.0.0")
-	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
-	config.SetKnown("snmp_traps_config.users")
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.bind_host", "0.0.0.0")
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
+	config.SetKnown("network_devices.snmp_traps.users")
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -789,7 +792,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
 	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
 	// the pod container ID is matching.
-	config.BindEnvAndSetDefault("logs_config.validate_pod_container_id", false)
+	config.BindEnvAndSetDefault("logs_config.validate_pod_container_id", true)
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
@@ -812,14 +815,16 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
-	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	// maximum time that the unix tailer will hold a log file open after it has been rotated
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
+	// maximum time that the windows tailer will hold a log file open, while waiting for
+	// the downstream logs pipeline to be ready to accept more data
+	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	// The following auto_multi_line settings are experimental and may change
@@ -907,6 +912,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
@@ -989,6 +995,7 @@ func InitConfig(config Config) {
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.SetKnown("runtime_security_config.fim_enabled")
+	config.BindEnvAndSetDefault("runtime_security_config.event_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.erpc_dentry_resolution_enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.map_dentry_resolution_enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)
@@ -1034,6 +1041,7 @@ func InitConfig(config Config) {
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1182,6 +1190,10 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
+		// these variables are used by serverless, but not via the Config struct
+		"DD_SERVICE":            {},
+		"DD_DOTNET_TRACER_HOME": {},
+		"DD_TRACE_ENABLED":      {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

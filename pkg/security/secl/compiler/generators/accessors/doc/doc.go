@@ -49,6 +49,14 @@ func prettyprint(v interface{}) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+func translateFieldType(rt string) string {
+	switch rt {
+	case "net.IPNet", "net.IP":
+		return "IP/CIDR"
+	}
+	return rt
+}
+
 // GenerateDocJSON generates the SECL json documentation file to the provided outputPath
 func GenerateDocJSON(module *common.Module, outputPath string) error {
 	kinds := make(map[string][]eventTypeProperty)
@@ -56,7 +64,7 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 	for name, field := range module.Fields {
 		kinds[field.Event] = append(kinds[field.Event], eventTypeProperty{
 			Name: name,
-			Type: field.ReturnType,
+			Type: translateFieldType(field.ReturnType),
 			Doc:  strings.TrimSpace(field.CommentText),
 		})
 	}
