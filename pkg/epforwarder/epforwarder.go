@@ -77,7 +77,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeSnmpTraps,
-		endpointsConfigPrefix:         "network_devices.traps.forwarder",
+		endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
 		hostnameEndpointPrefix:        "snmp-traps-intake.",
 		intakeTrackType:               "ndmtraps",
 		defaultBatchMaxConcurrentSend: 10,
