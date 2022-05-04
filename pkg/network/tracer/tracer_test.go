@@ -65,6 +65,7 @@ func TestMain(m *testing.M) {
 
 func TestGetStats(t *testing.T) {
 	dnsSupported := dnsSupported(t)
+	httpSupported := httpSupported(t)
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
@@ -75,21 +76,35 @@ func TestGetStats(t *testing.T) {
 
 	tr.GetActiveConnections("-1")
 	linuxExpected := map[string]interface{}{}
+	/* fixme... removed evicts_total and orphan_size
+		err = json.Unmarshal([]byte(`{
+	      "conntrack": {
+	        "enobufs": 0,
+	        "evicts_total": 0,
+	        "gets_total": 9,
+	        "msg_errors": 0,
+	        "orphan_size": 0,
+	        "read_errors": 0,
+	        "registers_dropped": 2,
+	        "registers_total": 0,
+	        "sampling_pct": 100,
+	        "state_size": 0,
+	        "throttles": 0,
+	        "unregisters_total": 0
+	      },*/
 	err = json.Unmarshal([]byte(`{
-      "conntrack": {
-        "enobufs": 0,
-        "evicts_total": 0,
-        "gets_total": 9,
-        "msg_errors": 0,
-        "orphan_size": 0,
-        "read_errors": 0,
-        "registers_dropped": 2,
-        "registers_total": 0,
-        "sampling_pct": 100,
-        "state_size": 0,
-        "throttles": 0,
-        "unregisters_total": 0
-      },
+		"conntrack": {
+		  "enobufs": 0,
+		  "gets_total": 9,
+		  "msg_errors": 0,
+		  "read_errors": 0,
+		  "registers_dropped": 2,
+		  "registers_total": 0,
+		  "sampling_pct": 100,
+		  "state_size": 0,
+		  "throttles": 0,
+		  "unregisters_total": 0
+		},
       "dns": {
         "added": 0,
         "decoding_errors": 583,
@@ -175,6 +190,10 @@ func TestGetStats(t *testing.T) {
 	for section, entries := range expected {
 		if section == "dns" && !dnsSupported {
 			// DNS stats not supported on some systems
+			continue
+		}
+		if section == "http" && !httpSupported {
+			// HTTP stats not supported on some systems
 			continue
 		}
 		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
