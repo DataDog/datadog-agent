@@ -2417,6 +2417,13 @@ api_key:
     #
     # socket_path: /var/run/datadog
 
+    ## @param trace_agent_socket - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TRACE_AGENT_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## Configure Trace Agent's socket path in the app container (DD_TRACE_AGENT_URL).
+    ## Only applicable in "socket" mode.
+    #
+    # trace_agent_socket: unix:///var/run/datadog/apm.socket
+
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
   #
