@@ -17,26 +17,26 @@ import (
 // This is used by https://docs.microsoft.com/en-us/windows/win32/devnotes/rtlgetversion
 type OSVERSIONINFOEXW struct {
 	dwOSVersionInfoSize uint32
-	dwMajorVersion uint32
-	dwMinorVersion uint32
-	dwBuildNumber uint32
-	dwPlatformId uint32
-	szCSDVersion [128]uint16
-	wServicePackMajor uint16
-	wServicePackMinor uint16
-	wSuiteMask uint16
-	wProductType uint8
-	wReserved uint8
+	dwMajorVersion      uint32
+	dwMinorVersion      uint32
+	dwBuildNumber       uint32
+	dwPlatformId        uint32
+	szCSDVersion        [128]uint16
+	wServicePackMajor   uint16
+	wServicePackMinor   uint16
+	wSuiteMask          uint16
+	wProductType        uint8
+	wReserved           uint8
 }
 
 var (
-	modNetapi32                = windows.NewLazyDLL("Netapi32.dll")
-	procNetServerGetInfo       = modNetapi32.NewProc("NetServerGetInfo")
-	procNetApiBufferFree       = modNetapi32.NewProc("NetApiBufferFree")
-	ntdll                      = windows.NewLazyDLL("Ntdll.dll")
-	procRtlGetVersion          = ntdll.NewProc("RtlGetVersion")
-	winbrand                   = windows.NewLazyDLL("winbrand.dll")
-	ERROR_SUCESS syscall.Errno = 0
+	modNetapi32                        = windows.NewLazyDLL("Netapi32.dll")
+	procNetServerGetInfo               = modNetapi32.NewProc("NetServerGetInfo")
+	procNetApiBufferFree               = modNetapi32.NewProc("NetApiBufferFree")
+	ntdll                              = windows.NewLazyDLL("Ntdll.dll")
+	procRtlGetVersion                  = ntdll.NewProc("RtlGetVersion")
+	winbrand                           = windows.NewLazyDLL("winbrand.dll")
+	ERROR_SUCESS         syscall.Errno = 0
 )
 
 const (
@@ -119,7 +119,7 @@ func fetchOsDescription() (string, error) {
 		registry.QUERY_VALUE)
 	defer k.Close()
 	if err == nil {
-		os , _, err := k.GetStringValue(productNameKey)
+		os, _, err := k.GetStringValue(productNameKey)
 		if err == nil {
 			return os, nil
 		}
@@ -164,8 +164,8 @@ func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error)
 }
 
 // GetArchInfo() returns basic host architecture information
-func GetArchInfo() (systemInfo map[string]interface{}, err error) {
-	systemInfo = make(map[string]interface{})
+func GetArchInfo() (systemInfo map[string]string, err error) {
+	systemInfo = map[string]string{}
 
 	systemInfo["hostname"], _ = os.Hostname()
 
