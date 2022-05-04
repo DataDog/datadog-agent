@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 var (
@@ -178,7 +178,8 @@ type metricStat struct {
 
 type dsdServerDebug struct {
 	sync.Mutex
-	Enabled *atomic.Bool
+	// Enabled is an atomic int used as a boolean
+	Enabled uint64                         `json:"enabled"`
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
@@ -335,8 +336,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: &dsdServerDebug{
-			Enabled: atomic.NewBool(false),
-			Stats:   make(map[ckey.ContextKey]metricStat),
+			Stats: make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
 				counts:     [5]uint64{0, 0, 0, 0, 0},
 				metricChan: make(chan struct{}),
@@ -555,7 +555,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				var err error
 				samples = samples[0:0]
 
-				debugEnabled := s.Debug.Enabled.Load()
+				debugEnabled := atomic.LoadUint64(&s.Debug.Enabled) == 1
 
 				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, debugEnabled)
 				if err != nil {
@@ -749,11 +749,11 @@ func (s *Server) EnableMetricsStats() {
 	defer s.Debug.Unlock()
 
 	// already enabled?
-	if s.Debug.Enabled.Load() {
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
 		return
 	}
 
-	s.Debug.Enabled.Store(true)
+	atomic.StoreUint64(&s.Debug.Enabled, 1)
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 100)
 		var closed bool
@@ -813,8 +813,8 @@ func (s *Server) DisableMetricsStats() {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	if s.Debug.Enabled.Load() {
-		s.Debug.Enabled.Store(false)
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+		atomic.StoreUint64(&s.Debug.Enabled, 0)
 		s.Debug.metricsCounts.closeChan <- struct{}{}
 	}
 
