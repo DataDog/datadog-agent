@@ -260,6 +260,7 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
+					UID:          "offset",
 				},
 			})
 	}

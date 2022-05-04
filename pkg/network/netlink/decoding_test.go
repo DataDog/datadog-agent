@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"os"
 	"testing"
 
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
+	"inet.af/netaddr"
 )
 
 func TestDecodeAndReleaseEvent(t *testing.T) {
@@ -36,19 +36,19 @@ func TestDecodeAndReleaseEvent(t *testing.T) {
 	assert.Len(t, connections, 1)
 	c := connections[0]
 
-	assert.True(t, net.ParseIP("10.0.2.15").Equal(*c.Origin.Src))
-	assert.True(t, net.ParseIP("2.2.2.2").Equal(*c.Origin.Dst))
+	assert.Equal(t, netaddr.MustParseIP("10.0.2.15"), c.Origin.Src.IP())
+	assert.Equal(t, netaddr.MustParseIP("2.2.2.2"), c.Origin.Dst.IP())
 
-	assert.Equal(t, uint16(58472), *c.Origin.Proto.SrcPort)
-	assert.Equal(t, uint16(5432), *c.Origin.Proto.DstPort)
-	assert.Equal(t, uint8(6), *c.Origin.Proto.Number)
+	assert.Equal(t, uint16(58472), c.Origin.Src.Port())
+	assert.Equal(t, uint16(5432), c.Origin.Dst.Port())
+	assert.Equal(t, uint8(6), c.Origin.Proto)
 
-	assert.True(t, net.ParseIP("1.1.1.1").Equal(*c.Reply.Src))
-	assert.True(t, net.ParseIP("10.0.2.15").Equal(*c.Reply.Dst))
+	assert.Equal(t, netaddr.MustParseIP("1.1.1.1"), c.Reply.Src.IP())
+	assert.Equal(t, netaddr.MustParseIP("10.0.2.15"), c.Reply.Dst.IP())
 
-	assert.Equal(t, uint16(5432), *c.Reply.Proto.SrcPort)
-	assert.Equal(t, uint16(58472), *c.Reply.Proto.DstPort)
-	assert.Equal(t, uint8(6), *c.Reply.Proto.Number)
+	assert.Equal(t, uint16(5432), c.Reply.Src.Port())
+	assert.Equal(t, uint16(58472), c.Reply.Dst.Port())
+	assert.Equal(t, uint8(6), c.Reply.Proto)
 }
 
 func BenchmarkDecodeSingleMessage(b *testing.B) {

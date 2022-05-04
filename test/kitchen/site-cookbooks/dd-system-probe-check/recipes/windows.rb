@@ -18,6 +18,14 @@ remote_file "#{tmp_dir}\\wix311-binaries.zip" do
   source "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip"
 end
 
+##
+## temporarily disable recv segment coalescing.  This appears to be
+## the root cause of the azure bug causing things to hang.
+## remove this once bug is fixed
+execute 'disable RSC' do
+  command "netsh.exe int tcp set global rsc=disable"
+end
+
 execute 'wix-extract' do
   cwd tmp_dir
   command "powershell -C \"Add-Type -A 'System.IO.Compression.FileSystem'; [IO.Compression.ZipFile]::ExtractToDirectory('wix311-binaries.zip', 'wix');\""

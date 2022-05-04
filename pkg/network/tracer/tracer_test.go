@@ -55,7 +55,11 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "warn")
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -169,12 +173,12 @@ func TestGetStats(t *testing.T) {
 	expected := linuxExpected
 	if runtime.GOOS == "windows" {
 		expected = map[string]interface{}{
-			"driver":                   nil,
-			"flows":                    nil,
-			"driver_total_flow_stats":  nil,
-			"driver_flow_handle_stats": nil,
-			"state":                    nil,
-			"dns":                      nil,
+			"driver":                   map[string]interface{}{},
+			"flows":                    map[string]interface{}{},
+			"driver_total_flow_stats":  map[string]interface{}{},
+			"driver_flow_handle_stats": map[string]interface{}{},
+			"state":                    map[string]interface{}{},
+			"dns":                      map[string]interface{}{},
 		}
 	}
 
