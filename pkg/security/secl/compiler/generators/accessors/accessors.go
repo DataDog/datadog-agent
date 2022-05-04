@@ -488,7 +488,7 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 
 		if field, ok := allFields[path]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if e.%s != nil { e.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				result += fmt.Sprintf("if e.%s == nil { e.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 			}
 		}
 	}

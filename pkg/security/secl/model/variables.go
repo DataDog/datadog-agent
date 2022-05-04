@@ -16,11 +16,11 @@ var (
 	// SECLVariables set of variables
 	SECLVariables = map[string]eval.VariableValue{
 		"process.pid": eval.NewIntVariable(func(ctx *eval.Context) int {
-			if pc := (*Event)(ctx.Object).ProcessContext; pc == nil {
+			pc := (*Event)(ctx.Object).ProcessContext
+			if pc == nil {
 				return 0
-			} else {
-				return int(pc.Process.Pid)
 			}
+			return int(pc.Process.Pid)
 		}, nil),
 	}
 )
