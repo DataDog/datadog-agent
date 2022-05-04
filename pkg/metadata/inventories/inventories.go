@@ -45,6 +45,8 @@ var (
 	checkMetadataMutex = &sync.Mutex{}
 	agentMetadata      = make(AgentMetadata)
 	agentMetadataMutex = &sync.Mutex{}
+	hostMetadata       = make(AgentMetadata)
+	hostMetadataMutex  = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
 
@@ -96,6 +98,9 @@ const (
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
+
+	// key for the host metadata cache. See host_metadata.go
+	HostOSVersion AgentMetadataName = "os_version"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -105,6 +110,21 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 
 	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
+
+		select {
+		case metadataUpdatedC <- nil:
+		default: // To make sure this call is not blocking
+		}
+	}
+}
+
+// SetHostMetadata updates the host metadata value in the cache
+func SetHostMetadata(name AgentMetadataName, value interface{}) {
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
+
+	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
+		hostMetadata[string(name)] = value
 
 		select {
 		case metadataUpdatedC <- nil:
@@ -195,7 +215,6 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 	}
 
 	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
 
 	// Create a static copy of agentMetadata for the payload
 	payloadAgentMeta := make(AgentMetadata)
@@ -203,11 +222,14 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 		payloadAgentMeta[k] = v
 	}
 
+	agentMetadataMutex.Unlock()
+
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &payloadCheckMeta,
 		AgentMetadata: &payloadAgentMeta,
+		HostMetadata:  getHostMetadata(),
 	}
 }
 
