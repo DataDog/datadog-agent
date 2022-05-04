@@ -23,7 +23,7 @@ func TestSetSynchronicityFalse(t *testing.T) {
 	var attributes EventKeys
 	attributes.Headers.InvocationType = ""
 	span := GenerateInferredSpan(time.Now())
-	span.IsAsync = setSynchronicity(attributes)
+	span.IsAsync = isAsyncEvent(attributes)
 
 	assert.False(t, span.IsAsync)
 }
@@ -32,7 +32,7 @@ func TestSetSynchronicityTrue(t *testing.T) {
 	var attributes EventKeys
 	attributes.Headers.InvocationType = "Event"
 	span := GenerateInferredSpan(time.Now())
-	span.IsAsync = setSynchronicity(attributes)
+	span.IsAsync = isAsyncEvent(attributes)
 
 	assert.True(t, span.IsAsync)
 }
@@ -41,7 +41,7 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	var eventKeys EventKeys
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.IsAsync = setSynchronicity(eventKeys)
+	inferredSpan.IsAsync = isAsyncEvent(eventKeys)
 	EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys, inferredSpan)
 
 	span := inferredSpan.Span
@@ -68,7 +68,7 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	var eventKeys EventKeys
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.IsAsync = setSynchronicity(eventKeys)
+	inferredSpan.IsAsync = isAsyncEvent(eventKeys)
 	EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys, inferredSpan)
 
 	span := inferredSpan.Span

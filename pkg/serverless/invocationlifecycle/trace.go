@@ -63,7 +63,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 
 		traceID, err := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
 		if err != nil {
-			makeDebugLog("traceID", "payloadHeaders")
+			log.Debug("Unable to parse traceID from payload headers")
 		} else {
 			currentExecutionInfo.traceID = traceID
 			if inferredSpansEnabled {
@@ -73,7 +73,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 
 		parentID, err := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
 		if err != nil {
-			makeDebugLog("parentID", "payloadHeaders")
+			log.Debug("Unable to parse parentID from payload headers")
 		} else {
 			if inferredSpansEnabled {
 				inferredSpan.Span.ParentID = parentID
@@ -85,7 +85,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 		samplingPriority, err := strconv.ParseInt(payload.Headers[SamplingPriorityHeader], 0, 8)
 		priority := sampler.SamplingPriority(int8(samplingPriority))
 		if err != nil {
-			makeDebugLog("sampling priority", "payloadHeaders")
+			log.Debug("Unable to parse samling priority from invokeEventHeaders")
 		} else {
 			currentExecutionInfo.samplingPriority = &priority
 			if inferredSpansEnabled {
@@ -96,14 +96,14 @@ func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeade
 	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
 		traceID, err := strconv.ParseUint(invokeEventHeaders.TraceID, 0, 64)
 		if err != nil {
-			makeDebugLog("traceID", "invokeEventHeaders")
+			log.Debug("Unable to parse traceID from invokeEventHeaders")
 		} else {
 			currentExecutionInfo.traceID = traceID
 		}
 
 		parentID, err := strconv.ParseUint(invokeEventHeaders.ParentID, 0, 64)
 		if err != nil {
-			makeDebugLog("parentID", "invokeEventHeaders")
+			log.Debug("Unable to parse parentID from invokeEventHeaders")
 		} else {
 			currentExecutionInfo.parentID = parentID
 		}
@@ -173,10 +173,6 @@ func convertRawPayload(rawPayload string) invocationPayload {
 	}
 
 	return payload
-}
-
-func makeDebugLog(attribute string, source string) {
-	log.Debug("Unable to parse %s from %s", attribute, source)
 }
 
 // TraceID returns the current TraceID

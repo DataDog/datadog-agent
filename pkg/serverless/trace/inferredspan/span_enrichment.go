@@ -38,7 +38,7 @@ func EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys, inferredSpa
 		Stage:         requestContext.Stage,
 	}
 
-	inferredSpan.IsAsync = setSynchronicity(attributes)
+	inferredSpan.IsAsync = isAsyncEvent(attributes)
 }
 
 // EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
@@ -70,7 +70,7 @@ func EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys, inferredSpa
 		ResourceNames: resource,
 	}
 
-	inferredSpan.IsAsync = setSynchronicity(attributes)
+	inferredSpan.IsAsync = isAsyncEvent(attributes)
 }
 
 // EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
@@ -102,10 +102,10 @@ func EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys, inferr
 		Stage:            requestContext.Stage,
 	}
 
-	inferredSpan.IsAsync = setSynchronicity(attributes)
+	inferredSpan.IsAsync = isAsyncEvent(attributes)
 }
 
-func setSynchronicity(attributes EventKeys) bool {
+func isAsyncEvent(attributes EventKeys) bool {
 	return attributes.Headers.InvocationType == "Event"
 }
 
