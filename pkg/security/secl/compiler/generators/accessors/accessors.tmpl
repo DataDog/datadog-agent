@@ -107,7 +107,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 					{{- if and (ne $Field.Handler "") (not $Mock)}}
-						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
+						{{$Ptr := "&"}}
+						{{$Parent := index $.AllFields $Field.Prefix}}
+						{{- if $Parent.IsOrigTypePtr}}
+							{{$Ptr = ""}}
+						{{end}}
+						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(" $Ptr "(*Event)(ctx.Object)." $Field.Prefix ")"}}
 					{{end}}
 
 					{{- if eq $ReturnType "int"}}
@@ -208,7 +213,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{else}}
 			{{$Return := $Field.Name | printf "e.%s"}}
 			{{if and (ne $Field.Handler "") (not $Mock)}}
-				{{$Return = print "e." $Field.Handler "(&e." $Field.Prefix ")"}}
+				{{$Ptr := "&"}}
+				{{$Parent := index $.AllFields $Field.Prefix}}
+				{{- if $Parent.IsOrigTypePtr}}
+					{{$Ptr = ""}}
+				{{end}}
+
+				{{$Return = print "e." $Field.Handler "(" $Ptr "e." $Field.Prefix ")"}}
 			{{end}}
 
 			{{if eq $Field.ReturnType "string"}}
@@ -275,7 +286,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{range $Name, $Field := .Fields}}
 		{{$FieldName := $Field.Name | printf "e.%s"}}
 		case "{{$Name}}":
-			{{- $Field | NewField $.AllFields $Name}}
+			{{- $Field | NewField $.AllFields}}
 		{{- if eq $Field.OrigType "string"}}
 			str, ok := value.(string)
 			if !ok {

@@ -321,7 +321,7 @@ type SpanContext struct {
 // ExecEvent represents a exec event
 //msgp:ignore ExecEvent
 type ExecEvent struct {
-	Process
+	*Process
 }
 
 // FileFields holds the information required to identify a file

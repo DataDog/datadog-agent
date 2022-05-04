@@ -246,6 +246,8 @@ func (p *ProcessResolver) DequeueExited() {
 // NewProcessCacheEntry returns a new process cache entry
 func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
+
+	// TODO safchain, pass the pid/tid to the function
 	entry.Cookie = eval.NewCookie()
 	return entry
 }
@@ -613,8 +615,8 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 	return entry
 }
 
-// ResolveNewProcessCacheEntryContext resolves the context fields of a new process cache entry parsed from kernel data
-func (p *ProcessResolver) ResolveNewProcessCacheEntryContext(entry *model.ProcessCacheEntry) error {
+// ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
+func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
 	if _, err := p.SetProcessPath(entry); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
 	}
@@ -654,7 +656,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	entry.Tid = tid
 
 	// resolve paths and other context fields
-	if err = p.ResolveNewProcessCacheEntryContext(entry); err != nil {
+	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
 		return nil
 	}
 

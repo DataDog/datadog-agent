@@ -501,7 +501,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).ResolveProcessArgs(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessArgs((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -509,7 +509,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				return (*Event)(ctx.Object).ResolveProcessArgsFlags(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessArgsFlags((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -517,7 +517,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.args_options":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				return (*Event)(ctx.Object).ResolveProcessArgsOptions(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessArgsOptions((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -525,7 +525,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.args_truncated":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				return (*Event)(ctx.Object).ResolveProcessArgsTruncated(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessArgsTruncated((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -533,7 +533,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.argv":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				return (*Event)(ctx.Object).ResolveProcessArgv(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessArgv((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -541,7 +541,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.argv0":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).ResolveProcessArgv0(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessArgv0((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -589,7 +589,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).ResolveProcessCreatedAt(&(*Event)(ctx.Object).Exec.Process))
+				return int((*Event)(ctx.Object).ResolveProcessCreatedAt((*Event)(ctx.Object).Exec.Process))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -613,7 +613,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				return (*Event)(ctx.Object).ResolveProcessEnvp(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessEnvp((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -621,7 +621,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				return (*Event)(ctx.Object).ResolveProcessEnvs(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessEnvs((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -629,7 +629,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.envs_truncated":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				return (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessEnvsTruncated((*Event)(ctx.Object).Exec.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7733,17 +7733,17 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "dns.question.type":
 		return int(e.DNS.Type), nil
 	case "exec.args":
-		return e.ResolveProcessArgs(&e.Exec.Process), nil
+		return e.ResolveProcessArgs(e.Exec.Process), nil
 	case "exec.args_flags":
-		return e.ResolveProcessArgsFlags(&e.Exec.Process), nil
+		return e.ResolveProcessArgsFlags(e.Exec.Process), nil
 	case "exec.args_options":
-		return e.ResolveProcessArgsOptions(&e.Exec.Process), nil
+		return e.ResolveProcessArgsOptions(e.Exec.Process), nil
 	case "exec.args_truncated":
-		return e.ResolveProcessArgsTruncated(&e.Exec.Process), nil
+		return e.ResolveProcessArgsTruncated(e.Exec.Process), nil
 	case "exec.argv":
-		return e.ResolveProcessArgv(&e.Exec.Process), nil
+		return e.ResolveProcessArgv(e.Exec.Process), nil
 	case "exec.argv0":
-		return e.ResolveProcessArgv0(&e.Exec.Process), nil
+		return e.ResolveProcessArgv0(e.Exec.Process), nil
 	case "exec.cap_effective":
 		return int(e.Exec.Process.Credentials.CapEffective), nil
 	case "exec.cap_permitted":
@@ -7755,17 +7755,17 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.cookie":
 		return int(e.Exec.Process.Cookie), nil
 	case "exec.created_at":
-		return int(e.ResolveProcessCreatedAt(&e.Exec.Process)), nil
+		return int(e.ResolveProcessCreatedAt(e.Exec.Process)), nil
 	case "exec.egid":
 		return int(e.Exec.Process.Credentials.EGID), nil
 	case "exec.egroup":
 		return e.Exec.Process.Credentials.EGroup, nil
 	case "exec.envp":
-		return e.ResolveProcessEnvp(&e.Exec.Process), nil
+		return e.ResolveProcessEnvp(e.Exec.Process), nil
 	case "exec.envs":
-		return e.ResolveProcessEnvs(&e.Exec.Process), nil
+		return e.ResolveProcessEnvs(e.Exec.Process), nil
 	case "exec.envs_truncated":
-		return e.ResolveProcessEnvsTruncated(&e.Exec.Process), nil
+		return e.ResolveProcessEnvsTruncated(e.Exec.Process), nil
 	case "exec.euid":
 		return int(e.Exec.Process.Credentials.EUID), nil
 	case "exec.euser":
@@ -13122,6 +13122,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Type = uint16(v)
 		return nil
 	case "exec.args":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Args"}
@@ -13129,6 +13132,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Args = str
 		return nil
 	case "exec.args_flags":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -13136,6 +13142,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.args_options":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -13143,12 +13152,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.args_truncated":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		var ok bool
 		if e.Exec.Process.ArgsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ArgsTruncated"}
 		}
 		return nil
 	case "exec.argv":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -13156,6 +13171,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.argv0":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv0"}
@@ -13163,6 +13181,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv0 = str
 		return nil
 	case "exec.cap_effective":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.CapEffective"}
@@ -13170,6 +13191,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "exec.cap_permitted":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.CapPermitted"}
@@ -13177,6 +13201,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "exec.comm":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Comm"}
@@ -13184,6 +13211,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Comm = str
 		return nil
 	case "exec.container.id":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
@@ -13191,6 +13221,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.ContainerID = str
 		return nil
 	case "exec.cookie":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Cookie"}
@@ -13198,6 +13231,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Cookie = uint32(v)
 		return nil
 	case "exec.created_at":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CreatedAt"}
@@ -13205,6 +13241,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.CreatedAt = uint64(v)
 		return nil
 	case "exec.egid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGID"}
@@ -13212,6 +13251,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "exec.egroup":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGroup"}
@@ -13219,6 +13261,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EGroup = str
 		return nil
 	case "exec.envp":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envp"}
@@ -13226,6 +13271,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Envp = append(e.Exec.Process.Envp, str)
 		return nil
 	case "exec.envs":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envs"}
@@ -13233,12 +13281,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Envs = append(e.Exec.Process.Envs, str)
 		return nil
 	case "exec.envs_truncated":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		var ok bool
 		if e.Exec.Process.EnvsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.EnvsTruncated"}
 		}
 		return nil
 	case "exec.euid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EUID"}
@@ -13246,6 +13300,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "exec.euser":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EUser"}
@@ -13253,6 +13310,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EUser = str
 		return nil
 	case "exec.file.change_time":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.CTime"}
@@ -13260,6 +13320,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "exec.file.filesystem":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.Filesystem"}
@@ -13267,6 +13330,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.Filesystem = str
 		return nil
 	case "exec.file.gid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.GID"}
@@ -13274,6 +13340,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "exec.file.group":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Group"}
@@ -13281,12 +13350,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "exec.file.in_upper_layer":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		var ok bool
 		if e.Exec.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "exec.file.inode":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Inode"}
@@ -13294,6 +13369,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "exec.file.mode":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -13301,6 +13379,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "exec.file.modification_time":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.MTime"}
@@ -13308,6 +13389,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "exec.file.mount_id":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.MountID"}
@@ -13315,6 +13399,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "exec.file.name":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.BasenameStr"}
@@ -13322,6 +13409,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.BasenameStr = str
 		return nil
 	case "exec.file.path":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PathnameStr"}
@@ -13329,6 +13419,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.PathnameStr = str
 		return nil
 	case "exec.file.rights":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -13336,6 +13429,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "exec.file.uid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.UID"}
@@ -13343,6 +13439,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "exec.file.user":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.User"}
@@ -13350,6 +13449,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.User = str
 		return nil
 	case "exec.fsgid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSGID"}
@@ -13357,6 +13459,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "exec.fsgroup":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSGroup"}
@@ -13364,6 +13469,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSGroup = str
 		return nil
 	case "exec.fsuid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSUID"}
@@ -13371,6 +13479,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "exec.fsuser":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSUser"}
@@ -13378,6 +13489,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSUser = str
 		return nil
 	case "exec.gid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.GID"}
@@ -13385,6 +13499,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.GID = uint32(v)
 		return nil
 	case "exec.group":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.Group"}
@@ -13392,6 +13509,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.Group = str
 		return nil
 	case "exec.pid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PIDContext.Pid"}
@@ -13399,6 +13519,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "exec.ppid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PPid"}
@@ -13406,6 +13529,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.PPid = uint32(v)
 		return nil
 	case "exec.tid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PIDContext.Tid"}
@@ -13413,6 +13539,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "exec.tty_name":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.TTYName"}
@@ -13420,6 +13549,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.TTYName = str
 		return nil
 	case "exec.uid":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.UID"}
@@ -13427,6 +13559,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.UID = uint32(v)
 		return nil
 	case "exec.user":
+		if e.Exec.Process != nil {
+			e.Exec.Process = &model.Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.User"}

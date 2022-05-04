@@ -618,16 +618,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.ProcessCacheEntry); err != nil {
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 			log.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 
-		// copy some of the field from the entry
-		// TODO(safchain) avoid this copy
-		event.Exec.Process = event.ProcessCacheEntry.Process
-		event.Exec.FileEvent = event.ProcessCacheEntry.Process.FileEvent
+		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
 		// nothing to do here
 	case model.SetuidEventType:
