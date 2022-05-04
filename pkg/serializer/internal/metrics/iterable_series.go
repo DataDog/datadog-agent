@@ -22,7 +22,7 @@ import (
 
 // IterableSeries is a serializer for metrics.IterableSeries
 type IterableSeries struct {
-	*metrics.IterableSeries
+	metrics.SerieSource
 }
 
 // WriteHeader writes the payload header for this type

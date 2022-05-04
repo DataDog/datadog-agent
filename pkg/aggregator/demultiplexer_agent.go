@@ -393,52 +393,47 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
-	var seriesSink *metrics.IterableSeries
-	var done chan struct{}
+	metrics.StartIteration(
+		createIterableSeries(d.aggregator.flushAndSerializeInParallel, logPayloads),
+		func(seriesSink metrics.SerieSink) {
+			// flush DogStatsD pipelines (statsd/time samplers)
+			// ------------------------------------------------
 
-	seriesSink, done = startSendingIterableSeries(
-		d.sharedSerializer,
-		d.aggregator.flushAndSerializeInParallel,
-		logPayloads,
-		start)
+			for _, worker := range d.statsd.workers {
+				// order the flush to the time sampler, and wait, in a different routine
+				t := flushTrigger{
+					trigger: trigger{
+						time:      start,
+						blockChan: make(chan struct{}),
+					},
+					flushedSketches: &flushedSketches,
+					seriesSink:      seriesSink,
+				}
 
-	// flush DogStatsD pipelines (statsd/time samplers)
-	// ------------------------------------------------
+				worker.flushChan <- t
+				<-t.trigger.blockChan
+			}
 
-	for _, worker := range d.statsd.workers {
-		// order the flush to the time sampler, and wait, in a different routine
-		t := flushTrigger{
-			trigger: trigger{
-				time:      start,
-				blockChan: make(chan struct{}),
-			},
-			flushedSketches: &flushedSketches,
-			seriesSink:      seriesSink,
-		}
+			// flush the aggregator (check samplers)
+			// -------------------------------------
 
-		worker.flushChan <- t
-		<-t.trigger.blockChan
-	}
+			if d.aggregator != nil {
+				t := flushTrigger{
+					trigger: trigger{
+						time:              start,
+						blockChan:         make(chan struct{}),
+						waitForSerializer: waitForSerializer,
+					},
+					flushedSketches: &flushedSketches,
+					seriesSink:      seriesSink,
+				}
 
-	// flush the aggregator (check samplers)
-	// -------------------------------------
-
-	if d.aggregator != nil {
-		t := flushTrigger{
-			trigger: trigger{
-				time:              start,
-				blockChan:         make(chan struct{}),
-				waitForSerializer: waitForSerializer,
-			},
-			flushedSketches: &flushedSketches,
-			seriesSink:      seriesSink,
-		}
-
-		d.aggregator.flushChan <- t
-		<-t.trigger.blockChan
-	}
-
-	stopIterableSeries(seriesSink, done)
+				d.aggregator.flushChan <- t
+				<-t.trigger.blockChan
+			}
+		}, func(serieSource metrics.SerieSource) {
+			sendIterableSeries(d.sharedSerializer, start, serieSource)
+		})
 
 	// collect the series and sketches that the multiple samplers may have reported
 	// ------------------------------------------------------

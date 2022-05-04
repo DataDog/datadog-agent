@@ -15,21 +15,19 @@ import (
 )
 
 func TestIterableSeries(t *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 10, 1)
-	done := make(chan struct{})
 	var names []string
-	go func() {
-		defer iterableSeries.IterationStopped()
-		for iterableSeries.MoveNext() {
-			names = append(names, iterableSeries.Current().Name)
-		}
-		close(done)
-	}()
-	iterableSeries.Append(&Serie{Name: "serie1"})
-	iterableSeries.Append(&Serie{Name: "serie2"})
-	iterableSeries.Append(&Serie{Name: "serie3"})
-	iterableSeries.SenderStopped()
-	<-done
+	StartIteration(
+		NewIterableSeries(func(*Serie) {}, 10, 1),
+		func(serieSink SerieSink) {
+			serieSink.Append(&Serie{Name: "serie1"})
+			serieSink.Append(&Serie{Name: "serie2"})
+			serieSink.Append(&Serie{Name: "serie3"})
+		}, func(serieSource SerieSource) {
+			for serieSource.MoveNext() {
+				names = append(names, serieSource.Current().Name)
+			}
+		})
+
 	r := require.New(t)
 	r.Len(names, 3)
 	r.True(strings.Contains(names[0], "serie1"))
@@ -83,24 +81,22 @@ func BenchmarkIterableSeries(b *testing.B) {
 }
 
 func TestIterableSeriesSeveralValues(t *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 10, 2)
-	done := make(chan struct{})
 	var series []*Serie
-	go func() {
-		defer iterableSeries.IterationStopped()
-		for iterableSeries.MoveNext() {
-			series = append(series, iterableSeries.Current())
-		}
-		close(done)
-	}()
 	var expected []string
-	for i := 0; i < 101; i++ {
-		name := "serie" + strconv.Itoa(i)
-		expected = append(expected, name)
-		iterableSeries.Append(&Serie{Name: name})
-	}
-	iterableSeries.SenderStopped()
-	<-done
+	StartIteration(
+		NewIterableSeries(func(*Serie) {}, 10, 2),
+		func(serieSink SerieSink) {
+			for i := 0; i < 101; i++ {
+				name := "serie" + strconv.Itoa(i)
+				expected = append(expected, name)
+				serieSink.Append(&Serie{Name: name})
+			}
+		}, func(serieSource SerieSource) {
+			for serieSource.MoveNext() {
+				series = append(series, serieSource.Current())
+			}
+		})
+
 	r := require.New(t)
 	r.Len(series, len(expected))
 	for i, v := range expected {

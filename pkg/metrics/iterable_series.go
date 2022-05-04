@@ -99,3 +99,26 @@ func (series *IterableSeries) MoveNext() bool {
 func (series *IterableSeries) Current() *Serie {
 	return series.current
 }
+
+// SerieSource is a source of series used by the serializer.
+type SerieSource interface {
+	MoveNext() bool
+	Current() *Serie
+	SeriesCount() uint64
+}
+
+// StartIteration starts the iteration over an iterableSeries.
+// `sink` callback is responsible for adding the data. It runs in the current goroutine.
+// `source` callback is responsible for consuming the data. It runs in its OWN goroutine.
+// This function returns when both `sink`` and `source` functions are finished.
+func StartIteration(iterableSeries *IterableSeries, sink func(SerieSink), source func(SerieSource)) {
+	done := make(chan struct{})
+	go func() {
+		source(iterableSeries)
+		iterableSeries.IterationStopped()
+		close(done)
+	}()
+	sink(iterableSeries)
+	iterableSeries.SenderStopped()
+	<-done
+}

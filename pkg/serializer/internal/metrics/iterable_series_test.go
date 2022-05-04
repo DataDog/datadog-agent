@@ -15,9 +15,10 @@ import (
 
 func TestIterableSeriesEmptyMarshalJSON(t *testing.T) {
 	r := require.New(t)
-	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 10, 2)}
-	iterableSeries.SenderStopped()
-	bytes, err := iterableSeries.MarshalJSON()
+	iterableSerie := metrics.NewIterableSeries(func(*metrics.Serie) {}, 10, 2)
+	iterableSeriesSerializer := IterableSeries{SerieSource: iterableSerie}
+	iterableSerie.SenderStopped()
+	bytes, err := iterableSeriesSerializer.MarshalJSON()
 	r.NoError(err)
 	r.Equal(`{"series":[]}`, strings.TrimSpace(string(bytes)))
 }

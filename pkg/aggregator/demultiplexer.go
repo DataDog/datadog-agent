@@ -129,40 +129,29 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 	}
 }
 
-func startSendingIterableSeries(
-	serializer serializer.MetricSerializer,
+func createIterableSeries(
 	flushAndSerializeInParallel FlushAndSerializeInParallel,
 	logPayloads bool,
-	start time.Time) (*metrics.IterableSeries, chan struct{}) {
-	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {
+) *metrics.IterableSeries {
+	return metrics.NewIterableSeries(func(se *metrics.Serie) {
 		if logPayloads {
 			log.Debugf("Flushing serie: %s", se)
 		}
 		tagsetTlm.updateHugeSerieTelemetry(se)
 	}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
-	done := make(chan struct{})
-	go sendIterableSeries(serializer, start, seriesSink, done)
-	return seriesSink, done
-}
-
-func stopIterableSeries(seriesSink *metrics.IterableSeries, done chan struct{}) {
-	seriesSink.SenderStopped()
-	<-done
 }
 
 // sendIterableSeries is continuously sending series to the serializer, until another routine calls SenderStopped on the
 // series sink.
 // Mainly meant to be executed in its own routine, sendIterableSeries is closing the `done` channel once it has returned
 // from SendIterableSeries (because the SenderStopped methods has been called on the sink).
-func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time, series *metrics.IterableSeries, done chan<- struct{}) {
+func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time, serieSource metrics.SerieSource) {
 	log.Debug("Demultiplexer: sendIterableSeries: start sending iterable series to the serializer")
-	err := serializer.SendIterableSeries(series)
+	err := serializer.SendIterableSeries(serieSource)
 	// if err == nil, SenderStopped was called and it is safe to read the number of series.
-	count := series.SeriesCount()
-	series.IterationStopped()
+	count := serieSource.SeriesCount()
 	addFlushCount("Series", int64(count))
 	updateSerieTelemetry(start, count, err)
-	close(done)
 	log.Debug("Demultiplexer: sendIterableSeries: stop routine")
 }
 
