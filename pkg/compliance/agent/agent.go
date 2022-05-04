@@ -35,12 +35,13 @@ type Scheduler interface {
 
 // Agent defines Compliance Agent
 type Agent struct {
-	builder   checks.Builder
-	scheduler Scheduler
-	telemetry *telemetry
-	configDir string
-	endpoints *config.Endpoints
-	cancel    context.CancelFunc
+	builder     checks.Builder
+	scheduler   Scheduler
+	telemetry   *telemetry
+	startWMOnce sync.Once
+	configDir   string
+	endpoints   *config.Endpoints
+	cancel      context.CancelFunc
 }
 
 // New creates a new instance of Agent
@@ -141,10 +142,8 @@ func (a *Agent) Run() error {
 	return a.buildChecks(onCheck)
 }
 
-var startWMOnce sync.Once
-
 func (a *Agent) startWorkloadMeta(ctx context.Context) {
-	startWMOnce.Do(func() {
+	a.startWMOnce.Do(func() {
 		store := workloadmeta.GetGlobalStore()
 		store.Start(ctx)
 	})
