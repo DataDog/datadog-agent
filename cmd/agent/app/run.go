@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -405,18 +404,6 @@ func StartAgent() error {
 		}
 	}
 
-	// start logs-agent
-	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
-		if config.Datadog.GetBool("log_enabled") {
-			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
-		}
-		if _, err := logs.Start(func() *autodiscovery.AutoConfig { return common.AC }); err != nil {
-			log.Error("Could not start logs-agent: ", err)
-		}
-	} else {
-		log.Info("logs-agent disabled")
-	}
-
 	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
 		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
@@ -429,6 +416,20 @@ func StartAgent() error {
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
+	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents) and
+	// before AutoConfig is started (va common.StartAutoConfig).
+	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
+		if config.Datadog.GetBool("log_enabled") {
+			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
+		}
+		if _, err := logs.Start(common.AC); err != nil {
+			log.Error("Could not start logs-agent: ", err)
+		}
+	} else {
+		log.Info("logs-agent disabled")
+	}
+
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 

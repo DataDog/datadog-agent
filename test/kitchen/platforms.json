@@ -111,8 +111,8 @@
                 "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.2114.2108051826",
                 "win1903": "urn,MicrosoftWindowsServer:WindowsServer:Datacenter-Core-1903-with-Containers-smalldisk:18362.1256.2012032308",
                 "win1909": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-1909-with-containers-smalldisk:18363.1316.2101130054",
-                "win2004": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-2004-with-containers-smalldisk:19041.746.2101092327",
-                "win20h2": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-20h2-with-containers-smalldisk:19042.746.2101092352",
+                "win2004": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-2004-with-containers-smalldisk:19041.1415.2112101053",
+                "win20h2": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-20h2-with-containers-smalldisk:19042.1645.220403",
                 "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:20348.169.2108120020"
             }
         },

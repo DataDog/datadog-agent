@@ -11,7 +11,7 @@ package apiserver
 import (
 	"regexp"
 
-	klog "k8s.io/klog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var supressedWarning = regexp.MustCompile(`.*is deprecated in v.*`)
@@ -19,11 +19,10 @@ var supressedWarning = regexp.MustCompile(`.*is deprecated in v.*`)
 type CustomWarningLogger struct{}
 
 // HandleWarningHeader suppresses some warning logs
-// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 func (CustomWarningLogger) HandleWarningHeader(code int, agent string, message string) {
 	if code != 299 || len(message) == 0 || supressedWarning.MatchString(message) {
 		return
 	}
 
-	klog.Warning(message)
+	log.Warn(message)
 }
