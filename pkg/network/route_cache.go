@@ -187,7 +187,7 @@ func (n *netlinkRouter) GetStats() map[string]interface{} {
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
-	var iifName string
+	var iifIndex int
 
 	srcBuf := util.IPBufferPool.Get().(*[]byte)
 	dstBuf := util.IPBufferPool.Get().(*[]byte)
@@ -202,14 +202,10 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		// a container most likely, and so need to find out
 		// which interface is associated with the ns
 
-		// get input interface for src ip
-		ifi := n.getInterface(source, srcIP, netns)
-		if ifi == nil {
+		// get input interface name for src ip
+		iifIndex = n.getInterfaceIndex(source, srcIP, netns)
+		if iifIndex == 0 {
 			return Route{}, false
-		}
-
-		if ifi.Flags&net.FlagLoopback == 0 {
-			iifName = ifi.Name
 		}
 	}
 
@@ -218,8 +214,8 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	routes, err := netlink.RouteGetWithOptions(
 		dstIP,
 		&netlink.RouteGetOptions{
-			SrcAddr: srcIP,
-			Iif:     iifName,
+			SrcAddr:  srcIP,
+			IifIndex: iifIndex,
 		})
 
 	if err != nil {
@@ -241,12 +237,12 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	}, true
 }
 
-func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *net.Interface {
+func (n *netlinkRouter) getInterfaceIndex(srcAddress util.Address, srcIP net.IP, netns uint32) int {
 	atomic.AddUint64(&n.ifCacheLookups, 1)
 
 	key := ifkey{ip: srcAddress, netns: netns}
 	if entry, ok := n.ifcache.Get(key); ok {
-		return entry.(*net.Interface)
+		return entry.(int)
 	}
 	atomic.AddUint64(&n.ifCacheMisses, 1)
 
@@ -255,19 +251,14 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 	if err != nil {
 		atomic.AddUint64(&n.netlinkErrors, 1)
-		return nil
+		return 0
 	}
 	if len(routes) != 1 {
 		atomic.AddUint64(&n.netlinkMisses, 1)
-		return nil
+		return 0
 	}
 
-	ifi, err := net.InterfaceByIndex(routes[0].LinkIndex)
-	if err != nil {
-		return nil
-	}
-
-	n.ifcache.Add(key, ifi)
+	n.ifcache.Add(key, routes[0].LinkIndex)
 	atomic.AddUint64(&n.ifCacheSize, 1)
-	return ifi
+	return routes[0].LinkIndex
 }
