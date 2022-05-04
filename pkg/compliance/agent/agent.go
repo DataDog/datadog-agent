@@ -11,6 +11,7 @@ import (
 	"expvar"
 	"path"
 	"path/filepath"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var status = expvar.NewMap("compliance")
@@ -33,12 +35,13 @@ type Scheduler interface {
 
 // Agent defines Compliance Agent
 type Agent struct {
-	builder   checks.Builder
-	scheduler Scheduler
-	telemetry *telemetry
-	configDir string
-	endpoints *config.Endpoints
-	cancel    context.CancelFunc
+	builder     checks.Builder
+	scheduler   Scheduler
+	telemetry   *telemetry
+	startWMOnce sync.Once
+	configDir   string
+	endpoints   *config.Endpoints
+	cancel      context.CancelFunc
 }
 
 // New creates a new instance of Agent
@@ -109,6 +112,8 @@ func (a *Agent) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
 
+	a.startWorkloadMeta(ctx)
+
 	go a.telemetry.run(ctx)
 
 	a.scheduler.Run()
@@ -135,6 +140,13 @@ func (a *Agent) Run() error {
 		return true
 	}
 	return a.buildChecks(onCheck)
+}
+
+func (a *Agent) startWorkloadMeta(ctx context.Context) {
+	a.startWMOnce.Do(func() {
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
+	})
 }
 
 func runCheck(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
