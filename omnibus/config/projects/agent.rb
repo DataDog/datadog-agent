@@ -20,8 +20,8 @@ homepage 'http://www.datadoghq.com'
 
 if windows?
   INSTALL_DIR = 'C:/opt/datadog-agent/'
-  PYTHON_2_EMBEDDED_DIR = '#{INSTALL_DIR}/embedded2'
-  PYTHON_3_EMBEDDED_DIR = '#{INSTALL_DIR}/embedded3'
+  PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
+  PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
   INSTALL_DIR = '/opt/datadog-agent'
 end
