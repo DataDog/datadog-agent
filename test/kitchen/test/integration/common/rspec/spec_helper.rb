@@ -277,9 +277,7 @@ end
 def is_process_running?(pname)
   if os == :windows
     tasklist = `tasklist /fi \"ImageName eq #{pname}\" 2>&1`
-    if tasklist.include?(pname)
-      return true
-    end
+    return true if tasklist.include?(pname)
   else
     return true if system("pgrep -f #{pname}")
   end
@@ -400,15 +398,11 @@ shared_examples_for "an installed Agent" do
   wait_until_service_started get_service_name("datadog-agent")
 
   it 'has an example config file' do
-    if os != :windows
-      expect(File).to exist('/etc/datadog-agent/datadog.yaml.example')
-    end
+    expect(File).to exist('/etc/datadog-agent/datadog.yaml.example') if os != :windows
   end
 
   it 'has a datadog-agent binary in usr/bin' do
-    if os != :windows
-      expect(File).to exist('/usr/bin/datadog-agent')
-    end
+    expect(File).to exist('/usr/bin/datadog-agent') if os != :windows
   end
 
   # We retrieve the value defined in kitchen.yml because there is no simple way
@@ -434,40 +428,35 @@ shared_examples_for "an installed Agent" do
 
       # The upgrade file should only be present when doing an upgrade test.  Therefore,
       # check the file we're upgrading to, not the file we're upgrading from
-      if File.file?(msi_path_upgrade)
-        msi_path = msi_path_upgrade
-      end
+      msi_path = msi_path_upgrade if File.file?(msi_path_upgrade)
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
 
       program_files = safe_program_files
-      verify_signature_files = %W[
-        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe
-        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe
-        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe
-        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe
-        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-three.dll
-        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe
-        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe
-        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe
-        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll
-        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll
+      verify_signature_files = [
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-three.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
       ]
       libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-two.dll"
       if File.file?(libdatadog_agent_two)
-        verify_signature_files += %W[
-          #{libdatadog_agent_two}
-          #{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe
-          #{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe
-          #{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll
+        verify_signature_files += [
+          libdatadog_agent_two,
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll"
         ]
       end
       actually_signed_files = []
       verify_signature_files.each do |vf|
-        is_signed = is_file_signed(vf)
-        if is_signed
-          actually_signed_files << vf
-        end
+        actually_signed_files << vf if is_file_signed(vf)
       end
       expect(actually_signed_files).to contain_exactly(verify_signature_files)
     end
@@ -485,9 +474,7 @@ end
 
 shared_examples_for "a running Agent with no errors" do
   it 'has an agent binary' do
-    if os != :windows
-      expect(File).to exist('/usr/bin/datadog-agent')
-    end
+    expect(File).to exist('/usr/bin/datadog-agent') if os != :windows
   end
 
   it 'is running' do
@@ -560,9 +547,7 @@ shared_examples_for "a running Agent with APM manually disabled" do
 
     f = File.read(conf_path)
     confYaml = YAML.load(f)
-    if !confYaml.key("apm_config")
-      confYaml["apm_config"] = {}
-    end
+    confYaml["apm_config"] = {} if !confYaml.key("apm_config")
     confYaml["apm_config"]["enabled"] = false
     File.write(conf_path, confYaml.to_yaml)
 
@@ -585,9 +570,7 @@ end
 shared_examples_for 'an Agent that stops' do
   it 'stops' do
     output = stop "datadog-agent"
-    if os != :windows
-      expect(output).to be_truthy
-    end
+    expect(output).to be_truthy if os != :windows
     expect(is_flavor_running? "datadog-agent").to be_falsey
   end
 
@@ -605,33 +588,23 @@ shared_examples_for 'an Agent that stops' do
 
   it 'starts after being stopped' do
     output = start "datadog-agent"
-    if os != :windows
-      expect(output).to be_truthy
-    end
+    expect(output).to be_truthy if os != :windows
     expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
 
 shared_examples_for 'an Agent that restarts' do
   it 'restarts when the agent is running' do
-    if !is_flavor_running? "datadog-agent"
-      start "datadog-agent"
-    end
+    start "datadog-agent" if !is_flavor_running? "datadog-agent"
     output = restart "datadog-agent"
-    if os != :windows
-      expect(output).to be_truthy
-    end
+    expect(output).to be_truthy if os != :windows
     expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 
   it 'restarts when the agent is not running' do
-    if is_flavor_running? "datadog-agent"
-      stop "datadog-agent"
-    end
+    stop "datadog-agent" if is_flavor_running? "datadog-agent"
     output = restart "datadog-agent"
-    if os != :windows
-      expect(output).to be_truthy
-    end
+    expect(output).to be_truthy if os != :windows
     expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
@@ -656,9 +629,7 @@ shared_examples_for 'an Agent with python3 enabled' do
   it 'runs Python 3 after python_version is set to 3' do
     result = false
     python_version = fetch_python_version
-    if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
-      result = true
-    end
+    result = true if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
     expect(result).to be_truthy
   end
 
@@ -683,9 +654,7 @@ shared_examples_for 'an Agent with python3 enabled' do
     skip if info.include? "v7."
     result = false
     python_version = fetch_python_version
-    if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
-      result = true
-    end
+    result = true if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
     expect(result).to be_truthy
   end
 end
@@ -918,17 +887,13 @@ def equal_sddl?(left, right)
   right_array = right.split("D:")
 
   # compare the ownership & group.  Must be the same
-  if left_array[0] != right_array[0]
-    return false
-  end
+  return false if left_array[0] != right_array[0]
   left_dacl = left_array[1].scan(/(\([^)]*\))/)
   right_dacl = right_array[1].scan(/(\([^)]*\))/)
 
 
   # if they're different lengths, they're different
-  if left_dacl.length != right_dacl.length
-    return false
-  end
+  return false if left_dacl.length != right_dacl.length
 
   ## now need to break up the DACL list, because they may be listed in different
   ## orders... the order doesn't matter but the components should be the same.  So..
@@ -942,9 +907,7 @@ def equal_sddl?(left, right)
         break
       end
     end
-    if !found
-      return false
-    end
+    return false if !found
   end
   return false if right_dacl.length != 0
   true
@@ -967,9 +930,7 @@ end
 
 def check_has_security_right(data, k, name)
   right = data[k]
-  unless right
-    return false
-  end
+  return false unless right
   rights = right.split(",")
   rights.each do |r|
     return true if r == name
