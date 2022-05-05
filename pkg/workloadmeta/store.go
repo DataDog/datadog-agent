@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -52,6 +53,8 @@ type store struct {
 	collectors   map[string]Collector
 
 	eventCh chan []CollectorEvent
+
+	started *atomic.Bool
 }
 
 var _ Store = &store{}
@@ -74,11 +77,16 @@ func newStore(catalog map[string]collectorFactory) *store {
 		candidates: candidates,
 		collectors: make(map[string]Collector),
 		eventCh:    make(chan []CollectorEvent, eventChBufferSize),
+		started:    atomic.NewBool(false),
 	}
 }
 
 // Start starts the workload metadata store.
 func (s *store) Start(ctx context.Context) {
+	if s.started.Load() {
+		log.Warn("workloadmeta store started while already initialized")
+	}
+
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
@@ -152,12 +160,15 @@ func (s *store) Start(ctx context.Context) {
 	s.startCandidates(ctx)
 
 	log.Info("workloadmeta store initialized successfully")
+	s.started.Store(true)
 }
 
 // Subscribe returns a channel where workload metadata events will be streamed
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter.
 func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
+	s.checkIfStarted()
+
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
 	// unbuffered, it'll deadlock.
@@ -239,6 +250,8 @@ func (s *store) Unsubscribe(ch chan EventBundle) {
 
 // GetContainer implements Store#GetContainer.
 func (s *store) GetContainer(id string) (*Container, error) {
+	s.checkIfStarted()
+
 	entity, err := s.getEntityByKind(KindContainer, id)
 	if err != nil {
 		return nil, err
@@ -249,6 +262,8 @@ func (s *store) GetContainer(id string) (*Container, error) {
 
 // ListContainers implements Store#ListContainers.
 func (s *store) ListContainers() ([]*Container, error) {
+	s.checkIfStarted()
+
 	entities, err := s.listEntitiesByKind(KindContainer)
 	if err != nil {
 		return nil, err
@@ -265,6 +280,8 @@ func (s *store) ListContainers() ([]*Container, error) {
 
 // GetKubernetesPod implements Store#GetKubernetesPod
 func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
+	s.checkIfStarted()
+
 	entity, err := s.getEntityByKind(KindKubernetesPod, id)
 	if err != nil {
 		return nil, err
@@ -275,6 +292,8 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
+	s.checkIfStarted()
+
 	entities, ok := s.store[KindKubernetesPod]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
@@ -294,6 +313,8 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 
 // GetECSTask implements Store#GetECSTask
 func (s *store) GetECSTask(id string) (*ECSTask, error) {
+	s.checkIfStarted()
+
 	entity, err := s.getEntityByKind(KindECSTask, id)
 	if err != nil {
 		return nil, err
@@ -304,6 +325,8 @@ func (s *store) GetECSTask(id string) (*ECSTask, error) {
 
 // Notify implements Store#Notify
 func (s *store) Notify(events []CollectorEvent) {
+	s.checkIfStarted()
+
 	if len(events) > 0 {
 		s.eventCh <- events
 	}
@@ -523,6 +546,12 @@ func (s *store) unsubscribeAll() {
 	s.subscribers = nil
 
 	telemetry.Subscribers.Set(0)
+}
+
+func (s *store) checkIfStarted() {
+	if !s.started.Load() {
+		log.Error("workloadmeta store: request before start")
+	}
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
