@@ -12,13 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var freePort = getFreePort()
+
 func TestStartFailure(t *testing.T) {
 	/*
 		Start two servers with the same config to trigger an "address already in use" error.
 	*/
-	port := serverPort
 
-	config := Config{Port: port, CommunityStrings: []string{"public"}}
+	config := Config{Port: freePort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")

@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var serverPort = getFreePort()
+
 func TestListenV1GenericTrap(t *testing.T) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	Configure(t, config)

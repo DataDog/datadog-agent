@@ -66,7 +66,6 @@ var (
 		},
 	}
 )
-var serverPort = getFreePort()
 
 func getFreePort() uint16 {
 	var port uint16
