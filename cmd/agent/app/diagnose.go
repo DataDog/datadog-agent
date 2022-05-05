@@ -21,7 +21,13 @@ var (
 		Use:   "diagnose",
 		Short: "Execute some connectivity diagnosis on your system",
 		Long:  ``,
-		RunE:  doDiagnose,
+	}
+
+	diagnoseMetadataAvailabilityCommand = &cobra.Command{
+		Use:   "metadata-availability",
+		Short: "Execute some availability checks on cloud provider metadata endpoints",
+		Long:  ``,
+		RunE:  doDiagnoseMetadataAvailability,
 	}
 
 	diagnoseDatadogConnectivityCommand = &cobra.Command{
@@ -34,12 +40,13 @@ var (
 
 func init() {
 
+	diagnoseCommand.AddCommand(diagnoseMetadataAvailabilityCommand)
 	diagnoseCommand.AddCommand(diagnoseDatadogConnectivityCommand)
 
 	AgentCmd.AddCommand(diagnoseCommand)
 }
 
-func doDiagnose(cmd *cobra.Command, args []string) error {
+func doDiagnoseMetadataAvailability(cmd *cobra.Command, args []string) error {
 	// Global config setup
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
