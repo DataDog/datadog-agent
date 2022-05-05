@@ -18,6 +18,7 @@ func TestNewStringPair(t *testing.T) {
 	}{
 		{"test", "test", "", false},
 		{"test*", "test", "", true},
+		{"*test*", "", "test*", true},
 		{"a*b", "a", "b", true},
 		{"*", "", "", true},
 		{"", "", "", false},
@@ -37,6 +38,7 @@ func TestCommonPrefix(t *testing.T) {
 	}{
 		{"test", "tesh", "tes"},
 		{"test", "test", "test"},
+		{"test", "testab", "test"},
 		{"a", "b", ""},
 		{"", "test", ""},
 		{"test", "", ""},
@@ -78,6 +80,9 @@ func TestBuildGlob(t *testing.T) {
 	}{
 		{"prefixaasuffix", "prefixbbsuffix", "prefix*suffix", true},
 		{"test", "hello", "", false},
+		{"", "", "", false},
+		{"", "a", "", false},
+		{"b", "", "", false},
 	}
 
 	minLenMatch := 3
