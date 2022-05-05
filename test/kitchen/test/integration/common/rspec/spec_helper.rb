@@ -441,16 +441,35 @@ shared_examples_for "an installed Agent" do
       expect(is_signed).to be_truthy
 
       program_files = safe_program_files
-      verify_signature_files = [
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
+      verify_signature_files = %w[
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-three.dll"
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll"
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
       ]
+      libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-two.dll"
+      if File.file?(libdatadog_agent_two)
+        verify_signature_files << %w[
+          libdatadog_agent_two
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe"
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe"
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll"
+        ]
+      end
+      actually_signed_files = []
       verify_signature_files.each do |vf|
         is_signed = is_file_signed(vf)
-        expect(is_signed).to be_truthy
+        if is_signed
+          actually_signed_files << vf
+        end
       end
+      expect(actually_signed_files).to contain_exactly(verify_signature_files)
     end
   end
 end
