@@ -106,6 +106,86 @@ func TestParseProcessRoutes(t *testing.T) {
 	}
 }
 
+func TestParseProcessIPs(t *testing.T) {
+	dummyProcDir, err := testutil.NewTempFolder("test-process-ips")
+	assert.Nil(t, err)
+	defer dummyProcDir.RemoveAll() // clean up
+
+	tests := []struct {
+		name                      string
+		pid                       int
+		procNetFibTrieFileContent string
+		expectedIPs               []string
+	}{
+		{
+			name: "standard case",
+			pid:  123,
+			procNetFibTrieFileContent: `
+Main:
+  +-- 0.0.0.0/1 2 0 2
+     +-- 0.0.0.0/4 2 0 2
+        |-- 0.0.0.0
+           /0 universe UNICAST
+        +-- 10.4.0.0/24 2 1 2
+           |-- 10.4.0.0
+              /32 link BROADCAST
+              /24 link UNICAST
+           +-- 10.4.0.192/26 2 0 2
+              |-- 10.4.0.216
+                 /32 host LOCAL
+              |-- 10.4.0.255
+                 /32 link BROADCAST
+     +-- 127.0.0.0/8 2 0 2
+        +-- 127.0.0.0/31 1 0 0
+           |-- 127.0.0.0
+              /32 link BROADCAST
+              /8 host LOCAL
+           |-- 127.0.0.1
+              /32 host LOCAL
+        |-- 127.255.255.255
+           /32 link BROADCAST
+Local:
+  +-- 0.0.0.0/1 2 0 2
+     +-- 0.0.0.0/4 2 0 2
+        |-- 0.0.0.0
+           /0 universe UNICAST
+        +-- 10.4.0.0/24 2 1 2
+           |-- 10.4.0.0
+              /32 link BROADCAST
+              /24 link UNICAST
+           +-- 10.4.0.192/26 2 0 2
+              |-- 10.4.0.216
+                 /32 host LOCAL
+              |-- 10.4.0.255
+                 /32 link BROADCAST
+     +-- 127.0.0.0/8 2 0 2
+        +-- 127.0.0.0/31 1 0 0
+           |-- 127.0.0.0
+              /32 link BROADCAST
+              /8 host LOCAL
+           |-- 127.0.0.1
+              /32 host LOCAL
+        |-- 127.255.255.255
+           /32 link BROADCAST
+`,
+			expectedIPs: []string{"10.4.0.216", "127.0.0.1"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create temporary "fib_trie" file on disk
+			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(test.pid), "net", "fib_trie"), test.procNetFibTrieFileContent)
+			assert.NoError(t, err)
+
+			resultIPs, err := ParseProcessIPs(dummyProcDir.RootPath, test.pid)
+
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, test.expectedIPs, resultIPs)
+		})
+	}
+}
+
 // func TestDefaultGateway(t *testing.T) {
 // 	testCases := []struct {
 // 		netRouteContent []byte
