@@ -38,6 +38,9 @@ func TestFormatHTTPStats(t *testing.T) {
 	for i := range httpStats1 {
 		httpStats1[i].Count = 1
 		httpStats1[i].FirstLatencySample = 10
+		if i < len(httpStats1)/2 {
+			httpStats1[i].Tags = (1 << i)
+		}
 	}
 
 	httpKey2 := httpKey1
@@ -46,6 +49,9 @@ func TestFormatHTTPStats(t *testing.T) {
 	for i := range httpStats2 {
 		httpStats2[i].Count = 1
 		httpStats2[i].FirstLatencySample = 20
+		if i >= len(httpStats1)/2 {
+			httpStats2[i].Tags = (1 << i)
+		}
 	}
 
 	in := &network.Connections{
@@ -92,17 +98,22 @@ func TestFormatHTTPStats(t *testing.T) {
 	}
 
 	httpEncoder := newHTTPEncoder(in)
-	aggregations := httpEncoder.GetHTTPAggregations(in.Conns[0])
+	aggregations, tags := httpEncoder.GetHTTPAggregationsAndTags(in.Conns[0])
 	require.NotNil(t, aggregations)
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations.EndpointAggregations)
+
+	// http.NumStatusClasses is the number of http class bucket of http.RequestStats
+	// For this test we spread the bits (one per RequestStats) and httpStats1,2
+	// and we test if all the bits has been aggregated together
+	assert.Equal(t, uint64((1<<(http.NumStatusClasses))-1), tags)
 }
 
 func TestFormatHTTPStatsByPath(t *testing.T) {
 	var httpReqStats http.RequestStats
-	httpReqStats.AddRequest(100, 12.5)
-	httpReqStats.AddRequest(100, 12.5)
-	httpReqStats.AddRequest(405, 3.5)
-	httpReqStats.AddRequest(405, 3.5)
+	httpReqStats.AddRequest(100, 12.5, 0)
+	httpReqStats.AddRequest(100, 12.5, tagGnuTLS)
+	httpReqStats.AddRequest(405, 3.5, tagOpenSSL)
+	httpReqStats.AddRequest(405, 3.5, 0)
 
 	// Verify the latency data is correct prior to serialization
 	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
@@ -138,13 +149,15 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 		},
 	}
 	httpEncoder := newHTTPEncoder(payload)
-	httpAggregations := httpEncoder.GetHTTPAggregations(payload.Conns[0])
+	httpAggregations, tags := httpEncoder.GetHTTPAggregationsAndTags(payload.Conns[0])
 
 	require.NotNil(t, httpAggregations)
 	endpointAggregations := httpAggregations.EndpointAggregations
 	require.Len(t, endpointAggregations, 1)
 	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
 	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
+
+	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
 
 	// Deserialize the encoded latency information & confirm it is correct
 	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus

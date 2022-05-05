@@ -134,6 +134,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	}
 	return out
 }
+
 func TestSerialization(t *testing.T) {
 	var httpReqStats http.RequestStats
 	in := &network.Connections{
