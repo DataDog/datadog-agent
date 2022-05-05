@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.35.2:
 
-7.35.2
+7.35.2 / 6.35.2
 ======
 
 .. _Release Notes_7.35.2_Prelude:
