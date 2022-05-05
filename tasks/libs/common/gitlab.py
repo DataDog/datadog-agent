@@ -266,6 +266,9 @@ class Gitlab(RemoteAPI):
         except APIError as e:
             # If Gitlab API returns a "404 not found" error we return an empty dict
             if e.status_code == 404:
+                print(
+                    f"Couldn't find the {tag_name} tag: Gitlab returned a 404 Not Found instead of a 200 empty response."
+                )
                 return dict()
             else:
                 raise e
