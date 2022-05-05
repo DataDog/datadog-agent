@@ -77,20 +77,20 @@ func TestGetStats(t *testing.T) {
 	tr.GetActiveConnections("-1")
 	linuxExpected := map[string]interface{}{}
 	err = json.Unmarshal([]byte(`{
-	  "conntrack": {
-		"enobufs": 0,
-		"evicts_total": 0,
-		"gets_total": 9,
-		"msg_errors": 0,
-		"orphan_size": 0,
-		"read_errors": 0,
-		"registers_dropped": 2,
-		"registers_total": 0,
-		"sampling_pct": 100,
-		"state_size": 0,
-		"throttles": 0,
-		"unregisters_total": 0
-		},
+      "conntrack": {
+        "enobufs": 0,
+        "evicts_total": 0,
+        "gets_total": 9,
+        "msg_errors": 0,
+        "orphan_size": 0,
+        "read_errors": 0,
+        "registers_dropped": 2,
+        "registers_total": 0,
+        "sampling_pct": 100,
+        "state_size": 0,
+        "throttles": 0,
+        "unregisters_total": 0
+      },
       "dns": {
         "added": 0,
         "decoding_errors": 583,
