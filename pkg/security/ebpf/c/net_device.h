@@ -53,7 +53,7 @@ struct bpf_map_def SEC("maps/veth_state_machine") veth_state_machine = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u64),
     .value_size = sizeof(struct veth_state_t),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -62,7 +62,7 @@ struct bpf_map_def SEC("maps/veth_devices") veth_devices = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct device_ifindex_t),
     .value_size = sizeof(struct device_t),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -71,7 +71,7 @@ struct bpf_map_def SEC("maps/veth_device_name_to_ifindex") veth_device_name_to_i
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct device_name_t),
     .value_size = sizeof(struct device_ifindex_t),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -85,7 +85,7 @@ struct bpf_map_def SEC("maps/register_netdevice_cache") register_netdevice_cache
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(u64),
     .value_size = sizeof(struct register_netdevice_cache_t),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -94,7 +94,7 @@ struct bpf_map_def SEC("maps/netdevice_lookup_cache") netdevice_lookup_cache = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(u64),
     .value_size = sizeof(struct device_ifindex_t),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };

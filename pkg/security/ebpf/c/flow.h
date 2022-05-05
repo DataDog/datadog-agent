@@ -14,7 +14,7 @@ struct bpf_map_def SEC("maps/flow_pid") flow_pid = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct pid_route_t),
     .value_size = sizeof(u32),
-    .max_entries = 10240,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -194,7 +194,7 @@ struct bpf_map_def SEC("maps/conntrack") conntrack = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct namespaced_flow_t),
     .value_size = sizeof(struct namespaced_flow_t),
-    .max_entries = 4096,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };

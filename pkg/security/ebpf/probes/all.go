@@ -20,7 +20,7 @@ const (
 	maxPathnamesEntries = 96000
 
 	minProcEntries = 4096
-	maxProcEntries = 16384
+	maxProcEntries = 131072
 )
 
 // allProbes contain the list of all the probes of the runtime security module
@@ -141,13 +141,14 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps bool) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, networkEnabled, supportMmapableMaps bool) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
 		tracedCgroupsCount = MaxTracedCgroupsCount
 	}
 	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
 		cgroupWaitListSize = MaxTracedCgroupsCount
 	}
+
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
@@ -170,6 +171,38 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+
+	if networkEnabled {
+		editors["netns_cache"] = manager.MapSpecEditor{
+			MaxEntries: 1024,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["conntrack"] = manager.MapSpecEditor{
+			MaxEntries: 4096,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["veth_state_machine"] = manager.MapSpecEditor{
+			MaxEntries: 1024,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["veth_devices"] = manager.MapSpecEditor{
+			MaxEntries: 1024,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["veth_device_name_to_ifindex"] = manager.MapSpecEditor{
+			MaxEntries: 1024,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["register_netdevice_cache"] = manager.MapSpecEditor{
+			MaxEntries: 1024,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["netdevice_lookup_cache"] = manager.MapSpecEditor{
+			MaxEntries: 1024,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
 	if supportMmapableMaps {
 		editors["dr_erpc_buffer"] = manager.MapSpecEditor{
 			Flags:      unix.BPF_F_MMAPABLE,
