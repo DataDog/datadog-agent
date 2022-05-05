@@ -41,7 +41,7 @@ type Endpoint struct {
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
-	IsReliable              bool `mapstructure:"is_reliable" json:"is_reliable"`
+	IsReliable              *bool `mapstructure:"is_reliable" json:"is_reliable"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -158,7 +158,7 @@ func NewEndpointsWithBatchSettings(main Endpoint,
 func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if endpoint.IsReliable {
+		if *endpoint.IsReliable {
 			endpoints = append(endpoints, endpoint)
 		}
 	}
@@ -169,7 +169,7 @@ func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 func (e *Endpoints) GetUnReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if !endpoint.IsReliable {
+		if !*endpoint.IsReliable {
 			endpoints = append(endpoints, endpoint)
 		}
 	}
