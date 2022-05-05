@@ -68,7 +68,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetStats(t *testing.T) {
-	dnsSupported := dnsSupported(t)
 	httpSupported := httpSupported(t)
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -186,9 +185,6 @@ func TestGetStats(t *testing.T) {
 	actual, _ := tr.GetStats()
 
 	for section, entries := range expected {
-		if section == "dns" && !dnsSupported {
-			continue
-		}
 		if section == "http" && !httpSupported {
 			// HTTP stats not supported on some systems
 			continue
