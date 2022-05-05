@@ -463,7 +463,8 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     event.process.tid = pid;
 
     // ignore kthreads
-    if (IS_KTHREAD(ppid, pid)) {
+    if (is_kthread(ppid)) {
+        add_kthread(pid);
         return 0;
     }
 
@@ -514,7 +515,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
 
             // ignore kthreads
-            if (IS_KTHREAD(pid_entry->ppid, pid)) {
+            if (is_kthread(pid)) {
                 return 0;
             }
         }

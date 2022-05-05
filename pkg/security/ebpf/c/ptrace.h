@@ -55,6 +55,10 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
+    if (is_kthread(event.process.pid)) {
+        return 0;
+    }
+
     send_event(ctx, EVENT_PTRACE, event);
     return 0;
 }

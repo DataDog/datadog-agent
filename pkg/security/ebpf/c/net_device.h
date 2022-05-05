@@ -241,6 +241,10 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
         fill_container_context(entry, &evt.container);
         fill_span_context(&evt.span);
 
+        if (is_kthread(evt.process.pid)) {
+            return 0;
+        }
+
         send_event(ctx, EVENT_NET_DEVICE, evt);
         return 0;
     }
@@ -290,6 +294,10 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
                 fill_container_context(proc_entry, &evt.container);
                 fill_span_context(&evt.span);
 
+                if (is_kthread(evt.process.pid)) {
+                    return 0;
+                }
+
                 send_event(ctx, EVENT_VETH_PAIR, evt);
             }
             break;
@@ -336,6 +344,10 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs
     struct proc_cache_t *entry = fill_process_context(&evt.process);
     fill_container_context(entry, &evt.container);
     fill_span_context(&evt.span);
+
+    if (is_kthread(evt.process.pid)) {
+        return 0;
+    }
 
     send_event(ctx, EVENT_VETH_PAIR, evt);
     return 0;

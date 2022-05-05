@@ -66,6 +66,11 @@ int kretprobe_check_kill_permission(struct pt_regs* ctx) {
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
+
+    if (is_kthread(event.process.pid)) {
+        return 0;
+    }
+
     send_event(ctx, EVENT_SIGNAL, event);
     return 0;
 }

@@ -187,6 +187,10 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
+    if (is_kthread(evt->process.pid)) {
+        return 0;
+    }
+
     // send DNS event
     send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + (qname_length & (DNS_MAX_LENGTH - 1)));
 

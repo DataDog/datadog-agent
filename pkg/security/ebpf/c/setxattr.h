@@ -160,6 +160,10 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
     fill_file_metadata(syscall->xattr.dentry, &event.file.metadata);
     fill_span_context(&event.span);
 
+    if (is_kthread(event.process.pid)) {
+        return 0;
+    }
+
     send_event(ctx, event_type, event);
 
     return 0;

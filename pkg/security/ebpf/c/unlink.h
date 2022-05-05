@@ -124,6 +124,10 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
             fill_container_context(entry, &event.container);
             fill_span_context(&event.span);
 
+            if (is_kthread(event.process.pid)) {
+                return 0;
+            }
+
             send_event(ctx, EVENT_RMDIR, event);
         } else {
             struct unlink_event_t event = {
@@ -135,6 +139,10 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
             fill_span_context(&event.span);
+
+            if (is_kthread(event.process.pid)) {
+                return 0;
+            }
 
             send_event(ctx, EVENT_UNLINK, event);
         }

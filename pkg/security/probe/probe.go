@@ -603,7 +603,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		if IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
+		if utils.IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
 			return
 		}
 
@@ -740,7 +740,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		event.ResolveProcessCacheEntry()
 		event.ProcessContext = event.processCacheEntry.ProcessContext
 	} else {
-		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+		if utils.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 			return
 		}
 

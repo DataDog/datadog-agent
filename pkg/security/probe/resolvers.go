@@ -260,7 +260,7 @@ func (r *Resolvers) snapshot() error {
 			continue
 		}
 
-		if IsKThread(uint32(ppid), uint32(proc.Pid)) {
+		if utils.IsKThread(uint32(ppid), uint32(proc.Pid)) {
 			continue
 		}
 

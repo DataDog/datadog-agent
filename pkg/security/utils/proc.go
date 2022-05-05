@@ -167,11 +167,21 @@ func GetProcesses() ([]*process.Process, error) {
 	return processes, nil
 }
 
+// IsKThread returns whether given pids are from kthreads
+func IsKThread(ppid, pid uint32) bool {
+	return ppid == 2 || pid == 2
+}
+
 // GetFilledProcess returns a FilledProcess from a Process input
 // TODO: make a PR to export a similar function in Datadog/gopsutil. We only populate the fields we need for now.
 func GetFilledProcess(p *process.Process) *process.FilledProcess {
 	ppid, err := p.Ppid()
 	if err != nil {
+		return nil
+	}
+
+	// ignore kthreads
+	if IsKThread(uint32(ppid), uint32(p.Pid)) {
 		return nil
 	}
 

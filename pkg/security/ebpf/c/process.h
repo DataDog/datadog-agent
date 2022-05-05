@@ -95,6 +95,24 @@ struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/kthread_cache") kthread_cache = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 4096,
+    .pinning = 0,
+    .namespace = "",
+};
+
+void __attribute__((always_inline)) add_kthread(u32 pid) {
+    u32 value = 1;
+    bpf_map_update_elem(&kthread_cache, &pid, &value, BPF_ANY);
+}
+
+int __attribute__((always_inline)) is_kthread(u32 pid) {
+    return pid == 2 || bpf_map_lookup_elem(&kthread_cache, &pid) != NULL;
+}
+
 // defined in exec.h
 struct proc_cache_t *get_proc_from_cookie(u32 cookie);
 

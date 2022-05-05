@@ -142,6 +142,10 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
+    if (is_kthread(event.process.pid)) {
+        return 0;
+    }
+
     send_event(ctx, EVENT_MMAP, event);
     return 0;
 }

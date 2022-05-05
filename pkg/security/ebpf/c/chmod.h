@@ -72,6 +72,10 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
 
     // dentry resolution in setattr.h
 
+    if (is_kthread(event.process.pid)) {
+        return 0;
+    }
+
     send_event(ctx, EVENT_CHMOD, event);
 
     return 0;

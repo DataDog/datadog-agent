@@ -89,6 +89,10 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
 
     // dentry resolution in setattr.h
 
+    if (is_kthread(event.process.pid)) {
+        return 0;
+    }
+
     send_event(ctx, EVENT_CHOWN, event);
 
     return 0;
