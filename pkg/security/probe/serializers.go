@@ -675,7 +675,7 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 
 func newIPPortSerializer(c *model.IPPortContext) *IPPortSerializer {
 	return &IPPortSerializer{
-		IP:   c.IP.String(),
+		IP:   c.IPNet.IP.String(),
 		Port: c.Port,
 	}
 }

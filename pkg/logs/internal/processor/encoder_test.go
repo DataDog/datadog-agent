@@ -7,6 +7,7 @@ package processor
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
 
 	"strings"
@@ -51,9 +52,19 @@ func TestRawEncoder(t *testing.T) {
 	assert.Equal(t, "-", parts[4])
 	assert.Equal(t, "-", parts[5])
 	extra := content[strings.Index(content, "[") : strings.LastIndex(content, "]")+1]
-	assert.Equal(t, "[dd ddsource=\"Source\"][dd ddsourcecategory=\"SourceCategory\"][dd ddtags=\"foo:bar,baz,a,b:c\"]", extra)
+	assert.True(t, strings.HasPrefix(extra, "[dd ddsource=\"Source\"][dd ddsourcecategory=\"SourceCategory\"][dd ddtags=\""), "Payload did not have correct prefix", extra)
+	assertDDTags(t, []string{"foo:bar", "baz", "a", "b:c"}, extra)
 	assert.Equal(t, "redacted", content[strings.LastIndex(content, " ")+1:])
+}
 
+func assertDDTags(t *testing.T, expectedTags []string, ddtags string) {
+	if len(expectedTags) == 0 {
+		return
+	}
+	r, _ := regexp.Compile("ddtags=\"(.*)\"]")
+	submatch := r.FindStringSubmatch(ddtags)
+	assert.NotEmpty(t, submatch)
+	assert.ElementsMatch(t, expectedTags, strings.Split(submatch[1], ","))
 }
 
 func TestRawEncoderDefaults(t *testing.T) {
@@ -139,7 +150,7 @@ func TestProtoEncoder(t *testing.T) {
 
 	assert.Equal(t, logsConfig.Service, log.Service)
 	assert.Equal(t, logsConfig.Source, log.Source)
-	assert.Equal(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
+	assert.ElementsMatch(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
 
 	assert.Equal(t, redactedMessage, log.Message)
 	assert.Equal(t, message.StatusError, log.Status)
@@ -214,7 +225,8 @@ func TestJsonEncoder(t *testing.T) {
 
 	assert.Equal(t, logsConfig.Service, log.Service)
 	assert.Equal(t, logsConfig.Source, log.Source)
-	assert.Equal(t, "a,b:c,sourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
+	// Turning tags into an array as can't guarantee order of Tags
+	assert.ElementsMatch(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, strings.Split(log.Tags, ","))
 
 	assert.Equal(t, redactedMessage, log.Message)
 	assert.Equal(t, message.StatusError, log.Status)

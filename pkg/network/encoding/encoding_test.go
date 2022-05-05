@@ -21,7 +21,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
 )
 
 var originalConfig = config.Datadog
@@ -170,8 +169,8 @@ func TestSerialization(t *testing.T) {
 				},
 			},
 		},
-		DNS: map[util.Address][]string{
-			util.AddressFromString("172.217.12.145"): {"golang.org"},
+		DNS: map[util.Address][]dns.Hostname{
+			util.AddressFromString("172.217.12.145"): {dns.ToHostname("golang.org")},
 		},
 		DNSStats: dns.StatsByKeyByNameByType{
 			dns.Key{
@@ -179,8 +178,8 @@ func TestSerialization(t *testing.T) {
 				ServerIP:   util.AddressFromString("8.8.8.8"),
 				ClientPort: uint16(1000),
 				Protocol:   syscall.IPPROTO_UDP,
-			}: map[*intern.Value]map[dns.QueryType]dns.Stats{
-				intern.GetByString("foo.com"): {
+			}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+				dns.ToHostname("foo.com"): {
 					dns.TypeA: {
 						Timeouts:          0,
 						SuccessLatencySum: 0,

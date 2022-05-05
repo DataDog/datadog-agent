@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go4.org/intern"
 )
 
 // packetType tells us whether the packet is a query or a reply (successful/failed)
@@ -39,8 +38,8 @@ type dnsPacketInfo struct {
 	transactionID uint16
 	key           Key
 	pktType       packetType
-	rCode         uint8         // responseCode
-	question      *intern.Value // only relevant for query packets
+	rCode         uint8    // responseCode
+	question      Hostname // only relevant for query packets
 	queryType     QueryType
 }
 
@@ -51,7 +50,7 @@ type stateKey struct {
 
 type stateValue struct {
 	ts       uint64
-	question *intern.Value
+	question Hostname
 	qtype    QueryType
 }
 
@@ -130,7 +129,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	allStats, ok := d.stats[info.key]
 	if !ok {
-		allStats = make(map[*intern.Value]map[QueryType]Stats)
+		allStats = make(map[Hostname]map[QueryType]Stats)
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
@@ -193,7 +192,7 @@ func (d *dnsStatKeeper) Snapshot() StatsByKeyByNameByType {
 
 	snapshot := make(StatsByKeyByNameByType)
 	for key, statsByDomain := range d.stats {
-		snapshot[key] = make(map[*intern.Value]map[QueryType]Stats)
+		snapshot[key] = make(map[Hostname]map[QueryType]Stats)
 		for domain, statsByQType := range statsByDomain {
 			snapshot[key][domain] = make(map[QueryType]Stats)
 			for qtype, statsCopy := range statsByQType {
@@ -224,7 +223,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			// When we expire a state, we need to increment timeout count for that key:domain
 			allStats, ok := d.stats[k.key]
 			if !ok {
-				allStats = make(map[*intern.Value]map[QueryType]Stats)
+				allStats = make(map[Hostname]map[QueryType]Stats)
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {

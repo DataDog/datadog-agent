@@ -18,11 +18,10 @@ const (
 	// used in /lambda/start-invocation
 	SpanIDHeader = "x-datadog-span-id"
 
-	// SamplingPriorityHeader is the header contains the sampling priority
-	// used in /lambda/start-invocation
-	SamplingPriorityHeader = "x-datadog-sampling-priority"
-
 	// InvocationErrorHeader : if set to "true", the extension will know that the current invocation has failed
 	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
+
+	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
+	SamplingPriorityHeader = "x-datadog-sampling-priority"
 )

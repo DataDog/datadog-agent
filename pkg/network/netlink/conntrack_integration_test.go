@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
@@ -137,9 +136,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 
 	tcpLaddr := tcpConn.LocalAddr().(*net.TCPAddr)
 	c := &Con{
-		Con: ct.Con{
-			Origin: newIPTuple(tcpLaddr.IP.String(), destIP, uint16(tcpLaddr.Port), uint16(destPort), unix.IPPROTO_TCP),
-		},
+		Origin: newIPTuple(tcpLaddr.IP.String(), destIP, uint16(tcpLaddr.Port), uint16(destPort), unix.IPPROTO_TCP),
 	}
 
 	exists, err := rootck.Exists(c)
@@ -169,9 +166,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		{
 			desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
 			ns:     int(rootNs),
@@ -179,9 +174,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		{
 			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
 			c: Con{
-				Con: ct.Con{
-					Reply: newIPTuple("2.2.2.4", laddrIP, 80, uint16(laddrPort), ipProto),
-				},
+				Reply: newIPTuple("2.2.2.4", laddrIP, 80, uint16(laddrPort), ipProto),
 			},
 			exists: true,
 			ns:     int(rootNs),
@@ -189,9 +182,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		{
 			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
 			ns:     int(rootNs),
@@ -199,9 +190,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		{
 			desc: fmt.Sprintf("net ns %d, origin exists, proto %s", int(testNs), proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
 			ns:     int(testNs),
@@ -209,9 +198,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		{
 			desc: fmt.Sprintf("net ns %d, reply exists, proto %s", int(testNs), proto),
 			c: Con{
-				Con: ct.Con{
-					Reply: newIPTuple("2.2.2.4", laddrIP, 8080, uint16(laddrPort), ipProto),
-				},
+				Reply: newIPTuple("2.2.2.4", laddrIP, 8080, uint16(laddrPort), ipProto),
 			},
 			exists: true,
 			ns:     int(testNs),
@@ -219,9 +206,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		{
 			desc: fmt.Sprintf("net ns %d, origin does not exist, proto %s", int(testNs), proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
 			ns:     int(testNs),
@@ -264,9 +249,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		{
 			desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "fd00::2", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "fd00::2", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
 			ns:     int(rootNs),
@@ -274,9 +257,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		{
 			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
 			c: Con{
-				Con: ct.Con{
-					Reply: newIPTuple("fd00::2", laddrIP, 80, uint16(laddrPort), ipProto),
-				},
+				Reply: newIPTuple("fd00::2", laddrIP, 80, uint16(laddrPort), ipProto),
 			},
 			exists: true,
 			ns:     int(rootNs),
@@ -284,9 +265,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		{
 			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "fd00::1", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "fd00::1", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
 			ns:     int(rootNs),
@@ -294,9 +273,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		{
 			desc: fmt.Sprintf("net ns %d, origin exists, proto %s", int(testNs), proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "fd00::2", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "fd00::2", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
 			ns:     int(testNs),
@@ -304,9 +281,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		{
 			desc: fmt.Sprintf("net ns %d, reply exists, proto %s", int(testNs), proto),
 			c: Con{
-				Con: ct.Con{
-					Reply: newIPTuple("fd00::2", laddrIP, 8080, uint16(laddrPort), ipProto),
-				},
+				Reply: newIPTuple("fd00::2", laddrIP, 8080, uint16(laddrPort), ipProto),
 			},
 			exists: true,
 			ns:     int(testNs),
@@ -314,9 +289,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		{
 			desc: fmt.Sprintf("net ns %d, origin does not exist, proto %s", int(testNs), proto),
 			c: Con{
-				Con: ct.Con{
-					Origin: newIPTuple(laddrIP, "fd00::1", uint16(laddrPort), 80, ipProto),
-				},
+				Origin: newIPTuple(laddrIP, "fd00::1", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
 			ns:     int(testNs),

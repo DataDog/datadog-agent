@@ -433,7 +433,9 @@ def lint_teamassignment(_):
                 print(f"Team Assignment: {label}")
                 return
 
-        print(f"PR {pr_url} requires team assignment")
+        print(f"PR {pr_url} requires team assignment label (team/...); got labels:")
+        for label in labels:
+            print(f" {label}")
         raise Exit(code=1)
 
     # No PR is associated with this build: given that we have the "run only on PRs" setting activated,

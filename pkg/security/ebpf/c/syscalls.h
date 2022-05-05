@@ -45,6 +45,7 @@ struct syscall_cache_t {
             umode_t mode;
             struct dentry *dentry;
             struct file_t file;
+            u64 pid_tgid;
         } open;
 
         struct {

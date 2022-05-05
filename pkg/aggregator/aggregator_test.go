@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"sort"
 
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -260,7 +259,7 @@ func TestDefaultData(t *testing.T) {
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
-	assert.Equal(t, uint64(0), atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[0]))
+	assert.Equal(t, uint64(0), tagsetTlm.hugeSeriesCount[0].Load())
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
@@ -309,7 +308,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSeriesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
@@ -374,7 +373,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSketchesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]

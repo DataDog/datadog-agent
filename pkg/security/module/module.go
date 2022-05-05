@@ -108,7 +108,12 @@ func (m *Module) Init() error {
 	// start api server
 	m.apiServer.Start(m.ctx)
 
-	m.probe.SetEventHandler(m)
+	m.probe.AddEventHandler(model.UnknownEventType, m)
+
+	// initialize extra event monitors
+	if m.config.EventMonitoring {
+		InitEventMonitors(m)
+	}
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
@@ -242,6 +247,11 @@ func (m *Module) triggerReload() {
 
 // Reload the rule set
 func (m *Module) Reload() error {
+	// not enabled, do not reload rule
+	if !m.config.IsEnabled() {
+		return nil
+	}
+
 	m.Lock()
 	defer m.Unlock()
 
