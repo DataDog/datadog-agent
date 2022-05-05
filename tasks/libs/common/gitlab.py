@@ -264,8 +264,9 @@ class Gitlab(RemoteAPI):
             response = self.make_request(path, json_output=True)
             return response
         except APIError as e:
+            # If Gitlab API returns a "404 not found" error we return an empty dict
             if e.status_code == 404:
-                return []
+                return dict()
             else:
                 raise e
 
