@@ -75,9 +75,9 @@ type KeyTuple struct {
 
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
+	// this field order is intentional to help the GC pointer tracking
+	Path string
 	KeyTuple
-
-	Path   string
 	Method Method
 }
 
@@ -115,11 +115,12 @@ type RequestStats struct {
 
 // RequestStat stores stats for HTTP requests to a particular path
 type RequestStat struct {
-	// Note: every time we add a latency value to the DDSketch below, it's possible for the sketch to discard that value
+	// this field order is intentional to help the GC pointer tracking
+	Latencies *ddsketch.DDSketch
+	// Note: every time we add a latency value to the DDSketch, it's possible for the sketch to discard that value
 	// (ie if it is outside the range that is tracked by the sketch). For that reason, in order to keep an accurate count
 	// the number of http transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
-	Count     int
-	Latencies *ddsketch.DDSketch
+	Count int
 
 	// This field holds the value (in nanoseconds) of the first HTTP request
 	// in this bucket. We do this as optimization to avoid creating sketches with
