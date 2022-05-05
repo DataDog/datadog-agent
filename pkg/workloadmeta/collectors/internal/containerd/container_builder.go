@@ -9,14 +9,17 @@
 package containerd
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -58,6 +61,14 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		status = containerd.Unknown
 	}
 
+	networkIPs := make(map[string]string)
+	ip, err := extractIP(container, containerdClient)
+	if err != nil {
+		log.Debugf("cannot get IP of container %s", err)
+	} else {
+		networkIPs[""] = ip
+	}
+
 	// Some attributes in workloadmeta.Container cannot be fetched from
 	// containerd. I've marked those as "Not available".
 	return workloadmeta.Container{
@@ -80,7 +91,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
 			FinishedAt: time.Time{},    // Not available
 		},
-		NetworkIPs: make(map[string]string), // Not available
+		NetworkIPs: networkIPs,
 		Hostname:   spec.Hostname,
 		PID:        0, // Not available
 	}, nil
@@ -99,4 +110,41 @@ func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus
 	}
 
 	return workloadmeta.ContainerStatusUnknown
+}
+
+// extractIP gets the IP of a container.
+//
+// The containerd client does not expose the IPs, that's why we use the helpers
+// that we have in the "system" package to extract that information from
+// "/proc".
+//
+// A current limitation is that if a container exposes multiple IPs, this
+// function just returns one of them. That means that if a container is attached
+// to multiple networks this might not work as expected.
+func extractIP(container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
+	taskPids, err := containerdClient.TaskPids(container)
+	if err != nil {
+		return "", err
+	}
+
+	if len(taskPids) == 0 {
+		return "", errors.New("no PIDs found")
+	}
+
+	IPs, err := system.ParseProcessIPs(
+		config.Datadog.GetString("container_proc_root"),
+		int(taskPids[0].Pid), // Any PID of the container should work
+	)
+	if err != nil {
+		return "", err
+	}
+
+	// From all the IPs, just return the first one that's not localhost.
+	for _, IP := range IPs {
+		if IP != "127.0.0.1" {
+			return IP, nil
+		}
+	}
+
+	return "", errors.New("no IPs found")
 }

@@ -309,5 +309,8 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 		MockStatus: func(ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
+		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+			return nil, nil
+		},
 	}
 }
