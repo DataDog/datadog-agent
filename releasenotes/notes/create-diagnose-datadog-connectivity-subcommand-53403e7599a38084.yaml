@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    ``diagnose`` command has now subcommands. The original ``diagnose``
+    behavior was transfered to ``diagnose metadata-availability`` subcommand.
+features:
+  - |
+    The new ``diagnose datadog-connectivity`` subcommand allows you to
+    get information about the state of the connectivity between the Agent
+    and Datadog endpoints.
