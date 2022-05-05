@@ -260,7 +260,18 @@ class Gitlab(RemoteAPI):
         Look up a tag by its name.
         """
         path = f"/projects/{quote(self.project_name, safe='')}/repository/tags/{tag_name}"
-        return self.make_request(path, json_output=True)
+        try:
+            response = self.make_request(path, json_output=True)
+            return response
+        except APIError as e:
+            # If Gitlab API returns a "404 not found" error we return an empty dict
+            if e.status_code == 404:
+                print(
+                    f"Couldn't find the {tag_name} tag: Gitlab returned a 404 Not Found instead of a 200 empty response."
+                )
+                return dict()
+            else:
+                raise e
 
     def make_request(
         self, path, headers=None, data=None, json_input=False, json_output=False, stream_output=False, method=None

@@ -60,13 +60,13 @@ type PerfBufferMonitor struct {
 	statsMapsNameToPerfBufferMapName map[string]string
 
 	// stats holds the collected user space metrics
-	stats map[string][][model.MaxEventType]PerfMapStats
+	stats map[string][][model.MaxKernelEventType]PerfMapStats
 	// kernelStats holds the aggregated kernel space metrics
-	kernelStats map[string][][model.MaxEventType]PerfMapStats
+	kernelStats map[string][][model.MaxKernelEventType]PerfMapStats
 	// readLostEvents is the count of lost events, collected by reading the perf buffer
 	readLostEvents map[string][]uint64
 	// sortingErrorStats holds the count of events that indicate that at least 1 event is miss ordered
-	sortingErrorStats map[string][model.MaxEventType]*int64
+	sortingErrorStats map[string][model.MaxKernelEventType]*int64
 
 	// lastTimestamp is used to track the timestamp of the last event retrieved from the perf map
 	lastTimestamp uint64
@@ -84,10 +84,10 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
 		statsMapsNameToPerfBufferMapName: make(map[string]string),
 
-		stats:             make(map[string][][model.MaxEventType]PerfMapStats),
-		kernelStats:       make(map[string][][model.MaxEventType]PerfMapStats),
+		stats:             make(map[string][][model.MaxKernelEventType]PerfMapStats),
+		kernelStats:       make(map[string][][model.MaxKernelEventType]PerfMapStats),
 		readLostEvents:    make(map[string][]uint64),
-		sortingErrorStats: make(map[string][model.MaxEventType]*int64),
+		sortingErrorStats: make(map[string][model.MaxKernelEventType]*int64),
 	}
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -117,17 +117,17 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 
 	// Prepare user space counters
 	for _, m := range p.manager.PerfMaps {
-		var stats, kernelStats [][model.MaxEventType]PerfMapStats
+		var stats, kernelStats [][model.MaxKernelEventType]PerfMapStats
 		var usrLostEvents []uint64
-		var sortingErrorStats [model.MaxEventType]*int64
+		var sortingErrorStats [model.MaxKernelEventType]*int64
 
 		for i := 0; i < pbm.numCPU; i++ {
-			stats = append(stats, [model.MaxEventType]PerfMapStats{})
-			kernelStats = append(kernelStats, [model.MaxEventType]PerfMapStats{})
+			stats = append(stats, [model.MaxKernelEventType]PerfMapStats{})
+			kernelStats = append(kernelStats, [model.MaxKernelEventType]PerfMapStats{})
 			usrLostEvents = append(usrLostEvents, 0)
 		}
 
-		for i := 0; i < int(model.MaxEventType); i++ {
+		for i := 0; i < int(model.MaxKernelEventType); i++ {
 			zero := int64(0)
 			sortingErrorStats[i] = &zero
 		}
@@ -142,7 +142,7 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 			pbm.perfBufferSize[m.Name] = float64(m.PerfRingBufferSize)
 		}
 	}
-	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxEventType)
+	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxKernelEventType)
 	return &pbm, nil
 }
 
@@ -265,7 +265,7 @@ func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap s
 	var stats, kernelStats PerfMapStats
 	var maps []string
 
-	if eventType >= model.MaxEventType {
+	if eventType >= model.MaxKernelEventType {
 		return stats, kernelStats
 	}
 
@@ -432,7 +432,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 			}
 
 			// retrieve event type from key
-			evtType := model.EventType(id % uint32(model.MaxEventType))
+			evtType := model.EventType(id % uint32(model.MaxKernelEventType))
 			tags[2] = fmt.Sprintf("event_type:%s", evtType)
 
 			// loop over each cpu entry

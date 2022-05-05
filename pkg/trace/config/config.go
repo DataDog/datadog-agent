@@ -323,7 +323,6 @@ type AgentConfig struct {
 	StatsdSocket   string // for UDS Sockets
 
 	// logging
-	LogLevel      string
 	LogFilePath   string
 	LogThrottling bool
 
@@ -441,7 +440,6 @@ func New() *AgentConfig {
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
 
-		LogLevel:      "INFO",
 		LogThrottling: true,
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb

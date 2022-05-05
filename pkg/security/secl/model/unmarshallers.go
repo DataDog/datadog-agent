@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -780,8 +782,7 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Source.IP = data[read : read+16]
-	e.Destination.IP = data[read+16 : read+32]
+	srcIP, dstIP := data[read:read+16], data[read+16:read+32]
 	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
 	// padding 4 bytes
@@ -793,8 +794,11 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {
 	case 0x800: // unix.ETH_P_IP
-		e.Source.IP = e.Source.IP[0:4]
-		e.Destination.IP = e.Destination.IP[0:4]
+		e.Source.IPNet = *eval.IPNetFromIP(srcIP[0:4])
+		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[0:4])
+	default:
+		e.Source.IPNet = *eval.IPNetFromIP(srcIP)
+		e.Destination.IPNet = *eval.IPNetFromIP(dstIP)
 	}
 	return read + 48, nil
 }

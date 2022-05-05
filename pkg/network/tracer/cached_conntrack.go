@@ -11,6 +11,7 @@ package tracer
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sync"
 
@@ -18,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ct "github.com/florianl/go-conntrack"
 	"github.com/golang/groupcache/lru"
 	"golang.org/x/sys/unix"
+	"inet.af/netaddr"
 )
 
 type cachedConntrack struct {
@@ -62,6 +63,13 @@ func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
 	return cache.exists(c, c.NetNS, int(c.Pid))
 }
 
+func ipFromAddr(a util.Address) netaddr.IP {
+	if a.Len() == net.IPv6len {
+		return netaddr.IPFrom16(*(*[16]byte)(a.Bytes()))
+	}
+	return netaddr.IPFrom4(*(*[4]byte)(a.Bytes()))
+}
+
 func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
 	ctrk, err := cache.ensureConntrack(uint64(netns), pid)
 	if err != nil {
@@ -77,27 +85,11 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 		protoNumber = unix.IPPROTO_TCP
 	}
 
-	srcBuf := util.IPBufferPool.Get().(*[]byte)
-	dstBuf := util.IPBufferPool.Get().(*[]byte)
-	defer func() {
-		util.IPBufferPool.Put(srcBuf)
-		util.IPBufferPool.Put(dstBuf)
-	}()
-
-	srcAddr, dstAddr := util.NetIPFromAddress(c.Source, *srcBuf), util.NetIPFromAddress(c.Dest, *dstBuf)
-	srcPort, dstPort := c.SPort, c.DPort
-
 	conn := netlink.Con{
-		Con: ct.Con{
-			Origin: &ct.IPTuple{
-				Src: &srcAddr,
-				Dst: &dstAddr,
-				Proto: &ct.ProtoTuple{
-					Number:  &protoNumber,
-					SrcPort: &srcPort,
-					DstPort: &dstPort,
-				},
-			},
+		Origin: netlink.ConTuple{
+			Src:   netaddr.IPPortFrom(ipFromAddr(c.Source), c.SPort),
+			Dst:   netaddr.IPPortFrom(ipFromAddr(c.Dest), c.DPort),
+			Proto: protoNumber,
 		},
 	}
 
@@ -113,7 +105,7 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 	}
 
 	conn.Reply = conn.Origin
-	conn.Origin = nil
+	conn.Origin = netlink.ConTuple{}
 	ok, err = ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)

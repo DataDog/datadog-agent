@@ -72,14 +72,14 @@ func Configure(t *testing.T, trapConfig Config) {
 
 // ConfigureWithGlobalNamespace sets Datadog Agent configuration from a config object and a namespace
 func ConfigureWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamespace string) {
-	datadogYaml := map[string]interface{}{
-		"snmp_traps_enabled": true,
-		"snmp_traps_config":  trapConfig,
+	trapConfig.Enabled = true
+	datadogYaml := map[string]map[string]interface{}{
+		"network_devices": {
+			"snmp_traps": trapConfig,
+		},
 	}
 	if globalNamespace != "" {
-		datadogYaml["network_devices"] = map[string]interface{}{
-			"namespace": globalNamespace,
-		}
+		datadogYaml["network_devices"]["namespace"] = globalNamespace
 	}
 
 	config.Datadog.SetConfigType("yaml")

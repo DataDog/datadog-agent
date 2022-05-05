@@ -67,7 +67,7 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handler   EventHandler
+	handlers  [model.MaxAllEventType][]EventHandler
 	monitor   *Monitor
 	resolvers *Resolvers
 	event     *Event
@@ -133,13 +133,6 @@ func (p *Probe) sanityChecks() error {
 
 	if utilkernel.GetLockdownMode() == utilkernel.Confidentiality {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
-	}
-
-	isWriteUserNotSupported := p.kernelVersion.Code >= kernel.Kernel5_13 && utilkernel.GetLockdownMode() == utilkernel.Integrity
-
-	if p.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
-		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		p.config.ERPCDentryResolutionEnabled = false
 	}
 
 	if p.config.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
@@ -309,17 +302,23 @@ func (p *Probe) Start() {
 	go p.reOrderer.Start(&p.wg)
 }
 
-// SetEventHandler set the probe event handler
-func (p *Probe) SetEventHandler(handler EventHandler) {
-	p.handler = handler
+// AddEventHandler set the probe event handler
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
+	p.handlers[eventType] = append(p.handlers[eventType], handler)
 }
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
 
-	if p.handler != nil {
-		p.handler.HandleEvent(event)
+	// send wildcard first
+	for _, handler := range p.handlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+
+	// send specific event
+	for _, handler := range p.handlers[event.GetEventType()] {
+		handler.HandleEvent(event)
 	}
 
 	// Process after evaluation because some monitors need the DentryResolver to have been called first.
@@ -330,8 +329,17 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
-	if p.handler != nil && p.config.AgentMonitoringEvents {
-		p.handler.HandleCustomEvent(rule, event)
+	// send specific event
+	if p.config.AgentMonitoringEvents {
+		// send wildcard first
+		for _, handler := range p.handlers[model.UnknownEventType] {
+			handler.HandleCustomEvent(rule, event)
+		}
+
+		// send specific event
+		for _, handler := range p.handlers[event.GetEventType()] {
+			handler.HandleCustomEvent(rule, event)
+		}
 	}
 }
 
@@ -1192,11 +1200,13 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	p.ensureConfigDefaults()
 
+	supportMmapableMaps := haveMmapableMaps() == nil
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
 	}
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupWaitListSize)
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupWaitListSize, supportMmapableMaps)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -1303,11 +1313,12 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled)
-	if !p.config.ERPCDentryResolutionEnabled {
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled, supportMmapableMaps)
+	if !p.config.ERPCDentryResolutionEnabled || supportMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
+
 	if !p.config.NetworkEnabled {
 		// prevent all TC classifiers from loading
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)

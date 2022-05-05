@@ -133,6 +133,7 @@ func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
 		EBPFSection:  string(name),
 		EBPFFuncName: offsetProbes[name],
+		UID:          "offset",
 	}
 }
 

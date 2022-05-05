@@ -2425,6 +2425,13 @@ api_key:
     #
     # socket_path: /var/run/datadog
 
+    ## @param trace_agent_socket - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TRACE_AGENT_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## Configure Trace Agent's socket path in the app container (DD_TRACE_AGENT_URL).
+    ## Only applicable in "socket" mode.
+    #
+    # trace_agent_socket: unix:///var/run/datadog/apm.socket
+
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
   #
@@ -2852,6 +2859,15 @@ api_key:
 #
 # DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
+## @param kubernetes_node_annotations_as_tags - map - optional
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - json - optional
+## Configure node annotationss that should be collected and their name as host tags.
+#
+# kubernetes_node_annotations_as_tags:
+#   cluster.k8s.io/machine: machine
+#
+# DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
+
 ## @param kubernetes_node_annotations_as_host_aliases - list - optional
 ## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
 ## Configure node annotations that should be collected and used as host aliases.
@@ -3022,66 +3038,66 @@ api_key:
   #
   # namespace: default
 
-## @param snmp_traps_enabled - boolean - optional - default: false
-## Set to true to enable collection of traps.
-#
-# snmp_traps_enabled: false
-
-## @param snmp_traps_config - custom object - optional
-## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
-## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
-## change in the future.
-#
-# snmp_traps_config:
-
-  ## @param port - integer - optional - default: 9162
-  ## The UDP port to use when listening for incoming trap packets.
-  ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+  ## @param snmp_traps - custom object - optional
+  ## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
+  ## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
+  ## change in the future.
   #
-  # port: 9162
+  # snmp_traps:
 
-  ## @param community_strings - list of strings - required
-  ## A list of known SNMP community strings that devices can use to send traps to the Agent.
-  ## Traps with an unknown community string are ignored.
-  ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
-  ## Must be non-empty.
-  #
-  # community_strings:
-  #   - '<COMMUNITY_1>'
-  #   - '<COMMUNITY_2>'
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable collection of traps.
+    #
+    # enabled: false
 
-  ## @param users - list of custom objects - optional
-  ## List of SNMPv3 users that can be used to listen for traps.
-  ## NOTE: Currently the Datadog Agent only supports having a
-  ## single user in this list.
-  ## Each user can contain:
-  ##  * username     - string - The username used by devices when sending Traps to the Agent.
-  ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
-  ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
-  ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
-  ##                            Defaults to MD5 when authKey is set.
-  ##  * privKey      - string - (Optional) The passphrase to use with the given user privacy protocol.
-  ##  * privProtocol - string - (Optional) The privacy protocol to use when listening for traps from this user.
-  ##                            Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C.
-  ##                            Defaults to DES when privKey is set.
-  #
-  # users:
-  # - username: <USERNAME>
-  #   authKey: <AUTHENTICATION_KEY>
-  #   authProtocol: <AUTHENTICATION_PROTOCOL>
-  #   privKey: <PRIVACY_KEY>
-  #   privProtocol: <PRIVACY_PROTOCOL>
+    ## @param port - integer - optional - default: 9162
+    ## The UDP port to use when listening for incoming trap packets.
+    ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+    #
+    # port: 9162
 
-  ## @param bind_host - string - optional
-  ## The hostname to listen on for incoming trap packets.
-  ## Binds to 0.0.0.0 by default (accepting all packets).
-  #
-  # bind_host: 0.0.0.0
+    ## @param community_strings - list of strings - required
+    ## A list of known SNMP community strings that devices can use to send traps to the Agent.
+    ## Traps with an unknown community string are ignored.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
+    ## Must be non-empty.
+    #
+    # community_strings:
+    #   - '<COMMUNITY_1>'
+    #   - '<COMMUNITY_2>'
 
-  ## stop_timeout - float - optional - default: 5.0
-  ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
-  #
-  # stop_timeout: 5.0
+    ## @param users - list of custom objects - optional
+    ## List of SNMPv3 users that can be used to listen for traps.
+    ## NOTE: Currently the Datadog Agent only supports having a
+    ## single user in this list.
+    ## Each user can contain:
+    ##  * username     - string - The username used by devices when sending Traps to the Agent.
+    ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
+    ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
+    ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
+    ##                            Defaults to MD5 when authKey is set.
+    ##  * privKey      - string - (Optional) The passphrase to use with the given user privacy protocol.
+    ##  * privProtocol - string - (Optional) The privacy protocol to use when listening for traps from this user.
+    ##                            Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C.
+    ##                            Defaults to DES when privKey is set.
+    #
+    # users:
+    # - username: <USERNAME>
+    #   authKey: <AUTHENTICATION_KEY>
+    #   authProtocol: <AUTHENTICATION_PROTOCOL>
+    #   privKey: <PRIVACY_KEY>
+    #   privProtocol: <PRIVACY_PROTOCOL>
+
+    ## @param bind_host - string - optional
+    ## The hostname to listen on for incoming trap packets.
+    ## Binds to 0.0.0.0 by default (accepting all packets).
+    #
+    # bind_host: 0.0.0.0
+
+    ## stop_timeout - float - optional - default: 5.0
+    ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+    #
+    # stop_timeout: 5.0
 
 {{end -}}
 
