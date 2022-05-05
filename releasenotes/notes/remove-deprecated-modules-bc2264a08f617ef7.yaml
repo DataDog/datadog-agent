@@ -8,5 +8,5 @@
 ---
 upgrade:
   - |
-    Deprecated modules ``pkg/util/log``, ``pkg/util/scrubber`` and
+    Deprecated modules ``pkg/util/log``, ``pkg/util/scrubber``, and
     ``pkg/util/winutil`` were removed.
