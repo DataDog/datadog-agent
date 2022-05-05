@@ -43,7 +43,7 @@ const (
 type EventKeys struct {
 	RequestContext RequestContextKeys `json:"requestContext"`
 	Headers        HeaderKeys         `json:"headers"`
-	Records        []RecordKeys       `json:"Records"`
+	Records        []*RecordKeys      `json:"Records"`
 	HTTPMethod     string             `json:"httpMethod"`
 	Path           string             `json:"path"`
 }
@@ -67,7 +67,6 @@ type RequestContextKeys struct {
 // HeaderKeys holds the extracted headers from the trace context
 type HeaderKeys struct {
 	InvocationType string `json:"X-Amz-Invocation-Type"`
-	ParentID       uint64 `json:"x-datadog-parent-id"`
 }
 
 // HTTPKeys holds the nested HTTP data from the event payload
@@ -89,6 +88,6 @@ type SNSKeys struct {
 	MessageID string  `json:"MessageID"`
 	TopicArn  string  `json:"TopicArn"`
 	Type      string  `json:"Type"`
-	TimeStamp string  `json:"Timemstamp"`
+	TimeStamp string  `json:"Timestamp"`
 	Subject   *string `json:"Subject"`
 }
