@@ -158,7 +158,7 @@ type ScalarComparison struct {
 type ArrayComparison struct {
 	Pos lexer.Position
 
-	Op    *string `parser:"( @( \"in\" | \"not\" \"in\" | \"intersects\" )"`
+	Op    *string `parser:"( @( \"in\" | \"not\" \"in\" | \"allin\" )"`
 	Array *Array  `parser:"@@ )"`
 }
 

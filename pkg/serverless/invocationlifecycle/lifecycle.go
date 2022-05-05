@@ -9,18 +9,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LifecycleProcessor is a InvocationProcessor implementation
 type LifecycleProcessor struct {
-	ExtraTags           *serverlessLog.Tags
-	ProcessTrace        func(p *api.Payload)
-	Demux               aggregator.Demultiplexer
-	DetectLambdaLibrary func() bool
+	ExtraTags            *serverlessLog.Tags
+	ProcessTrace         func(p *api.Payload)
+	Demux                aggregator.Demultiplexer
+	DetectLambdaLibrary  func() bool
+	InferredSpansEnabled bool
 }
+
+var inferredSpan inferredspan.InferredSpan
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
@@ -30,7 +33,13 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
+		if lp.InferredSpansEnabled {
+			log.Debug("[lifecycle] Attempting to create inferred span")
+			inferredSpan = inferredspan.GenerateInferredSpan(startDetails.StartTime)
+			inferredspan.DispatchInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
+		}
+
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
 }
 
@@ -43,7 +52,14 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError)
+		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
+
+		if lp.InferredSpansEnabled {
+			log.Debug("[lifecycle] Attempting to complete the inferred span")
+			inferredspan.CompleteInferredSpan(
+				lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, inferredSpan,
+			)
+		}
 	}
 
 	if endDetails.IsError {

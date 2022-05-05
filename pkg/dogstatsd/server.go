@@ -198,7 +198,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -347,6 +347,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
 		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
+		ServerlessMode:     serverless,
 	}
 
 	// packets forwarding
@@ -368,7 +369,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
-	s.handleMessages()
+	s.handleMessages(serverless)
 
 	// start the debug loop
 	// ----------------------
@@ -396,7 +397,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) handleMessages() {
+func (s *Server) handleMessages(serverless bool) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)

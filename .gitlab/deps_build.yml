@@ -9,8 +9,11 @@
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
-    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/clang-11.0.1.src.tar.xz -O clang.src.tar.xz
-    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/llvm-11.0.1.src.tar.xz -O llvm.src.tar.xz
+    - CLANG_SHA256SUM=73f572c2eefc5a155e01bcd84815751d722a4d3925f53c144acfb93eeb274b4d
+    - LLVM_SHA256SUM=ccd87c254b6aebc5077e4e6977d08d4be888e7eb672c6630a26a15d58b59b528
+    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/clang-11.0.1.src.tar.xz -O clang.src.tar.xz
+    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/llvm-11.0.1.src.tar.xz -O llvm.src.tar.xz
+    - echo -e "${LLVM_SHA256SUM} llvm.src.tar.xz\n${CLANG_SHA256SUM} clang.src.tar.xz" | sha256sum --check -
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build

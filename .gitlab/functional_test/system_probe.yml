@@ -35,7 +35,7 @@ kitchen_test_system_probe_linux_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-16-04,ubuntu-18-04,ubuntu-20-04,ubuntu-21-10"
+        KITCHEN_OSVERS: "ubuntu-16-04-4.4,ubuntu-18-04,ubuntu-20-04,ubuntu-21-10"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10"
       - KITCHEN_PLATFORM: "centos"
@@ -83,6 +83,3 @@ kitchen_test_system_probe_windows_x64:
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
-  # FIXME: temporarily allow this job to fail until we fix it
-  allow_failure: true
-  retry: 0

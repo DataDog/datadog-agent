@@ -94,6 +94,7 @@ func GetHostAliases(ctx context.Context) []string {
 
 	detectors := []cloudProviderAliasesDetector{
 		{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
+		{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
 		{name: azure.CloudProviderName, callback: azure.GetHostAliases},
 		{name: gce.CloudProviderName, callback: gce.GetHostAliases},
 		{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},

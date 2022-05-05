@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -72,6 +73,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.NotEqual(t, uint64(0), currentExecutionInfo.spanID)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), *currentExecutionInfo.samplingPriority)
 	assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -119,12 +121,13 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
-
+	samplingPriority := sampler.SamplingPriority(1)
 	currentExecutionInfo = executionStartInfo{
-		startTime: startInvocationTime,
-		traceID:   123,
-		spanID:    1,
-		parentID:  3,
+		startTime:        startInvocationTime,
+		traceID:          123,
+		spanID:           1,
+		parentID:         3,
+		samplingPriority: &samplingPriority,
 	}
 
 	testProcessor := LifecycleProcessor{
@@ -134,7 +137,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 		Demux:               demux,
 	}
 	testProcessor.OnInvokeEnd(&endDetails)
-
+	executionChunkPriority := tracePayload.TracerPayload.Chunks[0].Priority
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -143,6 +146,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
 	assert.Equal(t, currentExecutionInfo.parentID, executionSpan.ParentID)
+	assert.Equal(t, int32(*currentExecutionInfo.samplingPriority), executionChunkPriority)
 	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }

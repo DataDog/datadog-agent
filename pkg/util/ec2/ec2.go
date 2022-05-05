@@ -111,6 +111,19 @@ func IsRunningOn(ctx context.Context) bool {
 	return false
 }
 
+// GetHostAliases returns the host aliases from the EC2 metadata API.
+func GetHostAliases(ctx context.Context) ([]string, error) {
+
+	instanceID, err := GetInstanceID(ctx)
+	if err == nil {
+		return []string{instanceID}, nil
+	}
+
+	log.Debugf("failed to get instance ID to use as Host Alias: %s", err)
+
+	return []string{}, nil
+}
+
 var hostnameFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Hostname",
 	Attempt: func(ctx context.Context) (interface{}, error) {

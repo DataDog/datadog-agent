@@ -19,8 +19,8 @@ import (
 	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
-	bpflib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -34,8 +34,7 @@ import (
 import "C"
 
 const (
-	TCPQueueLengthUID = "tcp-queue-length"
-	statsMapName      = "tcp_queue_stats"
+	statsMapName = "tcp_queue_stats"
 )
 
 type TCPQueueLengthTracer struct {
@@ -51,10 +50,10 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 	defer compiledOutput.Close()
 
 	probes := []*manager.Probe{
-		{Section: "kprobe/tcp_recvmsg", UID: "tcpq"},
-		{Section: "kretprobe/tcp_recvmsg", UID: "tcpq"},
-		{Section: "kprobe/tcp_sendmsg", UID: "tcpq"},
-		{Section: "kretprobe/tcp_sendmsg", UID: "tcpq"},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_recvmsg", EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_recvmsg", EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_sendmsg", EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_sendmsg", EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
 	}
 
 	maps := []*manager.Map{

@@ -138,7 +138,7 @@ func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
 	}
 	normalizeMetrics(profileDefinition.Metrics)
 	errors := validateEnrichMetadata(profileDefinition.Metadata)
-	errors = append(errors, validateEnrichMetrics(profileDefinition.Metrics)...)
+	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))

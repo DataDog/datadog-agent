@@ -17,7 +17,6 @@ from . import (
     docker,
     dogstatsd,
     github,
-    installcmd,
     package,
     pipeline,
     process_agent,
@@ -29,23 +28,18 @@ from . import (
     system_probe,
     systray,
     trace_agent,
-    uninstallcmd,
 )
 from .build_tags import audit_tag_impact
 from .go import (
     check_mod_tidy,
-    cyclo,
     deps,
     deps_vendored,
-    fmt,
     generate_licenses,
     generate_protobuf,
     golangci_lint,
-    lint,
     lint_licenses,
     reset,
     tidy_all,
-    vet,
 )
 from .test import (
     download_tools,
@@ -67,10 +61,6 @@ from .test import (
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(fmt)
-ns.add_task(lint)
-ns.add_task(vet)
-ns.add_task(cyclo)
 ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(integration_tests)
@@ -102,7 +92,6 @@ ns.add_collection(android)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(customaction)
-ns.add_collection(installcmd)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
@@ -117,7 +106,6 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
-ns.add_collection(uninstallcmd)
 ns.add_collection(security_agent)
 
 ns.configure(

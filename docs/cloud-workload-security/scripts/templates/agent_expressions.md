@@ -63,6 +63,12 @@ SECL operators are used to combine event attributes together into a full express
 | `\|`                  | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
 | `\|\|`                | File             | Logical or                               | 7.27          |
+| `in CIDR`             | Network          | Element is in the IP range               | 7.37          |
+| `not in CIDR`         | Network          | Element is not in the IP range           | 7.37          |
+| `allin CIDR`          | Network          | All the elements are in the IP range     | 7.37          |
+| `in [CIDR1, ...]`     | Network          | Element is in the IP ranges              | 7.37          |
+| `not in [CIDR1, ...]` | Network          | Element is not in the IP ranges          | 7.37          |
+| `allin [CIDR1, ...]`  | Network          | All the elements are in the IP ranges    | 7.37          |
 
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
@@ -104,6 +110,18 @@ List of the available variables:
 | SECL Variable         |  Definition                           | Agent Version |
 |-----------------------|---------------------------------------|---------------|
 | `process.pid`         | Process PID                           | 7.33          |
+
+## CIDR and IP range
+CIDR and IP matching is possible in SECL. One can use operators such as `in`, `not in`, or `allin` combined with CIDR or IP notations.
+
+Such rules can be written as follows:
+
+{% raw %}
+{{< code-block lang="javascript" >}}
+dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25", "10.0.0.0/24"]
+
+{{< /code-block >}}
+{% endraw %}
 
 ## Helpers
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.

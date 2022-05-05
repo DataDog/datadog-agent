@@ -467,6 +467,8 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 		if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(payloads, extraHeaders); err != nil {
 			return log.Errorf("Unable to submit container lifecycle payload: %w", err)
 		}
+
+		log.Tracef("Sent container lifecycle event %+v", msg)
 	}
 
 	return nil

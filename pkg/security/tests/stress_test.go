@@ -95,7 +95,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -219,9 +219,13 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	})
 	defer test.RegisterRuleEventHandler(nil)
 
-	report, err := StressIt(t, nil, nil, fnc, opts)
-	test.RegisterRuleEventHandler(nil)
+	kevents := 0
+	test.RegisterEventHandler(func(_ *sprobe.Event) {
+		kevents++
+	})
+	defer test.RegisterRuleEventHandler(nil)
 
+	report, err := StressIt(t, nil, nil, fnc, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,9 +233,11 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	time.Sleep(2 * time.Second)
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
+	report.AddMetric("kevents", float64(kevents), "kevents")
+	report.AddMetric("kevents/sec", float64(kevents)/report.Duration.Seconds(), "kevent/s")
 
 	report.Print(t)
 }
@@ -262,5 +268,5 @@ func init() {
 	flag.BoolVar(&keepProfile, "keep-profile", false, "do not delete profile after run")
 	flag.StringVar(&reportFile, "report-file", "", "save report of the stress test")
 	flag.StringVar(&diffBase, "diff-base", "", "source of base stress report for comparison")
-	flag.IntVar(&duration, "duration", 30, "duration of the run in second")
+	flag.IntVar(&duration, "duration", 60, "duration of the run in second")
 }

@@ -373,4 +373,7 @@ const (
 	SysLandlockAddRule       Syscall = 445
 	SysLandlockRestrictSelf  Syscall = 446
 	SysMemfdSecret           Syscall = 447
+	SysProcessMrelease       Syscall = 448
+	SysFutexWaitv            Syscall = 449
+	SysSetMempolicyHomeNode  Syscall = 450
 )

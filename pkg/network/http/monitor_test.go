@@ -91,9 +91,9 @@ func TestUnknownMethodRegression(t *testing.T) {
 
 	telemetry := monitor.GetStats()
 	require.NotEmpty(t, telemetry)
-	_, ok := telemetry["http_requests_dropped"]
+	_, ok := telemetry["dropped"]
 	require.True(t, ok)
-	_, ok = telemetry["http_requests_missed"]
+	_, ok = telemetry["misses"]
 	require.True(t, ok)
 
 }

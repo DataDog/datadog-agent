@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps after package is installed.
+#
+# .rpm: STEP 3 of 6
+
+## NOTHING HERE
+
+exit 0

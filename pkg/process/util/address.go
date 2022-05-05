@@ -9,6 +9,8 @@ import (
 	"encoding/binary"
 	"net"
 	"sync"
+
+	"inet.af/netaddr"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
@@ -67,6 +69,20 @@ func ToLowHigh(addr Address) (l, h uint64) {
 	return
 }
 
+// ToLowHighIP converts a netaddr.IP into a pair of uint64 numbers
+func ToLowHighIP(a netaddr.IP) (l, h uint64) {
+	if a.Is6() {
+		return toLowHigh16(a.As16())
+	}
+	return toLowHigh4(a.As4())
+}
+func toLowHigh4(b [4]byte) (l, h uint64) {
+	return uint64(binary.LittleEndian.Uint32(b[:4])), uint64(0)
+}
+func toLowHigh16(b [16]byte) (l, h uint64) {
+	return binary.LittleEndian.Uint64(b[8:]), binary.LittleEndian.Uint64(b[:8])
+}
+
 type v4Address [4]byte
 
 // V4Address creates an Address using the uint32 representation of an v4 IP
@@ -108,7 +124,7 @@ func (a v4Address) IsLoopback() bool {
 
 // Len returns the number of bytes required to represent this IP
 func (a v4Address) Len() int {
-	return 4
+	return net.IPv4len
 }
 
 type v6Address [16]byte
@@ -150,7 +166,7 @@ func (a v6Address) IsLoopback() bool {
 
 // Len returns the number of bytes required to represent this IP
 func (a v6Address) Len() int {
-	return 16
+	return net.IPv6len
 }
 
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`

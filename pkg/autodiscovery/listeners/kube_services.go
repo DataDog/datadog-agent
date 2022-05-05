@@ -313,8 +313,8 @@ func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) 
 }
 
 // GetTags retrieves tags
-func (s *KubeServiceService) GetTags() ([]string, string, error) {
-	return s.tags, "", nil
+func (s *KubeServiceService) GetTags() ([]string, error) {
+	return s.tags, nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -340,6 +340,6 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
 }

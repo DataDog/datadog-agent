@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
@@ -64,8 +65,10 @@ func newTestReceiverConfig() *config.AgentConfig {
 
 func TestMain(m *testing.M) {
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
-	killProcess = func(_ string, _ ...interface{}) {}
-
+	killProcess = func(format string, args ...interface{}) {
+		fmt.Printf(format, args...)
+		fmt.Println()
+	}
 	os.Exit(m.Run())
 }
 
@@ -118,8 +121,8 @@ func TestListenTCP(t *testing.T) {
 	t.Run("measured", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
 		ln, err := r.listenTCP(":0")
+		require.NoError(t, err)
 		defer ln.Close()
-		assert.NoError(t, err)
 		_, ok := ln.(*measuredListener)
 		assert.True(t, ok)
 	})
@@ -127,8 +130,8 @@ func TestListenTCP(t *testing.T) {
 	t.Run("limited", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
 		ln, err := r.listenTCP(":0")
+		require.NoError(t, err)
 		defer ln.Close()
-		assert.NoError(t, err)
 		_, ok := ln.(*rateLimitedListener)
 		assert.True(t, ok)
 	})

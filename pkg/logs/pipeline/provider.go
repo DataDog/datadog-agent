@@ -7,9 +7,9 @@ package pipeline
 
 import (
 	"context"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -37,7 +37,7 @@ type provider struct {
 	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
-	currentPipelineIndex uint32
+	currentPipelineIndex *atomic.Uint32
 	destinationsContext  *client.DestinationsContext
 
 	serverless bool
@@ -61,6 +61,7 @@ func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 		processingRules:           processingRules,
 		endpoints:                 endpoints,
 		pipelines:                 []*Pipeline{},
+		currentPipelineIndex:      atomic.NewUint32(0),
 		destinationsContext:       destinationsContext,
 		serverless:                serverless,
 	}
@@ -96,7 +97,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := atomic.AddUint32(&p.currentPipelineIndex, uint32(1)) % uint32(pipelinesLen)
+	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
 }
