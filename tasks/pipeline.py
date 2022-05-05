@@ -290,6 +290,19 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
+    args_given = 0
+    if id is not None:
+        args_given += 1
+    if git_ref is not None:
+        args_given += 1
+    if here:
+        args_given += 1
+    if args_given != 1:
+        raise Exit(
+            "ERROR: Exactly one of --here, --git-ref or --id must be given.\nSee --help for an explanation of each.",
+            code=1,
+        )
+
     if id is not None:
         wait_for_pipeline(gitlab, id)
     elif git_ref is not None:
