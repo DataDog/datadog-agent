@@ -8,6 +8,7 @@ package traps
 import (
 	"fmt"
 	"net"
+	"sort"
 	"testing"
 	"time"
 
@@ -64,11 +65,16 @@ func TestTrapsShouldReceiveMessages(t *testing.T) {
 	formattedPacket := format(t, p)
 	assert.Equal(t, message.StatusInfo, msg.GetStatus())
 	assert.Equal(t, formattedPacket, msg.Content)
-	assert.Equal(t, []string{
-		"snmp_version:2",
+	sort.Strings(msg.Origin.Tags())
+	expectedTags := []string{
 		"device_namespace:default",
 		"snmp_device:127.0.0.1",
-	}, msg.Origin.Tags())
+		"snmp_version:2",
+	}
+	tags := msg.Origin.Tags()
+	sort.Strings(expectedTags)
+	sort.Strings(tags)
+	assert.Equal(t, expectedTags, tags)
 
 	close(inputChan)
 	tailer.WaitFlush()
