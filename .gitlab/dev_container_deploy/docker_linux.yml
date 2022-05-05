@@ -116,15 +116,17 @@ dev_master-a6:
     !reference [.on_main_a6]
   needs:
     - docker_build_agent6
+    - docker_build_agent6_arm64
     - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
     - docker_build_agent6_py2py3_jmx
   variables:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
         IMG_DESTINATIONS: agent-dev:master,agent-dev:master-py2
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
         IMG_DESTINATIONS: agent-dev:master-jmx,agent-dev:master-py2-jmx
 
 dev_master-a7:
@@ -134,14 +136,16 @@ dev_master-a7:
     !reference [.on_main_a7]
   needs:
     - docker_build_agent7
+    - docker_build_agent7_arm64
     - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
   variables:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
         IMG_DESTINATIONS: agent-dev:master-py3
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:master-py3-jmx
 
 dev_master-dogstatsd:
@@ -202,15 +206,17 @@ dev_nightly_docker_hub-a6:
     !reference [.on_deploy_nightly_repo_branch_a6]
   needs:
     - docker_build_agent6
+    - docker_build_agent6_arm64
     - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
     - docker_build_agent6_py2py3_jmx
   variables:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
         IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA},agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
         IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx,agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
 
 # deploys nightlies to agent-dev
@@ -221,14 +227,16 @@ dev_nightly-a7:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
     - docker_build_agent7
+    - docker_build_agent7_arm64
     - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
   variables:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
         IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
 
 # deploys nightlies to agent-dev

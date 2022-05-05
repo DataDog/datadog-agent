@@ -109,7 +109,7 @@ func (f JSONFormatter) formatV1Trap(packet *gosnmp.SnmpPacket) map[string]interf
 			log.Debugf("unable to enrich variable: %s", err)
 			continue
 		}
-		data[varMetadata.Name] = variable.Value
+		data[varMetadata.Name] = parseValue(variable, varMetadata)
 	}
 	return data
 }
@@ -155,7 +155,7 @@ func (f JSONFormatter) formatTrap(packet *gosnmp.SnmpPacket) (map[string]interfa
 			log.Debugf("unable to enrich variable: %s", err)
 			continue
 		}
-		data[varMetadata.Name] = variable.Value
+		data[varMetadata.Name] = parseValue(variable, varMetadata)
 	}
 	return data, nil
 }
@@ -165,6 +165,26 @@ func NormalizeOID(value string) string {
 	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
 	// Convert everything to relative form, like we do in the Python check.
 	return strings.TrimLeft(value, ".")
+}
+
+// parseValue checks to see if the variable has a mapping in an enum and
+// returns the mapping if it exists, otherwise returns the value unchanged
+func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
+	if len(varMetadata.Enumeration) > 0 {
+		if i, ok := variable.Value.(int); !ok {
+			log.Debugf("unable to parse value of type \"integer\": %+v", variable.Value)
+		} else {
+			// if we find a mapping set it and return
+			if value, ok := varMetadata.Enumeration[i]; !ok {
+				log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
+			} else {
+				return value
+			}
+		}
+	}
+
+	// if no mapping is found or type is not integer
+	return variable.Value
 }
 
 func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
