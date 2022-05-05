@@ -183,8 +183,8 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 		if additionals[i].IsReliable == nil {
-			isReliable = true
-			additionals[i].IsReliable = &isReliable
+			reliable := true
+			additionals[i].IsReliable = &reliable
 		}
 	}
 	return NewEndpoints(main, additionals, useProto, false), nil
@@ -292,8 +292,8 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 			additionals[i].Origin = intakeOrigin
 		}
 		if additionals[i].IsReliable == nil {
-			isReliable = true
-			additionals[i].IsReliable = &isReliable
+			reliable := true
+			additionals[i].IsReliable = &reliable
 		}
 	}
 
