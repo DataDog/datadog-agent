@@ -202,8 +202,8 @@ def run(
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
-    if not git_ref and not here:
-        raise Exit("Either --here or --git-ref <git ref> must be specified.", code=1)
+    if (not git_ref and not here) or (git_ref and here):
+        raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:
         release_version_6 = release_entry_for(6)
