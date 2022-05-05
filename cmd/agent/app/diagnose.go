@@ -16,15 +16,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	AgentCmd.AddCommand(diagnoseCommand)
-}
+var (
+	diagnoseCommand = &cobra.Command{
+		Use:   "diagnose",
+		Short: "Execute some connectivity diagnosis on your system",
+		Long:  ``,
+		RunE:  doDiagnose,
+	}
 
-var diagnoseCommand = &cobra.Command{
-	Use:   "diagnose",
-	Short: "Execute some connectivity diagnosis on your system",
-	Long:  ``,
-	RunE:  doDiagnose,
+	diagnoseDatadogConnectivityCommand = &cobra.Command{
+		Use:   "datadog-connectivity",
+		Short: "Execute some connectivity diagnosis between your system and Datadog endpoints",
+		Long:  ``,
+		RunE:  doDiagnoseDatadogConnectivity,
+	}
+)
+
+func init() {
+
+	diagnoseCommand.AddCommand(diagnoseDatadogConnectivityCommand)
+
+	AgentCmd.AddCommand(diagnoseCommand)
 }
 
 func doDiagnose(cmd *cobra.Command, args []string) error {
@@ -48,8 +60,12 @@ func doDiagnose(cmd *cobra.Command, args []string) error {
 		config.Datadog.GetBool("log_format_json"),
 	)
 	if err != nil {
-		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
+		return fmt.Errorf("error while setting up logging, exiting: %v", err)
 	}
 
 	return diagnose.RunAll(color.Output)
+}
+
+func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
+	return fmt.Errorf("this command is not implemented yet")
 }
