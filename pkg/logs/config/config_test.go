@@ -181,6 +181,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		RecoveryInterval: 10,
 		RecoveryReset:    true,
 		Version:          EPIntakeVersion1,
+		IsReliable:       boolPtr(true),
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		APIKey:           "789",
@@ -195,6 +196,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		RecoveryInterval: 10,
 		RecoveryReset:    true,
 		Version:          EPIntakeVersion1,
+		IsReliable:       boolPtr(true),
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
