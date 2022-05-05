@@ -29,7 +29,7 @@ if [ -z ${DD_PIPELINE_ID+x} ]; then
   export DD_PIPELINE_ID
 fi
 
-if [ -z ${AZURE_SUBSCRIPTION_ID+x} ] || [ -z ${AZURE_TENANT_ID+x} || [ -z ${AZURE_CLIENT_SECRET+x} || [ -z ${AZURE_CLIENT_ID+x} ]; then
+if [ -z ${AZURE_SUBSCRIPTION_ID+x} ] || [ -z ${AZURE_TENANT_ID+x} ] || [ -z ${AZURE_CLIENT_SECRET+x} ] || [ -z ${AZURE_CLIENT_ID+x} ]; then
   printf "You are missing some of the necessary credentials. Exiting."
   exit 1
 fi
