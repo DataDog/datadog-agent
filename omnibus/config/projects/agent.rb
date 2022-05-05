@@ -152,12 +152,12 @@ package :zip do
 
     # Always sign everything for binaries zip
     additional_sign_files [
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
-      ]
+    ]
     if with_python_runtime? "2"
       additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
     end
@@ -181,26 +181,26 @@ package :msi do
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 
-  additional_sign_files_list = [
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
-      "#{INSTALL_DIR}\\bin\\agent\\ddtray.exe",
-      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python.exe",
-      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python3.dll",
-      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python38.dll",
-      "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\pythonw.exe",
+  additional_sign_files_list = %W[
+    #{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe
+    #{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe
+    #{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe
+    #{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe
+    #{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll
+    #{INSTALL_DIR}\\bin\\agent\\ddtray.exe
+    #{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python.exe
+    #{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python3.dll
+    #{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python38.dll
+    #{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\pythonw.exe
+  ]
+  if with_python_runtime? '2'
+    additional_sign_files_list = %W[
+      #{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll
+      #{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\python.exe
+      #{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\python27.dll
+      #{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\pythonw.exe
     ]
-    if with_python_runtime? "2"
-      additional_sign_files_list = [
-        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
-        "#{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\python.exe",
-        "#{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\python27.dll",
-        "#{windows_safe_path(PYTHON_2_EMBEDDED_DIR)}\\pythonw.exe",
-    ]
-    end
+  end
   #if ENV['SIGN_WINDOWS']
   #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
   #end

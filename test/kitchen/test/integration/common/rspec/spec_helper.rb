@@ -246,12 +246,12 @@ end
 def windows_service_status(service)
   raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
-  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
+  (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
 end
 
 def is_service_running?(service)
   if os == :windows
-    return windows_service_status(service) == "RUNNING"
+    windows_service_status(service) == "RUNNING"
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -267,7 +267,7 @@ end
 
 def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
-  return windows_service_status(service) != "NOTINSTALLED"
+  windows_service_status(service) != "NOTINSTALLED"
 end
 
 def is_flavor_running?(flavor)
@@ -283,7 +283,7 @@ def is_process_running?(pname)
   else
     return true if system("pgrep -f #{pname}")
   end
-  return false
+  false
 end
 
 def agent_processes_running?
@@ -362,7 +362,7 @@ def fetch_python_version(timeout = 15)
     end
     sleep 1
   end
-  return nil
+  nil
 end
 
 def is_file_signed(fullpath)
@@ -370,7 +370,7 @@ def is_file_signed(fullpath)
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
   signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
-  return output.upcase.strip == signature_hash
+  output.upcase.strip == signature_hash
 end
 
 def is_dpkg_package_installed(package)
@@ -441,25 +441,25 @@ shared_examples_for "an installed Agent" do
       expect(is_signed).to be_truthy
 
       program_files = safe_program_files
-      verify_signature_files = %w[
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe"
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe"
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe"
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe"
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-three.dll"
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe"
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe"
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe"
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll"
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
+      verify_signature_files = %W[
+        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe
+        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe
+        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe
+        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe
+        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-three.dll
+        #{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe
+        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe
+        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe
+        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll
+        #{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll
       ]
       libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\libdatadog-agent-two.dll"
       if File.file?(libdatadog_agent_two)
-        verify_signature_files << %w[
-          libdatadog_agent_two
-          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe"
-          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe"
-          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll"
+        verify_signature_files += %W[
+          #{libdatadog_agent_two}
+          #{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe
+          #{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe
+          #{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll
         ]
       end
       actually_signed_files = []
@@ -947,7 +947,7 @@ def equal_sddl?(left, right)
     end
   end
   return false if right_dacl.length != 0
-  return true
+  true
 end
 def get_security_settings
   fname = "secout.txt"
