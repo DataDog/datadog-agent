@@ -42,6 +42,7 @@
     - ls -la $OMNIBUS_PACKAGE_DIR
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
+    - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -112,6 +113,7 @@ iot_agent_suse-x64:
     - ls -la $OMNIBUS_PACKAGE_DIR
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
+    - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -145,6 +147,7 @@ dogstatsd_suse-x64:
     - ls -la $OMNIBUS_PACKAGE_DIR
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
+    - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
     paths:

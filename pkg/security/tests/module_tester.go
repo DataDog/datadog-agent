@@ -11,6 +11,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -30,7 +31,9 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
+	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -98,6 +101,10 @@ runtime_security_config:
   {{range .LogPatterns}}
     - {{.}}
   {{end}}
+  log_tags:
+  {{range .LogTags}}
+    - {{.}}
+  {{end}}
 `
 
 const testPolicy = `---
@@ -135,6 +142,7 @@ var (
 	useReload        bool
 	logLevelStr      string
 	logPatterns      stringSlice
+	logTags          stringSlice
 	logStatusMetrics bool
 )
 
@@ -233,14 +241,8 @@ func (h *testProbeHandler) HandleEvent(event *sprobe.Event) {
 	h.RLock()
 	defer h.RUnlock()
 
-	if h.module == nil {
-		return
-	}
-
 	h.reloading.Lock()
 	defer h.reloading.Unlock()
-
-	h.module.HandleEvent(event)
 
 	if h.eventHandler != nil && h.eventHandler.callback != nil {
 		h.eventHandler.callback(event)
@@ -373,6 +375,123 @@ func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field str
 	return false
 }
 
+//nolint:deadcode,unused
+func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
+	var data interface{}
+	if err := json.Unmarshal([]byte(event.String()), &data); err != nil {
+		tb.Error(err)
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
+	if err != nil {
+		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
+		return false
+	}
+
+	var prevPID, prevPPID float64
+
+	for _, entry := range json.([]interface{}) {
+		pce, ok := entry.(map[string]interface{})
+		if !ok {
+			tb.Errorf("invalid process cache entry, %+v", entry)
+			return false
+		}
+
+		pid, ok := pce["pid"].(float64)
+		if !ok || pid == 0 {
+			tb.Errorf("invalid pid, %+v", pce)
+			return false
+		}
+
+		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
+		if prevPID != 0 && pid != prevPID && pid != prevPPID {
+			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
+			return false
+		}
+		prevPID = pid
+
+		if pid != 1 {
+			ppid, ok := pce["ppid"].(float64)
+			if !ok {
+				tb.Errorf("invalid pid, %+v", pce)
+				return false
+			}
+
+			prevPPID = ppid
+		}
+	}
+
+	if prevPID != 1 {
+		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
+	}
+
+	return true
+}
+
+//nolint:deadcode,unused
+func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
+	fields := []string{
+		"process.file.path",
+		"process.file.name",
+		"process.ancestors.file.path",
+		"process.ancestors.file.name",
+	}
+
+	for _, field := range fields {
+		fieldValue, err := event.GetFieldValue(field)
+		if err != nil {
+			tb.Errorf("failed to get field '%s': %s", field, err)
+			return false
+		}
+
+		switch value := fieldValue.(type) {
+		case string:
+			if len(value) == 0 {
+				tb.Errorf("empty value for '%s'", field)
+				return false
+			}
+		case []string:
+			for _, v := range value {
+				if len(v) == 0 {
+					tb.Errorf("empty value for '%s'", field)
+					return false
+				}
+			}
+		default:
+			tb.Errorf("unknown type value for '%s'", field)
+			return false
+		}
+	}
+
+	return true
+}
+
+//nolint:deadcode,unused
+func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if !validateProcessContextLineage(tb, event) {
+			tb.Error(event.String())
+		}
+
+		if !validateProcessContextSECL(tb, event) {
+			tb.Error(event.String())
+		}
+	}
+}
+
+//nolint:deadcode,unused
+func validateExecEvent(t *testing.T, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if !validateExecSchema(t, event) {
+			t.Error(event.String())
+		}
+	}
+}
+
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.CreateTemp(dir, "secagent-policy.*.policy")
 	if err != nil {
@@ -438,6 +557,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
 		"LogPatterns":                 logPatterns,
+		"LogTags":                     logTags,
 	}); err != nil {
 		return nil, err
 	}
@@ -470,12 +590,11 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	logLevel, found := seelog.LogLevelFromString(logLevelStr)
-	if !found {
-		return nil, fmt.Errorf("invalid log level '%s'", logLevel)
+	if err := initLogger(); err != nil {
+		return nil, err
 	}
 
-	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir, logLevel)
+	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -562,7 +681,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to init module")
 	}
 
-	testMod.probe.SetEventHandler(testMod.probeHandler)
+	testMod.probe.AddEventHandler(model.UnknownEventType, testMod.probeHandler)
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, errors.Wrap(err, "failed to start module")
@@ -597,10 +716,6 @@ func (tm *testModule) reloadConfiguration() error {
 
 func (tm *testModule) Root() string {
 	return tm.st.root
-}
-
-func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
-	return tm.st.swapLogLevel(logLevel)
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
@@ -694,7 +809,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	var status strings.Builder
 	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
-	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
+	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
 		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
 			continue
@@ -746,7 +861,7 @@ func (err ErrSkipTest) Error() string {
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) {
 	tb.Helper()
 
-	if err := tm.GetSignal(tb, action, cb); err != nil {
+	if err := tm.GetSignal(tb, action, validateEvent(tb, cb)); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -1054,6 +1169,42 @@ func (tm *testModule) Close() {
 	}
 }
 
+var logInitilialized bool
+
+func initLogger() error {
+	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	if !found {
+		return fmt.Errorf("invalid log level '%s'", logLevel)
+	}
+
+	if !logInitilialized {
+		if _, err := swapLogLevel(logLevel); err != nil {
+			return err
+		}
+
+		logInitilialized = true
+	}
+	return nil
+}
+
+func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	if logger == nil {
+		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
+
+		var err error
+
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		if err != nil {
+			return 0, err
+		}
+	}
+	log.SetupLogger(logger, logLevel.String())
+
+	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	logLevelStr = logLevel.String()
+	return prevLevel, nil
+}
+
 type simpleTest struct {
 	root     string
 	toRemove bool
@@ -1115,39 +1266,11 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 	return nil
 }
 
-var logInitilialized bool
-
-func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
-	if logger == nil {
-		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
-
-		var err error
-
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
-		if err != nil {
-			return 0, err
-		}
-	}
-	log.SetupLogger(logger, logLevel.String())
-
-	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
-	logLevelStr = logLevel.String()
-	return prevLevel, nil
-}
-
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string, logLevel seelog.LogLevel) (*simpleTest, error) {
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	var err error
 
 	t := &simpleTest{
 		root: testDir,
-	}
-
-	if !logInitilialized {
-		if _, err := t.swapLogLevel(logLevel); err != nil {
-			return nil, err
-		}
-
-		logInitilialized = true
 	}
 
 	if testDir == "" {
@@ -1236,6 +1359,7 @@ func init() {
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
+	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	rand.Seed(time.Now().UnixNano())
 

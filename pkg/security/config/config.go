@@ -88,6 +88,8 @@ type Config struct {
 	HostServiceName string
 	// LogPatterns pattern to be used by the logger for trace level
 	LogPatterns []string
+	// LogTags tags to be used by the logger for trace level
+	LogTags []string
 	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
 	SelfTestEnabled bool
 	// EnableRemoteConfig defines if the agent configuration should be fetched from the backend
@@ -130,6 +132,8 @@ type Config struct {
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
+	// EventMonitoring enabled event monitoring
+	EventMonitoring bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -154,6 +158,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
+		EventMonitoring:                    aconfig.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
@@ -179,6 +184,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		DentryCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.dentry_cache_size"),
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
+		LogTags:                            aconfig.Datadog.GetStringSlice("runtime_security_config.log_tags"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
 		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
 		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),

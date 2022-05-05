@@ -227,6 +227,13 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 	}
 
 	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts)
+	addRuleExpr(t, rs, `unlink.file.path =~ "/tmp/test"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/var/lib", 2); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts)
 	addRuleExpr(t, rs, `unlink.file.path == "/var/run/datadog/system-probe.pid"`)
 
 	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/var/run/pids/system-probe.pid", 2); is {

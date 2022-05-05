@@ -139,4 +139,11 @@ if node['platform_family'] != 'windows'
       action :permissive
     end
   end
+
+  if File.exists?('/sys/kernel/security/lockdown')
+    file '/sys/kernel/security/lockdown' do
+      action :create_if_missing
+      content "integrity"
+    end
+  end
 end

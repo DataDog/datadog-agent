@@ -103,10 +103,10 @@ type testMkdir struct {
 }
 
 type testNetwork struct {
-	ip    net.IP
-	ips   []net.IP
-	cidr  *net.IPNet
-	cidrs []*net.IPNet
+	ip    net.IPNet
+	ips   []net.IPNet
+	cidr  net.IPNet
+	cidrs []net.IPNet
 }
 
 type testEvent struct {
@@ -178,8 +178,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "network.ip":
 
 		return &CIDREvaluator{
-			EvalFnc: func(ctx *Context) *FieldValue {
-				return NewIPFieldValue((*testEvent)(ctx.Object).network.ip, nil)
+			EvalFnc: func(ctx *Context) net.IPNet {
+				return (*testEvent)(ctx.Object).network.ip
 			},
 			Field: field,
 		}, nil
@@ -187,26 +187,29 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "network.cidr":
 
 		return &CIDREvaluator{
-			EvalFnc: func(ctx *Context) *FieldValue {
-				return NewIPFieldValue(nil, (*testEvent)(ctx.Object).network.cidr)
+			EvalFnc: func(ctx *Context) net.IPNet {
+				return (*testEvent)(ctx.Object).network.cidr
 			},
 			Field: field,
 		}, nil
 
 	case "network.ips":
 
-		return &CIDRValuesEvaluator{
-			EvalFnc: func(ctx *Context) *CIDRValues {
-				return NewCIDRValues((*testEvent)(ctx.Object).network.ips, nil)
+		return &CIDRArrayEvaluator{
+			EvalFnc: func(ctx *Context) []net.IPNet {
+				var ipnets []net.IPNet
+				for _, ip := range (*testEvent)(ctx.Object).network.ips {
+					ipnets = append(ipnets, ip)
+				}
+				return ipnets
 			},
-			Field: field,
 		}, nil
 
 	case "network.cidrs":
 
-		return &CIDRValuesEvaluator{
-			EvalFnc: func(ctx *Context) *CIDRValues {
-				return NewCIDRValues(nil, (*testEvent)(ctx.Object).network.cidrs)
+		return &CIDRArrayEvaluator{
+			EvalFnc: func(ctx *Context) []net.IPNet {
+				return (*testEvent)(ctx.Object).network.cidrs
 			},
 			Field: field,
 		}, nil
@@ -669,21 +672,21 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 
 	case "network.ip":
 
-		e.network.ip = value.(net.IP)
+		e.network.ip = value.(net.IPNet)
 		return nil
 
 	case "network.ips":
 
-		e.network.ips = value.([]net.IP)
+		e.network.ips = value.([]net.IPNet)
 
 	case "network.cidr":
 
-		e.network.cidr = value.(*net.IPNet)
+		e.network.cidr = value.(net.IPNet)
 		return nil
 
 	case "network.cidrs":
 
-		e.network.cidrs = value.([]*net.IPNet)
+		e.network.cidrs = value.([]net.IPNet)
 		return nil
 
 	case "process.name":

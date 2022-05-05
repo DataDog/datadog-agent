@@ -197,7 +197,7 @@ def load_user_env(_, provider, varsfile):
     env = {}
     commentpattern = re.compile("^comment")
     if os.path.exists(varsfile):
-        with open("uservars.json", "r") as f:
+        with open(varsfile, "r") as f:
             vars = json.load(f)
             for key, val in vars['global'].items():
                 if commentpattern.match(key):

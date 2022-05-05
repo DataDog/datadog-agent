@@ -1,0 +1,18 @@
+{
+  "version": "0",
+  "id": "fd03f394-e769-eff5-08a8-53c228933591",
+  "detail-type": "testdetail",
+  "source": "eventbridge.custom.event.sender",
+  "account": "601427279990",
+  "time": "2021-11-04T01:37:45Z",
+  "region": "sa-east-1",
+  "resources": [],
+  "detail": {
+    "foo": "bar",
+    "_datadog": {
+      "x-datadog-trace-id": "12345",
+      "x-datadog-parent-id": "67890",
+      "x-datadog-sampling-priority": "2"
+    }
+  }
+}

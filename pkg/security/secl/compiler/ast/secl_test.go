@@ -268,7 +268,7 @@ func TestIPv6Short(t *testing.T) {
 	print(t, rule)
 }
 
-func TestIPList(t *testing.T) {
+func TestIPArray(t *testing.T) {
 	rule, err := ParseRule(`network.source.ip in [ ::1, 2001:0:0eab:dead::a0:abcd:4e, 127.0.0.1 ]`)
 	if err != nil {
 		t.Error(err)
@@ -295,7 +295,7 @@ func TestIPv6CIDR(t *testing.T) {
 	print(t, rule)
 }
 
-func TestCIDRList(t *testing.T) {
+func TestCIDRArray(t *testing.T) {
 	rule, err := ParseRule(`network.source.ip in [ ::1/128, 2001:0:0eab:dead::a0:abcd:4e/24, 127.0.0.1/32 ]`)
 	if err != nil {
 		t.Error(err)
@@ -304,7 +304,7 @@ func TestCIDRList(t *testing.T) {
 	print(t, rule)
 }
 
-func TestIPAndCIDRList(t *testing.T) {
+func TestIPAndCIDRArray(t *testing.T) {
 	rule, err := ParseRule(`network.source.ip in [ ::1, 2001:0:0eab:dead::a0:abcd:4e, 127.0.0.1, ::1/128, 2001:0:0eab:dead::a0:abcd:4e/24, 127.0.0.1/32 ]`)
 	if err != nil {
 		t.Error(err)
@@ -314,7 +314,7 @@ func TestIPAndCIDRList(t *testing.T) {
 }
 
 func TestCIDRMatches(t *testing.T) {
-	rule, err := ParseRule(`network.source.cidr intersects 192.168.0.0/24`)
+	rule, err := ParseRule(`network.source.cidr allin 192.168.0.0/24`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -322,8 +322,8 @@ func TestCIDRMatches(t *testing.T) {
 	print(t, rule)
 }
 
-func TestCIDRListMatches(t *testing.T) {
-	rule, err := ParseRule(`network.source.cidr intersects [ 192.168.0.0/24, ::1/128 ]`)
+func TestCIDRArrayMatches(t *testing.T) {
+	rule, err := ParseRule(`network.source.cidr allin [ 192.168.0.0/24, ::1/128 ]`)
 	if err != nil {
 		t.Error(err)
 	}

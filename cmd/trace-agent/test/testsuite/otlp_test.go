@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/model/otlpgrpc"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"google.golang.org/grpc"
 )
@@ -66,7 +66,7 @@ apm_config:
 				Spans: []*testutil.OTLPSpan{
 					{
 						Name:       "/path",
-						Kind:       pdata.SpanKindServer,
+						Kind:       ptrace.SpanKindServer,
 						Start:      now,
 						End:        now + 200000000,
 						Attributes: map[string]interface{}{"name": "john"},
@@ -122,7 +122,7 @@ apm_config:
 						TraceID: testutil.OTLPFixedTraceID.Bytes(),
 						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
 						Name:    "/path",
-						Kind:    pdata.SpanKindServer,
+						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},
@@ -130,7 +130,7 @@ apm_config:
 						TraceID: testutil.OTLPFixedTraceID.Bytes(),
 						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
 						Name:    "/path",
-						Kind:    pdata.SpanKindServer,
+						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},
