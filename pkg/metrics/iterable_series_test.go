@@ -54,7 +54,7 @@ func TestIterableSeriesReceiverStopped(t *testing.T) {
 	iterableSeries.Append(&Serie{Name: "serie1"})
 
 	// Next call to Append must not block
-	go iterableSeries.IterationStopped()
+	go iterableSeries.iterationStopped()
 	iterableSeries.Append(&Serie{Name: "serie2"})
 	iterableSeries.Append(&Serie{Name: "serie3"})
 }
@@ -62,20 +62,17 @@ func TestIterableSeriesReceiverStopped(t *testing.T) {
 func BenchmarkIterableSeries(b *testing.B) {
 	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
 		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
-			iterableSeries := NewIterableSeries(func(*Serie) {}, 100, bufferSize)
-			done := make(chan struct{})
-			go func() {
-				defer iterableSeries.IterationStopped()
-				for iterableSeries.MoveNext() {
-				}
-				close(done)
-			}()
-
-			for i := 0; i < b.N; i++ {
-				iterableSeries.Append(&Serie{Name: "name"})
-			}
-			iterableSeries.SenderStopped()
-			<-done
+			StartIteration(
+				NewIterableSeries(func(*Serie) {}, 100, bufferSize),
+				func(seriesSink SerieSink) {
+					for i := 0; i < b.N; i++ {
+						seriesSink.Append(&Serie{Name: "name"})
+					}
+				},
+				func(seriesSource SerieSource) {
+					for seriesSource.MoveNext() {
+					}
+				})
 		})
 	}
 }

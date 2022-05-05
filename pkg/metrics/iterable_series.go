@@ -15,11 +15,12 @@ import (
 
 // IterableSeries represents an iterable collection of Serie.  Serie can be
 // appended to IterableSeries while IterableSeries is serialized.
+// IterableSeries is designed be used with StartIteration.
 //
 // An IterableSeries interfaces two goroutines, referred to below as "sender"
 // and "receiver".  The sender calls Append any number of times followed by
-// SenderStopped.  The receiver calls MoveNext and Current to iterate through
-// the items, and IterationStopped when it is finished.
+// senderStopped.  The receiver calls MoveNext and Current to iterate through
+// the items, and iterationStopped when it is finished.
 type IterableSeries struct {
 	count              *atomic.Uint64
 	ch                 *util.BufferedChan
@@ -62,20 +63,22 @@ func (series *IterableSeries) SeriesCount() uint64 {
 	return series.count.Load()
 }
 
-// SenderStopped must be called when sender stop calling Append.
+// senderStopped must be called when sender stop calling Append.
 //
 // This method must only be called by the sender.
-func (series *IterableSeries) SenderStopped() {
+// It is automatically called by StartIteration.
+func (series *IterableSeries) senderStopped() {
 	series.ch.Close()
 }
 
-// IterationStopped must be called when the receiver stops calling `MoveNext`.
+// iterationStopped must be called when the receiver stops calling `MoveNext`.
 // This function prevents the case when the receiver stops iterating before the
 // end of the iteration because of an error and so blocks the sender forever
 // as no goroutine read the channel.
 //
 // This method must only be called by the receiver.
-func (series *IterableSeries) IterationStopped() {
+// It is automatically called by StartIteration.
+func (series *IterableSeries) iterationStopped() {
 	series.cancel()
 }
 
@@ -115,10 +118,10 @@ func StartIteration(iterableSeries *IterableSeries, sink func(SerieSink), source
 	done := make(chan struct{})
 	go func() {
 		source(iterableSeries)
-		iterableSeries.IterationStopped()
+		iterableSeries.iterationStopped()
 		close(done)
 	}()
 	sink(iterableSeries)
-	iterableSeries.SenderStopped()
+	iterableSeries.senderStopped()
 	<-done
 }

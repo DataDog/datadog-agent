@@ -46,7 +46,6 @@ type StreamJSONMarshaler interface {
 // serialize themselves in a stream.
 // Expected usage:
 //
-//  defer m.IterationStopped()
 //	m.WriteHeader(stream)
 //	for m.MoveNext() {
 //		m.WriteCurrentItem(stream)
