@@ -29,6 +29,8 @@ import (
 
 	types "github.com/docker/docker/api/types"
 
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+
 	volume "github.com/docker/docker/api/types/volume"
 )
 
@@ -232,20 +234,20 @@ func (_m *DockerClient) ContainerCommit(ctx context.Context, _a1 string, options
 	return r0, r1
 }
 
-// ContainerCreate provides a mock function with given fields: ctx, config, hostConfig, networkingConfig, containerName
-func (_m *DockerClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, containerName string) (container.ContainerCreateCreatedBody, error) {
-	ret := _m.Called(ctx, config, hostConfig, networkingConfig, containerName)
+// ContainerCreate provides a mock function with given fields: ctx, config, hostConfig, networkingConfig, platform, containerName
+func (_m *DockerClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.ContainerCreateCreatedBody, error) {
+	ret := _m.Called(ctx, config, hostConfig, networkingConfig, platform, containerName)
 
 	var r0 container.ContainerCreateCreatedBody
-	if rf, ok := ret.Get(0).(func(context.Context, *container.Config, *container.HostConfig, *network.NetworkingConfig, string) container.ContainerCreateCreatedBody); ok {
-		r0 = rf(ctx, config, hostConfig, networkingConfig, containerName)
+	if rf, ok := ret.Get(0).(func(context.Context, *container.Config, *container.HostConfig, *network.NetworkingConfig, *v1.Platform, string) container.ContainerCreateCreatedBody); ok {
+		r0 = rf(ctx, config, hostConfig, networkingConfig, platform, containerName)
 	} else {
 		r0 = ret.Get(0).(container.ContainerCreateCreatedBody)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *container.Config, *container.HostConfig, *network.NetworkingConfig, string) error); ok {
-		r1 = rf(ctx, config, hostConfig, networkingConfig, containerName)
+	if rf, ok := ret.Get(1).(func(context.Context, *container.Config, *container.HostConfig, *network.NetworkingConfig, *v1.Platform, string) error); ok {
+		r1 = rf(ctx, config, hostConfig, networkingConfig, platform, containerName)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -620,6 +622,27 @@ func (_m *DockerClient) ContainerStats(ctx context.Context, _a1 string, stream b
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, string, bool) error); ok {
 		r1 = rf(ctx, _a1, stream)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ContainerStatsOneShot provides a mock function with given fields: ctx, _a1
+func (_m *DockerClient) ContainerStatsOneShot(ctx context.Context, _a1 string) (types.ContainerStats, error) {
+	ret := _m.Called(ctx, _a1)
+
+	var r0 types.ContainerStats
+	if rf, ok := ret.Get(0).(func(context.Context, string) types.ContainerStats); ok {
+		r0 = rf(ctx, _a1)
+	} else {
+		r0 = ret.Get(0).(types.ContainerStats)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, _a1)
 	} else {
 		r1 = ret.Error(1)
 	}
