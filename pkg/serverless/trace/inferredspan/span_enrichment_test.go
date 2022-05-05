@@ -197,6 +197,32 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 	assert.Equal(t, span.Meta[Stage], "dev")
 }
 
+func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
+	var eventKeys EventKeys
+	_ = json.Unmarshal(getEventFromFile("sns.json"), &eventKeys)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.IsAsync = isAsyncEvent(eventKeys)
+	inferredSpan.EnrichInferredSpanWithSNSEvent(eventKeys)
+
+	span := inferredSpan.Span
+
+	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
+	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
+	assert.Equal(t, span.Start, formatISOStartTime("2022-01-31T14:13:41.637Z"))
+	assert.Equal(t, span.Service, "sns")
+	assert.Equal(t, span.Name, "aws.sns")
+	assert.Equal(t, span.Resource, "serverlessTracingTopicPy")
+	assert.Equal(t, span.Type, "web")
+	assert.Equal(t, span.Meta[MessageID], "87056a47-f506-5d77-908b-303605d3b197")
+	assert.Equal(t, span.Meta[OperationName], "aws.sns")
+	assert.Equal(t, span.Meta[ResourceNames], "serverlessTracingTopicPy")
+	assert.Equal(t, span.Meta[Subject], "Hello")
+	assert.Equal(t, span.Meta[TopicARN], "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy")
+	assert.Equal(t, span.Meta[TopicName], "serverlessTracingTopicPy")
+	assert.Equal(t, span.Meta[Type], "Notification")
+	assert.True(t, inferredSpan.IsAsync)
+}
+
 func TestFormatISOStartTime(t *testing.T) {
 	isotime := "2022-01-31T14:13:41.637Z"
 	startTime := formatISOStartTime(isotime)
