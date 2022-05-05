@@ -65,7 +65,6 @@ func TestTrapsShouldReceiveMessages(t *testing.T) {
 	formattedPacket := format(t, p)
 	assert.Equal(t, message.StatusInfo, msg.GetStatus())
 	assert.Equal(t, formattedPacket, msg.Content)
-	sort.Strings(msg.Origin.Tags())
 	expectedTags := []string{
 		"device_namespace:default",
 		"snmp_device:127.0.0.1",
