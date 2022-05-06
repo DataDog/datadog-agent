@@ -696,6 +696,10 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 			return nil
 		}
 
+		if utils.IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+			return nil
+		}
+
 		entry, inserted = p.syncCache(proc, filledProc)
 		ppid = uint32(filledProc.Ppid)
 	} else {
