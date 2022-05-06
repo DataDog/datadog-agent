@@ -6,12 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
-  - |
-    ``diagnose`` command has now subcommands. The original ``diagnose``
-    behavior was transfered to ``diagnose metadata-availability`` subcommand.
 features:
   - |
-    The new ``diagnose datadog-connectivity`` subcommand allows you to
+    The ``diagnose datadog-connectivity`` subcommand allows you to
     get information about the state of the connectivity between the Agent
     and Datadog endpoints.
