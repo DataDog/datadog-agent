@@ -923,14 +923,6 @@ func TestExperimentalOTLP(t *testing.T) {
 		assert.NoError(t, err)
 		checkConf(t, conf)
 	})
-
-	t.Run("experimental", func(t *testing.T) {
-		conf := setupConf()
-		conf.SetConfigFile("./tests/otlp_experimental.yaml")
-		_, err := load(conf, "otlp_experimental.yaml", true)
-		assert.NoError(t, err)
-		checkConf(t, conf)
-	})
 }
 
 func TestNumWorkers(t *testing.T) {

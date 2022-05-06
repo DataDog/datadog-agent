@@ -82,19 +82,6 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		path string
 		err  string
 	}{
-		{path: "experimental/port/nobindhost.yaml"},
-		{path: "experimental/port/nonlocal.yaml"},
-		{
-			path: "experimental/receiver/noprotocols.yaml",
-			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
-		},
-		{path: "experimental/receiver/simple.yaml"},
-		{path: "experimental/receiver/advanced.yaml"},
-		{
-			path: "experimental/receiver/typo.yaml",
-			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
-		},
-
 		{
 			path: "stable/receiver/noprotocols.yaml",
 			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
