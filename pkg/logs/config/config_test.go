@@ -225,7 +225,8 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
-		IsReliable:       boolPtr(true)}
+		IsReliable:       boolPtr(true),
+	}
 	expectedAdditionalEndpoint := Endpoint{
 		APIKey:           "456",
 		Host:             "additional.endpoint",
@@ -233,7 +234,9 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		UseSSL:           true,
 		UseCompression:   false,
 		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128"}
+		ProxyAddress:     "proxy.test:3128",
+		IsReliable:       boolPtr(true),
+	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
 	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
@@ -293,6 +296,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion1,
+		IsReliable:       boolPtr(true),
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		APIKey:           "789",
@@ -306,6 +310,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion1,
+		IsReliable:       boolPtr(true),
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
@@ -370,6 +375,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:          EPIntakeVersion1,
+		IsReliable:       boolPtr(true),
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		APIKey:           "789",
@@ -386,6 +392,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		TrackType:        "test-track",
 		Protocol:         "test-proto",
 		Origin:           "test-source",
+		IsReliable:       boolPtr(true),
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
@@ -428,7 +435,9 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		UseSSL:           true,
 		UseCompression:   false,
 		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128"}
+		ProxyAddress:     "proxy.test:3128",
+		IsReliable:       boolPtr(true),
+	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
 	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
