@@ -36,14 +36,14 @@ func TestFormatHTTPStats(t *testing.T) {
 	)
 	var httpStats1 http.RequestStats
 	for i := 100; i <= 500; i += 100 {
-		httpStats1.AddRequest(i, 10, 1<<i)
+		httpStats1.AddRequest(i, 10, 1<<(i/100-1))
 	}
 
 	httpKey2 := httpKey1
 	httpKey2.Path = "/testpath-2"
 	var httpStats2 http.RequestStats
 	for i := 100; i <= 500; i += 100 {
-		httpStats2.AddRequest(i, 20, 1<<i)
+		httpStats2.AddRequest(i, 20, 1<<(i/100-1))
 	}
 
 	in := &network.Connections{

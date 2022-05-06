@@ -85,7 +85,7 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			StatsByResponseStatus: e.getDataSlice(),
 		}
 
-		tags := e.tags[key]
+		tags := e.tags[key.KeyTuple]
 		for i, data := range ms.StatsByResponseStatus {
 			class := (i + 1) * 100
 			if !stats.HasStats(class) {
@@ -101,10 +101,10 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 				data.FirstLatencySample = s.FirstLatencySample
 			}
 
-			tags |= stats[i].Tags
+			tags |= s.Tags
 		}
 
-		e.tags[key] = tags
+		e.tags[key.KeyTuple] = tags
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}
